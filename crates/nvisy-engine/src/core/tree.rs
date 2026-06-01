@@ -18,10 +18,14 @@
 //!
 //! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 
+use std::pin::Pin;
+
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::modality::{Audio, EmbeddedDocument, Image, Tabular, Text, TextBlock};
+use nvisy_ontology::provenance::AnyAudit;
+use uuid::Uuid;
 
 use super::SharedHandle;
 
@@ -45,6 +49,10 @@ pub struct DocumentTree {
     /// detection forwards it to recognizers that need source
     /// context.
     pub metadata: ContentMetadata,
+
+    /// IDs of reference-data `Context`s loaded by `LoadContext`
+    /// nodes. Each UUID resolves through the engine's context cache.
+    pub contexts: Vec<Uuid>,
 }
 
 /// Modality-erased root document for a [`DocumentTree`].
@@ -106,12 +114,26 @@ impl AnyDocument {
 }
 
 impl DocumentTree {
-    /// Construct a new tree from its parts.
+    /// Construct a new tree from its parts. `contexts` starts empty;
+    /// the importer / context loader populates it before phases run.
     pub fn new(root: AnyDocument, handle: SharedHandle, metadata: ContentMetadata) -> Self {
         Self {
             root,
             handle,
             metadata,
+            contexts: Vec::new(),
+        }
+    }
+
+    /// Clone the root document's audit as a modality-erased
+    /// [`AnyAudit`]. Used by the run summary collector so it doesn't
+    /// have to match on every variant.
+    pub fn audit_cloned(&self) -> AnyAudit {
+        match &self.root {
+            AnyDocument::Text(doc) => doc.audit.clone().into(),
+            AnyDocument::Tabular(doc) => doc.audit.clone().into(),
+            AnyDocument::Image(doc) => doc.audit.clone().into(),
+            AnyDocument::Audio(doc) => doc.audit.clone().into(),
         }
     }
 
@@ -125,10 +147,16 @@ impl DocumentTree {
     /// their nested doc.
     ///
     /// Closure may `.await`. Errors short-circuit the walk.
-    pub async fn walk_mut<F, Fut>(&mut self, mut visit: F) -> Result<()>
+    ///
+    /// Takes a boxed-future-returning `FnMut` so the closure can
+    /// borrow from its environment — phases bring stack-borrowed
+    /// config (`&plan`, `&cfg`, `&handle`) into the per-node
+    /// dispatch. The HRTB `for<'a>` lets each per-node call lend
+    /// a freshly-borrowed [`NodeMut`] without unifying its
+    /// lifetime with the closure's captures.
+    pub async fn walk_mut<F>(&mut self, mut visit: F) -> Result<()>
     where
-        F: FnMut(NodeMut<'_>) -> Fut,
-        Fut: Future<Output = Result<()>>,
+        F: for<'a> FnMut(NodeMut<'a>) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
     {
         match &mut self.root {
             AnyDocument::Text(doc) => {

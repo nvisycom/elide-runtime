@@ -1,10 +1,10 @@
 //! [`DetectionEngine`]: composite per-run recognizer registry.
 //!
 //! Holds two parallel lists of recognizers — one per modality — and
-//! dispatches the matching list against a per-modality context via
-//! the [`DetectDispatch`] impls below. Construction is one-shot via
-//! [`DetectionEngineBuilder`]; the engine is then shared (`Arc`) by
-//! [`DetectionPhase`] across the per-run pipeline.
+//! exposes per-modality detection bodies the [`DetectionPhase`]
+//! dispatches into from its `apply` walk. Construction is one-shot
+//! via [`DetectionEngineBuilder`]; the engine is then shared (`Arc`)
+//! by [`DetectionPhase`] across the per-run pipeline.
 //!
 //! Private helpers ([`detect_text_blocks`], [`collect_hints_for_block`],
 //! [`collect_join_set`]) live here too — they're implementation
@@ -19,17 +19,15 @@ use derive_builder::Builder;
 use nvisy_agent::agent::NerHint;
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Annotation, AnnotationKind, AnnotationStrength, Entity};
-use nvisy_ontology::modality::{Audio, Image, Modality, ModalityBlock, Overlap, Tabular, Text};
+use nvisy_ontology::modality::{Image, Modality, ModalityBlock, Overlap, Text};
 use tokio::task::JoinSet;
 use tracing::Instrument;
 
 use super::Detection;
 use super::context::{DetectionContext, VlmDetectionContext};
-use super::dispatch::DetectDispatch;
 use super::dyn_recognizer::{DynImageRecognizer, DynTextRecognizer};
 use super::lift::{LiftFromBlock, ProjectIntoBlock};
 use super::recognizer::Recognizer;
-use crate::pipeline::PhaseTarget;
 
 pub(super) const TARGET: &str = "nvisy_engine::detection";
 
@@ -326,51 +324,6 @@ where
     );
     doc.add_entities(lifted);
     Ok(())
-}
-
-#[async_trait::async_trait]
-impl DetectDispatch<Text> for DetectionEngine {
-    async fn detect(&self, target: &mut PhaseTarget<'_, Text>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(target.doc, cfg, target.run_id).await
-    }
-}
-
-#[async_trait::async_trait]
-impl DetectDispatch<Tabular> for DetectionEngine {
-    async fn detect(&self, target: &mut PhaseTarget<'_, Tabular>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(target.doc, cfg, target.run_id).await
-    }
-}
-
-#[async_trait::async_trait]
-impl DetectDispatch<Audio> for DetectionEngine {
-    async fn detect(&self, target: &mut PhaseTarget<'_, Audio>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(target.doc, cfg, target.run_id).await
-    }
-}
-
-#[cfg(feature = "image")]
-#[async_trait::async_trait]
-impl DetectDispatch<Image> for DetectionEngine {
-    async fn detect(&self, target: &mut PhaseTarget<'_, Image>, cfg: &Detection) -> Result<()> {
-        // Text recognizers run on every OCR'd block ("runs alongside"
-        // image-side recognizers), then image recognizers run once per
-        // image location with raw bytes — they emit absolute
-        // image-coord Entity<Image> directly, no per-block lifting.
-        detect_text_blocks(self, target.doc, cfg, target.run_id).await?;
-        self.detect_image_locations(target.doc, target.handle, cfg, target.run_id)
-            .await?;
-        self.reset().await;
-        Ok(())
-    }
-}
-
-#[cfg(not(feature = "image"))]
-#[async_trait::async_trait]
-impl DetectDispatch<Image> for DetectionEngine {
-    async fn detect(&self, target: &mut PhaseTarget<'_, Image>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(target.doc, cfg, target.run_id).await
-    }
 }
 
 impl DetectionEngine {

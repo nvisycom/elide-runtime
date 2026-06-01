@@ -2,45 +2,13 @@
 //!
 //! Today's only image extraction technique is OCR ([`ocr`]). Future
 //! techniques (e.g. layout segmentation, scene-text detection) would
-//! live as sibling sub-modules and stack inside this `ExtractDispatch<Image>`
-//! impl.
+//! live as sibling sub-modules and stack inside the image arm of
+//! [`ExtractionPhase::apply`].
+//!
+//! [`ExtractionPhase::apply`]: super::ExtractionPhase::apply
 
 #[cfg(feature = "image")]
 pub mod ocr;
 
-use nvisy_core::Result;
-use nvisy_ontology::modality::Image;
-
 #[cfg(feature = "image")]
 pub use self::ocr::{OcrExtractor, OcrExtractorConfig};
-use super::{ExtractDispatch, Extraction, ExtractionEngine, ImagePlan, PlanSlice};
-use crate::pipeline::PhaseTarget;
-
-#[cfg(feature = "image")]
-#[async_trait::async_trait]
-impl ExtractDispatch<Image> for ExtractionEngine {
-    type Plan = ImagePlan;
-
-    async fn extract(&self, target: &mut PhaseTarget<'_, Image>, _plan: &ImagePlan) -> Result<()> {
-        if let Some(ref ocr) = self.ocr {
-            ocr.run_on_doc(target.doc, target.handle).await?;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(not(feature = "image"))]
-#[async_trait::async_trait]
-impl ExtractDispatch<Image> for ExtractionEngine {
-    type Plan = ImagePlan;
-
-    async fn extract(&self, _target: &mut PhaseTarget<'_, Image>, _plan: &ImagePlan) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl PlanSlice<Image> for Extraction {
-    fn slice(&self) -> &ImagePlan {
-        &self.image
-    }
-}

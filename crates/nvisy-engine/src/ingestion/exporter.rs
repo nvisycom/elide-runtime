@@ -6,15 +6,16 @@
 //! 1. **Encryption** — encrypt content (if config specified)
 //! 2. **Compression** — compress for storage or transfer (if format specified)
 
+use std::sync::Arc;
+
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
-use nvisy_ontology::modality::Modality;
 use uuid::Uuid;
 
+use crate::core::{DocumentTree, SharedData};
 use crate::ingestion::compression::CompressionService;
 use crate::ingestion::encryption::CryptoService;
 use crate::ingestion::{CompressionAlgorithm, EncryptionConfig};
-use crate::pipeline::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 
@@ -47,15 +48,17 @@ impl Exporter {
         self
     }
 
-    pub(crate) async fn export<M: Modality>(&self, envelope: &DocumentEnvelope<M>) -> Result<()> {
-        let shared = &envelope.shared;
-        let content_data = envelope.encode().await?;
+    /// Encode the tree's codec handle back to bytes, optionally
+    /// encrypt + compress, and write to the registry under every
+    /// configured content id.
+    pub(crate) async fn export(&self, tree: &DocumentTree, shared: &Arc<SharedData>) -> Result<()> {
+        let content_data = tree.handle.lock().await.encode()?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());
 
         if let Some(ref enc_cfg) = self.encryption {
             tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "encrypting export content");
             let crypto = CryptoService::new(&enc_cfg.key_id, shared.key_provider.clone());
-            let encrypted = crypto.encrypt(envelope).await?;
+            let encrypted = crypto.encrypt(&tree.handle).await?;
             tracing::debug!(
                 target: TARGET,
                 ciphertext_len = encrypted.ciphertext.len(),

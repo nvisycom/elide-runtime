@@ -14,13 +14,10 @@
 use std::collections::BTreeMap;
 
 use futures::StreamExt;
-use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Document, Span};
 use nvisy_ontology::modality::{Tabular, TabularBlock};
 
-use super::{ExtractDispatch, Extraction, ExtractionEngine, PlanSlice, TabularPlan};
 use crate::core::SharedHandle;
-use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::extraction::tabular";
 
@@ -87,24 +84,4 @@ pub(crate) async fn populate_document(doc: &mut Document<Tabular>, handle: &Shar
     );
 
     doc.blocks.extend(blocks);
-}
-
-#[async_trait::async_trait]
-impl ExtractDispatch<Tabular> for ExtractionEngine {
-    type Plan = TabularPlan;
-
-    async fn extract(
-        &self,
-        target: &mut PhaseTarget<'_, Tabular>,
-        _plan: &TabularPlan,
-    ) -> Result<()> {
-        populate_document(target.doc, target.handle).await;
-        Ok(())
-    }
-}
-
-impl PlanSlice<Tabular> for Extraction {
-    fn slice(&self) -> &TabularPlan {
-        &self.tabular
-    }
 }

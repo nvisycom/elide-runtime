@@ -13,16 +13,14 @@
 mod check;
 mod plan;
 
-use std::marker::PhantomData;
-
 use nvisy_core::{Error, Result};
-use nvisy_ontology::modality::Modality;
+use tracing::Instrument;
 use uuid::Uuid;
 
 pub use self::check::CheckLeaks;
 pub use self::plan::{OnLeak, Validation};
-use crate::core::ValueAt;
-use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
+use crate::core::{DocumentTree, NodeMut, RunContext, SharedHandle};
+use crate::pipeline::EngineInput;
 
 const TARGET: &str = "nvisy_engine::validation";
 
@@ -33,7 +31,7 @@ pub struct LeakedValue {
     pub entity_id: Uuid,
 }
 
-/// Result of validation for one envelope.
+/// Result of validation for one node.
 ///
 /// `skipped` is `true` when the modality has no leak-detection
 /// implementation (Image, Audio). In that case `passed` and
@@ -57,89 +55,108 @@ impl ValidationResult {
     }
 }
 
-/// Validation phase: re-scans the redacted envelope for leaked
-/// values via per-modality [`CheckLeaks`] dispatch. Read-only against
-/// the codec handle; surfaces failures via the `Result` when
-/// `on_leak = OnLeak::Fail` is set in the plan config.
-///
-/// Stateless beyond the modality marker; per-call config comes from
-/// `ctx.plan.validation` each call.
-pub struct ValidationPhase<M: Modality> {
-    _marker: PhantomData<fn() -> M>,
-}
+/// Validation phase: re-scans the redacted document for leaked
+/// values via per-modality [`CheckLeaks`] dispatch. Read-only
+/// against the codec handle; surfaces failures via the `Result`
+/// when `on_leak = OnLeak::Fail` is set in the plan config.
+pub struct ValidationPhase;
 
-impl<M: Modality> ValidationPhase<M> {
-    /// Build the phase. Stateless beyond the modality marker.
+impl ValidationPhase {
+    /// Build the phase. Stateless.
     pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
+        Self
+    }
+
+    /// Walk the tree and run leak detection per node.
+    pub(crate) async fn apply(
+        &self,
+        _ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree,
+    ) -> Result<()> {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "validation");
+        let on_leak = input.plan.validation.on_leak;
+        let handle = tree.handle.clone();
+        async move {
+            tree.walk_mut(move |node| {
+                let handle = handle.clone();
+                Box::pin(async move { dispatch(node, &handle, on_leak).await })
+            })
+            .await
         }
+        .instrument(span)
+        .await
     }
 }
 
-impl<M: Modality> Default for ValidationPhase<M> {
+impl Default for ValidationPhase {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[async_trait::async_trait]
-impl<M> Phase<M> for ValidationPhase<M>
-where
-    M: Modality + CheckLeaks,
-    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
-{
-    fn inspect(&self) -> PhaseInfo {
-        PhaseInfo {
-            name: "validation",
-            modality: ModalityKind::of::<M>(),
-            mutating: false,
-        }
-    }
+async fn dispatch(node: NodeMut<'_>, handle: &SharedHandle, on_leak: OnLeak) -> Result<()> {
+    let (result, modality) = match node {
+        NodeMut::Text(doc) => (
+            <nvisy_ontology::modality::Text as CheckLeaks>::check_leaks(doc, handle).await,
+            "text",
+        ),
+        NodeMut::Tabular(doc) => (
+            <nvisy_ontology::modality::Tabular as CheckLeaks>::check_leaks(doc, handle).await,
+            "tabular",
+        ),
+        NodeMut::Image(doc) => (
+            <nvisy_ontology::modality::Image as CheckLeaks>::check_leaks(doc, handle).await,
+            "image",
+        ),
+        NodeMut::Audio(doc) => (
+            <nvisy_ontology::modality::Audio as CheckLeaks>::check_leaks(doc, handle).await,
+            "audio",
+        ),
+    };
 
-    async fn run(&self, ctx: &PhaseContext<'_, M>, target: &mut PhaseTarget<'_, M>) -> Result<()> {
-        let on_leak = ctx.plan.validation.on_leak;
-
-        tracing::debug!(target: TARGET, "running post-redaction validation");
-
-        let result = M::check_leaks(target.doc, target.handle).await;
-
-        if result.skipped {
-            tracing::debug!(
-                target: TARGET,
-                "validation skipped: no leak-detection implementation for this modality",
-            );
-            return Ok(());
-        }
-
-        if result.leaked.is_empty() {
-            tracing::debug!(target: TARGET, passed = result.passed, "validation passed");
-            return Ok(());
-        }
-
-        tracing::warn!(
+    if result.skipped {
+        tracing::debug!(
             target: TARGET,
-            leaked = result.leaked.len(),
-            passed = result.passed,
-            "validation found leaked values",
+            modality,
+            "validation skipped: no leak-detection implementation for this modality",
         );
-
-        if matches!(on_leak, OnLeak::Fail) {
-            let details: Vec<String> = result
-                .leaked
-                .iter()
-                .map(|l| format!("{}({})", l.value, l.entity_id))
-                .collect();
-            return Err(Error::validation(
-                format!(
-                    "{} redacted value(s) leaked in output: {}",
-                    result.leaked.len(),
-                    details.join(", "),
-                ),
-                "validation",
-            ));
-        }
-
-        Ok(())
+        return Ok(());
     }
+
+    if result.leaked.is_empty() {
+        tracing::debug!(
+            target: TARGET,
+            modality,
+            passed = result.passed,
+            "validation passed",
+        );
+        return Ok(());
+    }
+
+    tracing::warn!(
+        target: TARGET,
+        modality,
+        leaked = result.leaked.len(),
+        passed = result.passed,
+        "validation found leaked values",
+    );
+
+    if matches!(on_leak, OnLeak::Fail) {
+        let details: Vec<String> = result
+            .leaked
+            .iter()
+            .map(|l| format!("{}({})", l.value, l.entity_id))
+            .collect();
+        return Err(Error::validation(
+            format!(
+                "{} redacted value(s) leaked in output: {}",
+                result.leaked.len(),
+                details.join(", "),
+            ),
+            "validation",
+        ));
+    }
+
+    Ok(())
 }

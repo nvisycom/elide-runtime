@@ -2,64 +2,43 @@
 //! flat fixed-order plan.
 //!
 //! The [`Orchestrator`] drives the pipeline at the top level: it
-//! imports documents, fans them out to concurrent [`DocumentPipeline`]
-//! tasks (one per document), and collects the results.
+//! imports documents into [`DocumentTree`]s, fans them out to
+//! concurrent per-document tasks, and collects the results. Each
+//! per-document task runs a single shared [`DocumentPipeline`]
+//! against the tree.
 //!
-//! [`DocumentPipeline`] processes a single document through all phases
-//! sequentially: extraction → detection → deduplication → redaction →
-//! validation.
+//! [`DocumentPipeline`] walks every tree node (root + nested
+//! embeds) and dispatches the right per-modality body for each
+//! phase.
 
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::{Modality, Overlap};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
-use tracing::Instrument;
 
+use super::document_pipeline::DocumentPipeline;
 use super::engine::EngineInput;
-use crate::core::{Phase, PhaseContext, PhaseTarget, RunContext, ValueAt};
-use crate::deduplication::{DeduplicationPhase, SpanSize};
-use crate::detection::{
-    DetectDispatch, DetectionEngine, DetectionPhase, LiftFromBlock, ProjectIntoBlock,
-};
-use crate::extraction::{
-    ExtractDispatch, Extraction, ExtractionEngine, ExtractionPhase, PlanSlice,
-};
-use crate::ingestion::{
-    ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
-};
-use crate::pipeline::{AnyEnvelope, DocumentEnvelope};
-use crate::redaction::{ApplyRedactions, ApplyRedactionsImpl, RedactionPhase};
-use crate::validation::{CheckLeaks, ValidationPhase};
+use crate::core::{DocumentTree, RunContext};
+use crate::ingestion::{Exporter, ImportFile as ImportFileConfig, Importer};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
 /// Result of processing a single document through the pipeline.
-///
-/// The envelope is modality-erased ([`AnyEnvelope`]) so a single
-/// `Vec<DocumentResult>` can carry results across every modality the
-/// run produced.
-#[derive(Debug)]
 pub(crate) struct DocumentResult {
-    /// The processed envelope, if the document completed successfully.
-    pub envelope: Option<AnyEnvelope>,
+    /// The processed tree, if the document completed successfully.
+    pub tree: Option<DocumentTree>,
     /// Error message if the document failed, `None` on success.
     pub error: Option<String>,
 }
 
 /// Aggregate outcome of executing the full pipeline.
-#[derive(Debug)]
 pub(crate) struct RunOutput {
     /// Results from all processed documents.
     pub results: Vec<DocumentResult>,
 }
 
 /// Top-level pipeline orchestrator.
-///
-/// Imports documents, fans them out to concurrent [`DocumentPipeline`]
-/// tasks, exports results, and collects outcomes.
 pub(crate) struct Orchestrator {
     ctx: Arc<RunContext>,
     semaphore: Option<Arc<Semaphore>>,
@@ -68,7 +47,7 @@ pub(crate) struct Orchestrator {
 impl Orchestrator {
     /// Create an orchestrator for the given run.
     pub fn new(ctx: RunContext) -> Self {
-        let semaphore = ctx.concurrency.map(|c| Arc::new(Semaphore::new(c.get())));
+        let semaphore = ctx.concurrency().map(|c| Arc::new(Semaphore::new(c.get())));
         Self {
             ctx: Arc::new(ctx),
             semaphore,
@@ -77,35 +56,22 @@ impl Orchestrator {
 
     /// Execute the input's plan against every imported document.
     pub async fn run(&self, input: &EngineInput) -> Result<RunOutput, Error> {
-        let envelopes = self.run_imports(&input.imports).await?;
+        let trees = self.run_imports(&input.imports).await?;
+
+        // Build the per-document pipeline once and share it across
+        // every spawned task (phases are cheap to clone — they hold
+        // `Arc`s to the long-lived engines).
+        let pipeline = Arc::new(DocumentPipeline::from_context(&self.ctx));
 
         let mut results: Vec<DocumentResult> = Vec::new();
         let mut join_set: JoinSet<DocumentResult> = JoinSet::new();
-        for envelope in envelopes {
+        let input = Arc::new(input.clone());
+        for tree in trees {
             let ctx = Arc::clone(&self.ctx);
             let sem = self.semaphore.clone();
-            let input = input.clone();
-
-            match envelope {
-                AnyEnvelope::Text(env) => {
-                    join_set.spawn(run_typed_pipeline(env, ctx, sem, input, AnyEnvelope::Text));
-                }
-                AnyEnvelope::Tabular(env) => {
-                    join_set.spawn(run_typed_pipeline(
-                        env,
-                        ctx,
-                        sem,
-                        input,
-                        AnyEnvelope::Tabular,
-                    ));
-                }
-                AnyEnvelope::Image(env) => {
-                    join_set.spawn(run_typed_pipeline(env, ctx, sem, input, AnyEnvelope::Image));
-                }
-                AnyEnvelope::Audio(env) => {
-                    join_set.spawn(run_typed_pipeline(env, ctx, sem, input, AnyEnvelope::Audio));
-                }
-            }
+            let input = Arc::clone(&input);
+            let pipeline = Arc::clone(&pipeline);
+            join_set.spawn(run_one(pipeline, tree, ctx, sem, input));
         }
 
         while let Some(result) = join_set.join_next().await {
@@ -126,7 +92,7 @@ impl Orchestrator {
                         format!("Task failed: {e}")
                     };
                     results.push(DocumentResult {
-                        envelope: None,
+                        tree: None,
                         error: Some(msg),
                     });
                 }
@@ -136,21 +102,20 @@ impl Orchestrator {
         Ok(RunOutput { results })
     }
 
-    /// Execute import steps to produce envelopes.
+    /// Execute import steps to produce trees.
     ///
-    /// Each imported content can fan out into multiple envelopes
-    /// (e.g. rich documents → one text + one image envelope sharing
-    /// a single codec handle), so the result is a flat
-    /// `Vec<AnyEnvelope>`.
-    async fn run_imports(&self, imports: &[ImportFileConfig]) -> Result<Vec<AnyEnvelope>, Error> {
-        let mut envelopes = Vec::new();
+    /// Each imported content yields exactly one [`DocumentTree`];
+    /// rich documents land as `AnyDocument::Text` with their image
+    /// content as nested embeds populated later by extraction.
+    async fn run_imports(&self, imports: &[ImportFileConfig]) -> Result<Vec<DocumentTree>, Error> {
+        let mut trees = Vec::new();
 
         for cfg in imports {
             let importer = Importer::new()
                 .with_decompression(cfg.decompression)
                 .with_decryption(cfg.decryption.clone());
 
-            let shared = &self.ctx.shared;
+            let shared = self.ctx.shared();
             for &content_id in &cfg.content_ids {
                 tracing::debug!(target: TARGET, %content_id, "importing content");
                 let handle = shared
@@ -158,197 +123,59 @@ impl Orchestrator {
                     .read_content(shared.actor_id, content_id)
                     .await?;
                 let content = handle.content().await?;
-                envelopes.extend(importer.import(content, &self.ctx.shared).await?);
+                trees.extend(importer.import(content, shared).await?);
             }
         }
 
-        tracing::info!(target: TARGET, count = envelopes.len(), "envelopes imported");
-        Ok(envelopes)
+        tracing::info!(target: TARGET, count = trees.len(), "trees imported");
+        Ok(trees)
     }
 }
 
-/// Processes a single document through all plan phases sequentially.
-///
-/// Generic over modality `M`: a single `DocumentPipeline<M>` runs
-/// the same stage sequence (extraction → detection → dedup →
-/// redaction → validation → export) for any modality. Per-modality
-/// behaviour comes from the trait bounds on the `impl` block
-/// (`Extract<M>`, `Detect<M>`, `ApplyRedactions`, `CheckLeaks`,
-/// `LiftFromBlock`, `ProjectIntoBlock`, `SpanSize`, `Overlap`,
-/// `ValueAt<M>`); the stage methods themselves are modality-agnostic.
-///
-/// The pipeline body lives on a single inherent
-/// [`DocumentPipeline::run`] (rather than behind a per-modality
-/// dispatch trait): every modality runs the same sequence today
-/// and the trait dance bought no per-`M` customization.
-struct DocumentPipeline<M: Modality> {
-    ctx: Arc<RunContext>,
-    _marker: PhantomData<fn() -> M>,
-}
-
-impl<M: Modality> DocumentPipeline<M> {
-    /// Construct a new pipeline for modality `M`.
-    fn new(ctx: Arc<RunContext>) -> Self {
-        Self {
-            ctx,
-            _marker: PhantomData,
-        }
-    }
-
-    /// Cancellation-token guard shared by every stage.
-    fn check_cancelled(&self) -> Result<(), Error> {
-        if self.ctx.cancel.is_cancelled() {
-            return Err(Error::cancellation("run cancelled", "orchestrator"));
-        }
-        Ok(())
-    }
-}
-
-/// Spawn-able task that runs the per-modality pipeline and wraps the
-/// result back into [`AnyEnvelope`] for the orchestrator's results
-/// vector.
-///
-/// `wrap` is the corresponding [`AnyEnvelope`] variant constructor
-/// (e.g. `AnyEnvelope::Text`); inference picks it up automatically
-/// at each call site.
-async fn run_typed_pipeline<M, F>(
-    envelope: DocumentEnvelope<M>,
+/// Spawn-able task that runs the document pipeline against one tree.
+async fn run_one(
+    pipeline: Arc<DocumentPipeline>,
+    mut tree: DocumentTree,
     ctx: Arc<RunContext>,
     sem: Option<Arc<Semaphore>>,
-    input: EngineInput,
-    wrap: F,
-) -> DocumentResult
-where
-    M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
-    ExtractionEngine: ExtractDispatch<M>,
-    Extraction: PlanSlice<M>,
-    DetectionEngine: DetectDispatch<M>,
-    DocumentEnvelope<M>: Send + 'static,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
-    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
-    ApplyRedactionsImpl: ApplyRedactions<M>,
-    F: FnOnce(DocumentEnvelope<M>) -> AnyEnvelope + Send + 'static,
-{
+    input: Arc<EngineInput>,
+) -> DocumentResult {
     let _permit = match sem {
-        Some(ref s) => match s.acquire().await {
+        Some(s) => match Arc::clone(&s).acquire_owned().await {
             Ok(permit) => Some(permit),
             Err(_) => {
                 return DocumentResult {
-                    envelope: None,
+                    tree: None,
                     error: Some("concurrency semaphore closed".to_owned()),
                 };
             }
         },
         None => None,
     };
-    let pipeline = DocumentPipeline::<M>::new(ctx);
-    match pipeline.run(envelope, &input).await {
-        Ok(env) => DocumentResult {
-            envelope: Some(wrap(env)),
-            error: None,
-        },
-        Err(e) => DocumentResult {
-            envelope: None,
+    if let Err(e) = pipeline.run(&ctx, &input, &mut tree).await {
+        return DocumentResult {
+            tree: None,
             error: Some(e.to_string()),
-        },
-    }
-}
-
-impl<M> DocumentPipeline<M>
-where
-    M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
-    ExtractionEngine: ExtractDispatch<M>,
-    Extraction: PlanSlice<M>,
-    DetectionEngine: DetectDispatch<M>,
-    DocumentEnvelope<M>: Send,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
-    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
-    ApplyRedactionsImpl: ApplyRedactions<M>,
-{
-    /// Walk the per-document phase sequence for one envelope.
-    ///
-    /// Phase order lives in [`Self::build_phases`]; the loop body
-    /// is `cancellation → tracing span → phase.run`. Phases see only
-    /// a narrow [`PhaseTarget`] view (doc + handle + run id +
-    /// metadata + shared) — never the envelope. Export and
-    /// ingestion stay outside the `Phase<M>` Vec (see
-    /// [`crate::pipeline::phase`] module docs).
-    async fn run(
-        self,
-        mut envelope: DocumentEnvelope<M>,
-        input: &EngineInput,
-    ) -> Result<DocumentEnvelope<M>, Error> {
-        let phases = self.build_phases();
-        let ctx = PhaseContext::<M>::new(&self.ctx, &input.plan);
-        let run_id = envelope.shared.run_id;
-
-        for phase in &phases {
-            self.check_cancelled()?;
-            let info = phase.inspect();
-            let span = tracing::info_span!(
-                target: TARGET,
-                "phase",
-                name = info.name,
-                modality = info.modality.as_str(),
-                mutating = info.mutating,
-            );
-            let mut target = PhaseTarget::<M>::new(
-                &mut envelope.document,
-                &envelope.handle,
-                run_id,
-                &envelope.metadata,
-                &envelope.shared,
-            );
-            phase.run(&ctx, &mut target).instrument(span).await?;
-        }
-        self.check_cancelled()?;
-
-        // Export stays outside the Vec — it's read-only against the
-        // envelope and operates over a list of configs rather than
-        // the envelope shape itself.
-        if !self.ctx.dry_run {
-            self.run_exports(&input.exports, &envelope).await?;
-        }
-
-        Ok(envelope)
+        };
     }
 
-    /// Assemble the per-envelope phase sequence.
-    ///
-    /// Order is fixed: extraction → detection? → deduplication →
-    /// (redaction → validation)?. Detection is omitted when no
-    /// engine is configured; redaction and validation are omitted
-    /// on dry-run. Misordering a phase shows up as an edit to this
-    /// one function.
-    fn build_phases(&self) -> Vec<Box<dyn Phase<M>>> {
-        let mut phases: Vec<Box<dyn Phase<M>>> = Vec::with_capacity(5);
-
-        phases.push(Box::new(ExtractionPhase::<M>::new()));
-        phases.push(Box::new(DetectionPhase::<M>::new()));
-        phases.push(Box::new(DeduplicationPhase::<M>::new()));
-
-        if !self.ctx.dry_run {
-            phases.push(Box::new(RedactionPhase::<M>::new()));
-            phases.push(Box::new(ValidationPhase::<M>::new()));
-        }
-
-        phases
-    }
-
-    /// Export the envelope to the registry under every configured
-    /// export descriptor.
-    async fn run_exports(
-        &self,
-        exports: &[ExportFileConfig],
-        envelope: &DocumentEnvelope<M>,
-    ) -> Result<(), Error> {
-        for cfg in exports {
+    if !ctx.dry_run() {
+        for cfg in &input.exports {
             let exporter = Exporter::new()
                 .with_encryption(cfg.encryption.clone())
                 .with_compression(cfg.compression)
                 .with_content_ids(cfg.content_ids.clone());
-            exporter.export(envelope).await?;
+            if let Err(e) = exporter.export(&tree, ctx.shared()).await {
+                return DocumentResult {
+                    tree: None,
+                    error: Some(e.to_string()),
+                };
+            }
         }
-        Ok(())
+    }
+
+    DocumentResult {
+        tree: Some(tree),
+        error: None,
     }
 }

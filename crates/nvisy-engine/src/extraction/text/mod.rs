@@ -21,15 +21,13 @@
 
 use futures::StreamExt;
 use nvisy_codec::HandleModality;
-use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Document, Span};
 use nvisy_ontology::modality::{
     EmbeddedDocument, Image, ImageExtraction, ImageMetadata, Text, TextBlock, TextContent,
 };
 
-use super::{ExtractDispatch, Extraction, ExtractionEngine, PlanSlice, TextPlan};
+use super::ExtractionEngine;
 use crate::core::SharedHandle;
-use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::extraction::text";
 
@@ -153,22 +151,5 @@ impl ExtractionEngine {
                 );
             }
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ExtractDispatch<Text> for ExtractionEngine {
-    type Plan = TextPlan;
-
-    async fn extract(&self, target: &mut PhaseTarget<'_, Text>, _plan: &TextPlan) -> Result<()> {
-        self.populate_text_blocks(target.doc, target.handle).await;
-        self.populate_image_embeds(target.doc, target.handle).await;
-        Ok(())
-    }
-}
-
-impl PlanSlice<Text> for Extraction {
-    fn slice(&self) -> &TextPlan {
-        &self.text
     }
 }

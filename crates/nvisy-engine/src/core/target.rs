@@ -1,57 +1,33 @@
-//! [`PhaseTarget`]: the narrow per-call surface every [`Phase`]
-//! sees.
-//!
-//! Phases used to take `&mut DocumentEnvelope<M>` directly, which made
-//! the envelope a god-object (see `.ignore/engine-architecture.md`
-//! Q2): every phase could in principle reach every envelope field,
-//! even ones it had no business touching. `PhaseTarget` bundles only
-//! what phases actually need — a mutable [`Document<M>`] and a
-//! [`SharedHandle`], plus the per-run [`run_id`] and the
-//! [`ContentMetadata`] that policy evaluation reads — so the
-//! envelope can stay an orchestrator-only carrier.
-//!
-//! The same shape also enables Q19's nested-document recursion: the
-//! orchestrator builds a fresh `PhaseTarget` for each
-//! [`TextBlock::Embed`] child it walks into, pointing at the nested
-//! [`Document<M>`] but borrowing the outer envelope's handle (per
-//! the locked decision that nested docs are data-only and don't own
-//! a codec handle).
-//!
-//! [`Phase`]: super::Phase
-//! [`Document<M>`]: nvisy_ontology::document::Document
-//! [`SharedHandle`]: self::SharedHandle
-//! [`ContentMetadata`]: nvisy_core::content::ContentMetadata
-//! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
-//! [`run_id`]: Self::run_id
+//! [`SharedHandle`] + [`DocView`] + [`ValueAt`]: the read-only
+//! per-doc surface phase bodies use to resolve a modality-typed
+//! location to its source string.
 
 use std::sync::Arc;
 
 use nvisy_codec::DocumentHandle;
 use nvisy_codec::handler::TextData;
-use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::modality::{Audio, AudioBlock, Image, ImageBlock, Modality, Tabular, Text};
 use tokio::sync::Mutex;
-use uuid::Uuid;
 
-use super::SharedData;
-
-/// Shared codec handle a [`PhaseTarget`] borrows for source reads
-/// and redaction writes. Wrapped in `Arc<Mutex<_>>` because handle
-/// redaction methods take `&mut self`; phases coordinate access to
-/// the underlying document through the lock.
+/// Shared codec handle phases borrow for source reads and redaction
+/// writes. Wrapped in `Arc<Mutex<_>>` because handle redaction
+/// methods take `&mut self`; phases coordinate access to the
+/// underlying document through the lock.
 ///
 /// Constructed by the orchestrator from the codec output of the
-/// ingestion phase; phases see it only through `target.handle`.
+/// ingestion phase; phases see it as part of every
+/// [`DocumentTree`].
+///
+/// [`DocumentTree`]: super::DocumentTree
 pub type SharedHandle = Arc<Mutex<DocumentHandle>>;
 
 /// Resolve a location of modality `M` to the corresponding source
 /// text, for any per-call surface that knows how to look it up.
 ///
-/// Implemented by both [`PhaseTarget<'_, M>`] (the per-call view a
-/// phase mutates) and [`DocView<'_, M>`] (a read-only doc+handle
-/// pair). Generic phase code (dedup, redaction, validation) bounds
-/// over `&impl ValueAt<M>` and dispatches uniformly.
+/// Implemented by [`DocView<'_, M>`] (a read-only doc+handle pair).
+/// Generic phase code (dedup, redaction, validation) bounds over
+/// `&impl ValueAt<M>` and dispatches uniformly.
 #[async_trait::async_trait]
 pub trait ValueAt<M: Modality>: Sync {
     /// Resolve a location to its source text representation, or
@@ -61,10 +37,9 @@ pub trait ValueAt<M: Modality>: Sync {
 }
 
 /// Read-only view over `(doc, handle)` carrying the per-modality
-/// [`ValueAt`] impls. Phase bodies that don't need the full
-/// [`PhaseTarget`] surface (run id, metadata, shared) take a
-/// `&DocView<'_, M>` so they're decoupled from the orchestrator's
-/// per-call envelope shape.
+/// [`ValueAt`] impls. Phase bodies that need to resolve source
+/// text at a typed location take a `&DocView<'_, M>` constructed
+/// once at the top of their dispatch.
 pub struct DocView<'a, M: Modality> {
     /// The document the value resolver reads from. For image/audio
     /// modalities this is the source of the recognised text (no
@@ -80,63 +55,6 @@ impl<'a, M: Modality> DocView<'a, M> {
     /// ownership and does not lock the handle.
     pub fn new(doc: &'a Document<M>, handle: &'a SharedHandle) -> Self {
         Self { doc, handle }
-    }
-}
-
-/// Narrow per-call view every [`Phase`] runs against.
-///
-/// Holds the mutable [`Document<M>`] the phase reads and writes, the
-/// shared codec [`SharedHandle`] for source reads / redaction
-/// writes, and the per-run id + content metadata phases need for
-/// correlation and policy matching. Phases never see the envelope
-/// itself.
-///
-/// [`Phase`]: super::Phase
-pub struct PhaseTarget<'a, M: Modality> {
-    /// The document this phase operates on. For the root pass this
-    /// is the envelope's document; for nested-doc recursion (a
-    /// `Document<Image>` or `Document<Tabular>` inside a
-    /// [`TextBlock::Embed`]) this is the nested doc, not the outer.
-    ///
-    /// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
-    pub doc: &'a mut Document<M>,
-    /// Shared codec handle for source reads and redaction writes.
-    /// Always the *outer* envelope's handle, even when `doc` is a
-    /// nested document — nested docs are data-only.
-    pub handle: &'a SharedHandle,
-    /// Per-run correlation id. Phases stamp this into recognizer
-    /// contexts so external services can correlate requests back to
-    /// the engine run.
-    pub run_id: Uuid,
-    /// Content metadata (MIME type, filename, …) from the original
-    /// upload. Policy evaluation matches rules against fields here;
-    /// detection forwards it to recognizers that need source context.
-    pub metadata: &'a ContentMetadata,
-    /// Run-wide shared state — policies, registry, key provider.
-    /// Read-only from the phase's perspective; mutation happens via
-    /// other channels (registry persistence, policy reloads at run
-    /// boundaries).
-    pub shared: &'a Arc<SharedData>,
-}
-
-impl<'a, M: Modality> PhaseTarget<'a, M> {
-    /// Build a `PhaseTarget` from its borrowed parts. Factored out so
-    /// the orchestrator (root pass) and the nested-doc tree walker
-    /// share one construction path.
-    pub(crate) fn new(
-        doc: &'a mut Document<M>,
-        handle: &'a SharedHandle,
-        run_id: Uuid,
-        metadata: &'a ContentMetadata,
-        shared: &'a Arc<SharedData>,
-    ) -> Self {
-        Self {
-            doc,
-            handle,
-            run_id,
-            metadata,
-            shared,
-        }
     }
 }
 
@@ -219,19 +137,5 @@ impl ValueAt<Audio> for DocView<'_, Audio> {
             }
         }
         None
-    }
-}
-
-#[async_trait::async_trait]
-impl<M> ValueAt<M> for PhaseTarget<'_, M>
-where
-    M: Modality,
-    for<'b> DocView<'b, M>: ValueAt<M>,
-{
-    /// Delegate to the equivalent [`DocView`] impl so phase bodies
-    /// can either take a `PhaseTarget` directly or a borrowed
-    /// `DocView` interchangeably.
-    async fn value_at(&self, location: &M) -> Option<String> {
-        DocView::new(self.doc, self.handle).value_at(location).await
     }
 }

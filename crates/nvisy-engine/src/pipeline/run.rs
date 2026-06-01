@@ -226,8 +226,8 @@ impl Pipeline {
                 continue;
             }
             any_ok = true;
-            if let Some(ref envelope) = result.envelope {
-                let audit = envelope.audit_cloned();
+            if let Some(ref tree) = result.tree {
+                let audit = tree.audit_cloned();
                 entities_detected += audit.entities_count() as u64;
                 redactions_applied += audit.applied_redactions_count() as u64;
                 audits.push(audit);

@@ -2,46 +2,13 @@
 //!
 //! Today's only audio extraction technique is STT ([`stt`]). Future
 //! techniques (e.g. speaker diarization as its own pass) would live
-//! as sibling sub-modules and stack inside this `ExtractDispatch<Audio>`
-//! impl.
+//! as sibling sub-modules and stack inside the audio arm of
+//! [`ExtractionPhase::apply`].
+//!
+//! [`ExtractionPhase::apply`]: super::ExtractionPhase::apply
 
 #[cfg(feature = "audio")]
 pub mod stt;
 
-use nvisy_core::Result;
-use nvisy_ontology::modality::Audio;
-
 #[cfg(feature = "audio")]
 pub use self::stt::{SttExtractor, SttExtractorConfig};
-use super::{AudioPlan, ExtractDispatch, Extraction, ExtractionEngine, PlanSlice};
-use crate::pipeline::PhaseTarget;
-
-#[cfg(feature = "audio")]
-#[async_trait::async_trait]
-impl ExtractDispatch<Audio> for ExtractionEngine {
-    type Plan = AudioPlan;
-
-    async fn extract(&self, target: &mut PhaseTarget<'_, Audio>, plan: &AudioPlan) -> Result<()> {
-        if let Some(ref stt) = self.stt {
-            stt.run(target.doc, target.handle, target.metadata, plan.diarization)
-                .await?;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(not(feature = "audio"))]
-#[async_trait::async_trait]
-impl ExtractDispatch<Audio> for ExtractionEngine {
-    type Plan = AudioPlan;
-
-    async fn extract(&self, _target: &mut PhaseTarget<'_, Audio>, _plan: &AudioPlan) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl PlanSlice<Audio> for Extraction {
-    fn slice(&self) -> &AudioPlan {
-        &self.audio
-    }
-}

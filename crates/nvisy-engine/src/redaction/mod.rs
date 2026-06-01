@@ -22,90 +22,125 @@ mod evaluate;
 mod plan;
 mod strategy;
 
-use std::marker::PhantomData;
+use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::is_excluded;
-use nvisy_ontology::modality::{Modality, Overlap};
+use nvisy_ontology::modality::Modality;
+use tracing::Instrument;
 
 pub use self::config::RedactionConfig;
 use self::evaluate::TARGET;
 pub use self::evaluate::{ApplyRedactions, ApplyRedactionsImpl};
 pub use self::plan::Redaction;
-use crate::core::{PolicyStore, SharedHandle, ValueAt};
-use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
+use crate::core::{DocView, DocumentTree, NodeMut, PolicyStore, RunContext, SharedHandle, ValueAt};
+use crate::pipeline::EngineInput;
 
 /// Redaction phase: evaluate policies, attach an [`AuditEntry<M>`]
 /// to each [`EntityRecord<M>`] the policy chain decides on, then
-/// hand off to the codec applicator.
-///
-/// Stateless beyond the modality marker — the shared
-/// [`RedactionConfig`] is read from `ctx.run` each call, and the
-/// per-call plan slice comes from `ctx.plan.redaction`. Mutates the
-/// envelope's audit (decision + execution per entry) and the
-/// underlying codec handle (via [`ApplyRedactions`]).
+/// hand off to the codec applicator. Holds the shared
+/// [`RedactionConfig`] for default lookups.
 ///
 /// [`AuditEntry<M>`]: nvisy_ontology::provenance::AuditEntry
 /// [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
-pub struct RedactionPhase<M: Modality> {
-    _marker: PhantomData<fn() -> M>,
+pub struct RedactionPhase {
+    config: Arc<RedactionConfig>,
 }
 
-impl<M: Modality> RedactionPhase<M> {
-    /// Build the phase. Stateless beyond the modality marker.
+impl RedactionPhase {
+    /// Build the phase. The config comes from the run context; the
+    /// phase stores its own `Arc` so the body doesn't have to
+    /// re-thread it from `ctx` each call.
     pub fn new() -> Self {
+        // Default empty config; the orchestrator overrides via
+        // `from_context` (see [`DocumentPipeline::from_context`]).
         Self {
-            _marker: PhantomData,
+            config: Arc::new(RedactionConfig::default()),
         }
+    }
+
+    /// Build with the supplied config, used by
+    /// [`DocumentPipeline::from_context`].
+    ///
+    /// [`DocumentPipeline::from_context`]: crate::pipeline::DocumentPipeline::from_context
+    pub(crate) fn with_config(config: Arc<RedactionConfig>) -> Self {
+        Self { config }
+    }
+
+    /// Walk the tree and run the per-node redaction body. Skipped
+    /// entirely when the orchestrator omits the phase (dry-run).
+    pub(crate) async fn apply(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree,
+    ) -> Result<()> {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "redaction");
+        let cfg = &input.plan.redaction;
+        let section = self.config.as_ref();
+        let default_threshold = cfg
+            .confidence_threshold
+            .unwrap_or(section.confidence_threshold);
+        let _process_metadata = cfg.process_metadata.unwrap_or(section.process_metadata);
+
+        let handle = tree.handle.clone();
+        let metadata = Arc::new(tree.metadata.clone());
+        let shared = Arc::clone(ctx.shared());
+        async move {
+            tree.walk_mut(move |node| {
+                let handle = handle.clone();
+                let metadata = Arc::clone(&metadata);
+                let shared = Arc::clone(&shared);
+                Box::pin(async move {
+                    dispatch(
+                        node,
+                        &handle,
+                        &metadata,
+                        &shared.policies,
+                        default_threshold,
+                    )
+                    .await
+                })
+            })
+            .await
+        }
+        .instrument(span)
+        .await
     }
 }
 
-impl<M: Modality> Default for RedactionPhase<M> {
+impl Default for RedactionPhase {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[async_trait::async_trait]
-impl<M> Phase<M> for RedactionPhase<M>
-where
-    M: Modality + Overlap,
-    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
-    ApplyRedactionsImpl: ApplyRedactions<M>,
-{
-    fn inspect(&self) -> PhaseInfo {
-        PhaseInfo {
-            name: "redaction",
-            modality: ModalityKind::of::<M>(),
-            mutating: true,
+async fn dispatch(
+    node: NodeMut<'_>,
+    handle: &SharedHandle,
+    metadata: &nvisy_core::content::ContentMetadata,
+    policies: &PolicyStore,
+    default_threshold: nvisy_ontology::primitive::ConfidenceThreshold,
+) -> Result<()> {
+    match node {
+        NodeMut::Text(doc) => {
+            run_redaction(default_threshold, doc, handle, metadata, policies).await
         }
-    }
-
-    async fn run(&self, ctx: &PhaseContext<'_, M>, target: &mut PhaseTarget<'_, M>) -> Result<()> {
-        let cfg = &ctx.plan.redaction;
-        let section = &ctx.run.redaction_config;
-        let default_threshold = cfg
-            .confidence_threshold
-            .unwrap_or(section.confidence_threshold);
-        // `process_metadata` is plumbed into the phase for future use
-        // by the metadata-stripping pass; resolved here from the same
-        // precedence chain (plan override → deployment default).
-        let _process_metadata = cfg.process_metadata.unwrap_or(section.process_metadata);
-
-        run_redaction(
-            default_threshold,
-            target.doc,
-            target.handle,
-            target.metadata,
-            &target.shared.policies,
-        )
-        .await
+        NodeMut::Tabular(doc) => {
+            run_redaction(default_threshold, doc, handle, metadata, policies).await
+        }
+        NodeMut::Image(doc) => {
+            run_redaction(default_threshold, doc, handle, metadata, policies).await
+        }
+        NodeMut::Audio(doc) => {
+            run_redaction(default_threshold, doc, handle, metadata, policies).await
+        }
     }
 }
 
 /// Body of the redaction phase, parameterised on the resolved
 /// `default_threshold`. Split out as a free function so the
-/// test-only path can drive it without going through a `PhaseContext`.
+/// test-only path can drive it directly.
 pub(crate) async fn run_redaction<M>(
     default_threshold: nvisy_ontology::primitive::ConfidenceThreshold,
     doc: &mut nvisy_ontology::document::Document<M>,
@@ -114,8 +149,8 @@ pub(crate) async fn run_redaction<M>(
     policies: &PolicyStore,
 ) -> Result<()>
 where
-    M: Modality + Overlap,
-    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
+    M: Modality + nvisy_ontology::modality::Overlap,
+    for<'a> DocView<'a, M>: ValueAt<M>,
     ApplyRedactionsImpl: ApplyRedactions<M>,
 {
     if doc.audit.records.is_empty() {

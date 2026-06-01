@@ -51,7 +51,6 @@ pub struct RunContext {
 impl RunContext {
     /// Construct a [`RunContext`] from its parts. Called once per run
     /// by the orchestrator.
-    #[allow(clippy::too_many_arguments)] // wide constructor by design
     pub(crate) fn new(
         cancel: CancellationToken,
         shared: Arc<SharedData>,
@@ -70,5 +69,46 @@ impl RunContext {
             concurrency,
             dry_run,
         }
+    }
+
+    /// True when this run's cancellation token has fired.
+    pub(crate) fn is_cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
+    }
+
+    /// Pre-built extraction engine borrowed by [`ExtractionPhase`].
+    ///
+    /// [`ExtractionPhase`]: crate::extraction::ExtractionPhase
+    pub(crate) fn extraction_engine(&self) -> &Arc<ExtractionEngine> {
+        &self.extraction_engine
+    }
+
+    /// Pre-built detection engine borrowed by [`DetectionPhase`].
+    ///
+    /// [`DetectionPhase`]: crate::detection::DetectionPhase
+    pub(crate) fn detection_engine(&self) -> &Arc<DetectionEngine> {
+        &self.detection_engine
+    }
+
+    /// Server-wide redaction defaults the [`RedactionPhase`] reads.
+    ///
+    /// [`RedactionPhase`]: crate::redaction::RedactionPhase
+    pub(crate) fn redaction_config(&self) -> &Arc<RedactionConfig> {
+        &self.redaction_config
+    }
+
+    /// Run-wide shared state (policies, registry, key provider).
+    pub(crate) fn shared(&self) -> &Arc<SharedData> {
+        &self.shared
+    }
+
+    /// Optional document-concurrency cap from `[engine.limits]`.
+    pub(crate) fn concurrency(&self) -> Option<NonZeroUsize> {
+        self.concurrency
+    }
+
+    /// True when this run skips redaction, validation, and export.
+    pub(crate) fn dry_run(&self) -> bool {
+        self.dry_run
     }
 }

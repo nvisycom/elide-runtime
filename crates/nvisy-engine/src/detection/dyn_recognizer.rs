@@ -14,7 +14,6 @@
 //!
 //! [`Recognizer`]: crate::detection::Recognizer
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Image, Text};
@@ -30,7 +29,7 @@ use crate::detection::Recognizer;
 ///
 /// [`DetectionEngine`]: super::DetectionEngine
 /// [`Recognizer`]: crate::detection::Recognizer
-#[async_trait]
+#[async_trait::async_trait]
 pub trait DynTextRecognizer: Send + Sync {
     /// Detect entities, taking the fat [`DetectionContext`] and
     /// extracting the recognizer's typed slice internally.
@@ -41,7 +40,7 @@ pub trait DynTextRecognizer: Send + Sync {
     async fn reset(&self);
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<R> DynTextRecognizer for R
 where
     R: Recognizer<Modality = Text> + Send + Sync,
@@ -65,7 +64,7 @@ where
 ///
 /// [`DetectionEngine`]: super::DetectionEngine
 /// [`Recognizer`]: crate::detection::Recognizer
-#[async_trait]
+#[async_trait::async_trait]
 pub trait DynImageRecognizer: Send + Sync {
     /// Detect entities, taking the fat [`VlmDetectionContext`] and
     /// extracting the recognizer's typed slice internally.
@@ -76,7 +75,7 @@ pub trait DynImageRecognizer: Send + Sync {
     async fn reset(&self);
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<R> DynImageRecognizer for R
 where
     R: Recognizer<Modality = Image> + Send + Sync,

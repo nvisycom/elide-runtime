@@ -38,6 +38,7 @@ pub(crate) fn to_tabular_redaction(
             text_output_from(TextOutputMethod::Encrypt { key_id }, original, entity_kind)?
         }
         TabularStrategy::DropColumn => return Err(unsupported("drop_column")),
+        TabularStrategy::DropRow => return Err(unsupported("drop_row")),
     };
     Ok(TabularRedaction::new(output))
 }

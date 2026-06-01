@@ -11,8 +11,9 @@
 //!   param is the location, not the modality marker — for the
 //!   modality types it's always `M::Location`-shaped, but the
 //!   abstraction is over locations.)
-//! - [`Redactions<S, R>`] — per-modality redaction collections that
-//!   fuse overlapping `(location, redaction)` pairs on insert.
+//! - [`Redactions<S, R>`] — append-only `(location, redaction)` pair
+//!   list handed from the engine to a codec; engine guarantees no
+//!   overlapping locations, codec applies in insertion order.
 //!
 //! Base traits ([`Handler`], [`Loader`]) live in [`crate::handler`],
 //! since they're spelled out next to the concrete per-modality wire
@@ -28,8 +29,6 @@ mod handle;
 mod located;
 mod redactions;
 mod stream;
-
-pub use nvisy_ontology::modality::Mergeable;
 
 pub use self::handle::{Codable, Handle};
 pub use self::located::Located;

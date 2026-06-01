@@ -1,4 +1,4 @@
-//! [`NerRecognizer`]: NER over [`nvisy_ner::Recognizer`].
+//! [`NerRecognizer`]: NER over [`NerInner`].
 //!
 //! Wraps the NER recognizer from `nvisy-ner` so every detection
 //! call goes through its orchestration: language detection
@@ -15,7 +15,7 @@
 //! inference service.
 //!
 //! Construct via [`from_config`] for the configured backend, or
-//! [`from_inner`] to inject a pre-built [`nvisy_ner::Recognizer`]
+//! [`from_inner`] to inject a pre-built [`NerInner`]
 //! with a custom backend (tests, future backends, anything
 //! implementing [`Backend`]).
 //!
@@ -30,11 +30,10 @@
 
 mod params;
 
-use async_trait::async_trait;
 use nvisy_codec::handler::TextData;
-use nvisy_core::Result;
+use nvisy_core::{Error, Result};
 use nvisy_ner::language::LinguaLanguagePolicy;
-use nvisy_ner::{Context as NerContext, RecognizerBuilder};
+use nvisy_ner::{Context as NerContext, Recognizer as NerInner, RecognizerBuilder};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 
@@ -51,15 +50,15 @@ pub struct NerScanInput {
     pub text: TextData,
 }
 
-/// NER recognizer backed by [`nvisy_ner::Recognizer`].
+/// NER recognizer backed by [`NerInner`].
 pub struct NerRecognizer {
-    inner: nvisy_ner::Recognizer,
+    inner: NerInner,
 }
 
 impl NerRecognizer {
     /// Build from a [`NerDetection`] config bundle.
     ///
-    /// Constructs a [`nvisy_ner::Recognizer`] with the backend the
+    /// Constructs a [`NerInner`] with the backend the
     /// config selects via [`NerBackend::attach_ner_backend`].
     ///
     /// # Errors
@@ -74,23 +73,23 @@ impl NerRecognizer {
         let builder = cfg.backend.attach_ner_backend(builder)?;
         let inner = builder
             .build()
-            .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "ner", false))?;
+            .map_err(|e| Error::runtime(e.to_string(), "ner", false))?;
         Ok(Self::from_inner(inner))
     }
 
-    /// Build from a pre-constructed [`nvisy_ner::Recognizer`].
+    /// Build from a pre-constructed [`NerInner`].
     ///
     /// Escape hatch for callers that already own a recognizer
     /// (custom backend, test fixture, recognizer shared across
     /// wrappers). Prefer [`from_config`] for ordinary use.
     ///
     /// [`from_config`]: Self::from_config
-    pub fn from_inner(inner: nvisy_ner::Recognizer) -> Self {
+    pub fn from_inner(inner: NerInner) -> Self {
         Self { inner }
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Recognizer for NerRecognizer {
     type Context = NerScanInput;
     type Modality = Text;

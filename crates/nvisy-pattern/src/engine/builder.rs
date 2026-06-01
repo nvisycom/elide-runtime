@@ -2,8 +2,6 @@
 
 use std::path::{Path, PathBuf};
 
-use nvisy_ontology::primitive::ConfidenceThreshold;
-
 use super::PatternEngine;
 use super::pattern_filter::PatternFilter;
 use super::scan::entries::CompiledBuckets;
@@ -33,7 +31,6 @@ const TARGET: &str = "nvisy_pattern::engine";
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
     dictionary_names: Option<Vec<String>>,
-    confidence_threshold: Option<ConfidenceThreshold>,
     filter: Option<PatternFilter>,
     extra_pattern_dirs: Vec<PathBuf>,
     extra_dictionary_dirs: Vec<PathBuf>,
@@ -65,18 +62,6 @@ impl PatternEngineBuilder {
         if !names.is_empty() {
             self.dictionary_names = Some(names.iter().map(|n| n.as_ref().to_owned()).collect());
         }
-        self
-    }
-
-    /// Set the minimum confidence score for matches.
-    ///
-    /// Matches with confidence below this value are discarded during
-    /// [`scan_text`]. Unset (the default) means no threshold
-    /// filtering — every match survives.
-    ///
-    /// [`scan_text`]: PatternEngine::scan_text
-    pub fn with_confidence_threshold(mut self, threshold: ConfidenceThreshold) -> Self {
-        self.confidence_threshold = Some(threshold);
         self
     }
 
@@ -226,7 +211,6 @@ impl PatternEngineBuilder {
             regex_entries: compiled.regex_entries,
             dict_entries: compiled.dict_entries,
             validators: ValidatorResolver::builtins(),
-            confidence_threshold: self.confidence_threshold,
         })
     }
 }

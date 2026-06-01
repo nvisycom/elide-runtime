@@ -6,9 +6,9 @@
 //! config. Forwards [`PatternContext`] from each detection call so
 //! allow/deny lists and context hints work per-call.
 //!
-//! The [`PatternDetection`] workflow-params schema lives in the
+//! The [`PatternDetection`] plan-params schema lives in the
 //! [`params`] submodule so the pattern runtime crate stays free of
-//! workflow types.
+//! plan types.
 //!
 //! [`PatternEngine`]: nvisy_pattern::PatternEngine
 //! [`PatternContext`]: nvisy_pattern::PatternContext
@@ -18,7 +18,6 @@ mod params;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
@@ -48,7 +47,7 @@ pub struct PatternRecognizer {
 }
 
 impl PatternRecognizer {
-    /// Construct from a [`PatternDetection`] workflow config. Uses the
+    /// Construct from a [`PatternDetection`] plan config. Uses the
     /// shared singleton when the config is unconstrained; builds a
     /// fresh engine otherwise.
     pub fn from_config(cfg: &PatternDetection) -> Self {
@@ -74,7 +73,7 @@ impl PatternRecognizer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Recognizer for PatternRecognizer {
     type Context = PatternScanInput;
     type Modality = Text;
@@ -117,9 +116,8 @@ enum PatternEngineRef {
 
 impl PatternEngineRef {
     fn from_config(cfg: &PatternDetection) -> Self {
-        let needs_custom = !cfg.patterns.is_empty()
-            || cfg.confidence_threshold.is_some()
-            || cfg.filter.as_ref().is_some_and(|f| !f.is_unconstrained());
+        let needs_custom =
+            !cfg.patterns.is_empty() || cfg.filter.as_ref().is_some_and(|f| !f.is_unconstrained());
         if !needs_custom {
             return Self::Shared(PatternEngine::instance());
         }
@@ -127,9 +125,6 @@ impl PatternEngineRef {
         if !cfg.patterns.is_empty() {
             let names: Vec<&str> = cfg.patterns.iter().map(String::as_str).collect();
             builder = builder.with_patterns(&names);
-        }
-        if let Some(threshold) = cfg.confidence_threshold {
-            builder = builder.with_confidence_threshold(threshold);
         }
         if let Some(ref filter) = cfg.filter {
             builder = builder.with_filter(filter.clone());

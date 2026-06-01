@@ -3,14 +3,13 @@
 //!
 //! The config schema for pattern-based detection lives next to its
 //! sole consumer rather than alongside the pattern engine, so
-//! `nvisy-pattern` stays a pure runtime crate (no workflow-config
+//! `nvisy-pattern` stays a pure runtime crate (no plan-config
 //! types). The `filter` field is still typed against
 //! [`PatternFilter`] from `nvisy-pattern`, since the filter is the
 //! engine builder's input type.
 //!
 //! [`PatternRecognizer::from_config`]: super::PatternRecognizer::from_config
 
-use nvisy_ontology::primitive::ConfidenceThreshold;
 use nvisy_pattern::PatternFilter;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,7 +17,12 @@ use validator::Validate;
 
 /// Pattern detection settings (regex, checksum, dictionary).
 ///
-/// Controls which patterns run and what confidence threshold applies.
+/// Controls which patterns run. Confidence filtering is centralised
+/// in deduplication (see [`DeduplicationParams::confidence_threshold`])
+/// — recognizers emit every match they find and let the calibration
+/// map and the single dedup threshold shape the surviving set.
+///
+/// [`DeduplicationParams::confidence_threshold`]: crate::deduplication::DeduplicationParams::confidence_threshold
 #[derive(Debug, Clone, PartialEq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PatternDetection {
@@ -32,11 +36,6 @@ pub struct PatternDetection {
     /// built-in patterns are used.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub patterns: Vec<String>,
-    /// Minimum confidence threshold for detections. When `None`, the
-    /// engine's default threshold applies. The newtype enforces
-    /// `[0.0, 1.0]` + finite-float at deserialize.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence_threshold: Option<ConfidenceThreshold>,
     /// Narrow the active patterns (regex and dictionary alike) by
     /// their declared tags.
     ///
@@ -55,7 +54,6 @@ impl Default for PatternDetection {
         Self {
             enabled: true,
             patterns: Vec::new(),
-            confidence_threshold: None,
             filter: None,
         }
     }

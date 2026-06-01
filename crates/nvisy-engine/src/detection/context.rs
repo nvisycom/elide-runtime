@@ -10,8 +10,8 @@
 //! - [`PatternRecognizer`] reads `text` and `scan_context`
 //!   (allow/deny/hints).
 //! - The LLM recognizer (an [`LlmNerPipeline`]) reads `text`, `hints`,
-//!   `labels`, `entities`, `score_threshold`, and `correlation_id`
-//!   via the `From<&DetectionContext>` impl on [`LlmNerScanInput`].
+//!   `labels`, `entities`, and `correlation_id` via the
+//!   `From<&DetectionContext>` impl on [`LlmNerScanInput`].
 //!
 //! `correlation_id` flows through the tracing span and isn't read
 //! by recognizers themselves.
@@ -19,9 +19,9 @@
 //! Image-modality recognizers consume the sibling
 //! [`VlmDetectionContext`] instead.
 //!
-//! [`Recognizer`]: crate::Recognizer
-//! [`NerRecognizer`]: crate::NerRecognizer
-//! [`PatternRecognizer`]: crate::PatternRecognizer
+//! [`Recognizer`]: super::Recognizer
+//! [`NerRecognizer`]: super::NerRecognizer
+//! [`PatternRecognizer`]: super::PatternRecognizer
 //! [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
 //! [`LlmNerScanInput`]: super::llm::LlmNerScanInput
 
@@ -30,7 +30,7 @@ use derive_builder::Builder;
 use nvisy_agent::agent::NerHint;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::primitive::{ConfidenceThreshold, Dimensions, LanguageTag};
+use nvisy_ontology::primitive::{Dimensions, LanguageTag};
 use nvisy_pattern::filter::PatternContext;
 use uuid::Uuid;
 
@@ -70,11 +70,6 @@ pub struct DetectionContext {
     /// drop entities of any kind outside this set.
     #[builder(default)]
     pub entities: Option<Vec<EntityKind>>,
-
-    /// Minimum confidence threshold. Recognizers that support
-    /// post-filter drop entities below this score.
-    #[builder(default)]
-    pub score_threshold: Option<ConfidenceThreshold>,
 
     /// Allow/deny/hints for pattern-backed recognizers.
     /// Non-pattern recognizers ignore this field.
@@ -118,7 +113,6 @@ impl DetectionContext {
             language: None,
             candidate_languages: None,
             entities: None,
-            score_threshold: None,
             scan_context: PatternContext::default(),
             hints: Vec::new(),
             labels: Vec::new(),
@@ -131,24 +125,6 @@ impl DetectionContext {
     /// from the context type.
     pub fn builder() -> DetectionContextBuilder {
         DetectionContextBuilder::default()
-    }
-}
-
-impl From<TextData> for DetectionContext {
-    fn from(text: TextData) -> Self {
-        Self::new(text)
-    }
-}
-
-impl From<&str> for DetectionContext {
-    fn from(text: &str) -> Self {
-        Self::new(TextData::from(text))
-    }
-}
-
-impl From<String> for DetectionContext {
-    fn from(text: String) -> Self {
-        Self::new(TextData::from(text))
     }
 }
 
@@ -179,8 +155,6 @@ pub struct VlmDetectionContext {
     pub dims: Dimensions,
     /// Entity-kind allowlist forwarded to image recognizers.
     pub entities: Option<Vec<EntityKind>>,
-    /// Minimum confidence threshold forwarded to image recognizers.
-    pub score_threshold: Option<ConfidenceThreshold>,
     /// Document-level classification labels.
     pub labels: Vec<String>,
     /// Correlation UUID propagated through the tracing span.
@@ -195,7 +169,6 @@ impl VlmDetectionContext {
             image,
             dims,
             entities: None,
-            score_threshold: None,
             labels: Vec::new(),
             correlation_id: None,
         }

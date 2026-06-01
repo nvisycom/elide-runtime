@@ -1,4 +1,20 @@
 //! Self-describing wire envelope for encrypted content.
+//!
+//! # Integrity
+//!
+//! The wire format relies on the AEAD construction's authentication
+//! tag (16 bytes appended to ciphertext for AES-256-GCM) to detect
+//! tampering. There is **no** separate MAC over the header bytes
+//! (magic / version / algorithm / key_id / nonce). This is safe
+//! because all header fields feed into either the AEAD's key
+//! derivation (key_id resolves to the actual key) or its nonce
+//! (the nonce is the AEAD's nonce, not a separate value), so a
+//! header-only tamper either produces a different decryption key
+//! or a wrong nonce — both surface as a tag-verification failure
+//! at decrypt time. Any future algorithm added via
+//! [`EncryptionAlgorithm`] must preserve this property (every
+//! header field must be either bound to the AEAD's key/nonce or
+//! covered by a separate MAC).
 
 use std::str;
 
@@ -46,9 +62,27 @@ pub(crate) struct WireEnvelope<'a> {
 }
 
 impl WireEnvelope<'_> {
-    pub fn build(&self) -> Bytes {
+    /// Serialise to the on-wire byte sequence.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `key_id` is longer than `u16::MAX` bytes
+    /// — the wire format prefixes it with a `u16` length. Callers
+    /// in this crate always pass short identifiers; this guard
+    /// exists so a future caller with an unbounded `key_id` source
+    /// fails loudly at build time instead of silently truncating.
+    pub fn build(&self) -> Result<Bytes> {
         let key_id_bytes = self.key_id.as_bytes();
-        let key_id_len = key_id_bytes.len() as u16;
+        let key_id_len = u16::try_from(key_id_bytes.len()).map_err(|_| {
+            Error::validation(
+                format!(
+                    "key_id is {} bytes; wire format caps it at {}",
+                    key_id_bytes.len(),
+                    u16::MAX,
+                ),
+                "WireEnvelope::build",
+            )
+        })?;
         let total = MIN_HEADER_SIZE + key_id_bytes.len() + self.ciphertext.len();
 
         let mut buf = Vec::with_capacity(total);
@@ -60,7 +94,7 @@ impl WireEnvelope<'_> {
         buf.extend_from_slice(self.nonce);
         buf.extend_from_slice(self.ciphertext);
 
-        Bytes::from(buf)
+        Ok(Bytes::from(buf))
     }
 
     pub fn parse(data: &[u8]) -> Result<WireEnvelope<'_>> {
@@ -103,7 +137,11 @@ impl WireEnvelope<'_> {
             Error::validation(format!("invalid key_id UTF-8: {e}"), "WireEnvelope::parse")
         })?;
 
-        let nonce: &[u8; NONCE_SIZE] = data[key_id_end..nonce_end].try_into().unwrap();
+        // Length check above (`data.len() < nonce_end`) guarantees
+        // this slice is exactly NONCE_SIZE bytes.
+        let nonce: &[u8; NONCE_SIZE] = data[key_id_end..nonce_end]
+            .try_into()
+            .expect("nonce slice length verified by guard above");
         let ciphertext = &data[nonce_end..];
 
         Ok(WireEnvelope {
@@ -131,7 +169,8 @@ mod tests {
             nonce: &nonce,
             ciphertext,
         }
-        .build();
+        .build()
+        .expect("build");
 
         let parsed = WireEnvelope::parse(&wire).expect("parse");
         assert_eq!(parsed.algorithm, EncryptionAlgorithm::Aes256Gcm);

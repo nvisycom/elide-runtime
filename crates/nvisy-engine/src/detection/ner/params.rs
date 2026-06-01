@@ -1,11 +1,11 @@
-//! [`NerDetection`]: NER-specific knobs in the workflow detection
+//! [`NerDetection`]: NER-specific knobs in the plan detection
 //! config.
 //!
-//! Cross-recognizer hints (`entity_kinds`, `confidence_threshold`)
-//! live directly on [`Detection`] because every recognizer honors
-//! them. This struct exists for any future NER-specific knobs and
-//! to carry the enable/disable toggle so operators can opt the
-//! recognizer in or out independently.
+//! Cross-recognizer hints (`entity_kinds`) live directly on
+//! [`Detection`] because every recognizer honors them. This struct
+//! exists for any future NER-specific knobs and to carry the
+//! enable/disable toggle so operators can opt the recognizer in or
+//! out independently.
 //!
 //! Backend selection lives on [`NerBackend`] in `nvisy-ner` and is
 //! re-exported through [`crate::detection::NerBackend`] so config

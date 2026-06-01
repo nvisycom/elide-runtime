@@ -155,6 +155,16 @@ impl Registry {
     }
 
     /// Removes a single content entry (data + metadata).
+    /// Removes a content entry plus its metadata. Returns
+    /// `NotFound` if no entry exists for the given actor/content
+    /// pair.
+    ///
+    /// The check-then-delete sequence is not transactionally
+    /// atomic: two concurrent calls for the same key race on
+    /// `exists`, one wins, the other returns `NotFound`. That's
+    /// the intended outcome (the second caller's view is "the key
+    /// is gone"), so no synchronisation is needed beyond fjall's
+    /// per-key linearisability.
     #[tracing::instrument(target = TARGET, name = "registry.unregister_content", skip(self), fields(%actor_id, %content_id))]
     pub async fn unregister_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<()> {
         let key = CompositeKey::new(actor_id, content_id);
@@ -217,7 +227,7 @@ impl Registry {
             for id in ids {
                 let key = CompositeKey::new(actor_id, id);
                 let meta = match meta_ks.get_bytes(key)? {
-                    Some(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
+                    Some(bytes) => serde_json::from_slice(&bytes)?,
                     None => ContentMetadata::default(),
                 };
                 result.push((id, meta));
@@ -251,7 +261,7 @@ impl Registry {
         key: CompositeKey,
         kind: &'static str,
     ) -> Result<T> {
-        let actor_id = Uuid::from_bytes(key.as_ref()[..16].try_into().unwrap());
+        let actor_id = key.actor_id();
         let resource_id = key.resource_id();
         let ks = ks.clone();
         blocking(move || {
@@ -270,7 +280,7 @@ impl Registry {
         key: CompositeKey,
         kind: &'static str,
     ) -> Result<()> {
-        let actor_id = Uuid::from_bytes(key.as_ref()[..16].try_into().unwrap());
+        let actor_id = key.actor_id();
         let resource_id = key.resource_id();
         let ks = ks.clone();
         let db = self.inner.db.clone();

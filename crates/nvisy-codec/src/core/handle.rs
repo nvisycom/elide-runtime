@@ -82,8 +82,8 @@ pub trait Handle<M: Codable>: Handler {
     /// Handlers with ordering constraints (e.g. audio time-span
     /// merging) override this default with their own batched logic.
     async fn redact(&mut self, redactions: Redactions<M, M::Redaction>) -> Result<(), Error> {
-        for pair in redactions.items {
-            self.redact_at(&pair.location, pair.redaction).await?;
+        for (location, redaction) in redactions.items {
+            self.redact_at(&location, redaction).await?;
         }
         Ok(())
     }

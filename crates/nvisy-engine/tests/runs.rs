@@ -256,7 +256,7 @@ async fn detection_kinds_with_unconfigured_recognizer_fails_validation() -> anyh
     // configuring `[recognizer.llm]` — the assembly step should
     // refuse.
     let mut input = fixtures::engine_input(actor, content_id);
-    input.detection = Detection {
+    input.plan.detection = Detection {
         kinds: vec![RecognizerKind::Llm],
         ..Default::default()
     };

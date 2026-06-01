@@ -1,27 +1,11 @@
-//! Integration tests for engine configuration: threshold, boost, pattern selection.
+//! Integration tests for engine configuration: boost, pattern selection.
 
 use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::primitive::ConfidenceThreshold;
 use nvisy_pattern::PatternEngine;
 use nvisy_pattern::filter::PatternContext;
 
 fn empty_ctx() -> PatternContext {
     PatternContext::default()
-}
-
-#[test]
-fn confidence_threshold_filters() {
-    let engine = PatternEngine::builder()
-        .with_confidence_threshold(ConfidenceThreshold::clamped(0.99))
-        .build()
-        .unwrap();
-    let entities = engine.scan_text("number 123-45-6789 here", &empty_ctx());
-    assert!(
-        !entities
-            .iter()
-            .any(|e| e.entity_kind == EntityKind::GovernmentId),
-        "SSN should be filtered by 0.99 threshold"
-    );
 }
 
 #[test]
@@ -73,26 +57,5 @@ fn pattern_selection_restricts_results() {
         ssn_entities
             .iter()
             .all(|e| e.entity_kind == EntityKind::GovernmentId)
-    );
-}
-
-#[test]
-fn confidence_threshold_filters_after_boost() {
-    let engine = PatternEngine::builder()
-        .with_patterns(&["ssn"])
-        .with_confidence_threshold(ConfidenceThreshold::clamped(0.95))
-        .build()
-        .unwrap();
-
-    let with_keyword = engine.scan_text("SSN: 123-45-6789", &empty_ctx());
-    let without_keyword = engine.scan_text("number 123-45-6789 here", &empty_ctx());
-
-    assert!(
-        !with_keyword.is_empty(),
-        "boosted match should survive high threshold"
-    );
-    assert!(
-        without_keyword.is_empty(),
-        "unboosted match should be filtered by high threshold"
     );
 }

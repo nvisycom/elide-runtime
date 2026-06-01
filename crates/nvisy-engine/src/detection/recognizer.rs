@@ -1,6 +1,6 @@
 //! [`Recognizer`] trait + [`RecognizerKind`] enum — the
 //! per-recognizer abstraction the [`DetectionEngine`] dispatches
-//! against, and the enum used by workflow nodes and config sections
+//! against, and the enum used by plan nodes and config sections
 //! to refer to recognizers by kind.
 //!
 //! The trait is modality-parameterized via [`Recognizer::Modality`]:
@@ -12,7 +12,6 @@
 //!
 //! [`DetectionEngine`]: super::DetectionEngine
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Modality;
@@ -29,14 +28,14 @@ use serde::{Deserialize, Serialize};
 ///
 /// Recognizers are independent — the orchestrator
 /// ([`DetectionEngine`]) runs each one on its own and merges
-/// results across the workflow's enabled set for the modality
+/// results across the plan's enabled set for the modality
 /// being scanned.
 ///
 /// Async because realistic impls dispatch to ONNX inference on a
 /// blocking pool or call remote services.
 ///
 /// [`DetectionEngine`]: super::DetectionEngine
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Recognizer: Send + Sync {
     /// The modality this recognizer scans + emits entities for.
     type Modality: Modality;
@@ -62,7 +61,7 @@ pub trait Recognizer: Send + Sync {
 
 /// Which built-in recognizer to dispatch.
 ///
-/// Used by [`Detection`] workflow nodes to enable/disable specific
+/// Used by [`Detection`] plan nodes to enable/disable specific
 /// recognizers. Each kind belongs to a single modality; the engine
 /// driver dispatches kinds against the registry matching their
 /// modality.

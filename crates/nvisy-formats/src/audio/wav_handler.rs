@@ -227,7 +227,7 @@ mod tests {
         let mut handler = WavHandler::new(bytes);
 
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             Audio::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Silence),
         );
@@ -243,7 +243,7 @@ mod tests {
         let mut handler = WavHandler::new(bytes);
 
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             Audio::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Remove),
         );
@@ -263,11 +263,11 @@ mod tests {
         let mut handler = WavHandler::new(bytes);
 
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             Audio::new(TimeSpan::new(1_000, 3_000)),
             AudioRedaction::new(AudioOutput::Remove),
         );
-        rs.insert(
+        rs.push(
             Audio::new(TimeSpan::new(6_000, 8_000)),
             AudioRedaction::new(AudioOutput::Remove),
         );
@@ -295,7 +295,7 @@ mod tests {
         // Bogus bytes — not a real WAV. read_spec fails.
         let mut handler = WavHandler::new(Bytes::from_static(b"not-a-wav"));
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             Audio::new(TimeSpan::new(0, 1_000)),
             AudioRedaction::new(AudioOutput::Silence),
         );

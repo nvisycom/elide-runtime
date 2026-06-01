@@ -54,18 +54,13 @@ fn base_input(actor_id: Uuid, content_id: Uuid, dry_run: bool) -> EngineInput {
     EngineInput {
         actor_id,
         policies: Vec::new(),
-        config: None,
         dry_run,
         imports: vec![ImportFile {
             content_ids: vec![content_id],
             ..Default::default()
         }],
         context_ids: Vec::new(),
-        extraction: Default::default(),
-        detection: Default::default(),
-        deduplication: Default::default(),
-        redaction: Default::default(),
-        validation: Default::default(),
+        plan: Default::default(),
         exports: vec![ExportFile {
             content_ids: vec![Uuid::new_v4()],
             ..Default::default()

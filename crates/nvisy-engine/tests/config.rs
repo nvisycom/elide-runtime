@@ -2,9 +2,7 @@
 
 mod fixtures;
 
-use std::time::Duration;
-
-use nvisy_engine::pipeline::{EngineSection, ResourceLimits, RuntimeConfig};
+use nvisy_engine::pipeline::{EngineConfig, RuntimeConfig};
 use validator::Validate;
 
 #[test]
@@ -24,8 +22,8 @@ fn example_toml_parses() {
 
     // Verify the engine section parses into our struct.
     let engine_toml = toml::to_string(table.get("engine").unwrap()).unwrap();
-    let engine: EngineSection =
-        toml::from_str(&engine_toml).expect("[engine] section should parse into EngineSection");
+    let engine: EngineConfig =
+        toml::from_str(&engine_toml).expect("[engine] section should parse into EngineConfig");
     engine
         .validate()
         .expect("[engine] section should pass validation");
@@ -44,52 +42,4 @@ fn empty_toml_uses_defaults() {
 fn validation_accepts_defaults() {
     let config = RuntimeConfig::default();
     assert!(config.validate().is_ok());
-}
-
-#[test]
-fn merge_overrides_present_sections() {
-    let base = RuntimeConfig {
-        engine: Some(EngineSection {
-            limits: ResourceLimits {
-                run_timeout: Some(Duration::from_secs(30)),
-            },
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    let overrides = RuntimeConfig {
-        engine: Some(EngineSection {
-            limits: ResourceLimits {
-                run_timeout: Some(Duration::from_secs(5)),
-            },
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let merged = base.merge(&overrides);
-    assert_eq!(
-        merged.engine.unwrap().limits.run_timeout,
-        Some(Duration::from_secs(5))
-    );
-}
-
-#[test]
-fn merge_falls_back_to_base() {
-    let base = RuntimeConfig {
-        engine: Some(EngineSection {
-            limits: ResourceLimits {
-                run_timeout: Some(Duration::from_secs(60)),
-            },
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    let overrides = RuntimeConfig::default();
-
-    let merged = base.merge(&overrides);
-    assert_eq!(
-        merged.engine.unwrap().limits.run_timeout,
-        Some(Duration::from_secs(60))
-    );
 }

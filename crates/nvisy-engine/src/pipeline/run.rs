@@ -12,22 +12,23 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
+use nvisy_ontology::context::Context;
 use nvisy_ontology::modality::Text;
-use nvisy_ontology::policy::{Retention, RetentionPolicy, RetentionScope};
+use nvisy_ontology::policy::{Policy, Retention, RetentionPolicy, RetentionScope};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::config::RuntimeConfig;
-use super::default::{EngineInput, EngineOutput};
-use super::orchestrator::{Orchestrator, RunContext};
+use super::engine::{EngineInput, EngineOutput};
+use super::orchestrator::Orchestrator;
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
+use crate::core::{PolicyStore, RunContext, SharedData};
 use crate::detection::Recognizers;
-use crate::envelope::{PolicyStore, SharedData};
-use crate::extraction::Extractors;
+use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::{Registry, ResourceGuard};
-use crate::redaction::RedactionDefaults;
+use crate::redaction::RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -42,9 +43,9 @@ pub(super) struct Pipeline {
     key_provider: Option<SharedKeyProvider>,
     runs: RunState,
     base_config: RuntimeConfig,
-    extractors: Arc<Extractors>,
+    extraction_engine: Arc<ExtractionEngine>,
     recognizers: Arc<Recognizers>,
-    redaction_defaults: Arc<RedactionDefaults>,
+    redaction_config: Arc<RedactionConfig>,
 }
 
 impl Pipeline {
@@ -54,9 +55,9 @@ impl Pipeline {
         key_provider: Option<SharedKeyProvider>,
         runs: RunState,
         base_config: RuntimeConfig,
-        extractors: Arc<Extractors>,
+        extraction_engine: Arc<ExtractionEngine>,
         recognizers: Arc<Recognizers>,
-        redaction_defaults: Arc<RedactionDefaults>,
+        redaction_config: Arc<RedactionConfig>,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
@@ -64,9 +65,9 @@ impl Pipeline {
             key_provider,
             runs,
             base_config,
-            extractors,
+            extraction_engine,
             recognizers,
-            redaction_defaults,
+            redaction_config,
         }
     }
 
@@ -113,11 +114,6 @@ impl Pipeline {
 
     /// Run the pipeline to completion.
     pub async fn execute(&self, input: EngineInput) -> Result<EngineOutput, Error> {
-        let effective_config = match &input.config {
-            Some(overrides) => self.base_config.merge(overrides),
-            None => self.base_config.clone(),
-        };
-
         let actor_id = input.actor_id;
 
         // Policies arrive in precedence order: index 0 is highest
@@ -136,14 +132,14 @@ impl Pipeline {
         // Cache hands out Arc<Policy<Text>>; PolicyStore keeps them
         // as Arcs, so concurrent runs share the same loaded
         // instances without copying.
-        let text_policies: Vec<Arc<nvisy_ontology::policy::Policy<Text>>> = cached_policies;
+        let text_policies: Vec<Arc<Policy<Text>>> = cached_policies;
 
         let retention_rules: Vec<RetentionPolicy> = text_policies
             .iter()
             .flat_map(|p| p.retention.iter().copied())
             .collect();
 
-        let concurrency = effective_config.effective_concurrency();
+        let concurrency = self.base_config.effective_concurrency();
 
         let mut policy_store = PolicyStore::new();
         policy_store.set::<Text>(text_policies);
@@ -160,43 +156,29 @@ impl Pipeline {
         }
 
         // Build the detection engine once per run by picking
-        // pre-built recognizers from the registry. `None` when the
-        // workflow opted no recognizers in (`kinds` empty) — we
-        // skip the detection phase rather than fail.
-        let detection_engine = if input.detection.kinds.is_empty() {
-            None
-        } else {
-            Some(Arc::new(
-                input
-                    .detection
-                    .into_engine(&self.recognizers)
-                    .map_err(|e| {
-                        Error::validation(format!("detection engine assembly: {e}"), "detection")
-                    })?,
-            ))
-        };
+        // pre-built recognizers from the registry. When the plan
+        // opted no recognizers in (`kinds` empty), the engine is
+        // built empty and the detection phase short-circuits at
+        // dispatch.
+        let detection_engine = input
+            .plan
+            .detection
+            .into_engine(&self.recognizers)
+            .map_err(|e| {
+                Error::validation(format!("detection engine assembly: {e}"), "detection")
+            })?;
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
-        // Per-request redactor overrides win; otherwise reuse the
-        // pre-built defaults. We always rebuild a fresh Arc when the
-        // effective config carries a section, since identity-equality
-        // doesn't tell us whether the section came from override or
-        // base. The defaults struct is small (two scalars + an
-        // Option), so the allocation is trivial.
-        let redaction_defaults = match &effective_config.redaction {
-            Some(d) => Arc::new(d.clone()),
-            None => Arc::clone(&self.redaction_defaults),
-        };
-        let ctx = RunContext {
+        let ctx = RunContext::new(
             cancel,
-            shared: Arc::new(shared_data),
-            extractors: Arc::clone(&self.extractors),
+            Arc::new(shared_data),
+            (*self.extraction_engine).clone(),
             detection_engine,
-            redaction_defaults,
+            (*self.redaction_config).clone(),
             concurrency,
-            dry_run: input.dry_run,
-        };
+            input.dry_run,
+        );
 
         self.runs.set_started_at(self.run_id).await;
 
@@ -243,8 +225,8 @@ impl Pipeline {
                 continue;
             }
             any_ok = true;
-            if let Some(ref envelope) = result.envelope {
-                let audit = envelope.audit_cloned();
+            if let Some(ref tree) = result.tree {
+                let audit = tree.audit_cloned();
                 entities_detected += audit.entities_count() as u64;
                 redactions_applied += audit.applied_redactions_count() as u64;
                 audits.push(audit);
@@ -290,16 +272,12 @@ impl Pipeline {
         actor_id: Uuid,
         context_ids: &[Uuid],
         policy_ids: &[Uuid],
-    ) -> (
-        ResourceGuard<nvisy_ontology::context::Context>,
-        ResourceGuard<nvisy_ontology::policy::Policy<Text>>,
-    ) {
-        let registry = &self.registry;
-
-        let context_guard = registry
+    ) -> (ResourceGuard<Context>, ResourceGuard<Policy<Text>>) {
+        let context_guard = self
+            .registry
             .context_cache()
             .acquire(context_ids, |id| async move {
-                match registry.read_context(actor_id, id).await {
+                match self.registry.read_context(actor_id, id).await {
                     Ok(ctx) => Some(ctx),
                     Err(e) => {
                         tracing::warn!(%id, error = %e, "failed to load context");
@@ -309,10 +287,11 @@ impl Pipeline {
             })
             .await;
 
-        let policy_guard = registry
+        let policy_guard = self
+            .registry
             .policy_cache()
             .acquire(policy_ids, |id| async move {
-                match registry.read_policy(actor_id, id).await {
+                match self.registry.read_policy(actor_id, id).await {
                     Ok(policy) => Some(policy),
                     Err(e) => {
                         tracing::warn!(%id, error = %e, "failed to load policy");

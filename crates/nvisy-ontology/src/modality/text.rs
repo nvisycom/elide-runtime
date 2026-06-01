@@ -3,7 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, ModalityBlock, Overlap, TextExtraction};
+use super::{Image, Modality, ModalityBlock, Overlap, Tabular, TextExtraction};
+use crate::document::Document;
 use crate::policy::TextStrategy;
 use crate::primitive::LanguageDetection;
 
@@ -71,34 +72,48 @@ impl Text {
 
 impl Modality for Text {
     type Block = TextBlock;
-    type Extraction = TextExtraction;
     type Metadata = TextMetadata;
-    type MethodTag = crate::policy::TextMethodTag;
     type Replacement = crate::provenance::TextReplacement;
     type Strategy = TextStrategy;
-
-    fn default_method_dominance() -> &'static [Self::MethodTag] {
-        // Mask is length-preserving (leaks length only); Replace can
-        // change length and leaks the placeholder text. Other tags
-        // never tie at the Partial tier (Recoverable / Irrecoverable
-        // already resolve the conflict).
-        &[
-            crate::policy::TextMethodTag::Mask,
-            crate::policy::TextMethodTag::Replace,
-        ]
-    }
 }
 
-/// Per-modality block payload for [`Text`]. Each variant is a
-/// structural kind (paragraph, heading, list item, code, quote);
-/// every variant carries flat text. Per-word source spans live on
-/// the wrapping [`Block<Text>`].
+/// Per-modality block payload for [`Text`].
 ///
+/// Splits into two variants:
+///
+/// - [`Text`] wraps a structural text-shaped kind
+///   (paragraph, heading, list item, code, quote) — see [`TextContent`].
+/// - [`Embed`] hosts a nested [`Document`] of another
+///   modality (image, tabular) for sources like PDF, DOCX, or HTML
+///   that mix text with non-text content in one flow.
+///
+/// Per-word source spans live on the wrapping [`Block<Text>`].
+///
+/// [`Text`]: Self::Text
+/// [`Embed`]: Self::Embed
 /// [`Block<Text>`]: crate::document::Block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum TextBlock {
+    /// Text-shaped content (paragraph, heading, list item, code, quote).
+    Text(TextContent),
+    /// A nested document of another modality (image, tabular) embedded
+    /// in the text flow. Boxed because [`EmbeddedDocument`] wraps a
+    /// full [`Document<M>`] (blocks + audit) which dwarfs the
+    /// [`TextContent`] variant; without the box every `TextBlock`
+    /// pays the embed footprint.
+    Embed(Box<EmbeddedDocument>),
+}
+
+/// Text-shaped block content — paragraphs, headings, and other
+/// structural variants that carry flat text.
+///
+/// Split out from [`TextBlock`] so the embed variants stay distinct
+/// and text-only recognizers can match on `TextBlock::Text(_)` in one
+/// arm without forgetting embed variants.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum TextContent {
     /// A regular paragraph or text run.
     Paragraph { text: String },
     /// A heading.
@@ -106,7 +121,6 @@ pub enum TextBlock {
         text: String,
         /// Heading depth (1 = h1, 2 = h2, …). `None` when the source
         /// doesn't expose a level.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
         level: Option<u8>,
     },
     /// A list item.
@@ -117,8 +131,8 @@ pub enum TextBlock {
     Quote { text: String },
 }
 
-impl TextBlock {
-    /// The block's text.
+impl TextContent {
+    /// The content's text.
     pub fn text(&self) -> &str {
         match self {
             Self::Paragraph { text }
@@ -130,9 +144,34 @@ impl TextBlock {
     }
 }
 
+/// A nested document of another modality embedded inside a
+/// [`TextBlock::Embed`] variant.
+///
+/// PDFs and other rich containers can host images and tables inline
+/// with their text flow. The engine processes each nested document
+/// through its own per-modality [`Phase<M>`] chain; the recursion is
+/// orchestrator-driven so individual phases stay single-doc.
+///
+/// Recursion is one-directional: only text can host other modalities.
+/// `ImageBlock`, `AudioBlock`, and `TabularBlock` have no embed
+/// variants by construction, so the maximum nesting depth is 2 and
+/// no termination check is needed at runtime.
+///
+/// [`Phase<M>`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/pipeline/trait.Phase.html
+#[derive(Debug, Clone)]
+pub enum EmbeddedDocument {
+    /// A nested image document (e.g. a PDF figure or DOCX picture).
+    Image(Document<Image>),
+    /// A nested tabular document (e.g. a PDF table or DOCX table).
+    Tabular(Document<Tabular>),
+}
+
 impl ModalityBlock for TextBlock {
     fn scan_text(&self) -> Option<&str> {
-        Some(self.text())
+        match self {
+            Self::Text(content) => Some(content.text()),
+            Self::Embed(_) => None,
+        }
     }
 }
 
@@ -171,30 +210,6 @@ impl Overlap for Text {
     /// false-positive as overlapping.
     fn overlaps(&self, other: &Self) -> bool {
         self.page_number == other.page_number && self.start < other.end && other.start < self.end
-    }
-}
-
-impl Mergeable for Text {
-    /// Merge two text ranges by unioning byte offsets when their
-    /// non-range identity (page) matches. Context windows union when
-    /// present on both sides; otherwise the result has no context
-    /// window.
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.page_number != other.page_number {
-            return Err((self, other));
-        }
-        // Context windows union only when both sides have one;
-        // otherwise the merged range drops the context window.
-        let context = self.context.zip(other.context).map(|(a, b)| ContextWindow {
-            start: a.start.min(b.start),
-            end: a.end.max(b.end),
-        });
-        Ok(Self {
-            start: self.start.min(other.start),
-            end: self.end.max(other.end),
-            context,
-            page_number: self.page_number,
-        })
     }
 }
 

@@ -116,7 +116,7 @@ mod tests {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
         let location = Audio::new(TimeSpan::new(0, 1_000));
         let mut rs = Redactions::new();
-        rs.insert(location, AudioRedaction::new(AudioOutput::Silence));
+        rs.push(location, AudioRedaction::new(AudioOutput::Silence));
         let err = handler.redact(rs).await.unwrap_err();
         assert!(
             err.to_string()

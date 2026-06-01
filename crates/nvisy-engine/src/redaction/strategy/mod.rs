@@ -6,12 +6,13 @@
 //! the codec needs.
 //!
 //! Strategies that depend on services not yet wired through to the
-//! applicator (`Encrypt`, `Pseudonymize`, `Tokenize`,
-//! `DropColumn`) keep their match arms here so the wiring stays
-//! visible. `Encrypt` panics via `unimplemented!()` pending a
-//! `CryptoService::encrypt_bytes` helper; the others surface an
-//! explicit error to the caller. They become real conversions when
-//! the supporting service lands.
+//! applicator (`Encrypt`, `DropColumn`, `DropRow`) keep their match
+//! arms here so the wiring stays visible. `Encrypt` currently panics
+//! via `unimplemented!()` — the strategy is reachable from config
+//! but the underlying `CryptoService::encrypt_bytes` helper isn't
+//! built yet. `DropColumn` / `DropRow` surface an explicit error to
+//! the caller (see #245). They become real conversions when the
+//! supporting machinery lands.
 //!
 //! [`RedactionStrategy`]: nvisy_ontology::modality::RedactionStrategy
 

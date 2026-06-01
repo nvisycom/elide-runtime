@@ -15,9 +15,20 @@ pub enum DeduplicationStrategy {
     /// Take the maximum confidence across all detectors.
     #[default]
     MaxConfidence,
-    /// Weighted average by recognition method.
+    /// Weighted average across the group: each entity's confidence
+    /// contributes proportionally to its weight; the result is
+    /// `Σ(wᵢ·pᵢ) / Σ(wᵢ)`.
+    ///
+    /// Per-entity weight = `max(weights[method])` across the
+    /// entity's recognition methods. If an entity has no method
+    /// listed in `weights`, the per-entity weight floors at `1.0`
+    /// (so an unweighted entity still counts, with neutral weight).
+    /// `WeightedAverage { weights: {} }` therefore reduces to a
+    /// plain unweighted average.
     WeightedAverage {
-        /// Per-method weight (missing methods default to 1.0).
+        /// Per-method weight contributed to entities matched by
+        /// that recognition method. Methods missing from the map
+        /// contribute the floor weight `1.0`.
         weights: HashMap<RecognitionMethodKind, f64>,
     },
     /// Noisy-OR: `P = 1 − ∏(1 − pᵢ)` for independent detectors.

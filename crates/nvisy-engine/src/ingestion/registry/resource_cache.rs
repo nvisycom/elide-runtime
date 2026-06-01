@@ -203,6 +203,21 @@ impl<T> fmt::Debug for ResourceCache<T> {
 ///
 /// Returned by [`ResourceCache::acquire`]. Dropping the guard
 /// decrements ref counts and evicts entries that reach zero.
+///
+/// # Runtime lifetime requirement
+///
+/// `Drop` spawns a tokio task to call the cache's `release`
+/// asynchronously rather than blocking the dropping thread. This
+/// works only as long as the tokio runtime outlives every
+/// `ResourceGuard` instance — if the runtime shuts down before a
+/// spawned release runs, ref counts leak and the corresponding
+/// entries stay cached for the remaining process lifetime.
+///
+/// In practice the engine holds the runtime for the duration of a
+/// run, and `ResourceGuard` instances live no longer than the run
+/// that acquired them, so the assumption holds. Test code that
+/// constructs guards under a short-lived runtime should `drop` the
+/// guard explicitly before tearing the runtime down.
 pub struct ResourceGuard<T: Send + Sync + 'static> {
     cache: ResourceCache<T>,
     ids: Vec<Uuid>,
@@ -222,6 +237,8 @@ impl<T: Send + Sync + 'static> Drop for ResourceGuard<T> {
         }
         let cache = self.cache.clone();
         let ids = mem::take(&mut self.ids);
+        // Spawned, not awaited, so Drop stays non-blocking — see
+        // the runtime-lifetime note on the struct doc.
         tokio::spawn(async move {
             cache.release(&ids).await;
         });

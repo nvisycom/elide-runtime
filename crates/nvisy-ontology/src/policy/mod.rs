@@ -30,7 +30,7 @@ pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::selector::EntitySelector;
 pub use self::strategy::{
     Action, AudioMethodTag, AudioStrategy, ImageMethodTag, ImageStrategy, PolicyRule,
-    TabularMethodTag, TabularStrategy, TextMethodTag, TextStrategy,
+    TabularStrategy, TextStrategy,
 };
 use crate::modality::Modality;
 

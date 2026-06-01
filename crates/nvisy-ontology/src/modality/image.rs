@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{ImageExtraction, Mergeable, Modality, ModalityBlock, Overlap};
+use super::{ImageExtraction, Modality, ModalityBlock, Overlap};
 use crate::policy::ImageStrategy;
 use crate::primitive::{BoundingBox, LanguageDetection, Polygon};
 
@@ -49,25 +49,12 @@ impl Image {
 
 impl Modality for Image {
     type Block = ImageBlock;
-    type Extraction = ImageExtraction;
     type Metadata = ImageMetadata;
-    type MethodTag = crate::policy::ImageMethodTag;
     /// Image audits record only which method ran; the substitution
     /// is a binary pixel transform whose parameters live on
     /// `ImageStrategy`.
     type Replacement = crate::policy::ImageMethodTag;
     type Strategy = ImageStrategy;
-
-    fn default_method_dominance() -> &'static [Self::MethodTag] {
-        // Block destroys colour entirely; Pixelate leaks coarse
-        // colour; Blur leaks low-frequency colour + edges. When in
-        // doubt, redact harder.
-        &[
-            crate::policy::ImageMethodTag::Block,
-            crate::policy::ImageMethodTag::Pixelate,
-            crate::policy::ImageMethodTag::Blur,
-        ]
-    }
 }
 
 /// Per-modality block payload for [`Image`]. Text-bearing variants
@@ -81,8 +68,7 @@ impl Modality for Image {
 /// [`Background`]: Self::Background
 /// [`Logo`]: Self::Logo
 /// [`Block<Image>`]: crate::document::Block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ImageBlock {
     /// A region of recognized text (paragraph, line, OCR text block).
@@ -190,26 +176,5 @@ impl Overlap for Image {
         self.image_id == other.image_id
             && self.page_number == other.page_number
             && self.bounding_box.overlaps(&other.bounding_box)
-    }
-}
-
-impl Mergeable for Image {
-    /// Merge two image regions by unioning bounding boxes when their
-    /// `image_id` and `page_number` match. Different documents or
-    /// different pages cannot merge.
-    ///
-    /// The polygon is dropped on merge — the convex hull of two
-    /// rotated quads is not well defined as another quad, and the
-    /// unioned bbox already captures the merged region.
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.image_id != other.image_id || self.page_number != other.page_number {
-            return Err((self, other));
-        }
-        Ok(Self {
-            bounding_box: self.bounding_box.union(&other.bounding_box),
-            polygon: None,
-            image_id: self.image_id,
-            page_number: self.page_number,
-        })
     }
 }

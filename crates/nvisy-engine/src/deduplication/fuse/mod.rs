@@ -20,41 +20,39 @@ use self::group::GroupEntities;
 pub use self::group::GroupingCriteria;
 pub use self::strategy::DeduplicationStrategy;
 use super::span_size::SpanSize;
-use crate::envelope::DocumentEnvelope;
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::fuse";
 
 /// Extension trait: group co-referent entities by `criteria` then
 /// merge each group into a single entity according to `strategy`.
 /// Mutates in place.
-pub(crate) trait Fuse<M: Modality> {
+pub(super) trait Fuse<M: Modality> {
     /// Group + fuse the entity collection in place.
-    fn fuse(
+    fn fuse<V: ValueAt<M> + ?Sized>(
         &mut self,
         strategy: &DeduplicationStrategy,
         criteria: GroupingCriteria,
-        envelope: &DocumentEnvelope<M>,
+        view: &V,
     ) -> impl Future<Output = ()> + Send;
 }
 
 impl<M> Fuse<M> for Vec<Entity<M>>
 where
     M: Modality + Overlap + SpanSize,
-    DocumentEnvelope<M>: ValueAt<M>,
 {
-    async fn fuse(
+    async fn fuse<V: ValueAt<M> + ?Sized>(
         &mut self,
         strategy: &DeduplicationStrategy,
         criteria: GroupingCriteria,
-        envelope: &DocumentEnvelope<M>,
+        view: &V,
     ) {
         if self.len() <= 1 {
             return;
         }
 
         let entities = std::mem::take(self);
-        let groups = entities.group(criteria, envelope).await;
+        let groups = entities.group(criteria, view).await;
 
         tracing::debug!(
             target: TARGET,
@@ -64,25 +62,27 @@ where
         );
 
         for group in groups {
-            self.push(fuse_group(strategy, group, envelope).await);
+            self.push(fuse_group(strategy, group, view).await);
         }
     }
 }
 
 /// Fuse a group of co-referent entities into one.
-async fn fuse_group<M>(
+async fn fuse_group<M, V: ValueAt<M> + ?Sized>(
     strategy: &DeduplicationStrategy,
     mut group: Vec<Entity<M>>,
-    envelope: &DocumentEnvelope<M>,
+    view: &V,
 ) -> Entity<M>
 where
     M: Modality + SpanSize,
-    DocumentEnvelope<M>: ValueAt<M>,
 {
     debug_assert!(!group.is_empty());
 
     if group.len() == 1 {
-        return group.into_iter().next().unwrap();
+        return group
+            .into_iter()
+            .next()
+            .expect("group.len() == 1 by guard above");
     }
 
     let fused_confidence = strategy.compute_confidence(&group);
@@ -135,10 +135,7 @@ where
         Confidence::new(fused_confidence.clamp(0.0, 1.0)).expect("clamped to [0,1]");
     result.refinement_methods.push(refinement);
 
-    let value = envelope
-        .value_at(&result.location)
-        .await
-        .unwrap_or_default();
+    let value = view.value_at(&result.location).await.unwrap_or_default();
     tracing::trace!(
         target: TARGET,
         entity_id = %result.id,
@@ -180,32 +177,43 @@ mod tests {
     use std::sync::Arc;
 
     use nvisy_core::content::ContentMetadata;
+    use nvisy_formats::test_utils::decode_text;
+    use nvisy_ontology::document::Document;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod, RecognitionMethodKind};
+    use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
     use nvisy_ontology::primitive::Confidence;
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::envelope::SharedData;
+    use crate::core::{DocumentView, SharedData, SharedHandle};
+    use crate::ingestion::registry::Registry;
 
-    async fn test_envelope(text: &str) -> DocumentEnvelope<nvisy_ontology::modality::Text> {
-        let registry = crate::ingestion::registry::Registry::open(
-            tempfile::tempdir().expect("tempdir").path(),
-        )
-        .expect("open registry");
-        let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
-        let handle = nvisy_formats::test_utils::decode_text(text)
-            .await
-            .expect("decode text");
-        DocumentEnvelope::<nvisy_ontology::modality::Text>::new(
-            Arc::new(Mutex::new(handle)),
-            ContentMetadata::new().with_content_type("text/plain"),
-            nvisy_ontology::modality::TextMetadata {
-                extraction: nvisy_ontology::modality::TextExtraction::Native,
+    /// Build the per-test owned components ready to wrap into a
+    /// [`PhaseTarget`]. Tests build this once and create targets
+    /// borrowing the fields each time they call `fuse`.
+    async fn test_fixture(
+        text: &str,
+    ) -> (
+        SharedHandle,
+        Document<Text>,
+        ContentMetadata,
+        Arc<SharedData>,
+    ) {
+        let handle: SharedHandle =
+            Arc::new(Mutex::new(decode_text(text).await.expect("decode text")));
+        let source = handle.lock().await.source();
+        let doc = Document::<Text>::new(
+            TextMetadata {
+                extraction: TextExtraction::Native,
                 languages: Vec::new(),
             },
-            shared,
-        )
-        .await
+            source,
+        );
+        let metadata = ContentMetadata::new().with_content_type("text/plain");
+        let registry =
+            Registry::open(tempfile::tempdir().expect("tempdir").path()).expect("open registry");
+        let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
+        (handle, doc, metadata, shared)
     }
 
     fn conf(v: f64) -> Confidence {
@@ -214,9 +222,13 @@ mod tests {
 
     const TEXT: &str = "John Smith";
 
+    /// Two entities at the same `(start, end)` byte range fuse into
+    /// one. With `MaxConfidence`, the higher of the two scores
+    /// (0.8 vs the default 0.9 from `test_build`) wins.
     #[tokio::test]
-    async fn strict_groups_exact_overlap() {
-        let doc = test_envelope(TEXT).await;
+    async fn strict_grouping_fuses_identical_spans_with_max_confidence() {
+        let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
+        let target = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
@@ -227,7 +239,7 @@ mod tests {
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
                 GroupingCriteria::Strict,
-                &doc,
+                &target,
             )
             .await;
         assert_eq!(entities.len(), 1);
@@ -236,7 +248,8 @@ mod tests {
 
     #[tokio::test]
     async fn narrowing_groups_substring_with_overlap() {
-        let doc = test_envelope(TEXT).await;
+        let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
+        let target = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
@@ -252,18 +265,19 @@ mod tests {
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
                 GroupingCriteria::Narrowing,
-                &doc,
+                &target,
             )
             .await;
         assert_eq!(entities.len(), 1);
-        let value = doc.value_at(&entities[0].location).await;
+        let value = target.value_at(&entities[0].location).await;
         assert_eq!(value.as_deref(), Some("John Smith"));
     }
 
     #[tokio::test]
     async fn widening_groups_across_non_overlapping_locations() {
         let text = format!("{:<100}John Smith", TEXT);
-        let doc = test_envelope(&text).await;
+        let (handle, doc, _metadata, _shared) = test_fixture(&text).await;
+        let target = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(100, 110)
@@ -277,7 +291,7 @@ mod tests {
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
                 GroupingCriteria::Widening,
-                &doc,
+                &target,
             )
             .await;
         assert_eq!(entities.len(), 1);
@@ -285,7 +299,8 @@ mod tests {
 
     #[tokio::test]
     async fn noisy_or_strategy() {
-        let doc = test_envelope(TEXT).await;
+        let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
+        let target = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
@@ -302,7 +317,7 @@ mod tests {
             .fuse(
                 &DeduplicationStrategy::NoisyOr,
                 GroupingCriteria::default(),
-                &doc,
+                &target,
             )
             .await;
         assert_eq!(entities.len(), 1);
@@ -312,7 +327,8 @@ mod tests {
 
     #[tokio::test]
     async fn weighted_average_strategy() {
-        let doc = test_envelope(TEXT).await;
+        let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
+        let target = DocumentView::new(&doc, &handle);
         let mut weights = HashMap::new();
         weights.insert(RecognitionMethodKind::Pattern, 1.0);
         weights.insert(RecognitionMethodKind::NlpNer, 2.0);
@@ -332,7 +348,7 @@ mod tests {
             .fuse(
                 &DeduplicationStrategy::WeightedAverage { weights },
                 GroupingCriteria::default(),
-                &doc,
+                &target,
             )
             .await;
         assert_eq!(entities.len(), 1);
@@ -342,7 +358,8 @@ mod tests {
 
     #[tokio::test]
     async fn different_detector_tagged_as_ensemble_fusion() {
-        let doc = test_envelope(TEXT).await;
+        let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
+        let target = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
@@ -358,7 +375,7 @@ mod tests {
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
                 GroupingCriteria::default(),
-                &doc,
+                &target,
             )
             .await;
         assert_eq!(entities.len(), 1);

@@ -4,8 +4,7 @@ use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::Modality;
 
 use super::group::GroupingCriteria;
-use crate::envelope::DocumentEnvelope;
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 
 /// Hash key for the first grouping phase.
 ///
@@ -23,18 +22,15 @@ pub(super) struct GroupKey {
 }
 
 impl GroupKey {
-    pub(super) async fn new<M: Modality>(
+    pub(super) async fn new<M: Modality, V: ValueAt<M> + ?Sized>(
         entity: &Entity<M>,
         criteria: GroupingCriteria,
-        envelope: &DocumentEnvelope<M>,
-    ) -> Self
-    where
-        DocumentEnvelope<M>: ValueAt<M>,
-    {
+        view: &V,
+    ) -> Self {
         // Entities without a text value (e.g. image bounding boxes)
         // get a unique sentinel so they don't all bucket together.
         // They will still be grouped by location overlap in phase 2.
-        let value = match envelope.value_at(&entity.location).await {
+        let value = match view.value_at(&entity.location).await {
             Some(v) => criteria.bucket_value(&v),
             None => entity.id.to_string(),
         };

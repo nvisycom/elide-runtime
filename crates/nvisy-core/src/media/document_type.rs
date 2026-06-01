@@ -1,6 +1,8 @@
 //! [`DocumentType`]: top-level document classification that nests
 //! the per-category leaf format enums from
-//! [`document_format`](super::document_format).
+//! [`document_format`].
+//!
+//! [`document_format`]: super::document_format
 
 use std::ffi::OsStr;
 use std::fmt;

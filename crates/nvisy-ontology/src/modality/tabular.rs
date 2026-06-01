@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, ModalityBlock, Overlap, TabularExtraction};
+use super::{Modality, ModalityBlock, Overlap, TabularExtraction};
 use crate::policy::TabularStrategy;
 
 /// A cell (or sub-cell range) within tabular content.
@@ -49,22 +49,9 @@ impl Tabular {
 
 impl Modality for Tabular {
     type Block = TabularBlock;
-    type Extraction = TabularExtraction;
     type Metadata = TabularMetadata;
-    type MethodTag = crate::policy::TabularMethodTag;
     type Replacement = crate::provenance::TabularReplacement;
     type Strategy = TabularStrategy;
-
-    fn default_method_dominance() -> &'static [Self::MethodTag] {
-        // Clear leaves the cell at known coordinates with an empty
-        // value (least content leaks); Mask preserves length;
-        // Replace can change length.
-        &[
-            crate::policy::TabularMethodTag::Clear,
-            crate::policy::TabularMethodTag::Mask,
-            crate::policy::TabularMethodTag::Replace,
-        ]
-    }
 }
 
 /// Per-modality block payload for [`Tabular`]. Today only [`Row`] —
@@ -73,8 +60,7 @@ impl Modality for Tabular {
 ///
 /// [`Row`]: Self::Row
 /// [`Block<Tabular>`]: crate::document::Block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum TabularBlock {
     /// A row. The row index is carried on each
@@ -172,38 +158,6 @@ impl Overlap for Tabular {
         let (s1, e1) = self.cell_range();
         let (s2, e2) = other.cell_range();
         s1 < e2 && s2 < e1
-    }
-}
-
-impl Mergeable for Tabular {
-    /// Merge two tabular ranges when their cell coordinates match
-    /// (same `row_index` + `column_index` + `sheet_name`). Intra-cell
-    /// byte offsets union when present on both sides; otherwise the
-    /// result has no offsets (meaning "whole cell").
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.row_index != other.row_index
-            || self.column_index != other.column_index
-            || self.sheet_name != other.sheet_name
-        {
-            return Err((self, other));
-        }
-        let (start, end) = match (
-            self.start_offset,
-            self.end_offset,
-            other.start_offset,
-            other.end_offset,
-        ) {
-            (Some(s1), Some(e1), Some(s2), Some(e2)) => (Some(s1.min(s2)), Some(e1.max(e2))),
-            _ => (None, None),
-        };
-        Ok(Self {
-            row_index: self.row_index,
-            column_index: self.column_index,
-            start_offset: start,
-            end_offset: end,
-            column_name: self.column_name.or(other.column_name),
-            sheet_name: self.sheet_name,
-        })
     }
 }
 

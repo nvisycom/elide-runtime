@@ -2,19 +2,21 @@
 //!
 //! Runs after detection. Combines multiple detection passes into a
 //! single, deduplicated set of entities with combined confidence
-//! scores.
+//! scores. Public surface is [`DeduplicationPhase`] +
+//! [`DeduplicationParams`]; the sub-step traits live in private
+//! submodules and are used only by the phase body.
 //!
-//! The deduplication pipeline:
+//! Pipeline order (inside `DeduplicationPhase::run`):
 //!
 //! 1. **Calibrate**: scale raw confidence scores using per-method
 //!    multipliers from [`CalibrationMap`].
-//! 2. **Group + fuse**: partition entities by kind, value, and
+//! 2. **Filter**: drop entities below the per-run confidence
+//!    threshold (and outside the plan's allowed-kinds list).
+//! 3. **Group + fuse**: partition entities by kind, value, and
 //!    location overlap (per [`GroupingCriteria`]), then combine each
 //!    group into one entity using the [`DeduplicationStrategy`].
-//! 3. **Conflict resolution**: resolve cross-kind span overlaps per
+//! 4. **Conflict resolution**: resolve cross-kind span overlaps per
 //!    the configured [`ConflictResolution`] strategy.
-//! 4. **Threshold filter**: drop entities below the minimum
-//!    confidence threshold.
 
 mod calibrate;
 mod filter;
@@ -26,9 +28,11 @@ mod span_size;
 use std::mem;
 
 use nvisy_core::Result;
+use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Overlap};
 use nvisy_ontology::provenance::EntityRecord;
+use tracing::Instrument;
 
 use self::calibrate::Calibrate;
 pub use self::calibrate::CalibrationMap;
@@ -40,70 +44,91 @@ pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
 pub use self::span_size::SpanSize;
-use crate::envelope::DocumentEnvelope;
-use crate::envelope::value_at::ValueAt;
+use crate::core::{DocumentTree, DocumentView, NodeMut, RunContext, SharedHandle, ValueAt};
+use crate::detection::Detection;
+use crate::pipeline::EngineInput;
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
-/// Combined calibration, deduplication, conflict resolution, and
-/// threshold filtering operation.
+/// Deduplication phase: calibrate raw confidence scores, filter
+/// below-threshold or wrong-kind entities, group + fuse overlapping
+/// matches, then resolve cross-kind conflicts.
 ///
-/// Created from the [`DeduplicationParams`] workflow configuration.
-pub struct Deduplicator {
-    grouping: GroupingCriteria,
-    strategy: DeduplicationStrategy,
-    calibration: CalibrationMap,
-    conflict_resolution: ConflictResolution,
-}
+/// Stateless. Per-run config ([`DeduplicationParams`] for
+/// calibration/threshold/grouping, [`Detection`] for the
+/// allowed-kinds list) comes from `input.plan` each call.
+pub struct DeduplicationPhase;
 
-impl Deduplicator {
-    /// Create from a [`DeduplicationParams`] workflow config.
-    pub fn new(cfg: &DeduplicationParams) -> Self {
-        tracing::debug!(
-            target: TARGET,
-            grouping = ?cfg.grouping,
-            strategy = ?cfg.strategy,
-            calibration_methods = cfg.calibration.len(),
-            conflict_resolution = ?cfg.conflict_resolution,
-            "creating deduplication operation",
-        );
-        Self {
-            grouping: cfg.grouping,
-            strategy: cfg.strategy.clone(),
-            calibration: cfg.calibration.clone(),
-            conflict_resolution: cfg.conflict_resolution,
-        }
+impl DeduplicationPhase {
+    /// Build the phase. Stateless.
+    pub fn new() -> Self {
+        Self
     }
 
-    /// Run the full deduplication pipeline.
-    pub(crate) async fn deduplicate<M>(
+    /// Walk the tree and run the per-node dedup body. Visits the
+    /// root first, then iterates nested embedded documents; each
+    /// per-node body borrows the detection + dedup plan and handle
+    /// directly from this scope.
+    pub(crate) async fn apply(
         &self,
+        _ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree,
+    ) -> Result<()> {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "deduplication");
+        // Snapshot the tree-owned handle so it doesn't conflict with
+        // the per-node `&mut` borrows produced by `root_mut` /
+        // `embeds_mut` further down.
+        let handle = tree.handle.clone();
+        async move {
+            dispatch(
+                tree.root_mut(),
+                &handle,
+                &input.plan.deduplication,
+                &input.plan.detection,
+            )
+            .await?;
+            for node in tree.embeds_mut() {
+                dispatch(
+                    node,
+                    &handle,
+                    &input.plan.deduplication,
+                    &input.plan.detection,
+                )
+                .await?;
+            }
+            Ok(())
+        }
+        .instrument(span)
+        .await
+    }
+
+    /// Run the four-step pipeline against an owned entity list.
+    /// Shared by [`Self::apply`] and the test harness so both go
+    /// through the same code path.
+    pub(crate) async fn deduplicate<M>(
+        params: &DeduplicationParams,
+        filter: &FilterParams,
         mut entities: Vec<Entity<M>>,
-        envelope: &DocumentEnvelope<M>,
-        params: &FilterParams,
+        doc: &Document<M>,
+        handle: &SharedHandle,
     ) -> Vec<Entity<M>>
     where
         M: Modality + Overlap + SpanSize,
-        DocumentEnvelope<M>: ValueAt<M>,
+        for<'a> DocumentView<'a, M>: ValueAt<M>,
     {
         if entities.is_empty() {
             return entities;
         }
-
         let before = entities.len();
 
-        // Step 1: calibrate raw confidence scores.
-        entities.calibrate(&self.calibration);
-
-        // Step 2: filter by operator-supplied (or engine-default)
-        // params on the calibrated score.
-        let dropped = entities.filter(params);
-
-        // Step 3: group + fuse.
-        entities.fuse(&self.strategy, self.grouping, envelope).await;
-
-        // Step 4: resolve cross-kind span conflicts.
-        let _conflict_dropped = entities.resolve_conflicts(&self.conflict_resolution);
+        let view = DocumentView::new(doc, handle);
+        entities.calibrate(&params.calibration);
+        let dropped = entities.filter(filter);
+        entities
+            .fuse(&params.strategy, params.grouping, &view)
+            .await;
+        let _conflict_dropped = entities.resolve_conflicts(&params.conflict_resolution);
 
         tracing::info!(
             target: TARGET,
@@ -116,47 +141,72 @@ impl Deduplicator {
 
         entities
     }
+}
 
-    /// Execute deduplication against the envelope's entities.
-    pub async fn execute<M>(
-        &self,
-        envelope: &mut DocumentEnvelope<M>,
-        params: &FilterParams,
-    ) -> Result<()>
-    where
-        M: Modality + Overlap + SpanSize,
-        DocumentEnvelope<M>: ValueAt<M>,
-    {
-        if !envelope.document.audit.records.is_empty() {
-            tracing::debug!(
-                target: TARGET,
-                entities = envelope.document.audit.records.len(),
-                "running deduplication",
-            );
-            // Dedup runs before redaction evaluation, so every
-            // record's `audit` is still None; we can pull entities
-            // out, dedup, and rewrap without losing audit state.
-            let records = mem::take(&mut envelope.document.audit.records);
-            let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
-            let deduped = self.deduplicate(entities, envelope, params).await;
-            envelope.document.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
-        }
-        Ok(())
+impl Default for DeduplicationPhase {
+    fn default() -> Self {
+        Self::new()
     }
+}
+
+async fn dispatch(
+    node: NodeMut<'_>,
+    handle: &SharedHandle,
+    dedup: &DeduplicationParams,
+    detection: &Detection,
+) -> Result<()> {
+    match node {
+        NodeMut::Text(doc) => dedup_one(doc, handle, dedup, detection).await,
+        NodeMut::Tabular(doc) => dedup_one(doc, handle, dedup, detection).await,
+        NodeMut::Image(doc) => dedup_one(doc, handle, dedup, detection).await,
+        NodeMut::Audio(doc) => dedup_one(doc, handle, dedup, detection).await,
+    }
+}
+
+async fn dedup_one<M>(
+    doc: &mut Document<M>,
+    handle: &SharedHandle,
+    dedup: &DeduplicationParams,
+    detection: &Detection,
+) -> Result<()>
+where
+    M: Modality + Overlap + SpanSize,
+    for<'a> DocumentView<'a, M>: ValueAt<M>,
+{
+    if doc.audit.records.is_empty() {
+        return Ok(());
+    }
+    let filter = FilterParams {
+        allowed_kinds: (!detection.entity_kinds.is_empty()).then(|| detection.entity_kinds.clone()),
+        confidence_threshold: dedup.confidence_threshold,
+    };
+    tracing::debug!(
+        target: TARGET,
+        entities = doc.audit.records.len(),
+        "running deduplication",
+    );
+    // Dedup runs before redaction evaluation, so every record's
+    // `audit` is still None; we can pull entities out, dedup, and
+    // rewrap without losing audit state.
+    let records = mem::take(&mut doc.audit.records);
+    let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
+    let deduped = DeduplicationPhase::deduplicate(dedup, &filter, entities, doc, handle).await;
+    doc.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
-    use nvisy_core::content::ContentMetadata;
+    use nvisy_ontology::document::Document;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
     use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
     use nvisy_ontology::primitive::{Confidence, ConfidenceThreshold};
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::envelope::SharedData;
+    use crate::core::{SharedHandle, ValueAt};
 
     fn conf(v: f64) -> Confidence {
         Confidence::new(v).expect("confidence in [0,1]")
@@ -164,51 +214,59 @@ mod tests {
 
     const TEST_TEXT: &str = "John Smith";
 
-    async fn test_envelope(text: &str) -> DocumentEnvelope<Text> {
-        let registry = crate::ingestion::registry::Registry::open(
-            tempfile::tempdir().expect("tempdir").path(),
-        )
-        .expect("open registry");
-        let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
-        let handle = nvisy_formats::test_utils::decode_text(text)
-            .await
-            .expect("decode text");
-        DocumentEnvelope::<Text>::new(
-            Arc::new(Mutex::new(handle)),
-            ContentMetadata::new().with_content_type("text/plain"),
+    /// Owned per-test components used to drive the dedup pipeline.
+    struct Fixture {
+        handle: SharedHandle,
+        doc: Document<Text>,
+    }
+
+    async fn test_fixture(text: &str) -> Fixture {
+        let handle: SharedHandle = Arc::new(Mutex::new(
+            nvisy_formats::test_utils::decode_text(text)
+                .await
+                .expect("decode text"),
+        ));
+        let source = handle.lock().await.source();
+        let doc = Document::<Text>::new(
             TextMetadata {
                 extraction: TextExtraction::Native,
                 languages: Vec::new(),
             },
-            shared,
-        )
-        .await
+            source,
+        );
+        Fixture { handle, doc }
     }
 
     #[tokio::test]
     async fn confidence_threshold_filters() {
-        let doc = test_envelope("John......Jane").await;
-        let op = Deduplicator::new(&DeduplicationParams::default());
+        let fix = test_fixture("John......Jane").await;
+        let filter = FilterParams {
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
+            ..Default::default()
+        };
         let entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(10, 14)
                 .with_confidence(conf(0.5))
                 .test_build(),
         ];
-        let params = FilterParams {
-            confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
-            ..Default::default()
-        };
-        let result = op.deduplicate(entities, &doc, &params).await;
+        let result = DeduplicationPhase::deduplicate::<Text>(
+            &DeduplicationParams::default(),
+            &filter,
+            entities,
+            &fix.doc,
+            &fix.handle,
+        )
+        .await;
         assert_eq!(result.len(), 1);
-        let value = doc.value_at(&result[0].location).await;
+        let view = DocumentView::new(&fix.doc, &fix.handle);
+        let value = view.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John"));
     }
 
     #[tokio::test]
     async fn full_pipeline() {
-        let doc = test_envelope(TEST_TEXT).await;
-        let op = Deduplicator::new(&DeduplicationParams::default());
+        let fix = test_fixture(TEST_TEXT).await;
         let entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
@@ -224,20 +282,15 @@ mod tests {
                 .with_confidence(conf(0.85))
                 .test_build(),
         ];
-        let result = op
-            .deduplicate(entities, &doc, &FilterParams::default())
-            .await;
+        let result = DeduplicationPhase::deduplicate::<Text>(
+            &DeduplicationParams::default(),
+            &FilterParams::default(),
+            entities,
+            &fix.doc,
+            &fix.handle,
+        )
+        .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence.get() - 0.85).abs() < f64::EPSILON);
-    }
-
-    #[tokio::test]
-    async fn empty_input() {
-        let doc = test_envelope("").await;
-        let op = Deduplicator::new(&DeduplicationParams::default());
-        let result = op
-            .deduplicate(Vec::<Entity<Text>>::new(), &doc, &FilterParams::default())
-            .await;
-        assert!(result.is_empty());
     }
 }

@@ -33,7 +33,7 @@ pub use self::audio::{Audio, AudioBlock, AudioMetadata};
 pub use self::extraction::{AudioExtraction, ImageExtraction, TabularExtraction, TextExtraction};
 pub use self::image::{Image, ImageBlock, ImageMetadata, PageDimensions};
 pub use self::tabular::{ColumnHeader, Tabular, TabularBlock, TabularMetadata};
-pub use self::text::{ContextWindow, Text, TextBlock, TextMetadata};
+pub use self::text::{ContextWindow, EmbeddedDocument, Text, TextBlock, TextContent, TextMetadata};
 
 /// Marker trait implemented by every per-modality coordinate type.
 ///
@@ -49,60 +49,31 @@ pub use self::text::{ContextWindow, Text, TextBlock, TextMetadata};
 ///
 /// - [`Block`] — the modality's block variant.
 /// - [`Metadata`] — document-level metadata (languages, page
-///   dimensions, column headers).
-/// - [`Extraction`] — how the document's primary content was produced
-///   at importer time (PDF text layer vs OCR'd, STT vs diarized,
-///   etc.). Recorded on [`Metadata`].
+///   dimensions, column headers, the importer's extraction tag).
 ///
 /// [`Block`]: Self::Block
 /// [`Metadata`]: Self::Metadata
-/// [`Extraction`]: Self::Extraction
 /// [`Entity<M>`]: crate::entity::Entity
 /// [`Audit<M>`]: crate::provenance::Audit
 pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// The modality's block payload. See per-modality types:
     /// [`TextBlock`], [`ImageBlock`], [`AudioBlock`], [`TabularBlock`].
-    type Block: ModalityBlock + Clone + Debug + PartialEq + Send + Sync + 'static;
+    type Block: ModalityBlock + Clone + Debug + Send + Sync + 'static;
 
-    /// Document-level metadata. Carries the modality's [`Extraction`]
-    /// tag plus modality-specific fields (languages, page dimensions,
-    /// column headers, …). No `Default` bound: every document is
-    /// imported with a known extraction path, so the importer must
-    /// always supply metadata rather than rely on a placeholder
-    /// default.
-    ///
-    /// [`Extraction`]: Self::Extraction
+    /// Document-level metadata. Carries the importer's extraction tag
+    /// ([`TextExtraction`] / [`ImageExtraction`] / [`AudioExtraction`] /
+    /// [`TabularExtraction`]) plus modality-specific fields (languages,
+    /// page dimensions, column headers, …). No `Default` bound: every
+    /// document is imported with a known extraction path, so the
+    /// importer must always supply metadata rather than rely on a
+    /// placeholder default.
     type Metadata: Clone + Debug + PartialEq + Send + Sync + 'static;
-
-    /// How the document's primary content was produced. See
-    /// [`TextExtraction`], [`ImageExtraction`], [`AudioExtraction`],
-    /// [`TabularExtraction`]. Recorded on [`Metadata`]; not `Default`
-    /// because the importer always knows which path it took.
-    ///
-    /// [`Metadata`]: Self::Metadata
-    type Extraction: Clone + Debug + PartialEq + Send + Sync + 'static;
 
     /// The modality's redaction strategy. Each modality declares the
     /// methods that make sense for its data — text picks
     /// mask/replace/encrypt/etc., image picks blur/block/pixelate,
     /// audio picks silence/remove, tabular picks clear/drop-column.
-    type Strategy: RedactionStrategy<Tag = Self::MethodTag>
-        + Clone
-        + Debug
-        + Default
-        + PartialEq
-        + Send
-        + Sync
-        + 'static;
-
-    /// Closed enum naming the modality's redaction methods *without*
-    /// their parameters. Used for tiebreaking among two methods that
-    /// share the same [`LeakProfile`] on overlapping spans. Mirrors
-    /// [`Self::Strategy`] one-to-one (each strategy variant maps to
-    /// one tag via [`RedactionStrategy::method_tag`]); a separate
-    /// type so the codec can reason about methods without
-    /// committing to their parameters.
-    type MethodTag: Copy + Debug + Eq + Hash + Send + Sync + 'static;
+    type Strategy: RedactionStrategy + Clone + Debug + Default + PartialEq + Send + Sync + 'static;
 
     /// What an applied redaction wrote back at the entity's
     /// location. The shape is per-modality:
@@ -120,12 +91,6 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     ///
     /// [`Execution::Applied`]: crate::provenance::Execution::Applied
     type Replacement: Clone + Debug + PartialEq + Send + Sync + 'static;
-
-    /// Modality-built-in dominance order, first entry = highest
-    /// dominance. Used as a tiebreaker when two overlapping
-    /// redactions share the same [`LeakProfile`] but use different
-    /// methods.
-    fn default_method_dominance() -> &'static [Self::MethodTag];
 }
 
 /// Shared per-block surface every modality's block payload exposes.
@@ -154,10 +119,10 @@ pub trait ModalityBlock {
 /// What a redacted output leaks about the original it replaced.
 ///
 /// Variants are ordered from most-leaky to least-leaky, so
-/// `Recoverable < Partial < Irrecoverable`. Merge resolution prefers
-/// the less-leaky method when two methods conflict on the same
-/// span (an `Irrecoverable` wins over a `Partial`, which wins over
-/// a `Recoverable`).
+/// `Recoverable < Partial < Irrecoverable`. Used today for operator
+/// understanding and policy authoring; future conflict-resolution
+/// passes may consult the ordering when two methods compete (see
+/// engine deduplication + #244).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -177,17 +142,8 @@ pub enum LeakProfile {
 
 /// Methods every per-modality redaction strategy must expose.
 pub trait RedactionStrategy {
-    /// Parameter-less tag identifying which method the strategy is.
-    /// Used for policy dominance declarations; see
-    /// [`Modality::MethodTag`].
-    type Tag: Copy + Debug + Eq + Hash + Send + Sync + 'static;
-
     /// What the strategy's output leaks about the original.
     fn leak_profile(&self) -> LeakProfile;
-
-    /// The parameter-less tag for this strategy variant. Two
-    /// strategies are the same method iff their tags compare equal.
-    fn method_tag(&self) -> Self::Tag;
 
     /// Whether the strategy is reversible — true iff the leak
     /// profile is [`Recoverable`].
@@ -196,20 +152,6 @@ pub trait RedactionStrategy {
     fn is_reversible(&self) -> bool {
         self.leak_profile() == LeakProfile::Recoverable
     }
-}
-
-/// Combine two values into one when they can be reconciled.
-///
-/// Used by deduplication and fusion pipelines: when two entries
-/// collide (per [`Overlap`]), the consumer asks both the location
-/// and the payload whether they can fuse. Returns `Ok(merged)` when
-/// the two can be combined (e.g. unioned bounding boxes, identical
-/// outputs), or `Err((self, other))` handing both originals back
-/// when they cannot (e.g. different tabular cells, conflicting
-/// replacement strings) — the caller keeps both without paying for a
-/// speculative clone.
-pub trait Mergeable: Sized {
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)>;
 }
 
 /// Check whether two coordinates of the same modality overlap.

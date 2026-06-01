@@ -17,7 +17,6 @@
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 //! [#128]: https://github.com/nvisycom/runtime/issues/128
 
-use async_trait::async_trait;
 use bentoml::prelude::*;
 use nvisy_core::Error;
 use nvisy_ontology::document::Block;
@@ -77,7 +76,7 @@ impl BentoBackend {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Backend for BentoBackend {
     fn provenance(&self) -> ModelProvenance {
         ModelProvenance::new("bento-ocr", ModelKind::SelfHosted)

@@ -25,7 +25,6 @@ mod params;
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_agent::agent::VlmDetectContext;
 use nvisy_agent::pipeline::VlmPipeline;
 use nvisy_core::{Error, Result};
@@ -67,7 +66,7 @@ pub fn build_pipeline(cfg: VlmDetection) -> Result<Arc<VlmPipeline>> {
     Ok(Arc::new(pipeline))
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Recognizer for VlmPipeline {
     type Context = VlmScanInput;
     type Modality = Image;
@@ -97,7 +96,6 @@ impl From<&VlmDetectionContext> for VlmScanInput {
         Self {
             ctx: VlmDetectContext {
                 entity_kinds: ctx.entities.clone().unwrap_or_default(),
-                confidence_threshold: ctx.score_threshold,
                 system_prompt: None,
                 labels: ctx.labels.clone(),
                 correlation_id: ctx.correlation_id,

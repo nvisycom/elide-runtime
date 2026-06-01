@@ -4,8 +4,6 @@ use nvisy_ontology::primitive::Color;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::core::Mergeable;
-
 /// An image redaction: the *how*. The *where* (bounding box, page
 /// number, image id) lives on the containing [`Image`] via
 /// [`Redactions`]'s `(S, R)` pairs.
@@ -42,18 +40,4 @@ pub enum ImageOutput {
     Pixelate { block_size: u32 },
     /// Region replaced with provided image data.
     Replace { data: Vec<u8> },
-}
-
-impl Mergeable for ImageRedaction {
-    /// Combine two redactions that target overlapping locations.
-    /// Returns `Ok` only when the outputs match (method *and*
-    /// parameters); a Blur and a Pixelate hand both originals back
-    /// via `Err`.
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.output == other.output {
-            Ok(self)
-        } else {
-            Err((self, other))
-        }
-    }
 }

@@ -16,65 +16,66 @@
 //! The generic `Validator::execute<M>` dispatches via this trait
 //! so each modality's pipeline runs the right check (or none).
 
-use async_trait::async_trait;
+use futures::StreamExt;
+use nvisy_ontology::document::Document;
 use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 use nvisy_ontology::provenance::EntityRecord;
+use unicode_normalization::UnicodeNormalization;
 
 use super::{LeakedValue, ValidationResult};
-use crate::envelope::DocumentEnvelope;
-use crate::envelope::value_at::ValueAt;
+use crate::core::{DocumentView, SharedHandle, ValueAt};
 
 /// Per-modality leak-check contract.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait CheckLeaks: Modality {
-    /// Inspect the envelope and report any redacted values that
+    /// Inspect the document and report any redacted values that
     /// remain visible. Modalities without leak-detection support
     /// return [`ValidationResult::skipped`].
-    async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult;
+    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult;
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Text {
-    async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult {
-        let redacted_text = read_text(envelope).await;
-        check_text_like::<Text>(envelope, redacted_text.as_deref()).await
+    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult {
+        let redacted_text = read_text(handle).await;
+        check_text_like::<Text>(doc, handle, redacted_text.as_deref()).await
     }
 }
 
 #[cfg(feature = "tabular")]
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Tabular {
-    async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult {
-        let redacted_text = read_tabular(envelope).await;
-        check_text_like::<Tabular>(envelope, redacted_text.as_deref()).await
+    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult {
+        let redacted_text = read_tabular(handle).await;
+        check_text_like::<Tabular>(doc, handle, redacted_text.as_deref()).await
     }
 }
 
 #[cfg(not(feature = "tabular"))]
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Tabular {
-    async fn check_leaks(_envelope: &DocumentEnvelope<Self>) -> ValidationResult {
+    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Image {
     /// Image leak detection requires visual inspection (compare the
     /// redacted region against the original). Not implemented yet —
     /// tracked at
     /// <https://github.com/nvisycom/runtime/issues/209>.
-    async fn check_leaks(_envelope: &DocumentEnvelope<Self>) -> ValidationResult {
+    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Audio {
     /// Audio leak detection requires speech/audio inspection of the
     /// post-redaction segments. Not implemented yet — tracked at
     /// <https://github.com/nvisycom/runtime/issues/210>.
-    async fn check_leaks(_envelope: &DocumentEnvelope<Self>) -> ValidationResult {
+    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
@@ -86,18 +87,18 @@ impl CheckLeaks for Audio {
 /// whether it still contains the original. Records whose value
 /// can't be re-read are conservatively counted as passed.
 async fn check_text_like<M>(
-    envelope: &DocumentEnvelope<M>,
+    doc: &Document<M>,
+    handle: &SharedHandle,
     redacted_text: Option<&str>,
 ) -> ValidationResult
 where
     M: Modality,
-    DocumentEnvelope<M>: ValueAt<M>,
+    for<'a> DocumentView<'a, M>: ValueAt<M>,
 {
     let mut passed = 0usize;
     let mut leaked = Vec::new();
 
-    let applied: Vec<&EntityRecord<M>> = envelope
-        .document
+    let applied: Vec<&EntityRecord<M>> = doc
         .audit
         .records
         .iter()
@@ -112,11 +113,12 @@ where
         };
     };
 
-    let lower_text = text.to_lowercase();
+    let view = DocumentView::new(doc, handle);
+    let folded_text = fold_for_match(text);
     for record in &applied {
-        if let Some(value) = envelope.value_at(&record.entity.location).await {
-            let lower_value = value.to_lowercase();
-            if !value.is_empty() && lower_text.contains(&lower_value) {
+        if let Some(value) = view.value_at(&record.entity.location).await {
+            let folded_value = fold_for_match(&value);
+            if !value.is_empty() && folded_text.contains(&folded_value) {
                 leaked.push(LeakedValue {
                     value,
                     entity_id: record.entity.id,
@@ -136,14 +138,17 @@ where
     }
 }
 
-async fn read_text(envelope: &DocumentEnvelope<Text>) -> Option<String> {
-    let locations = envelope.collect_text_locations().await;
+async fn read_text(handle: &SharedHandle) -> Option<String> {
+    let locations: Vec<_> = {
+        let guard = handle.lock().await;
+        guard.text_locations().collect().await
+    };
     if locations.is_empty() {
         return None;
     }
     let mut buf = String::new();
     for located in &locations {
-        if let Some(data) = envelope.read_text(&located.location).await {
+        if let Some(data) = handle.lock().await.read_text(&located.location).await {
             buf.push_str(data.as_str());
         }
     }
@@ -151,14 +156,17 @@ async fn read_text(envelope: &DocumentEnvelope<Text>) -> Option<String> {
 }
 
 #[cfg(feature = "tabular")]
-async fn read_tabular(envelope: &DocumentEnvelope<Tabular>) -> Option<String> {
-    let locations = envelope.collect_tabular_locations().await;
+async fn read_tabular(handle: &SharedHandle) -> Option<String> {
+    let locations: Vec<_> = {
+        let guard = handle.lock().await;
+        guard.tabular_locations().collect().await
+    };
     if locations.is_empty() {
         return None;
     }
     let mut buf = String::new();
     for located in &locations {
-        if let Some(data) = envelope.read_tabular(&located.location).await {
+        if let Some(data) = handle.lock().await.read_tabular(&located.location).await {
             if !buf.is_empty() {
                 buf.push('\n');
             }
@@ -166,4 +174,42 @@ async fn read_tabular(envelope: &DocumentEnvelope<Tabular>) -> Option<String> {
         }
     }
     Some(buf)
+}
+
+/// Fold a string for case-insensitive substring matching across
+/// Unicode normalization forms.
+///
+/// Without normalization, the same character sequence written in
+/// NFC vs NFD won't substring-match: e.g. `"café"` as
+/// `[c, a, f, U+00E9]` vs `[c, a, f, e, U+0301]` are distinct byte
+/// sequences. We normalize to NFC, then lowercase. Turkish dotless-i
+/// and other locale-sensitive cases still misfold (`I` → `i` not
+/// `ı`), but that's a deeper Unicode rabbit hole and the redaction
+/// pipeline doesn't currently carry per-document locale info to do
+/// it properly.
+fn fold_for_match(s: &str) -> String {
+    s.nfc().collect::<String>().to_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fold_for_match;
+
+    #[test]
+    fn nfc_normalization_collapses_combining_accents() {
+        // "café" as NFC (U+00E9) and NFD (e + U+0301) should fold
+        // to the same string.
+        let nfc = "caf\u{00e9}";
+        let nfd = "cafe\u{0301}";
+        assert_eq!(fold_for_match(nfc), fold_for_match(nfd));
+    }
+
+    #[test]
+    fn case_fold_substring_match_works_across_normalization() {
+        // The haystack is NFD and uppercase; the needle is NFC
+        // lowercase. Folding both should let the substring match.
+        let haystack = fold_for_match("HELLO CAFE\u{0301}!");
+        let needle = fold_for_match("caf\u{00e9}");
+        assert!(haystack.contains(&needle));
+    }
 }

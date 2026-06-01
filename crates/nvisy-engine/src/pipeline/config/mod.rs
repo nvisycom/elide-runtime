@@ -1,8 +1,8 @@
 //! Pipeline runtime configuration, typically deserialized from TOML.
 //!
 //! [`RuntimeConfig`] is the top-level configuration object containing
-//! optional subsystem sections — [`EngineSection`],
-//! [`ExtractionSection`], and [`DetectionSection`].
+//! optional subsystem sections — [`EngineConfig`],
+//! [`ExtractionConfig`], and [`DetectionConfig`].
 //!
 //! Per-request overrides are supported via [`RuntimeConfig::merge`],
 //! which replaces entire sections (not individual fields) when the
@@ -25,10 +25,10 @@ use std::num::NonZeroUsize;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-pub use self::engine::{CacheConfig, EngineSection, ResourceLimits};
-use crate::detection::DetectionSection;
-use crate::extraction::ExtractionSection;
-use crate::redaction::RedactionDefaults;
+pub use self::engine::{EngineConfig, ResourceLimits};
+use crate::detection::DetectionConfig;
+use crate::extraction::ExtractionConfig;
+use crate::redaction::RedactionConfig;
 
 fn default_config_version() -> Version {
     Version::new(0, 1, 0)
@@ -40,13 +40,12 @@ fn default_config_version() -> Version {
 /// TOML shape (including `[server]`) and passes this struct downstream
 /// to the engine.
 ///
-/// # Merge semantics
-///
-/// [`RuntimeConfig::merge`] replaces entire sections — if the override
-/// provides a non-`None` section, it wins completely. Fields within a
-/// section are not merged individually. `extractor` and `recognizer`
-/// are NOT overridable per-request: both are built once at engine
-/// startup.
+/// Every section is load-once: the engine reads this struct at
+/// startup, builds the per-section state behind `Arc`s on its inner
+/// shared state, and never re-reads it. Per-request override is not
+/// supported — plans tune behaviour through their own per-phase
+/// config nodes (`Extraction`, `Detection`, `Redaction`, …), not by
+/// resupplying a `RuntimeConfig`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Configuration schema version.
@@ -54,20 +53,21 @@ pub struct RuntimeConfig {
     pub version: Version,
 
     /// Engine-level execution policies, networking, and resource limits.
-    pub engine: Option<EngineSection>,
+    pub engine: Option<EngineConfig>,
     /// Extraction registry — `[extraction.ocr]`, `[extraction.stt]`
     /// sub-sections. Built once at engine startup; the `Extraction`
     /// phase config carries per-call flags only.
-    pub extraction: Option<ExtractionSection>,
+    pub extraction: Option<ExtractionConfig>,
     /// Detection registry — `[detection.llm]`, `[detection.ner]`,
     /// `[detection.pattern]`, `[detection.vlm]` sub-sections. Built
     /// once at engine startup; the `Detection` phase config only
     /// references these by kind.
-    pub detection: Option<DetectionSection>,
-    /// Server-wide redaction defaults — `[redaction]` section.
-    /// `Redaction` phase config falls back to these for any `None`
-    /// fields.
-    pub redaction: Option<RedactionDefaults>,
+    pub detection: Option<DetectionConfig>,
+    /// Deployment-wide redaction defaults — `[redaction]` section.
+    /// Built once at engine startup; the per-plan `Redaction`
+    /// node falls back to these for any `None` fields. Per-request
+    /// override is not supported.
+    pub redaction: Option<RedactionConfig>,
 }
 
 impl Default for RuntimeConfig {
@@ -83,97 +83,16 @@ impl Default for RuntimeConfig {
 }
 
 impl RuntimeConfig {
-    /// Returns `true` if all optional sections are `None`.
-    #[must_use]
-    pub fn is_default(&self) -> bool {
-        self.engine.is_none()
-            && self.extraction.is_none()
-            && self.detection.is_none()
-            && self.redaction.is_none()
-    }
-
     /// Resource limits from the engine section, or defaults.
     #[must_use]
     pub fn effective_limits(&self) -> ResourceLimits {
         self.engine.as_ref().map(|e| e.limits).unwrap_or_default()
     }
 
-    /// Concurrency limit from the engine section, if configured.
+    /// Concurrency limit from the engine section's resource limits,
+    /// if configured.
     #[must_use]
     pub fn effective_concurrency(&self) -> Option<NonZeroUsize> {
-        self.engine.as_ref().and_then(|e| e.concurrency)
-    }
-
-    /// Merge with per-request overrides.
-    ///
-    /// Non-`None` sections in `overrides` replace the corresponding
-    /// section in `self`; `None` sections fall back to `self`. The
-    /// version is taken from the base config. `extraction` and
-    /// `detection` are intentionally NOT overridable: each is built
-    /// once at engine startup so per-request dispatch stays cheap.
-    /// Per-request override would force a rebuild (model loads,
-    /// HTTP client setup) and defeat the amortization.
-    #[must_use]
-    pub fn merge(&self, overrides: &RuntimeConfig) -> RuntimeConfig {
-        RuntimeConfig {
-            version: self.version.clone(),
-            engine: overrides.engine.clone().or_else(|| self.engine.clone()),
-            extraction: self.extraction.clone(),
-            detection: self.detection.clone(),
-            redaction: overrides
-                .redaction
-                .clone()
-                .or_else(|| self.redaction.clone()),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::Duration;
-
-    use super::*;
-
-    fn http(max_retries: u32) -> nvisy_core::http::HttpConfig {
-        nvisy_core::http::HttpConfig {
-            max_retries,
-            timeout: Duration::from_secs(120),
-            connect_timeout: Duration::from_secs(10),
-            idle_timeout: Duration::from_secs(90),
-        }
-    }
-
-    #[test]
-    fn merge_overrides_present_sections() {
-        let base = RuntimeConfig {
-            engine: Some(EngineSection {
-                http: Some(http(3)),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let overrides = RuntimeConfig {
-            engine: Some(EngineSection {
-                http: Some(http(1)),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let merged = base.merge(&overrides);
-        assert_eq!(merged.engine.unwrap().http.unwrap().max_retries, 1);
-    }
-
-    #[test]
-    fn merge_falls_back_to_base() {
-        let base = RuntimeConfig {
-            engine: Some(EngineSection {
-                http: Some(http(3)),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let overrides = RuntimeConfig::default();
-        let merged = base.merge(&overrides);
-        assert_eq!(merged.engine.unwrap().http.unwrap().max_retries, 3);
+        self.engine.as_ref().and_then(|e| e.limits.concurrency)
     }
 }

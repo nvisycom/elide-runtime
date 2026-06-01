@@ -15,6 +15,7 @@
 //! [`Image`]: nvisy_ontology::modality::Image
 
 use nvisy_core::content::ContentSource;
+use nvisy_core::media::{DocumentType, ImageFormat};
 
 /// Handler for loaded PNG content.
 ///
@@ -32,7 +33,7 @@ pub struct PngHandler {
 
 impl_image_handler!(
     PngHandler,
-    nvisy_core::media::DocumentType::Image(nvisy_core::media::ImageFormat::Png),
+    DocumentType::Image(ImageFormat::Png),
     image::ImageFormat::Png,
     "png-handler",
     "png.encode"

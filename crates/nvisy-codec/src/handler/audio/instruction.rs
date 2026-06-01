@@ -3,8 +3,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::core::Mergeable;
-
 /// An audio redaction: the *how*. The *where* (time span, speaker,
 /// audio id) lives on the containing [`Audio`] via
 /// [`Redactions`]'s `(S, R)` pairs.
@@ -39,17 +37,4 @@ pub enum AudioOutput {
     Remove,
     /// Segment replaced with provided audio data.
     Replace { data: Vec<u8> },
-}
-
-impl Mergeable for AudioRedaction {
-    /// Combine two redactions that target overlapping locations.
-    /// Returns `Ok` only when the outputs match; conflicting methods
-    /// (e.g. silence vs remove) hand both originals back via `Err`.
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.output == other.output {
-            Ok(self)
-        } else {
-            Err((self, other))
-        }
-    }
 }

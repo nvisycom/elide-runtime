@@ -4,7 +4,7 @@
 //!
 //! One pass per envelope. The flow is the same for every modality:
 //!
-//! 1. Walk `document.audit.records`. For each record whose `audit`
+//! 1. Walk `target.doc.audit.records`. For each record whose `audit`
 //!    is present and [`Pending`], read the entity's `location` and
 //!    `entity_kind` directly off the record — no lookup needed.
 //! 2. Convert the entry's [`Strategy`] into a codec-side
@@ -24,12 +24,12 @@
 
 use nvisy_codec::core::Redactions;
 use nvisy_core::Result;
+use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::modality::{Mergeable, Modality, Overlap};
+use nvisy_ontology::modality::Modality;
 use nvisy_ontology::provenance::{AuditEntry, Execution};
 
-use crate::envelope::DocumentEnvelope;
-use crate::envelope::value_at::ValueAt;
+use crate::core::{DocumentView, SharedHandle, ValueAt};
 
 const TARGET: &str = "nvisy_engine::redaction::apply";
 
@@ -39,24 +39,24 @@ const TARGET: &str = "nvisy_engine::redaction::apply";
 /// entity's kind (for `{entityType}` placeholder substitution),
 /// and the original value.
 pub(super) struct EntryView<'a, M: Modality> {
-    pub entry: &'a AuditEntry<M>,
-    pub entity_kind: EntityKind,
-    pub original: &'a str,
+    pub(super) entry: &'a AuditEntry<M>,
+    pub(super) entity_kind: EntityKind,
+    pub(super) original: &'a str,
 }
 
 /// One assembled per-modality batch ready to hand to the codec,
 /// plus the side-tables the caller needs to commit audit state
 /// after the codec accepts (or rejects) it.
 pub(super) struct ApplyBatch<M: Modality, R> {
-    pub batch: Redactions<M, R>,
-    pub applied: Vec<(usize, R)>,
-    pub failed: Vec<(usize, String)>,
+    pub(super) batch: Redactions<M, R>,
+    pub(super) applied: Vec<(usize, R)>,
+    pub(super) failed: Vec<(usize, String)>,
 }
 
 impl<M: Modality, R> ApplyBatch<M, R> {
     /// True when the batch produced no work — caller can short-
     /// circuit without touching the codec or the audit.
-    pub fn is_noop(&self) -> bool {
+    pub(super) fn is_noop(&self) -> bool {
         self.applied.is_empty() && self.failed.is_empty()
     }
 }
@@ -72,17 +72,18 @@ impl<M: Modality, R> ApplyBatch<M, R> {
 /// per-record indices the caller will commit via [`commit`] once
 /// the codec accepts the work.
 pub(super) async fn build<M, R, F>(
-    envelope: &DocumentEnvelope<M>,
+    doc: &Document<M>,
+    handle: &SharedHandle,
     to_redaction: F,
 ) -> ApplyBatch<M, R>
 where
-    M: Modality + Overlap + Mergeable,
-    R: Mergeable + Clone,
+    M: Modality,
+    R: Clone,
     F: Fn(EntryView<'_, M>) -> Result<R>,
-    DocumentEnvelope<M>: ValueAt<M>,
+    for<'a> DocumentView<'a, M>: ValueAt<M>,
 {
-    let pending: Vec<usize> = envelope
-        .document
+    let view = DocumentView::new(doc, handle);
+    let pending: Vec<usize> = doc
         .audit
         .records
         .iter()
@@ -104,16 +105,13 @@ where
     let mut failed: Vec<(usize, String)> = Vec::new();
 
     for idx in pending {
-        let record = &envelope.document.audit.records[idx];
+        let record = &doc.audit.records[idx];
         let entry = record
             .audit
             .as_ref()
             .expect("filtered to records with Some(audit) above");
         let entity = &record.entity;
-        let original = envelope
-            .value_at(&entity.location)
-            .await
-            .unwrap_or_default();
+        let original = view.value_at(&entity.location).await.unwrap_or_default();
         let view = EntryView {
             entry,
             entity_kind: entity.entity_kind,
@@ -133,7 +131,7 @@ where
             }
         };
 
-        batch.insert(entity.location.clone(), redaction.clone());
+        batch.push(entity.location.clone(), redaction.clone());
         applied.push((idx, redaction));
     }
 
@@ -152,7 +150,7 @@ where
 /// tabular produce `TextReplacement` / `TabularReplacement`; image/
 /// audio produce the `MethodTag` of the operation that ran.
 pub(super) fn commit<M, R, ToReplacement>(
-    envelope: &mut DocumentEnvelope<M>,
+    doc: &mut Document<M>,
     applied: Vec<(usize, R)>,
     failed: Vec<(usize, String)>,
     to_replacement: ToReplacement,
@@ -161,7 +159,7 @@ pub(super) fn commit<M, R, ToReplacement>(
     ToReplacement: Fn(&R) -> M::Replacement,
 {
     for (idx, redaction) in applied {
-        let entry = envelope.document.audit.records[idx]
+        let entry = doc.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");
@@ -170,7 +168,7 @@ pub(super) fn commit<M, R, ToReplacement>(
         };
     }
     for (idx, reason) in failed {
-        let entry = envelope.document.audit.records[idx]
+        let entry = doc.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");

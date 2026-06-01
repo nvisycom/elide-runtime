@@ -4,39 +4,51 @@
 //! Native text (PDF text layers, DOCX runs, plain text), recognized
 //! text (OCR'd images, transcribed audio), and tabular cells all
 //! flow into the same shape: a [`Document<M>`] holding ordered
-//! [`Block<M>`]s, user annotations, and an embedded [`Audit<M>`]
-//! that accumulates the run's findings (detected entities) and
-//! processing log (redaction entries).
+//! [`Block<M>`]s plus user annotations and the run-scoped
+//! [`Audit<M>`] that accrues detected entities and redaction entries
+//! as the pipeline progresses.
 //!
 //! `Block<M>` is the universal wrapper carrying the common per-block
 //! fields (spans, confidence). The modality-specific payload
 //! (text+spans, region, time span, row coordinates) lives in
-//! [`Modality::Block`] inside `block.kind`. Detected entities are
-//! run-scoped and live on the document's [`Audit`], not on blocks.
+//! [`Modality::Block`] inside `block.kind`.
 //!
 //! Rich sources (PDFs with both text and image layers) decompose
-//! into multiple `Document<M>` values at the engine boundary, one
-//! per modality. There is no cross-modality `Document`.
+//! into a single recursive `Document<Text>` whose blocks can host
+//! nested `Document<Image>` / `Document<Tabular>` children via
+//! [`TextBlock::Embed`]. Each nested document carries its own typed
+//! audit; the per-source audit is the tree of nested audits, with
+//! the wire shape ([`AnyAudit`]) being one projection of it.
 //!
 //! `Document` is an in-memory pipeline carrier — it is intentionally
-//! not `Serialize`/`Deserialize` and has no `Default`. The persisted
-//! shape is the embedded [`Audit`], reached via [`AnyAudit`].
+//! not `Serialize`/`Deserialize` and has no `Default`.
 //!
+//! [`Audit<M>`]: crate::provenance::Audit
 //! [`AnyAudit`]: crate::provenance::AnyAudit
+//! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
 //!
 //! [`Modality::Block`]: crate::modality::Modality::Block
-//! [`Audit`]: crate::provenance::Audit
 
 mod block;
 mod span;
 
 pub use self::block::Block;
 pub use self::span::Span;
-use crate::entity::{Annotation, ContentSource, LabelAnnotation};
+use crate::entity::{Annotation, ContentSource, Entity, LabelAnnotation};
 use crate::modality::Modality;
 use crate::provenance::Audit;
 
 /// Unified addressable view of a parsed document for modality `M`.
+///
+/// Combines structural content (blocks, annotations, labels) with
+/// the run-scoped [`Audit<M>`] that accumulates detected entities and
+/// redaction records as the pipeline progresses. The audit lives
+/// here so the tree-shaped recursive document model (a
+/// `Document<Text>` whose blocks embed `Document<Image>` /
+/// `Document<Tabular>`) keeps every nested doc's audit attached to
+/// the doc it describes — the per-source audit is the tree of these.
+///
+/// [`Audit<M>`]: crate::provenance::Audit
 #[derive(Debug, Clone)]
 pub struct Document<M: Modality> {
     /// Per-modality document-level metadata.
@@ -54,29 +66,40 @@ pub struct Document<M: Modality> {
     /// policy rules that condition on labels can fire uniformly.
     pub labels: Vec<LabelAnnotation>,
 
-    /// Provenance of processing for this document: detected
-    /// entities and per-redaction audit entries. Travels with the
-    /// document because every artifact a run produces about the
-    /// document belongs *to* the document.
+    /// Run-scoped provenance for this document: detected entities
+    /// and per-redaction audit entries. Opens empty against the
+    /// document's source at construction; each pipeline phase
+    /// (detection, redaction, validation) reads from and writes to
+    /// it as it executes.
     pub audit: Audit<M>,
 }
 
 impl<M: Modality> Document<M> {
-    /// Construct an empty [`Document`] for the given source with
-    /// explicit metadata. Blocks, annotations, and labels start
-    /// empty; the embedded [`Audit`] is initialised against the same
-    /// source. Producers push blocks onto `self.blocks` directly.
+    /// Construct an empty [`Document`] with explicit metadata and a
+    /// fresh audit opened against `source`. Blocks, annotations, and
+    /// labels start empty; producers push onto them directly.
     ///
     /// The importer always knows which extraction path produced the
     /// document, so the metadata is required at construction time
     /// rather than defaulted.
-    pub fn new(source: ContentSource, meta: M::Metadata) -> Self {
+    pub fn new(meta: M::Metadata, source: ContentSource) -> Self {
         Self {
             meta,
             blocks: Vec::new(),
             annotations: Vec::new(),
             labels: Vec::new(),
             audit: Audit::new(source),
+        }
+    }
+
+    /// Append detected entities to the document's audit, wrapping
+    /// each into a fresh [`EntityRecord`]. Used by detection phases
+    /// at both the root and nested-document level.
+    ///
+    /// [`EntityRecord`]: crate::provenance::EntityRecord
+    pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
+        for entity in entities {
+            self.audit.push_entity(entity);
         }
     }
 }

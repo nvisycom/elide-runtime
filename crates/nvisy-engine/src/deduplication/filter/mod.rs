@@ -1,14 +1,15 @@
 //! [`Filter`]: per-call entity filtering applied during
 //! deduplication, after calibrate and before group/fuse.
 //!
-//! The deduplicator builds a [`FilterParams`] from the operator's
-//! [`DetectionContext`] (with the engine's
-//! [`Deduplicator::confidence_threshold`] as fallback) and calls
-//! [`Filter::filter`] in-place. Dropped entities are returned so a
-//! forthcoming drop-reason telemetry pass (#182) can attribute them.
+//! The orchestrator builds a [`FilterParams`] from the per-run
+//! [`Detection`] plan node (entity-kind allowlist + confidence
+//! threshold) and hands it to [`Deduplicator::execute`], which
+//! calls [`Filter::filter`] in-place. Dropped entities are
+//! returned so a forthcoming drop-reason telemetry pass (#182)
+//! can attribute them.
 //!
-//! [`DetectionContext`]: crate::detection::DetectionContext
-//! [`Deduplicator::confidence_threshold`]: super::Deduplicator
+//! [`Detection`]: crate::detection::Detection
+//! [`Deduplicator::execute`]: super::Deduplicator::execute
 
 use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::Modality;
@@ -30,7 +31,7 @@ pub struct FilterParams {
 
 /// Extension trait on `Vec<Entity<M>>`: drop entries that don't pass
 /// `params`, returning the dropped vec.
-pub(crate) trait Filter<M: Modality> {
+pub(super) trait Filter<M: Modality> {
     /// Remove entities not passing `params` in-place; return the
     /// removed entities for downstream telemetry (#182).
     fn filter(&mut self, params: &FilterParams) -> Vec<Entity<M>>;

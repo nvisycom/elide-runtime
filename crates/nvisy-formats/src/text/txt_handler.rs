@@ -223,7 +223,7 @@ mod tests {
         let mut h = handler("hello\nworld\n");
         let items: Vec<_> = h.locations().collect().await;
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             items[1].location.clone(),
             TextRedaction::new(TextOutput::replace("[REDACTED]")),
         );
@@ -238,7 +238,7 @@ mod tests {
         // substring "world", which lives inside the single-line span.
         let mut h = handler("hello world");
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             Text {
                 start: 6,
                 end: 11,
@@ -256,11 +256,11 @@ mod tests {
         let mut h = handler("aaa\nbbb\nccc\n");
         let items: Vec<_> = h.locations().collect().await;
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             items[0].location.clone(),
             TextRedaction::new(TextOutput::replace("[X]")),
         );
-        rs.insert(
+        rs.push(
             items[2].location.clone(),
             TextRedaction::new(TextOutput::replace("[Y]")),
         );
@@ -273,7 +273,7 @@ mod tests {
     async fn redact_unknown_location_skipped() -> Result<(), Error> {
         let mut h = handler("one line");
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             Text {
                 start: 999,
                 end: 1000,

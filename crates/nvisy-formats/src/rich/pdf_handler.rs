@@ -22,7 +22,7 @@ use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::modality::{Image, Text};
-use nvisy_ontology::primitive::Dpi;
+use nvisy_ontology::primitive::{BoundingBox, Dpi};
 
 use super::pdf_render::PdfRenderer;
 use crate::text::redact;
@@ -224,7 +224,7 @@ impl Handle<Image> for RichTextHandler {
                 Located::new(
                     source,
                     Image {
-                        bounding_box: nvisy_ontology::primitive::BoundingBox::default(),
+                        bounding_box: BoundingBox::default(),
                         polygon: None,
                         image_id: None,
                         page_number: Some((i + 1) as u32),

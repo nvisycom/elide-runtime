@@ -6,12 +6,13 @@
 //! 1. **Encryption** — encrypt content (if config specified)
 //! 2. **Compression** — compress for storage or transfer (if format specified)
 
+use std::sync::Arc;
+
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
-use nvisy_ontology::modality::Modality;
 use uuid::Uuid;
 
-use crate::envelope::DocumentEnvelope;
+use crate::core::{DocumentTree, SharedData};
 use crate::ingestion::compression::CompressionService;
 use crate::ingestion::encryption::CryptoService;
 use crate::ingestion::{CompressionAlgorithm, EncryptionConfig};
@@ -21,41 +22,43 @@ const TARGET: &str = "nvisy_engine::op::export_file";
 /// Exports processed content, optionally applying encryption and
 /// compression afterward.
 #[derive(Default)]
-pub struct Exporter {
+pub(crate) struct Exporter {
     encryption: Option<EncryptionConfig>,
     compression: Option<CompressionAlgorithm>,
     content_ids: Vec<Uuid>,
 }
 
 impl Exporter {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    pub fn with_encryption(mut self, config: Option<EncryptionConfig>) -> Self {
+    pub(crate) fn with_encryption(mut self, config: Option<EncryptionConfig>) -> Self {
         self.encryption = config;
         self
     }
 
-    pub fn with_compression(mut self, format: Option<CompressionAlgorithm>) -> Self {
+    pub(crate) fn with_compression(mut self, format: Option<CompressionAlgorithm>) -> Self {
         self.compression = format;
         self
     }
 
-    pub fn with_content_ids(mut self, ids: Vec<Uuid>) -> Self {
+    pub(crate) fn with_content_ids(mut self, ids: Vec<Uuid>) -> Self {
         self.content_ids = ids;
         self
     }
 
-    pub async fn export<M: Modality>(&self, envelope: &DocumentEnvelope<M>) -> Result<()> {
-        let shared = &envelope.shared;
-        let content_data = envelope.encode().await?;
+    /// Encode the tree's codec handle back to bytes, optionally
+    /// encrypt + compress, and write to the registry under every
+    /// configured content id.
+    pub(crate) async fn export(&self, tree: &DocumentTree, shared: &Arc<SharedData>) -> Result<()> {
+        let content_data = tree.handle.lock().await.encode()?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());
 
         if let Some(ref enc_cfg) = self.encryption {
             tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "encrypting export content");
             let crypto = CryptoService::new(&enc_cfg.key_id, shared.key_provider.clone());
-            let encrypted = crypto.encrypt(envelope).await?;
+            let encrypted = crypto.encrypt(&tree.handle).await?;
             tracing::debug!(
                 target: TARGET,
                 ciphertext_len = encrypted.ciphertext.len(),

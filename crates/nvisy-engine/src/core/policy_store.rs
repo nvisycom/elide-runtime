@@ -28,6 +28,17 @@ use uuid::Uuid;
 /// stored as `Arc<Policy<M>>` so that multiple per-run stores can
 /// share the same loaded policy instances cheaply (the registry's
 /// cross-run cache hands out `Arc<Policy<M>>` clones).
+///
+/// # Type-safe per-modality storage
+///
+/// Backed by `type_map::TypeMap`, which stores at most one value
+/// per concrete type. The accessors are parameterised over `M`, so
+/// `insert::<Text>(...)` and `insert::<Image>(...)` go into
+/// independent buckets; `get::<Text>()` is statically guaranteed
+/// to return text policies — there is no way to retrieve an
+/// `Image` bucket through a `Text` type parameter. The compiler
+/// rejects mismatched-modality calls at the call site, not at
+/// runtime.
 #[derive(Default)]
 pub struct PolicyStore {
     inner: TypeMap,
@@ -188,6 +199,7 @@ fn condition_matches(
 
 #[cfg(test)]
 mod tests {
+    use nvisy_ontology::entity::Entity;
     use nvisy_ontology::modality::{Image, Text};
     use semver::Version;
 
@@ -245,7 +257,7 @@ mod tests {
     #[test]
     fn resolve_empty_chain_returns_fallthrough() {
         let store = PolicyStore::new();
-        let entity = nvisy_ontology::entity::Entity::<Text>::test_builder(0, 4).test_build();
+        let entity = Entity::<Text>::test_builder(0, 4).test_build();
         let metadata = ContentMetadata::new();
         assert!(matches!(
             store.resolve::<Text>(&entity, &[], &metadata),

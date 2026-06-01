@@ -16,7 +16,7 @@ carry envelopes of mixed modality.
 `extraction::*` populates each envelope's blocks: OCR for image
 documents, STT for audio, no-op for already-structured text and
 tabular. Each technique is built once at startup from its
-`[extractor.*]` config section and lives on the `Extractors`
+`[extractor.*]` config section and lives on the `ExtractionEngine`
 registry; per-modality dispatch goes through the `Extract<M>` trait.
 
 `detection::*` is the recognizer-side machinery:

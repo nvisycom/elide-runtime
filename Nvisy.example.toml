@@ -46,7 +46,7 @@ idle_timeout = "90s"
 # construction and dispatch. The pipeline `Extraction` step carries
 # per-call flags only.
 
-# OCR text extraction from image documents.
+# Extraction: OCR (optical character recognition, images only).
 [extraction.ocr]
 enabled = true
 
@@ -54,7 +54,7 @@ enabled = true
 kind = "bento"
 base_url = "http://localhost:3001"
 
-# Speech-to-text transcription.
+# Extraction: SST (speech-to-text, audio only).
 [extraction.stt]
 enabled = true
 
@@ -68,10 +68,12 @@ model = "whisper-1"
 max_retries = 3
 
 # Detection: pattern-based (regex + dictionary + checksum).
+# Optional section — pattern detection runs by default. Include this
+# block to narrow it (named patterns, tag filters) or to disable it
+# entirely with `enabled = false`.
 [detection.pattern]
 enabled = true
 patterns = [] # empty = all built-in patterns
-confidence_threshold = 0.5
 
 # Detection: NER (named entity recognition).
 [detection.ner]
@@ -107,8 +109,7 @@ max_retries = 3
 # context_window = { ... }
 # preamble = "..."
 
-# Detection: VLM (vision-language model) — image-side recognizer
-# that runs alongside text recognizers on image blocks.
+# Detection: VLM (vision-language model, images only).
 [detection.vlm]
 enabled = true
 

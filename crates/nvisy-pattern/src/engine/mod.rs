@@ -23,7 +23,7 @@
 
 mod builder;
 mod error;
-mod pattern_filter;
+mod pattern;
 
 pub mod filter;
 pub(crate) mod scan;
@@ -38,7 +38,7 @@ use regex::RegexSet;
 pub use self::builder::PatternEngineBuilder;
 pub use self::error::{ExtraPatternError, PatternEngineError};
 pub use self::filter::PatternContext;
-pub use self::pattern_filter::PatternFilter;
+pub use self::pattern::PatternFilter;
 use self::scan::candidate::EntityCandidate;
 use self::scan::enhancer::ContextEnhancer;
 use self::scan::entries::{CompiledBuckets, DictEntry, RegexEntry};

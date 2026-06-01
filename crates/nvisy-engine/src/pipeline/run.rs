@@ -24,7 +24,7 @@ use super::orchestrator::Orchestrator;
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::core::{PolicyStore, RunContext, SharedData};
-use crate::detection::Recognizers;
+use crate::detection::DetectionEngine;
 use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::{Registry, ResourceGuard};
@@ -44,7 +44,7 @@ pub(super) struct Pipeline {
     runs: RunState,
     base_config: RuntimeConfig,
     extraction_engine: Arc<ExtractionEngine>,
-    recognizers: Arc<Recognizers>,
+    detection_engine: Arc<DetectionEngine>,
     redaction_config: Arc<RedactionConfig>,
 }
 
@@ -56,7 +56,7 @@ impl Pipeline {
         runs: RunState,
         base_config: RuntimeConfig,
         extraction_engine: Arc<ExtractionEngine>,
-        recognizers: Arc<Recognizers>,
+        detection_engine: Arc<DetectionEngine>,
         redaction_config: Arc<RedactionConfig>,
     ) -> Self {
         Self {
@@ -66,7 +66,7 @@ impl Pipeline {
             runs,
             base_config,
             extraction_engine,
-            recognizers,
+            detection_engine,
             redaction_config,
         }
     }
@@ -155,18 +155,10 @@ impl Pipeline {
             shared_data.key_provider = kp.clone();
         }
 
-        // Build the detection engine once per run by picking
-        // pre-built recognizers from the registry. When the plan
-        // opted no recognizers in (`kinds` empty), the engine is
-        // built empty and the detection phase short-circuits at
-        // dispatch.
-        let detection_engine = input
-            .plan
-            .detection
-            .into_engine(&self.recognizers)
-            .map_err(|e| {
-                Error::validation(format!("detection engine assembly: {e}"), "detection")
-            })?;
+        // Reuse the engine-wide DetectionEngine. Per-request
+        // recognizer selection happens at dispatch time via
+        // `Detection.kinds`, not by rebuilding the engine.
+        let detection_engine = (*self.detection_engine).clone();
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();

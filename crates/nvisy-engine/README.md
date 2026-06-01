@@ -24,12 +24,15 @@ registry; per-modality dispatch goes through the `Extract<M>` trait.
 - A modality-typed `Recognizer<Modality, Context>` trait with
   built-in adapters — `PatternRecognizer`, `NerRecognizer`,
   `LlmNerPipeline` (text), and `VlmPipeline` (image).
-- The `Recognizers` registry holds pre-built recognizers per
-  modality, populated from `[detection.*]` config sections.
-- `DetectionEngine` parallel-dispatches the matching slice via the
-  per-modality `Detect<M>` trait — text blocks fan their
-  `scan_text` to every text recognizer; image envelopes fan each
-  image location to every image recognizer.
+- `DetectionEngine` holds those recognizers as named slots, split
+  into `TextRecognizers` (pattern is always-on; `llm`/`ner` are
+  `Option`) and `ImageRecognizers` (`vlm` is `Option`), built once
+  from `[detection.*]` config and shared via `Arc` across runs.
+- Per-run dispatch parallelises every present slot via `JoinSet`,
+  filtered by the plan's `Detection.kinds` allowlist — text blocks
+  fan their `scan_text` to every selected text recognizer; image
+  envelopes fan each image location to every selected image
+  recognizer.
 - `Detection::into_engine()` assembles a per-run engine from the
   registry, picking recognizers by `RecognizerKind`.
 

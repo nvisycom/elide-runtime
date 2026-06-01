@@ -1,32 +1,24 @@
-//! [`DetectionContext`] — per-call input to every text-modality
-//! [`Recognizer`].
+//! Per-call detection contexts.
 //!
-//! Bundles the same shape `nvisy_ner::Context` carries, plus the
-//! [`PatternContext`] needed by pattern-backed recognizers. Each
-//! recognizer reads the subset it cares about:
+//! The base [`DetectionContext`] carries the fields every recognizer
+//! reads regardless of modality (entity-kind allowlist, document
+//! labels, correlation id). Per-modality contexts compose this base
+//! plus their modality-specific payload:
 //!
-//! - [`NerRecognizer`] honors `text`, `language`,
-//!   `candidate_languages`, `entities`.
-//! - [`PatternRecognizer`] reads `text` and `scan_context`
-//!   (allow/deny/hints).
-//! - The LLM recognizer (an [`LlmNerPipeline`]) reads `text`, `hints`,
-//!   `labels`, `entities`, and `correlation_id` via the
-//!   `From<&DetectionContext>` impl on [`LlmNerScanInput`].
+//! - [`TextDetectionContext`]: base + text payload, language hints,
+//!   pattern-scan filter, and LLM hints.
+//! - [`ImageDetectionContext`]: base + encoded image bytes + pixel
+//!   dimensions.
 //!
-//! `correlation_id` flows through the tracing span and isn't read
-//! by recognizers themselves.
+//! Per-modality contexts implement [`Deref`]/[`DerefMut`] back to the
+//! base so accessors like `ctx.entities` and `ctx.labels` work
+//! transparently on every recognizer's input.
 //!
-//! Image-modality recognizers consume the sibling
-//! [`VlmDetectionContext`] instead.
-//!
-//! [`Recognizer`]: super::Recognizer
-//! [`NerRecognizer`]: super::NerRecognizer
-//! [`PatternRecognizer`]: super::PatternRecognizer
-//! [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
-//! [`LlmNerScanInput`]: super::llm::LlmNerScanInput
+//! `correlation_id` flows through the tracing span and isn't read by
+//! recognizer bodies directly.
 
 use bytes::Bytes;
-use derive_builder::Builder;
+use derive_more::{Deref, DerefMut};
 use nvisy_agent::agent::NerHint;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
@@ -34,143 +26,120 @@ use nvisy_ontology::primitive::{Dimensions, LanguageTag};
 use nvisy_pattern::filter::PatternContext;
 use uuid::Uuid;
 
+/// Shared per-call detection context.
+///
+/// Holds the fields every recognizer reads regardless of modality:
+/// the entity-kind allowlist, document-level labels, and the
+/// tracing-side correlation id. Per-modality contexts embed this
+/// struct and deref to it via [`Deref`].
+#[derive(Debug, Default, Clone)]
+pub struct DetectionContext {
+    /// Entity-kind allowlist. Recognizers that support post-filter
+    /// drop entities of any kind outside this set.
+    pub entities: Option<Vec<EntityKind>>,
+
+    /// Document-level classification labels forwarded from
+    /// [`Document::labels`]. LLM/VLM recognizers render them into the
+    /// prompt as context; non-LLM recognizers ignore this field.
+    ///
+    /// [`Document::labels`]: nvisy_ontology::document::Document::labels
+    pub labels: Vec<String>,
+
+    /// Correlation UUID propagated through the tracing span for this
+    /// detection call.
+    pub correlation_id: Option<Uuid>,
+}
+
 /// Per-call input to every text-modality recognizer.
 ///
-/// Fully owned (no lifetime parameter) so the engine can share it
-/// across recognizer tasks via [`Arc`] for parallel dispatch.
-/// `text` is a [`TextData`] — internally a `HipStr` — so the
-/// shared clone is an atomic increment, not a copy of the source
-/// bytes.
+/// Composes a shared [`DetectionContext`] base plus the text payload
+/// and the text-only filters. Fully owned (no lifetime parameter) so
+/// the engine can share it across recognizer tasks via [`Arc`] for
+/// parallel dispatch. `text` is a [`TextData`] — internally a
+/// `HipStr` — so the shared clone is an atomic increment, not a copy
+/// of the source bytes.
 ///
 /// [`Arc`]: std::sync::Arc
-#[derive(Debug, Clone, Builder)]
-#[builder(
-    name = "DetectionContextBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with"),
-    build_fn(error = "DetectionContextBuilderError")
-)]
-pub struct DetectionContext {
-    /// The text to analyze. Cheap to clone (atomic incr on the
-    /// inner `HipStr`, inline for short text).
-    #[builder(setter(into))]
+#[derive(Debug, Clone, Deref, DerefMut)]
+pub struct TextDetectionContext {
+    /// Shared base — accessed transparently via [`Deref`].
+    #[deref]
+    #[deref_mut]
+    pub base: DetectionContext,
+
+    /// The text to analyze. Cheap to clone (atomic incr on the inner
+    /// `HipStr`, inline for short text).
     pub text: TextData,
 
     /// Caller-asserted language. When `Some`, NER recognizers skip
     /// per-call language detection.
-    #[builder(default)]
     pub language: Option<LanguageTag>,
 
     /// Restrict language detection to this subset. Ignored when
     /// `language` is `Some`.
-    #[builder(default)]
     pub candidate_languages: Option<Vec<LanguageTag>>,
 
-    /// Entity-kind allowlist. Recognizers that support post-filter
-    /// drop entities of any kind outside this set.
-    #[builder(default)]
-    pub entities: Option<Vec<EntityKind>>,
-
-    /// Allow/deny/hints for pattern-backed recognizers.
-    /// Non-pattern recognizers ignore this field.
-    #[builder(default)]
+    /// Allow/deny/hints for pattern-backed recognizers. Non-pattern
+    /// recognizers ignore this field.
     pub scan_context: PatternContext,
 
-    /// User-supplied hint regions to fold into the LLM/VLM
-    /// detector's prompt for per-hint adjudication alongside
-    /// open-ended discovery. Forwarded from
-    /// [`Document::annotations`] (`Hint`-strength `Inclusion`).
-    /// Non-LLM recognizers ignore this field.
+    /// User-supplied hint regions to fold into the LLM/VLM detector's
+    /// prompt for per-hint adjudication alongside open-ended
+    /// discovery. Forwarded from [`Document::annotations`]
+    /// (`Hint`-strength `Inclusion`). Non-LLM recognizers ignore this
+    /// field.
     ///
     /// Exclusion annotations don't flow through this path — they're
     /// always assertions and enforced by a post-detection filter
     /// regardless of recognizer.
     ///
     /// [`Document::annotations`]: nvisy_ontology::document::Document::annotations
-    #[builder(default)]
     pub hints: Vec<NerHint>,
-
-    /// Document-level classification labels forwarded from
-    /// [`Document::labels`]. LLM/VLM recognizers render them into
-    /// the prompt as context; non-LLM recognizers ignore this
-    /// field.
-    ///
-    /// [`Document::labels`]: nvisy_ontology::document::Document::labels
-    #[builder(default)]
-    pub labels: Vec<String>,
-
-    /// Correlation UUID propagated through the tracing span for
-    /// this detection call.
-    #[builder(default)]
-    pub correlation_id: Option<Uuid>,
 }
 
-impl DetectionContext {
-    /// Construct a context with only `text` set.
+impl TextDetectionContext {
+    /// Construct a context with only `text` set; every other field
+    /// gets its [`Default`] value.
     pub fn new(text: impl Into<TextData>) -> Self {
         Self {
+            base: DetectionContext::default(),
             text: text.into(),
             language: None,
             candidate_languages: None,
-            entities: None,
             scan_context: PatternContext::default(),
             hints: Vec::new(),
-            labels: Vec::new(),
-            correlation_id: None,
         }
     }
-
-    /// Start a typed builder. Equivalent to
-    /// `DetectionContextBuilder::default()` but more discoverable
-    /// from the context type.
-    pub fn builder() -> DetectionContextBuilder {
-        DetectionContextBuilder::default()
-    }
 }
 
-/// Error returned by [`DetectionContextBuilder::build`] when a
-/// required field is missing.
-#[derive(Debug, thiserror::Error)]
-#[error("DetectionContext build failed: {0}")]
-pub struct DetectionContextBuilderError(String);
-
-impl From<derive_builder::UninitializedFieldError> for DetectionContextBuilderError {
-    fn from(err: derive_builder::UninitializedFieldError) -> Self {
-        Self(format!("missing required field `{}`", err.field_name()))
-    }
-}
-
-/// Per-call input for image-modality recognizers.
+/// Per-call input to every image-modality recognizer.
 ///
-/// Image counterpart to [`DetectionContext`]: carries the encoded
-/// image bytes plus their pixel [`Dimensions`] (needed by
-/// recognizers that emit normalised bounding boxes — they scale to
-/// pixel space using `dims`) plus the same filter knobs the text
-/// side carries.
-#[derive(Debug, Clone)]
-pub struct VlmDetectionContext {
+/// Composes a shared [`DetectionContext`] base plus the encoded image
+/// bytes and their pixel [`Dimensions`] (needed by recognizers that
+/// emit normalised bounding boxes — they scale to pixel space using
+/// `dims`).
+#[derive(Debug, Clone, Deref, DerefMut)]
+pub struct ImageDetectionContext {
+    /// Shared base — accessed transparently via [`Deref`].
+    #[deref]
+    #[deref_mut]
+    pub base: DetectionContext,
+
     /// Encoded image bytes (typically PNG).
     pub image: Bytes,
+
     /// Pixel dimensions of the encoded image.
     pub dims: Dimensions,
-    /// Entity-kind allowlist forwarded to image recognizers.
-    pub entities: Option<Vec<EntityKind>>,
-    /// Document-level classification labels.
-    pub labels: Vec<String>,
-    /// Correlation UUID propagated through the tracing span.
-    pub correlation_id: Option<Uuid>,
 }
 
-impl VlmDetectionContext {
-    /// Construct a context with the encoded image bytes + their
-    /// pixel dimensions. All filter fields default to empty.
+impl ImageDetectionContext {
+    /// Construct a context with the encoded image bytes + their pixel
+    /// dimensions. All shared filter fields default to empty.
     pub fn new(image: Bytes, dims: Dimensions) -> Self {
         Self {
+            base: DetectionContext::default(),
             image,
             dims,
-            entities: None,
-            labels: Vec::new(),
-            correlation_id: None,
         }
     }
 }

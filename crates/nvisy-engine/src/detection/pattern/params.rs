@@ -26,10 +26,10 @@ use validator::Validate;
 #[derive(Debug, Clone, PartialEq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PatternDetection {
-    /// Enable this recognizer. When `false`, the recognizer is
-    /// neither built nor dispatched, but the config is preserved
-    /// so operators can toggle without losing it. Defaults to
-    /// `true`.
+    /// Enable this recognizer. When `false`, the engine doesn't
+    /// register the pattern slot at startup; the recognizer is
+    /// neither built nor dispatched. Defaults to `true` so omitting
+    /// the field in TOML keeps the recognizer on.
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// Restrict detection to the named patterns only. When empty, all

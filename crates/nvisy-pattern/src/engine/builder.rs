@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use super::PatternEngine;
-use super::pattern_filter::PatternFilter;
+use super::pattern::PatternFilter;
 use super::scan::entries::CompiledBuckets;
 use crate::dictionaries::{self, DictionaryRegistry};
 use crate::patterns::{MatchSource, Pattern, PatternCompile, PatternRegistry};

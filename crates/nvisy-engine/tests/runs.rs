@@ -245,27 +245,25 @@ async fn analytics_reflects_failed_run() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn detection_kinds_with_unconfigured_recognizer_fails_validation() -> anyhow::Result<()> {
-    use nvisy_engine::detection::{Detection, RecognizerKind};
+async fn detection_kinds_with_unconfigured_recognizer_silently_skips() -> anyhow::Result<()> {
+    use nvisy_engine::detection::{Detection, names};
 
     let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "test").await;
 
-    // Build an input that opts in to the LLM recognizer without
-    // configuring `[recognizer.llm]` — the assembly step should
-    // refuse.
+    // Request the LLM recognizer without configuring `[detection.llm]`.
+    // No section is configured at engine startup, so the LLM slot is
+    // never registered; dispatch filters by `kinds` and warn-logs the
+    // unknown name, then runs whatever else is registered. The run
+    // succeeds.
     let mut input = fixtures::engine_input(actor, content_id);
     input.plan.detection = Detection {
-        kinds: vec![RecognizerKind::Llm],
+        kinds: vec![names::LLM.to_owned()],
         ..Default::default()
     };
 
-    let result = engine.run(input).await;
-    assert!(
-        result.is_err(),
-        "expected validation error for unconfigured recognizer"
-    );
+    engine.run(input).await?;
     Ok(())
 }
 

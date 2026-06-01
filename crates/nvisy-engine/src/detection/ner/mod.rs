@@ -30,7 +30,6 @@
 
 mod params;
 
-use nvisy_codec::handler::TextData;
 use nvisy_core::{Error, Result};
 use nvisy_ner::language::LinguaLanguagePolicy;
 use nvisy_ner::{Context as NerContext, Recognizer as NerInner, RecognizerBuilder};
@@ -38,17 +37,8 @@ use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 
 pub use self::params::NerDetection;
-use crate::detection::{DetectionContext, Recognizer};
-
-/// Per-call scan bundle for [`NerRecognizer`]. Pairs the upstream
-/// [`NerContext`] (language hints, kind filter) with the text to
-/// scan. Built from a [`DetectionContext`] via [`From`].
-pub struct NerScanInput {
-    /// Backend-facing context (language, kind filter, correlation).
-    pub ctx: NerContext,
-    /// The text to scan, kept as the codec's owned form.
-    pub text: TextData,
-}
+use crate::detection::TextDetectionContext;
+use crate::detection::recognizer::TextRecognizer;
 
 /// NER recognizer backed by [`NerInner`].
 pub struct NerRecognizer {
@@ -90,38 +80,27 @@ impl NerRecognizer {
 }
 
 #[async_trait::async_trait]
-impl Recognizer for NerRecognizer {
-    type Context = NerScanInput;
-    type Modality = Text;
-
+impl TextRecognizer for NerRecognizer {
     #[tracing::instrument(
         skip_all,
         fields(
-            text_len = input.text.len(),
-            correlation_id = input.ctx.correlation_id.as_ref().map(|id| id.to_string()),
+            text_len = ctx.text.len(),
+            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, input: &NerScanInput) -> Result<Vec<Entity<Text>>> {
-        let artifacts = self.inner.recognize(&input.text, &input.ctx).await?;
+    async fn recognize(&self, ctx: &TextDetectionContext) -> Result<Vec<Entity<Text>>> {
+        let ner_ctx = NerContext {
+            language: ctx.language.clone(),
+            candidate_languages: ctx.candidate_languages.clone(),
+            // Zero-shot backends consume this as `requested_kinds`
+            // (detection-shaping). The post-filter pass at the
+            // detection layer re-applies the allowlist on the
+            // produced entities.
+            entity_kinds: ctx.entities.clone(),
+            correlation_id: ctx.correlation_id,
+        };
+        let artifacts = self.inner.recognize(&ctx.text, &ner_ctx).await?;
         Ok(artifacts.entities)
-    }
-}
-
-impl From<&DetectionContext> for NerScanInput {
-    fn from(ctx: &DetectionContext) -> Self {
-        Self {
-            ctx: NerContext {
-                language: ctx.language.clone(),
-                candidate_languages: ctx.candidate_languages.clone(),
-                // Zero-shot backends consume this as
-                // `requested_kinds` (detection-shaping). The
-                // post-filter pass at the detection layer re-applies
-                // the allowlist on the produced entities.
-                entity_kinds: ctx.entities.clone(),
-                correlation_id: ctx.correlation_id,
-            },
-            text: ctx.text.clone(),
-        }
     }
 }
 
@@ -141,11 +120,8 @@ mod tests {
             Ok(r) => r,
             Err(e) => panic!("from_config(Noop) failed: {e}"),
         };
-        let input = NerScanInput {
-            ctx: NerContext::default(),
-            text: TextData::from("The quick brown fox"),
-        };
-        let out = recognizer.run(&input).await.unwrap();
+        let ctx = TextDetectionContext::new("The quick brown fox");
+        let out = recognizer.recognize(&ctx).await.unwrap();
         assert!(out.is_empty());
     }
 

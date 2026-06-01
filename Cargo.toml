@@ -116,7 +116,7 @@ pdfium-render = { version = "0.9", features = [] }
 
 # Document parsing
 scraper = { version = "0.27", features = [] }
-calamine = { version = "0.34", features = [] }
+calamine = { version = "0.35", features = [] }
 zip = { version = "8.4", features = [] }
 quick-xml = { version = "0.40", features = [] }
 

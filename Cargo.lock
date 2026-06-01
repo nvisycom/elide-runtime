@@ -450,9 +450,9 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bentoml"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f9bf69783b57a8d1e93117c19cf6beeebb33c18cd8702ee578e76a9d681f279"
+checksum = "c65f4e07f4eac57a9e81aa97cf1c9d297cc01aad185767b613c1bcf112c469d8"
 dependencies = [
  "bytes",
  "jiff",

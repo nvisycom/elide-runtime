@@ -47,7 +47,7 @@ nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
 # Inference & AI frameworks
-bentoml = { version = "0.3", default-features = false, features = ["rustls-tls", "tracing"] }
+bentoml = { version = "0.5", default-features = false, features = ["rustls-tls", "tracing"] }
 rig = { version = "0.37", features = [], default-features = false }
 
 # HTTP client and middleware

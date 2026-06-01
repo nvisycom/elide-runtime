@@ -52,7 +52,7 @@ impl BentoParams {
 /// service over HTTP.
 #[derive(Debug)]
 pub struct BentoBackend {
-    client: Client,
+    endpoint: Endpoint,
 }
 
 impl BentoBackend {
@@ -67,7 +67,9 @@ impl BentoBackend {
             .with_base_url(&params.base_url)
             .build()
             .map_err(|e| Error::runtime(format!("bentoml client init: {e}"), COMPONENT, false))?;
-        Ok(Self { client })
+        Ok(Self {
+            endpoint: client.endpoint(RECOGNIZE_ROUTE),
+        })
     }
 }
 
@@ -103,10 +105,10 @@ impl Backend for BentoBackend {
         let request_id = ctx.correlation_id.unwrap_or_else(Uuid::now_v7).to_string();
 
         let responses: Vec<WireResponse> = self
-            .client
-            .endpoint(RECOGNIZE_ROUTE)
+            .endpoint
+            .clone()
             .with_request_id(&request_id)
-            .call(&WireBatch {
+            .invoke(&WireBatch {
                 requests: wire_requests,
             })
             .await

@@ -13,14 +13,11 @@
 //! Rich sources (PDF/DOCX) materialise as one `AnyDocument::Text`
 //! whose blocks host nested image/tabular documents via
 //! [`TextBlock::Embed`]. The whole pipeline operates on the *tree*,
-//! not on per-modality envelopes — phases walk it with
-//! [`DocumentTree::walk_mut`] and dispatch per node.
+//! not on per-modality envelopes — phases visit [`DocumentTree::root_mut`]
+//! first and then iterate [`DocumentTree::embeds_mut`].
 //!
 //! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 
-use std::pin::Pin;
-
-use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::modality::{Audio, EmbeddedDocument, Image, Tabular, Text, TextBlock};
@@ -77,9 +74,9 @@ pub enum AnyDocument {
 /// variant tag selects the modality; each arm carries the
 /// `&mut Document<M>` for that modality.
 ///
-/// Yielded by [`DocumentTree::walk_mut`] in pre-order traversal:
-/// the root is visited first, then any nested embedded docs in
-/// block order.
+/// Returned by [`DocumentTree::root_mut`] and yielded by
+/// [`DocumentTree::embeds_mut`]; phases visit the root first, then
+/// iterate any nested embedded docs in block order.
 pub enum NodeMut<'a> {
     Text(&'a mut Document<Text>),
     Tabular(&'a mut Document<Tabular>),
@@ -137,51 +134,72 @@ impl DocumentTree {
         }
     }
 
-    /// Visit every node in the tree in pre-order (root first, then
-    /// each nested embed in block order). The closure is invoked
-    /// once per node with a typed [`NodeMut`].
+    /// Mutable borrow of the root document as a typed [`NodeMut`].
     ///
-    /// Pre-order: a Text root with two image embeds gets visited
-    /// as `[Text, Image, Image]`. The Text body sees the doc *with*
-    /// embed placeholders in `blocks`; the embed bodies see only
-    /// their nested doc.
-    ///
-    /// Closure may `.await`. Errors short-circuit the walk.
-    ///
-    /// Takes a boxed-future-returning `FnMut` so the closure can
-    /// borrow from its environment — phases bring stack-borrowed
-    /// config (`&plan`, `&cfg`, `&handle`) into the per-node
-    /// dispatch. The HRTB `for<'a>` lets each per-node call lend
-    /// a freshly-borrowed [`NodeMut`] without unifying its
-    /// lifetime with the closure's captures.
-    pub async fn walk_mut<F>(&mut self, mut visit: F) -> Result<()>
-    where
-        F: for<'a> FnMut(NodeMut<'a>) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
-    {
+    /// Phases visit the root first (one borrow scope), then iterate
+    /// nested embeds via [`Self::embeds_mut`] (a fresh borrow scope).
+    /// Splitting the walk this way avoids the closure-lifetime
+    /// problem that would arise from a single `walk_mut(|node| …)`
+    /// callback: each phase's per-node async body is free to borrow
+    /// from the surrounding scope without HRTB / `Send` gymnastics.
+    pub fn root_mut(&mut self) -> NodeMut<'_> {
         match &mut self.root {
-            AnyDocument::Text(doc) => {
-                visit(NodeMut::Text(doc)).await?;
-                // Walk nested embeds. The root borrow above
-                // released when its `visit` future resolved, so
-                // re-borrowing `doc.blocks` here is fine.
-                for block in doc.blocks.iter_mut() {
-                    let TextBlock::Embed(embed) = &mut block.kind else {
-                        continue;
-                    };
-                    match embed.as_mut() {
-                        EmbeddedDocument::Image(nested) => {
-                            visit(NodeMut::Image(nested)).await?;
-                        }
-                        EmbeddedDocument::Tabular(nested) => {
-                            visit(NodeMut::Tabular(nested)).await?;
-                        }
-                    }
-                }
-            }
-            AnyDocument::Tabular(doc) => visit(NodeMut::Tabular(doc)).await?,
-            AnyDocument::Image(doc) => visit(NodeMut::Image(doc)).await?,
-            AnyDocument::Audio(doc) => visit(NodeMut::Audio(doc)).await?,
+            AnyDocument::Text(doc) => NodeMut::Text(doc),
+            AnyDocument::Tabular(doc) => NodeMut::Tabular(doc),
+            AnyDocument::Image(doc) => NodeMut::Image(doc),
+            AnyDocument::Audio(doc) => NodeMut::Audio(doc),
         }
-        Ok(())
+    }
+
+    /// Mutable iterator over the root's nested embedded documents,
+    /// in block order. Empty for non-Text roots and for Text roots
+    /// with no [`TextBlock::Embed`] blocks.
+    ///
+    /// Sync rather than `async` because the recursion structure is
+    /// deterministic — only the per-node work the caller does is
+    /// async. The returned iterator type is intentionally generic so
+    /// callers can chain with `.enumerate()`, `.try_for_each(…)`,
+    /// etc., and so the borrow checker can see each yielded
+    /// `NodeMut<'_>` as a fresh exclusive borrow.
+    ///
+    /// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
+    pub fn embeds_mut(&mut self) -> EmbedsMut<'_> {
+        let blocks = match &mut self.root {
+            AnyDocument::Text(doc) => Some(doc.blocks.iter_mut()),
+            AnyDocument::Tabular(_) | AnyDocument::Image(_) | AnyDocument::Audio(_) => None,
+        };
+        EmbedsMut { blocks }
+    }
+}
+
+/// Mutable embed-walker returned by [`DocumentTree::embeds_mut`].
+///
+/// Yields one [`NodeMut`] per [`TextBlock::Embed`] block in source
+/// order; non-embed blocks are skipped. The walker holds the only
+/// `&mut` borrow of the root's blocks for its lifetime, so phases
+/// must finish the iteration before re-borrowing the tree.
+///
+/// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
+pub struct EmbedsMut<'a> {
+    blocks: Option<
+        std::slice::IterMut<'a, nvisy_ontology::document::Block<nvisy_ontology::modality::Text>>,
+    >,
+}
+
+impl<'a> Iterator for EmbedsMut<'a> {
+    type Item = NodeMut<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let blocks = self.blocks.as_mut()?;
+        for block in blocks.by_ref() {
+            let TextBlock::Embed(embed) = &mut block.kind else {
+                continue;
+            };
+            return Some(match embed.as_mut() {
+                EmbeddedDocument::Image(nested) => NodeMut::Image(nested),
+                EmbeddedDocument::Tabular(nested) => NodeMut::Tabular(nested),
+            });
+        }
+        None
     }
 }

@@ -1,49 +1,44 @@
-//! Extraction phase: per-modality extractors + shared registry.
+//! Extraction phase: shared extractor registry + per-recognizer-kind
+//! backend modules.
 //!
-//! Public surface is [`ExtractionPhase`] (plus the engine + config
-//! re-exported from the `engine` submodule). The phase owns an
-//! `Arc<ExtractionEngine>` and dispatches per-node by matching on
-//! [`NodeMut`] inside its `apply` method.
+//! Public surface is [`ExtractionPhase`] plus the engine + config
+//! re-exported below. The phase owns an [`ExtractionEngine`] by
+//! value; all per-modality populator bodies live on the engine
+//! itself in [`engine`]. Per-backend modules below host the
+//! technique implementations:
 //!
-//! Per-modality behaviour:
-//!
-//! - `text` / `tabular` — codec-native; no backend call.
-//! - `image` — OCR (when `image` feature is on).
-//! - `audio` — STT (when `audio` feature is on).
+//! - [`ocr`] — image OCR backend (`image` cargo feature).
+//! - [`stt`] — audio STT backend (`audio` cargo feature).
 
-mod audio;
 mod config;
 mod engine;
-mod image;
+#[cfg(feature = "image")]
+mod ocr;
 mod plan;
-mod tabular;
-mod text;
-
-use std::sync::Arc;
+#[cfg(feature = "audio")]
+mod stt;
 
 use nvisy_core::Result;
-use nvisy_core::content::ContentMetadata;
-use nvisy_ontology::document::Document;
-use nvisy_ontology::modality::{Audio, Image};
 use tracing::Instrument;
 
-#[cfg(feature = "audio")]
-pub use self::audio::{SttExtractor, SttExtractorConfig};
 pub use self::config::ExtractionConfig;
 pub use self::engine::ExtractionEngine;
 #[cfg(feature = "image")]
-pub use self::image::{OcrExtractor, OcrExtractorConfig};
+pub use self::ocr::{OcrExtractor, OcrExtractorConfig};
 pub use self::plan::{AudioPlan, Extraction, ImagePlan, TabularPlan, TextPlan};
-use crate::core::{DocumentTree, NodeMut, RunContext, SharedHandle};
+#[cfg(feature = "audio")]
+pub use self::stt::{SttExtractor, SttExtractorConfig};
+use crate::core::{DocumentTree, RunContext};
 use crate::pipeline::EngineInput;
 
 const TARGET: &str = "nvisy_engine::extraction";
 
 /// Extraction phase: walks the codec handle, populates each
-/// document's `blocks`. Holds an `Arc<ExtractionEngine>` shared
-/// across every run.
+/// document's `blocks`. Holds an [`ExtractionEngine`] by value —
+/// the engine's two `Option<Arc<…>>` fields keep the underlying
+/// OCR/STT services shared across runs without an outer `Arc` wrap.
 pub struct ExtractionPhase {
-    engine: Arc<ExtractionEngine>,
+    engine: ExtractionEngine,
 }
 
 impl ExtractionPhase {
@@ -51,12 +46,14 @@ impl ExtractionPhase {
     /// once per pipeline by [`DocumentPipeline::from_context`].
     ///
     /// [`DocumentPipeline::from_context`]: crate::pipeline::DocumentPipeline::from_context
-    pub fn new(engine: Arc<ExtractionEngine>) -> Self {
+    pub fn new(engine: ExtractionEngine) -> Self {
         Self { engine }
     }
 
     /// Walk the tree and run the per-modality extractor against each
-    /// node.
+    /// node. Visits the root first, then iterates nested embedded
+    /// documents; each per-node body borrows the engine, handle,
+    /// and metadata directly from this scope.
     pub(crate) async fn apply(
         &self,
         _ctx: &RunContext,
@@ -64,92 +61,23 @@ impl ExtractionPhase {
         tree: &mut DocumentTree,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "extraction");
+        // Snapshot the tree-owned fields so they don't conflict with
+        // the per-node `&mut` borrows produced by `root_mut` /
+        // `embeds_mut` further down.
         let handle = tree.handle.clone();
         let metadata = tree.metadata.clone();
-        let engine = Arc::clone(&self.engine);
-        let plan = Arc::new(input.plan.extraction.clone());
         async move {
-            tree.walk_mut(move |node| {
-                let engine = Arc::clone(&engine);
-                let handle = handle.clone();
-                let metadata = metadata.clone();
-                let plan = Arc::clone(&plan);
-                Box::pin(async move { dispatch(&engine, node, &handle, &metadata, &plan).await })
-            })
-            .await
+            self.engine
+                .dispatch(tree.root_mut(), &handle, &metadata, &input.plan.extraction)
+                .await?;
+            for node in tree.embeds_mut() {
+                self.engine
+                    .dispatch(node, &handle, &metadata, &input.plan.extraction)
+                    .await?;
+            }
+            Ok(())
         }
         .instrument(span)
         .await
     }
-}
-
-async fn dispatch(
-    engine: &ExtractionEngine,
-    node: NodeMut<'_>,
-    handle: &SharedHandle,
-    metadata: &ContentMetadata,
-    plan: &Extraction,
-) -> Result<()> {
-    match node {
-        NodeMut::Text(doc) => {
-            engine.populate_text_blocks(doc, handle).await;
-            engine.populate_image_embeds(doc, handle).await;
-            let _ = &plan.text;
-        }
-        NodeMut::Tabular(doc) => {
-            self::tabular::populate_document(doc, handle).await;
-            let _ = &plan.tabular;
-        }
-        NodeMut::Image(doc) => dispatch_image(engine, doc, handle, &plan.image).await?,
-        NodeMut::Audio(doc) => dispatch_audio(engine, doc, handle, metadata, &plan.audio).await?,
-    }
-    Ok(())
-}
-
-#[cfg(feature = "image")]
-async fn dispatch_image(
-    engine: &ExtractionEngine,
-    doc: &mut Document<Image>,
-    handle: &SharedHandle,
-    _plan: &ImagePlan,
-) -> Result<()> {
-    if let Some(ref ocr) = engine.ocr {
-        ocr.run_on_doc(doc, handle).await?;
-    }
-    Ok(())
-}
-
-#[cfg(not(feature = "image"))]
-async fn dispatch_image(
-    _engine: &ExtractionEngine,
-    _doc: &mut Document<Image>,
-    _handle: &SharedHandle,
-    _plan: &ImagePlan,
-) -> Result<()> {
-    Ok(())
-}
-
-#[cfg(feature = "audio")]
-async fn dispatch_audio(
-    engine: &ExtractionEngine,
-    doc: &mut Document<Audio>,
-    handle: &SharedHandle,
-    metadata: &ContentMetadata,
-    plan: &AudioPlan,
-) -> Result<()> {
-    if let Some(ref stt) = engine.stt {
-        stt.run(doc, handle, metadata, plan.diarization).await?;
-    }
-    Ok(())
-}
-
-#[cfg(not(feature = "audio"))]
-async fn dispatch_audio(
-    _engine: &ExtractionEngine,
-    _doc: &mut Document<Audio>,
-    _handle: &SharedHandle,
-    _metadata: &ContentMetadata,
-    _plan: &AudioPlan,
-) -> Result<()> {
-    Ok(())
 }

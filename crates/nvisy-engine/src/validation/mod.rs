@@ -67,7 +67,9 @@ impl ValidationPhase {
         Self
     }
 
-    /// Walk the tree and run leak detection per node.
+    /// Walk the tree and run leak detection per node. Visits the
+    /// root first, then iterates nested embedded documents; each
+    /// per-node body borrows the handle directly from this scope.
     pub(crate) async fn apply(
         &self,
         _ctx: &RunContext,
@@ -76,13 +78,16 @@ impl ValidationPhase {
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "validation");
         let on_leak = input.plan.validation.on_leak;
+        // Snapshot the tree-owned handle so it doesn't conflict with
+        // the per-node `&mut` borrows produced by `root_mut` /
+        // `embeds_mut` further down.
         let handle = tree.handle.clone();
         async move {
-            tree.walk_mut(move |node| {
-                let handle = handle.clone();
-                Box::pin(async move { dispatch(node, &handle, on_leak).await })
-            })
-            .await
+            dispatch(tree.root_mut(), &handle, on_leak).await?;
+            for node in tree.embeds_mut() {
+                dispatch(node, &handle, on_leak).await?;
+            }
+            Ok(())
         }
         .instrument(span)
         .await

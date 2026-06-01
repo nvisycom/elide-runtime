@@ -5,10 +5,10 @@
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "audio")]
-use super::audio::SttExtractorConfig;
 #[cfg(feature = "image")]
-use super::image::OcrExtractorConfig;
+use super::ocr::OcrExtractorConfig;
+#[cfg(feature = "audio")]
+use super::stt::SttExtractorConfig;
 
 /// Configuration for the [`ExtractionEngine`] registry.
 ///

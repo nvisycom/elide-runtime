@@ -41,14 +41,16 @@ pub(crate) struct DocumentPipeline {
 }
 
 impl DocumentPipeline {
-    /// Assemble the pipeline from the per-run context. Phases reach
-    /// into `ctx` for the engine handles they hold long-term.
+    /// Assemble the pipeline from the per-run context. Each phase
+    /// clones its long-lived engine / config out of `ctx`. The
+    /// clones are cheap — the engines internally hold `Arc`-wrapped
+    /// shared state.
     pub(crate) fn from_context(ctx: &RunContext) -> Self {
         let (redaction, validation) = if ctx.dry_run() {
             (None, None)
         } else {
             (
-                Some(RedactionPhase::with_config(ctx.redaction_config().clone())),
+                Some(RedactionPhase::new(ctx.redaction_config().clone())),
                 Some(ValidationPhase::new()),
             )
         };

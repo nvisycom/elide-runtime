@@ -23,7 +23,6 @@ use std::sync::Arc;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
-use nvisy_ontology::modality::{Image, Modality, Text};
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -47,7 +46,7 @@ pub use self::recognizers::{ImageRecognizers, Recognizers, TextRecognizers};
 pub use self::vlm::{
     VlmDetectParams, VlmDetection, VlmVerifyParams, build_pipeline as build_vlm_pipeline,
 };
-use crate::core::{DocumentTree, NodeMut, RunContext, SharedHandle};
+use crate::core::{DocumentTree, RunContext};
 use crate::pipeline::EngineInput;
 
 const TARGET: &str = "nvisy_engine::detection";
@@ -150,11 +149,13 @@ impl Detection {
 /// Detection phase: runs configured recognizers over each node's
 /// blocks and writes [`EntityRecord`]s to `doc.audit`.
 ///
-/// Holds an `Arc<DetectionEngine>` shared across every run.
+/// Holds a [`DetectionEngine`] by value — the engine's recognizer
+/// lists keep the underlying recognizers shared via `Arc` inside,
+/// without an outer wrap.
 ///
 /// [`EntityRecord`]: nvisy_ontology::provenance::EntityRecord
 pub struct DetectionPhase {
-    engine: Arc<DetectionEngine>,
+    engine: DetectionEngine,
 }
 
 impl DetectionPhase {
@@ -162,12 +163,14 @@ impl DetectionPhase {
     /// per pipeline by [`DocumentPipeline::from_context`].
     ///
     /// [`DocumentPipeline::from_context`]: crate::pipeline::DocumentPipeline::from_context
-    pub fn new(engine: Arc<DetectionEngine>) -> Self {
+    pub fn new(engine: DetectionEngine) -> Self {
         Self { engine }
     }
 
     /// Walk the tree and dispatch the right recognizers per modality
-    /// node.
+    /// node. Visits the root first, then iterates nested embedded
+    /// documents; each per-node body borrows the engine, handle, and
+    /// detection plan directly from this scope.
     pub(crate) async fn apply(
         &self,
         ctx: &RunContext,
@@ -175,82 +178,23 @@ impl DetectionPhase {
         tree: &mut DocumentTree,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "detection");
-        let handle = tree.handle.clone();
-        let engine = Arc::clone(&self.engine);
-        let cfg = Arc::new(input.plan.detection.clone());
         let run_id = ctx.shared().run_id;
+        // Snapshot the tree-owned handle so it doesn't conflict with
+        // the per-node `&mut` borrows produced by `root_mut` /
+        // `embeds_mut` further down.
+        let handle = tree.handle.clone();
         async move {
-            tree.walk_mut(move |node| {
-                let engine = Arc::clone(&engine);
-                let handle = handle.clone();
-                let cfg = Arc::clone(&cfg);
-                Box::pin(async move { dispatch(&engine, node, &handle, &cfg, run_id).await })
-            })
-            .await
+            self.engine
+                .dispatch(tree.root_mut(), &handle, &input.plan.detection, run_id)
+                .await?;
+            for node in tree.embeds_mut() {
+                self.engine
+                    .dispatch(node, &handle, &input.plan.detection, run_id)
+                    .await?;
+            }
+            Ok(())
         }
         .instrument(span)
         .await
     }
-}
-
-async fn dispatch(
-    engine: &DetectionEngine,
-    node: NodeMut<'_>,
-    handle: &SharedHandle,
-    cfg: &Detection,
-    run_id: uuid::Uuid,
-) -> Result<()> {
-    match node {
-        NodeMut::Text(doc) => detect_text_only::<Text>(engine, doc, cfg, run_id).await,
-        NodeMut::Tabular(doc) => {
-            detect_text_only::<nvisy_ontology::modality::Tabular>(engine, doc, cfg, run_id).await
-        }
-        NodeMut::Audio(doc) => {
-            detect_text_only::<nvisy_ontology::modality::Audio>(engine, doc, cfg, run_id).await
-        }
-        NodeMut::Image(doc) => detect_image(engine, doc, handle, cfg, run_id).await,
-    }
-}
-
-async fn detect_text_only<M>(
-    engine: &DetectionEngine,
-    doc: &mut nvisy_ontology::document::Document<M>,
-    cfg: &Detection,
-    run_id: uuid::Uuid,
-) -> Result<()>
-where
-    M: Modality + LiftFromBlock + ProjectIntoBlock + nvisy_ontology::modality::Overlap,
-{
-    engine.detect_text_only(doc, cfg, run_id).await
-}
-
-#[cfg(feature = "image")]
-async fn detect_image(
-    engine: &DetectionEngine,
-    doc: &mut nvisy_ontology::document::Document<Image>,
-    handle: &SharedHandle,
-    cfg: &Detection,
-    run_id: uuid::Uuid,
-) -> Result<()> {
-    // Text recognizers run on every OCR'd block ("runs alongside"
-    // image-side recognizers), then image recognizers run once per
-    // image location with raw bytes — they emit absolute
-    // image-coord Entity<Image> directly, no per-block lifting.
-    self::engine::detect_text_blocks(engine, doc, cfg, run_id).await?;
-    engine
-        .detect_image_locations(doc, handle, cfg, run_id)
-        .await?;
-    engine.reset().await;
-    Ok(())
-}
-
-#[cfg(not(feature = "image"))]
-async fn detect_image(
-    engine: &DetectionEngine,
-    doc: &mut nvisy_ontology::document::Document<Image>,
-    _handle: &SharedHandle,
-    cfg: &Detection,
-    run_id: uuid::Uuid,
-) -> Result<()> {
-    engine.detect_text_only(doc, cfg, run_id).await
 }

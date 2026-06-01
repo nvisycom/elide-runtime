@@ -22,8 +22,6 @@ mod evaluate;
 mod plan;
 mod strategy;
 
-use std::sync::Arc;
-
 use nvisy_core::Result;
 use nvisy_ontology::entity::is_excluded;
 use nvisy_ontology::modality::Modality;
@@ -38,37 +36,30 @@ use crate::pipeline::EngineInput;
 
 /// Redaction phase: evaluate policies, attach an [`AuditEntry<M>`]
 /// to each [`EntityRecord<M>`] the policy chain decides on, then
-/// hand off to the codec applicator. Holds the shared
-/// [`RedactionConfig`] for default lookups.
+/// hand off to the codec applicator. Holds a [`RedactionConfig`]
+/// by value for the deployment-wide defaults the policy chain
+/// falls back to.
 ///
 /// [`AuditEntry<M>`]: nvisy_ontology::provenance::AuditEntry
 /// [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
 pub struct RedactionPhase {
-    config: Arc<RedactionConfig>,
+    config: RedactionConfig,
 }
 
 impl RedactionPhase {
-    /// Build the phase. The config comes from the run context; the
-    /// phase stores its own `Arc` so the body doesn't have to
-    /// re-thread it from `ctx` each call.
-    pub fn new() -> Self {
-        // Default empty config; the orchestrator overrides via
-        // `from_context` (see [`DocumentPipeline::from_context`]).
-        Self {
-            config: Arc::new(RedactionConfig::default()),
-        }
-    }
-
-    /// Build with the supplied config, used by
+    /// Build the phase with the supplied config, used by
     /// [`DocumentPipeline::from_context`].
     ///
     /// [`DocumentPipeline::from_context`]: crate::pipeline::DocumentPipeline::from_context
-    pub(crate) fn with_config(config: Arc<RedactionConfig>) -> Self {
+    pub(crate) fn new(config: RedactionConfig) -> Self {
         Self { config }
     }
 
     /// Walk the tree and run the per-node redaction body. Skipped
     /// entirely when the orchestrator omits the phase (dry-run).
+    /// Visits the root first, then iterates nested embedded
+    /// documents; each per-node body borrows the policies, handle,
+    /// and metadata directly from this scope.
     pub(crate) async fn apply(
         &self,
         ctx: &RunContext,
@@ -77,41 +68,33 @@ impl RedactionPhase {
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "redaction");
         let cfg = &input.plan.redaction;
-        let section = self.config.as_ref();
+        let section = &self.config;
         let default_threshold = cfg
             .confidence_threshold
             .unwrap_or(section.confidence_threshold);
         let _process_metadata = cfg.process_metadata.unwrap_or(section.process_metadata);
-
+        let policies = &ctx.shared().policies;
+        // Snapshot the tree-owned handle + metadata so they don't
+        // conflict with the per-node `&mut` borrows produced by
+        // `root_mut` / `embeds_mut` further down.
         let handle = tree.handle.clone();
-        let metadata = Arc::new(tree.metadata.clone());
-        let shared = Arc::clone(ctx.shared());
+        let metadata = tree.metadata.clone();
         async move {
-            tree.walk_mut(move |node| {
-                let handle = handle.clone();
-                let metadata = Arc::clone(&metadata);
-                let shared = Arc::clone(&shared);
-                Box::pin(async move {
-                    dispatch(
-                        node,
-                        &handle,
-                        &metadata,
-                        &shared.policies,
-                        default_threshold,
-                    )
-                    .await
-                })
-            })
-            .await
+            dispatch(
+                tree.root_mut(),
+                &handle,
+                &metadata,
+                policies,
+                default_threshold,
+            )
+            .await?;
+            for node in tree.embeds_mut() {
+                dispatch(node, &handle, &metadata, policies, default_threshold).await?;
+            }
+            Ok(())
         }
         .instrument(span)
         .await
-    }
-}
-
-impl Default for RedactionPhase {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

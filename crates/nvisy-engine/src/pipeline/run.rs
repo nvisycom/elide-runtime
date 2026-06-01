@@ -159,24 +159,22 @@ impl Pipeline {
         // opted no recognizers in (`kinds` empty), the engine is
         // built empty and the detection phase short-circuits at
         // dispatch.
-        let detection_engine = Arc::new(
-            input
-                .plan
-                .detection
-                .into_engine(&self.recognizers)
-                .map_err(|e| {
-                    Error::validation(format!("detection engine assembly: {e}"), "detection")
-                })?,
-        );
+        let detection_engine = input
+            .plan
+            .detection
+            .into_engine(&self.recognizers)
+            .map_err(|e| {
+                Error::validation(format!("detection engine assembly: {e}"), "detection")
+            })?;
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
         let ctx = RunContext::new(
             cancel,
             Arc::new(shared_data),
-            Arc::clone(&self.extraction_engine),
+            (*self.extraction_engine).clone(),
             detection_engine,
-            Arc::clone(&self.redaction_config),
+            (*self.redaction_config).clone(),
             concurrency,
             input.dry_run,
         );

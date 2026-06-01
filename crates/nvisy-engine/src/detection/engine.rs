@@ -63,7 +63,7 @@ pub(super) const TARGET: &str = "nvisy_engine::detection";
 ///
 /// [`JoinSet`]: tokio::task::JoinSet
 /// [`builder`]: Self::builder
-#[derive(Builder)]
+#[derive(Builder, Clone)]
 #[builder(
     name = "DetectionEngineBuilder",
     pattern = "owned",
@@ -400,6 +400,71 @@ impl DetectionEngine {
             "appending image-detected entities",
         );
         Ok(())
+    }
+
+    /// Image-node detection body. Runs text recognizers over each
+    /// OCR'd block ("runs alongside" image-side recognizers), then
+    /// image recognizers once per image location with raw bytes.
+    /// When the `image` feature is off only the text pass runs.
+    #[cfg(feature = "image")]
+    async fn detect_image(
+        &self,
+        doc: &mut nvisy_ontology::document::Document<Image>,
+        handle: &crate::core::SharedHandle,
+        cfg: &Detection,
+        run_id: uuid::Uuid,
+    ) -> Result<()> {
+        detect_text_blocks(self, doc, cfg, run_id).await?;
+        self.detect_image_locations(doc, handle, cfg, run_id)
+            .await?;
+        self.reset().await;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "image"))]
+    async fn detect_image(
+        &self,
+        doc: &mut nvisy_ontology::document::Document<Image>,
+        _handle: &crate::core::SharedHandle,
+        cfg: &Detection,
+        run_id: uuid::Uuid,
+    ) -> Result<()> {
+        self.detect_text_only(doc, cfg, run_id).await
+    }
+
+    /// Per-node dispatch: route a [`NodeMut`] to the matching
+    /// per-modality detection body on `self`. Called once per node
+    /// by [`DetectionPhase::apply`].
+    ///
+    /// Text / Tabular / Audio share the [`Self::detect_text_only`]
+    /// pass; Image runs text recognizers ("runs alongside") and
+    /// then the image recognizers via
+    /// [`Self::detect_image_locations`] when the `image` feature
+    /// is on, falling back to text-only otherwise.
+    ///
+    /// [`NodeMut`]: crate::core::NodeMut
+    /// [`DetectionPhase::apply`]: super::DetectionPhase::apply
+    pub(super) async fn dispatch(
+        &self,
+        node: crate::core::NodeMut<'_>,
+        handle: &crate::core::SharedHandle,
+        cfg: &Detection,
+        run_id: uuid::Uuid,
+    ) -> Result<()> {
+        match node {
+            crate::core::NodeMut::Text(doc) => {
+                self.detect_text_only::<Text>(doc, cfg, run_id).await
+            }
+            crate::core::NodeMut::Tabular(doc) => {
+                self.detect_text_only::<nvisy_ontology::modality::Tabular>(doc, cfg, run_id)
+                    .await
+            }
+            crate::core::NodeMut::Audio(doc) => {
+                self.detect_text_only::<nvisy_ontology::modality::Audio>(doc, cfg, run_id)
+                    .await
+            }
+            crate::core::NodeMut::Image(doc) => self.detect_image(doc, handle, cfg, run_id).await,
+        }
     }
 }
 

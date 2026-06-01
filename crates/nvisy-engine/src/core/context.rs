@@ -26,22 +26,32 @@ use crate::extraction::ExtractionEngine;
 use crate::redaction::RedactionConfig;
 
 /// Per-run execution context shared across all document tasks.
+///
+/// Engines and configs are held by value (not wrapped in `Arc`)
+/// because below the top-level [`EngineInner`] singleton there's
+/// no sharing — `RunContext` is built per-run, lives for that run,
+/// then hands each phase its own copy via
+/// [`DocumentPipeline::from_context`]. The engines themselves
+/// internally hold `Arc`-wrapped recognizers / extractors, so
+/// cloning them is a few atomic increments.
+///
+/// [`EngineInner`]: crate::pipeline::Engine
+/// [`DocumentPipeline::from_context`]: crate::pipeline::DocumentPipeline::from_context
 pub struct RunContext {
     /// Token to signal cancellation to all tasks.
     pub(crate) cancel: CancellationToken,
     /// Shared run-wide state: run ID, actor, registry, policies.
     pub(crate) shared: Arc<SharedData>,
-    /// Pre-built extractor registry from `RuntimeConfig.extraction`.
-    /// Shared across every run.
-    pub(crate) extraction_engine: Arc<ExtractionEngine>,
-    /// Shared detection engine. Always present; when the plan
-    /// requests no recognizers, the engine is built empty and the
+    /// Pre-built extractor registry.
+    pub(crate) extraction_engine: ExtractionEngine,
+    /// Pre-built detection engine. Always present; when the plan
+    /// requests no recognizers the engine is built empty and the
     /// per-modality dispatch short-circuits on empty recognizer
     /// lists.
-    pub(crate) detection_engine: Arc<DetectionEngine>,
-    /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
-    /// Per-plan `Redaction` fields fall back to these.
-    pub(crate) redaction_config: Arc<RedactionConfig>,
+    pub(crate) detection_engine: DetectionEngine,
+    /// Server-wide redaction defaults. Per-plan `Redaction` fields
+    /// fall back to these.
+    pub(crate) redaction_config: RedactionConfig,
     /// Optional limit on how many documents may process concurrently.
     pub(crate) concurrency: Option<NonZeroUsize>,
     /// When `true`, skip redaction, validation, and export phases.
@@ -54,9 +64,9 @@ impl RunContext {
     pub(crate) fn new(
         cancel: CancellationToken,
         shared: Arc<SharedData>,
-        extraction_engine: Arc<ExtractionEngine>,
-        detection_engine: Arc<DetectionEngine>,
-        redaction_config: Arc<RedactionConfig>,
+        extraction_engine: ExtractionEngine,
+        detection_engine: DetectionEngine,
+        redaction_config: RedactionConfig,
         concurrency: Option<NonZeroUsize>,
         dry_run: bool,
     ) -> Self {
@@ -79,21 +89,21 @@ impl RunContext {
     /// Pre-built extraction engine borrowed by [`ExtractionPhase`].
     ///
     /// [`ExtractionPhase`]: crate::extraction::ExtractionPhase
-    pub(crate) fn extraction_engine(&self) -> &Arc<ExtractionEngine> {
+    pub(crate) fn extraction_engine(&self) -> &ExtractionEngine {
         &self.extraction_engine
     }
 
     /// Pre-built detection engine borrowed by [`DetectionPhase`].
     ///
     /// [`DetectionPhase`]: crate::detection::DetectionPhase
-    pub(crate) fn detection_engine(&self) -> &Arc<DetectionEngine> {
+    pub(crate) fn detection_engine(&self) -> &DetectionEngine {
         &self.detection_engine
     }
 
     /// Server-wide redaction defaults the [`RedactionPhase`] reads.
     ///
     /// [`RedactionPhase`]: crate::redaction::RedactionPhase
-    pub(crate) fn redaction_config(&self) -> &Arc<RedactionConfig> {
+    pub(crate) fn redaction_config(&self) -> &RedactionConfig {
         &self.redaction_config
     }
 

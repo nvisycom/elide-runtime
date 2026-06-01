@@ -3,7 +3,7 @@
 //! Built once at engine startup from [`OcrExtractorConfig`] and
 //! shared across every run via [`ExtractionEngine`].
 //!
-//! [`ExtractionEngine`]: super::super::ExtractionEngine
+//! [`ExtractionEngine`]: super::ExtractionEngine
 
 use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData;

@@ -3,7 +3,7 @@
 //! Built once at engine startup from [`SttExtractorConfig`] and
 //! shared across every run via [`ExtractionEngine`].
 //!
-//! [`ExtractionEngine`]: super::super::ExtractionEngine
+//! [`ExtractionEngine`]: super::ExtractionEngine
 
 use nvisy_agent::audio::SttProvider;
 use nvisy_agent::audio::stt::{SttConfig, SttService};

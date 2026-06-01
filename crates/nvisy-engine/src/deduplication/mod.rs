@@ -26,7 +26,6 @@ mod resolve;
 mod span_size;
 
 use std::mem;
-use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
@@ -65,7 +64,10 @@ impl DeduplicationPhase {
         Self
     }
 
-    /// Walk the tree and run the per-node dedup body.
+    /// Walk the tree and run the per-node dedup body. Visits the
+    /// root first, then iterates nested embedded documents; each
+    /// per-node body borrows the detection + dedup plan and handle
+    /// directly from this scope.
     pub(crate) async fn apply(
         &self,
         _ctx: &RunContext,
@@ -73,17 +75,28 @@ impl DeduplicationPhase {
         tree: &mut DocumentTree,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "deduplication");
-        let detection = Arc::new(input.plan.detection.clone());
-        let dedup = Arc::new(input.plan.deduplication.clone());
+        // Snapshot the tree-owned handle so it doesn't conflict with
+        // the per-node `&mut` borrows produced by `root_mut` /
+        // `embeds_mut` further down.
         let handle = tree.handle.clone();
         async move {
-            tree.walk_mut(move |node| {
-                let detection = Arc::clone(&detection);
-                let dedup = Arc::clone(&dedup);
-                let handle = handle.clone();
-                Box::pin(async move { dispatch(node, &handle, &dedup, &detection).await })
-            })
-            .await
+            dispatch(
+                tree.root_mut(),
+                &handle,
+                &input.plan.deduplication,
+                &input.plan.detection,
+            )
+            .await?;
+            for node in tree.embeds_mut() {
+                dispatch(
+                    node,
+                    &handle,
+                    &input.plan.deduplication,
+                    &input.plan.detection,
+                )
+                .await?;
+            }
+            Ok(())
         }
         .instrument(span)
         .await

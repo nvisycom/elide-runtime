@@ -1,37 +1,44 @@
-//! Per-method confidence calibration.
+//! Per-recognizer confidence calibration.
 //!
-//! Scales entity confidence scores using per-[`RecognitionMethod`]
-//! multipliers before deduplication. This compensates for score
-//! distribution differences between detectors: regex always returns
-//! 1.0 while NER returns 0.3–0.9, so a multiplier of 0.8 on regex
-//! brings them into alignment.
+//! Scales entity confidence scores using per-recognizer multipliers
+//! before deduplication. This compensates for score distribution
+//! differences between detectors: regex always returns 1.0 while NER
+//! returns 0.3–0.9, so a multiplier of 0.8 on `pattern` brings them
+//! into alignment.
 //!
-//! [`RecognitionMethod`]: nvisy_ontology::entity::RecognitionMethod
+//! Keys are the recognizer source names stamped onto the entity's
+//! [`TrailStep::recognition`](nvisy_ontology::entity::TrailStep::recognition)
+//! step — typically the names registered with the detection engine
+//! (e.g. `"pattern"`, `"ner"`, `"llm-ner"`).
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entity, RecognitionMethodKind, RefinementMethod};
+use nvisy_ontology::entity::{Entity, TrailStep};
 use nvisy_ontology::modality::Modality;
 use nvisy_ontology::primitive::Confidence;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::calibration";
 
-/// Per-method confidence multiplier applied before deduplication.
+/// Per-recognizer confidence multiplier applied before deduplication.
 ///
-/// Maps a [`RecognitionMethodKind`] to a scaling factor. Methods not
-/// present in the map are left unchanged (implicit multiplier of 1.0).
-pub type CalibrationMap = HashMap<RecognitionMethodKind, f64>;
+/// Maps a recognizer source name to a scaling factor. Recognizers
+/// not present in the map are left unchanged (implicit multiplier of
+/// `1.0`).
+pub type CalibrationMap = HashMap<String, f64>;
 
-/// Extension trait on [`Entities`]: scale per-entity confidence by
-/// per-method calibration multipliers in place.
+/// Extension trait on entity collections: scale per-entity confidence
+/// by per-recognizer calibration multipliers in place.
 pub(super) trait Calibrate {
-    /// Apply per-method calibration multipliers to entity confidences.
+    /// Apply per-recognizer calibration multipliers to entity
+    /// confidences.
     ///
     /// For each entity, finds the maximum multiplier across its
-    /// recognition methods and scales the confidence. Entities whose
-    /// methods are absent from the map are left unchanged. Results
-    /// are clamped to `[0.0, 1.0]`. Adjusted entities are tagged with
-    /// [`RefinementMethod::ConfidenceCalibration`].
+    /// recognition trail step sources and scales the confidence.
+    /// Entities whose recognizers are absent from the map are left
+    /// unchanged. Results are clamped to `[0.0, 1.0]`. Adjusted
+    /// entities receive a
+    /// [`Calibration`](nvisy_ontology::entity::TrailStepKind::Calibration)
+    /// step on their trail.
     fn calibrate(&mut self, calibration: &CalibrationMap);
 }
 
@@ -45,26 +52,28 @@ impl<M: Modality> Calibrate for Vec<Entity<M>> {
 
         for entity in self.iter_mut() {
             let multiplier = entity
-                .recognition_methods
-                .iter()
-                .filter_map(|m| calibration.get(&m.kind()).copied())
+                .recognizers()
+                .filter_map(|name| calibration.get(name).copied())
                 .reduce(f64::max);
 
             if let Some(m) = multiplier {
-                let before = entity.confidence.get();
-                let after = (before * m).clamp(0.0, 1.0);
-                entity.confidence = Confidence::new(after).expect("clamped to [0,1]");
-                entity
-                    .refinement_methods
-                    .push(RefinementMethod::ConfidenceCalibration);
+                let before = entity.confidence;
+                let after_raw = (before.get() * m).clamp(0.0, 1.0);
+                let after = Confidence::new(after_raw).expect("clamped to [0,1]");
+                entity.confidence = after;
+                entity.trail.push(TrailStep::calibration(
+                    before,
+                    after,
+                    format!("scaled by {m:.3}"),
+                ));
                 adjusted += 1;
 
                 tracing::trace!(
                     target: TARGET,
                     entity_id = %entity.id,
                     multiplier = m,
-                    before,
-                    after,
+                    before = before.get(),
+                    after = after.get(),
                     "calibrated confidence",
                 );
             }
@@ -81,7 +90,9 @@ impl<M: Modality> Calibrate for Vec<Entity<M>> {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod, RecognitionMethodKind};
+    use nvisy_ontology::entity::{
+        Entity, ModelProvenance, TrailProvenance, TrailStep, TrailStepKind,
+    };
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
@@ -90,12 +101,22 @@ mod tests {
         Confidence::new(v).expect("confidence in [0,1]")
     }
 
+    fn trail_for(source: &str, confidence: Confidence) -> Vec<TrailStep> {
+        vec![TrailStep::recognition(
+            source,
+            confidence,
+            TrailProvenance::Model(ModelProvenance::new(source)),
+            "",
+        )]
+    }
+
     #[test]
-    fn scales_confidence_and_tags_refinement() {
+    fn scales_confidence_and_appends_calibration_step() {
         let mut calibration = CalibrationMap::new();
-        calibration.insert(RecognitionMethodKind::Pattern, 0.5);
+        calibration.insert("pattern".into(), 0.5);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
+                .with_trail(trail_for("pattern", conf(0.8)))
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
@@ -103,17 +124,19 @@ mod tests {
         assert!((entities[0].confidence.get() - 0.4).abs() < f64::EPSILON);
         assert!(
             entities[0]
-                .refinement_methods
-                .contains(&RefinementMethod::ConfidenceCalibration)
+                .trail
+                .iter()
+                .any(|s| matches!(s.kind, TrailStepKind::Calibration))
         );
     }
 
     #[test]
     fn clamps_to_one() {
         let mut calibration = CalibrationMap::new();
-        calibration.insert(RecognitionMethodKind::Pattern, 2.0);
+        calibration.insert("pattern".into(), 2.0);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
+                .with_trail(trail_for("pattern", conf(0.8)))
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
@@ -122,16 +145,15 @@ mod tests {
     }
 
     #[test]
-    fn picks_max_multiplier_across_methods() {
+    fn picks_max_multiplier_across_recognizers() {
         let mut calibration = CalibrationMap::new();
-        calibration.insert(RecognitionMethodKind::Pattern, 0.5);
-        calibration.insert(RecognitionMethodKind::NlpNer, 0.8);
+        calibration.insert("pattern".into(), 0.5);
+        calibration.insert("ner".into(), 0.8);
+        let mut trail = trail_for("pattern", conf(1.0));
+        trail.extend(trail_for("ner", conf(1.0)));
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![
-                    RecognitionMethod::regex("test"),
-                    RecognitionMethod::nlp_ner("test", ModelKind::SelfHosted),
-                ])
+                .with_trail(trail)
                 .with_confidence(conf(1.0))
                 .test_build(),
         ];

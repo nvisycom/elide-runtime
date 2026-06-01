@@ -1,15 +1,22 @@
 {
   "name": "cryptocurrencies-dict",
-  "category": "financial",
   "entity_type": "amount",
   "dictionary": {
     "name": "cryptocurrencies",
-    "confidence": [0.85, 0.55]
+    "confidence": [
+      0.85,
+      0.55
+    ]
   },
   "metadata": {
     "description": "Cryptocurrency names and symbols.",
     "version": "1.0.0",
-    "regions": ["global"],
-    "industries": ["crypto", "finance"]
+    "regions": [
+      "global"
+    ],
+    "industries": [
+      "crypto",
+      "finance"
+    ]
   }
 }

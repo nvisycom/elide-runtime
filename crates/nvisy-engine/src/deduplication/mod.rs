@@ -200,7 +200,7 @@ mod tests {
     use std::sync::Arc;
 
     use nvisy_ontology::document::Document;
-    use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
+    use nvisy_ontology::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep};
     use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
     use nvisy_ontology::primitive::{Confidence, ConfidenceThreshold};
     use tokio::sync::Mutex;
@@ -275,9 +275,11 @@ mod tests {
                 .with_confidence(conf(0.8))
                 .test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
-                    "test",
-                    ModelKind::SelfHosted,
+                .with_trail(vec![TrailStep::recognition(
+                    "ner",
+                    conf(0.85),
+                    TrailProvenance::Model(ModelProvenance::new("test")),
+                    "",
                 )])
                 .with_confidence(conf(0.85))
                 .test_build(),

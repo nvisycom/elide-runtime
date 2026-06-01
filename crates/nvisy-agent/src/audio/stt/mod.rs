@@ -7,7 +7,7 @@
 mod provider;
 
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::{ModelKind, ModelProvenance};
+use nvisy_ontology::entity::ModelProvenance;
 #[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
 use schemars::JsonSchema;
@@ -92,17 +92,8 @@ impl SttService {
     }
 
     /// Provenance of the underlying transcription model.
-    ///
-    /// `kind` is [`ModelKind::Gateway`] for hosted providers
-    /// (currently OpenAI Whisper) and [`ModelKind::SelfHosted`] for
-    /// local providers.
     pub fn provenance(&self) -> ModelProvenance {
-        let kind = match &self.inner {
-            #[cfg(feature = "openai-whisper")]
-            SttModels::OpenAi(_) => ModelKind::Gateway,
-            SttModels::Local => ModelKind::SelfHosted,
-        };
-        ModelProvenance::new(self.config.model.clone(), kind)
+        ModelProvenance::new(self.config.model.clone())
     }
 
     /// Transcribe audio data to text.

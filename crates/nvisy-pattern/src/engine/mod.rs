@@ -198,7 +198,7 @@ static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
+    use nvisy_ontology::entity::{EntityKind, PatternProvenance, TrailProvenance};
 
     use super::filter::{DenyList, DenyRule};
     use super::scan::candidate::EntityCandidate;
@@ -209,12 +209,12 @@ mod tests {
         PatternContext::default()
     }
 
-    /// Pull the pattern name from a candidate's first
-    /// `RecognitionMethod::Pattern` provenance, or `None` for
-    /// deny-list / no-provenance candidates.
+    /// Pull the pattern name from a candidate's first trail step
+    /// carrying a `PatternProvenance::Regex` / `Dictionary`, or
+    /// `None` for deny-list / no-provenance candidates.
     fn pattern_name(c: &EntityCandidate) -> Option<&str> {
-        c.entity.recognition_methods.iter().find_map(|m| match m {
-            RecognitionMethod::Pattern(p) => p.name(),
+        c.entity.trail.iter().find_map(|s| match &s.provenance {
+            TrailProvenance::Pattern(p) => p.name(),
             _ => None,
         })
     }
@@ -260,7 +260,6 @@ mod tests {
         deny.insert(
             "secret-value-42",
             DenyRule {
-                category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
             },
         );
@@ -282,10 +281,10 @@ mod tests {
         assert_eq!(&text[start..end], "secret-value-42");
         assert_eq!(deny_match.entity.confidence.get(), 1.0);
         assert_eq!(deny_match.entity.entity_kind, EntityKind::PersonName);
-        assert_eq!(
-            deny_match.entity.recognition_methods,
-            vec![RecognitionMethod::deny_list()],
-        );
+        assert!(deny_match.entity.trail.iter().any(|s| matches!(
+            &s.provenance,
+            TrailProvenance::Pattern(PatternProvenance::DenyList)
+        )));
     }
 
     #[test]
@@ -294,7 +293,6 @@ mod tests {
         deny.insert(
             "not-in-text",
             DenyRule {
-                category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
             },
         );
@@ -371,7 +369,6 @@ mod tests {
                         confidence: 0.9,
                     }),
                 )
-                .with_category(EntityCategory::PersonalIdentity)
                 .with_kind(EntityKind::PersonName),
             ],
             ..Default::default()

@@ -26,8 +26,8 @@ impl<'a> NerVerifyPromptBuilder<'a> {
         let mut prompt = String::from(
             "Verify each proposed entity below against its snippet from \
              the source text. Confirm by omission, or return a verdict to \
-             reject false positives or adjust (kind / category / \
-             confidence) on a per-entity basis.\n\n\
+             reject false positives or adjust (kind / confidence) on a \
+             per-entity basis.\n\n\
              Proposed entities:\n",
         );
 
@@ -46,8 +46,7 @@ impl<'a> NerVerifyPromptBuilder<'a> {
             };
 
             prompt.push_str(&format!(
-                "[{i}] category={cat}, kind={kind}, value=\"{val}\", confidence={conf:.2}\n  snippet: \"{snip}\"\n",
-                cat = e.category,
+                "[{i}] kind={kind}, value=\"{val}\", confidence={conf:.2}\n  snippet: \"{snip}\"\n",
                 kind = e.entity_kind,
                 val = value,
                 conf = e.confidence.get(),
@@ -62,9 +61,9 @@ impl<'a> NerVerifyPromptBuilder<'a> {
 /// Default system prompt for the whole-audit verifier.
 pub(super) const NER_VERIFIER_SYSTEM_PROMPT: &str = "\
 You verify proposed sensitive-data recognitions against the source \
-text. You receive a list of entities (each with an id, category, \
-kind, value, confidence, and a short snippet of surrounding text) \
-that were identified by upstream recognizers.\n\
+text. You receive a list of entities (each with an id, kind, value, \
+confidence, and a short snippet of surrounding text) that were \
+identified by upstream recognizers.\n\
 \n\
 Your task is to re-read the snippets and return only entities that \
 need changes. Return a JSON object with an \"entities\" key \
@@ -72,17 +71,17 @@ containing an array of changed entries:\n\
 \n\
 - **rejected**: the entity is a false positive at this location.\n\
 - **corrected**: the entity exists at this location but you want \
-  to adjust its category, kind, or confidence. Provide whichever \
-  fields you wish to update. The entity's location and value are \
-  fixed by the original recognizer and cannot be changed here.\n\
+  to adjust its kind or confidence. Provide whichever fields you \
+  wish to update. The entity's location and value are fixed by the \
+  original recognizer and cannot be changed here.\n\
 \n\
 Entities that are correct as-is should NOT appear in your response. \
 If every entity is correct, return {\"entities\": []}.\n\
 \n\
 Each entry must have: id (the index from the prompt), status \
 (\"corrected\" or \"rejected\"), confidence (0.0-1.0). For corrected \
-entities, optionally include category and/or entity_type. The \
-value and bbox fields, if present, are ignored.";
+entities, optionally include entity_type. The value and bbox \
+fields, if present, are ignored.";
 
 fn floor_char_boundary(s: &str, mut pos: usize) -> usize {
     while pos > 0 && !s.is_char_boundary(pos) {
@@ -100,20 +99,23 @@ fn ceil_char_boundary(s: &str, mut pos: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityKind, ModelKind, ModelProvenance, RecognitionMethod};
+    use nvisy_ontology::entity::{EntityKind, ModelProvenance, TrailProvenance, TrailStep};
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
 
     fn entity(start: usize, end: usize, kind: EntityKind) -> Entity<Text> {
+        let confidence = Confidence::new(0.5).unwrap();
+        let step = TrailStep::recognition(
+            "llm-ner",
+            confidence,
+            TrailProvenance::Model(ModelProvenance::new("test")),
+            "",
+        );
         Entity::builder()
-            .with_category(kind.category())
             .with_entity_kind(kind)
-            .with_recognition_methods(vec![RecognitionMethod::LlmNer(ModelProvenance::new(
-                "test",
-                ModelKind::Gateway,
-            ))])
-            .with_confidence(Confidence::new(0.5).unwrap())
+            .with_trail(vec![step])
+            .with_confidence(confidence)
             .with_location(Text::new(start, end))
             .build()
             .unwrap()

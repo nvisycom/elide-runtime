@@ -1,6 +1,5 @@
 {
   "name": "religions",
-  "category": "demographic",
   "entity_type": "religion",
   "dictionary": {
     "name": "religions",
@@ -9,8 +8,14 @@
   "metadata": {
     "description": "Religion / belief-system names (English).",
     "version": "1.0.0",
-    "languages": ["en"],
-    "regions": ["global"],
-    "compliance": ["gdpr"]
+    "languages": [
+      "en"
+    ],
+    "regions": [
+      "global"
+    ],
+    "compliance": [
+      "gdpr"
+    ]
   }
 }

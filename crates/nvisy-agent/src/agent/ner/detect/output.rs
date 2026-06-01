@@ -1,6 +1,6 @@
 //! Structured output types for NER candidate detection.
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -34,8 +34,6 @@ pub struct NerCandidate {
     /// not stable across calls.
     #[serde(default)]
     pub entity_id: Option<String>,
-    /// Broad classification (may be absent for coreferent mentions like pronouns).
-    pub category: Option<EntityCategory>,
     /// Specific entity type (may be absent for coreferent mentions like pronouns).
     pub entity_type: Option<EntityKind>,
     /// The matched text value — the literal surface form the LLM
@@ -62,14 +60,11 @@ pub struct NerCandidate {
     pub description: Option<String>,
     /// Index into [`LlmNerContext::hints`] when this candidate is
     /// the LLM's response to a user-supplied hint; `None` for
-    /// fresh discoveries. Drives recognition-method stamping:
-    /// `Some(i)` → [`RecognitionMethod::Annotation`] with the
-    /// hint's name; `None` → [`RecognitionMethod::LlmNer`] with
-    /// the model's provenance.
+    /// fresh discoveries. Drives recognition-step stamping:
+    /// `Some(i)` → annotation provenance with the hint's name;
+    /// `None` → model provenance with the agent's model name.
     ///
     /// [`LlmNerContext::hints`]: crate::agent::LlmNerContext::hints
-    /// [`RecognitionMethod::Annotation`]: nvisy_ontology::entity::RecognitionMethod::Annotation
-    /// [`RecognitionMethod::LlmNer`]: nvisy_ontology::entity::RecognitionMethod::LlmNer
     #[serde(default)]
     pub hint_id: Option<usize>,
 }

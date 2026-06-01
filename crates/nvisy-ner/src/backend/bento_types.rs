@@ -11,7 +11,7 @@
 //! [`BentoNerBackend`]: super::BentoNerBackend
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 
-use nvisy_ontology::entity::{Entity, EntityKind, ModelKind, RecognitionMethod};
+use nvisy_ontology::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
 use serde::{Deserialize, Serialize};
@@ -66,12 +66,10 @@ pub(super) struct WireRequest {
 #[serde(rename_all = "camelCase")]
 pub(super) struct WireResponse {
     /// Identity of the underlying model that produced these
-    /// entities — surfaced into [`RecognitionMethod::nlp_ner`] so
-    /// audit trails attribute correctly. Echoed per response so a
-    /// service hosting multiple models can report different
-    /// identities within one batch.
-    ///
-    /// [`RecognitionMethod::nlp_ner`]: nvisy_ontology::entity::RecognitionMethod::nlp_ner
+    /// entities — surfaced onto the entity's [`TrailStep`] so audit
+    /// trails attribute correctly. Echoed per response so a service
+    /// hosting multiple models can report different identities
+    /// within one batch.
     pub model: String,
     /// Recognised entities, already classified into the canonical
     /// [`EntityKind`] taxonomy by the service. Defaults to empty
@@ -82,10 +80,10 @@ pub(super) struct WireResponse {
 
 /// One recognised entity span on the wire.
 ///
-/// Translated into an ontology [`Entity`] by `wire_to_entity` —
-/// the byte offsets become the entity's text span, `score` becomes
-/// a clamped [`Confidence`], and the surrounding response's
-/// `model` is stamped onto the recognition method.
+/// Translated into an ontology [`Entity`] by `to_entity` — the
+/// byte offsets become the entity's text span, `score` becomes a
+/// clamped [`Confidence`], and the surrounding response's `model`
+/// is stamped onto the recognition trail step.
 ///
 /// [`Entity`]: nvisy_ontology::entity::Entity
 /// [`Confidence`]: nvisy_ontology::primitive::Confidence
@@ -113,16 +111,16 @@ pub(super) struct WireEntity {
 impl WireEntity {
     /// Convert this wire entity into an ontology [`Entity`],
     /// stamping the model identity reported by the inference
-    /// service on the [`RecognitionMethod`].
+    /// service on the recognition [`TrailStep`].
     pub fn to_entity(&self, model: &str) -> Entity<Text> {
+        let confidence = Confidence::try_clamped(self.score).unwrap_or(Confidence::MAX);
+        let provenance = TrailProvenance::Model(ModelProvenance::new(model.to_owned()));
+        let reason = format!("ner model '{model}' identified {}", self.kind);
+        let step = TrailStep::recognition("ner", confidence, provenance, reason);
         Entity::builder()
-            .with_category(self.kind.category())
             .with_entity_kind(self.kind)
-            .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
-                model.to_owned(),
-                ModelKind::SelfHosted,
-            )])
-            .with_confidence(Confidence::try_clamped(self.score).unwrap_or(Confidence::MAX))
+            .with_trail(vec![step])
+            .with_confidence(confidence)
             .with_location(Text::new(self.start, self.end))
             .build()
             .expect("required fields provided")

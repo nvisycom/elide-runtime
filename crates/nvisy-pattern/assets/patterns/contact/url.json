@@ -1,6 +1,5 @@
 {
   "name": "url",
-  "category": "contact_info",
   "entity_type": "url",
   "regex": {
     "regex": "\\bhttps?://[^\\s/$.?#][^\\s]*\\b",
@@ -9,6 +8,8 @@
   "metadata": {
     "description": "HTTP(S) URL.",
     "version": "1.0.0",
-    "regions": ["global"]
+    "regions": [
+      "global"
+    ]
   }
 }

@@ -1,6 +1,5 @@
 {
   "name": "credit-card",
-  "category": "financial",
   "entity_type": "payment_card",
   "regex": {
     "regex": "\\b(?:\\d[ \\-]*?){13,19}\\b",
@@ -8,15 +7,31 @@
     "confidence": 0.85
   },
   "context": {
-    "keywords": ["card", "credit", "debit", "payment", "visa", "mastercard", "amex"],
+    "keywords": [
+      "card",
+      "credit",
+      "debit",
+      "payment",
+      "visa",
+      "mastercard",
+      "amex"
+    ],
     "window": 150,
     "boost": 0.1
   },
   "metadata": {
     "description": "Credit/debit card number, validated with the Luhn checksum.",
     "version": "1.0.0",
-    "regions": ["global"],
-    "industries": ["fintech", "payments", "retail"],
-    "compliance": ["pci-dss"]
+    "regions": [
+      "global"
+    ],
+    "industries": [
+      "fintech",
+      "payments",
+      "retail"
+    ],
+    "compliance": [
+      "pci-dss"
+    ]
   }
 }

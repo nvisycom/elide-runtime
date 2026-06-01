@@ -109,7 +109,6 @@ impl PatternRegistry {
             tracing::trace!(
                 target: TARGET,
                 name = %pattern.name(),
-                category = %pattern.category(),
                 entity_kind = %pattern.entity_kind(),
                 match_source = ?pattern.match_source(),
                 "pattern loaded",
@@ -165,7 +164,6 @@ impl PatternRegistry {
         tracing::trace!(
             target: TARGET,
             name = %pattern.name(),
-            category = %pattern.category(),
             entity_kind = %pattern.entity_kind(),
             match_source = ?pattern.match_source(),
             "pattern loaded from filesystem",

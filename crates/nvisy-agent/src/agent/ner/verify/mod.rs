@@ -9,23 +9,24 @@
 //! - **Confirmed** (entity absent from the LLM's response) — kept
 //!   unchanged.
 //! - **Rejected** — dropped.
-//! - **Corrected** — kept with optional adjustments to category /
-//!   entity kind / confidence, and stamped with
-//!   [`RefinementMethod::ModelVerification`]. `value` and `bbox`
-//!   fields in the verdict are ignored (the entity's location and
-//!   thus surface form are frozen from the original recognizer).
+//! - **Corrected** — kept with optional adjustments to entity kind
+//!   / confidence, and a
+//!   [`Verification`](nvisy_ontology::entity::TrailStepKind::Verification)
+//!   step appended to its trail carrying the verifier model's
+//!   provenance. `value` and `bbox` fields in the verdict are
+//!   ignored (the entity's location and thus surface form are
+//!   frozen from the original recognizer).
 //!
 //! Entities are passed to the LLM by index; the LLM returns those
 //! indices in its verdict.
 //!
 //! [`Entity<Text>`]: nvisy_ontology::entity::Entity
 //! [`VerificationOutput`]: crate::agent::base::VerificationOutput
-//! [`RefinementMethod::ModelVerification`]: nvisy_ontology::entity::RefinementMethod::ModelVerification
 
 mod prompt;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entity;
+use nvisy_ontology::entity::{Entity, ModelProvenance};
 use nvisy_ontology::modality::Text;
 
 use self::prompt::{NER_VERIFIER_SYSTEM_PROMPT, NerVerifyPromptBuilder};
@@ -96,7 +97,8 @@ impl NerVerifyAgent {
             .await
             .map_err(crate::error::convert)?;
 
-        let outcome = output.apply_to_text(entities);
+        let verifier = ModelProvenance::new(self.agent.model_name().to_owned());
+        let outcome = output.apply_to_text(entities, &verifier);
         if outcome.dropped_oor > 0 {
             tracing::debug!(
                 target: TARGET,

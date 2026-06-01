@@ -20,7 +20,7 @@
 use bentoml::prelude::*;
 use nvisy_core::Error;
 use nvisy_ontology::document::Block;
-use nvisy_ontology::entity::{ModelKind, ModelProvenance};
+use nvisy_ontology::entity::ModelProvenance;
 use nvisy_ontology::modality::Image;
 
 use crate::core::{Backend, Context, ImageInput};
@@ -79,7 +79,7 @@ impl BentoBackend {
 #[async_trait::async_trait]
 impl Backend for BentoBackend {
     fn provenance(&self) -> ModelProvenance {
-        ModelProvenance::new("bento-ocr", ModelKind::SelfHosted)
+        ModelProvenance::new("bento-ocr")
     }
 
     async fn run(

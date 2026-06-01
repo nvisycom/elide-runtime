@@ -13,7 +13,7 @@
 //! [`VlmVerifyAgent`]: crate::agent::vlm::VlmVerifyAgent
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 
-use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RefinementMethod};
+use nvisy_ontology::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::{BoundingBox, Confidence};
 use schemars::JsonSchema;
@@ -45,8 +45,6 @@ pub struct VerifiedEntity {
     pub id: usize,
     /// Whether this entity was corrected or rejected.
     pub status: VerificationStatus,
-    /// Corrected category (present when `status` is `Corrected`).
-    pub category: Option<EntityCategory>,
     /// Corrected entity type (present when `status` is `Corrected`).
     pub entity_type: Option<EntityKind>,
     /// Corrected value (present when `status` is `Corrected`).
@@ -64,38 +62,40 @@ impl VerifiedEntity {
     /// Apply this verdict to a text-modality entity, returning the
     /// adjusted entity for `Corrected` and `None` for `Rejected`.
     ///
-    /// For `Corrected`: optionally overrides `category` and
-    /// `entity_kind` when the verdict carries them, always updates
-    /// `confidence`, and stamps
-    /// [`RefinementMethod::ModelVerification`] (idempotent). The
-    /// entity's `location` and surface value are frozen — they're
-    /// determined by the original recognizer, not the verifier.
-    /// `value` and `bbox` fields in the verdict are ignored on
-    /// this path; image-modality has its own counterpart.
-    pub fn apply_to_text(&self, mut entity: Entity<Text>) -> Option<Entity<Text>> {
+    /// For `Corrected`: optionally overrides `entity_kind` when the
+    /// verdict carries it, updates `confidence`, and appends a
+    /// [`Verification`](TrailStepKind::Verification) step to the
+    /// entity's trail carrying the verifier's `ModelProvenance` and
+    /// rationale. The entity's `location` and surface value are
+    /// frozen — they're determined by the original recognizer, not
+    /// the verifier. `value` and `bbox` fields in the verdict are
+    /// ignored on this path; image-modality has its own counterpart.
+    pub fn apply_to_text(
+        &self,
+        mut entity: Entity<Text>,
+        verifier: &ModelProvenance,
+    ) -> Option<Entity<Text>> {
         match self.status {
             VerificationStatus::Rejected => None,
             VerificationStatus::Corrected => {
-                if let Some(cat) = self.category {
-                    entity.category = cat;
-                }
+                let original = entity.confidence;
                 if let Some(kind) = self.entity_type {
                     entity.entity_kind = kind;
                 }
-                // Clamp into [0, 1] defensively — Confidence::new
-                // already returned the verdict's value, so this is
-                // only here in case schema drift loosens the type.
-                if let Some(c) = Confidence::new(self.confidence.get().clamp(0.0, 1.0)) {
-                    entity.confidence = c;
-                }
-                if !entity
-                    .refinement_methods
-                    .contains(&RefinementMethod::ModelVerification)
-                {
-                    entity
-                        .refinement_methods
-                        .push(RefinementMethod::ModelVerification);
-                }
+                let adjusted =
+                    Confidence::new(self.confidence.get().clamp(0.0, 1.0)).unwrap_or(original);
+                entity.confidence = adjusted;
+                let reason = self
+                    .reason
+                    .clone()
+                    .unwrap_or_else(|| "verifier corrected".to_owned());
+                entity.trail.push(TrailStep::verification(
+                    "llm-verify",
+                    original,
+                    adjusted,
+                    TrailProvenance::Model(verifier.clone()),
+                    reason,
+                ));
                 Some(entity)
             }
         }
@@ -125,7 +125,11 @@ impl VerificationOutput {
     /// the verdict list are dropped and counted into the returned
     /// `dropped_oor` field so callers can log a diagnostic.
     /// Duplicate indices: the last verdict in the list wins.
-    pub fn apply_to_text(self, entities: Vec<Entity<Text>>) -> VerificationApplyOutcome {
+    pub fn apply_to_text(
+        self,
+        entities: Vec<Entity<Text>>,
+        verifier: &ModelProvenance,
+    ) -> VerificationApplyOutcome {
         use std::collections::HashMap;
 
         let verdicts: HashMap<usize, VerifiedEntity> =
@@ -138,7 +142,7 @@ impl VerificationOutput {
             .enumerate()
             .filter_map(|(i, entity)| match verdicts.get(&i) {
                 None => Some(entity),
-                Some(verdict) => verdict.apply_to_text(entity),
+                Some(verdict) => verdict.apply_to_text(entity, verifier),
             })
             .collect();
 
@@ -164,19 +168,26 @@ pub struct VerificationApplyOutcome {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{ModelKind, ModelProvenance, RecognitionMethod};
+    use nvisy_ontology::entity::TrailStepKind;
 
     use super::*;
 
+    fn verifier() -> ModelProvenance {
+        ModelProvenance::new("verifier-test")
+    }
+
     fn entity(start: usize, end: usize, kind: EntityKind) -> Entity<Text> {
+        let confidence = Confidence::new(0.5).unwrap();
+        let step = TrailStep::recognition(
+            "llm-ner",
+            confidence,
+            TrailProvenance::Model(ModelProvenance::new("test")),
+            "",
+        );
         Entity::builder()
-            .with_category(kind.category())
             .with_entity_kind(kind)
-            .with_recognition_methods(vec![RecognitionMethod::LlmNer(ModelProvenance::new(
-                "test",
-                ModelKind::Gateway,
-            ))])
-            .with_confidence(Confidence::new(0.5).unwrap())
+            .with_trail(vec![step])
+            .with_confidence(confidence)
             .with_location(Text::new(start, end))
             .build()
             .unwrap()
@@ -187,12 +198,10 @@ mod tests {
         status: VerificationStatus,
         confidence: f64,
         kind: Option<EntityKind>,
-        category: Option<EntityCategory>,
     ) -> VerifiedEntity {
         VerifiedEntity {
             id,
             status,
-            category,
             entity_type: kind,
             value: None,
             confidence: Confidence::new(confidence).unwrap(),
@@ -201,12 +210,19 @@ mod tests {
         }
     }
 
+    fn verification_steps(e: &Entity<Text>) -> usize {
+        e.trail
+            .iter()
+            .filter(|s| matches!(s.kind, TrailStepKind::Verification))
+            .count()
+    }
+
     #[test]
     fn absent_verdict_means_confirm() {
         let entities = vec![entity(0, 5, EntityKind::PersonName)];
-        let out = VerificationOutput::default().apply_to_text(entities);
+        let out = VerificationOutput::default().apply_to_text(entities, &verifier());
         assert_eq!(out.survivors.len(), 1);
-        assert!(out.survivors[0].refinement_methods.is_empty());
+        assert_eq!(verification_steps(&out.survivors[0]), 0);
         assert_eq!(out.dropped_oor, 0);
     }
 
@@ -214,30 +230,26 @@ mod tests {
     fn rejected_verdict_drops_entity() {
         let entities = vec![entity(0, 5, EntityKind::PersonName)];
         let out = VerificationOutput {
-            entities: vec![verdict(0, VerificationStatus::Rejected, 0.1, None, None)],
+            entities: vec![verdict(0, VerificationStatus::Rejected, 0.1, None)],
         }
-        .apply_to_text(entities);
+        .apply_to_text(entities, &verifier());
         assert!(out.survivors.is_empty());
     }
 
     #[test]
-    fn corrected_verdict_updates_confidence_and_stamps_refinement() {
+    fn corrected_verdict_updates_confidence_and_appends_verification_step() {
         let entities = vec![entity(0, 5, EntityKind::PersonName)];
         let out = VerificationOutput {
-            entities: vec![verdict(0, VerificationStatus::Corrected, 0.9, None, None)],
+            entities: vec![verdict(0, VerificationStatus::Corrected, 0.9, None)],
         }
-        .apply_to_text(entities);
+        .apply_to_text(entities, &verifier());
         assert_eq!(out.survivors.len(), 1);
         assert!((out.survivors[0].confidence.get() - 0.9).abs() < f64::EPSILON);
-        assert!(
-            out.survivors[0]
-                .refinement_methods
-                .contains(&RefinementMethod::ModelVerification)
-        );
+        assert_eq!(verification_steps(&out.survivors[0]), 1);
     }
 
     #[test]
-    fn corrected_verdict_can_override_kind_and_category() {
+    fn corrected_verdict_can_override_kind() {
         let entities = vec![entity(0, 5, EntityKind::PersonName)];
         let out = VerificationOutput {
             entities: vec![verdict(
@@ -245,41 +257,32 @@ mod tests {
                 VerificationStatus::Corrected,
                 0.9,
                 Some(EntityKind::Age),
-                Some(EntityCategory::Demographic),
             )],
         }
-        .apply_to_text(entities);
+        .apply_to_text(entities, &verifier());
         assert_eq!(out.survivors.len(), 1);
         assert_eq!(out.survivors[0].entity_kind, EntityKind::Age);
-        assert_eq!(out.survivors[0].category, EntityCategory::Demographic);
     }
 
     #[test]
     fn out_of_range_verdict_is_counted_and_dropped() {
         let entities = vec![entity(0, 5, EntityKind::PersonName)];
         let out = VerificationOutput {
-            entities: vec![verdict(99, VerificationStatus::Rejected, 0.1, None, None)],
+            entities: vec![verdict(99, VerificationStatus::Rejected, 0.1, None)],
         }
-        .apply_to_text(entities);
+        .apply_to_text(entities, &verifier());
         assert_eq!(out.survivors.len(), 1);
         assert_eq!(out.dropped_oor, 1);
     }
 
     #[test]
-    fn correction_does_not_double_stamp_refinement_method() {
-        let mut e = entity(0, 5, EntityKind::PersonName);
-        e.refinement_methods
-            .push(RefinementMethod::ModelVerification);
+    fn correction_appends_one_verification_step_per_verdict() {
+        let entities = vec![entity(0, 5, EntityKind::PersonName)];
         let out = VerificationOutput {
-            entities: vec![verdict(0, VerificationStatus::Corrected, 0.9, None, None)],
+            entities: vec![verdict(0, VerificationStatus::Corrected, 0.9, None)],
         }
-        .apply_to_text(vec![e]);
+        .apply_to_text(entities, &verifier());
         assert_eq!(out.survivors.len(), 1);
-        let count = out.survivors[0]
-            .refinement_methods
-            .iter()
-            .filter(|m| matches!(m, RefinementMethod::ModelVerification))
-            .count();
-        assert_eq!(count, 1);
+        assert_eq!(verification_steps(&out.survivors[0]), 1);
     }
 }

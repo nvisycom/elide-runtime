@@ -14,7 +14,7 @@
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 //! [`VlmAgent`]: crate::agent::vlm::VlmAgent
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::EntityKind;
 use uuid::Uuid;
 
 /// Fallback hint used in prompts when no specific entity types are requested.
@@ -32,13 +32,10 @@ pub(crate) const ALL_TYPES_HINT: &str = "all entity types";
 #[derive(Debug, Clone)]
 pub struct NerHint {
     /// Uploader-supplied name (optional). Forwarded into the
-    /// resulting entity's [`RecognitionMethod::Annotation`] when
-    /// the LLM confirms or adjusts this hint.
-    ///
-    /// [`RecognitionMethod::Annotation`]: nvisy_ontology::entity::RecognitionMethod::Annotation
+    /// resulting entity's recognition trail step as an
+    /// [`Annotation`](nvisy_ontology::entity::TrailProvenance::Annotation)
+    /// provenance when the LLM confirms or adjusts this hint.
     pub name: Option<String>,
-    /// Uploader-claimed category (optional).
-    pub category: Option<EntityCategory>,
     /// Uploader-claimed entity kind (optional).
     pub entity_kind: Option<EntityKind>,
     /// Byte range start in the source text.

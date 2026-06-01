@@ -1,6 +1,6 @@
 //! Integration tests for entity detection via the public scan API.
 
-use nvisy_ontology::entity::{EntityKind, PatternProvenance, RecognitionMethod};
+use nvisy_ontology::entity::{EntityKind, PatternProvenance, TrailProvenance};
 use nvisy_pattern::PatternEngine;
 use nvisy_pattern::filter::PatternContext;
 
@@ -39,17 +39,12 @@ fn dictionary_matches_are_found() {
     let engine = PatternEngine::instance();
     let entities = engine.scan_text("She is American and speaks English.", &empty_ctx());
     assert!(
-        entities
-            .iter()
-            .any(|e| e.recognition_methods.iter().any(|m| matches!(
-                m,
-                RecognitionMethod::Pattern(PatternProvenance::Dictionary { .. }),
-            ))),
+        entities.iter().any(|e| e.trail.iter().any(|s| matches!(
+            s.provenance,
+            TrailProvenance::Pattern(PatternProvenance::Dictionary { .. }),
+        ))),
         "expected dictionary match, got: {:?}",
-        entities
-            .iter()
-            .map(|e| &e.recognition_methods)
-            .collect::<Vec<_>>()
+        entities.iter().map(|e| &e.trail).collect::<Vec<_>>()
     );
 }
 

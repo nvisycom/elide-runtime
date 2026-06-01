@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::EntityKind;
 use serde::{Deserialize, Serialize};
 
 use super::deny_scanner::DenyScanner;
@@ -14,9 +14,10 @@ use super::deny_scanner::DenyScanner;
 /// `RecognitionMethod::Pattern { kind: DenyList, .. }`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DenyRule {
-    /// Entity category for the injected match.
-    pub category: EntityCategory,
-    /// Entity kind for the injected match.
+    /// Entity kind for the injected match. The broad
+    /// [`EntityCategory`] is derived via [`EntityKind::category`].
+    ///
+    /// [`EntityCategory`]: nvisy_ontology::entity::EntityCategory
     pub entity_kind: EntityKind,
 }
 

@@ -1,6 +1,5 @@
 {
   "name": "us-bank-routing",
-  "category": "financial",
   "entity_type": "bank_routing",
   "regex": {
     "regex": "\\b(?:0[1-9]|[12]\\d|3[0-2])\\d{7}\\b",
@@ -9,8 +8,15 @@
   "metadata": {
     "description": "US ABA bank routing number (9 digits).",
     "version": "1.0.0",
-    "regions": ["us"],
-    "industries": ["finance", "banking"],
-    "compliance": ["glba"]
+    "regions": [
+      "us"
+    ],
+    "industries": [
+      "finance",
+      "banking"
+    ],
+    "compliance": [
+      "glba"
+    ]
   }
 }

@@ -40,7 +40,8 @@ impl EntitySelector {
         {
             return false;
         }
-        if !self.entity_categories.is_empty() && !self.entity_categories.contains(&entity.category)
+        if !self.entity_categories.is_empty()
+            && !self.entity_categories.contains(&entity.category())
         {
             return false;
         }

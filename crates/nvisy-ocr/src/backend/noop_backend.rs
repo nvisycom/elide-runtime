@@ -8,7 +8,7 @@
 
 use nvisy_core::Error;
 use nvisy_ontology::document::Block;
-use nvisy_ontology::entity::{ModelKind, ModelProvenance};
+use nvisy_ontology::entity::ModelProvenance;
 use nvisy_ontology::modality::Image;
 
 use crate::core::{Backend, Context, ImageInput};
@@ -29,7 +29,7 @@ impl NoopBackend {
 #[async_trait::async_trait]
 impl Backend for NoopBackend {
     fn provenance(&self) -> ModelProvenance {
-        ModelProvenance::new("noop-ocr", ModelKind::SelfHosted)
+        ModelProvenance::new("noop-ocr")
     }
 
     async fn run(

@@ -12,7 +12,7 @@ mod strategy;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
-use nvisy_ontology::entity::{Entity, RefinementMethod};
+use nvisy_ontology::entity::{Entity, TrailStep};
 use nvisy_ontology::modality::{Modality, Overlap};
 use nvisy_ontology::primitive::Confidence;
 
@@ -87,11 +87,10 @@ where
 
     let fused_confidence = strategy.compute_confidence(&group);
 
-    // Determine the refinement type: if all entities in the group
-    // share the same set of recognition method kinds, this is a
-    // deduplication (same detector produced duplicates). Otherwise
-    // it's an ensemble fusion (different detectors combined).
-    let refinement = classify_refinement(&group);
+    // Classify: if every entity in the group has the same set of
+    // recognizer source names, this is plain deduplication (same
+    // detector produced duplicates); otherwise it's ensemble fusion.
+    let label = classify_fusion(&group);
 
     // Sort by descending confidence: highest-confidence entity
     // becomes the base since it carries the most trusted metadata.
@@ -117,23 +116,21 @@ where
         }
     }
 
-    // Merge recognition methods (order-preserving union).
-    let mut seen_rec: HashSet<_> = result.recognition_methods.iter().cloned().collect();
+    // Merge trails (order-preserving union of every step in every
+    // entity, deduplicated by exact equality).
     for e in &rest {
-        for m in &e.recognition_methods {
-            if seen_rec.insert(m.clone()) {
-                result.recognition_methods.push(m.clone());
+        for step in &e.trail {
+            if !result.trail.contains(step) {
+                result.trail.push(step.clone());
             }
         }
     }
 
-    // Fill in missing optional fields from lower-confidence entities.
-    if result.language.is_none() {
-        result.language = rest.iter().find_map(|e| e.language.clone());
-    }
-    result.confidence =
-        Confidence::new(fused_confidence.clamp(0.0, 1.0)).expect("clamped to [0,1]");
-    result.refinement_methods.push(refinement);
+    let before = result.confidence;
+    let after = Confidence::new(fused_confidence.clamp(0.0, 1.0)).expect("clamped to [0,1]");
+    result.confidence = after;
+    let reason = format!("{label} of {} entities", rest.len() + 1);
+    result.trail.push(TrailStep::fusion(before, after, reason));
 
     let value = view.value_at(&result.location).await.unwrap_or_default();
     tracing::trace!(
@@ -141,7 +138,7 @@ where
         entity_id = %result.id,
         fused_from = rest.len() + 1,
         confidence = fused_confidence,
-        ?refinement,
+        label,
         value,
         "fused entity group",
     );
@@ -149,25 +146,19 @@ where
     result
 }
 
-/// Classify how the group was formed (all same detector kind → Dedup,
-/// mixed → Ensemble).
-fn classify_refinement<M: Modality>(group: &[Entity<M>]) -> RefinementMethod {
-    let first_kinds: HashSet<_> = group[0]
-        .recognition_methods
+/// Label the group as plain deduplication or ensemble fusion. Used
+/// only for the trail step's `reason` text — no behaviour depends on
+/// this discriminant.
+fn classify_fusion<M: Modality>(group: &[Entity<M>]) -> &'static str {
+    let first: HashSet<&str> = group[0].recognizers().collect();
+    let all_same = group
         .iter()
-        .map(|m| m.kind())
-        .collect();
-    let all_same = group.iter().skip(1).all(|e| {
-        e.recognition_methods
-            .iter()
-            .map(|m| m.kind())
-            .collect::<HashSet<_>>()
-            == first_kinds
-    });
+        .skip(1)
+        .all(|e| e.recognizers().collect::<HashSet<_>>() == first);
     if all_same {
-        RefinementMethod::Deduplication
+        "deduplication"
     } else {
-        RefinementMethod::EnsembleFusion
+        "ensemble fusion"
     }
 }
 
@@ -179,7 +170,7 @@ mod tests {
     use nvisy_core::content::ContentMetadata;
     use nvisy_formats::test_utils::decode_text;
     use nvisy_ontology::document::Document;
-    use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod, RecognitionMethodKind};
+    use nvisy_ontology::entity::{Entity, ModelProvenance, TrailProvenance, TrailStepKind};
     use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
     use nvisy_ontology::primitive::Confidence;
     use tokio::sync::Mutex;
@@ -187,6 +178,19 @@ mod tests {
     use super::*;
     use crate::core::{DocumentView, SharedData, SharedHandle};
     use crate::ingestion::registry::Registry;
+
+    /// Replace the entity's recognition trail step with one stamped
+    /// against `source` — used by tests to simulate entities produced
+    /// by different recognizers without going through the full
+    /// detection path.
+    fn ner_step(confidence: Confidence) -> TrailStep {
+        TrailStep::recognition(
+            "ner",
+            confidence,
+            TrailProvenance::Model(ModelProvenance::new("test")),
+            "",
+        )
+    }
 
     /// Build the per-test owned components ready to wrap into a
     /// [`PhaseTarget`]. Tests build this once and create targets
@@ -255,10 +259,7 @@ mod tests {
                 .with_confidence(conf(0.8))
                 .test_build(),
             Entity::test_builder(0, 10)
-                .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
-                    "test",
-                    ModelKind::SelfHosted,
-                )])
+                .with_trail(vec![ner_step(conf(0.9))])
                 .test_build(),
         ];
         entities
@@ -281,10 +282,7 @@ mod tests {
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(100, 110)
-                .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
-                    "test",
-                    ModelKind::SelfHosted,
-                )])
+                .with_trail(vec![ner_step(conf(0.9))])
                 .test_build(),
         ];
         entities
@@ -306,10 +304,7 @@ mod tests {
                 .with_confidence(conf(0.7))
                 .test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
-                    "test",
-                    ModelKind::SelfHosted,
-                )])
+                .with_trail(vec![ner_step(conf(0.9))])
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
@@ -330,18 +325,15 @@ mod tests {
         let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
         let target = DocumentView::new(&doc, &handle);
         let mut weights = HashMap::new();
-        weights.insert(RecognitionMethodKind::Pattern, 1.0);
-        weights.insert(RecognitionMethodKind::NlpNer, 2.0);
+        weights.insert("pattern".to_string(), 1.0);
+        weights.insert("ner".to_string(), 2.0);
 
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.6))
                 .test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
-                    "test",
-                    ModelKind::SelfHosted,
-                )])
+                .with_trail(vec![ner_step(conf(0.9))])
                 .test_build(),
         ];
         entities
@@ -365,10 +357,7 @@ mod tests {
                 .with_confidence(conf(0.8))
                 .test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
-                    "test",
-                    ModelKind::SelfHosted,
-                )])
+                .with_trail(vec![ner_step(conf(0.9))])
                 .test_build(),
         ];
         entities
@@ -381,8 +370,9 @@ mod tests {
         assert_eq!(entities.len(), 1);
         assert!(
             entities[0]
-                .refinement_methods
-                .contains(&RefinementMethod::EnsembleFusion)
+                .trail
+                .iter()
+                .any(|s| matches!(s.kind, TrailStepKind::Fusion) && s.reason.contains("ensemble"))
         );
     }
 }

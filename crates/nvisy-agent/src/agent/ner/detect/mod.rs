@@ -4,13 +4,12 @@
 //! is a pure LLM agent (no tools) that analyses text, resolves the
 //! LLM's candidates back into source byte ranges via the shared
 //! offset resolver, and emits ready-to-use [`Entity<Text>`] values
-//! stamped with [`RecognitionMethod::LlmNer`] (fresh discoveries) or
-//! [`RecognitionMethod::Annotation`] (responses to per-call hints).
+//! whose trail starts with a recognition step carrying either a
+//! model provenance (fresh discoveries) or an annotation provenance
+//! (responses to per-call hints).
 //!
 //! [`BaseAgent`]: super::BaseAgent
 //! [`Entity<Text>`]: nvisy_ontology::entity::Entity
-//! [`RecognitionMethod::LlmNer`]: nvisy_ontology::entity::RecognitionMethod::LlmNer
-//! [`RecognitionMethod::Annotation`]: nvisy_ontology::entity::RecognitionMethod::Annotation
 
 mod build;
 mod localize;
@@ -18,7 +17,9 @@ mod output;
 mod prompt;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entity, ModelKind, ModelProvenance, RecognitionMethod};
+use nvisy_ontology::entity::{
+    AnnotationProvenance, Entity, ModelProvenance, TrailProvenance, TrailStep,
+};
 use nvisy_ontology::modality::Text;
 use uuid::Uuid;
 
@@ -99,24 +100,23 @@ impl NerAgent {
     /// Performs unified entity detection: open-ended discovery
     /// across the source text **plus** per-hint adjudication for
     /// any [`hints`] in `config`. Returns ready-to-use
-    /// [`Entity<Text>`] values stamped with the appropriate
-    /// recognition method:
+    /// [`Entity<Text>`] values whose trail starts with a
+    /// recognition step:
     ///
-    /// - Candidates carrying `hint_id = Some(i)` are stamped with
-    ///   [`RecognitionMethod::Annotation`] using `hints[i].name`
-    ///   (and the entity_id, if any, is forwarded). Out-of-range
-    ///   `hint_id`s are treated as fresh discoveries.
-    /// - Candidates without `hint_id` are stamped with
-    ///   [`RecognitionMethod::LlmNer`] carrying this agent's
-    ///   model provenance.
+    /// - Candidates carrying `hint_id = Some(i)` get an
+    ///   [`Annotation`](TrailProvenance::Annotation) provenance
+    ///   using `hints[i].name` (and the entity_id, if any, is
+    ///   forwarded). Out-of-range `hint_id`s are treated as fresh
+    ///   discoveries.
+    /// - Candidates without `hint_id` get a
+    ///   [`Model`](TrailProvenance::Model) provenance carrying
+    ///   this agent's model name.
     ///
     /// Candidates the localizer can't resolve are dropped per
     /// this agent's [`unresolved_policy`].
     ///
     /// [`hints`]: crate::agent::LlmNerContext::hints
     /// [`unresolved_policy`]: Self::with_unresolved_policy
-    /// [`RecognitionMethod::Annotation`]: nvisy_ontology::entity::RecognitionMethod::Annotation
-    /// [`RecognitionMethod::LlmNer`]: nvisy_ontology::entity::RecognitionMethod::LlmNer
     #[tracing::instrument(
         target = TARGET,
         skip_all,
@@ -140,12 +140,21 @@ impl NerAgent {
 
         let candidate_count = result.entities.len();
         let localized = localize_all(text, result.entities, self.unresolved);
-        let model = ModelProvenance::new(self.base.model_name(), ModelKind::Gateway);
-        let llm_method = RecognitionMethod::LlmNer(model);
+        let model_name = self.base.model_name().to_owned();
+        let model = ModelProvenance::new(model_name.clone());
         let hints = &config.hints;
-        let entities = build_entities(localized, |l| match l.candidate.hint_id {
-            Some(i) if i < hints.len() => RecognitionMethod::annotation(hints[i].name.clone()),
-            _ => llm_method.clone(),
+        let entities = build_entities(localized, |l, confidence| match l.candidate.hint_id {
+            Some(i) if i < hints.len() => {
+                let provenance = TrailProvenance::Annotation(AnnotationProvenance {
+                    name: hints[i].name.clone(),
+                });
+                TrailStep::recognition("llm-ner", confidence, provenance, "")
+            }
+            _ => {
+                let provenance = TrailProvenance::Model(model.clone());
+                let reason = format!("llm '{model_name}' identified entity");
+                TrailStep::recognition("llm-ner", confidence, provenance, reason)
+            }
         });
 
         tracing::info!(

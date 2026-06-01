@@ -1,16 +1,24 @@
 {
   "name": "languages",
-  "category": "demographic",
   "entity_type": "language",
   "dictionary": {
     "name": "languages",
-    "confidence": [0.85, 0.45]
+    "confidence": [
+      0.85,
+      0.45
+    ]
   },
   "metadata": {
     "description": "Human language names (English spellings) and ISO 639 codes.",
     "version": "1.0.0",
-    "languages": ["en"],
-    "regions": ["global"],
-    "compliance": ["gdpr"]
+    "languages": [
+      "en"
+    ],
+    "regions": [
+      "global"
+    ],
+    "compliance": [
+      "gdpr"
+    ]
   }
 }

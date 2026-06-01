@@ -2,24 +2,6 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
-
-/// Provenance or licensing classification of a detection model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
-#[non_exhaustive]
-pub enum ModelKind {
-    /// Open-source model (e.g. spaCy, Hugging Face community models).
-    OpenSource,
-    /// Proprietary model (e.g. vendor-specific NER).
-    Proprietary,
-    /// Model accessed through a third-party API gateway.
-    Gateway,
-    /// Self-hosted model served behind an internal endpoint.
-    SelfHosted,
-}
 
 /// Provenance for a pattern-based detection (regex, dictionary,
 /// deny-list). Each variant carries only the fields meaningful for
@@ -36,6 +18,12 @@ pub enum PatternProvenance {
     Regex {
         /// Name of the pattern that matched (e.g. "ssn", "email").
         name: String,
+        /// The actual regex string that matched, when the pattern
+        /// engine surfaces it. Audit/compliance consumers store this
+        /// to prove which regex triggered a redaction; recognizers
+        /// that don't expose the pattern source leave it `None`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        regex: Option<String>,
         /// Name of the validator that confirmed the match (e.g.
         /// "luhn", "iban"), when one ran.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -82,16 +70,6 @@ impl PatternProvenance {
     }
 }
 
-/// Provenance for a cross-reference detection — matching extracted
-/// values against an external identity or record database.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct CrossReferenceProvenance {
-    /// Name of the cross-reference source.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
-}
-
 /// Provenance for a model-based detection.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -99,19 +77,16 @@ pub struct CrossReferenceProvenance {
 pub struct ModelProvenance {
     /// Model name (e.g. `"spacy-en-core-web-lg"`, `"gpt-4"`).
     pub name: String,
-    /// Provenance / licensing classification.
-    pub kind: ModelKind,
     /// Model version string.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 }
 
 impl ModelProvenance {
-    /// Create a new model provenance with the given name and kind.
-    pub fn new(name: impl Into<String>, kind: ModelKind) -> Self {
+    /// Create a new model provenance with the given name.
+    pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            kind,
             version: None,
         }
     }

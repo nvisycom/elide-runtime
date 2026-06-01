@@ -232,7 +232,6 @@ mod tests {
     fn cand(value: &str, context: Option<&str>) -> NerCandidate {
         NerCandidate {
             entity_id: Some("test_1".into()),
-            category: None,
             entity_type: None,
             value: value.into(),
             confidence: None,

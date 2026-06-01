@@ -252,8 +252,8 @@ fn replace_data(content: Content, data: ContentData) -> Content {
 mod tests {
     use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata};
     use nvisy_ontology::entity::{
-        Annotation, AnnotationKind, AnnotationStrength, EntityCategory, EntityKind,
-        LabelAnnotation, RecognitionMethod,
+        Annotation, AnnotationKind, AnnotationStrength, EntityKind, LabelAnnotation,
+        TrailProvenance,
     };
 
     use super::*;
@@ -302,7 +302,6 @@ mod tests {
         let annotation = Annotation {
             name: Some("uploader".into()),
             kind: AnnotationKind::Inclusion {
-                category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 target: Text::new(0, 8),
                 strength: AnnotationStrength::Assert,
@@ -321,10 +320,12 @@ mod tests {
         let entity = &doc.audit.records[0].entity;
         assert_eq!(entity.entity_kind, EntityKind::PersonName);
         assert_eq!(entity.location, Text::new(0, 8));
-        assert!(matches!(
-            entity.recognition_methods.first(),
-            Some(RecognitionMethod::Annotation(_))
-        ));
+        assert!(
+            entity
+                .trail
+                .first()
+                .is_some_and(|s| matches!(s.provenance, TrailProvenance::Annotation(_)))
+        );
         assert_eq!(doc.annotations, vec![annotation]);
     }
 
@@ -334,7 +335,6 @@ mod tests {
         let annotation = Annotation {
             name: None,
             kind: AnnotationKind::Inclusion {
-                category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 target: Text::new(0, 4),
                 strength: AnnotationStrength::Hint { confidence: None },

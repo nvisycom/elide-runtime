@@ -125,7 +125,7 @@ impl Deref for PatternEngineRef {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityCategory, EntityKind};
+    use nvisy_ontology::entity::EntityKind;
     use nvisy_pattern::{MatchSource, PatternContext, RegexPattern, RuntimePattern};
 
     use super::*;
@@ -142,7 +142,6 @@ mod tests {
                 confidence: 0.8,
             }),
         )
-        .with_category(EntityCategory::Financial)
         .with_kind(EntityKind::PaymentCard);
         let mut ctx = TextDetectionContext::new("See INV-4242 attached");
         ctx.scan_context = PatternContext {

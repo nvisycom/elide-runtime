@@ -2,10 +2,15 @@
 //!
 //! [`Entity<M>`] represents a single occurrence of sensitive data
 //! detected within a document. Detected entities are accumulated on
-//! the run-scoped [`Audit<M>`] (owned by the engine's
-//! `DocumentEnvelope`, not on the document itself) as
-//! [`EntityRecord<M>`]s — each record bundles the entity with the
-//! optional [`AuditEntry<M>`] produced for it during redaction.
+//! the run-scoped [`Audit<M>`] as [`EntityRecord<M>`]s — each record
+//! bundles the entity with the optional [`AuditEntry<M>`] produced
+//! for it during redaction.
+//!
+//! Each entity carries a chronological [`TrailStep`] list explaining
+//! how it reached its final confidence: the base recognizer firing,
+//! any refinement / verification / fusion / calibration steps, and
+//! the score before and after each. This single trail replaces the
+//! prior parallel pair of recognition + refinement method lists.
 //!
 //! [`Audit<M>`]: crate::provenance::Audit
 //! [`EntityRecord<M>`]: crate::provenance::EntityRecord
@@ -29,16 +34,23 @@ pub use self::annotation::{
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
 pub use self::method::{
-    AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternProvenance,
-    RecognitionMethod, RecognitionMethodKind, RefinementMethod,
+    AnnotationProvenance, ModelProvenance, PatternProvenance, TrailProvenance, TrailStep,
+    TrailStepKind,
 };
 pub use self::source::ContentSource;
 use crate::modality::Modality;
 #[cfg(any(test, feature = "test-utils"))]
 use crate::modality::Text;
-use crate::primitive::{Confidence, LanguageTag};
+use crate::primitive::Confidence;
 
 /// A detected sensitive data occurrence within a document.
+///
+/// The category for an entity is derived from its [`entity_kind`] via
+/// [`EntityKind::category`]; it is not stored separately. The trail
+/// of score-affecting steps lives on [`trail`].
+///
+/// [`entity_kind`]: Self::entity_kind
+/// [`trail`]: Self::trail
 #[derive(Debug, Clone, PartialEq, Builder)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[builder(
@@ -61,27 +73,23 @@ pub struct Entity<M: Modality> {
     #[builder(default, setter(into = false))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entity_id: Option<String>,
-    /// Broad classification of the sensitive data.
-    pub category: EntityCategory,
-    /// Specific entity kind.
+    /// Specific entity kind. The broad [`EntityCategory`] is derived
+    /// via [`Entity::category`].
     pub entity_kind: EntityKind,
-    /// Techniques used to identify this entity, ordered by
-    /// application time.
-    pub recognition_methods: Vec<RecognitionMethod>,
-    /// Post-detection refinements applied to this entity, ordered by
-    /// application time.
-    #[builder(default)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub refinement_methods: Vec<RefinementMethod>,
-    /// Detection confidence score in the range `[0.0, 1.0]`.
-    pub confidence: Confidence,
     /// Modality-specific location of the entity within the document.
     pub location: M,
-    /// BCP-47 language tag of the detected content.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
-    pub language: Option<LanguageTag>,
+    /// Detection confidence score in the range `[0.0, 1.0]`. Equals
+    /// the `adjusted` score on the final step in [`trail`].
+    ///
+    /// [`trail`]: Self::trail
+    pub confidence: Confidence,
+    /// Chronological trail of score-affecting steps: the base
+    /// recognition, any refinement / verification / fusion /
+    /// calibration adjustments, each tagged with `original` /
+    /// `adjusted` score and a free-text reason.
+    #[builder(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trail: Vec<TrailStep>,
 }
 
 impl<M: Modality> Entity<M> {
@@ -89,20 +97,62 @@ impl<M: Modality> Entity<M> {
     pub fn builder() -> EntityBuilder<M> {
         EntityBuilder::default()
     }
+
+    /// Derived broad classification — `self.entity_kind.category()`.
+    #[must_use]
+    pub fn category(&self) -> EntityCategory {
+        self.entity_kind.category()
+    }
+
+    /// Original recognition score, before any post-recognition
+    /// adjustments. Reads from the first step's `original` (or
+    /// `adjusted` if it had none), returning `None` only if the
+    /// trail is empty.
+    #[must_use]
+    pub fn original_score(&self) -> Option<Confidence> {
+        self.trail.first().map(|s| s.original.unwrap_or(s.adjusted))
+    }
+
+    /// Final confidence — same as [`Self::confidence`], exposed as a
+    /// method for symmetry with [`Self::original_score`].
+    #[must_use]
+    pub fn final_score(&self) -> Confidence {
+        self.confidence
+    }
+
+    /// Names of the recognizers that produced this entity (one or
+    /// more, in dispatch order). Reads the [`TrailStepKind::Recognition`]
+    /// steps' `source` field.
+    pub fn recognizers(&self) -> impl Iterator<Item = &str> {
+        self.trail
+            .iter()
+            .filter(|s| s.kind == TrailStepKind::Recognition)
+            .map(|s| s.source.as_str())
+    }
 }
 
 #[cfg(any(test, feature = "test-utils"))]
 impl Entity<Text> {
     /// Create a pre-filled [`EntityBuilder`] for tests.
     ///
-    /// Defaults: `PersonalIdentity` / `PersonName` / `regex("test")` /
-    /// confidence `0.9` / text location at `start..end`.
+    /// Defaults: `PersonName` / a synthetic `pattern` recognition
+    /// step / confidence `0.9` / text location at `start..end`.
     pub fn test_builder(start: usize, end: usize) -> EntityBuilder<Text> {
+        let conf = Confidence::clamped(0.9);
         Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
-            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(Confidence::clamped(0.9))
+            .with_trail(vec![TrailStep::recognition(
+                "pattern",
+                conf,
+                TrailProvenance::Pattern(PatternProvenance::Regex {
+                    name: "test".to_owned(),
+                    regex: None,
+                    validator: None,
+                    contextual: false,
+                }),
+                "test fixture",
+            )])
+            .with_confidence(conf)
             .with_location(Text::new(start, end))
     }
 }

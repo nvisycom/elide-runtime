@@ -26,7 +26,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use super::{Entity, EntityCategory, EntityKind, RecognitionMethod};
+use super::{AnnotationProvenance, Entity, EntityKind, TrailProvenance, TrailStep};
 use crate::modality::{Modality, Overlap};
 use crate::primitive::Confidence;
 
@@ -86,16 +86,11 @@ pub enum AnnotationStrength {
 pub enum AnnotationKind<M: Modality> {
     /// Pre-identified region the user wants treated as sensitive.
     Inclusion {
-        /// Broad classification of the sensitive data. `None` when
-        /// the user wants the region treated as sensitive without
-        /// committing to a category — synthesised entities fall
-        /// back to [`EntityCategory::Unresolved`].
-        #[serde(skip_serializing_if = "Option::is_none")]
-        category: Option<EntityCategory>,
         /// Specific entity kind. `None` when the user wants the
         /// region treated as sensitive without committing to a
         /// kind — synthesised entities fall back to
-        /// [`EntityKind::Unresolved`].
+        /// [`EntityKind::Unresolved`]. The broad [`EntityCategory`]
+        /// is derived via [`EntityKind::category`].
         #[serde(skip_serializing_if = "Option::is_none")]
         entity_kind: Option<EntityKind>,
         /// Modality-specific location this inclusion targets.
@@ -147,7 +142,6 @@ impl<M: Modality> Annotation<M> {
     /// [`Hint`]: AnnotationStrength::Hint
     pub fn to_inclusion_entity(&self) -> Option<Entity<M>> {
         let AnnotationKind::Inclusion {
-            category,
             entity_kind,
             target,
             strength: AnnotationStrength::Assert,
@@ -157,9 +151,15 @@ impl<M: Modality> Annotation<M> {
         };
 
         let entity = Entity::builder()
-            .with_category(category.unwrap_or(EntityCategory::Unresolved))
             .with_entity_kind(entity_kind.unwrap_or(EntityKind::Unresolved))
-            .with_recognition_methods(vec![RecognitionMethod::annotation(self.name.clone())])
+            .with_trail(vec![TrailStep::recognition(
+                "annotation",
+                Confidence::MAX,
+                TrailProvenance::Annotation(AnnotationProvenance {
+                    name: self.name.clone(),
+                }),
+                "synthesised from asserted inclusion annotation",
+            )])
             .with_confidence(Confidence::MAX)
             .with_location(target.clone())
             .build()
@@ -216,6 +216,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entity::EntityCategory;
     use crate::modality::Text;
     use crate::primitive::BoundingBox;
 
@@ -223,7 +224,6 @@ mod tests {
         Annotation {
             name: None,
             kind: AnnotationKind::Inclusion {
-                category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 target: Text::new(start, end),
                 strength,
@@ -245,14 +245,7 @@ mod tests {
     }
 
     fn test_entity(start: usize, end: usize) -> Entity<Text> {
-        Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(Confidence::new(0.9).expect("in range"))
-            .with_location(Text::new(start, end))
-            .build()
-            .unwrap()
+        Entity::test_builder(start, end).test_build()
     }
 
     #[test]
@@ -274,14 +267,13 @@ mod tests {
         let ann = Annotation {
             name: None,
             kind: AnnotationKind::Inclusion {
-                category: None,
                 entity_kind: None,
                 target: Text::new(0, 10),
                 strength: AnnotationStrength::Assert,
             },
         };
         let entity = ann.to_inclusion_entity().unwrap();
-        assert_eq!(entity.category, EntityCategory::Unresolved);
+        assert_eq!(entity.category(), EntityCategory::Unresolved);
         assert_eq!(entity.entity_kind, EntityKind::Unresolved);
     }
 
@@ -298,7 +290,6 @@ mod tests {
         let ann: Annotation<Image> = Annotation {
             name: Some("face".into()),
             kind: AnnotationKind::Inclusion {
-                category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 target: Image::new(bbox),
                 strength: AnnotationStrength::Assert,

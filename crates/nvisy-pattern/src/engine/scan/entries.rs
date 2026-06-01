@@ -3,7 +3,7 @@
 //! [`PatternEngine`]: super::super::PatternEngine
 
 use aho_corasick::AhoCorasick;
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::EntityKind;
 use regex::{Regex, RegexSet};
 
 use crate::dictionaries::DictionaryTerm;
@@ -14,7 +14,6 @@ use crate::patterns::{ContextRule, DictionaryConfidence};
 #[derive(Debug)]
 pub(crate) struct RegexEntry {
     pub pattern_name: String,
-    pub category: EntityCategory,
     pub entity_kind: EntityKind,
     pub confidence: f64,
     pub validator_name: Option<String>,
@@ -26,7 +25,6 @@ pub(crate) struct RegexEntry {
 #[derive(Debug)]
 pub(crate) struct DictEntry {
     pub pattern_name: String,
-    pub category: EntityCategory,
     pub entity_kind: EntityKind,
     pub confidence: DictionaryConfidence,
     pub automaton: AhoCorasick,

@@ -353,13 +353,10 @@ where
             lifted.push(Entity {
                 id: entity.id,
                 entity_id: entity.entity_id,
-                category: entity.category,
                 entity_kind: entity.entity_kind,
-                recognition_methods: entity.recognition_methods,
-                refinement_methods: entity.refinement_methods,
-                confidence: entity.confidence,
                 location,
-                language: entity.language,
+                confidence: entity.confidence,
+                trail: entity.trail,
             });
         }
     }
@@ -507,7 +504,6 @@ where
         .iter()
         .filter_map(|ann| {
             let AnnotationKind::Inclusion {
-                category,
                 entity_kind,
                 target,
                 strength: AnnotationStrength::Hint { .. },
@@ -521,7 +517,6 @@ where
             }
             Some(NerHint {
                 name: ann.name.clone(),
-                category: *category,
                 entity_kind: *entity_kind,
                 start,
                 end,

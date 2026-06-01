@@ -15,7 +15,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use bytes::Bytes;
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entity;
+use nvisy_ontology::entity::{Entity, ModelProvenance};
 use nvisy_ontology::modality::Image;
 use uuid::Uuid;
 
@@ -106,7 +106,8 @@ impl VlmVerifyAgent {
             .collect();
         let entities_only: Vec<Entity<Image>> = candidates.into_iter().map(|c| c.entity).collect();
         let output = self.verify(image_data, &proposed).await?;
-        Ok(output::merge(output, entities_only))
+        let verifier = ModelProvenance::new(self.base.model_name().to_owned());
+        Ok(output::merge(output, entities_only, &verifier))
     }
 
     /// Access the usage tracker for the underlying agent.

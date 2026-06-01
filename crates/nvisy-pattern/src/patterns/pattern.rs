@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::EntityKind;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -159,9 +159,10 @@ fn default_case_sensitive() -> bool {
 /// A named detection pattern.
 ///
 /// Implementors describe a single entity type to detect, including how to
-/// match it ([`MatchSource`]), how to classify it ([`EntityCategory`] and
-/// [`EntityKind`]), how confident the match is, and whether an optional
-/// post-match validator should be applied.
+/// match it ([`MatchSource`]), how to classify it ([`EntityKind`]), how
+/// confident the match is, and whether an optional post-match validator
+/// should be applied. The broad [`EntityCategory`] is derived from
+/// [`entity_kind`] via [`EntityKind::category`].
 ///
 /// The built-in implementation is [`JsonPattern`], which is deserialized
 /// from the JSON files under `assets/patterns/`.
@@ -170,15 +171,14 @@ fn default_case_sensitive() -> bool {
 /// New pattern sources should be added via JSON files loaded through
 /// [`PatternRegistry::load_dir`] or [`PatternRegistry::load_file`].
 ///
+/// [`EntityCategory`]: nvisy_ontology::entity::EntityCategory
+/// [`entity_kind`]: Self::entity_kind
 /// [`JsonPattern`]: super::JsonPattern
 /// [`PatternRegistry::load_dir`]: super::PatternRegistry::load_dir
 /// [`PatternRegistry::load_file`]: super::PatternRegistry::load_file
 pub trait Pattern: sealed::Sealed + Send + Sync {
     /// Unique name identifying this pattern (e.g. `"ssn"`, `"credit-card"`).
     fn name(&self) -> &str;
-
-    /// High-level entity category (PersonalIdentity, Financial, Credentials, ...).
-    fn category(&self) -> EntityCategory;
 
     /// Specific entity kind within the category (e.g. `GovernmentId`, `PaymentCard`).
     fn entity_kind(&self) -> EntityKind;
@@ -257,7 +257,6 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
                     })?;
                 let entry = RegexEntry {
                     pattern_name: self.name().to_owned(),
-                    category: self.category(),
                     entity_kind: self.entity_kind(),
                     confidence: rp.confidence,
                     validator_name: rp.validator.clone(),
@@ -298,7 +297,6 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
                 })?;
                 Ok(Some(CompiledPattern::Dictionary(DictEntry {
                     pattern_name: self.name().to_owned(),
-                    category: self.category(),
                     entity_kind: self.entity_kind(),
                     confidence: dp.confidence.clone(),
                     automaton,

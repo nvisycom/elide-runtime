@@ -1,6 +1,5 @@
 {
   "name": "ipv6",
-  "category": "network_identifier",
   "entity_type": "ip_address",
   "regex": {
     "regex": "\\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\\b|(?:[0-9a-fA-F]{1,4}:){1,7}:|::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}\\b",
@@ -9,7 +8,11 @@
   "metadata": {
     "description": "IPv6 colon-hex address (full, omitted, or zero-compressed).",
     "version": "1.0.0",
-    "regions": ["global"],
-    "compliance": ["gdpr"]
+    "regions": [
+      "global"
+    ],
+    "compliance": [
+      "gdpr"
+    ]
   }
 }

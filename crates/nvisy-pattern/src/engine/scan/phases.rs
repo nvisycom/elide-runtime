@@ -12,7 +12,7 @@
 
 use std::collections::HashSet;
 
-use nvisy_ontology::entity::{Entity, RecognitionMethod};
+use nvisy_ontology::entity::{Entity, PatternProvenance, TrailProvenance, TrailStep};
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
 
@@ -53,18 +53,29 @@ pub(in crate::engine) fn scan_regex(
                 continue;
             }
 
-            let method = if let Some(ref vname) = entry.validator_name {
-                RecognitionMethod::regex_validated(&entry.pattern_name, vname)
+            let confidence = Confidence::clamped(entry.confidence);
+            let provenance = TrailProvenance::Pattern(PatternProvenance::Regex {
+                name: entry.pattern_name.clone(),
+                regex: Some(entry.regex.as_str().to_owned()),
+                validator: entry.validator_name.clone(),
+                contextual: false,
+            });
+            let reason = if let Some(ref vname) = entry.validator_name {
+                format!(
+                    "regex '{}' matched and '{}' validator passed",
+                    entry.pattern_name, vname
+                )
             } else {
-                RecognitionMethod::regex(&entry.pattern_name)
+                format!("regex '{}' matched", entry.pattern_name)
             };
 
             results.push(EntityCandidate::new(
                 Entity::builder()
-                    .with_category(entry.category)
                     .with_entity_kind(entry.entity_kind)
-                    .with_recognition_methods(vec![method])
-                    .with_confidence(Confidence::clamped(entry.confidence))
+                    .with_trail(vec![TrailStep::recognition(
+                        "pattern", confidence, provenance, reason,
+                    )])
+                    .with_confidence(confidence)
                     .with_location(Text::new(mat.start(), mat.end()))
                     .build()
                     .expect("required fields provided"),
@@ -91,14 +102,20 @@ pub(in crate::engine) fn scan_dict(
                 continue;
             }
 
+            let confidence = Confidence::clamped(entry.resolve_confidence(pat_idx));
             results.push(EntityCandidate::new(
                 Entity::builder()
-                    .with_category(entry.category)
                     .with_entity_kind(entry.entity_kind)
-                    .with_recognition_methods(vec![RecognitionMethod::dictionary(
-                        &entry.pattern_name,
+                    .with_trail(vec![TrailStep::recognition(
+                        "pattern",
+                        confidence,
+                        TrailProvenance::Pattern(PatternProvenance::Dictionary {
+                            name: entry.pattern_name.clone(),
+                            contextual: false,
+                        }),
+                        format!("dictionary '{}' matched", entry.pattern_name),
                     )])
-                    .with_confidence(Confidence::clamped(entry.resolve_confidence(pat_idx)))
+                    .with_confidence(confidence)
                     .with_location(Text::new(mat.start(), mat.end()))
                     .build()
                     .expect("required fields provided"),
@@ -140,12 +157,17 @@ pub(in crate::engine) fn scan_deny_list(
             continue;
         }
 
+        let confidence = Confidence::clamped(1.0);
         results.push(EntityCandidate::new(
             Entity::builder()
-                .with_category(rule.category)
                 .with_entity_kind(rule.entity_kind)
-                .with_recognition_methods(vec![RecognitionMethod::deny_list()])
-                .with_confidence(Confidence::clamped(1.0))
+                .with_trail(vec![TrailStep::recognition(
+                    "pattern",
+                    confidence,
+                    TrailProvenance::Pattern(PatternProvenance::DenyList),
+                    "deny-list match",
+                )])
+                .with_confidence(confidence)
                 .with_location(Text::new(mat.start(), mat.end()))
                 .build()
                 .expect("required fields provided"),

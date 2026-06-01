@@ -1,6 +1,6 @@
 //! Structured output for the VLM detect pass.
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::NormalizedBoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,8 +15,6 @@ use serde::{Deserialize, Serialize};
 /// [`Entity<Image>`]: nvisy_ontology::entity::Entity
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct VlmDetectedEntity {
-    /// Broad classification of the discovered entity.
-    pub category: EntityCategory,
     /// Specific entity kind.
     pub entity_kind: EntityKind,
     /// Normalised bounding box around the entity.

@@ -1,6 +1,6 @@
 //! Input types for OCR verification.
 
-use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind};
+use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::Image;
 use nvisy_ontology::primitive::BoundingBox;
 use schemars::JsonSchema;
@@ -22,8 +22,6 @@ pub struct ProposedEntity {
     ///
     /// [`VerifiedEntity::id`]: crate::agent::VerifiedEntity::id
     pub id: usize,
-    /// Broad classification.
-    pub category: EntityCategory,
     /// Specific entity type.
     pub entity_type: EntityKind,
     /// The matched text value.
@@ -40,7 +38,6 @@ impl ProposedEntity {
     pub fn from_entity(id: usize, entity: &Entity<Image>, value: &str) -> Self {
         Self {
             id,
-            category: entity.category,
             entity_type: entity.entity_kind,
             value: value.to_string(),
             confidence: entity.confidence.get(),

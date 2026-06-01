@@ -7,7 +7,7 @@
 //!
 //! [`from_bytes`]: JsonPattern::from_bytes
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::EntityKind;
 use serde::Deserialize;
 
 use super::context_rule::ContextRule;
@@ -44,9 +44,9 @@ pub enum JsonPatternWarning {
 /// Top-level fields:
 ///
 /// - `name` (string, required): unique pattern identifier.
-/// - `category` (string, required): entity category (e.g.
-///   `personal_identity`, `financial`).
-/// - `entity_type` (string, required): specific [`EntityKind`].
+/// - `entity_type` (string, required): specific [`EntityKind`]. The
+///   broad [`EntityCategory`] is derived from this via
+///   [`EntityKind::category`].
 /// - `regex` **or** `dictionary` (object, required, mutually
 ///   exclusive): the match source. See [`RegexPattern`] /
 ///   [`DictionaryPattern`].
@@ -60,7 +60,6 @@ pub enum JsonPatternWarning {
 /// ```json
 /// {
 ///   "name": "ssn",
-///   "category": "personal_identity",
 ///   "entity_type": "government_id",
 ///   "regex": {
 ///     "regex": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
@@ -80,18 +79,18 @@ pub enum JsonPatternWarning {
 /// ```json
 /// {
 ///   "name": "nationalities",
-///   "category": "demographic",
 ///   "entity_type": "nationality",
 ///   "dictionary": { "name": "nationalities", "confidence": 0.85 }
 /// }
 /// ```
+///
+/// [`EntityCategory`]: nvisy_ontology::entity::EntityCategory
 ///
 /// [`RegexPattern`]: super::RegexPattern
 /// [`DictionaryPattern`]: super::DictionaryPattern
 #[derive(Debug, Clone)]
 pub struct JsonPattern {
     name: String,
-    category: EntityCategory,
     entity_kind: EntityKind,
     match_source: MatchSource,
     pub(crate) context: Option<ContextRule>,
@@ -130,7 +129,6 @@ impl JsonPattern {
         #[derive(Deserialize)]
         struct Raw {
             name: String,
-            category: EntityCategory,
             #[serde(rename = "entity_type")]
             entity_kind: EntityKind,
             #[serde(flatten)]
@@ -164,7 +162,6 @@ impl JsonPattern {
 
         let p = Self {
             name: raw.name,
-            category: raw.category,
             entity_kind: raw.entity_kind,
             match_source,
             context: raw.context,
@@ -178,10 +175,6 @@ impl JsonPattern {
 impl Pattern for JsonPattern {
     fn name(&self) -> &str {
         &self.name
-    }
-
-    fn category(&self) -> EntityCategory {
-        self.category
     }
 
     fn entity_kind(&self) -> EntityKind {

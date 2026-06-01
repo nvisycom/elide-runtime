@@ -59,7 +59,7 @@ impl<'a> NerPromptBuilder<'a> {
         prompt.push_str(&format!(
             "Detect entities of types [{types}] in the following text. \
              Return a JSON object with an \"entities\" key whose value is an array of \
-             candidates. Each candidate has keys: entity_id, category, entity_type, \
+             candidates. Each candidate has keys: entity_id, entity_type, \
              value, confidence, context, description, hint_id."
         ));
     }
@@ -100,16 +100,12 @@ impl<'a> NerPromptBuilder<'a> {
             let value = value_at(text, h.start, h.end);
             let snippet = snippet_around(text, h.start, h.end);
             let name = h.name.as_deref().unwrap_or("");
-            let category = h
-                .category
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "unknown".to_string());
             let kind = h
                 .entity_kind
                 .map(|k| k.to_string())
                 .unwrap_or_else(|| "unknown".to_string());
             prompt.push_str(&format!(
-                "\n[hint {i}] name=\"{name}\", category={category}, kind={kind}, \
+                "\n[hint {i}] name=\"{name}\", kind={kind}, \
                  value=\"{value}\"\n  snippet: \"{snippet}\""
             ));
         }
@@ -123,7 +119,7 @@ Identify personally identifiable information (PII), protected health information
 financial data, and credentials in the provided text.\n\
 \n\
 Return results as a JSON object with an \"entities\" key containing an array of \
-candidate objects. Each candidate has keys: entity_id (optional), category (optional), \
+candidate objects. Each candidate has keys: entity_id (optional), \
 entity_type (optional), value, confidence (optional), context (optional), \
 description (optional), hint_id (optional).\n\
 \n\
@@ -233,7 +229,6 @@ mod tests {
         let config = LlmNerContext {
             hints: vec![NerHint {
                 name: Some("customer".into()),
-                category: None,
                 entity_kind: Some(EntityKind::PersonName),
                 start: alice_start,
                 end: alice_start + 5,

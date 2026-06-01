@@ -1,6 +1,5 @@
 {
   "name": "mac-address",
-  "category": "network_identifier",
   "entity_type": "mac_address",
   "regex": {
     "regex": "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b",
@@ -9,6 +8,8 @@
   "metadata": {
     "description": "IEEE 802 48-bit MAC address.",
     "version": "1.0.0",
-    "regions": ["global"]
+    "regions": [
+      "global"
+    ]
   }
 }

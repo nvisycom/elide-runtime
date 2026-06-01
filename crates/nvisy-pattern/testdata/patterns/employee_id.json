@@ -1,6 +1,5 @@
 {
   "name": "internal-employee-id",
-  "category": "personal_identity",
   "entity_type": "internal_id",
   "regex": {
     "regex": "\\bEMP-\\d{5}\\b",
@@ -9,6 +8,8 @@
   "metadata": {
     "description": "Synthetic employee-id pattern for engine-extension tests.",
     "version": "0.1.0",
-    "industries": ["internal"]
+    "industries": [
+      "internal"
+    ]
   }
 }

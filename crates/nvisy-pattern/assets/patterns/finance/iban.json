@@ -1,6 +1,5 @@
 {
   "name": "iban",
-  "category": "financial",
   "entity_type": "iban",
   "regex": {
     "regex": "\\b[A-Z]{2}\\d{2}\\s?[A-Z0-9]{4}\\s?(?:\\d{4}\\s?){2,7}\\d{1,4}\\b",
@@ -8,15 +7,30 @@
     "confidence": 0.85
   },
   "context": {
-    "keywords": ["iban", "bank", "account", "transfer", "swift"],
+    "keywords": [
+      "iban",
+      "bank",
+      "account",
+      "transfer",
+      "swift"
+    ],
     "window": 150,
     "boost": 0.1
   },
   "metadata": {
     "description": "ISO 13616 International Bank Account Number (IBAN).",
     "version": "1.0.0",
-    "regions": ["eu", "global"],
-    "industries": ["finance", "banking"],
-    "compliance": ["psd2", "gdpr"]
+    "regions": [
+      "eu",
+      "global"
+    ],
+    "industries": [
+      "finance",
+      "banking"
+    ],
+    "compliance": [
+      "psd2",
+      "gdpr"
+    ]
   }
 }

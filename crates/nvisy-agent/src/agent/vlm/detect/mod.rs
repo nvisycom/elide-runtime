@@ -3,12 +3,11 @@
 //! [`VlmAgent`] takes an image (raw bytes + [`Dimensions`]) plus a
 //! [`VlmDetectContext`] and asks the VLM to draw bounding boxes
 //! around every sensitive entity it sees. Output is ready-to-use
-//! [`Entity<Image>`] values stamped with
-//! [`RecognitionMethod::LlmVlm`].
+//! [`Entity<Image>`] values whose trail starts with a recognition
+//! step carrying the VLM's model provenance.
 //!
 //! [`Dimensions`]: nvisy_ontology::primitive::Dimensions
 //! [`Entity<Image>`]: nvisy_ontology::entity::Entity
-//! [`RecognitionMethod::LlmVlm`]: nvisy_ontology::entity::RecognitionMethod::LlmVlm
 
 mod output;
 mod prompt;
@@ -17,7 +16,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use bytes::Bytes;
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entity, ModelKind, ModelProvenance, RecognitionMethod};
+use nvisy_ontology::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_ontology::modality::Image;
 use nvisy_ontology::primitive::{Confidence, Dimensions};
 use uuid::Uuid;
@@ -102,7 +101,7 @@ impl VlmAgent {
             .await
             .map_err(crate::error::convert)?;
 
-        let model = ModelProvenance::new(self.base.model_name(), ModelKind::Gateway);
+        let model = ModelProvenance::new(self.base.model_name().to_owned());
         let entities = self.build_entities(result.entities, dims, &model);
 
         tracing::info!(
@@ -134,11 +133,13 @@ impl VlmAgent {
             };
             let bbox = d.bbox.to_pixel(dims);
             let location = Image::new(bbox);
+            let provenance = TrailProvenance::Model(model.clone());
+            let reason = format!("vlm '{}' identified {}", model.name, d.entity_kind);
+            let step = TrailStep::recognition("llm-vlm", confidence, provenance, reason);
 
             let entity = Entity::builder()
-                .with_category(d.category)
                 .with_entity_kind(d.entity_kind)
-                .with_recognition_methods(vec![RecognitionMethod::LlmVlm(model.clone())])
+                .with_trail(vec![step])
                 .with_confidence(confidence)
                 .with_location(location)
                 .build()

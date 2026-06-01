@@ -40,7 +40,7 @@
 //! [`ContextHint`]: super::super::filter::ContextHint
 //! [`PatternEngine::scan_text`]: super::super::PatternEngine::scan_text
 
-use nvisy_ontology::entity::RecognitionMethod;
+use nvisy_ontology::entity::{TrailProvenance, TrailStep, TrailStepKind};
 
 use super::candidate::EntityCandidate;
 use crate::engine::filter::ContextHint;
@@ -134,23 +134,38 @@ impl<'a> ContextEnhancer<'a> {
                 .any(|kw| lower.contains(&kw.to_lowercase()))
         };
 
-        let adjusted = if found {
-            c.entity.confidence = c.entity.confidence.saturating_add(boost);
-            true
+        let original = c.entity.confidence;
+        let (adjusted, reason) = if found {
+            (
+                c.entity.confidence.saturating_add(boost),
+                "context keyword matched in window".to_owned(),
+            )
         } else if rule.penalty > 0.0 {
-            c.entity.confidence = c.entity.confidence.saturating_sub(rule.penalty);
-            true
+            (
+                c.entity.confidence.saturating_sub(rule.penalty),
+                "no context keyword found; penalty applied".to_owned(),
+            )
         } else {
-            false
+            return;
         };
 
-        if adjusted {
-            for method in &mut c.entity.recognition_methods {
-                if let RecognitionMethod::Pattern(p) = method {
-                    p.mark_contextual();
-                }
+        c.entity.confidence = adjusted;
+
+        // Mark the pattern's recognition step as contextually
+        // adjusted so audit consumers can tell at a glance which
+        // matches went through context-aware scoring.
+        for step in &mut c.entity.trail {
+            if step.kind == TrailStepKind::Recognition
+                && let TrailProvenance::Pattern(ref mut p) = step.provenance
+            {
+                p.mark_contextual();
             }
         }
+
+        // Append the refinement step with the score delta and reason.
+        c.entity
+            .trail
+            .push(TrailStep::refinement("pattern", original, adjusted, reason));
     }
 }
 
@@ -181,7 +196,7 @@ fn walk_chars_forward(text: &str, byte_anchor: usize, chars: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
+    use nvisy_ontology::entity::{Entity, EntityKind, PatternProvenance};
     use nvisy_ontology::modality::Text;
     use nvisy_ontology::primitive::Confidence;
 
@@ -205,12 +220,22 @@ mod tests {
         end: usize,
         conf: f64,
     ) -> EntityCandidate {
+        let confidence = Confidence::clamped(conf);
         EntityCandidate::new(
             Entity::builder()
-                .with_category(EntityCategory::PersonalIdentity)
                 .with_entity_kind(kind)
-                .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-                .with_confidence(Confidence::clamped(conf))
+                .with_trail(vec![TrailStep::recognition(
+                    "pattern",
+                    confidence,
+                    TrailProvenance::Pattern(PatternProvenance::Regex {
+                        name: "test".to_owned(),
+                        regex: None,
+                        validator: None,
+                        contextual: false,
+                    }),
+                    "regex 'test' matched",
+                )])
+                .with_confidence(confidence)
                 .with_location(Text::new(start, end))
                 .build()
                 .expect("required fields provided"),

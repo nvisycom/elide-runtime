@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entity, RecognitionMethodKind};
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Modality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,17 +19,19 @@ pub enum DeduplicationStrategy {
     /// contributes proportionally to its weight; the result is
     /// `Σ(wᵢ·pᵢ) / Σ(wᵢ)`.
     ///
-    /// Per-entity weight = `max(weights[method])` across the
-    /// entity's recognition methods. If an entity has no method
-    /// listed in `weights`, the per-entity weight floors at `1.0`
-    /// (so an unweighted entity still counts, with neutral weight).
-    /// `WeightedAverage { weights: {} }` therefore reduces to a
-    /// plain unweighted average.
+    /// Per-entity weight = `max(weights[recognizer])` across the
+    /// entity's recognition trail step sources. If an entity has no
+    /// matching recognizer listed in `weights`, the per-entity weight
+    /// floors at `1.0` (so an unweighted entity still counts, with
+    /// neutral weight). `WeightedAverage { weights: {} }` therefore
+    /// reduces to a plain unweighted average.
     WeightedAverage {
-        /// Per-method weight contributed to entities matched by
-        /// that recognition method. Methods missing from the map
-        /// contribute the floor weight `1.0`.
-        weights: HashMap<RecognitionMethodKind, f64>,
+        /// Per-recognizer weight contributed to entities matched by
+        /// that recognizer (keyed by the source name on the
+        /// [`Recognition`](nvisy_ontology::entity::TrailStepKind::Recognition)
+        /// trail step). Recognizers missing from the map contribute
+        /// the floor weight `1.0`.
+        weights: HashMap<String, f64>,
     },
     /// Noisy-OR: `P = 1 − ∏(1 − pᵢ)` for independent detectors.
     NoisyOr,
@@ -56,10 +58,8 @@ impl DeduplicationStrategy {
                 let (wsum, total_w) =
                     group.iter().fold((0.0_f64, 0.0_f64), |(wsum, total_w), e| {
                         let w = e
-                            .recognition_methods
-                            .iter()
-                            .filter_map(|m| weights.get(&m.kind()))
-                            .copied()
+                            .recognizers()
+                            .filter_map(|name| weights.get(name).copied())
                             .fold(1.0_f64, f64::max);
                         (wsum + e.confidence.get() * w, total_w + w)
                     });

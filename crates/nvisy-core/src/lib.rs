@@ -4,6 +4,8 @@
 
 pub mod content;
 pub mod media;
+mod recognizer;
+pub use self::recognizer::{Context, ImageData, ModalityData, Recognizer, TextData};
 
 #[cfg(feature = "http")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http")))]

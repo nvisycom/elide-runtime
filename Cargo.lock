@@ -3132,9 +3132,12 @@ dependencies = [
 name = "nvisy-core"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "bytes",
+ "derive_builder",
  "derive_more",
  "hex",
+ "hipstr",
  "humantime-serde",
  "infer",
  "nvisy-ontology",
@@ -3148,6 +3151,7 @@ dependencies = [
  "strum 0.28.0",
  "thiserror 2.0.18",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3280,20 +3284,19 @@ name = "nvisy-pattern"
 version = "0.1.0"
 dependencies = [
  "aho-corasick",
+ "async-trait",
  "csv",
- "include_dir",
+ "derive_builder",
  "nvisy-core",
  "nvisy-ontology",
  "regex",
  "schemars 1.2.1",
- "semver",
  "serde",
  "serde_json",
- "tempfile",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "uuid",
- "walkdir",
 ]
 
 [[package]]

@@ -83,6 +83,11 @@ pub enum EntityKind {
     SwiftCode,
     /// Cryptocurrency wallet address.
     CryptoAddress,
+    /// Currency name or ISO 4217 code (USD, US Dollar, EUR, BTC,
+    /// Bitcoin, …). Distinct from a concrete [`Amount`].
+    ///
+    /// [`Amount`]: Self::Amount
+    Currency,
     /// Monetary amount.
     Amount,
 
@@ -227,6 +232,7 @@ impl EntityKind {
             | Self::Iban
             | Self::SwiftCode
             | Self::CryptoAddress
+            | Self::Currency
             | Self::Amount => EntityCategory::Financial,
 
             // Health

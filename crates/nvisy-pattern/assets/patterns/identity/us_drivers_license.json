@@ -1,18 +1,6 @@
 {
   "name": "us-drivers-license",
-  "entity_type": "drivers_license",
-  "regex": {
-    "regex": "\\b[A-Z]\\d{3}-\\d{4}-\\d{4}\\b",
-    "confidence": 0.4
-  },
-  "metadata": {
-    "description": "US driver license number (common letter-then-digits shape).",
-    "version": "1.0.0",
-    "regions": [
-      "us"
-    ],
-    "compliance": [
-      "ccpa"
-    ]
-  }
+  "entityKind": "drivers_license",
+  "regex": "\\b[A-Z]\\d{3}-\\d{4}-\\d{4}\\b",
+  "score": 0.4
 }

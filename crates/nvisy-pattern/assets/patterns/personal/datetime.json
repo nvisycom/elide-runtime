@@ -1,10 +1,8 @@
 {
   "name": "datetime",
-  "entity_type": "date_time",
-  "regex": {
-    "regex": "\\b(?:19|20)\\d{2}[/\\-](?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01])[T ](?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?(?:Z|[+\\-]\\d{2}:?\\d{2})?\\b",
-    "confidence": 0.7
-  },
+  "entityKind": "date_time",
+  "regex": "\\b(?:19|20)\\d{2}[/\\-](?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01])[T ](?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?(?:Z|[+\\-]\\d{2}:?\\d{2})?\\b",
+  "score": 0.7,
   "context": {
     "keywords": [
       "timestamp",
@@ -13,15 +11,6 @@
       "logged",
       "at",
       "time"
-    ],
-    "window": 100,
-    "boost": 0.1
-  },
-  "metadata": {
-    "description": "ISO 8601-ish timestamp (date + time, optional timezone).",
-    "version": "1.0.0",
-    "regions": [
-      "global"
     ]
   }
 }

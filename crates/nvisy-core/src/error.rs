@@ -258,5 +258,14 @@ impl From<serde_json::Error> for Error {
     }
 }
 
+impl From<derive_builder::UninitializedFieldError> for Error {
+    fn from(err: derive_builder::UninitializedFieldError) -> Self {
+        Self::validation(
+            format!("missing required field `{}`", err.field_name()),
+            "derive_builder",
+        )
+    }
+}
+
 /// Convenience type alias for results using the Nvisy error type.
 pub type Result<T, E = Error> = result::Result<T, E>;

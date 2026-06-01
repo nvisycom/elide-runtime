@@ -1,15 +1,6 @@
 {
   "name": "url",
-  "entity_type": "url",
-  "regex": {
-    "regex": "\\bhttps?://[^\\s/$.?#][^\\s]*\\b",
-    "confidence": 0.9
-  },
-  "metadata": {
-    "description": "HTTP(S) URL.",
-    "version": "1.0.0",
-    "regions": [
-      "global"
-    ]
-  }
+  "entityKind": "url",
+  "regex": "\\bhttps?://[^\\s/$.?#][^\\s]*\\b",
+  "score": 0.9
 }

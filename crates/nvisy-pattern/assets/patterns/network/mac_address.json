@@ -1,15 +1,6 @@
 {
   "name": "mac-address",
-  "entity_type": "mac_address",
-  "regex": {
-    "regex": "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b",
-    "confidence": 0.85
-  },
-  "metadata": {
-    "description": "IEEE 802 48-bit MAC address.",
-    "version": "1.0.0",
-    "regions": [
-      "global"
-    ]
-  }
+  "entityKind": "mac_address",
+  "regex": "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b",
+  "score": 0.85
 }

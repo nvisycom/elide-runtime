@@ -1,8 +1,18 @@
 //! Post-match validators for detected entity values.
 //!
-//! Patterns can reference a validator by name (e.g. `"validator": "luhn"`)
-//! to reduce false positives. At detection time the name is resolved to a
-//! [`ValidatorFn`] via [`ValidatorResolver`].
+//! A [`Regex`] can reference a validator by name (e.g.
+//! `validator: Some("luhn")`) to reduce false positives. At
+//! [`PatternRecognizer::build`] time the name is resolved against a
+//! [`ValidatorRegistry`] to a concrete validation function.
+//!
+//! The default [`ValidatorRegistry::builtin`] ships with five
+//! validators — `luhn`, `iban`, `ssn`, `phone`, `date`. Consumers
+//! can extend the registry with their own validators by calling
+//! [`ValidatorRegistry::with`] before handing it to the recognizer
+//! builder.
+//!
+//! [`Regex`]: crate::recognition::Regex
+//! [`PatternRecognizer::build`]: crate::recognition::PatternRecognizer
 
 mod date;
 mod iban;
@@ -10,7 +20,9 @@ mod luhn;
 mod phone;
 mod ssn;
 
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub use self::date::validate_date;
 pub use self::iban::validate_iban;
@@ -18,47 +30,95 @@ pub use self::luhn::luhn_check;
 pub use self::phone::validate_phone;
 pub use self::ssn::validate_ssn;
 
-/// Validation function signature: takes matched text, returns `true` if
-/// the value is valid.
-pub type ValidatorFn = fn(&str) -> bool;
-
-/// Maps validator names to [`ValidatorFn`]s.
+/// Post-match validator: returns `true` when `matched` passes the
+/// validator's check.
 ///
-/// Construct via [`builtins`] — the only path. Built-ins are the
-/// full set; custom registration is intentionally not exposed
-/// (validators are referenced from pattern JSON by name and the
-/// pattern-load path can't see runtime-registered names).
-///
-/// [`builtins`]: Self::builtins
-#[derive(Debug, Clone)]
-pub struct ValidatorResolver {
-    table: HashMap<&'static str, ValidatorFn>,
+/// Implemented by both built-in function-pointer validators (via the
+/// blanket impl) and any third-party validator types a consumer
+/// registers.
+pub trait Validator: Send + Sync {
+    /// Validate the text the recognizer matched. Returns `true` to
+    /// keep the match, `false` to drop it.
+    fn validate(&self, matched: &str) -> bool;
 }
 
-impl ValidatorResolver {
-    /// Create a resolver pre-loaded with all built-in validators.
-    pub fn builtins() -> Self {
-        let mut r = Self {
-            table: HashMap::new(),
-        };
-        r.register("ssn", validate_ssn);
-        r.register("luhn", luhn_check);
-        r.register("iban", validate_iban);
-        r.register("phone", validate_phone);
-        r.register("date", validate_date);
-        r
+impl<F> Validator for F
+where
+    F: Fn(&str) -> bool + Send + Sync,
+{
+    fn validate(&self, matched: &str) -> bool {
+        self(matched)
     }
+}
 
-    /// Register a validator function under the given name.
-    ///
-    /// Overwrites any previously registered validator with the same name.
-    fn register(&mut self, name: &'static str, f: ValidatorFn) {
-        self.table.insert(name, f);
-    }
+/// Resolves validator names referenced in [`Regex`] definitions to
+/// concrete [`Validator`] implementations.
+///
+/// Keys are [`Cow<'static, str>`] so the built-in registrations skip
+/// any allocation (`&'static str` literal → borrowed variant) while
+/// caller-supplied names that aren't `'static` (e.g. dynamically
+/// constructed at runtime) still flow through as owned `String`s.
+///
+/// [`Regex`]: crate::recognition::Regex
+#[derive(Clone, Default)]
+pub struct ValidatorRegistry {
+    table: HashMap<Cow<'static, str>, Arc<dyn Validator>>,
+}
 
-    /// Look up a validator by name, returning `None` if unregistered.
+impl ValidatorRegistry {
+    /// Empty registry — no validators registered. Regex rules that
+    /// reference a validator name will fail to resolve at recognizer
+    /// build time.
     #[must_use]
-    pub fn resolve(&self, name: &str) -> Option<ValidatorFn> {
-        self.table.get(name).copied()
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    /// Registry pre-loaded with every built-in validator: `luhn`,
+    /// `iban`, `ssn`, `phone`, `date`.
+    #[must_use]
+    pub fn builtin() -> Self {
+        Self::empty()
+            .with("luhn", luhn_check)
+            .with("iban", validate_iban)
+            .with("ssn", validate_ssn)
+            .with("phone", validate_phone)
+            .with("date", validate_date)
+    }
+
+    /// Register `validator` under `name`. Overwrites any previous
+    /// entry with the same name.
+    ///
+    /// Built-ins live under `"luhn"`, `"iban"`, `"ssn"`, `"phone"`,
+    /// and `"date"`; consumers can override them with their own
+    /// implementations by registering under the same name.
+    ///
+    /// `name` accepts anything convertible to [`Cow<'static, str>`]
+    /// — a `&'static str` literal stays borrowed (zero allocation),
+    /// an owned `String` becomes the owned variant.
+    #[must_use]
+    pub fn with<N, V>(mut self, name: N, validator: V) -> Self
+    where
+        N: Into<Cow<'static, str>>,
+        V: Validator + 'static,
+    {
+        self.table.insert(name.into(), Arc::new(validator));
+        self
+    }
+
+    /// Look up a validator by name, returning the registered
+    /// implementation or `None` when the name is unknown.
+    #[must_use]
+    pub fn resolve(&self, name: &str) -> Option<Arc<dyn Validator>> {
+        self.table.get(name).cloned()
+    }
+}
+
+impl std::fmt::Debug for ValidatorRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names: Vec<&str> = self.table.keys().map(AsRef::as_ref).collect();
+        f.debug_struct("ValidatorRegistry")
+            .field("validators", &names)
+            .finish()
     }
 }

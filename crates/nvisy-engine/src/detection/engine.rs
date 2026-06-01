@@ -44,7 +44,6 @@ use super::context::{ImageDetectionContext, TextDetectionContext};
 use super::lift::{LiftFromBlock, ProjectIntoBlock};
 use super::llm::build_recognizer as build_llm_recognizer;
 use super::ner::NerRecognizer;
-use super::pattern::PatternRecognizer;
 use super::plan::Detection;
 use super::recognizer::{ImageRecognizer, TextRecognizer, names};
 use super::vlm::build_recognizer as build_vlm_recognizer;
@@ -95,9 +94,6 @@ impl DetectionEngine {
     pub async fn from_config(cfg: &DetectionConfig) -> Result<Self> {
         let mut engine = Self::new();
 
-        if let Some(p) = cfg.pattern.as_ref().filter(|p| p.enabled) {
-            engine.add_text_recognizer(names::PATTERN, Arc::new(PatternRecognizer::from_config(p)));
-        }
         if let Some(c) = cfg.llm.as_ref().filter(|c| c.enabled) {
             engine.add_text_recognizer(names::LLM, build_llm_recognizer(c.clone())?);
         }

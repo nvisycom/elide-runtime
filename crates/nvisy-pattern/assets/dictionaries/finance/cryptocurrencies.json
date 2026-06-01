@@ -1,7 +1,5 @@
 {
   "name": "cryptocurrencies",
-  "description": "Major cryptocurrency names, symbols, and tickers.",
-  "version": "1.0.0",
-  "industries": ["crypto", "finance"],
-  "regions": ["global"]
+  "entityKind": "currency",
+  "score": 0.85
 }

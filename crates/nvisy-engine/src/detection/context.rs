@@ -23,7 +23,6 @@ use nvisy_agent::agent::NerHint;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::{Dimensions, LanguageTag};
-use nvisy_pattern::filter::PatternContext;
 use uuid::Uuid;
 
 /// Shared per-call detection context.
@@ -79,10 +78,6 @@ pub struct TextDetectionContext {
     /// `language` is `Some`.
     pub candidate_languages: Option<Vec<LanguageTag>>,
 
-    /// Allow/deny/hints for pattern-backed recognizers. Non-pattern
-    /// recognizers ignore this field.
-    pub scan_context: PatternContext,
-
     /// User-supplied hint regions to fold into the LLM/VLM detector's
     /// prompt for per-hint adjudication alongside open-ended
     /// discovery. Forwarded from [`Document::annotations`]
@@ -106,7 +101,6 @@ impl TextDetectionContext {
             text: text.into(),
             language: None,
             candidate_languages: None,
-            scan_context: PatternContext::default(),
             hints: Vec::new(),
         }
     }

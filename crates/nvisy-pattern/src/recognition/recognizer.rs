@@ -1,0 +1,285 @@
+//! [`PatternRecognizer`]: compiles a [`PatternRegistry`] into pooled
+//! scanners and implements [`Recognizer<Text>`].
+//!
+//! The internal split is intentional: regex patterns go into a
+//! single [`regex::RegexSet`] for a one-pass scan across every
+//! regex; dictionary terms go into a single
+//! [`aho_corasick::AhoCorasick`] automaton for a one-pass scan
+//! across every literal. Both passes share one walk over the input
+//! and emit entities in modality-local byte coordinates.
+
+use std::sync::Arc;
+
+use aho_corasick::AhoCorasick;
+use async_trait::async_trait;
+use nvisy_core::{Context as CoreContext, Error, Recognizer, Result, TextData};
+use nvisy_ontology::entity::{Entity, PatternProvenance, TrailProvenance, TrailStep};
+use nvisy_ontology::modality::Text;
+use nvisy_ontology::primitive::Confidence;
+use regex::{Regex, RegexSet};
+
+use super::registry::PatternRegistry;
+use crate::validators::{Validator, ValidatorRegistry};
+
+/// Source of truth for one runtime pattern: the regex compiled
+/// once, plus the metadata needed to emit entities.
+///
+/// `context` is intentionally not stored on the compiled state —
+/// the recognizer never reads it; the [`ContextEnhancer`] looks it
+/// up directly on the [`PatternRegistry`] at boost time.
+///
+/// [`ContextEnhancer`]: crate::ContextEnhancer
+struct CompiledPattern {
+    name: String,
+    entity_kind: nvisy_ontology::entity::EntityKind,
+    regex: Regex,
+    raw_regex: String,
+    score: Confidence,
+    validator: Option<Arc<dyn Validator>>,
+}
+
+/// Source of truth for one runtime dictionary: its term range
+/// inside the shared Aho-Corasick automaton, plus per-dictionary
+/// emission metadata.
+struct CompiledDictionary {
+    name: String,
+    entity_kind: nvisy_ontology::entity::EntityKind,
+    /// First term-id (inclusive) for this dictionary inside the
+    /// shared automaton.
+    term_start: usize,
+    /// One past the last term-id for this dictionary inside the
+    /// shared automaton.
+    term_end: usize,
+    score: Confidence,
+}
+
+/// Composes a [`PatternRegistry`] into a single text recognizer.
+pub struct PatternRecognizer {
+    patterns: Vec<CompiledPattern>,
+    regex_set: Option<RegexSet>,
+    dictionaries: Vec<CompiledDictionary>,
+    aho: Option<AhoCorasick>,
+}
+
+impl PatternRecognizer {
+    /// Start assembling a recognizer. Required: a registry, supplied
+    /// via [`with_registry`](PatternRecognizerBuilder::with_registry).
+    #[must_use]
+    pub fn builder() -> PatternRecognizerBuilder {
+        PatternRecognizerBuilder::default()
+    }
+}
+
+/// Builder for [`PatternRecognizer`].
+#[derive(Default)]
+pub struct PatternRecognizerBuilder {
+    registry: Option<PatternRegistry>,
+    validators: Option<ValidatorRegistry>,
+}
+
+impl PatternRecognizerBuilder {
+    /// Attach the pattern + dictionary registry to compile.
+    #[must_use]
+    pub fn with_registry(mut self, registry: PatternRegistry) -> Self {
+        self.registry = Some(registry);
+        self
+    }
+
+    /// Override the validator registry. When unset, the built-in
+    /// registry ([`ValidatorRegistry::builtin`]) is used.
+    #[must_use]
+    pub fn with_validators(mut self, registry: ValidatorRegistry) -> Self {
+        self.validators = Some(registry);
+        self
+    }
+
+    /// Compile every registered pattern and dictionary into the
+    /// pooled scanners.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no registry was supplied, when a
+    /// pattern's regex fails to compile, when a pattern references
+    /// an unknown validator name, or when the shared automata
+    /// cannot be constructed.
+    pub fn build(self) -> Result<PatternRecognizer> {
+        let registry = self.registry.ok_or_else(|| {
+            Error::validation(
+                "PatternRecognizer requires a registry — call `with_registry` first",
+                "nvisy-pattern",
+            )
+        })?;
+        let validators = self.validators.unwrap_or_else(ValidatorRegistry::builtin);
+        let mut compiled_patterns = Vec::with_capacity(registry.patterns().len());
+        let mut regex_sources = Vec::with_capacity(registry.patterns().len());
+
+        for pattern in registry.patterns() {
+            let regex = Regex::new(&pattern.regex).map_err(|e| {
+                Error::validation(
+                    format!("pattern `{}`: invalid regex: {e}", pattern.name),
+                    "nvisy-pattern",
+                )
+            })?;
+            let validator = match pattern.validator.as_deref() {
+                None => None,
+                Some(name) => Some(validators.resolve(name).ok_or_else(|| {
+                    Error::validation(
+                        format!("pattern `{}`: unknown validator `{}`", pattern.name, name),
+                        "nvisy-pattern",
+                    )
+                })?),
+            };
+            let score = Confidence::try_clamped(pattern.score).ok_or_else(|| {
+                Error::validation(
+                    format!("pattern `{}`: score not finite", pattern.name),
+                    "nvisy-pattern",
+                )
+            })?;
+            regex_sources.push(pattern.regex.clone());
+            compiled_patterns.push(CompiledPattern {
+                name: pattern.name.clone(),
+                entity_kind: pattern.entity_kind,
+                regex,
+                raw_regex: pattern.regex.clone(),
+                score,
+                validator,
+            });
+        }
+
+        let regex_set = if regex_sources.is_empty() {
+            None
+        } else {
+            Some(RegexSet::new(&regex_sources).map_err(|e| {
+                Error::validation(format!("compiling regex set: {e}"), "nvisy-pattern")
+            })?)
+        };
+
+        let mut compiled_dicts = Vec::with_capacity(registry.dictionaries().len());
+        let mut all_terms: Vec<String> = Vec::new();
+        for dict in registry.dictionaries() {
+            let term_start = all_terms.len();
+            all_terms.extend(dict.terms.as_slice().iter().cloned());
+            let term_end = all_terms.len();
+            let score = Confidence::try_clamped(dict.score).ok_or_else(|| {
+                Error::validation(
+                    format!("dictionary `{}`: score not finite", dict.name),
+                    "nvisy-pattern",
+                )
+            })?;
+            compiled_dicts.push(CompiledDictionary {
+                name: dict.name.clone(),
+                entity_kind: dict.entity_kind,
+                term_start,
+                term_end,
+                score,
+            });
+        }
+
+        let aho = if all_terms.is_empty() {
+            None
+        } else {
+            Some(
+                AhoCorasick::builder()
+                    .ascii_case_insensitive(false)
+                    .build(&all_terms)
+                    .map_err(|e| {
+                        Error::validation(
+                            format!("compiling dictionary automaton: {e}"),
+                            "nvisy-pattern",
+                        )
+                    })?,
+            )
+        };
+
+        Ok(PatternRecognizer {
+            patterns: compiled_patterns,
+            regex_set,
+            dictionaries: compiled_dicts,
+            aho,
+        })
+    }
+}
+
+#[async_trait]
+impl Recognizer<Text> for PatternRecognizer {
+    async fn recognize(&self, ctx: &CoreContext<TextData>) -> Result<Vec<Entity<Text>>> {
+        let text = ctx.data.text.as_str();
+        let mut entities = Vec::new();
+
+        if let Some(set) = self.regex_set.as_ref() {
+            for pattern_id in set.matches(text).into_iter() {
+                let pat = &self.patterns[pattern_id];
+                for m in pat.regex.find_iter(text) {
+                    if let Some(validator) = pat.validator.as_ref()
+                        && !validator.validate(m.as_str())
+                    {
+                        continue;
+                    }
+                    entities.push(build_pattern_entity(pat, m.start(), m.end()));
+                }
+            }
+        }
+
+        if let Some(aho) = self.aho.as_ref() {
+            for mat in aho.find_iter(text) {
+                let term_id = mat.pattern().as_usize();
+                let Some(dict) = self.dictionary_owning_term(term_id) else {
+                    continue;
+                };
+                entities.push(build_dictionary_entity(dict, mat.start(), mat.end()));
+            }
+        }
+
+        Ok(entities)
+    }
+}
+
+impl PatternRecognizer {
+    fn dictionary_owning_term(&self, term_id: usize) -> Option<&CompiledDictionary> {
+        self.dictionaries
+            .iter()
+            .find(|d| term_id >= d.term_start && term_id < d.term_end)
+    }
+}
+
+fn build_pattern_entity(pat: &CompiledPattern, start: usize, end: usize) -> Entity<Text> {
+    let provenance = TrailProvenance::Pattern(PatternProvenance::Regex {
+        name: pat.name.clone(),
+        regex: Some(pat.raw_regex.clone()),
+        validator: pat.validator.as_ref().map(|_| pat.name.clone()),
+        contextual: false,
+    });
+    let step = TrailStep::recognition(
+        "pattern",
+        pat.score,
+        provenance,
+        format!("pattern `{}` matched", pat.name),
+    );
+    Entity::builder()
+        .with_entity_kind(pat.entity_kind)
+        .with_trail(vec![step])
+        .with_confidence(pat.score)
+        .with_location(Text::new(start, end))
+        .build()
+        .expect("required fields provided")
+}
+
+fn build_dictionary_entity(dict: &CompiledDictionary, start: usize, end: usize) -> Entity<Text> {
+    let provenance = TrailProvenance::Pattern(PatternProvenance::Dictionary {
+        name: dict.name.clone(),
+        contextual: false,
+    });
+    let step = TrailStep::recognition(
+        "pattern",
+        dict.score,
+        provenance,
+        format!("dictionary `{}` matched", dict.name),
+    );
+    Entity::builder()
+        .with_entity_kind(dict.entity_kind)
+        .with_trail(vec![step])
+        .with_confidence(dict.score)
+        .with_location(Text::new(start, end))
+        .build()
+        .expect("required fields provided")
+}

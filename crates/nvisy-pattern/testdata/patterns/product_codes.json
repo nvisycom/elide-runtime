@@ -1,19 +1,6 @@
 {
-  "name": "internal-product-codes",
-  "entity_type": "internal_id",
-  "dictionary": {
-    "name": "product_codes",
-    "confidence": [
-      0.95,
-      0.85,
-      0.55
-    ]
-  },
-  "metadata": {
-    "description": "Synthetic product-code dictionary pattern for engine-extension tests. Per-column confidence: code > full_name > alias.",
-    "version": "0.1.0",
-    "industries": [
-      "internal"
-    ]
-  }
+  "name": "internal-product-code",
+  "entityKind": "internal_id",
+  "regex": "\\b(?:WIDGET-\\d{3}|SPROCKET-\\d{2}|GADGET-X\\d)\\b",
+  "score": 0.9
 }

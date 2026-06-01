@@ -12,7 +12,6 @@ mod engine;
 mod lift;
 mod llm;
 mod ner;
-mod pattern;
 mod plan;
 mod recognizer;
 mod vlm;
@@ -20,7 +19,6 @@ mod vlm;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
-pub use nvisy_pattern::{PatternContext, PatternFilter};
 use tracing::Instrument;
 
 pub use self::config::DetectionConfig;
@@ -32,7 +30,6 @@ pub use self::llm::{
     build_recognizer as build_llm_recognizer,
 };
 pub use self::ner::{NerDetection, NerRecognizer};
-pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::plan::Detection;
 pub use self::recognizer::{ImageRecognizer, TextRecognizer, names};
 pub use self::vlm::{

@@ -1,10 +1,10 @@
 //! Run request types.
 
-use nvisy_engine::ingestion::{ExportFile, ImportFile};
-use nvisy_engine::pipeline::{
+use nvisy_document::phases::ingestion::{ExportFile, ImportFile};
+use nvisy_document::pipeline::{
     DeduplicationParams, Detection, EngineInput, Extraction, Plan, Redaction, RunStatus,
 };
-use nvisy_engine::validation::Validation;
+use nvisy_document::validation::Validation;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;

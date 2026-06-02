@@ -20,15 +20,15 @@
 //! Entities are passed to the LLM by index; the LLM returns those
 //! indices in its verdict.
 //!
-//! [`Entity<Text>`]: nvisy_ontology::entity::Entity
+//! [`Entity<Text>`]: nvisy_core::entity::Entity
 //! [`VerificationOutput`]: crate::agent::base::VerificationOutput
-//! [`Verification`]: nvisy_ontology::entity::TrailStepKind::Verification
+//! [`Verification`]: nvisy_core::entity::TrailStepKind::Verification
 
 mod prompt;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entity, ModelProvenance};
-use nvisy_ontology::modality::Text;
+use nvisy_core::entity::{Entity, ModelProvenance};
+use nvisy_core::modality::Text;
 
 use self::prompt::{NER_VERIFIER_SYSTEM_PROMPT, NerVerifyPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker, VerificationOutput};

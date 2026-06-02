@@ -14,7 +14,7 @@ use nvisy_codec::core::{Handle, Located, LocationStream};
 use nvisy_codec::handler::{Handler, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType, TextFormat};
-use nvisy_ontology::modality::Text;
+use nvisy_core::modality::Text;
 
 use super::redact;
 

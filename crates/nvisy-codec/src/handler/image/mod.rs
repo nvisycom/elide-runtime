@@ -9,7 +9,7 @@
 //!
 //! [`Handle<Image>`]: crate::core::Handle
 
-use nvisy_ontology::modality::Image;
+use nvisy_core::modality::Image;
 
 use crate::core::Codable;
 

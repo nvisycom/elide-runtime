@@ -19,7 +19,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use nvisy_ontology::entity::EntityKind;
+use nvisy_core::entity::EntityKind;
 use serde::{Deserialize, Serialize};
 
 /// Translation table from raw model labels to canonical

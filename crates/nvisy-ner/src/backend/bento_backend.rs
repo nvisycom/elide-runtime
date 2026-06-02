@@ -121,6 +121,6 @@ impl GlinerBackend for BentoBackend {
 /// sees a uniform raw label across backends.
 ///
 /// [`LabelMap`]: crate::recognition::LabelMap
-fn entity_kind_label(kind: nvisy_ontology::entity::EntityKind) -> String {
+fn entity_kind_label(kind: nvisy_core::entity::EntityKind) -> String {
     kind.to_string()
 }

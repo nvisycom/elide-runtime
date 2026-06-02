@@ -14,9 +14,9 @@
 //! [`Tabular`] modality.
 //!
 //! [`Handle<Tabular>`]: crate::core::Handle
-//! [`Tabular`]: nvisy_ontology::modality::Tabular
+//! [`Tabular`]: nvisy_core::modality::Tabular
 
-use nvisy_ontology::modality::Tabular;
+use nvisy_core::modality::Tabular;
 
 use super::TextData;
 use crate::core::{Codable, Handle};
@@ -42,8 +42,6 @@ impl Codable for Tabular {
 /// Implementing this trait is required for every tabular handler that
 /// participates in the importer fan-out.
 ///
-/// [`TabularExtraction::SchemaTyped`]: nvisy_ontology::modality::TabularExtraction::SchemaTyped
-/// [`TabularExtraction::SchemaInferred`]: nvisy_ontology::modality::TabularExtraction::SchemaInferred
 pub trait TabularHandle: Handle<Tabular> {
     /// `true` when the source format carries explicit column headers
     /// or typed schema (CSV with header row, Parquet, XLSX); `false`

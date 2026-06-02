@@ -180,7 +180,7 @@ fn ceil_char_boundary(s: &str, mut pos: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::EntityKind;
+    use nvisy_core::entity::EntityKind;
 
     use super::*;
     use crate::agent::NerHint;

@@ -16,7 +16,7 @@
 //!
 //! [`around`]: Tokens::around
 //! [`lemmas_in`]: Tokens::lemmas_in
-//! [`Entity::location`]: nvisy_ontology::entity::Entity::location
+//! [`Entity::location`]: crate::entity::Entity::location
 //!
 //! The shape is intentionally minimal. POS tags, morphology,
 //! dependency trees, and other heavier features are not part of the

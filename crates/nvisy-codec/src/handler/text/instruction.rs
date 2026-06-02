@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// document) lives on the containing [`Text`] via
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
-/// [`Text`]: nvisy_ontology::modality::Text
+/// [`Text`]: nvisy_core::modality::Text
 /// [`Redactions`]: crate::core::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextRedaction {

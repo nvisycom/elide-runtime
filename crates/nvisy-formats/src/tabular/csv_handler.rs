@@ -10,13 +10,13 @@
 //! intra-cell byte-offset replacements via the shared
 //! [`crate::text::redact::replace_range`] helper.
 //!
-//! [`Tabular`]: nvisy_ontology::modality::Tabular
+//! [`Tabular`]: nvisy_core::modality::Tabular
 
 use nvisy_codec::core::{Handle, Located, LocationStream};
 use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType, SpreadsheetFormat};
-use nvisy_ontology::modality::Tabular;
+use nvisy_core::modality::Tabular;
 
 use crate::text::redact;
 
@@ -230,7 +230,7 @@ impl CsvHandler {
     ///
     /// Returns `None` when the row index is out of range.
     ///
-    /// [`Tabular::row_index`]: nvisy_ontology::modality::Tabular::row_index
+    /// [`Tabular::row_index`]: nvisy_core::modality::Tabular::row_index
     fn resolve_row(&self, row_index: u32) -> Option<(bool, usize)> {
         let data_row = if self.data.headers.is_some() {
             if row_index == 0 {

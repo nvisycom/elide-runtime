@@ -1,7 +1,7 @@
 //! Structured output for the VLM detect pass.
 
-use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::primitive::NormalizedBoundingBox;
+use nvisy_core::entity::EntityKind;
+use nvisy_core::primitive::NormalizedBoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 /// to pixel coordinates using the source image's [`Dimensions`]
 /// before constructing the final [`Entity<Image>`].
 ///
-/// [`Dimensions`]: nvisy_ontology::primitive::Dimensions
-/// [`Entity<Image>`]: nvisy_ontology::entity::Entity
+/// [`Dimensions`]: nvisy_core::primitive::Dimensions
+/// [`Entity<Image>`]: nvisy_core::entity::Entity
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct VlmDetectedEntity {
     /// Specific entity kind.

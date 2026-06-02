@@ -14,10 +14,10 @@
 //! modalities (e.g. PDF for text + image) implements `Handle<M>`
 //! once per modality.
 //!
-//! [`Modality`]: nvisy_ontology::modality::Modality
+//! [`Modality`]: nvisy_core::modality::Modality
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::Modality;
+use nvisy_core::modality::Modality;
 
 use super::{LocationStream, Redactions};
 use crate::handler::Handler;

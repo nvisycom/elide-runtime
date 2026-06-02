@@ -24,11 +24,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
+use nvisy_core::modality::Text;
 use nvisy_core::nlp::RawNerSpan;
+use nvisy_core::primitive::Confidence;
 use nvisy_core::{Context as CoreContext, EntityRecognizer, Result, TextData};
-use nvisy_ontology::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::primitive::Confidence;
 
 use super::config::NerModelConfiguration;
 use crate::backend::{GlinerBackend, GlinerRequest};

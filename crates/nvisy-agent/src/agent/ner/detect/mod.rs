@@ -9,7 +9,7 @@
 //! (responses to per-call hints).
 //!
 //! [`BaseAgent`]: super::BaseAgent
-//! [`Entity<Text>`]: nvisy_ontology::entity::Entity
+//! [`Entity<Text>`]: nvisy_core::entity::Entity
 
 mod build;
 mod localize;
@@ -17,10 +17,10 @@ mod output;
 mod prompt;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{
+use nvisy_core::entity::{
     AnnotationProvenance, Entity, ModelProvenance, TrailProvenance, TrailStep,
 };
-use nvisy_ontology::modality::Text;
+use nvisy_core::modality::Text;
 use uuid::Uuid;
 
 use self::build::build_entities;

@@ -8,12 +8,12 @@
 
 use std::path::{Path, PathBuf};
 
-use nvisy_ontology::entity::{Annotation, LabelAnnotation};
-use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::DocumentType;
+use crate::entity::{Annotation, LabelAnnotation};
+use crate::modality::{Audio, Image, Tabular, Text};
 
 /// Descriptive metadata associated with content.
 ///

@@ -12,10 +12,10 @@ use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use async_trait::async_trait;
+use nvisy_core::entity::{Entity, PatternProvenance, TrailProvenance, TrailStep};
+use nvisy_core::modality::Text;
+use nvisy_core::primitive::Confidence;
 use nvisy_core::{Context as CoreContext, EntityRecognizer, Error, Result, TextData};
-use nvisy_ontology::entity::{Entity, PatternProvenance, TrailProvenance, TrailStep};
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::primitive::Confidence;
 use regex::{Regex, RegexSet};
 
 use super::registry::PatternRegistry;
@@ -31,7 +31,7 @@ use crate::validators::{Validator, ValidatorRegistry};
 /// [`ContextEnhancer`]: crate::ContextEnhancer
 struct CompiledPattern {
     name: String,
-    entity_kind: nvisy_ontology::entity::EntityKind,
+    entity_kind: nvisy_core::entity::EntityKind,
     regex: Regex,
     raw_regex: String,
     score: Confidence,
@@ -43,7 +43,7 @@ struct CompiledPattern {
 /// emission metadata.
 struct CompiledDictionary {
     name: String,
-    entity_kind: nvisy_ontology::entity::EntityKind,
+    entity_kind: nvisy_core::entity::EntityKind,
     /// First term-id (inclusive) for this dictionary inside the
     /// shared automaton.
     term_start: usize,

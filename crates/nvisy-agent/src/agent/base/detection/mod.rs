@@ -14,7 +14,7 @@
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 //! [`VlmAgent`]: crate::agent::vlm::VlmAgent
 
-use nvisy_ontology::entity::EntityKind;
+use nvisy_core::entity::EntityKind;
 use uuid::Uuid;
 
 /// Fallback hint used in prompts when no specific entity types are requested.
@@ -36,7 +36,7 @@ pub struct NerHint {
     /// [`Annotation`]
     /// provenance when the LLM confirms or adjusts this hint.
     ///
-    /// [`Annotation`]: nvisy_ontology::entity::TrailProvenance::Annotation
+    /// [`Annotation`]: nvisy_core::entity::TrailProvenance::Annotation
     pub name: Option<String>,
     /// Uploader-claimed entity kind (optional).
     pub entity_kind: Option<EntityKind>,
@@ -63,7 +63,7 @@ pub struct NerHint {
 /// post-detection filter regardless of detector.
 ///
 /// [`hints`]: Self::hints
-/// [`Hint`]: nvisy_ontology::entity::AnnotationStrength::Hint
+/// [`Hint`]: nvisy_core::entity::AnnotationStrength::Hint
 #[derive(Debug, Clone, Default)]
 pub struct LlmNerContext {
     /// Entity kinds to detect (empty = all).
@@ -117,7 +117,7 @@ pub struct LlmNerVerification {
 /// confidence and lets the engine's calibration map + dedup threshold
 /// shape the surviving set.
 ///
-/// [`Dimensions`]: nvisy_ontology::primitive::Dimensions
+/// [`Dimensions`]: nvisy_core::primitive::Dimensions
 #[derive(Debug, Clone, Default)]
 pub struct VlmDetectContext {
     /// Entity kinds to detect (empty = all).

@@ -11,7 +11,7 @@ use nvisy_codec::core::{Handle, LocationStream};
 use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType, SpreadsheetFormat};
-use nvisy_ontology::modality::Tabular;
+use nvisy_core::modality::Tabular;
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {

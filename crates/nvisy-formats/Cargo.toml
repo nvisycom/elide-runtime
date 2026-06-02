@@ -81,7 +81,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-codec = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
-nvisy-ontology = { workspace = true, features = [] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

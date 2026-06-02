@@ -53,7 +53,7 @@ mod tests {
     use nvisy_codec::core::Handle;
     use nvisy_codec::handler::Handler;
     use nvisy_core::content::{ContentSource, DocumentType};
-    use nvisy_ontology::modality::Text;
+    use nvisy_core::modality::Text;
 
     use super::*;
 

@@ -7,9 +7,9 @@
 //! so the fixtures and shipped regexes can both evolve without
 //! brittle byte-position churn.
 
+use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::modality::Text;
 use nvisy_core::{Context, EntityRecognizer, TextData};
-use nvisy_ontology::entity::{Entity, EntityKind};
-use nvisy_ontology::modality::Text;
 use nvisy_pattern::recognition::{PatternRecognizer, PatternRegistry};
 use nvisy_pattern::shipped;
 

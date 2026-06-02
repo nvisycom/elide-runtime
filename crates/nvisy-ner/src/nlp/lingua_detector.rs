@@ -22,7 +22,7 @@ use std::sync::{Mutex, OnceLock};
 
 use lingua::{IsoCode639_1, Language, LanguageDetector as LinguaInner, LanguageDetectorBuilder};
 use nvisy_core::Result;
-use nvisy_ontology::primitive::{
+use nvisy_core::primitive::{
     Confidence, LanguageDetection, LanguageProvenance, LanguageSpan, LanguageTag,
 };
 

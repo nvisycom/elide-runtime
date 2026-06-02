@@ -12,10 +12,10 @@
 //! [`reset`]: VlmPipeline::reset
 
 use bytes::Bytes;
+use nvisy_core::entity::Entity;
+use nvisy_core::modality::Image;
+use nvisy_core::primitive::Dimensions;
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::Image;
-use nvisy_ontology::primitive::Dimensions;
 
 use crate::agent::vlm::{VerificationCandidate, VlmAgent, VlmVerifyAgent};
 use crate::agent::{AgentConfig, AgentProvider, UsageStats, VlmDetectContext};

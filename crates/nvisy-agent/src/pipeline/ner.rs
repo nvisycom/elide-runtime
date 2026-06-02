@@ -14,9 +14,9 @@
 //! [`NerAgent`]: crate::agent::ner::NerAgent
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 
+use nvisy_core::entity::Entity;
+use nvisy_core::modality::Text;
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::Text;
 
 use crate::agent::ner::{NerAgent, NerVerifyAgent, UnresolvedCandidatePolicy};
 use crate::agent::{AgentConfig, AgentProvider, LlmNerContext, UsageStats};

@@ -5,8 +5,8 @@
 //! confirm a real internal-handoff document yields the custom
 //! entities.
 
+use nvisy_core::entity::EntityKind;
 use nvisy_core::{Context, EntityRecognizer, TextData};
-use nvisy_ontology::entity::EntityKind;
 use nvisy_pattern::recognition::{Dictionary, PatternRecognizer, PatternRegistry, Regex, Terms};
 use nvisy_pattern::shipped;
 

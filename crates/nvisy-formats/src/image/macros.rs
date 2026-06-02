@@ -46,15 +46,15 @@ macro_rules! impl_image_handler {
         }
 
         #[::async_trait::async_trait]
-        impl ::nvisy_codec::core::Handle<::nvisy_ontology::modality::Image> for $handler {
+        impl ::nvisy_codec::core::Handle<::nvisy_core::modality::Image> for $handler {
             fn locations(
                 &self,
-            ) -> ::nvisy_codec::core::LocationStream<'_, ::nvisy_ontology::modality::Image> {
+            ) -> ::nvisy_codec::core::LocationStream<'_, ::nvisy_core::modality::Image> {
                 use ::std::iter;
 
                 let (w, h) = (self.image.width(), self.image.height());
-                let location = ::nvisy_ontology::modality::Image {
-                    bounding_box: ::nvisy_ontology::primitive::BoundingBox {
+                let location = ::nvisy_core::modality::Image {
+                    bounding_box: ::nvisy_core::primitive::BoundingBox {
                         x: 0.0,
                         y: 0.0,
                         width: w as f64,
@@ -71,7 +71,7 @@ macro_rules! impl_image_handler {
 
             async fn read(
                 &self,
-                location: &::nvisy_ontology::modality::Image,
+                location: &::nvisy_core::modality::Image,
             ) -> Option<::nvisy_codec::handler::ImageData> {
                 let bb = &location.bounding_box;
                 let x = bb.x.max(0.0) as u32;
@@ -87,7 +87,7 @@ macro_rules! impl_image_handler {
 
             async fn redact_at(
                 &mut self,
-                location: &::nvisy_ontology::modality::Image,
+                location: &::nvisy_core::modality::Image,
                 redaction: ::nvisy_codec::handler::ImageRedaction,
             ) -> ::std::result::Result<(), ::nvisy_core::Error> {
                 $crate::image::redact::apply(&mut self.image, &redaction, location.bounding_box);

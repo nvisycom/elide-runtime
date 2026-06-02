@@ -12,7 +12,7 @@
 use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::context::Context;
-use nvisy_ontology::entity::EntityKind;
+use nvisy_core::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

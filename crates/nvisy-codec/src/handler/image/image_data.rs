@@ -6,7 +6,7 @@ use derive_more::{From, Into};
 use image::DynamicImage;
 use nvisy_core::Error;
 use nvisy_core::content::ContentData;
-use nvisy_ontology::primitive::Dimensions;
+use nvisy_core::primitive::Dimensions;
 
 /// Opaque wrapper around a decoded image.
 ///

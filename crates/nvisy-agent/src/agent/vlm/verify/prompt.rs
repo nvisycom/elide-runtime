@@ -67,8 +67,8 @@ whichever fields changed: entity_type, value, bbox.";
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::EntityKind;
-    use nvisy_ontology::primitive::BoundingBox;
+    use nvisy_core::entity::EntityKind;
+    use nvisy_core::primitive::BoundingBox;
 
     use super::*;
 

@@ -17,8 +17,8 @@ use nvisy_codec::core::{Handle, Located, LocationStream, Redactions};
 use nvisy_codec::handler::{AudioData, AudioRedaction, Handler, sort_redactions_for_audio};
 use nvisy_core::Error;
 use nvisy_core::content::{AudioFormat, ContentData, ContentSource, DocumentType};
-use nvisy_ontology::modality::Audio;
-use nvisy_ontology::primitive::TimeSpan;
+use nvisy_core::modality::Audio;
+use nvisy_core::primitive::TimeSpan;
 
 const TARGET: &str = "mp3-handler";
 
@@ -106,7 +106,7 @@ impl Handle<Audio> for Mp3Handler {
 mod tests {
     use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::AudioOutput;
-    use nvisy_ontology::primitive::TimeSpan;
+    use nvisy_core::primitive::TimeSpan;
 
     use super::*;
 

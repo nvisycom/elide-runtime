@@ -12,7 +12,7 @@
 //! [`ImageHandler::locations`]: nvisy_codec::handler::ImageHandler::locations
 //! [`ImageHandler::read`]: nvisy_codec::handler::ImageHandler::read
 //! [`ImageHandler::redact`]: nvisy_codec::handler::ImageHandler::redact
-//! [`Image`]: nvisy_ontology::modality::Image
+//! [`Image`]: nvisy_core::modality::Image
 
 use nvisy_core::content::{ContentSource, DocumentType, ImageFormat};
 

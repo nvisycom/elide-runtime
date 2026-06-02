@@ -16,9 +16,9 @@
 //! [`Annotation`]: TrailProvenance::Annotation
 //! [`Model`]: TrailProvenance::Model
 
-use nvisy_ontology::entity::{Entity, TrailStep};
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::primitive::Confidence;
+use nvisy_core::entity::{Entity, TrailStep};
+use nvisy_core::modality::Text;
+use nvisy_core::primitive::Confidence;
 
 use super::localize::LocalizedCandidate;
 

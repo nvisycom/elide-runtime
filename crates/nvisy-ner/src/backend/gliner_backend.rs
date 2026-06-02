@@ -14,9 +14,9 @@
 
 use async_trait::async_trait;
 use nvisy_core::Result;
+use nvisy_core::entity::EntityKind;
 use nvisy_core::nlp::RawNerSpan;
-use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::primitive::LanguageTag;
+use nvisy_core::primitive::LanguageTag;
 use uuid::Uuid;
 
 /// Per-call request handed to a [`GlinerBackend`].

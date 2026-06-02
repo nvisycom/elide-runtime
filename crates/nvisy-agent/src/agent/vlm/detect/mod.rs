@@ -6,8 +6,8 @@
 //! [`Entity<Image>`] values whose trail starts with a recognition
 //! step carrying the VLM's model provenance.
 //!
-//! [`Dimensions`]: nvisy_ontology::primitive::Dimensions
-//! [`Entity<Image>`]: nvisy_ontology::entity::Entity
+//! [`Dimensions`]: nvisy_core::primitive::Dimensions
+//! [`Entity<Image>`]: nvisy_core::entity::Entity
 
 mod output;
 mod prompt;
@@ -16,9 +16,9 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use bytes::Bytes;
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_ontology::modality::Image;
-use nvisy_ontology::primitive::{Confidence, Dimensions};
+use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep};
+use nvisy_core::modality::Image;
+use nvisy_core::primitive::{Confidence, Dimensions};
 use uuid::Uuid;
 
 use self::output::{VlmDetectedEntities, VlmDetectedEntity};
@@ -73,7 +73,7 @@ impl VlmAgent {
     /// them to pixel coordinates using `dims` before constructing
     /// [`Entity<Image>`].
     ///
-    /// [`Entity<Image>`]: nvisy_ontology::entity::Entity
+    /// [`Entity<Image>`]: nvisy_core::entity::Entity
     #[tracing::instrument(
         target = TARGET,
         skip_all,

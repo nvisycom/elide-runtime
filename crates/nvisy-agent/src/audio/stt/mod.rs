@@ -6,8 +6,8 @@
 
 mod provider;
 
+use nvisy_core::entity::ModelProvenance;
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::ModelProvenance;
 #[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
 use schemars::JsonSchema;

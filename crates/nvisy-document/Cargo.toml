@@ -22,16 +22,16 @@ documentation = { workspace = true }
 default = ["tabular", "image", "audio", "rich"]
 test-utils = ["dep:tempfile"]
 
-tabular = ["nvisy-codec/tabular", "nvisy-formats/tabular", "nvisy-toolkit/tabular"]
-image = ["nvisy-codec/image", "nvisy-formats/image", "nvisy-toolkit/image"]
-audio = ["nvisy-codec/audio", "nvisy-formats/audio", "nvisy-toolkit/audio"]
+tabular = ["nvisy-codec/tabular", "nvisy-formats/tabular"]
+image = ["nvisy-codec/image", "nvisy-formats/image"]
+audio = ["nvisy-codec/audio", "nvisy-formats/audio"]
 rich = ["image", "nvisy-codec/rich", "nvisy-formats/rich"]
 
 openai = ["nvisy-agent/openai-gpt", "nvisy-agent/openai-whisper"]
 anthropic = ["nvisy-agent/anthropic-claude"]
 google = ["nvisy-agent/google-gemini"]
 
-bento = ["nvisy-ner/bento", "nvisy-ocr/bento"]
+bento = ["nvisy-toolkit/bento", "nvisy-ner/bento", "nvisy-ocr/bento"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -44,7 +44,7 @@ nvisy-toolkit = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = ["text"] }
 nvisy-formats = { workspace = true, features = ["text"] }
 
-# Detection backends used by the runner
+# Detection + extraction backends used by the phase wiring
 nvisy-ner = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }

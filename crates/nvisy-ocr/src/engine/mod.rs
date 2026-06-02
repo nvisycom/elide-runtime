@@ -6,12 +6,10 @@ use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::document::Block;
-use nvisy_ontology::entity::ModelProvenance;
-use nvisy_ontology::modality::Image;
+use nvisy_core::entity::ModelProvenance;
 use tracing::instrument;
 
-use crate::core::{Backend, Context, ImageInput};
+use crate::core::{Backend, Context, ImageInput, OcrOutput};
 
 const TARGET: &str = "nvisy_ocr::engine";
 
@@ -59,7 +57,7 @@ impl Extractor {
         &self,
         image: &ImageInput,
         ctx: Context<'_>,
-    ) -> Result<Vec<Block<Image>>, Error> {
+    ) -> Result<Vec<OcrOutput>, Error> {
         let blocks = self.backend.run(image, ctx).await?;
         tracing::debug!(
             target: TARGET,
@@ -77,7 +75,7 @@ impl Extractor {
         &self,
         images: &[ImageInput],
         ctx: Context<'_>,
-    ) -> Result<Vec<Block<Image>>, Error> {
+    ) -> Result<Vec<OcrOutput>, Error> {
         let blocks = self.backend.run_batch(images, ctx).await?;
         tracing::debug!(
             target: TARGET,

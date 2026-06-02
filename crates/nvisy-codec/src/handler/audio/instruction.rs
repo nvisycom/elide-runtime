@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// audio id) lives on the containing [`Audio`] via
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
-/// [`Audio`]: nvisy_ontology::modality::Audio
+/// [`Audio`]: nvisy_core::modality::Audio
 /// [`Redactions`]: crate::core::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioRedaction {

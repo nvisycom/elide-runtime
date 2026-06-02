@@ -4,8 +4,8 @@
 //! of surrounding source text so the LLM can re-judge it. The
 //! verdict references entities by the same index.
 
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::Text;
+use nvisy_core::entity::Entity;
+use nvisy_core::modality::Text;
 
 /// Window of source text emitted around each entity (in bytes on
 /// either side of its localized range).
@@ -99,8 +99,8 @@ fn ceil_char_boundary(s: &str, mut pos: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityKind, ModelProvenance, TrailProvenance, TrailStep};
-    use nvisy_ontology::primitive::Confidence;
+    use nvisy_core::entity::{EntityKind, ModelProvenance, TrailProvenance, TrailStep};
+    use nvisy_core::primitive::Confidence;
 
     use super::*;
 

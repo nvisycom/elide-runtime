@@ -18,9 +18,9 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::ingestion::registry::Registry;
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::policy::Policy;
+use nvisy_core::modality::Text;
+use nvisy_document::phases::ingestion::registry::Registry;
+use nvisy_document::policy::Policy;
 
 use super::error::Result;
 use super::request::{NewPolicy, Pagination, PolicyPath};

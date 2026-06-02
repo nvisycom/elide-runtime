@@ -1,8 +1,8 @@
 //! Input types for OCR verification.
 
-use nvisy_ontology::entity::{Entity, EntityKind};
-use nvisy_ontology::modality::Image;
-use nvisy_ontology::primitive::BoundingBox;
+use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::modality::Image;
+use nvisy_core::primitive::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

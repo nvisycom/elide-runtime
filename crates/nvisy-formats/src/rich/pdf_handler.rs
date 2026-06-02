@@ -20,8 +20,8 @@ use nvisy_codec::core::{Handle, Located, LocationStream};
 use nvisy_codec::handler::{Handler, ImageData, ImageRedaction, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType};
-use nvisy_ontology::modality::{Image, Text};
-use nvisy_ontology::primitive::{BoundingBox, Dpi};
+use nvisy_core::modality::{Image, Text};
+use nvisy_core::primitive::{BoundingBox, Dpi};
 
 use super::pdf_render::PdfRenderer;
 use crate::text::redact;
@@ -253,7 +253,7 @@ impl Handle<Image> for RichTextHandler {
 mod tests {
     use futures::StreamExt;
     use nvisy_codec::core::Handle;
-    use nvisy_ontology::modality::Text;
+    use nvisy_core::modality::Text;
 
     use super::*;
 

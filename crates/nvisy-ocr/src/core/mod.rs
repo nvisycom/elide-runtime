@@ -9,15 +9,15 @@
 
 mod context;
 mod input;
+mod output;
 
 use nvisy_core::Error;
 pub use nvisy_core::content::ImageFormat;
-use nvisy_ontology::document::Block;
-use nvisy_ontology::entity::ModelProvenance;
-use nvisy_ontology::modality::Image;
+use nvisy_core::entity::ModelProvenance;
 
 pub use self::context::Context;
 pub use self::input::ImageInput;
+pub use self::output::{OcrBlockKind, OcrOutput, OcrSpan};
 
 /// The OCR backend contract.
 ///
@@ -53,8 +53,8 @@ pub use self::input::ImageInput;
 ///
 /// [`run`]: Self::run
 /// [`run_batch`]: Self::run_batch
-/// [`Span<Image>`]: nvisy_ontology::document::Span
-/// [`ContentSource`]: nvisy_ontology::entity::ContentSource
+/// [`Span<Image>`]: nvisy_document::document::Span
+/// [`ContentSource`]: nvisy_core::entity::ContentSource
 #[async_trait::async_trait]
 pub trait Backend: Send + Sync + 'static {
     /// Backend identity (model / service name + provenance kind).
@@ -65,14 +65,14 @@ pub trait Backend: Send + Sync + 'static {
     /// produced the document.
     ///
     /// [`OcrExtractor`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/extraction/struct.OcrExtractor.html
-    /// [`ImageExtraction::Ocr(_)`]: nvisy_ontology::modality::ImageExtraction::Ocr
+    /// [`ImageExtraction::Ocr(_)`]: nvisy_document::modality::ImageExtraction::Ocr
     fn provenance(&self) -> ModelProvenance;
 
     /// Run OCR on a single image under `ctx`.
-    async fn run(&self, image: &ImageInput, ctx: Context<'_>) -> Result<Vec<Block<Image>>, Error>;
+    async fn run(&self, image: &ImageInput, ctx: Context<'_>) -> Result<Vec<OcrOutput>, Error>;
 
     /// Run OCR on each of `images` under one shared [`Context`],
-    /// concatenating the per-image blocks.
+    /// concatenating the per-image outputs.
     ///
     /// `images` is assumed to be slices of the same source (see
     /// the trait-level docs). The default impl dispatches
@@ -82,11 +82,10 @@ pub trait Backend: Send + Sync + 'static {
         &self,
         images: &[ImageInput],
         ctx: Context<'_>,
-    ) -> Result<Vec<Block<Image>>, Error> {
+    ) -> Result<Vec<OcrOutput>, Error> {
         let pending: Vec<_> = images.iter().map(|img| self.run(img, ctx)).collect();
-        let results: Vec<Result<Vec<Block<Image>>, Error>> =
-            futures::future::join_all(pending).await;
-        let mut merged: Vec<Block<Image>> = Vec::new();
+        let results: Vec<Result<Vec<OcrOutput>, Error>> = futures::future::join_all(pending).await;
+        let mut merged: Vec<OcrOutput> = Vec::new();
         for r in results {
             merged.extend(r?);
         }

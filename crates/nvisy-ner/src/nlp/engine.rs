@@ -17,7 +17,7 @@
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::nlp::{NlpArtifacts, NlpCapabilities};
-use nvisy_ontology::primitive::LanguageTag;
+use nvisy_core::primitive::LanguageTag;
 
 /// Builds [`NlpArtifacts`] for the orchestrator's shared-NLP pass.
 ///

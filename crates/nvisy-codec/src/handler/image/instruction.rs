@@ -1,6 +1,6 @@
 //! Image redaction instruction types.
 
-use nvisy_ontology::primitive::Color;
+use nvisy_core::primitive::Color;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// number, image id) lives on the containing [`Image`] via
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
-/// [`Image`]: nvisy_ontology::modality::Image
+/// [`Image`]: nvisy_core::modality::Image
 /// [`Redactions`]: crate::core::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageRedaction {

@@ -4,11 +4,11 @@
 //! set, and a [`Refinement`]
 //! step is appended only for matches that had a nearby keyword.
 //!
-//! [`Refinement`]: nvisy_ontology::entity::TrailStepKind::Refinement
+//! [`Refinement`]: nvisy_core::entity::TrailStepKind::Refinement
 
 use nvisy_core::context::{Context, ContextEnhancer};
+use nvisy_core::entity::{EntityKind, PatternProvenance, TrailProvenance, TrailStepKind};
 use nvisy_core::{Context as CoreContext, EntityRecognizer, TextData};
-use nvisy_ontology::entity::{EntityKind, PatternProvenance, TrailProvenance, TrailStepKind};
 use nvisy_pattern::recognition::{PatternRecognizer, PatternRegistry, Regex};
 
 #[tokio::test]

@@ -6,7 +6,7 @@
 //! - [`VlmVerifyAgent`] — validates already-detected image
 //!   entities against the source image.
 //!
-//! [`Dimensions`]: nvisy_ontology::primitive::Dimensions
+//! [`Dimensions`]: nvisy_core::primitive::Dimensions
 
 mod detect;
 mod verify;

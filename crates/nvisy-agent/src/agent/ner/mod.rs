@@ -17,7 +17,7 @@
 //! candidates it can't uniquely place in the source.
 //!
 //! [`hints`]: crate::agent::LlmNerContext::hints
-//! [`Entity<Text>`]: nvisy_ontology::entity::Entity
+//! [`Entity<Text>`]: nvisy_core::entity::Entity
 
 mod detect;
 mod verify;

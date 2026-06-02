@@ -19,11 +19,9 @@
 
 use bentoml::prelude::*;
 use nvisy_core::Error;
-use nvisy_ontology::document::Block;
-use nvisy_ontology::entity::ModelProvenance;
-use nvisy_ontology::modality::Image;
+use nvisy_core::entity::ModelProvenance;
 
-use crate::core::{Backend, Context, ImageInput};
+use crate::core::{Backend, Context, ImageInput, OcrOutput};
 
 /// Parameters for [`BentoBackend`].
 #[derive(Debug, Clone)]
@@ -82,11 +80,7 @@ impl Backend for BentoBackend {
         ModelProvenance::new("bento-ocr")
     }
 
-    async fn run(
-        &self,
-        _image: &ImageInput,
-        _ctx: Context<'_>,
-    ) -> Result<Vec<Block<Image>>, Error> {
+    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Vec<OcrOutput>, Error> {
         Err(Error::runtime(
             "BentoBackend is scaffolded; the inference-ocr wire \
              contract has not been finalised yet — see \

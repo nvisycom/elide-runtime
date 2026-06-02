@@ -29,8 +29,8 @@
 //!
 //! [`EntityRecognizer<Text>`]: crate::EntityRecognizer
 //! [`NlpArtifacts`]: crate::nlp::NlpArtifacts
-//! [`TrailStep`]: nvisy_ontology::entity::TrailStep
-//! [`Refinement`]: nvisy_ontology::entity::TrailStepKind::Refinement
+//! [`TrailStep`]: crate::entity::TrailStep
+//! [`Refinement`]: crate::entity::TrailStepKind::Refinement
 //! [`Regex.context`]: https://docs.rs/nvisy-pattern/latest/nvisy_pattern/recognition/struct.Regex.html#structfield.context
 //! [`Dictionary.context`]: https://docs.rs/nvisy-pattern/latest/nvisy_pattern/recognition/struct.Dictionary.html#structfield.context
 

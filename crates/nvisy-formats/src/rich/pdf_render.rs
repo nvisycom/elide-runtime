@@ -12,7 +12,7 @@ use std::sync::LazyLock;
 
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Error;
-use nvisy_ontology::primitive::Dpi;
+use nvisy_core::primitive::Dpi;
 use pdfium_render::prelude::*;
 
 /// Dedicated single-thread pool for PDFium operations.

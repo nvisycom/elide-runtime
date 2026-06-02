@@ -7,7 +7,7 @@
 //! [`BentoBackend`]: super::BentoBackend
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 
-use nvisy_ontology::entity::EntityKind;
+use nvisy_core::entity::EntityKind;
 use serde::{Deserialize, Serialize};
 
 /// Outer batch wrapper. Single- and multi-text calls share the

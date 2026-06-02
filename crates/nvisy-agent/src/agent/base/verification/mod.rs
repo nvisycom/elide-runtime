@@ -15,9 +15,9 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::primitive::{BoundingBox, Confidence};
+use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
+use nvisy_core::modality::Text;
+use nvisy_core::primitive::{BoundingBox, Confidence};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -170,7 +170,7 @@ pub struct VerificationApplyOutcome {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::TrailStepKind;
+    use nvisy_core::entity::TrailStepKind;
 
     use super::*;
 

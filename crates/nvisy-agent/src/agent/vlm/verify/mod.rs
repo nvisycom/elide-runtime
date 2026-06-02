@@ -15,8 +15,8 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use bytes::Bytes;
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entity, ModelProvenance};
-use nvisy_ontology::modality::Image;
+use nvisy_core::entity::{Entity, ModelProvenance};
+use nvisy_core::modality::Image;
 use uuid::Uuid;
 
 pub use self::input::{ProposedEntity, VerificationCandidate};

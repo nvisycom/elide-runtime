@@ -10,7 +10,7 @@
 //!
 //! # Layering
 //!
-//! - [`ModalityData`] extends [`nvisy_ontology::modality::Modality`]
+//! - [`ModalityData`] extends [`crate::modality::Modality`]
 //!   with an associated [`Data`] type — the
 //!   modality-specific payload (text bytes, image bytes + dims, …)
 //!   recognizers actually scan.
@@ -20,20 +20,20 @@
 //!   for one call lives here.
 //! - [`EntityRecognizer<M>`] takes `&Context<M::Data>` and emits entities.
 //!
-//! [`Entity<M>`]: nvisy_ontology::entity::Entity
+//! [`Entity<M>`]: crate::entity::Entity
 //! [`Data`]: ModalityData::Data
 
 use std::sync::Arc;
 
 use bytes::Bytes;
 use hipstr::HipStr;
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::{Image, Modality, Text};
-use nvisy_ontology::primitive::{Dimensions, LanguageTag};
 use uuid::Uuid;
 
 use crate::Result;
+use crate::entity::Entity;
+use crate::modality::{Image, Modality, Text};
 use crate::nlp::NlpArtifacts;
+use crate::primitive::{Dimensions, LanguageTag};
 
 /// Extension of [`Modality`] that adds the per-call payload type
 /// recognizers consume. Modalities that don't (yet) have recognizers

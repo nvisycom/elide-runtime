@@ -3,7 +3,7 @@
 //!
 //! [`Backend`]: super::Backend
 
-use nvisy_ontology::primitive::LanguageTag;
+use nvisy_core::primitive::LanguageTag;
 use uuid::Uuid;
 
 /// Per-call hints passed alongside the input image to a [`Backend`].

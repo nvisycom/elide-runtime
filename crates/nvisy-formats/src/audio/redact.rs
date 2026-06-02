@@ -15,7 +15,7 @@
 //! [`Handle::redact`]: nvisy_codec::core::Handle::redact
 
 use nvisy_codec::handler::{AudioOutput, AudioRedaction};
-use nvisy_ontology::primitive::TimeSpan;
+use nvisy_core::primitive::TimeSpan;
 
 const TARGET: &str = "nvisy_formats::audio";
 

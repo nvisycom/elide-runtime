@@ -11,7 +11,7 @@
 //! adapters re-clamp to [`Confidence`]
 //! and may demote via the configured `low_confidence_score_multiplier`.
 //!
-//! [`Confidence`]: nvisy_ontology::primitive::Confidence
+//! [`Confidence`]: crate::primitive::Confidence
 
 use std::ops::Range;
 
@@ -22,7 +22,7 @@ use std::ops::Range;
 /// Coordinate space is byte offsets into the same source text the
 /// surrounding [`NlpArtifacts`] covers.
 ///
-/// [`EntityKind`]: nvisy_ontology::entity::EntityKind
+/// [`EntityKind`]: crate::entity::EntityKind
 /// [`NlpArtifacts`]: super::NlpArtifacts
 #[derive(Debug, Clone, PartialEq)]
 pub struct RawNerSpan {

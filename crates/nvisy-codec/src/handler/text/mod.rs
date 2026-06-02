@@ -8,7 +8,7 @@
 //!
 //! [`Handle<Text>`]: crate::core::Handle
 
-use nvisy_ontology::modality::Text;
+use nvisy_core::modality::Text;
 
 use crate::core::Codable;
 

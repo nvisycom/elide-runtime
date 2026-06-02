@@ -12,12 +12,12 @@
 //! [`Asserted`].
 //!
 //! [`languages`]: nvisy_core::nlp::NlpArtifacts::languages
-//! [`Asserted`]: nvisy_ontology::primitive::LanguageProvenance::Asserted
+//! [`Asserted`]: nvisy_core::primitive::LanguageProvenance::Asserted
 
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::nlp::{NlpArtifacts, NlpCapabilities};
-use nvisy_ontology::primitive::{LanguageDetection, LanguageProvenance, LanguageTag};
+use nvisy_core::primitive::{LanguageDetection, LanguageProvenance, LanguageTag};
 
 use super::engine::NlpEngine;
 use super::lingua_detector::LinguaDetector;

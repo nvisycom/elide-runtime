@@ -6,9 +6,8 @@
 //!
 //! [module docs]: super
 
-use nvisy_ontology::primitive::LanguageDetection;
-
 use super::{RawNerSpan, StopwordSet, Tokens};
+use crate::primitive::LanguageDetection;
 
 /// One scan's worth of shared NLP output.
 ///
@@ -32,7 +31,7 @@ use super::{RawNerSpan, StopwordSet, Tokens};
 /// [`NlpCapabilities`]: super::NlpCapabilities
 /// [`tokens`]: Self::tokens
 /// [`ner`]: Self::ner
-/// [`Entity::location`]: nvisy_ontology::entity::Entity::location
+/// [`Entity::location`]: crate::entity::Entity::location
 #[derive(Debug, Clone, Default)]
 pub struct NlpArtifacts {
     /// Languages the engine resolved for the input. Empty when the

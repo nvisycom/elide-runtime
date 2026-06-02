@@ -11,9 +11,9 @@
 
 use std::collections::HashSet;
 
+use nvisy_core::entity::EntityKind;
 use nvisy_core::nlp::{AggregationStrategy, AlignmentMode};
-use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::primitive::Confidence;
+use nvisy_core::primitive::Confidence;
 
 use super::label_map::LabelMap;
 

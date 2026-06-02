@@ -8,13 +8,13 @@
 //!
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 //! [`base::verification`]: crate::agent::base::verification
-//! [`Image`]: nvisy_ontology::modality::Image
+//! [`Image`]: nvisy_core::modality::Image
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_ontology::modality::Image;
-use nvisy_ontology::primitive::Confidence;
+use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep};
+use nvisy_core::modality::Image;
+use nvisy_core::primitive::Confidence;
 
 pub use crate::agent::base::{VerificationOutput, VerificationStatus, VerifiedEntity};
 
@@ -54,7 +54,7 @@ pub(super) fn merge(
 /// step is appended to the entity's trail with the verifier's
 /// provenance.
 ///
-/// [`Verification`]: nvisy_ontology::entity::TrailStepKind::Verification
+/// [`Verification`]: nvisy_core::entity::TrailStepKind::Verification
 fn apply(
     verified: VerifiedEntity,
     mut entity: Entity<Image>,

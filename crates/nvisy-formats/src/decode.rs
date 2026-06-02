@@ -51,11 +51,11 @@ use nvisy_core::content::TextFormat;
 #[cfg(feature = "docx")]
 use nvisy_core::content::WordFormat;
 #[cfg(feature = "internal_audio")]
-use nvisy_ontology::modality::Audio;
+use nvisy_core::modality::Audio;
 #[cfg(feature = "internal_image")]
-use nvisy_ontology::modality::Image;
+use nvisy_core::modality::Image;
 #[cfg(feature = "internal_text")]
-use nvisy_ontology::modality::Text;
+use nvisy_core::modality::Text;
 
 /// Decode [`Content`] into a [`DocumentHandle`] using default parameters.
 ///

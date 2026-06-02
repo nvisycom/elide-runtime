@@ -2,13 +2,13 @@
 //! any [`Entity<Text>`] regardless of which recognizer produced it.
 
 use derive_builder::{Builder, UninitializedFieldError};
-use nvisy_ontology::entity::{Entity, TrailStep};
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::primitive::Confidence;
 
 use super::matcher::{KeywordMatcher, SubstringMatcher};
 use super::registry::ContextRegistry;
+use crate::entity::{Entity, TrailStep};
+use crate::modality::Text;
 use crate::nlp::NlpArtifacts;
+use crate::primitive::Confidence;
 
 /// Post-recognition enhancer that boosts entity confidence when
 /// keywords declared by the source recognizer appear near the match.
@@ -97,7 +97,7 @@ impl ContextEnhancer {
     /// declared context has an empty keyword list) pass through
     /// unchanged.
     ///
-    /// [`Refinement`]: nvisy_ontology::entity::TrailStepKind::Refinement
+    /// [`Refinement`]: crate::entity::TrailStepKind::Refinement
     pub fn enhance(
         &self,
         entities: &mut [Entity<Text>],
@@ -226,13 +226,12 @@ impl From<UninitializedFieldError> for ContextEnhancerBuilderError {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{
-        EntityKind, ModelProvenance, PatternProvenance, TrailProvenance, TrailStepKind,
-    };
-    use nvisy_ontology::modality::Text;
-
     use super::*;
     use crate::context::Context;
+    use crate::entity::{
+        EntityKind, ModelProvenance, PatternProvenance, TrailProvenance, TrailStepKind,
+    };
+    use crate::modality::Text;
 
     fn pattern_entity(name: &str, span: std::ops::Range<usize>) -> Entity<Text> {
         let confidence = Confidence::new(0.6).unwrap();

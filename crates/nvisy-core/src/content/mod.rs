@@ -17,8 +17,6 @@ mod document_format;
 mod document_type;
 mod encoding;
 
-pub use nvisy_ontology::entity::ContentSource;
-
 pub use self::bundle::Content;
 pub use self::content_data::ContentData;
 pub use self::content_metadata::{AnyAnnotations, ContentMetadata};
@@ -27,3 +25,4 @@ pub use self::document_format::{
 };
 pub use self::document_type::DocumentType;
 pub use self::encoding::TextEncoding;
+pub use crate::entity::ContentSource;

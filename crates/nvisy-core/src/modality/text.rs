@@ -1,0 +1,113 @@
+//! Text modality coordinate type.
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+use super::{Modality, Overlap};
+
+/// Half-open `[start, end)` byte range around a [`Text`] location,
+/// used for the optional surrounding context window. The newtype
+/// makes the "both endpoints or none" invariant unrepresentable —
+/// the previous twin-`Option` fields allowed a `(Some, None)`
+/// half-state with no meaningful semantics.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextWindow {
+    /// Byte offset where the context window starts.
+    pub start: usize,
+    /// Byte offset where the context window ends (exclusive).
+    pub end: usize,
+}
+
+impl ContextWindow {
+    /// Construct a window covering `start..end`.
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+}
+
+/// A range within text content.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Text {
+    /// Byte or character offset where the range starts.
+    pub start: usize,
+    /// Byte or character offset where the range ends.
+    pub end: usize,
+    /// Surrounding context window for redaction, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<ContextWindow>,
+    /// 1-based page number.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_number: Option<u32>,
+}
+
+impl Text {
+    /// Create a [`Text`] covering `start..end` with all optional
+    /// fields unset.
+    pub fn new(start: usize, end: usize) -> Self {
+        Self {
+            start,
+            end,
+            context: None,
+            page_number: None,
+        }
+    }
+
+    /// Byte length of the range (`end - start`).
+    pub fn len(&self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+
+    /// Whether the range is empty (zero length).
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl Modality for Text {}
+
+impl Overlap for Text {
+    /// Two text ranges overlap only when they share a page (or both
+    /// have `page_number: None`) and their byte ranges intersect.
+    /// Without the page gate, two ranges on different pages of the
+    /// same document that happen to share byte offsets would
+    /// false-positive as overlapping.
+    fn overlaps(&self, other: &Self) -> bool {
+        self.page_number == other.page_number && self.start < other.end && other.start < self.end
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn len_and_is_empty() {
+        assert_eq!(Text::new(0, 10).len(), 10);
+        assert!(!Text::new(0, 10).is_empty());
+        assert!(Text::new(5, 5).is_empty());
+    }
+
+    #[test]
+    fn overlap_intersecting() {
+        assert!(Text::new(0, 10).overlaps(&Text::new(5, 15)));
+    }
+
+    #[test]
+    fn overlap_contained() {
+        assert!(Text::new(0, 10).overlaps(&Text::new(2, 5)));
+    }
+
+    #[test]
+    fn no_overlap_adjacent() {
+        assert!(!Text::new(0, 5).overlaps(&Text::new(5, 10)));
+    }
+
+    #[test]
+    fn no_overlap_disjoint() {
+        assert!(!Text::new(0, 5).overlaps(&Text::new(10, 15)));
+    }
+}

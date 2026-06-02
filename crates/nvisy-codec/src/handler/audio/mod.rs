@@ -14,7 +14,7 @@
 
 use std::cmp::Reverse;
 
-use nvisy_ontology::modality::Audio;
+use nvisy_core::modality::Audio;
 
 use crate::core::{Codable, Redactions};
 

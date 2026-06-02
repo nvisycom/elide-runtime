@@ -6,13 +6,13 @@ use derive_more::From;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType};
 #[cfg(feature = "audio")]
-use nvisy_ontology::modality::Audio;
+use nvisy_core::modality::Audio;
 #[cfg(feature = "image")]
-use nvisy_ontology::modality::Image;
+use nvisy_core::modality::Image;
 #[cfg(feature = "tabular")]
-use nvisy_ontology::modality::Tabular;
+use nvisy_core::modality::Tabular;
 #[cfg(feature = "text")]
-use nvisy_ontology::modality::Text;
+use nvisy_core::modality::Text;
 
 use crate::core::{Handle, LocationStream, Redactions};
 use crate::handler::Handler;

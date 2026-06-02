@@ -1,6 +1,6 @@
 //! Structured output types for NER candidate detection.
 
-use nvisy_ontology::entity::EntityKind;
+use nvisy_core::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

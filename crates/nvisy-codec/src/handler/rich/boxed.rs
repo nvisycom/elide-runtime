@@ -13,7 +13,7 @@
 //! [`Handle<Image>`]: crate::core::Handle
 //! [`DocumentHandle::Rich`]: crate::document::DocumentHandle::Rich
 
-use nvisy_ontology::modality::{Image, Text};
+use nvisy_core::modality::{Image, Text};
 
 use crate::core::Handle;
 

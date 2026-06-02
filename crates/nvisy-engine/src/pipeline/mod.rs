@@ -18,6 +18,7 @@ mod config;
 mod document_pipeline;
 mod engine;
 mod orchestrator;
+mod phases;
 mod run;
 mod runs;
 
@@ -31,6 +32,9 @@ pub use self::config::{
     RedactionConfig, ResourceLimits, RuntimeConfig, TabularPlan, TextPlan,
 };
 pub use self::engine::{Engine, EngineInput, EngineOutput};
+pub use self::phases::{
+    DeduplicationPhase, DetectionPhase, ExtractionPhase, RedactionPhase, ValidationPhase,
+};
 pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
     RunStatus,

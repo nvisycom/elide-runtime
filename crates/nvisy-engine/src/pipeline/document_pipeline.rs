@@ -18,12 +18,10 @@
 use nvisy_core::{Error, Result};
 
 use super::engine::EngineInput;
+use super::phases::{
+    DeduplicationPhase, DetectionPhase, ExtractionPhase, RedactionPhase, ValidationPhase,
+};
 use crate::core::{DocumentTree, RunContext};
-use crate::deduplication::DeduplicationPhase;
-use crate::detection::DetectionPhase;
-use crate::extraction::ExtractionPhase;
-use crate::redaction::RedactionPhase;
-use crate::validation::ValidationPhase;
 
 const TARGET: &str = "nvisy_engine::pipeline::document_pipeline";
 

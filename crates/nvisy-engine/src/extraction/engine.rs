@@ -113,8 +113,8 @@ impl ExtractionEngine {
     /// per-modality populator on `self`. Called once per node by
     /// [`ExtractionPhase::apply`].
     ///
-    /// [`ExtractionPhase::apply`]: super::ExtractionPhase::apply
-    pub(super) async fn dispatch(
+    /// [`ExtractionPhase::apply`]: crate::pipeline::ExtractionPhase::apply
+    pub(crate) async fn dispatch(
         &self,
         node: NodeMut<'_>,
         handle: &SharedHandle,

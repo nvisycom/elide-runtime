@@ -87,21 +87,21 @@ impl RunContext {
 
     /// Pre-built extraction engine borrowed by [`ExtractionPhase`].
     ///
-    /// [`ExtractionPhase`]: crate::extraction::ExtractionPhase
+    /// [`ExtractionPhase`]: crate::pipeline::ExtractionPhase
     pub(crate) fn extraction_engine(&self) -> &ExtractionEngine {
         &self.extraction_engine
     }
 
     /// Pre-built recognizer registry borrowed by [`DetectionPhase`].
     ///
-    /// [`DetectionPhase`]: crate::detection::DetectionPhase
+    /// [`DetectionPhase`]: crate::pipeline::DetectionPhase
     pub(crate) fn recognizer_registry(&self) -> &RecognizerRegistry {
         &self.recognizer_registry
     }
 
     /// Server-wide redaction defaults the [`RedactionPhase`] reads.
     ///
-    /// [`RedactionPhase`]: crate::redaction::RedactionPhase
+    /// [`RedactionPhase`]: crate::pipeline::RedactionPhase
     pub(crate) fn redaction_config(&self) -> &RedactionConfig {
         &self.redaction_config
     }

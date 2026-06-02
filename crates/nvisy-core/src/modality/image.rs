@@ -1,10 +1,12 @@
-//! Image modality coordinate type.
+//! Image modality coordinate type plus the [`ImageExtraction`]
+//! provenance enum recording how the document was produced.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{Modality, Overlap};
+use crate::entity::ModelProvenance;
 use crate::primitive::{BoundingBox, Polygon};
 
 /// A region within image content.
@@ -60,4 +62,38 @@ impl Overlap for Image {
             && self.page_number == other.page_number
             && self.bounding_box.overlaps(&other.bounding_box)
     }
+}
+
+/// How a [`Document<Image>`]'s content was produced.
+///
+/// Every image-modality document is the output of *some* recognition
+/// pass over pixels; the variant names which pass ran. [`Pending`] is
+/// the importer-time placeholder before any extractor has run; the
+/// extractor stage replaces it with the concrete variant carrying the
+/// backend's [`ModelProvenance`].
+///
+/// [`Document<Image>`]: # "carrier owned by nvisy-document"
+/// [`Pending`]: Self::Pending
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum ImageExtraction {
+    /// No extractor has run yet. Importer stamps this; the extractor
+    /// stage replaces it once an OCR / scene-text / object-detection /
+    /// layout backend produces blocks.
+    Pending,
+    /// Optical character recognition: raster text (printed or
+    /// handwritten) converted into machine-readable characters.
+    Ocr(ModelProvenance),
+    /// Scene text detection: text embedded in natural images (signs,
+    /// screens, whiteboards) localised prior to OCR.
+    SceneText(ModelProvenance),
+    /// Object detection: regions of interest located and labelled
+    /// within an image or video frame.
+    ObjectDetection(ModelProvenance),
+    /// Document layout analysis: structural regions (headers, footers,
+    /// signature blocks, form fields) identified by spatial
+    /// arrangement rather than content.
+    LayoutAnalysis(ModelProvenance),
 }

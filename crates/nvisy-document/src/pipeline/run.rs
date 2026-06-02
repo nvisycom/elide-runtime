@@ -14,6 +14,7 @@ use std::sync::Arc;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 use nvisy_toolkit::detection::RecognizerRegistry;
+use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -23,7 +24,6 @@ use super::orchestrator::Orchestrator;
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::core::{PolicyStore, RunContext, SharedData};
-use crate::phases::extraction::ExtractionEngine;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::ingestion::registry::Registry;
 use crate::pipeline::RedactionConfig;
@@ -42,7 +42,7 @@ pub(super) struct Pipeline {
     key_provider: Option<SharedKeyProvider>,
     runs: RunState,
     base_config: RuntimeConfig,
-    extraction_engine: Arc<ExtractionEngine>,
+    extraction_engine: Arc<ExtractorRegistry>,
     recognizer_registry: Arc<RecognizerRegistry>,
     redaction_config: Arc<RedactionConfig>,
 }
@@ -54,7 +54,7 @@ impl Pipeline {
         key_provider: Option<SharedKeyProvider>,
         runs: RunState,
         base_config: RuntimeConfig,
-        extraction_engine: Arc<ExtractionEngine>,
+        extraction_engine: Arc<ExtractorRegistry>,
         recognizer_registry: Arc<RecognizerRegistry>,
         redaction_config: Arc<RedactionConfig>,
     ) -> Self {

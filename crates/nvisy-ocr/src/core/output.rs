@@ -16,9 +16,9 @@ use nvisy_core::primitive::Confidence;
 
 /// Backend-shaped recognition output. One per recognized text region.
 ///
-/// Mirrors the data a [`Block<Image>`] carries minus the wrapping
-/// container: the per-modality block payload (text + region) plus
-/// the per-word spans the recognizer emitted.
+/// Mirrors the data a document-side `Block<Image>` carries minus the
+/// wrapping container: the per-modality block payload (text + region)
+/// plus the per-word spans the recognizer emitted.
 #[derive(Debug, Clone)]
 pub struct OcrOutput {
     /// The image-modality block payload — recognized text + bounding region.

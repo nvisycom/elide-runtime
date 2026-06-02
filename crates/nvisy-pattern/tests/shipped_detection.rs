@@ -9,26 +9,19 @@
 
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::modality::Text;
-use nvisy_core::{Context, EntityRecognizer, TextData};
-use nvisy_pattern::recognition::{PatternRecognizer, PatternRegistry};
-use nvisy_pattern::shipped;
+use nvisy_core::{EntityRecognizer, RecognizerInput, TextData};
+use nvisy_pattern::{PatternRecognizer, PatternRegistry};
 
 fn shipped_recognizer() -> PatternRecognizer {
-    let registry = shipped::patterns::all()
-        .into_iter()
-        .fold(PatternRegistry::new(), PatternRegistry::with_pattern);
-    let registry = shipped::dictionaries::all()
-        .into_iter()
-        .fold(registry, PatternRegistry::with_dictionary);
     PatternRecognizer::builder()
-        .with_registry(registry)
+        .with_registry(PatternRegistry::builtin())
         .build()
         .expect("shipped recognizer builds")
 }
 
 async fn scan(text: &str) -> (String, Vec<Entity<Text>>) {
     let recognizer = shipped_recognizer();
-    let ctx = Context::new(TextData::new(text.to_owned()));
+    let ctx = RecognizerInput::new(TextData::new(text.to_owned()));
     let entities = recognizer.recognize(&ctx).await.expect("shipped recognize");
     (text.to_owned(), entities)
 }

@@ -16,6 +16,7 @@
 //!    from environment variables.
 //! 2. Call [`RuntimeConfig::validate`] to check structural constraints.
 
+mod detection;
 mod engine;
 mod extraction;
 mod redaction;
@@ -23,12 +24,10 @@ mod redaction;
 use std::num::NonZeroUsize;
 
 pub use nvisy_toolkit::deduplication::DeduplicationParams;
-pub use nvisy_toolkit::detection::{
-    Detection, DetectionConfig, NerBackend, NerDetection, PatternDetection,
-};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
+pub use self::detection::{Detection, DetectionConfig, NerBackend, NerDetection, PatternDetection};
 pub use self::engine::{EngineConfig, ResourceLimits};
 #[cfg(feature = "image")]
 pub use self::extraction::OcrExtractorConfig;

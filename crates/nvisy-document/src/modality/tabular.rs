@@ -1,10 +1,11 @@
 //! Tabular-modality document shape: [`TabularBlock`],
 //! [`TabularMetadata`], [`ColumnHeader`].
 
+use nvisy_core::modality::TabularExtraction;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{ModalityBlock, TabularExtraction};
+use super::ModalityBlock;
 
 /// Per-modality block payload for [`Tabular`]. Today only [`Row`] —
 /// carries the flat row text and its index. Per-cell source spans

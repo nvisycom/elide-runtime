@@ -1,10 +1,12 @@
-//! Audio modality coordinate type.
+//! Audio modality coordinate type plus the [`AudioExtraction`]
+//! provenance enum recording how the document was produced.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{Modality, Overlap};
+use crate::entity::ModelProvenance;
 use crate::primitive::TimeSpan;
 
 /// A time interval within audio content.
@@ -49,4 +51,28 @@ impl Overlap for Audio {
             && self.speaker_id == other.speaker_id
             && self.time_span.overlaps(&other.time_span)
     }
+}
+
+/// How a [`Document<Audio>`]'s content was produced.
+///
+/// [`Pending`] is the importer-time placeholder before any extractor
+/// has run; the extractor stage replaces it with the concrete variant
+/// carrying the backend's [`ModelProvenance`].
+///
+/// [`Document<Audio>`]: # "carrier owned by nvisy-document"
+/// [`Pending`]: Self::Pending
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum AudioExtraction {
+    /// No extractor has run yet. Importer stamps this; the STT or
+    /// diarization backend replaces it once samples are processed.
+    Pending,
+    /// Speech-to-text transcription: audio samples converted into
+    /// text segments.
+    Transcription(ModelProvenance),
+    /// Speaker diarization: audio segmented by speaker identity
+    /// before recognition attributes utterances.
+    Diarization(ModelProvenance),
 }

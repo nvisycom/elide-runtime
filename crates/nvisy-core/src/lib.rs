@@ -5,13 +5,15 @@
 pub mod content;
 pub mod context;
 pub mod entity;
+pub mod extraction;
 pub mod modality;
 pub mod nlp;
 pub mod primitive;
 pub mod recognition;
-mod value_at;
-pub use self::recognition::{Context, EntityRecognizer, ImageData, ModalityData, TextData};
-pub use self::value_at::ValueAt;
+pub use self::extraction::{Extractor, ValueAt};
+pub use self::recognition::{
+    AudioData, EntityRecognizer, ImageData, ModalityData, RecognizerInput, TextData,
+};
 
 #[cfg(feature = "http")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http")))]

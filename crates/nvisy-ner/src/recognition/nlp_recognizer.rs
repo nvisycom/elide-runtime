@@ -9,7 +9,7 @@
 //! supported-kind list, and emits entities. Mirrors the
 //! "adapter recognizer" role Presidio's `SpacyRecognizer` plays.
 //!
-//! Requires the [`Context<TextData>`] to
+//! Requires the [`RecognizerInput<TextData>`] to
 //! carry [`artifacts`] — the
 //! orchestrator is expected to run an `NlpEngine` once per scan
 //! and stamp the result on the context before fanning out to
@@ -18,7 +18,7 @@
 //! [`NlpArtifacts::ner`]: nvisy_core::nlp::NlpArtifacts::ner
 //! [`NlpEngine`]: crate::nlp::NlpEngine
 //! [`LabelMap`]: super::LabelMap
-//! [`Context<TextData>`]: nvisy_core::Context
+//! [`RecognizerInput<TextData>`]: nvisy_core::RecognizerInput
 //! [`artifacts`]: nvisy_core::TextData::artifacts
 
 use async_trait::async_trait;
@@ -26,7 +26,7 @@ use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, T
 use nvisy_core::modality::Text;
 use nvisy_core::nlp::RawNerSpan;
 use nvisy_core::primitive::Confidence;
-use nvisy_core::{Context as CoreContext, EntityRecognizer, Error, Result, TextData};
+use nvisy_core::{EntityRecognizer, Error, RecognizerInput, Result, TextData};
 
 use super::config::NerModelConfiguration;
 
@@ -110,7 +110,7 @@ impl NlpRecognizer {
 
 #[async_trait]
 impl EntityRecognizer<Text> for NlpRecognizer {
-    async fn recognize(&self, ctx: &CoreContext<TextData>) -> Result<Vec<Entity<Text>>> {
+    async fn recognize(&self, ctx: &RecognizerInput<TextData>) -> Result<Vec<Entity<Text>>> {
         let artifacts = ctx.data.artifacts.as_ref().ok_or_else(|| {
             Error::validation(
                 "NlpRecognizer requires NlpArtifacts on TextData (run an NlpEngine first)",
@@ -156,7 +156,7 @@ mod tests {
             NerModelConfiguration::default(),
         );
         let artifacts = artifacts_with_one_span("person_name", 0.9);
-        let ctx = CoreContext::new(TextData::new("Alice").with_artifacts(artifacts));
+        let ctx = RecognizerInput::new(TextData::new("Alice").with_artifacts(artifacts));
         let out = rec.recognize(&ctx).await.unwrap();
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].entity_kind, EntityKind::PersonName);
@@ -170,7 +170,7 @@ mod tests {
             NerModelConfiguration::default(),
         );
         let artifacts = artifacts_with_one_span("address", 0.9);
-        let ctx = CoreContext::new(TextData::new("123 Main St").with_artifacts(artifacts));
+        let ctx = RecognizerInput::new(TextData::new("123 Main St").with_artifacts(artifacts));
         let out = rec.recognize(&ctx).await.unwrap();
         assert!(out.is_empty());
     }
@@ -181,7 +181,8 @@ mod tests {
         let rec = NlpRecognizer::new("ner", vec![EntityKind::PersonName], config);
         let mut artifacts = NlpArtifacts::default();
         artifacts.ner.push(RawNerSpan::new("misc", 0.9, 0..5));
-        let ctx = CoreContext::new(TextData::new("anything").with_artifacts(Arc::new(artifacts)));
+        let ctx =
+            RecognizerInput::new(TextData::new("anything").with_artifacts(Arc::new(artifacts)));
         assert!(rec.recognize(&ctx).await.unwrap().is_empty());
     }
 
@@ -192,7 +193,7 @@ mod tests {
             .with_low_score_multiplier(0.5);
         let rec = NlpRecognizer::new("ner", vec![EntityKind::PersonName], config);
         let artifacts = artifacts_with_one_span("person_name", 0.9);
-        let ctx = CoreContext::new(TextData::new("Alice").with_artifacts(artifacts));
+        let ctx = RecognizerInput::new(TextData::new("Alice").with_artifacts(artifacts));
         let out = rec.recognize(&ctx).await.unwrap();
         assert_eq!(out.len(), 1);
         // 0.9 * 0.5 = 0.45
@@ -206,7 +207,7 @@ mod tests {
             vec![EntityKind::PersonName],
             NerModelConfiguration::default(),
         );
-        let ctx = CoreContext::new(TextData::new("Alice"));
+        let ctx = RecognizerInput::new(TextData::new("Alice"));
         match rec.recognize(&ctx).await {
             Ok(_) => panic!("expected error when artifacts missing"),
             Err(e) => assert!(e.to_string().contains("NlpArtifacts")),

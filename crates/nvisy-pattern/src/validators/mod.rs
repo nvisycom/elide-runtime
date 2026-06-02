@@ -11,8 +11,8 @@
 //! [`ValidatorRegistry::with`] before handing it to the recognizer
 //! builder.
 //!
-//! [`Regex`]: crate::recognition::Regex
-//! [`PatternRecognizer::build`]: crate::recognition::PatternRecognizer
+//! [`Regex`]: crate::Regex
+//! [`PatternRecognizer::build`]: crate::PatternRecognizer
 
 mod date;
 mod iban;
@@ -24,11 +24,11 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub use self::date::validate_date;
-pub use self::iban::validate_iban;
-pub use self::luhn::luhn_check;
-pub use self::phone::validate_phone;
-pub use self::ssn::validate_ssn;
+use self::date::validate_date;
+use self::iban::validate_iban;
+use self::luhn::luhn_check;
+use self::phone::validate_phone;
+use self::ssn::validate_ssn;
 
 /// Post-match validator: returns `true` when `matched` passes the
 /// validator's check.
@@ -59,7 +59,7 @@ where
 /// caller-supplied names that aren't `'static` (e.g. dynamically
 /// constructed at runtime) still flow through as owned `String`s.
 ///
-/// [`Regex`]: crate::recognition::Regex
+/// [`Regex`]: crate::Regex
 #[derive(Clone, Default)]
 pub struct ValidatorRegistry {
     table: HashMap<Cow<'static, str>, Arc<dyn Validator>>,

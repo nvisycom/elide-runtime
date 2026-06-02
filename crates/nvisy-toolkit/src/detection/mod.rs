@@ -1,27 +1,24 @@
-//! Detection: per-modality [`RecognizerRegistry`].
+//! Detection: the [`RecognizerRegistry`] plus per-backend re-exports.
 //!
-//! This module is intentionally narrow: it owns the registry of
-//! recognizers (a pair of `Vec<Arc<dyn EntityRecognizer<M>>>`), nothing
-//! more. The registry takes a [`Context`] and runs recognizers; it
-//! has no knowledge of [`Document`], blocks, or pipeline phases.
+//! Toolkit owns the registry side of detection — typed lists of
+//! `Arc<dyn EntityRecognizer<M>>` per modality. The trait the registry
+//! holds ([`nvisy_core::EntityRecognizer`]) lives in `nvisy-core` so
+//! backend crates can implement it without depending on toolkit. Each
+//! backend crate is re-exported here under its own submodule ([`ner`]
+//! and [`pattern`]) so a consumer that wants the shipped recognizers
+//! only needs to depend on `nvisy-toolkit`.
 //!
-//! The Document-walking glue that drives the registry per-block /
-//! per-image lives in [`DetectionPhase`] —
-//! that's where block iteration, entity-kind filtering, and
-//! span-to-location lifting happen.
-//!
-//! Pattern and NER are the active recognizer types. LLM and VLM
-//! were removed pending a rework to implement
-//! [`nvisy_core::EntityRecognizer<M>`] directly; their implementations
-//! lived under this module historically and can be reconstructed
-//! from git history if/when they come back.
-//!
-//! [`Context`]: nvisy_core::Context
-//! [`Document`]: nvisy_document::document::Document
-//! [`DetectionPhase`]: nvisy_document::phases::detection::DetectionPhase
+//! TOML-deserialisable backend selectors and config bundles
+//! (`NerBackend`, `NerDetection`, `PatternDetection`,
+//! `DetectionConfig`) live in `nvisy-document`'s
+//! `pipeline::config::detection` — they're the glue that turns config
+//! into concrete `Arc<dyn EntityRecognizer<M>>` instances that get
+//! inserted into [`RecognizerRegistry`].
 
-pub mod config;
+pub mod ner;
+pub mod pattern;
 mod registry;
 
-pub use self::config::{Detection, DetectionConfig, NerBackend, NerDetection, PatternDetection};
+pub use nvisy_core::EntityRecognizer;
+
 pub use self::registry::RecognizerRegistry;

@@ -1,10 +1,11 @@
 //! Audio-modality document shape: [`AudioBlock`], [`AudioMetadata`].
 
+use nvisy_core::modality::AudioExtraction;
 use nvisy_core::primitive::{LanguageDetection, TimeSpan};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{AudioExtraction, ModalityBlock};
+use super::ModalityBlock;
 
 /// Per-modality block payload for [`Audio`].
 /// [`Speech`] carries the transcript text and optional speaker;

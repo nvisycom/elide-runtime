@@ -6,9 +6,8 @@
 //! entities.
 
 use nvisy_core::entity::EntityKind;
-use nvisy_core::{Context, EntityRecognizer, TextData};
-use nvisy_pattern::recognition::{Dictionary, PatternRecognizer, PatternRegistry, Regex, Terms};
-use nvisy_pattern::shipped;
+use nvisy_core::{EntityRecognizer, RecognizerInput, TextData};
+use nvisy_pattern::{Dictionary, PatternRecognizer, PatternRegistry, Regex, Terms};
 
 #[tokio::test]
 async fn user_json_rules_load_and_detect() {
@@ -32,13 +31,11 @@ async fn user_json_rules_load_and_detect() {
     assert_eq!(product_code_dict.terms.len(), 12);
 
     // Mix user rules with shipped (so the input also sees email etc.).
-    let mut registry = PatternRegistry::new()
+    let registry = PatternRegistry::new()
         .with_pattern(employee_id)
         .with_pattern(product_code_regex)
-        .with_dictionary(product_code_dict);
-    for p in shipped::patterns::all() {
-        registry = registry.with_pattern(p);
-    }
+        .with_dictionary(product_code_dict)
+        .with_builtin_patterns();
 
     let recognizer = PatternRecognizer::builder()
         .with_registry(registry)
@@ -46,7 +43,7 @@ async fn user_json_rules_load_and_detect() {
         .expect("recognizer builds");
 
     let text = include_str!("../testdata/inputs/internal.txt");
-    let ctx = Context::new(TextData::new(text.to_owned()));
+    let ctx = RecognizerInput::new(TextData::new(text.to_owned()));
     let entities = recognizer.recognize(&ctx).await.expect("recognize");
 
     // The custom regex finds both employee numbers.

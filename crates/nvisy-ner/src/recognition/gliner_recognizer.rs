@@ -4,10 +4,10 @@
 //! Implements [`EntityRecognizer<Text>`] uniformly with every other text
 //! recognizer in the platform. Pulls the requested
 //! [`EntityKind`] list from
-//! [`Context::candidate_languages`] — wait,
+//! [`RecognizerInput::candidate_languages`] — wait,
 //! correction: from the per-call list the engine layer threads in
 //! (see the engine-side context fields). Today the call shape is:
-//! `Context<TextData>` carries the kind allowlist via
+//! `RecognizerInput<TextData>` carries the kind allowlist via
 //! `ctx.entity_kinds` once the engine layer adds it. Until that
 //! field is added we fall back to the recognizer's full supported
 //! kind list.
@@ -17,7 +17,7 @@
 //! looks up in its registry to find the recognizer's
 //! [`default_context`].
 //!
-//! [`Context::candidate_languages`]: nvisy_core::Context
+//! [`RecognizerInput::candidate_languages`]: nvisy_core::RecognizerInput::candidate_languages
 //! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
 //! [`default_context`]: super::NerModelConfiguration::default_context
 
@@ -28,7 +28,7 @@ use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, T
 use nvisy_core::modality::Text;
 use nvisy_core::nlp::RawNerSpan;
 use nvisy_core::primitive::Confidence;
-use nvisy_core::{Context as CoreContext, EntityRecognizer, Result, TextData};
+use nvisy_core::{EntityRecognizer, RecognizerInput, Result, TextData};
 
 use super::config::NerModelConfiguration;
 use crate::backend::{GlinerBackend, GlinerRequest};
@@ -120,7 +120,7 @@ impl GlinerRecognizer {
 
 #[async_trait]
 impl EntityRecognizer<Text> for GlinerRecognizer {
-    async fn recognize(&self, ctx: &CoreContext<TextData>) -> Result<Vec<Entity<Text>>> {
+    async fn recognize(&self, ctx: &RecognizerInput<TextData>) -> Result<Vec<Entity<Text>>> {
         // Zero-shot needs requested kinds; if the recognizer has
         // nothing to look for, short-circuit.
         if self.supported_kinds.is_empty() {
@@ -163,7 +163,7 @@ mod tests {
             vec![EntityKind::PersonName, EntityKind::EmailAddress],
             NerModelConfiguration::default(),
         );
-        let ctx = CoreContext::new(TextData::new("Alice Smith"));
+        let ctx = RecognizerInput::new(TextData::new("Alice Smith"));
         let out = rec.recognize(&ctx).await.unwrap();
         assert!(out.is_empty());
     }
@@ -176,7 +176,7 @@ mod tests {
             Vec::new(),
             NerModelConfiguration::default(),
         );
-        let ctx = CoreContext::new(TextData::new("Alice Smith"));
+        let ctx = RecognizerInput::new(TextData::new("Alice Smith"));
         let out = rec.recognize(&ctx).await.unwrap();
         assert!(out.is_empty());
     }

@@ -1,5 +1,6 @@
 //! [`EntityRecognizer<M>`]: the Presidio-style entity-detection trait, and the
-//! per-modality [`Context`] / [`ModalityData`] shapes recognizers read from.
+//! per-modality [`RecognizerInput`] / [`ModalityData`] shapes recognizers
+//! read from.
 //!
 //! Every detector that emits [`Entity<M>`] for some modality `M`
 //! implements this trait — pattern recognizers, NER bento clients,
@@ -14,11 +15,12 @@
 //!   with an associated [`Data`] type — the
 //!   modality-specific payload (text bytes, image bytes + dims, …)
 //!   recognizers actually scan.
-//! - [`Context<D>`] wraps the payload plus *shared* per-call concerns
-//!   every recognizer can read: language hints, the correlation id
-//!   used by tracing. Whatever's universal across recognizer types
+//! - [`RecognizerInput<D>`] wraps the payload plus *shared* per-call
+//!   concerns every recognizer can read: language hints, the correlation
+//!   id used by tracing. Whatever's universal across recognizer types
 //!   for one call lives here.
-//! - [`EntityRecognizer<M>`] takes `&Context<M::Data>` and emits entities.
+//! - [`EntityRecognizer<M>`] takes `&RecognizerInput<M::Data>` and emits
+//!   entities.
 //!
 //! [`Entity<M>`]: crate::entity::Entity
 //! [`Data`]: ModalityData::Data
@@ -31,7 +33,7 @@ use uuid::Uuid;
 
 use crate::Result;
 use crate::entity::Entity;
-use crate::modality::{Image, Modality, Text};
+use crate::modality::{Audio, Image, Modality, Text};
 use crate::nlp::NlpArtifacts;
 use crate::primitive::{Dimensions, LanguageTag};
 
@@ -52,12 +54,11 @@ pub trait ModalityData: Modality {
 /// can read: a language hint, candidate languages, and a correlation
 /// id for tracing spans.
 ///
-/// Recognizers are free to ignore the shared fields; pattern
-/// recognizers in particular don't care about language.
+/// Recognizers are free to ignore the shared fields.
 ///
 /// [`data`]: Self::data
 #[derive(Debug, Clone)]
-pub struct Context<D> {
+pub struct RecognizerInput<D> {
     /// Modality-specific payload (text bytes, image bytes + dims, …).
     pub data: D,
     /// Caller-asserted language. When `Some`, recognizers that
@@ -75,7 +76,7 @@ pub struct Context<D> {
     pub correlation_id: Option<Uuid>,
 }
 
-impl<D> Context<D> {
+impl<D> RecognizerInput<D> {
     /// Construct a context with only the modality payload set;
     /// language hints and correlation id default to empty.
     pub fn new(data: D) -> Self {
@@ -107,14 +108,36 @@ impl<D> Context<D> {
         self.correlation_id = Some(id);
         self
     }
+
+    /// Whether a recognizer rule scoped to `allowed` languages should
+    /// run for this call.
+    ///
+    /// - An empty `allowed` list means the rule is language-agnostic
+    ///   and always runs.
+    /// - When `allowed` is non-empty and [`language`] is `Some(_)`,
+    ///   the rule runs only if the hint is in the list.
+    /// - When [`language`] is `None`, the rule still runs — we can't
+    ///   disprove applicability without a hint.
+    ///
+    /// [`language`]: Self::language
+    #[must_use]
+    pub fn applies_to_language(&self, allowed: &[LanguageTag]) -> bool {
+        if allowed.is_empty() {
+            return true;
+        }
+        match self.language.as_ref() {
+            Some(l) => allowed.iter().any(|a| a == l),
+            None => true,
+        }
+    }
 }
 
 /// Recognizer for a single [`Modality`] `M`.
 ///
 /// Implementors emit [`Entity<M>`] values for one document or one
 /// scan unit, reading whatever per-call configuration they need from
-/// [`Context<M::Data>`]. Each consumer composes their own list of
-/// recognizers; the trait does not assume a central registry.
+/// [`RecognizerInput<M::Data>`]. Each consumer composes their own list
+/// of recognizers; the trait does not assume a central registry.
 ///
 /// Recognizers are stateless from the caller's perspective — the
 /// default [`reset`] is a no-op. Long-lived
@@ -129,7 +152,7 @@ pub trait EntityRecognizer<M: ModalityData>: Send + Sync {
     /// coordinates. Downstream callers rebase text offsets into
     /// document coordinates when stitching results back into a
     /// multi-block document; image entities pass through unchanged.
-    async fn recognize(&self, ctx: &Context<M::Data>) -> Result<Vec<Entity<M>>>;
+    async fn recognize(&self, ctx: &RecognizerInput<M::Data>) -> Result<Vec<Entity<M>>>;
 
     /// Drop per-document state. Default no-op for stateless
     /// recognizers; long-lived ones (usage trackers, batch caches)
@@ -222,4 +245,34 @@ impl ImageData {
 
 impl ModalityData for Image {
     type Data = ImageData;
+}
+
+/// Per-call payload for [`Audio`] extractors.
+///
+/// Audio backends (STT, diarization) take encoded bytes plus a
+/// filename hint that some providers use to detect the wire format.
+/// No dimensions or sample-rate metadata is carried at this layer —
+/// providers parse the container themselves.
+#[derive(Debug, Clone)]
+pub struct AudioData {
+    /// Encoded audio bytes (WAV / MP3 / FLAC / …).
+    pub bytes: Bytes,
+    /// Filename hint passed to providers that key on the extension
+    /// to pick a decoder. Falls back to a generic name when the
+    /// caller has none.
+    pub filename: HipStr<'static>,
+}
+
+impl AudioData {
+    /// Construct with the encoded bytes and a filename hint.
+    pub fn new(bytes: impl Into<Bytes>, filename: impl Into<HipStr<'static>>) -> Self {
+        Self {
+            bytes: bytes.into(),
+            filename: filename.into(),
+        }
+    }
+}
+
+impl ModalityData for Audio {
+    type Data = AudioData;
 }

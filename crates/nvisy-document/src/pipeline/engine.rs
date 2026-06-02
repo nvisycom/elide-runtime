@@ -12,18 +12,18 @@ use std::{fmt, mem};
 
 use nvisy_core::Error;
 use nvisy_toolkit::detection::RecognizerRegistry;
+use nvisy_toolkit::extraction::ExtractorRegistry;
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 use uuid::Uuid;
 
-use super::config::RuntimeConfig;
+use super::config::{ExtractionConfig, RuntimeConfig};
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
 use crate::core::Plan;
-use crate::phases::extraction::ExtractionEngine;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::ingestion::registry::Registry;
 use crate::phases::ingestion::{ExportFile, ImportFile};
@@ -82,7 +82,7 @@ pub(super) struct EngineInner {
     pub runtime_config: RuntimeConfig,
     /// Pre-built extractor registry, constructed once from
     /// `runtime_config.extraction` and shared across every run.
-    pub extraction_engine: Arc<ExtractionEngine>,
+    pub extraction_engine: Arc<ExtractorRegistry>,
     /// Pre-built recognizer registry, constructed once from
     /// `runtime_config.detection` and shared across every run.
     pub recognizer_registry: Arc<RecognizerRegistry>,
@@ -139,12 +139,12 @@ impl Engine {
             config
                 .extraction
                 .as_ref()
-                .map(ExtractionEngine::from_config)
+                .map(ExtractionConfig::build)
                 .transpose()?
                 .unwrap_or_default(),
         );
         let recognizer_registry = Arc::new(match config.detection.as_ref() {
-            Some(section) => RecognizerRegistry::from_config(section).await?,
+            Some(section) => section.build()?,
             None => RecognizerRegistry::default(),
         });
         let redaction_config = Arc::new(config.redaction.clone().unwrap_or_default());

@@ -1,9 +1,11 @@
-//! Text modality coordinate type.
+//! Text modality coordinate type plus the [`TextExtraction`]
+//! provenance enum recording how the document was produced.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{Modality, Overlap};
+use crate::entity::ModelProvenance;
 
 /// Half-open `[start, end)` byte range around a [`Text`] location,
 /// used for the optional surrounding context window. The newtype
@@ -68,6 +70,22 @@ impl Text {
 }
 
 impl Modality for Text {}
+
+/// How a [`Document<Text>`]'s text content was produced.
+///
+/// [`Document<Text>`]: # "carrier owned by nvisy-document"
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum TextExtraction {
+    /// Structural parse of a text-bearing format: PDF text layer,
+    /// DOCX XML runs, HTML, plain UTF-8.
+    Native,
+    /// Text obtained by OCR'ing an image-backed page (image-only PDF,
+    /// scanned document).
+    Recognized(ModelProvenance),
+}
 
 impl Overlap for Text {
     /// Two text ranges overlap only when they share a page (or both

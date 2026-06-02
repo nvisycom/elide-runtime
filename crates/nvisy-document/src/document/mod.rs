@@ -11,7 +11,7 @@
 //! `Block<M>` is the universal wrapper carrying the common per-block
 //! fields (spans, confidence). The modality-specific payload
 //! (text+spans, region, time span, row coordinates) lives in
-//! [`Modality::Block`] inside `block.kind`.
+//! `M::Block` inside `block.kind`.
 //!
 //! Rich sources (PDFs with both text and image layers) decompose
 //! into a single recursive `Document<Text>` whose blocks can host
@@ -26,8 +26,6 @@
 //! [`Audit<M>`]: crate::provenance::Audit
 //! [`AnyAudit`]: crate::provenance::AnyAudit
 //! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
-//!
-//! [`Modality::Block`]: nvisy_core::modality::Modality::Block
 
 mod block;
 mod span;

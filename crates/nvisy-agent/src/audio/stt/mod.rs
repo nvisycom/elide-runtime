@@ -139,3 +139,20 @@ impl SttService {
         }
     }
 }
+
+#[async_trait::async_trait]
+impl nvisy_core::Extractor<nvisy_core::modality::Audio> for SttService {
+    type Output = SttOutput;
+
+    fn extraction(&self) -> nvisy_core::modality::AudioExtraction {
+        nvisy_core::modality::AudioExtraction::Transcription(self.provenance())
+    }
+
+    async fn extract(
+        &self,
+        ctx: &nvisy_core::recognition::RecognizerInput<nvisy_core::AudioData>,
+    ) -> Result<Self::Output> {
+        self.transcribe(ctx.data.bytes.as_ref(), ctx.data.filename.as_str())
+            .await
+    }
+}

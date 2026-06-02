@@ -9,7 +9,7 @@
 //! [`CheckPipeline`]: crate::validation::CheckPipeline
 //! [`LeakCheck`]: crate::validation::LeakCheck
 //! [`Severity`]: crate::validation::Severity
-//! [`Validation`]: crate::pipeline::Validation
+//! [`Validation`]: crate::validation::Validation
 
 use nvisy_core::{Error, Result};
 use tracing::Instrument;

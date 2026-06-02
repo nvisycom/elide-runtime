@@ -17,15 +17,22 @@ use nvisy_core::context::ContextRegistry;
 
 use super::dictionary::Dictionary;
 use super::regex_rule::Regex;
+use crate::shipped;
 
 /// Bundle of regexes and dictionaries shared by every downstream
 /// consumer.
 ///
-/// Cheap to clone (`Vec` of small structs); typically built once
-/// per process from the [`shipped`] helpers plus
-/// any caller-supplied custom rules.
+/// Cheap to clone (`Vec` of small structs). Construct via
+/// [`PatternRegistry::new`] for an empty registry,
+/// [`PatternRegistry::builtin`] for the shipped registry (every
+/// built-in regex + dictionary), or chain [`with_pattern`] /
+/// [`with_dictionary`] / [`with_builtin_patterns`] /
+/// [`with_builtin_dictionaries`] to mix custom rules in.
 ///
-/// [`shipped`]: crate::shipped
+/// [`with_pattern`]: PatternRegistry::with_pattern
+/// [`with_dictionary`]: PatternRegistry::with_dictionary
+/// [`with_builtin_patterns`]: PatternRegistry::with_builtin_patterns
+/// [`with_builtin_dictionaries`]: PatternRegistry::with_builtin_dictionaries
 #[derive(Debug, Clone, Default)]
 pub struct PatternRegistry {
     regexes: Vec<Regex>,
@@ -37,6 +44,16 @@ impl PatternRegistry {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Construct the shipped registry: every built-in regex pattern
+    /// and every built-in dictionary, in registration order.
+    /// Shorthand for `PatternRegistry::new().with_builtin_patterns().with_builtin_dictionaries()`.
+    #[must_use]
+    pub fn builtin() -> Self {
+        Self::new()
+            .with_builtin_patterns()
+            .with_builtin_dictionaries()
     }
 
     /// Register one regex. Call once per regex; the registry
@@ -52,6 +69,24 @@ impl PatternRegistry {
     #[must_use]
     pub fn with_dictionary(mut self, dictionary: Dictionary) -> Self {
         self.dictionaries.push(dictionary);
+        self
+    }
+
+    /// Register every shipped built-in regex pattern in registration
+    /// order. Replaces the common `for p in patterns::all() { reg =
+    /// reg.with_pattern(p); }` boilerplate.
+    #[must_use]
+    pub fn with_builtin_patterns(mut self) -> Self {
+        self.regexes.extend(shipped::patterns::all());
+        self
+    }
+
+    /// Register every shipped built-in dictionary in registration
+    /// order. Replaces the common `dictionaries::all().into_iter()
+    /// .fold(reg, PatternRegistry::with_dictionary)` boilerplate.
+    #[must_use]
+    pub fn with_builtin_dictionaries(mut self) -> Self {
+        self.dictionaries.extend(shipped::dictionaries::all());
         self
     }
 

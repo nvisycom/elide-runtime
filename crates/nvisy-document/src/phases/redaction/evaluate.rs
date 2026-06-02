@@ -44,12 +44,10 @@ use crate::provenance::{
 pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 
 /// Per-modality applicator hook. Each modality opts in via a thin
-/// impl that converts its [`Strategy`] to the codec wire type and
+/// impl that converts its `M::Strategy` to the codec wire type and
 /// forwards the assembled batch to the codec; the generic
 /// `RedactionPhase::run` is parameterised over this so the apply
 /// path is shared.
-///
-/// [`Strategy`]: Modality::Strategy
 #[async_trait::async_trait]
 pub trait ApplyRedactions<
     M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,

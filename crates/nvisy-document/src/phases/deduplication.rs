@@ -5,8 +5,9 @@
 //! resolve) via [`LayerPipeline::from_params`], and rewrapping the
 //! result. Stateless; per-run config comes from `input.plan`.
 //!
-//! The pipeline + individual layers live in [`crate::deduplication`];
-//! this phase is purely the document-traversal glue.
+//! The pipeline + individual layers live in
+//! [`nvisy_toolkit::deduplication`]; this phase is purely the
+//! document-traversal glue.
 //!
 //! [`DocumentTree`]: crate::core::DocumentTree
 //! [`LayerPipeline::from_params`]: nvisy_toolkit::deduplication::LayerPipeline::from_params

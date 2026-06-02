@@ -1,9 +1,11 @@
-//! Tabular modality coordinate type.
+//! Tabular modality coordinate type plus the [`TabularExtraction`]
+//! provenance enum recording how the document was produced.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{Modality, Overlap};
+use crate::entity::ModelProvenance;
 
 /// A cell (or sub-cell range) within tabular content.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +76,41 @@ impl Overlap for Tabular {
         let (s1, e1) = self.cell_range();
         let (s2, e2) = other.cell_range();
         s1 < e2 && s2 < e1
+    }
+}
+
+/// How a [`Document<Tabular>`]'s structure was produced.
+///
+/// [`Document<Tabular>`]: # "carrier owned by nvisy-document"
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum TabularExtraction {
+    /// Header names and column types known from the source format
+    /// (Parquet, Avro, CSV with a header row).
+    SchemaTyped,
+    /// Column semantics inferred from column data (header-less CSV,
+    /// positional conventions).
+    SchemaInferred,
+    /// Tabular structure recovered from an image (row/column
+    /// reconstruction from a scanned table); preserves cell
+    /// relationships that plain OCR loses.
+    Recovered(ModelProvenance),
+}
+
+impl TabularExtraction {
+    /// Map the codec's `has_header()` signal to the matching
+    /// extraction variant.
+    ///
+    /// `None` means the codec couldn't decide (non-tabular handle
+    /// somehow reached this site) — fall back to `SchemaInferred`
+    /// rather than panicking, since over-reporting "inferred" is safe.
+    pub fn from_header_signal(has_header: Option<bool>) -> Self {
+        match has_header {
+            Some(true) => Self::SchemaTyped,
+            Some(false) | None => Self::SchemaInferred,
+        }
     }
 }
 

@@ -14,8 +14,8 @@ use aho_corasick::AhoCorasick;
 use async_trait::async_trait;
 use nvisy_core::entity::{Entity, PatternProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::Text;
-use nvisy_core::primitive::Confidence;
-use nvisy_core::{Context as CoreContext, EntityRecognizer, Error, Result, TextData};
+use nvisy_core::primitive::{Confidence, LanguageTag};
+use nvisy_core::{EntityRecognizer, Error, RecognizerInput, Result, TextData};
 use regex::{Regex, RegexSet};
 
 use super::registry::PatternRegistry;
@@ -36,6 +36,8 @@ struct CompiledPattern {
     raw_regex: String,
     score: Confidence,
     validator: Option<Arc<dyn Validator>>,
+    /// Languages this pattern applies to. Empty means "any language".
+    languages: Vec<LanguageTag>,
 }
 
 /// Source of truth for one runtime dictionary: its term range
@@ -51,6 +53,9 @@ struct CompiledDictionary {
     /// shared automaton.
     term_end: usize,
     score: Confidence,
+    /// Languages this dictionary applies to. Empty means "any
+    /// language".
+    languages: Vec<LanguageTag>,
 }
 
 /// Composes a [`PatternRegistry`] into a single text recognizer.
@@ -145,6 +150,7 @@ impl PatternRecognizerBuilder {
                 raw_regex: pattern.regex.clone(),
                 score,
                 validator,
+                languages: pattern.languages.clone(),
             });
         }
 
@@ -174,6 +180,7 @@ impl PatternRecognizerBuilder {
                 term_start,
                 term_end,
                 score,
+                languages: dict.languages.clone(),
             });
         }
 
@@ -204,13 +211,16 @@ impl PatternRecognizerBuilder {
 
 #[async_trait]
 impl EntityRecognizer<Text> for PatternRecognizer {
-    async fn recognize(&self, ctx: &CoreContext<TextData>) -> Result<Vec<Entity<Text>>> {
+    async fn recognize(&self, ctx: &RecognizerInput<TextData>) -> Result<Vec<Entity<Text>>> {
         let text = ctx.data.text.as_str();
         let mut entities = Vec::new();
 
         if let Some(set) = self.regex_set.as_ref() {
             for pattern_id in set.matches(text).into_iter() {
                 let pat = &self.patterns[pattern_id];
+                if !ctx.applies_to_language(&pat.languages) {
+                    continue;
+                }
                 for m in pat.regex.find_iter(text) {
                     if let Some(validator) = pat.validator.as_ref()
                         && !validator.validate(m.as_str())
@@ -228,6 +238,9 @@ impl EntityRecognizer<Text> for PatternRecognizer {
                 let Some(dict) = self.dictionary_owning_term(term_id) else {
                     continue;
                 };
+                if !ctx.applies_to_language(&dict.languages) {
+                    continue;
+                }
                 entities.push(build_dictionary_entity(dict, mat.start(), mat.end()));
             }
         }

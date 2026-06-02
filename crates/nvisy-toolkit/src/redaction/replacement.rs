@@ -1,5 +1,5 @@
-//! Per-modality [`Modality::Replacement`] enums recorded on
-//! [`Execution::Applied`].
+//! Per-modality `Modality::Replacement` enums recorded on
+//! `Execution::Applied`.
 //!
 //! For each modality, the replacement type captures *what the codec
 //! wrote* at the entity's location. Text and Tabular carry the
@@ -9,9 +9,6 @@
 //! producing `M::Strategy`, so the audit only needs to record *which*
 //! operation ran).
 //!
-//! [`Modality::Replacement`]: nvisy_core::modality::Modality::Replacement
-//! [`Execution::Applied`]: super::Execution::Applied
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

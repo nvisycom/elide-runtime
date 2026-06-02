@@ -24,8 +24,10 @@ tabular = []
 image = []
 audio = []
 
-## Externalized BentoML backend (NER) — forwards to `nvisy-ner/bento`.
-bento = ["nvisy-ner/bento"]
+## Externalised BentoML backends (NER + OCR).
+bento = ["nvisy-ner/bento", "nvisy-ocr/bento"]
+## OpenAI Whisper STT provider.
+openai = ["nvisy-agent/openai-whisper"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -34,7 +36,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-agent = { workspace = true, features = [] }
 nvisy-ner = { workspace = true, features = [] }
+nvisy-ocr = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 
 # (De)serialization

@@ -44,7 +44,7 @@ use crate::document::Document;
 /// monomorphised. Object safety on [`Check<M, P>`] still holds —
 /// `P` is a type parameter, not a generic method.
 ///
-/// [`LayerContext`]: crate::deduplication::LayerContext
+/// [`LayerContext`]: nvisy_toolkit::deduplication::LayerContext
 pub struct CheckContext<'a, M, P>
 where
     M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,

@@ -2,12 +2,11 @@
 //!
 //! Resolves the per-run threshold from the plan (falling back to the
 //! deployment-wide [`RedactionConfig`]), then walks the
-//! [`DocumentTree`] feeding each node to [`run_redaction`] — the
-//! actual policy evaluation + codec application loop, which lives in
-//! the redaction module proper.
+//! [`DocumentTree`] feeding each node to the crate-private
+//! `run_redaction` dispatcher in the parent module — that's where the
+//! actual policy evaluation + codec application loop lives.
 //!
 //! [`DocumentTree`]: crate::core::DocumentTree
-//! [`run_redaction`]: crate::phases::redaction::run_redaction
 
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;

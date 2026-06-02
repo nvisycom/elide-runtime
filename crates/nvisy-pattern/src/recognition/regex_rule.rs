@@ -13,6 +13,7 @@ use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::context::Context;
 use nvisy_core::entity::EntityKind;
+use nvisy_core::primitive::LanguageTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +59,14 @@ pub struct Regex {
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validator: Option<String>,
+    /// Languages the rule applies to (BCP-47 tags). An empty list
+    /// (the default) means the rule applies regardless of language;
+    /// otherwise the recognizer skips this rule when the per-call
+    /// language hint is set to a tag not in this list.
+    #[builder(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(with = "Vec<String>")]
+    pub languages: Vec<LanguageTag>,
 }
 
 impl Regex {

@@ -7,7 +7,7 @@ use super::Span;
 /// One block of a [`Document<M>`].
 ///
 /// Universal across modalities: `kind` carries the modality-specific
-/// payload (variant + its location-specific data) via [`M::Block`],
+/// payload (variant + its location-specific data) via `M::Block`,
 /// while `spans` and `confidence` are the common per-block
 /// bookkeeping.
 ///
@@ -19,8 +19,7 @@ use super::Span;
 /// structural document.
 ///
 /// [`Document<M>`]: super::Document
-/// [`M::Block`]: nvisy_core::modality::Modality::Block
-/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/envelope/struct.DocumentEnvelope.html
+/// [`DocumentEnvelope`]: # "predecessor of DocumentTree"
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> {
     /// Modality-specific payload (variant + its data).

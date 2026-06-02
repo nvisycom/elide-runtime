@@ -1,11 +1,10 @@
 //! Core OCR contract: the [`Backend`] trait, the shared input /
 //! output types, and the per-call [`Context`] hints.
 //!
-//! Backend implementations live in [`crate::backend`]; that module
-//! also hosts the [`OcrBackend`] config enum that dispatches to a
-//! concrete backend.
-//!
-//! [`OcrBackend`]: crate::backend::OcrBackend
+//! Backend implementations live in [`crate::backend`]. The
+//! TOML-deserialisable selector that picks one (`OcrBackend`) lives
+//! in the pipeline layer (`nvisy-document`'s
+//! `pipeline::config::extraction::ocr`).
 
 mod context;
 mod input;
@@ -22,9 +21,9 @@ pub use self::output::{OcrBlockKind, OcrOutput, OcrSpan};
 /// The OCR backend contract.
 ///
 /// Implementations send an image to an OCR service and return a
-/// `Vec<Block<Image>>` — one block per page or text region, with
-/// per-word [`Span<Image>`] populated and bounding boxes preserved
-/// on each location.
+/// `Vec<OcrOutput>` — one block per page or text region, with
+/// per-word spans populated and bounding boxes preserved on each
+/// location.
 ///
 /// Backends are source-agnostic: they take bytes + hints and return
 /// shape. Wrapping the blocks into a `Document<Image>` (which
@@ -53,19 +52,17 @@ pub use self::output::{OcrBlockKind, OcrOutput, OcrSpan};
 ///
 /// [`run`]: Self::run
 /// [`run_batch`]: Self::run_batch
-/// [`Span<Image>`]: nvisy_document::document::Span
 /// [`ContentSource`]: nvisy_core::entity::ContentSource
 #[async_trait::async_trait]
 pub trait Backend: Send + Sync + 'static {
     /// Backend identity (model / service name + provenance kind).
     ///
-    /// The engine's [`OcrExtractor`] reads this after recognition
-    /// runs and stamps it into [`ImageExtraction::Ocr(_)`] on the
+    /// The document-side extraction phase reads this after recognition
+    /// runs and stamps it into [`ImageExtraction::Ocr`] on the
     /// document's metadata, so the audit records *which* OCR pass
     /// produced the document.
     ///
-    /// [`OcrExtractor`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/extraction/struct.OcrExtractor.html
-    /// [`ImageExtraction::Ocr(_)`]: nvisy_document::modality::ImageExtraction::Ocr
+    /// [`ImageExtraction::Ocr`]: nvisy_core::modality::ImageExtraction::Ocr
     fn provenance(&self) -> ModelProvenance;
 
     /// Run OCR on a single image under `ctx`.

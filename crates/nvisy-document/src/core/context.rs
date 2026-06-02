@@ -19,10 +19,10 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_toolkit::detection::RecognizerRegistry;
+use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
 
 use super::SharedData;
-use crate::phases::extraction::ExtractionEngine;
 use crate::pipeline::RedactionConfig;
 
 /// Per-run execution context shared across all document tasks.
@@ -41,7 +41,7 @@ pub struct RunContext {
     /// Shared run-wide state: run ID, actor, registry, policies.
     pub(crate) shared: Arc<SharedData>,
     /// Pre-built extractor registry.
-    pub(crate) extraction_engine: ExtractionEngine,
+    pub(crate) extraction_engine: ExtractorRegistry,
     /// Pre-built recognizer registry. Always present; when no
     /// recognizers are registered the per-modality dispatch
     /// short-circuits on the empty list.
@@ -61,7 +61,7 @@ impl RunContext {
     pub(crate) fn new(
         cancel: CancellationToken,
         shared: Arc<SharedData>,
-        extraction_engine: ExtractionEngine,
+        extraction_engine: ExtractorRegistry,
         recognizer_registry: RecognizerRegistry,
         redaction_config: RedactionConfig,
         concurrency: Option<NonZeroUsize>,
@@ -86,7 +86,7 @@ impl RunContext {
     /// Pre-built extraction engine borrowed by [`ExtractionPhase`].
     ///
     /// [`ExtractionPhase`]: crate::pipeline::ExtractionPhase
-    pub(crate) fn extraction_engine(&self) -> &ExtractionEngine {
+    pub(crate) fn extraction_engine(&self) -> &ExtractorRegistry {
         &self.extraction_engine
     }
 

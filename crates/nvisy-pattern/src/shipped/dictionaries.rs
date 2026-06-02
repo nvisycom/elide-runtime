@@ -6,7 +6,7 @@
 //! merging them via [`Dictionary::metadata_from_json`] +
 //! [`Terms::from_csv`] / [`Terms::from_text`].
 //!
-//! [`Dictionary`]: crate::recognition::Dictionary
+//! [`Dictionary`]: crate::Dictionary
 
 use crate::recognition::{Dictionary, Terms};
 

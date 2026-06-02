@@ -39,6 +39,9 @@ impl Codable for Tabular {
 /// [`TabularExtraction::SchemaInferred`] when column semantics must be
 /// inferred from data.
 ///
+/// [`TabularExtraction::SchemaTyped`]: nvisy_core::modality::TabularExtraction::SchemaTyped
+/// [`TabularExtraction::SchemaInferred`]: nvisy_core::modality::TabularExtraction::SchemaInferred
+///
 /// Implementing this trait is required for every tabular handler that
 /// participates in the importer fan-out.
 ///

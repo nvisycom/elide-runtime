@@ -5,11 +5,13 @@
 use std::fmt;
 use std::sync::Arc;
 
-use nvisy_core::Error;
+use async_trait::async_trait;
 use nvisy_core::entity::ModelProvenance;
+use nvisy_core::modality::{Image, ImageExtraction};
+use nvisy_core::{Error, ModalityData, RecognizerInput, Result};
 use tracing::instrument;
 
-use crate::core::{Backend, Context, ImageInput, OcrOutput};
+use crate::core::{Backend, Context, ImageFormat, ImageInput, OcrOutput};
 
 const TARGET: &str = "nvisy_ocr::engine";
 
@@ -83,5 +85,52 @@ impl Extractor {
             "batch ocr complete",
         );
         Ok(blocks)
+    }
+}
+
+/// Bridge `nvisy_ocr::Extractor` into the toolkit-side
+/// [`nvisy_core::Extractor<Image>`] surface. The extractor's output
+/// is the backend-shaped `Vec<OcrOutput>`; consumers translate that
+/// into per-document `Block<Image>` values.
+///
+/// The bridge assumes the input bytes are PNG-encoded. Callers that
+/// hold images in other formats should re-encode before constructing
+/// the [`nvisy_core::ImageData`] payload.
+#[async_trait]
+impl nvisy_core::Extractor<Image> for Extractor {
+    type Output = Vec<OcrOutput>;
+
+    fn extraction(&self) -> ImageExtraction {
+        ImageExtraction::Ocr(self.provenance())
+    }
+
+    async fn extract(
+        &self,
+        ctx: &RecognizerInput<<Image as ModalityData>::Data>,
+    ) -> Result<Self::Output> {
+        let input = ImageInput::new(ctx.data.bytes.clone(), ImageFormat::Png);
+        let mut ocr_ctx = Context::default();
+        if let Some(ref lang) = ctx.language {
+            ocr_ctx = ocr_ctx.with_language(lang);
+        }
+        if let Some(corr_id) = ctx.correlation_id {
+            ocr_ctx = ocr_ctx.with_correlation_id(corr_id);
+        }
+        self.extract_inner(&input, ocr_ctx).await
+    }
+}
+
+impl Extractor {
+    /// Internal helper so the trait impl can re-use the same body as
+    /// the inherent [`extract`] method without recursing through the
+    /// trait dispatch.
+    ///
+    /// [`extract`]: Self::extract
+    async fn extract_inner(
+        &self,
+        image: &ImageInput,
+        ctx: Context<'_>,
+    ) -> Result<Vec<OcrOutput>, Error> {
+        self.backend.run(image, ctx).await
     }
 }

@@ -9,7 +9,7 @@
 //! by filtering downstream via [`Detection::entity_kinds`].
 //!
 //! Scope: this type knows nothing about [`Document`]. It only owns
-//! recognizers and runs them against a [`Context`]. Walking a
+//! recognizers and runs them against a [`RecognizerInput`]. Walking a
 //! document, lifting block-local spans to modality coordinates, and
 //! per-modality node dispatch all live in [`super::dispatch`].
 //!
@@ -20,7 +20,7 @@
 //! [`Detection::entity_kinds`]: crate::detection::Detection::entity_kinds
 //! [`add_text_recognizer`]: RecognizerRegistry::add_text_recognizer
 //! [`add_image_recognizer`]: RecognizerRegistry::add_image_recognizer
-//! [`Context`]: nvisy_core::Context
+//! [`RecognizerInput`]: nvisy_core::RecognizerInput
 //! [`Document`]: nvisy_document::document::Document
 //! [`DetectionConfig`]: crate::detection::DetectionConfig
 
@@ -29,11 +29,9 @@ use std::sync::Arc;
 
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Image, Modality, Text};
-use nvisy_core::{Context, EntityRecognizer, Error, ImageData, Result, TextData};
+use nvisy_core::{EntityRecognizer, Error, ImageData, RecognizerInput, Result, TextData};
 use tokio::task::JoinSet;
 use tracing::Instrument;
-
-use crate::detection::DetectionConfig;
 
 const TARGET: &str = "nvisy_document::detection";
 
@@ -41,7 +39,7 @@ const TARGET: &str = "nvisy_document::detection";
 ///
 /// Each modality keeps an ordered `Vec<Arc<dyn EntityRecognizer<M>>>`;
 /// iteration order matches registration order. Built once at startup
-/// from a [`DetectionConfig`] (which builds each opted-in
+/// from `DetectionConfig::build` (which builds each opted-in
 /// `[detection.*]` section), then optionally extended by the operator
 /// with [`add_text_recognizer`] / [`add_image_recognizer`].
 ///
@@ -56,58 +54,48 @@ pub struct RecognizerRegistry {
 }
 
 impl RecognizerRegistry {
-    /// Build an empty registry. Useful for tests; production callers
-    /// normally use [`from_config`].
+    /// Build an empty registry. Consumers populate it with
+    /// [`add_text_recognizer`] / [`add_image_recognizer`] after
+    /// constructing each backend they want to install. Config-driven
+    /// construction (TOML → concrete backends) lives in the pipeline
+    /// layer of `nvisy-document`, not here.
     ///
-    /// [`from_config`]: Self::from_config
+    /// [`add_text_recognizer`]: Self::add_text_recognizer
+    /// [`add_image_recognizer`]: Self::add_image_recognizer
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Build the registry from a [`DetectionConfig`].
-    ///
-    /// Pattern detection is always-on: even when `cfg.pattern` is
-    /// `None`, a pattern recognizer with the shipped default registry
-    /// is registered. NER is opt-in via `cfg.ner`.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first construction error encountered — pattern
-    /// compile failure (would be a bug in `nvisy-pattern`'s shipped
-    /// patterns), NER backend init failure (e.g. invalid Bento base
-    /// URL), or a config-selected backend whose feature wasn't
-    /// compiled in.
-    pub async fn from_config(cfg: &DetectionConfig) -> Result<Self> {
-        let mut registry = Self::new();
-
-        let pattern_cfg = cfg.pattern.clone().unwrap_or_default();
-        if pattern_cfg.enabled {
-            registry.add_text_recognizer(pattern_cfg.build()?);
-        }
-
-        if let Some(c) = cfg.ner.as_ref().filter(|c| c.enabled) {
-            registry.add_text_recognizer(c.build()?);
-        }
-
-        Ok(registry)
-    }
-
     /// Register a text-modality recognizer. Appended to the existing
     /// list; iteration order at dispatch matches registration order.
-    pub fn add_text_recognizer(&mut self, recognizer: Arc<dyn EntityRecognizer<Text>>) {
-        self.text.push(recognizer);
+    /// Chainable — returns `self` for builder-style construction.
+    /// Takes ownership of the recognizer and wraps it in `Arc`.
+    #[must_use]
+    pub fn add_text_recognizer<R>(mut self, recognizer: R) -> Self
+    where
+        R: EntityRecognizer<Text> + 'static,
+    {
+        self.text.push(Arc::new(recognizer));
+        self
     }
 
     /// Register an image-modality recognizer. Appended to the
     /// existing list; iteration order at dispatch matches
-    /// registration order.
-    pub fn add_image_recognizer(&mut self, recognizer: Arc<dyn EntityRecognizer<Image>>) {
-        self.image.push(recognizer);
+    /// registration order. Chainable — returns `self` for
+    /// builder-style construction. Takes ownership and wraps in
+    /// `Arc`.
+    #[must_use]
+    pub fn add_image_recognizer<R>(mut self, recognizer: R) -> Self
+    where
+        R: EntityRecognizer<Image> + 'static,
+    {
+        self.image.push(Arc::new(recognizer));
+        self
     }
 
     /// Run every registered text recognizer against `ctx` in parallel
     /// and return the combined entity set.
-    pub async fn run_text(&self, ctx: Context<TextData>) -> Result<Vec<Entity<Text>>> {
+    pub async fn run_text(&self, ctx: RecognizerInput<TextData>) -> Result<Vec<Entity<Text>>> {
         let span = tracing::debug_span!(
             target: TARGET,
             "detect.text",
@@ -132,7 +120,7 @@ impl RecognizerRegistry {
     /// Run every registered image recognizer against `ctx` in
     /// parallel and return the combined entity set.
     #[cfg(feature = "image")]
-    pub async fn run_image(&self, ctx: Context<ImageData>) -> Result<Vec<Entity<Image>>> {
+    pub async fn run_image(&self, ctx: RecognizerInput<ImageData>) -> Result<Vec<Entity<Image>>> {
         let span = tracing::debug_span!(
             target: TARGET,
             "detect.image",

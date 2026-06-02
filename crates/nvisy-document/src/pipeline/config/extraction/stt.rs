@@ -1,4 +1,8 @@
 //! [`SttExtractorConfig`]: `[extractor.stt]` config bundle.
+//!
+//! The build path lives in the parent [`ExtractionConfig::build`].
+//!
+//! [`ExtractionConfig::build`]: super::ExtractionConfig::build
 
 use nvisy_agent::audio::SttProvider;
 use nvisy_agent::audio::stt::SttConfig;
@@ -7,10 +11,9 @@ use serde::{Deserialize, Serialize};
 /// `[extractor.stt]` config bundle.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SttExtractorConfig {
-    /// Enable this extractor. When `false`, the extractor is
-    /// neither built nor dispatched, but the config is preserved
-    /// so operators can toggle without losing it. Defaults to
-    /// `true`.
+    /// Enable this extractor. When `false`, the extractor is neither
+    /// built nor dispatched, but the config is preserved so operators
+    /// can toggle without losing it. Defaults to `true`.
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// STT provider selection + connection settings.

@@ -37,7 +37,7 @@ use uuid::Uuid;
 ///
 /// Carries the value resolver (for layers that need to read source
 /// text at a location — fuse, today) and an optional correlation id
-/// (for tracing — see [`Context::correlation_id`]).
+/// (for tracing — see [`RecognizerInput::correlation_id`]).
 ///
 /// Built with [`Self::new`] then optionally extended through the
 /// `with_*` setters:
@@ -47,7 +47,7 @@ use uuid::Uuid;
 /// pipeline.run(entities, &ctx).await;
 /// ```
 ///
-/// [`Context::correlation_id`]: nvisy_core::Context
+/// [`RecognizerInput::correlation_id`]: nvisy_core::RecognizerInput::correlation_id
 pub struct LayerContext<'a, M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> {
     /// Resolver for "what value sits at this location?". Layers that
     /// only inspect entity metadata can ignore this field.

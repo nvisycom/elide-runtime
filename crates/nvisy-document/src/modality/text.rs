@@ -1,12 +1,12 @@
 //! Text-modality document shape: [`TextBlock`], [`TextContent`],
 //! [`EmbeddedDocument`], [`TextMetadata`].
 
-use nvisy_core::modality::{Image, Tabular};
+use nvisy_core::modality::{Image, Tabular, TextExtraction};
 use nvisy_core::primitive::LanguageDetection;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{ModalityBlock, TextExtraction};
+use super::ModalityBlock;
 use crate::document::Document;
 
 /// Per-modality block payload for [`Text`].

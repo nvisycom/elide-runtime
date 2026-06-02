@@ -8,8 +8,8 @@
 
 use nvisy_core::context::{Context, ContextEnhancer};
 use nvisy_core::entity::{EntityKind, PatternProvenance, TrailProvenance, TrailStepKind};
-use nvisy_core::{Context as CoreContext, EntityRecognizer, TextData};
-use nvisy_pattern::recognition::{PatternRecognizer, PatternRegistry, Regex};
+use nvisy_core::{EntityRecognizer, RecognizerInput, TextData};
+use nvisy_pattern::{PatternRecognizer, PatternRegistry, Regex};
 
 #[tokio::test]
 async fn enhancer_boosts_matches_near_keyword_only() {
@@ -30,7 +30,7 @@ async fn enhancer_boosts_matches_near_keyword_only() {
 
     // Two SSN-shaped numbers: one near the keyword, one not.
     let text = "First SSN: 123-45-6789. Unrelated number 987-65-4329 elsewhere.";
-    let ctx = CoreContext::new(TextData::new(text.to_owned()));
+    let ctx = RecognizerInput::new(TextData::new(text.to_owned()));
     let mut entities = recognizer.recognize(&ctx).await.expect("recognize");
     assert_eq!(entities.len(), 2, "two SSN matches expected");
 

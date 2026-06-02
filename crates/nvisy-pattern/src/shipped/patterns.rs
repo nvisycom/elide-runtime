@@ -5,10 +5,10 @@
 //! every call — rules are cheap to construct since
 //! [`PatternRecognizer::build`] does the heavy compilation.
 //!
-//! [`Regex`]: crate::recognition::Regex
-//! [`PatternRecognizer::build`]: crate::recognition::PatternRecognizer
+//! [`Regex`]: crate::Regex
+//! [`PatternRecognizer::build`]: crate::PatternRecognizer
 
-use crate::recognition::Regex;
+use crate::Regex;
 
 macro_rules! shipped_pattern {
     ($(#[$meta:meta])* fn $name:ident from $path:literal) => {

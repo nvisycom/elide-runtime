@@ -10,8 +10,8 @@
 //! Use [`patterns::all`] and [`dictionaries::all`] to load the
 //! complete shipped set, or pick individual accessors.
 //!
-//! [`Regex`]: crate::recognition::Regex
-//! [`Dictionary`]: crate::recognition::Dictionary
+//! [`Regex`]: crate::Regex
+//! [`Dictionary`]: crate::Dictionary
 
 pub mod dictionaries;
 pub mod patterns;

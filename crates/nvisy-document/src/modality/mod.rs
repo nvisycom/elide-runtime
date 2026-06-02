@@ -20,17 +20,18 @@
 //! [`Modality`]: nvisy_core::modality::Modality
 
 mod audio;
-pub mod extraction;
 mod image;
 mod tabular;
 mod text;
 
 use std::fmt::Debug;
 
-pub use nvisy_core::modality::{Audio, Image, Modality, Tabular, Text};
+pub use nvisy_core::modality::{
+    Audio, AudioExtraction, Image, ImageExtraction, Modality, Tabular, TabularExtraction, Text,
+    TextExtraction,
+};
 
 pub use self::audio::{AudioBlock, AudioMetadata};
-pub use self::extraction::{AudioExtraction, ImageExtraction, TabularExtraction, TextExtraction};
 pub use self::image::{ImageBlock, ImageMetadata, PageDimensions};
 pub use self::tabular::{ColumnHeader, TabularBlock, TabularMetadata};
 pub use self::text::{EmbeddedDocument, TextBlock, TextContent, TextMetadata};

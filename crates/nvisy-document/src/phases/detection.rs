@@ -2,9 +2,9 @@
 //! [`RecognizerRegistry`].
 //!
 //! The registry knows nothing about documents — it only takes a
-//! [`Context`] and runs every registered recognizer in parallel.
+//! [`RecognizerInput`] and runs every registered recognizer in parallel.
 //! This phase is the bridge: it walks each [`Document<M>`] in the
-//! [`DocumentTree`], builds a `Context` per block / image location,
+//! [`DocumentTree`], builds a `RecognizerInput` per block / image location,
 //! feeds them to the registry, filters the merged result by the
 //! plan's entity-kind allowlist, and lifts block-local offsets back
 //! to absolute modality coordinates.
@@ -13,7 +13,7 @@
 //! visiting the root then iterating nested embedded documents; the
 //! registry has no awareness of nesting.
 //!
-//! [`Context`]: nvisy_core::Context
+//! [`RecognizerInput`]: nvisy_core::RecognizerInput
 //! [`Document<M>`]: crate::document::Document
 //! [`DocumentTree`]: crate::core::DocumentTree
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
@@ -23,9 +23,9 @@
 use futures::StreamExt;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Audio, Image, Overlap, Tabular, Text};
-use nvisy_core::{Context, Result, TextData};
 #[cfg(feature = "image")]
 use nvisy_core::{Error, ImageData};
+use nvisy_core::{RecognizerInput, Result, TextData};
 use nvisy_toolkit::detection::RecognizerRegistry;
 use tracing::Instrument;
 
@@ -193,7 +193,7 @@ where
         }
         scanned_blocks += 1;
 
-        let mut ctx = Context::new(TextData::new(text.to_owned()));
+        let mut ctx = RecognizerInput::new(TextData::new(text.to_owned()));
         ctx.correlation_id = Some(run_id);
 
         let detected = registry.run_text(ctx).await?;
@@ -261,7 +261,7 @@ async fn detect_image_locations(
             .encode_png()
             .map_err(|e| Error::runtime(e.to_string(), "recognizer-registry", false))?;
 
-        let mut ctx = Context::new(ImageData::new(bytes, dims));
+        let mut ctx = RecognizerInput::new(ImageData::new(bytes, dims));
         ctx.correlation_id = Some(run_id);
 
         let detected = registry.run_image(ctx).await?;

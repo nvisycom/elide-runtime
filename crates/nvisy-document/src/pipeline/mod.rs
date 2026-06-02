@@ -41,6 +41,6 @@ pub use self::runs::{
 pub use crate::core::Plan;
 pub use crate::phases::deduplication::DeduplicationPhase;
 pub use crate::phases::detection::DetectionPhase;
-pub use crate::phases::extraction::phase::ExtractionPhase;
+pub use crate::phases::extraction::ExtractionPhase;
 pub use crate::phases::redaction::phase::RedactionPhase;
 pub use crate::phases::validation::ValidationPhase;

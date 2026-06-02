@@ -1,12 +1,12 @@
 //! Image-modality document shape: [`ImageBlock`], [`ImageMetadata`],
 //! [`PageDimensions`].
 
-use nvisy_core::modality::Image;
+use nvisy_core::modality::{Image, ImageExtraction};
 use nvisy_core::primitive::LanguageDetection;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{ImageExtraction, ModalityBlock};
+use super::ModalityBlock;
 
 /// Per-modality block payload for [`Image`]. Text-bearing variants
 /// carry recognized text; per-word source spans live on the wrapping

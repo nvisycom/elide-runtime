@@ -8,7 +8,7 @@
 //! Each phase exposes an `apply(ctx, tree)` method that walks the
 //! [`DocumentTree`] in pre-order and dispatches per [`NodeMut`]
 //! variant to its own per-modality body. Phases own their engine
-//! handles (extraction's `ExtractionEngine`, detection's
+//! handles (extraction's `ExtractorRegistry`, detection's
 //! `RecognizerRegistry`) so the orchestrator doesn't have to thread
 //! them through.
 //!
@@ -21,7 +21,7 @@ use super::engine::EngineInput;
 use crate::core::{DocumentTree, RunContext};
 use crate::phases::deduplication::DeduplicationPhase;
 use crate::phases::detection::DetectionPhase;
-use crate::phases::extraction::phase::ExtractionPhase;
+use crate::phases::extraction::ExtractionPhase;
 use crate::phases::redaction::phase::RedactionPhase;
 use crate::phases::validation::ValidationPhase;
 

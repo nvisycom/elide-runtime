@@ -4,4 +4,5 @@
 
 pub mod deduplication;
 pub mod detection;
+pub mod extraction;
 pub mod redaction;

@@ -26,6 +26,7 @@ use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::context::Context;
 use nvisy_core::entity::EntityKind;
+use nvisy_core::primitive::LanguageTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +58,14 @@ pub struct Dictionary {
     #[builder(default)]
     #[serde(default, skip_serializing_if = "context_is_default")]
     pub context: Context,
+    /// Languages the dictionary applies to (BCP-47 tags). An empty
+    /// list (the default) means the dictionary applies regardless of
+    /// language; otherwise the recognizer skips this dictionary when
+    /// the per-call language hint is set to a tag not in this list.
+    #[builder(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(with = "Vec<String>")]
+    pub languages: Vec<LanguageTag>,
 }
 
 impl Dictionary {

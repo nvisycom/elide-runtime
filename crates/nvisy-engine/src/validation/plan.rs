@@ -2,34 +2,32 @@
 //!
 //! [`Validation`] runs after redaction. It re-scans the redacted
 //! output to verify that no originally detected values remain
-//! visible, optionally failing the pipeline run if any leaks are
-//! found.
+//! visible, optionally failing the pipeline run when leaks are found.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// How the validation phase reacts when post-redaction re-scan finds
-/// a value that should have been redacted but still appears in the
-/// output.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum OnLeak {
-    /// Log the leak and continue. The run still succeeds.
-    #[default]
-    Ignore,
-    /// Fail the run with a validation error listing the leaked values.
-    Fail,
-}
+use super::Severity;
 
-/// Controls how the post-redaction leak check affects the overall pipeline
-/// outcome.
+/// Per-plan validation settings.
 ///
-/// [`Validation`]: crate::validation::Validation
+/// `leak_severity` controls what the phase does when the canonical
+/// [`LeakCheck`] finds a value that should have been redacted but
+/// still appears in the output:
+///
+/// - [`Severity::Warn`] (default) — log the leak and continue. The
+///   run succeeds.
+/// - [`Severity::Fail`] — log the leak and fail the run with a
+///   validation error listing the leaked values.
+///
+/// [`LeakCheck`]: crate::validation::LeakCheck
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Validation {
-    /// What to do when the re-scan finds a leaked value.
+    /// Severity stamped onto every [`Finding`] emitted by the
+    /// canonical leak check.
+    ///
+    /// [`Finding`]: crate::validation::Finding
     #[serde(default)]
-    pub on_leak: OnLeak,
+    pub leak_severity: Severity,
 }

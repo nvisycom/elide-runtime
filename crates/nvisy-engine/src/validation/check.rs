@@ -1,215 +1,167 @@
-//! Per-modality leak-check trait.
+//! [`Check`]: the abstract validation pass.
 //!
-//! Post-redaction validation walks the envelope's applied records
-//! and asks "is the original sensitive value still visible in the
-//! redacted output?" The check itself is modality-specific:
+//! A [`Check`] inspects a single [`Document<M>`] post-redaction and
+//! returns a list of [`Finding`]s. Checks are read-only — they
+//! observe the document and the codec handle but never mutate the
+//! audit records.
 //!
-//! - Text: substring scan over the concatenated post-redaction text.
-//! - Tabular: per-cell substring scan against each applied record's
-//!   cell value after redaction.
-//! - Image / Audio: leak detection requires visual or audio
-//!   inspection, which the runtime can't do today. The impl is a
-//!   no-op that returns an empty result — see
-//!   <https://github.com/nvisycom/runtime/issues/209> (image) and
-//!   <https://github.com/nvisycom/runtime/issues/210> (audio).
+//! Concrete check implementations live in submodules (today only
+//! [`crate::validation::leak`]; future checks slot in as siblings).
+//! Each domain typically defines its *own* trait
+//! (e.g. [`CheckLeaks`]) carrying the domain-meaningful method, plus
+//! a bridge `impl Check for ConcreteCheck` that wraps the domain
+//! result into [`Finding`]s.
 //!
-//! The generic `Validator::execute<M>` dispatches via this trait
-//! so each modality's pipeline runs the right check (or none).
+//! Pipelines hold checks as `Box<dyn Check<M, P>>` and run them
+//! head-to-tail; see [`CheckPipeline`].
+//!
+//! [`CheckLeaks`]: crate::validation::CheckLeaks
+//! [`CheckPipeline`]: super::CheckPipeline
+//! [`Document<M>`]: nvisy_ontology::document::Document
 
-use futures::StreamExt;
+use std::marker::PhantomData;
+
+use async_trait::async_trait;
 use nvisy_ontology::document::Document;
-use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
-use nvisy_ontology::provenance::EntityRecord;
-use unicode_normalization::UnicodeNormalization;
+use nvisy_ontology::modality::Modality;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use super::{LeakedValue, ValidationResult};
-use crate::core::{DocumentView, SharedHandle, ValueAt};
+use crate::core::{SharedHandle, ValueAt};
 
-/// Per-modality leak-check contract.
-#[async_trait::async_trait]
-pub trait CheckLeaks: Modality {
-    /// Inspect the document and report any redacted values that
-    /// remain visible. Modalities without leak-detection support
-    /// return [`ValidationResult::skipped`].
-    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult;
-}
-
-#[async_trait::async_trait]
-impl CheckLeaks for Text {
-    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult {
-        let redacted_text = read_text(handle).await;
-        check_text_like::<Text>(doc, handle, redacted_text.as_deref()).await
-    }
-}
-
-#[cfg(feature = "tabular")]
-#[async_trait::async_trait]
-impl CheckLeaks for Tabular {
-    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult {
-        let redacted_text = read_tabular(handle).await;
-        check_text_like::<Tabular>(doc, handle, redacted_text.as_deref()).await
-    }
-}
-
-#[cfg(not(feature = "tabular"))]
-#[async_trait::async_trait]
-impl CheckLeaks for Tabular {
-    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
-        ValidationResult::skipped()
-    }
-}
-
-#[async_trait::async_trait]
-impl CheckLeaks for Image {
-    /// Image leak detection requires visual inspection (compare the
-    /// redacted region against the original). Not implemented yet —
-    /// tracked at
-    /// <https://github.com/nvisycom/runtime/issues/209>.
-    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
-        ValidationResult::skipped()
-    }
-}
-
-#[async_trait::async_trait]
-impl CheckLeaks for Audio {
-    /// Audio leak detection requires speech/audio inspection of the
-    /// post-redaction segments. Not implemented yet — tracked at
-    /// <https://github.com/nvisycom/runtime/issues/210>.
-    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
-        ValidationResult::skipped()
-    }
-}
-
-/// Shared substring-based leak check used by both Text and Tabular.
+/// Read-only context every [`Check::check`] call receives.
 ///
-/// For each applied record, re-reads the (post-redaction) value at
-/// its location through the modality's [`ValueAt`] impl and checks
-/// whether it still contains the original. Records whose value
-/// can't be re-read are conservatively counted as passed.
-async fn check_text_like<M>(
-    doc: &Document<M>,
-    handle: &SharedHandle,
-    redacted_text: Option<&str>,
-) -> ValidationResult
+/// Built once per node by the phase orchestrator and passed to each
+/// check in the pipeline:
+///
+/// ```ignore
+/// let ctx = CheckContext::new(&view, &handle).with_correlation_id(run_id);
+/// pipeline.run(doc, &ctx).await;
+/// ```
+///
+/// `P` is the resolver type, mirroring the dedup [`LayerContext`].
+/// Generic so the resolver call (`ctx.resolver.value_at(...)`) is
+/// monomorphised. Object safety on [`Check<M, P>`] still holds —
+/// `P` is a type parameter, not a generic method.
+///
+/// [`LayerContext`]: crate::deduplication::LayerContext
+pub struct CheckContext<'a, M, P>
 where
     M: Modality,
-    for<'a> DocumentView<'a, M>: ValueAt<M>,
+    P: ValueAt<M> + ?Sized,
 {
-    let mut passed = 0usize;
-    let mut leaked = Vec::new();
+    /// Resolver for "what value sits at this location?" Backed by
+    /// `DocumentView<'_, M>` in production, mockable in tests.
+    pub resolver: &'a P,
+    /// Codec handle used by checks that need to re-read the
+    /// post-redaction bytes (leak detection reads the redacted text;
+    /// future checks may need other slices).
+    pub handle: &'a SharedHandle,
+    /// Optional correlation id used to stitch tracing spans across
+    /// the run.
+    pub correlation_id: Option<Uuid>,
+    /// Phantom binding `M` so the trait bound on `P` carries
+    /// through without an unused-param error.
+    _marker: PhantomData<&'a M>,
+}
 
-    let applied: Vec<&EntityRecord<M>> = doc
-        .audit
-        .records
-        .iter()
-        .filter(|r| r.audit.as_ref().is_some_and(|e| e.execution.is_applied()))
-        .collect();
-
-    let Some(text) = redacted_text else {
-        return ValidationResult {
-            passed: applied.len(),
-            leaked,
-            skipped: false,
-        };
-    };
-
-    let view = DocumentView::new(doc, handle);
-    let folded_text = fold_for_match(text);
-    for record in &applied {
-        if let Some(value) = view.value_at(&record.entity.location).await {
-            let folded_value = fold_for_match(&value);
-            if !value.is_empty() && folded_text.contains(&folded_value) {
-                leaked.push(LeakedValue {
-                    value,
-                    entity_id: record.entity.id,
-                });
-            } else {
-                passed += 1;
-            }
-        } else {
-            passed += 1;
+impl<'a, M, P> CheckContext<'a, M, P>
+where
+    M: Modality,
+    P: ValueAt<M> + ?Sized,
+{
+    /// Build a context from the resolver + handle.
+    pub fn new(resolver: &'a P, handle: &'a SharedHandle) -> Self {
+        Self {
+            resolver,
+            handle,
+            correlation_id: None,
+            _marker: PhantomData,
         }
     }
 
-    ValidationResult {
-        passed,
-        leaked,
-        skipped: false,
+    /// Attach a correlation id (typically a run id).
+    pub fn with_correlation_id(mut self, correlation_id: Uuid) -> Self {
+        self.correlation_id = Some(correlation_id);
+        self
     }
 }
 
-async fn read_text(handle: &SharedHandle) -> Option<String> {
-    let locations: Vec<_> = {
-        let guard = handle.lock().await;
-        guard.text_locations().collect().await
-    };
-    if locations.is_empty() {
-        return None;
-    }
-    let mut buf = String::new();
-    for located in &locations {
-        if let Some(data) = handle.lock().await.read_text(&located.location).await {
-            buf.push_str(data.as_str());
-        }
-    }
-    Some(buf)
-}
-
-#[cfg(feature = "tabular")]
-async fn read_tabular(handle: &SharedHandle) -> Option<String> {
-    let locations: Vec<_> = {
-        let guard = handle.lock().await;
-        guard.tabular_locations().collect().await
-    };
-    if locations.is_empty() {
-        return None;
-    }
-    let mut buf = String::new();
-    for located in &locations {
-        if let Some(data) = handle.lock().await.read_tabular(&located.location).await {
-            if !buf.is_empty() {
-                buf.push('\n');
-            }
-            buf.push_str(data.as_str());
-        }
-    }
-    Some(buf)
-}
-
-/// Fold a string for case-insensitive substring matching across
-/// Unicode normalization forms.
+/// Severity of a single [`Finding`].
 ///
-/// Without normalization, the same character sequence written in
-/// NFC vs NFD won't substring-match: e.g. `"café"` as
-/// `[c, a, f, U+00E9]` vs `[c, a, f, e, U+0301]` are distinct byte
-/// sequences. We normalize to NFC, then lowercase. Turkish dotless-i
-/// and other locale-sensitive cases still misfold (`I` → `i` not
-/// `ı`), but that's a deeper Unicode rabbit hole and the redaction
-/// pipeline doesn't currently carry per-document locale info to do
-/// it properly.
-fn fold_for_match(s: &str) -> String {
-    s.nfc().collect::<String>().to_lowercase()
+/// `Warn` causes the phase to log the finding and continue. `Fail`
+/// causes the phase to log the finding and return a validation
+/// error, failing the run.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Severity {
+    /// Log + continue.
+    #[default]
+    Warn,
+    /// Log + fail the run.
+    Fail,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::fold_for_match;
+/// Discriminator on what *kind* of issue a [`Finding`] represents.
+///
+/// Each check kind extends this enum with its own variant. The enum
+/// is `#[non_exhaustive]` so adding a new check kind doesn't break
+/// existing match-on-FindingKind callers.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum FindingKind {
+    /// A redacted value remained visible in the post-redaction
+    /// output. Produced by [`LeakCheck`].
+    ///
+    /// [`LeakCheck`]: crate::validation::LeakCheck
+    Leak {
+        /// The entity whose redacted value was still found in the
+        /// output.
+        entity_id: Uuid,
+        /// The original sensitive value that should have been
+        /// redacted.
+        value: String,
+    },
+    /// Catch-all for future check kinds. Carries an opaque
+    /// human-readable message.
+    Other,
+}
 
-    #[test]
-    fn nfc_normalization_collapses_combining_accents() {
-        // "café" as NFC (U+00E9) and NFD (e + U+0301) should fold
-        // to the same string.
-        let nfc = "caf\u{00e9}";
-        let nfd = "cafe\u{0301}";
-        assert_eq!(fold_for_match(nfc), fold_for_match(nfd));
-    }
+/// One observation emitted by a [`Check`].
+#[derive(Debug, Clone)]
+pub struct Finding {
+    /// Whether this finding should fail the run.
+    pub severity: Severity,
+    /// What kind of issue this finding represents.
+    pub kind: FindingKind,
+    /// Human-readable description of the issue, suitable for the
+    /// tracing message and (on `Severity::Fail`) the error payload.
+    pub message: String,
+}
 
-    #[test]
-    fn case_fold_substring_match_works_across_normalization() {
-        // The haystack is NFD and uppercase; the needle is NFC
-        // lowercase. Folding both should let the substring match.
-        let haystack = fold_for_match("HELLO CAFE\u{0301}!");
-        let needle = fold_for_match("caf\u{00e9}");
-        assert!(haystack.contains(&needle));
-    }
+/// One stage of a validation pipeline.
+///
+/// Each check inspects `doc` and produces a list of findings.
+/// Checks that find nothing return an empty vec; checks that don't
+/// support the modality should not be registered in the first place
+/// (the pipeline simply has no check for that modality).
+#[async_trait]
+pub trait Check<M, P>: Send + Sync
+where
+    M: Modality,
+    P: ValueAt<M> + ?Sized,
+{
+    /// Inspect `doc` and emit a list of findings.
+    async fn check(&self, doc: &Document<M>, ctx: &CheckContext<'_, M, P>) -> Vec<Finding>;
 }

@@ -1,53 +1,41 @@
-//! Post-redaction validation: per-modality leak detection.
+//! Post-redaction validation: composable check pipeline.
 //!
-//! Public surface is the [`CheckLeaks`] trait plus the
-//! [`LeakedValue`] / [`ValidationResult`] result types and the
-//! [`OnLeak`] / [`Validation`] plan types. The phase orchestrator
-//! that walks the tree and dispatches leak checks lives in
-//! [`ValidationPhase`].
+//! Public surface:
 //!
-//! Per-modality leak detection lives behind the [`CheckLeaks`]
-//! trait — Text and Tabular run real substring checks; Image and
-//! Audio currently return [`ValidationResult::skipped`] because
-//! visual / audio inspection isn't implemented yet.
+//! - [`Check`] / [`CheckContext`] / [`Finding`] / [`FindingKind`] /
+//!   [`Severity`] — the abstract check abstraction shared by every
+//!   validation pass.
+//! - [`CheckPipeline`] — ordered stack of checks, built with
+//!   `new().with_check(...).run(...)`.
+//! - [`CheckLeaks`] / [`LeakCheck`] / [`LeakFinding`] — the canonical
+//!   leak-detection implementation, scoped under the [`leak`]
+//!   submodule. [`LeakCheck`] implements both [`CheckLeaks`] (for
+//!   direct domain callers) and [`Check`] (so it slots into a
+//!   pipeline).
 //!
+//! The phase orchestrator at [`ValidationPhase`] builds the
+//! canonical pipeline from [`Validation`] for each
+//! per-modality node and aggregates findings; any
+//! [`Severity::Fail`] finding fails the run.
+//!
+//! [`Check`]: check::Check
+//! [`CheckContext`]: check::CheckContext
+//! [`Finding`]: check::Finding
+//! [`FindingKind`]: check::FindingKind
+//! [`Severity`]: check::Severity
+//! [`CheckPipeline`]: pipeline::CheckPipeline
+//! [`CheckLeaks`]: leak::CheckLeaks
+//! [`LeakCheck`]: leak::LeakCheck
+//! [`LeakFinding`]: leak::LeakFinding
 //! [`ValidationPhase`]: crate::pipeline::ValidationPhase
+//! [`leak`]: self::leak
 
 mod check;
+pub mod leak;
+mod pipeline;
 mod plan;
 
-use uuid::Uuid;
-
-pub use self::check::CheckLeaks;
-pub use self::plan::{OnLeak, Validation};
-
-/// A sensitive value that was not properly redacted.
-#[derive(Debug, Clone)]
-pub struct LeakedValue {
-    pub value: String,
-    pub entity_id: Uuid,
-}
-
-/// Result of validation for one node.
-///
-/// `skipped` is `true` when the modality has no leak-detection
-/// implementation (Image, Audio). In that case `passed` and `leaked`
-/// are both empty / zero — no claim is made either way.
-#[derive(Debug)]
-pub struct ValidationResult {
-    pub passed: usize,
-    pub leaked: Vec<LeakedValue>,
-    pub skipped: bool,
-}
-
-impl ValidationResult {
-    /// Returned by per-modality checks that don't run any inspection
-    /// (Image, Audio today).
-    pub fn skipped() -> Self {
-        Self {
-            passed: 0,
-            leaked: Vec::new(),
-            skipped: true,
-        }
-    }
-}
+pub use self::check::{Check, CheckContext, Finding, FindingKind, Severity};
+pub use self::leak::{CheckLeaks, LeakCheck, LeakFinding};
+pub use self::pipeline::CheckPipeline;
+pub use self::plan::Validation;

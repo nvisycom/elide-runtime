@@ -1,19 +1,24 @@
-//! [`ValidationPhase`]: per-node leak-detection driver.
+//! [`ValidationPhase`]: per-node check-pipeline driver.
 //!
-//! Re-scans the redacted document for leaked values via per-modality
-//! [`CheckLeaks`] dispatch. Read-only against the codec handle;
-//! surfaces failures via the `Result` when `on_leak = OnLeak::Fail`
-//! is set in the plan config.
+//! Builds the canonical [`CheckPipeline`] from
+//! [`Validation`] (today: a single [`LeakCheck`] with the configured
+//! [`Severity`]) and runs it against each modality node in the tree.
+//! Aggregates findings; any [`Severity::Fail`] finding fails the
+//! run with a validation error.
 //!
-//! [`CheckLeaks`]: crate::validation::CheckLeaks
+//! [`CheckPipeline`]: crate::validation::CheckPipeline
+//! [`LeakCheck`]: crate::validation::LeakCheck
+//! [`Severity`]: crate::validation::Severity
+//! [`Validation`]: crate::pipeline::Validation
 
 use nvisy_core::{Error, Result};
-use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 use tracing::Instrument;
 
-use crate::core::{DocumentTree, NodeMut, RunContext, SharedHandle};
+use crate::core::{DocumentTree, DocumentView, NodeMut, RunContext, SharedHandle};
 use crate::pipeline::EngineInput;
-use crate::validation::{CheckLeaks, OnLeak};
+use crate::validation::{
+    CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity, Validation,
+};
 
 const TARGET: &str = "nvisy_engine::validation";
 
@@ -26,27 +31,28 @@ impl ValidationPhase {
         Self
     }
 
-    /// Walk the tree and run leak detection per node. Visits the root
-    /// first, then iterates nested embedded documents; each per-node
-    /// body borrows the handle directly from this scope.
+    /// Walk the tree and run the canonical check pipeline per node.
+    /// Visits the root first, then iterates nested embedded documents.
     pub(crate) async fn apply(
         &self,
-        _ctx: &RunContext,
+        ctx: &RunContext,
         input: &EngineInput,
         tree: &mut DocumentTree,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "validation");
-        let on_leak = input.plan.validation.on_leak;
+        let run_id = ctx.shared().run_id;
+        let cfg = input.plan.validation.clone();
         // Snapshot the tree-owned handle so it doesn't conflict with
         // the per-node `&mut` borrows produced by `root_mut` /
         // `embeds_mut` further down.
         let handle = tree.handle.clone();
         async move {
-            dispatch(tree.root_mut(), &handle, on_leak).await?;
+            let mut findings = Vec::new();
+            findings.extend(dispatch(tree.root_mut(), &handle, &cfg, run_id).await?);
             for node in tree.embeds_mut() {
-                dispatch(node, &handle, on_leak).await?;
+                findings.extend(dispatch(node, &handle, &cfg, run_id).await?);
             }
-            Ok(())
+            finalize(&findings)
         }
         .instrument(span)
         .await
@@ -59,65 +65,96 @@ impl Default for ValidationPhase {
     }
 }
 
-async fn dispatch(node: NodeMut<'_>, handle: &SharedHandle, on_leak: OnLeak) -> Result<()> {
-    let (result, modality) = match node {
-        NodeMut::Text(doc) => (<Text as CheckLeaks>::check_leaks(doc, handle).await, "text"),
-        NodeMut::Tabular(doc) => (
-            <Tabular as CheckLeaks>::check_leaks(doc, handle).await,
-            "tabular",
-        ),
-        NodeMut::Image(doc) => (
-            <Image as CheckLeaks>::check_leaks(doc, handle).await,
-            "image",
-        ),
-        NodeMut::Audio(doc) => (
-            <Audio as CheckLeaks>::check_leaks(doc, handle).await,
-            "audio",
-        ),
-    };
+async fn dispatch(
+    node: NodeMut<'_>,
+    handle: &SharedHandle,
+    cfg: &Validation,
+    run_id: uuid::Uuid,
+) -> Result<Vec<Finding>> {
+    Ok(match node {
+        NodeMut::Text(doc) => {
+            let view = DocumentView::new(doc, handle);
+            let pipeline: CheckPipeline<_, _> =
+                CheckPipeline::new().with_check(LeakCheck::new(cfg.leak_severity));
+            let ctx = CheckContext::new(&view, handle).with_correlation_id(run_id);
+            log_findings("text", pipeline.run(doc, &ctx).await)
+        }
+        NodeMut::Tabular(doc) => {
+            let view = DocumentView::new(doc, handle);
+            let pipeline: CheckPipeline<_, _> =
+                CheckPipeline::new().with_check(LeakCheck::new(cfg.leak_severity));
+            let ctx = CheckContext::new(&view, handle).with_correlation_id(run_id);
+            log_findings("tabular", pipeline.run(doc, &ctx).await)
+        }
+        // Image and Audio have no canonical check today. The
+        // pipeline is empty; nothing runs.
+        NodeMut::Image(_) | NodeMut::Audio(_) => Vec::new(),
+    })
+}
 
-    if result.skipped {
-        tracing::debug!(
+/// Log per-node findings at the appropriate level and return them
+/// for run-level aggregation.
+fn log_findings(modality: &'static str, findings: Vec<Finding>) -> Vec<Finding> {
+    if findings.is_empty() {
+        tracing::debug!(target: TARGET, modality, "validation passed");
+        return findings;
+    }
+    let fail_count = findings
+        .iter()
+        .filter(|f| matches!(f.severity, Severity::Fail))
+        .count();
+    if fail_count > 0 {
+        tracing::warn!(
             target: TARGET,
             modality,
-            "validation skipped: no leak-detection implementation for this modality",
+            findings = findings.len(),
+            failing = fail_count,
+            "validation produced failing findings",
         );
-        return Ok(());
-    }
-
-    if result.leaked.is_empty() {
-        tracing::debug!(
+    } else {
+        tracing::warn!(
             target: TARGET,
             modality,
-            passed = result.passed,
-            "validation passed",
+            findings = findings.len(),
+            "validation produced warning findings",
         );
+    }
+    for finding in &findings {
+        tracing::warn!(
+            target: TARGET,
+            severity = ?finding.severity,
+            message = %finding.message,
+            "validation finding",
+        );
+    }
+    findings
+}
+
+/// Convert the collected findings into a phase result. Any
+/// `Severity::Fail` finding fails the run with a validation error
+/// listing all failing findings.
+fn finalize(findings: &[Finding]) -> Result<()> {
+    let failing: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| matches!(f.severity, Severity::Fail))
+        .collect();
+    if failing.is_empty() {
         return Ok(());
     }
-
-    tracing::warn!(
-        target: TARGET,
-        modality,
-        leaked = result.leaked.len(),
-        passed = result.passed,
-        "validation found leaked values",
-    );
-
-    if matches!(on_leak, OnLeak::Fail) {
-        let details: Vec<String> = result
-            .leaked
-            .iter()
-            .map(|l| format!("{}({})", l.value, l.entity_id))
-            .collect();
-        return Err(Error::validation(
-            format!(
-                "{} redacted value(s) leaked in output: {}",
-                result.leaked.len(),
-                details.join(", "),
-            ),
-            "validation",
-        ));
-    }
-
-    Ok(())
+    let details = failing
+        .iter()
+        .map(|f| match &f.kind {
+            FindingKind::Leak { entity_id, value } => format!("{value}({entity_id})"),
+            FindingKind::Other => f.message.clone(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(Error::validation(
+        format!(
+            "{} validation finding(s) failed the run: {}",
+            failing.len(),
+            details,
+        ),
+        "validation",
+    ))
 }

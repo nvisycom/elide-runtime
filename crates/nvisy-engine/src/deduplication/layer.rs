@@ -6,11 +6,8 @@
 //! drop-reason telemetry into a single log line. Layers that only
 //! *add* to or *reshape* the collection return an empty `Vec`.
 //!
-//! The four built-in layers
-//! ([`CalibrateLayer`],
-//! [`FilterLayer`],
-//! [`FuseLayer`],
-//! [`ResolveConflictsLayer`]) cover the
+//! The four built-in layers ([`CalibrateLayer`], [`FilterLayer`],
+//! [`FuseLayer`], [`ResolveConflictsLayer`]) cover the
 //! canonical dedup recipe. Operators compose them — or their own
 //! custom layers — through [`LayerPipeline`].
 //!
@@ -28,6 +25,8 @@
 //! [`ResolveConflictsLayer`]: super::ResolveConflictsLayer
 //! [`LayerPipeline`]: super::LayerPipeline
 //! [`fuse`]: super::FuseLayer
+
+use std::marker::PhantomData;
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::Entity;
@@ -62,7 +61,7 @@ pub struct LayerContext<'a, M: Modality, R: ValueAt<M> + ?Sized> {
     pub correlation_id: Option<Uuid>,
     /// Phantom binding `M` into the lifetime/type so the trait bound
     /// on `R` carries through without an unused-param error.
-    _marker: std::marker::PhantomData<&'a M>,
+    _marker: PhantomData<&'a M>,
 }
 
 impl<'a, M: Modality, R: ValueAt<M> + ?Sized> LayerContext<'a, M, R> {
@@ -72,7 +71,7 @@ impl<'a, M: Modality, R: ValueAt<M> + ?Sized> LayerContext<'a, M, R> {
         Self {
             resolver,
             correlation_id: None,
-            _marker: std::marker::PhantomData,
+            _marker: PhantomData,
         }
     }
 

@@ -1,6 +1,6 @@
 //! Redaction: policy evaluation + multimodal application.
 //!
-//! Two steps run by [`run_redaction`]:
+//! Two steps run by `run_redaction`:
 //!
 //! 1. **Evaluate**: match entities against policy rules to produce
 //!    [`AuditEntry`]s.
@@ -11,12 +11,13 @@
 //! Unlike extraction and detection, redaction has no expensive
 //! per-run construction — there's no model to load or HTTP client
 //! to set up. The phase orchestrator
-//! ([`crate::pipeline::phases::RedactionPhase`]) holds a
-//! [`RedactionConfig`] that supplies deployment-wide fallback values
-//! for plan [`Redaction`] fields that aren't explicitly set.
+//! ([`RedactionPhase`](crate::pipeline::RedactionPhase)) holds a
+//! [`RedactionConfig`](crate::pipeline::RedactionConfig) that
+//! supplies deployment-wide fallback values for plan
+//! [`Redaction`](crate::pipeline::Redaction) fields that aren't
+//! explicitly set.
 //!
 //! [`AuditEntry`]: nvisy_ontology::provenance::AuditEntry
-//! [`Redaction`]: crate::pipeline::Redaction
 
 mod apply;
 mod evaluate;

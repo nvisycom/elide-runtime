@@ -7,12 +7,11 @@
 //! (tests, custom drivers).
 //!
 //! Phases are concrete structs (no `Phase<M>` trait); ordering is a
-//! type-level fact set by [`DocumentPipeline`].
+//! type-level fact set by the pipeline orchestrator.
 //!
 //! [`Document`]: nvisy_ontology::document::Document
 //! [`RecognizerRegistry`]: crate::detection::RecognizerRegistry
 //! [`ExtractionEngine`]: crate::extraction::ExtractionEngine
-//! [`DocumentPipeline`]: crate::pipeline::DocumentPipeline
 
 mod deduplication;
 mod detection;

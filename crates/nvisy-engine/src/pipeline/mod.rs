@@ -8,7 +8,7 @@
 //! # Submodules
 //!
 //! - `config`: [`RuntimeConfig`] and per-subsystem sections.
-//! - `document_pipeline`: per-document [`DocumentPipeline`] struct
+//! - `document_pipeline`: per-document `DocumentPipeline` struct
 //!   holding one concrete instance of each phase.
 //! - `run`: per-run lifecycle (`run::Pipeline`).
 //! - `orchestrator`: concurrent per-document fan-out.

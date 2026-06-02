@@ -47,7 +47,7 @@ pub struct DeduplicationParams {
     #[serde(default)]
     pub strategy: DeduplicationStrategy,
     /// Per-method confidence scaling applied before filtering.
-    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    #[serde(default, skip_serializing_if = "CalibrationMap::is_empty")]
     pub calibration: CalibrationMap,
     /// Minimum (calibrated) confidence an entity must clear to
     /// survive deduplication. `None` keeps every candidate.

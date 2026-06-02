@@ -6,7 +6,7 @@
 //! has no knowledge of [`Document`], blocks, or pipeline phases.
 //!
 //! The Document-walking glue that drives the registry per-block /
-//! per-image lives in [`crate::pipeline::phases::DetectionPhase`] —
+//! per-image lives in [`DetectionPhase`](crate::pipeline::DetectionPhase) —
 //! that's where block iteration, entity-kind filtering, and
 //! span-to-location lifting happen.
 //!

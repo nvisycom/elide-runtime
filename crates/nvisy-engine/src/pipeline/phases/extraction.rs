@@ -24,9 +24,7 @@ pub struct ExtractionPhase {
 
 impl ExtractionPhase {
     /// Build the phase from the shared extraction engine. Called
-    /// once per pipeline by [`DocumentPipeline::from_context`].
-    ///
-    /// [`DocumentPipeline::from_context`]: crate::pipeline::DocumentPipeline::from_context
+    /// once per pipeline by the pipeline orchestrator.
     pub fn new(engine: ExtractionEngine) -> Self {
         Self { engine }
     }

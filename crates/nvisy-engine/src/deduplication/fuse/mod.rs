@@ -12,6 +12,7 @@ mod strategy;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
+use async_trait::async_trait;
 use nvisy_ontology::entity::{Entity, TrailStep};
 use nvisy_ontology::modality::{Modality, Overlap};
 use nvisy_ontology::primitive::Confidence;
@@ -19,51 +20,59 @@ use nvisy_ontology::primitive::Confidence;
 use self::group::GroupEntities;
 pub use self::group::GroupingCriteria;
 pub use self::strategy::DeduplicationStrategy;
+use super::layer::{Layer, LayerContext};
 use super::span_size::SpanSize;
 use crate::core::ValueAt;
 
-const TARGET: &str = "nvisy_engine::op::deduplication::fuse";
+const TARGET: &str = "nvisy_engine::deduplication::fuse";
 
-/// Extension trait: group co-referent entities by `criteria` then
-/// merge each group into a single entity according to `strategy`.
-/// Mutates in place.
-pub(super) trait Fuse<M: Modality> {
-    /// Group + fuse the entity collection in place.
-    fn fuse<V: ValueAt<M> + ?Sized>(
-        &mut self,
-        strategy: &DeduplicationStrategy,
-        criteria: GroupingCriteria,
-        view: &V,
-    ) -> impl Future<Output = ()> + Send;
+/// [`Layer`] that groups co-referent entities and merges each group
+/// into a single entity.
+///
+/// Drops nothing — but reshapes the collection (each group of N
+/// entities becomes one). Returns an empty vec from [`Layer::apply`].
+pub struct FuseLayer {
+    strategy: DeduplicationStrategy,
+    criteria: GroupingCriteria,
 }
 
-impl<M> Fuse<M> for Vec<Entity<M>>
+impl FuseLayer {
+    /// Construct a fuse layer from a strategy + criteria.
+    pub fn new(strategy: DeduplicationStrategy, criteria: GroupingCriteria) -> Self {
+        Self { strategy, criteria }
+    }
+}
+
+#[async_trait]
+impl<M, R> Layer<M, R> for FuseLayer
 where
     M: Modality + Overlap + SpanSize,
+    R: ValueAt<M> + ?Sized,
 {
-    async fn fuse<V: ValueAt<M> + ?Sized>(
-        &mut self,
-        strategy: &DeduplicationStrategy,
-        criteria: GroupingCriteria,
-        view: &V,
-    ) {
-        if self.len() <= 1 {
-            return;
+    async fn apply(
+        &self,
+        entities: &mut Vec<Entity<M>>,
+        ctx: &LayerContext<'_, M, R>,
+    ) -> Vec<Entity<M>> {
+        if entities.len() <= 1 {
+            return Vec::new();
         }
 
-        let entities = std::mem::take(self);
-        let groups = entities.group(criteria, view).await;
+        let owned = std::mem::take(entities);
+        let groups = owned.group(self.criteria, ctx.resolver).await;
 
         tracing::debug!(
             target: TARGET,
-            strategy = ?strategy,
+            strategy = ?self.strategy,
             groups = groups.len(),
             "fusing entity groups",
         );
 
         for group in groups {
-            self.push(fuse_group(strategy, group, view).await);
+            entities.push(fuse_group(&self.strategy, group, ctx.resolver).await);
         }
+
+        Vec::new()
     }
 }
 
@@ -192,9 +201,9 @@ mod tests {
         )
     }
 
-    /// Build the per-test owned components ready to wrap into a
-    /// [`PhaseTarget`]. Tests build this once and create targets
-    /// borrowing the fields each time they call `fuse`.
+    /// Build per-test owned components ready to construct a
+    /// `DocumentView` against. Tests build this once and create
+    /// fresh views each invocation.
     async fn test_fixture(
         text: &str,
     ) -> (
@@ -224,6 +233,18 @@ mod tests {
         Confidence::new(v).expect("confidence in [0,1]")
     }
 
+    async fn fuse_with(
+        strategy: DeduplicationStrategy,
+        criteria: GroupingCriteria,
+        view: &DocumentView<'_, Text>,
+        entities: &mut Vec<Entity<Text>>,
+    ) {
+        let ctx = LayerContext::new(view);
+        let layer = FuseLayer::new(strategy, criteria);
+        let dropped = layer.apply(entities, &ctx).await;
+        assert!(dropped.is_empty(), "fuse never drops");
+    }
+
     const TEXT: &str = "John Smith";
 
     /// Two entities at the same `(start, end)` byte range fuse into
@@ -232,20 +253,20 @@ mod tests {
     #[tokio::test]
     async fn strict_grouping_fuses_identical_spans_with_max_confidence() {
         let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
-        let target = DocumentView::new(&doc, &handle);
+        let view = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
             Entity::test_builder(0, 4).test_build(),
         ];
-        entities
-            .fuse(
-                &DeduplicationStrategy::MaxConfidence,
-                GroupingCriteria::Strict,
-                &target,
-            )
-            .await;
+        fuse_with(
+            DeduplicationStrategy::MaxConfidence,
+            GroupingCriteria::Strict,
+            &view,
+            &mut entities,
+        )
+        .await;
         assert_eq!(entities.len(), 1);
         assert!((entities[0].confidence.get() - 0.9).abs() < f64::EPSILON);
     }
@@ -253,7 +274,7 @@ mod tests {
     #[tokio::test]
     async fn narrowing_groups_substring_with_overlap() {
         let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
-        let target = DocumentView::new(&doc, &handle);
+        let view = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
@@ -262,15 +283,15 @@ mod tests {
                 .with_trail(vec![ner_step(conf(0.9))])
                 .test_build(),
         ];
-        entities
-            .fuse(
-                &DeduplicationStrategy::MaxConfidence,
-                GroupingCriteria::Narrowing,
-                &target,
-            )
-            .await;
+        fuse_with(
+            DeduplicationStrategy::MaxConfidence,
+            GroupingCriteria::Narrowing,
+            &view,
+            &mut entities,
+        )
+        .await;
         assert_eq!(entities.len(), 1);
-        let value = target.value_at(&entities[0].location).await;
+        let value = view.value_at(&entities[0].location).await;
         assert_eq!(value.as_deref(), Some("John Smith"));
     }
 
@@ -278,27 +299,27 @@ mod tests {
     async fn widening_groups_across_non_overlapping_locations() {
         let text = format!("{:<100}John Smith", TEXT);
         let (handle, doc, _metadata, _shared) = test_fixture(&text).await;
-        let target = DocumentView::new(&doc, &handle);
+        let view = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(100, 110)
                 .with_trail(vec![ner_step(conf(0.9))])
                 .test_build(),
         ];
-        entities
-            .fuse(
-                &DeduplicationStrategy::MaxConfidence,
-                GroupingCriteria::Widening,
-                &target,
-            )
-            .await;
+        fuse_with(
+            DeduplicationStrategy::MaxConfidence,
+            GroupingCriteria::Widening,
+            &view,
+            &mut entities,
+        )
+        .await;
         assert_eq!(entities.len(), 1);
     }
 
     #[tokio::test]
     async fn noisy_or_strategy() {
         let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
-        let target = DocumentView::new(&doc, &handle);
+        let view = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
@@ -308,13 +329,13 @@ mod tests {
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
-        entities
-            .fuse(
-                &DeduplicationStrategy::NoisyOr,
-                GroupingCriteria::default(),
-                &target,
-            )
-            .await;
+        fuse_with(
+            DeduplicationStrategy::NoisyOr,
+            GroupingCriteria::default(),
+            &view,
+            &mut entities,
+        )
+        .await;
         assert_eq!(entities.len(), 1);
         // 1 - (1 - 0.7)(1 - 0.8) = 1 - 0.06 = 0.94
         assert!((entities[0].confidence.get() - 0.94).abs() < 0.001);
@@ -323,7 +344,7 @@ mod tests {
     #[tokio::test]
     async fn weighted_average_strategy() {
         let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
-        let target = DocumentView::new(&doc, &handle);
+        let view = DocumentView::new(&doc, &handle);
         let mut weights = HashMap::new();
         weights.insert("pattern".to_string(), 1.0);
         weights.insert("ner".to_string(), 2.0);
@@ -336,13 +357,13 @@ mod tests {
                 .with_trail(vec![ner_step(conf(0.9))])
                 .test_build(),
         ];
-        entities
-            .fuse(
-                &DeduplicationStrategy::WeightedAverage { weights },
-                GroupingCriteria::default(),
-                &target,
-            )
-            .await;
+        fuse_with(
+            DeduplicationStrategy::WeightedAverage { weights },
+            GroupingCriteria::default(),
+            &view,
+            &mut entities,
+        )
+        .await;
         assert_eq!(entities.len(), 1);
         // (0.6 * 1.0 + 0.9 * 2.0) / 3.0 = 0.8
         assert!((entities[0].confidence.get() - 0.8).abs() < 0.001);
@@ -351,7 +372,7 @@ mod tests {
     #[tokio::test]
     async fn different_detector_tagged_as_ensemble_fusion() {
         let (handle, doc, _metadata, _shared) = test_fixture(TEXT).await;
-        let target = DocumentView::new(&doc, &handle);
+        let view = DocumentView::new(&doc, &handle);
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
@@ -360,13 +381,13 @@ mod tests {
                 .with_trail(vec![ner_step(conf(0.9))])
                 .test_build(),
         ];
-        entities
-            .fuse(
-                &DeduplicationStrategy::MaxConfidence,
-                GroupingCriteria::default(),
-                &target,
-            )
-            .await;
+        fuse_with(
+            DeduplicationStrategy::MaxConfidence,
+            GroupingCriteria::default(),
+            &view,
+            &mut entities,
+        )
+        .await;
         assert_eq!(entities.len(), 1);
         assert!(
             entities[0]

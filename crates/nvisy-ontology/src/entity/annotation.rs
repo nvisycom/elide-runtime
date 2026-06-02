@@ -89,8 +89,9 @@ pub enum AnnotationKind<M: Modality> {
         /// Specific entity kind. `None` when the user wants the
         /// region treated as sensitive without committing to a
         /// kind — synthesised entities fall back to
-        /// [`EntityKind::Unresolved`]. The broad [`EntityCategory`]
-        /// is derived via [`EntityKind::category`].
+        /// [`EntityKind::Unresolved`]. The broad
+        /// [`EntityCategory`](super::EntityCategory) is derived via
+        /// [`EntityKind::category`].
         #[serde(skip_serializing_if = "Option::is_none")]
         entity_kind: Option<EntityKind>,
         /// Modality-specific location this inclusion targets.

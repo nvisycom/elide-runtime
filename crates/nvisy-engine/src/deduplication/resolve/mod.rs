@@ -1,38 +1,55 @@
-//! Cross-kind span conflict resolution.
+//! [`ResolveConflictsLayer`]: drop the loser of each cross-kind span
+//! overlap.
 //!
 //! When entities of different kinds overlap the same text span (e.g.
 //! "555-1234" matches both `PhoneNumber` and `EmailAddress`), this
-//! module resolves the conflict by keeping only the winner based on
-//! the configured [`ConflictResolution`] strategy.
+//! layer keeps only the winner per the configured
+//! [`ConflictResolution`] strategy.
 
 mod strategy;
 
+use async_trait::async_trait;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Overlap};
 
 pub use self::strategy::ConflictResolution;
-use crate::deduplication::span_size::SpanSize;
+use super::layer::{Layer, LayerContext};
+use super::span_size::SpanSize;
+use crate::core::ValueAt;
 
-const TARGET: &str = "nvisy_engine::op::deduplication::conflict";
+const TARGET: &str = "nvisy_engine::deduplication::resolve";
 
-/// Extension trait: resolve cross-kind span overlaps in place per the
+/// [`Layer`] that resolves cross-kind span overlaps in place per the
 /// given [`ConflictResolution`] strategy.
-pub(super) trait ResolveConflicts<M: Modality> {
-    /// Drop the loser of each cross-kind overlap; returns the
-    /// dropped entities for downstream telemetry.
-    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Vec<Entity<M>>;
+///
+/// Returns the dropped (losing) entities from [`Layer::apply`].
+pub struct ResolveConflictsLayer {
+    strategy: ConflictResolution,
 }
 
-impl<M> ResolveConflicts<M> for Vec<Entity<M>>
+impl ResolveConflictsLayer {
+    /// Construct a resolve layer from a strategy.
+    pub fn new(strategy: ConflictResolution) -> Self {
+        Self { strategy }
+    }
+}
+
+#[async_trait]
+impl<M, R> Layer<M, R> for ResolveConflictsLayer
 where
     M: Modality + Overlap + SpanSize,
+    R: ValueAt<M> + ?Sized,
 {
-    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Vec<Entity<M>> {
-        if self.len() <= 1 {
+    async fn apply(
+        &self,
+        entities: &mut Vec<Entity<M>>,
+        _ctx: &LayerContext<'_, M, R>,
+    ) -> Vec<Entity<M>> {
+        if entities.len() <= 1 {
             return Vec::new();
         }
 
-        let len = self.len();
+        let len = entities.len();
         let mut losers = vec![false; len];
         let mut resolved = 0usize;
 
@@ -44,14 +61,14 @@ where
                 if losers[j] {
                     continue;
                 }
-                if self[i].entity_kind == self[j].entity_kind {
+                if entities[i].entity_kind == entities[j].entity_kind {
                     continue;
                 }
-                if !self[i].location.overlaps(&self[j].location) {
+                if !entities[i].location.overlaps(&entities[j].location) {
                     continue;
                 }
 
-                if strategy.keeps_first(&self[i], &self[j]) {
+                if self.strategy.keeps_first(&entities[i], &entities[j]) {
                     losers[j] = true;
                 } else {
                     losers[i] = true;
@@ -64,14 +81,14 @@ where
             tracing::debug!(
                 target: TARGET,
                 resolved,
-                strategy = ?strategy,
+                strategy = ?self.strategy,
                 "span conflicts resolved",
             );
         }
 
         let mut dropped = Vec::new();
         let mut idx = 0usize;
-        self.retain(|entity| {
+        entities.retain(|entity| {
             let lost = losers[idx];
             idx += 1;
             if lost {
@@ -90,13 +107,24 @@ mod tests {
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
+    use crate::deduplication::test_resolver;
 
     fn conf(v: f64) -> Confidence {
         Confidence::new(v).expect("confidence in [0,1]")
     }
 
-    #[test]
-    fn highest_confidence_keeps_winner() {
+    async fn apply<M>(strategy: ConflictResolution, entities: &mut Vec<Entity<M>>) -> Vec<Entity<M>>
+    where
+        M: Modality + Overlap + SpanSize,
+    {
+        let resolver = test_resolver::<M>();
+        let ctx = LayerContext::new(&*resolver);
+        let layer = ResolveConflictsLayer::new(strategy);
+        layer.apply(entities, &ctx).await
+    }
+
+    #[tokio::test]
+    async fn highest_confidence_keeps_winner() {
         let mut entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::PhoneNumber)
@@ -106,13 +134,13 @@ mod tests {
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
-        let _ = entities.resolve_conflicts(&ConflictResolution::HighestConfidence);
+        let _ = apply(ConflictResolution::HighestConfidence, &mut entities).await;
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].entity_kind, EntityKind::PhoneNumber);
     }
 
-    #[test]
-    fn non_overlapping_not_resolved() {
+    #[tokio::test]
+    async fn non_overlapping_not_resolved() {
         let mut entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::PhoneNumber)
@@ -122,12 +150,12 @@ mod tests {
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
-        let _ = entities.resolve_conflicts(&ConflictResolution::HighestConfidence);
+        let _ = apply(ConflictResolution::HighestConfidence, &mut entities).await;
         assert_eq!(entities.len(), 2);
     }
 
-    #[test]
-    fn same_kind_not_resolved() {
+    #[tokio::test]
+    async fn same_kind_not_resolved() {
         let mut entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::PhoneNumber)
@@ -137,12 +165,12 @@ mod tests {
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
-        let _ = entities.resolve_conflicts(&ConflictResolution::HighestConfidence);
+        let _ = apply(ConflictResolution::HighestConfidence, &mut entities).await;
         assert_eq!(entities.len(), 2);
     }
 
-    #[test]
-    fn longest_span_keeps_longer() {
+    #[tokio::test]
+    async fn longest_span_keeps_longer() {
         let mut entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 3)
                 .with_entity_kind(EntityKind::PhoneNumber)
@@ -152,7 +180,7 @@ mod tests {
                 .with_confidence(conf(0.7))
                 .test_build(),
         ];
-        let _ = entities.resolve_conflicts(&ConflictResolution::LongestSpan);
+        let _ = apply(ConflictResolution::LongestSpan, &mut entities).await;
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].entity_kind, EntityKind::EmailAddress);
     }

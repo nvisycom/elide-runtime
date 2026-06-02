@@ -10,9 +10,9 @@
 //!
 //! - [`RunContext`] — per-run shared state (engines, policies,
 //!   cancellation, dry-run flag).
-//! - [`DocumentTree`] — the per-document tree of nodes phases walk
-//!   via [`DocumentTree::walk_mut`]; the [`NodeMut`] variant the
-//!   walk yields drives the per-modality dispatch.
+//! - [`DocumentTree`] — the per-document tree of nodes phases walk;
+//!   the [`NodeMut`] variant the walk yields drives the per-modality
+//!   dispatch.
 //! - [`DocumentView`] / [`ValueAt`] — the read-only view phases use to
 //!   resolve a modality-typed location to its source string.
 //! - [`Plan`] — the per-request bundle of per-phase configs phases

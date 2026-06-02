@@ -1,14 +1,15 @@
 //! [`DeduplicationPhase`]: per-node dedup driver.
 //!
 //! Walks the [`DocumentTree`], pulling each node's entity records,
-//! running the four-step dedup pipeline (calibrate → filter → fuse →
-//! resolve), and rewrapping the result. Stateless; per-run config
-//! comes from `input.plan`.
+//! running the canonical dedup pipeline (calibrate → filter → fuse →
+//! resolve) via [`LayerPipeline::from_params`], and rewrapping the
+//! result. Stateless; per-run config comes from `input.plan`.
 //!
-//! The actual algorithm lives in [`crate::deduplication::deduplicate`];
+//! The pipeline + individual layers live in [`crate::deduplication`];
 //! this phase is purely the document-traversal glue.
 //!
 //! [`DocumentTree`]: crate::core::DocumentTree
+//! [`LayerPipeline::from_params`]: crate::deduplication::LayerPipeline::from_params
 
 use std::mem;
 
@@ -18,9 +19,10 @@ use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Overlap};
 use nvisy_ontology::provenance::EntityRecord;
 use tracing::Instrument;
+use uuid::Uuid;
 
 use crate::core::{DocumentTree, DocumentView, NodeMut, RunContext, SharedHandle, ValueAt};
-use crate::deduplication::{FilterParams, SpanSize, deduplicate};
+use crate::deduplication::{FilterParams, LayerContext, LayerPipeline, SpanSize};
 use crate::pipeline::{DeduplicationParams, Detection, EngineInput};
 
 const TARGET: &str = "nvisy_engine::deduplication";
@@ -44,11 +46,12 @@ impl DeduplicationPhase {
     /// from this scope.
     pub(crate) async fn apply(
         &self,
-        _ctx: &RunContext,
+        ctx: &RunContext,
         input: &EngineInput,
         tree: &mut DocumentTree,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "deduplication");
+        let run_id = ctx.shared().run_id;
         // Snapshot the tree-owned handle so it doesn't conflict with
         // the per-node `&mut` borrows produced by `root_mut` /
         // `embeds_mut` further down.
@@ -59,6 +62,7 @@ impl DeduplicationPhase {
                 &handle,
                 &input.plan.deduplication,
                 &input.plan.detection,
+                run_id,
             )
             .await?;
             for node in tree.embeds_mut() {
@@ -67,6 +71,7 @@ impl DeduplicationPhase {
                     &handle,
                     &input.plan.deduplication,
                     &input.plan.detection,
+                    run_id,
                 )
                 .await?;
             }
@@ -88,12 +93,13 @@ async fn dispatch(
     handle: &SharedHandle,
     dedup: &DeduplicationParams,
     detection: &Detection,
+    run_id: Uuid,
 ) -> Result<()> {
     match node {
-        NodeMut::Text(doc) => dedup_one(doc, handle, dedup, detection).await,
-        NodeMut::Tabular(doc) => dedup_one(doc, handle, dedup, detection).await,
-        NodeMut::Image(doc) => dedup_one(doc, handle, dedup, detection).await,
-        NodeMut::Audio(doc) => dedup_one(doc, handle, dedup, detection).await,
+        NodeMut::Text(doc) => dedup_one(doc, handle, dedup, detection, run_id).await,
+        NodeMut::Tabular(doc) => dedup_one(doc, handle, dedup, detection, run_id).await,
+        NodeMut::Image(doc) => dedup_one(doc, handle, dedup, detection, run_id).await,
+        NodeMut::Audio(doc) => dedup_one(doc, handle, dedup, detection, run_id).await,
     }
 }
 
@@ -102,6 +108,7 @@ async fn dedup_one<M>(
     handle: &SharedHandle,
     dedup: &DeduplicationParams,
     detection: &Detection,
+    run_id: Uuid,
 ) -> Result<()>
 where
     M: Modality + Overlap + SpanSize,
@@ -124,7 +131,12 @@ where
     // rewrap without losing audit state.
     let records = mem::take(&mut doc.audit.records);
     let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
-    let deduped = deduplicate(dedup, &filter, entities, doc, handle).await;
+    let deduped = {
+        let view = DocumentView::new(doc, handle);
+        let pipeline: LayerPipeline<M, _> = LayerPipeline::from_params(dedup, filter);
+        let ctx = LayerContext::new(&view).with_correlation_id(run_id);
+        pipeline.run(entities, &ctx).await
+    };
     doc.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
     Ok(())
 }

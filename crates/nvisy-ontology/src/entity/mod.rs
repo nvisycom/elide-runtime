@@ -79,9 +79,7 @@ pub struct Entity<M: Modality> {
     /// Modality-specific location of the entity within the document.
     pub location: M,
     /// Detection confidence score in the range `[0.0, 1.0]`. Equals
-    /// the `adjusted` score on the final step in [`trail`].
-    ///
-    /// [`trail`]: Self::trail
+    /// the `adjusted` score on the final step in `trail`.
     pub confidence: Confidence,
     /// Chronological trail of score-affecting steps: the base
     /// recognition, any refinement / verification / fusion /

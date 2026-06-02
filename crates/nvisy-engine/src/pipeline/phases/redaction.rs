@@ -27,10 +27,8 @@ pub struct RedactionPhase {
 }
 
 impl RedactionPhase {
-    /// Build the phase with the supplied config, used by
-    /// [`DocumentPipeline::from_context`].
-    ///
-    /// [`DocumentPipeline::from_context`]: crate::pipeline::DocumentPipeline::from_context
+    /// Build the phase with the supplied config, used by the
+    /// pipeline orchestrator.
     pub(crate) fn new(config: RedactionConfig) -> Self {
         Self { config }
     }

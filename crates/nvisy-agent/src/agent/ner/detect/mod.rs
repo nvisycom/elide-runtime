@@ -46,13 +46,11 @@ const TARGET: &str = "nvisy_agent::agent::ner";
 /// 3. Structured output is parsed into `Vec<NerCandidate>`,
 ///    localized back into byte ranges via the shared localizer,
 ///    and lifted into `Vec<Entity<Text>>` stamped with this
-///    agent's model provenance under
-///    [`RecognitionMethod::LlmNer`].
+///    agent's model provenance.
 ///
 /// Stateless — no cross-call coreference tracking.
 ///
 /// [`detect`]: Self::detect
-/// [`RecognitionMethod::LlmNer`]: nvisy_ontology::entity::RecognitionMethod::LlmNer
 pub struct NerAgent {
     base: BaseAgent,
     unresolved: UnresolvedCandidatePolicy,

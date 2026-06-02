@@ -4,7 +4,7 @@
 //! [`LeakedValue`] / [`ValidationResult`] result types and the
 //! [`OnLeak`] / [`Validation`] plan types. The phase orchestrator
 //! that walks the tree and dispatches leak checks lives in
-//! [`crate::pipeline::phases::ValidationPhase`].
+//! [`ValidationPhase`](crate::pipeline::ValidationPhase).
 //!
 //! Per-modality leak detection lives behind the [`CheckLeaks`]
 //! trait — Text and Tabular run real substring checks; Image and

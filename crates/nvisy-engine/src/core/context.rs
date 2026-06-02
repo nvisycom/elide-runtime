@@ -30,13 +30,11 @@ use crate::pipeline::RedactionConfig;
 /// Engines and configs are held by value (not wrapped in `Arc`)
 /// because below the top-level [`EngineInner`] singleton there's
 /// no sharing — `RunContext` is built per-run, lives for that run,
-/// then hands each phase its own copy via
-/// [`DocumentPipeline::from_context`]. The engines themselves
-/// internally hold `Arc`-wrapped recognizers / extractors, so
-/// cloning them is a few atomic increments.
+/// then hands each phase its own copy via the pipeline orchestrator.
+/// The engines themselves internally hold `Arc`-wrapped recognizers /
+/// extractors, so cloning them is a few atomic increments.
 ///
 /// [`EngineInner`]: crate::pipeline::Engine
-/// [`DocumentPipeline::from_context`]: crate::pipeline::DocumentPipeline::from_context
 pub struct RunContext {
     /// Token to signal cancellation to all tasks.
     pub(crate) cancel: CancellationToken,

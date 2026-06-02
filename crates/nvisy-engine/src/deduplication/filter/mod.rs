@@ -1,19 +1,17 @@
-//! [`Filter`]: per-call entity filtering applied during
-//! deduplication, after calibrate and before group/fuse.
+//! [`FilterLayer`]: drop entities outside the allowed kinds or below
+//! the confidence floor.
 //!
-//! The orchestrator builds a [`FilterParams`] from the per-run
-//! [`Detection`] plan node (entity-kind allowlist + confidence
-//! threshold) and hands it to [`Deduplicator::execute`], which
-//! calls [`Filter::filter`] in-place. Dropped entities are
-//! returned so a forthcoming drop-reason telemetry pass (#182)
-//! can attribute them.
-//!
-//! [`Detection`]: crate::detection::Detection
-//! [`Deduplicator::execute`]: super::Deduplicator::execute
+//! Runs after calibration, before group/fuse. Dropped entities are
+//! returned so a forthcoming drop-reason telemetry pass (#182) can
+//! attribute them.
 
+use async_trait::async_trait;
 use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::Modality;
 use nvisy_ontology::primitive::ConfidenceThreshold;
+
+use super::layer::{Layer, LayerContext};
+use crate::core::ValueAt;
 
 /// Per-call filtering knobs applied during deduplication.
 ///
@@ -29,19 +27,47 @@ pub struct FilterParams {
     pub confidence_threshold: Option<ConfidenceThreshold>,
 }
 
-/// Extension trait on `Vec<Entity<M>>`: drop entries that don't pass
-/// `params`, returning the dropped vec.
-pub(super) trait Filter<M: Modality> {
-    /// Remove entities not passing `params` in-place; return the
-    /// removed entities for downstream telemetry (#182).
-    fn filter(&mut self, params: &FilterParams) -> Vec<Entity<M>>;
+impl FilterParams {
+    /// Whether `entity` clears every configured filter knob.
+    pub fn passes<M: Modality>(&self, entity: &Entity<M>) -> bool {
+        if let Some(ref kinds) = self.allowed_kinds
+            && !kinds.contains(&entity.entity_kind)
+        {
+            return false;
+        }
+        if let Some(threshold) = self.confidence_threshold
+            && !threshold.admits(entity.confidence)
+        {
+            return false;
+        }
+        true
+    }
 }
 
-impl<M: Modality> Filter<M> for Vec<Entity<M>> {
-    fn filter(&mut self, params: &FilterParams) -> Vec<Entity<M>> {
+/// [`Layer`] that drops entities not passing [`FilterParams`].
+///
+/// Returns the dropped entities from [`Layer::apply`].
+pub struct FilterLayer {
+    params: FilterParams,
+}
+
+impl FilterLayer {
+    /// Construct a filter layer from a [`FilterParams`].
+    pub fn new(params: FilterParams) -> Self {
+        Self { params }
+    }
+}
+
+#[async_trait]
+impl<M: Modality, R: ValueAt<M> + ?Sized> Layer<M, R> for FilterLayer {
+    async fn apply(
+        &self,
+        entities: &mut Vec<Entity<M>>,
+        _ctx: &LayerContext<'_, M, R>,
+    ) -> Vec<Entity<M>> {
         let mut dropped = Vec::new();
-        self.retain(|e| {
-            let keep = passes(e, params);
+        entities.retain(|e| {
+            let keep = self.params.passes(e);
             if !keep {
                 dropped.push(e.clone());
             }
@@ -51,20 +77,6 @@ impl<M: Modality> Filter<M> for Vec<Entity<M>> {
     }
 }
 
-fn passes<M: Modality>(entity: &Entity<M>, params: &FilterParams) -> bool {
-    if let Some(ref kinds) = params.allowed_kinds
-        && !kinds.contains(&entity.entity_kind)
-    {
-        return false;
-    }
-    if let Some(threshold) = params.confidence_threshold
-        && !threshold.admits(entity.confidence)
-    {
-        return false;
-    }
-    true
-}
-
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::{Entity, EntityKind};
@@ -72,6 +84,7 @@ mod tests {
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
+    use crate::deduplication::test_resolver;
 
     fn ent(kind: EntityKind, conf: f64) -> Entity<Text> {
         Entity::test_builder(0, 4)
@@ -80,19 +93,29 @@ mod tests {
             .test_build()
     }
 
-    #[test]
-    fn default_params_keep_everything() {
+    async fn apply<M: Modality>(
+        params: FilterParams,
+        entities: &mut Vec<Entity<M>>,
+    ) -> Vec<Entity<M>> {
+        let resolver = test_resolver::<M>();
+        let ctx = LayerContext::new(&*resolver);
+        let layer = FilterLayer::new(params);
+        layer.apply(entities, &ctx).await
+    }
+
+    #[tokio::test]
+    async fn default_params_keep_everything() {
         let mut entities: Vec<Entity<Text>> = vec![
             ent(EntityKind::PersonName, 0.9),
             ent(EntityKind::EmailAddress, 0.4),
         ];
-        let dropped = entities.filter(&FilterParams::default());
+        let dropped = apply(FilterParams::default(), &mut entities).await;
         assert_eq!(entities.len(), 2);
         assert!(dropped.is_empty());
     }
 
-    #[test]
-    fn allowed_kinds_drops_outsiders() {
+    #[tokio::test]
+    async fn allowed_kinds_drops_outsiders() {
         let mut entities: Vec<Entity<Text>> = vec![
             ent(EntityKind::PersonName, 0.9),
             ent(EntityKind::EmailAddress, 0.9),
@@ -101,15 +124,15 @@ mod tests {
             allowed_kinds: Some(vec![EntityKind::PersonName]),
             ..Default::default()
         };
-        let dropped = entities.filter(&params);
+        let dropped = apply(params, &mut entities).await;
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].entity_kind, EntityKind::PersonName);
         assert_eq!(dropped.len(), 1);
         assert_eq!(dropped[0].entity_kind, EntityKind::EmailAddress);
     }
 
-    #[test]
-    fn confidence_threshold_drops_below() {
+    #[tokio::test]
+    async fn confidence_threshold_drops_below() {
         let mut entities: Vec<Entity<Text>> = vec![
             ent(EntityKind::PersonName, 0.95),
             ent(EntityKind::PersonName, 0.40),
@@ -118,14 +141,14 @@ mod tests {
             confidence_threshold: Some(ConfidenceThreshold::clamped(0.5)),
             ..Default::default()
         };
-        let dropped = entities.filter(&params);
+        let dropped = apply(params, &mut entities).await;
         assert_eq!(entities.len(), 1);
         assert!(entities[0].confidence.get() >= 0.5);
         assert_eq!(dropped.len(), 1);
     }
 
-    #[test]
-    fn kinds_and_threshold_compose() {
+    #[tokio::test]
+    async fn kinds_and_threshold_compose() {
         let mut entities: Vec<Entity<Text>> = vec![
             ent(EntityKind::PersonName, 0.95),   // keep
             ent(EntityKind::PersonName, 0.40),   // drop: threshold
@@ -135,7 +158,7 @@ mod tests {
             allowed_kinds: Some(vec![EntityKind::PersonName]),
             confidence_threshold: Some(ConfidenceThreshold::clamped(0.5)),
         };
-        let dropped = entities.filter(&params);
+        let dropped = apply(params, &mut entities).await;
         assert_eq!(entities.len(), 1);
         assert_eq!(dropped.len(), 2);
     }

@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use nvisy_core::{Recognizer, Result};
+use nvisy_core::{EntityRecognizer, Result};
 use nvisy_ontology::modality::Text;
 use nvisy_pattern::recognition::{PatternRecognizer, PatternRegistry};
 use nvisy_pattern::shipped;
@@ -41,7 +41,7 @@ impl PatternDetection {
     /// asserted to compile by `nvisy-pattern`'s own unit tests).
     ///
     /// [`RecognizerRegistry::from_config`]: crate::detection::RecognizerRegistry::from_config
-    pub fn build(&self) -> Result<Arc<dyn Recognizer<Text>>> {
+    pub fn build(&self) -> Result<Arc<dyn EntityRecognizer<Text>>> {
         let recognizer = PatternRecognizer::builder()
             .with_registry(default_registry())
             .build()?;

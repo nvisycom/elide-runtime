@@ -3,7 +3,7 @@
 //!
 //! These are the platform-level shapes produced by an `NlpEngine`
 //! (declared in `nvisy-ner`) and consumed by every text
-//! [`Recognizer`] plus the `ContextEnhancer`
+//! [`EntityRecognizer`] plus the `ContextEnhancer`
 //! (in `nvisy_core::context`, declared in a sibling module). Splitting them into this module —
 //! instead of leaving them inside the producer crate — lets
 //! `nvisy-pattern`, `nvisy_core::context`, and `nvisy-ner` all read
@@ -41,7 +41,7 @@
 //!   produces and every recognizer/enhancer reads. No engine
 //!   implementations live here.
 //!
-//! [`Recognizer`]: crate::Recognizer
+//! [`EntityRecognizer`]: crate::EntityRecognizer
 //! [`languages`]: NlpArtifacts::languages
 //! [`tokens`]: NlpArtifacts::tokens
 //! [`ner`]: NlpArtifacts::ner

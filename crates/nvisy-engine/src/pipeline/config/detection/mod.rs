@@ -6,7 +6,7 @@
 //! aren't yet plan-configurable). NER is opt-in via
 //! `[detection.ner]`. LLM and VLM sections are not currently wired
 //! — those modules are parked pending rework to implement
-//! [`nvisy_core::Recognizer<M>`] directly.
+//! [`nvisy_core::EntityRecognizer<M>`] directly.
 //!
 //! [`RecognizerRegistry`]: crate::detection::RecognizerRegistry
 

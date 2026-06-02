@@ -1,7 +1,7 @@
 //! [`GlinerRecognizer`]: zero-shot NER recognizer that bypasses
 //! shared NLP artifacts and calls a [`GlinerBackend`] directly.
 //!
-//! Implements [`Recognizer<Text>`] uniformly with every other text
+//! Implements [`EntityRecognizer<Text>`] uniformly with every other text
 //! recognizer in the platform. Pulls the requested
 //! [`EntityKind`] list from
 //! [`Context::candidate_languages`] — wait,
@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::nlp::RawNerSpan;
-use nvisy_core::{Context as CoreContext, Recognizer, Result, TextData};
+use nvisy_core::{Context as CoreContext, EntityRecognizer, Result, TextData};
 use nvisy_ontology::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
@@ -37,7 +37,7 @@ use crate::backend::{GlinerBackend, GlinerRequest};
 ///
 /// Construct via [`GlinerRecognizer::new`] with a name, the
 /// backend, the supported kinds, and a configuration. Implements
-/// [`Recognizer<Text>`] so it composes with the rest of the
+/// [`EntityRecognizer<Text>`] so it composes with the rest of the
 /// pipeline through the same trait every other text recognizer
 /// uses.
 pub struct GlinerRecognizer {
@@ -119,7 +119,7 @@ impl GlinerRecognizer {
 }
 
 #[async_trait]
-impl Recognizer<Text> for GlinerRecognizer {
+impl EntityRecognizer<Text> for GlinerRecognizer {
     async fn recognize(&self, ctx: &CoreContext<TextData>) -> Result<Vec<Entity<Text>>> {
         // Zero-shot needs requested kinds; if the recognizer has
         // nothing to look for, short-circuit.

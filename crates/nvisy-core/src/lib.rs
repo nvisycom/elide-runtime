@@ -5,8 +5,8 @@
 pub mod content;
 pub mod context;
 pub mod nlp;
-mod recognizer;
-pub use self::recognizer::{Context, ImageData, ModalityData, Recognizer, TextData};
+pub mod recognition;
+pub use self::recognition::{Context, EntityRecognizer, ImageData, ModalityData, TextData};
 
 #[cfg(feature = "http")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http")))]

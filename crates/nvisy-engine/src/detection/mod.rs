@@ -1,7 +1,7 @@
 //! Detection: per-modality [`RecognizerRegistry`].
 //!
 //! This module is intentionally narrow: it owns the registry of
-//! recognizers (a pair of `Vec<Arc<dyn Recognizer<M>>>`), nothing
+//! recognizers (a pair of `Vec<Arc<dyn EntityRecognizer<M>>>`), nothing
 //! more. The registry takes a [`Context`] and runs recognizers; it
 //! has no knowledge of [`Document`], blocks, or pipeline phases.
 //!
@@ -12,7 +12,7 @@
 //!
 //! Pattern and NER are the active recognizer types. LLM and VLM
 //! were removed pending a rework to implement
-//! [`nvisy_core::Recognizer<M>`] directly; their implementations
+//! [`nvisy_core::EntityRecognizer<M>`] directly; their implementations
 //! lived under this module historically and can be reconstructed
 //! from git history if/when they come back.
 //!

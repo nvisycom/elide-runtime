@@ -1,5 +1,5 @@
 //! [`PatternRecognizer`]: compiles a [`PatternRegistry`] into pooled
-//! scanners and implements [`Recognizer<Text>`].
+//! scanners and implements [`EntityRecognizer<Text>`].
 //!
 //! The internal split is intentional: regex patterns go into a
 //! single [`regex::RegexSet`] for a one-pass scan across every
@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use async_trait::async_trait;
-use nvisy_core::{Context as CoreContext, Error, Recognizer, Result, TextData};
+use nvisy_core::{Context as CoreContext, EntityRecognizer, Error, Result, TextData};
 use nvisy_ontology::entity::{Entity, PatternProvenance, TrailProvenance, TrailStep};
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
@@ -203,7 +203,7 @@ impl PatternRecognizerBuilder {
 }
 
 #[async_trait]
-impl Recognizer<Text> for PatternRecognizer {
+impl EntityRecognizer<Text> for PatternRecognizer {
     async fn recognize(&self, ctx: &CoreContext<TextData>) -> Result<Vec<Entity<Text>>> {
         let text = ctx.data.text.as_str();
         let mut entities = Vec::new();

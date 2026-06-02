@@ -23,7 +23,7 @@
 
 use async_trait::async_trait;
 use nvisy_core::nlp::RawNerSpan;
-use nvisy_core::{Context as CoreContext, Error, Recognizer, Result, TextData};
+use nvisy_core::{Context as CoreContext, EntityRecognizer, Error, Result, TextData};
 use nvisy_ontology::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
@@ -109,7 +109,7 @@ impl NlpRecognizer {
 }
 
 #[async_trait]
-impl Recognizer<Text> for NlpRecognizer {
+impl EntityRecognizer<Text> for NlpRecognizer {
     async fn recognize(&self, ctx: &CoreContext<TextData>) -> Result<Vec<Entity<Text>>> {
         let artifacts = ctx.data.artifacts.as_ref().ok_or_else(|| {
             Error::validation(

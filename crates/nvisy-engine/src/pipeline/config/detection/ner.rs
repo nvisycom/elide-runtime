@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use nvisy_core::{Recognizer, Result};
+use nvisy_core::{EntityRecognizer, Result};
 use nvisy_ner::backend;
 use nvisy_ner::recognition::{GlinerRecognizer, NerModelConfiguration};
 use nvisy_ontology::entity::EntityKind;
@@ -67,7 +67,7 @@ impl NerDetection {
     /// Returns an error if the selected backend cannot be
     /// constructed, or if the config selects a backend whose feature
     /// wasn't compiled in.
-    pub fn build(&self) -> Result<Arc<dyn Recognizer<Text>>> {
+    pub fn build(&self) -> Result<Arc<dyn EntityRecognizer<Text>>> {
         let recognizer = match &self.backend {
             NerBackend::Noop => GlinerRecognizer::new(
                 RECOGNIZER_NAME,

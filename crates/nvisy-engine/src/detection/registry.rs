@@ -1,6 +1,6 @@
 //! [`RecognizerRegistry`]: per-modality recognizer container.
 //!
-//! Two ordered `Vec<Arc<dyn Recognizer<M>>>` lists, one per
+//! Two ordered `Vec<Arc<dyn EntityRecognizer<M>>>` lists, one per
 //! modality. Every registered recognizer runs on every dispatch;
 //! there is no per-request name-based allowlist. Operators shape
 //! the result set by tuning what they register at engine startup
@@ -27,7 +27,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use nvisy_core::{Context, Error, ImageData, Recognizer, Result, TextData};
+use nvisy_core::{Context, EntityRecognizer, Error, ImageData, Result, TextData};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Image, Modality, Text};
 use tokio::task::JoinSet;
@@ -39,7 +39,7 @@ const TARGET: &str = "nvisy_engine::detection";
 
 /// Per-modality recognizer container.
 ///
-/// Each modality keeps an ordered `Vec<Arc<dyn Recognizer<M>>>`;
+/// Each modality keeps an ordered `Vec<Arc<dyn EntityRecognizer<M>>>`;
 /// iteration order matches registration order. Built once at startup
 /// from a [`DetectionConfig`] (which builds each opted-in
 /// `[detection.*]` section), then optionally extended by the operator
@@ -50,9 +50,9 @@ const TARGET: &str = "nvisy_engine::detection";
 #[derive(Default, Clone)]
 pub struct RecognizerRegistry {
     /// Text-modality recognizers, dispatched in registration order.
-    pub text: Vec<Arc<dyn Recognizer<Text>>>,
+    pub text: Vec<Arc<dyn EntityRecognizer<Text>>>,
     /// Image-modality recognizers, dispatched in registration order.
-    pub image: Vec<Arc<dyn Recognizer<Image>>>,
+    pub image: Vec<Arc<dyn EntityRecognizer<Image>>>,
 }
 
 impl RecognizerRegistry {
@@ -94,14 +94,14 @@ impl RecognizerRegistry {
 
     /// Register a text-modality recognizer. Appended to the existing
     /// list; iteration order at dispatch matches registration order.
-    pub fn add_text_recognizer(&mut self, recognizer: Arc<dyn Recognizer<Text>>) {
+    pub fn add_text_recognizer(&mut self, recognizer: Arc<dyn EntityRecognizer<Text>>) {
         self.text.push(recognizer);
     }
 
     /// Register an image-modality recognizer. Appended to the
     /// existing list; iteration order at dispatch matches
     /// registration order.
-    pub fn add_image_recognizer(&mut self, recognizer: Arc<dyn Recognizer<Image>>) {
+    pub fn add_image_recognizer(&mut self, recognizer: Arc<dyn EntityRecognizer<Image>>) {
         self.image.push(recognizer);
     }
 

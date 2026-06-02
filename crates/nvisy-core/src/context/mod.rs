@@ -1,5 +1,5 @@
 //! Post-recognition keyword-boost enhancement, shared across every
-//! [`Recognizer<Text>`].
+//! [`EntityRecognizer<Text>`].
 //!
 //! The enhancer takes a slice of detected entities plus the source
 //! text (and optionally the shared
@@ -27,7 +27,7 @@
 //! contexts for NER (`NlpRecognizer.default_context` in
 //! `nvisy-ner`) plug into the same registry.
 //!
-//! [`Recognizer<Text>`]: crate::Recognizer
+//! [`EntityRecognizer<Text>`]: crate::EntityRecognizer
 //! [`NlpArtifacts`]: crate::nlp::NlpArtifacts
 //! [`TrailStep`]: nvisy_ontology::entity::TrailStep
 //! [`Refinement`]: nvisy_ontology::entity::TrailStepKind::Refinement

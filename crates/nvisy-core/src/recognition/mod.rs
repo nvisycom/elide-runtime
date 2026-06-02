@@ -1,11 +1,11 @@
-//! [`Recognizer<M>`]: the Presidio-style entity-detection trait, and the
+//! [`EntityRecognizer<M>`]: the Presidio-style entity-detection trait, and the
 //! per-modality [`Context`] / [`ModalityData`] shapes recognizers read from.
 //!
 //! Every detector that emits [`Entity<M>`] for some modality `M`
 //! implements this trait — pattern recognizers, NER bento clients,
 //! LLM agents, OCR pipelines, plus any third-party recognizer
 //! a consumer wires into their pipeline. Object-safe so heterogeneous
-//! recognizers live behind `Arc<dyn Recognizer<M>>` in consumer-side
+//! recognizers live behind `Arc<dyn EntityRecognizer<M>>` in consumer-side
 //! registries.
 //!
 //! # Layering
@@ -18,7 +18,7 @@
 //!   every recognizer can read: language hints, the correlation id
 //!   used by tracing. Whatever's universal across recognizer types
 //!   for one call lives here.
-//! - [`Recognizer<M>`] takes `&Context<M::Data>` and emits entities.
+//! - [`EntityRecognizer<M>`] takes `&Context<M::Data>` and emits entities.
 //!
 //! [`Entity<M>`]: nvisy_ontology::entity::Entity
 //! [`Data`]: ModalityData::Data
@@ -44,7 +44,7 @@ pub trait ModalityData: Modality {
     type Data: Send + Sync;
 }
 
-/// Per-call input for a [`Recognizer`].
+/// Per-call input for an [`EntityRecognizer`].
 ///
 /// Bundles the modality-specific [`data`] (e.g. text
 /// bytes for [`Text`], image bytes + pixel dims for [`Image`]) with
@@ -124,7 +124,7 @@ impl<D> Context<D> {
 ///
 /// [`reset`]: Self::reset
 #[async_trait::async_trait]
-pub trait Recognizer<M: ModalityData>: Send + Sync {
+pub trait EntityRecognizer<M: ModalityData>: Send + Sync {
     /// Detect entities in `ctx` and return them in modality-local
     /// coordinates. Downstream callers rebase text offsets into
     /// document coordinates when stitching results back into a

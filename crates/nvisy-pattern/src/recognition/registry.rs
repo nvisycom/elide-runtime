@@ -1,14 +1,17 @@
 //! [`PatternRegistry`]: a curated bundle of [`Regex`]es and
 //! [`Dictionary`]s that downstream consumers borrow.
 //!
-//! Both [`PatternRecognizer`](super::PatternRecognizer) and the
-//! shared [`ContextEnhancer`](nvisy_core::context::ContextEnhancer)
+//! Both [`PatternRecognizer`] and the
+//! shared [`ContextEnhancer`]
 //! consume a registry — the recognizer compiles its rules into
 //! pooled scanners; the enhancer reads per-rule context keywords
 //! via [`PatternRegistry::context_registry`].
 //!
 //! Centralising the rule set here means no duplication of
 //! [`Regex`] / [`Dictionary`] storage between the two consumers.
+//!
+//! [`PatternRecognizer`]: super::PatternRecognizer
+//! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
 
 use nvisy_core::context::ContextRegistry;
 
@@ -19,8 +22,10 @@ use super::regex_rule::Regex;
 /// consumer.
 ///
 /// Cheap to clone (`Vec` of small structs); typically built once
-/// per process from the [`shipped`](crate::shipped) helpers plus
+/// per process from the [`shipped`] helpers plus
 /// any caller-supplied custom rules.
+///
+/// [`shipped`]: crate::shipped
 #[derive(Debug, Clone, Default)]
 pub struct PatternRegistry {
     regexes: Vec<Regex>,
@@ -70,10 +75,12 @@ impl PatternRegistry {
     /// Rules without context declarations are skipped.
     ///
     /// Use this to wire the
-    /// [`ContextEnhancer`](nvisy_core::context::ContextEnhancer)
+    /// [`ContextEnhancer`]
     /// against the same source of truth the recognizer compiles
     /// from — no duplication of keyword data between rule
     /// registration and enhancer construction.
+    ///
+    /// [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
     #[must_use]
     pub fn context_registry(&self) -> ContextRegistry {
         let mut registry = ContextRegistry::new();

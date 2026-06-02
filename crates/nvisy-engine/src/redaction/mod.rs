@@ -11,13 +11,16 @@
 //! Unlike extraction and detection, redaction has no expensive
 //! per-run construction — there's no model to load or HTTP client
 //! to set up. The phase orchestrator
-//! ([`RedactionPhase`](crate::pipeline::RedactionPhase)) holds a
-//! [`RedactionConfig`](crate::pipeline::RedactionConfig) that
+//! ([`RedactionPhase`]) holds a
+//! [`RedactionConfig`] that
 //! supplies deployment-wide fallback values for plan
-//! [`Redaction`](crate::pipeline::Redaction) fields that aren't
+//! [`Redaction`] fields that aren't
 //! explicitly set.
 //!
 //! [`AuditEntry`]: nvisy_ontology::provenance::AuditEntry
+//! [`RedactionPhase`]: crate::pipeline::RedactionPhase
+//! [`RedactionConfig`]: crate::pipeline::RedactionConfig
+//! [`Redaction`]: crate::pipeline::Redaction
 
 mod apply;
 mod evaluate;

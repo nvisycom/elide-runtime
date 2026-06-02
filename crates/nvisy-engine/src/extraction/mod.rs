@@ -4,7 +4,7 @@
 //! Public surface is the [`ExtractionEngine`] re-exported below
 //! plus the per-backend extractor types. The phase orchestrator
 //! that walks a [`DocumentTree`] and drives the engine lives in
-//! [`ExtractionPhase`](crate::pipeline::ExtractionPhase).
+//! [`ExtractionPhase`].
 //!
 //! Per-backend modules host the technique implementations:
 //!
@@ -12,6 +12,7 @@
 //! - `stt` — audio STT backend (`audio` cargo feature).
 //!
 //! [`DocumentTree`]: crate::core::DocumentTree
+//! [`ExtractionPhase`]: crate::pipeline::ExtractionPhase
 
 mod engine;
 #[cfg(feature = "image")]

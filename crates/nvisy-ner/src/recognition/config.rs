@@ -1,10 +1,13 @@
 //! [`NerModelConfiguration`]: client-side NER tuning knobs.
 //!
 //! Mirrors Presidio's `NerModelConfiguration`. Applied inside the
-//! adapter recognizers ([`NlpRecognizer`](super::NlpRecognizer),
-//! [`GlinerRecognizer`](super::GlinerRecognizer)) before entities
+//! adapter recognizers ([`NlpRecognizer`],
+//! [`GlinerRecognizer`]) before entities
 //! are emitted, so backends stay dumb and label normalization is
 //! uniform across them.
+//!
+//! [`NlpRecognizer`]: super::NlpRecognizer
+//! [`GlinerRecognizer`]: super::GlinerRecognizer
 
 use std::collections::HashSet;
 
@@ -37,25 +40,34 @@ pub struct NerModelConfiguration {
     /// safe default).
     pub default_score: Confidence,
     /// Entity kinds whose emitted confidence is multiplied by
-    /// [`low_score_multiplier`](Self::low_score_multiplier) before
+    /// [`low_score_multiplier`] before
     /// being surfaced. Use for noisy-but-high-recall labels.
+    ///
+    /// [`low_score_multiplier`]: Self::low_score_multiplier
     pub low_score_kinds: HashSet<EntityKind>,
-    /// Multiplier applied to [`low_score_kinds`](Self::low_score_kinds).
+    /// Multiplier applied to [`low_score_kinds`].
     /// Must be in `[0.0, 1.0]`.
+    ///
+    /// [`low_score_kinds`]: Self::low_score_kinds
     pub low_score_multiplier: f64,
     /// Aggregation policy for backends that emit token-level
     /// predictions. Advisory for backends that aggregate
     /// server-side.
     pub aggregation: AggregationStrategy,
     /// Alignment policy for sub-word predictions. Same advisory
-    /// status as [`aggregation`](Self::aggregation).
+    /// status as [`aggregation`].
+    ///
+    /// [`aggregation`]: Self::aggregation
     pub alignment: AlignmentMode,
     /// Per-recognizer context-keyword list for the post-recognition
-    /// [`ContextEnhancer`](nvisy_core::context::ContextEnhancer).
+    /// [`ContextEnhancer`].
     /// Empty when the recognizer doesn't participate in boosting.
     /// Each emitted entity's source name keys the lookup, so the
-    /// recognizer's [`name`](super::NlpRecognizer::name) is used
+    /// recognizer's [`name`] is used
     /// as the registration key.
+    ///
+    /// [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+    /// [`name`]: super::NlpRecognizer::name
     pub default_context: Vec<String>,
 }
 
@@ -138,8 +150,10 @@ impl NerModelConfiguration {
     }
 
     /// Set the per-recognizer context keywords. Becomes the entry
-    /// in [`ContextRegistry`](nvisy_core::context::ContextRegistry)
+    /// in [`ContextRegistry`]
     /// keyed on the recognizer's name.
+    ///
+    /// [`ContextRegistry`]: nvisy_core::context::ContextRegistry
     #[must_use]
     pub fn with_default_context<I, S>(mut self, keywords: I) -> Self
     where

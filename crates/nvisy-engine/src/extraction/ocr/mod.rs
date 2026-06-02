@@ -5,6 +5,7 @@
 //!
 //! [`ExtractionEngine`]: super::ExtractionEngine
 
+use futures::StreamExt;
 use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Result;
@@ -85,10 +86,7 @@ impl OcrExtractor {
 
     async fn collect_inputs(handle: &SharedHandle) -> Vec<Located<Image, ImageData>> {
         let guard = handle.lock().await;
-        let locations: Vec<Located<Image>> = {
-            use futures::StreamExt;
-            guard.image_locations().collect().await
-        };
+        let locations: Vec<Located<Image>> = guard.image_locations().collect().await;
         drop(guard);
         let mut out = Vec::with_capacity(locations.len());
         for located in locations {

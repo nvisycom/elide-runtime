@@ -1,8 +1,10 @@
 //! [`NlpArtifacts`]: the shared NLP bag every text recognizer reads
 //! from when the orchestrator opted into a shared-pass pipeline.
 //!
-//! See the [module docs](super) for the producer/consumer split and
+//! See the [module docs] for the producer/consumer split and
 //! the conceptual model. This file just defines the data shape.
+//!
+//! [module docs]: super
 
 use nvisy_ontology::primitive::LanguageDetection;
 
@@ -12,20 +14,25 @@ use super::{RawNerSpan, StopwordSet, Tokens};
 ///
 /// Bundles everything an `NlpEngine` produced for one text scan.
 /// All fields are populated according to the engine's advertised
-/// [`NlpCapabilities`](super::NlpCapabilities); fields the engine
+/// [`NlpCapabilities`]; fields the engine
 /// doesn't produce hold their type's empty value
 /// (`Tokens::empty()`, `Vec::new()`, `StopwordSet::empty()`).
 ///
-/// Coordinate space for [`tokens`](Self::tokens),
-/// [`ner`](Self::ner), and any byte-offset queries is the source
+/// Coordinate space for [`tokens`],
+/// [`ner`], and any byte-offset queries is the source
 /// text the engine was called with — the same coordinate space as
-/// [`Entity::location`](nvisy_ontology::entity::Entity::location)
+/// [`Entity::location`]
 /// for text entities.
 ///
 /// `NlpArtifacts` is constructed by an `NlpEngine` (declared in
 /// `nvisy-ner`) and typically wrapped in an `Arc` by the
 /// orchestrator so it can be fanned out to every recognizer
 /// without cloning the underlying token / NER vectors.
+///
+/// [`NlpCapabilities`]: super::NlpCapabilities
+/// [`tokens`]: Self::tokens
+/// [`ner`]: Self::ner
+/// [`Entity::location`]: nvisy_ontology::entity::Entity::location
 #[derive(Debug, Clone, Default)]
 pub struct NlpArtifacts {
     /// Languages the engine resolved for the input. Empty when the
@@ -64,7 +71,9 @@ impl NlpArtifacts {
     /// `span`) are treated as covering the whole document and
     /// therefore win against any one region.
     ///
-    /// Returns `None` iff [`languages`](Self::languages) is empty.
+    /// Returns `None` iff [`languages`] is empty.
+    ///
+    /// [`languages`]: Self::languages
     pub fn dominant_language(&self) -> Option<&LanguageDetection> {
         self.languages.iter().max_by(|a, b| {
             span_bytes(a)

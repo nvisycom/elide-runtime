@@ -37,8 +37,10 @@ pub struct Regex {
     /// Entity kind every match emits.
     pub entity_kind: EntityKind,
     /// Regex source. Compiled to a [`regex::Regex`] by
-    /// [`PatternRecognizer::build`](super::PatternRecognizer); shape
+    /// [`PatternRecognizer::build`]; shape
     /// errors there, not here.
+    ///
+    /// [`PatternRecognizer::build`]: super::PatternRecognizer
     pub regex: String,
     /// Confidence score stamped on every match before any boost.
     #[builder(default = "1.0")]
@@ -49,8 +51,10 @@ pub struct Regex {
     #[serde(default, skip_serializing_if = "context_is_default")]
     pub context: Context,
     /// Optional validator name. Resolved at recognizer build time
-    /// against the [`ValidatorRegistry`](crate::validators::ValidatorRegistry).
+    /// against the [`ValidatorRegistry`].
     /// Matches that fail validation are dropped.
+    ///
+    /// [`ValidatorRegistry`]: crate::validators::ValidatorRegistry
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validator: Option<String>,

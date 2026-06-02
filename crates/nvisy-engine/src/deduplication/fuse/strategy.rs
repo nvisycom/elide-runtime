@@ -28,9 +28,11 @@ pub enum DeduplicationStrategy {
     WeightedAverage {
         /// Per-recognizer weight contributed to entities matched by
         /// that recognizer (keyed by the source name on the
-        /// [`Recognition`](nvisy_ontology::entity::TrailStepKind::Recognition)
+        /// [`Recognition`]
         /// trail step). Recognizers missing from the map contribute
         /// the floor weight `1.0`.
+        ///
+        /// [`Recognition`]: nvisy_ontology::entity::TrailStepKind::Recognition
         weights: HashMap<String, f64>,
     },
     /// Noisy-OR: `P = 1 − ∏(1 − pᵢ)` for independent detectors.

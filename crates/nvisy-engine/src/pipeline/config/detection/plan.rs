@@ -14,7 +14,7 @@
 //! recognizers added programmatically), not per request.
 //!
 //! Recognizer construction lives in
-//! [`RecognizerRegistry`](crate::detection::RecognizerRegistry),
+//! [`RecognizerRegistry`],
 //! built once at engine startup. This plan node never builds
 //! anything; it just carries the post-detection filters the registry
 //! applies during dispatch.
@@ -25,6 +25,7 @@
 //! dedup calibration map plus the single dedup threshold.
 //!
 //! [`entity_kinds`]: Detection::entity_kinds
+//! [`RecognizerRegistry`]: crate::detection::RecognizerRegistry
 
 use nvisy_ontology::entity::EntityKind;
 use schemars::JsonSchema;

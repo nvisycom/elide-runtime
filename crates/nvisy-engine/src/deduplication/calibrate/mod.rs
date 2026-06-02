@@ -7,9 +7,11 @@
 //! into alignment.
 //!
 //! Keys are the recognizer source names stamped onto the entity's
-//! [`TrailStep::recognition`](nvisy_ontology::entity::TrailStep::recognition)
+//! [`TrailStep::recognition`]
 //! step — typically the names registered with the detection engine
 //! (e.g. `"pattern"`, `"ner"`, `"llm-ner"`).
+//!
+//! [`TrailStep::recognition`]: nvisy_ontology::entity::TrailStep::recognition
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -88,10 +90,12 @@ where
 /// recognition trail step sources and scales the confidence. Entities
 /// whose recognizers are absent from the map are left unchanged.
 /// Results are clamped to `[0.0, 1.0]`. Adjusted entities receive a
-/// [`Calibration`](nvisy_ontology::entity::TrailStepKind::Calibration)
+/// [`Calibration`]
 /// step on their trail.
 ///
 /// Drops nothing — returns an empty vec from [`Layer::apply`].
+///
+/// [`Calibration`]: nvisy_ontology::entity::TrailStepKind::Calibration
 pub struct CalibrateLayer {
     calibration: CalibrationMap,
 }

@@ -9,13 +9,15 @@
 //! Wire compatibility note: the inference service today returns
 //! `kind: EntityKind` (already normalized server-side); this
 //! backend serialises that back to a string label so the
-//! [`GlinerRecognizer`](crate::recognition::GlinerRecognizer)'s
-//! [`LabelMap`](crate::recognition::LabelMap) sees a uniform raw
+//! [`GlinerRecognizer`]'s
+//! [`LabelMap`] sees a uniform raw
 //! label regardless of which backend produced it. When the
 //! service later moves to returning raw model labels, only the
 //! wire-type module needs to change.
 //!
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
+//! [`GlinerRecognizer`]: crate::recognition::GlinerRecognizer
+//! [`LabelMap`]: crate::recognition::LabelMap
 
 use bentoml::prelude::*;
 use nvisy_core::nlp::RawNerSpan;
@@ -115,8 +117,10 @@ impl GlinerBackend for BentoBackend {
 
 /// Serialise an [`EntityKind`] to its canonical snake_case label.
 /// The Bento service already returns normalized kinds; we convert
-/// back to the wire label so [`LabelMap`](crate::recognition::LabelMap)
+/// back to the wire label so [`LabelMap`]
 /// sees a uniform raw label across backends.
+///
+/// [`LabelMap`]: crate::recognition::LabelMap
 fn entity_kind_label(kind: nvisy_ontology::entity::EntityKind) -> String {
     kind.to_string()
 }

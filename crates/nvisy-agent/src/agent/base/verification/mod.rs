@@ -13,6 +13,8 @@
 //! [`VlmVerifyAgent`]: crate::agent::vlm::VlmVerifyAgent
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 
+use std::collections::HashMap;
+
 use nvisy_ontology::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::{BoundingBox, Confidence};
@@ -64,12 +66,14 @@ impl VerifiedEntity {
     ///
     /// For `Corrected`: optionally overrides `entity_kind` when the
     /// verdict carries it, updates `confidence`, and appends a
-    /// [`Verification`](TrailStepKind::Verification) step to the
+    /// [`Verification`] step to the
     /// entity's trail carrying the verifier's `ModelProvenance` and
     /// rationale. The entity's `location` and surface value are
     /// frozen — they're determined by the original recognizer, not
     /// the verifier. `value` and `bbox` fields in the verdict are
     /// ignored on this path; image-modality has its own counterpart.
+    ///
+    /// [`Verification`]: TrailStepKind::Verification
     pub fn apply_to_text(
         &self,
         mut entity: Entity<Text>,
@@ -130,8 +134,6 @@ impl VerificationOutput {
         entities: Vec<Entity<Text>>,
         verifier: &ModelProvenance,
     ) -> VerificationApplyOutcome {
-        use std::collections::HashMap;
-
         let verdicts: HashMap<usize, VerifiedEntity> =
             self.entities.into_iter().map(|v| (v.id, v)).collect();
         let total = entities.len();

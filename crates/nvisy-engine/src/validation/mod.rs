@@ -4,12 +4,14 @@
 //! [`LeakedValue`] / [`ValidationResult`] result types and the
 //! [`OnLeak`] / [`Validation`] plan types. The phase orchestrator
 //! that walks the tree and dispatches leak checks lives in
-//! [`ValidationPhase`](crate::pipeline::ValidationPhase).
+//! [`ValidationPhase`].
 //!
 //! Per-modality leak detection lives behind the [`CheckLeaks`]
 //! trait — Text and Tabular run real substring checks; Image and
 //! Audio currently return [`ValidationResult::skipped`] because
 //! visual / audio inspection isn't implemented yet.
+//!
+//! [`ValidationPhase`]: crate::pipeline::ValidationPhase
 
 mod check;
 mod plan;

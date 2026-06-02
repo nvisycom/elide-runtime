@@ -63,7 +63,9 @@ pub struct PatternRecognizer {
 
 impl PatternRecognizer {
     /// Start assembling a recognizer. Required: a registry, supplied
-    /// via [`with_registry`](PatternRecognizerBuilder::with_registry).
+    /// via [`with_registry`].
+    ///
+    /// [`with_registry`]: PatternRecognizerBuilder::with_registry
     #[must_use]
     pub fn builder() -> PatternRecognizerBuilder {
         PatternRecognizerBuilder::default()

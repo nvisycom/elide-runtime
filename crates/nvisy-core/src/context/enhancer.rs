@@ -13,22 +13,25 @@ use crate::nlp::NlpArtifacts;
 /// Post-recognition enhancer that boosts entity confidence when
 /// keywords declared by the source recognizer appear near the match.
 ///
-/// Construct via [`builder`](Self::builder). The two required
+/// Construct via [`builder`]. The two required
 /// settings are [`default_window`] (in source-text bytes on each
 /// side of the match) and [`default_boost`] (the additive bump
 /// applied when a keyword fires). Per-source overrides on
 /// [`Context::window`] / [`Context::boost`] take precedence.
 ///
 /// The matcher strategy defaults to [`SubstringMatcher`] when not
-/// supplied. Wire [`LemmaMatcher`](super::LemmaMatcher) instead
+/// supplied. Wire [`LemmaMatcher`] instead
 /// when the orchestrator produces
-/// [`NlpArtifacts`](crate::nlp::NlpArtifacts) with lemmas and you
+/// [`NlpArtifacts`] with lemmas and you
 /// want morphological-variant boosting.
 ///
+/// [`builder`]: Self::builder
 /// [`Context::window`]: super::Context::window
 /// [`Context::boost`]: super::Context::boost
 /// [`default_window`]: ContextEnhancerBuilder::with_default_window
 /// [`default_boost`]: ContextEnhancerBuilder::with_default_boost
+/// [`LemmaMatcher`]: super::LemmaMatcher
+/// [`NlpArtifacts`]: crate::nlp::NlpArtifacts
 #[derive(Builder)]
 #[builder(
     name = "ContextEnhancerBuilder",
@@ -40,7 +43,9 @@ pub struct ContextEnhancer {
     /// Lookup table built at construction time. The enhancer reads
     /// the source-recognizer / rule name off the entity's first
     /// recognition step and looks it up here to find the declared
-    /// [`Context`](super::Context).
+    /// [`Context`].
+    ///
+    /// [`Context`]: super::Context
     #[builder(setter(custom))]
     registry: ContextRegistry,
     /// Keyword-matching strategy (substring, lemma, custom).
@@ -64,9 +69,13 @@ pub struct ContextEnhancer {
 
 impl ContextEnhancer {
     /// Start building a `ContextEnhancer`. Required:
-    /// [`with_registry`](ContextEnhancerBuilder::with_registry),
-    /// [`with_default_window`](ContextEnhancerBuilder::with_default_window),
-    /// [`with_default_boost`](ContextEnhancerBuilder::with_default_boost).
+    /// [`with_registry`],
+    /// [`with_default_window`],
+    /// [`with_default_boost`].
+    ///
+    /// [`with_registry`]: ContextEnhancerBuilder::with_registry
+    /// [`with_default_window`]: ContextEnhancerBuilder::with_default_window
+    /// [`with_default_boost`]: ContextEnhancerBuilder::with_default_boost
     #[must_use]
     pub fn builder() -> ContextEnhancerBuilder {
         ContextEnhancerBuilder::default()
@@ -80,13 +89,15 @@ impl ContextEnhancer {
     /// (token-based when `artifacts` is `Some` and the matcher
     /// uses tokens, substring-based otherwise), and bumps the
     /// confidence by the configured boost — capped at `1.0`. A
-    /// [`Refinement`](nvisy_ontology::entity::TrailStepKind::Refinement)
+    /// [`Refinement`]
     /// step is appended to the trail, and the recognition step's
     /// `contextual` flag is set.
     ///
     /// Entities whose source isn't in the registry (or whose
     /// declared context has an empty keyword list) pass through
     /// unchanged.
+    ///
+    /// [`Refinement`]: nvisy_ontology::entity::TrailStepKind::Refinement
     pub fn enhance(
         &self,
         entities: &mut [Entity<Text>],

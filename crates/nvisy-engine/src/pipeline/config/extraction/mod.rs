@@ -1,7 +1,9 @@
 //! Extraction config: deployment-time `[extractor.*]` configuration
 //! the engine builds an
-//! [`ExtractionEngine`](crate::extraction::ExtractionEngine) from at
+//! [`ExtractionEngine`] from at
 //! startup, plus the per-request [`Extraction`] plan node.
+//!
+//! [`ExtractionEngine`]: crate::extraction::ExtractionEngine
 
 #[cfg(feature = "image")]
 mod ocr;
@@ -18,11 +20,13 @@ pub use self::plan::{AudioPlan, Extraction, ImagePlan, TabularPlan, TextPlan};
 pub use self::stt::SttExtractorConfig;
 
 /// Configuration for the
-/// [`ExtractionEngine`](crate::extraction::ExtractionEngine)
+/// [`ExtractionEngine`]
 /// registry.
 ///
 /// Each field maps to a `[extractor.*]` section in `Nvisy.toml`.
 /// `None` opts the technique out entirely.
+///
+/// [`ExtractionEngine`]: crate::extraction::ExtractionEngine
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExtractionConfig {
     /// `[extractor.ocr]` — OCR text extraction from images.

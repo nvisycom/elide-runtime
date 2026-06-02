@@ -19,6 +19,8 @@
 //! [`RecognizerRegistry`]: crate::detection::RecognizerRegistry
 //! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 
+#[cfg(feature = "image")]
+use futures::StreamExt;
 use nvisy_core::{Context, Result, TextData};
 #[cfg(feature = "image")]
 use nvisy_core::{Error, ImageData};
@@ -241,10 +243,7 @@ async fn detect_image_locations(
         return Ok(());
     }
 
-    let locations: Vec<_> = {
-        use futures::StreamExt;
-        handle.lock().await.image_locations().collect().await
-    };
+    let locations: Vec<_> = handle.lock().await.image_locations().collect().await;
     let mut detected_total = 0usize;
     for located in locations {
         let Some(image_data) = handle.lock().await.read_image(&located.location).await else {

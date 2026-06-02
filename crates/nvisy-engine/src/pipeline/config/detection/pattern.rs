@@ -31,7 +31,7 @@ impl PatternDetection {
     /// (`shipped::patterns::all()` + `shipped::dictionaries::all()`)
     /// regardless. The `enabled` field is honoured at the
     /// registration site in
-    /// [`RecognizerRegistry::from_config`](crate::detection::RecognizerRegistry::from_config),
+    /// [`RecognizerRegistry::from_config`],
     /// not here.
     ///
     /// # Errors
@@ -39,6 +39,8 @@ impl PatternDetection {
     /// Returns an error if the underlying recognizer fails to
     /// compile (would itself be a bug — every shipped pattern is
     /// asserted to compile by `nvisy-pattern`'s own unit tests).
+    ///
+    /// [`RecognizerRegistry::from_config`]: crate::detection::RecognizerRegistry::from_config
     pub fn build(&self) -> Result<Arc<dyn Recognizer<Text>>> {
         let recognizer = PatternRecognizer::builder()
             .with_registry(default_registry())

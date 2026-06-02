@@ -1,19 +1,25 @@
 //! [`NlpRecognizer`]: the dumb-adapter recognizer.
 //!
 //! Doesn't run a model itself — reads
-//! [`NlpArtifacts::ner`](nvisy_core::nlp::NlpArtifacts::ner)
+//! [`NlpArtifacts::ner`]
 //! produced by an upstream
-//! [`NlpEngine`](crate::nlp::NlpEngine), normalizes the raw labels
-//! through its [`LabelMap`](super::LabelMap), drops ignored labels,
+//! [`NlpEngine`], normalizes the raw labels
+//! through its [`LabelMap`], drops ignored labels,
 //! demotes low-score kinds, filters down to the recognizer's
 //! supported-kind list, and emits entities. Mirrors the
 //! "adapter recognizer" role Presidio's `SpacyRecognizer` plays.
 //!
-//! Requires the [`Context<TextData>`](nvisy_core::Context) to
-//! carry [`artifacts`](nvisy_core::TextData::artifacts) — the
+//! Requires the [`Context<TextData>`] to
+//! carry [`artifacts`] — the
 //! orchestrator is expected to run an `NlpEngine` once per scan
 //! and stamp the result on the context before fanning out to
 //! recognizers.
+//!
+//! [`NlpArtifacts::ner`]: nvisy_core::nlp::NlpArtifacts::ner
+//! [`NlpEngine`]: crate::nlp::NlpEngine
+//! [`LabelMap`]: super::LabelMap
+//! [`Context<TextData>`]: nvisy_core::Context
+//! [`artifacts`]: nvisy_core::TextData::artifacts
 
 use async_trait::async_trait;
 use nvisy_core::nlp::RawNerSpan;
@@ -27,10 +33,12 @@ use super::config::NerModelConfiguration;
 /// Adapter recognizer that reads shared NLP artifacts.
 ///
 /// Owns no model state — the upstream
-/// [`NlpEngine`](crate::nlp::NlpEngine) does the work and stamps
+/// [`NlpEngine`] does the work and stamps
 /// the result on the context. This recognizer's job is
 /// normalization: label → kind, label-ignore, low-score
 /// demotion, supported-kind filtering.
+///
+/// [`NlpEngine`]: crate::nlp::NlpEngine
 pub struct NlpRecognizer {
     name: String,
     supported_kinds: Vec<EntityKind>,
@@ -42,9 +50,12 @@ impl NlpRecognizer {
     ///
     /// `name` is what gets stamped on the entity's recognition
     /// step provenance and is the key the
-    /// [`ContextEnhancer`](nvisy_core::context::ContextEnhancer)
+    /// [`ContextEnhancer`]
     /// uses to look up the recognizer's
-    /// [`default_context`](super::NerModelConfiguration::default_context).
+    /// [`default_context`].
+    ///
+    /// [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+    /// [`default_context`]: super::NerModelConfiguration::default_context
     pub fn new(
         name: impl Into<String>,
         supported_kinds: Vec<EntityKind>,

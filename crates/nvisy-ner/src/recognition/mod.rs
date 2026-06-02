@@ -3,21 +3,26 @@
 //! Two shapes ship:
 //!
 //! - [`NlpRecognizer`] — dumb adapter. Reads
-//!   [`NlpArtifacts.ner`](nvisy_core::nlp::NlpArtifacts::ner)
-//!   that an upstream [`NlpEngine`](crate::nlp::NlpEngine)
+//!   [`NlpArtifacts.ner`]
+//!   that an upstream [`NlpEngine`]
 //!   already produced; normalizes through [`LabelMap`] +
 //!   [`NerModelConfiguration`] and emits entities. Requires the
 //!   orchestrator to run an `NlpEngine` first.
 //! - [`GlinerRecognizer`] — zero-shot bypass. Ignores shared
-//!   artifacts, calls a [`GlinerBackend`](crate::backend::GlinerBackend)
+//!   artifacts, calls a [`GlinerBackend`]
 //!   directly with a requested-kinds list. Used when the backend
 //!   is itself a zero-shot model (the externalised
 //!   `inference-gliner` Bento) and doesn't fit the
 //!   tokenizer→adapter pattern.
 //!
-//! Both implement [`Recognizer<Text>`](nvisy_core::Recognizer) so
+//! Both implement [`Recognizer<Text>`] so
 //! the engine treats them uniformly with every other text
 //! recognizer (pattern, future LLM).
+//!
+//! [`NlpArtifacts.ner`]: nvisy_core::nlp::NlpArtifacts::ner
+//! [`NlpEngine`]: crate::nlp::NlpEngine
+//! [`GlinerBackend`]: crate::backend::GlinerBackend
+//! [`Recognizer<Text>`]: nvisy_core::Recognizer
 
 mod config;
 mod gliner_recognizer;

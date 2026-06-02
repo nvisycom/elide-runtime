@@ -3,9 +3,9 @@
 //! Used by the [`detect`] pass to lift LLM-produced candidates into
 //! entities. The recognition trail step is computed per-candidate
 //! via the caller-supplied closure: candidates carrying a `hint_id`
-//! get an [`Annotation`](TrailProvenance::Annotation) provenance
+//! get an [`Annotation`] provenance
 //! with the hint's name; fresh discoveries get a
-//! [`Model`](TrailProvenance::Model) provenance carrying the LLM's
+//! [`Model`] provenance carrying the LLM's
 //! identity.
 //!
 //! Candidates missing an `entity_type` are dropped (we don't invent
@@ -13,6 +13,8 @@
 //! after clamping are also dropped.
 //!
 //! [`detect`]: super::NerAgent::detect
+//! [`Annotation`]: TrailProvenance::Annotation
+//! [`Model`]: TrailProvenance::Model
 
 use nvisy_ontology::entity::{Entity, TrailStep};
 use nvisy_ontology::modality::Text;

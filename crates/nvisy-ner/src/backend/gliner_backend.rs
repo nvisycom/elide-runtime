@@ -1,9 +1,11 @@
 //! [`GlinerBackend`]: transport trait for zero-shot NER backends.
 //!
-//! Used by [`GlinerRecognizer`](crate::recognition::GlinerRecognizer).
+//! Used by [`GlinerRecognizer`].
 //! The recognizer owns the post-processing — label normalization,
 //! score demotion, aggregation — and dispatches the actual model
 //! call through this trait.
+//!
+//! [`GlinerRecognizer`]: crate::recognition::GlinerRecognizer
 //!
 //! The wire contract is intentionally narrow: text + requested
 //! `EntityKind`s in, raw model output (label + score + offsets)
@@ -45,7 +47,9 @@ pub struct GlinerRequest<'a> {
 /// connections (HTTP keepalive, gRPC channels) belong inside the
 /// impl, not in the trait. `Send + Sync + 'static` so the
 /// backend lives behind `Arc<dyn _>` in
-/// [`GlinerRecognizer`](crate::recognition::GlinerRecognizer).
+/// [`GlinerRecognizer`].
+///
+/// [`GlinerRecognizer`]: crate::recognition::GlinerRecognizer
 #[async_trait]
 pub trait GlinerBackend: Send + Sync + 'static {
     /// Scan `request.text` for the requested kinds and return raw
@@ -58,8 +62,10 @@ pub trait GlinerBackend: Send + Sync + 'static {
     async fn predict(&self, request: GlinerRequest<'_>) -> Result<Vec<RawNerSpan>>;
 
     /// Batch-predict. Default is a serial loop over
-    /// [`predict`](Self::predict); backends with native batching
+    /// [`predict`]; backends with native batching
     /// override.
+    ///
+    /// [`predict`]: Self::predict
     ///
     /// # Errors
     ///

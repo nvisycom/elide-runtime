@@ -4,7 +4,7 @@
 //! Implements [`Recognizer<Text>`] uniformly with every other text
 //! recognizer in the platform. Pulls the requested
 //! [`EntityKind`] list from
-//! [`Context::candidate_languages`](nvisy_core::Context) — wait,
+//! [`Context::candidate_languages`] — wait,
 //! correction: from the per-call list the engine layer threads in
 //! (see the engine-side context fields). Today the call shape is:
 //! `Context<TextData>` carries the kind allowlist via
@@ -13,9 +13,13 @@
 //! kind list.
 //!
 //! The recognizer is named — its name is what the
-//! [`ContextEnhancer`](nvisy_core::context::ContextEnhancer)
+//! [`ContextEnhancer`]
 //! looks up in its registry to find the recognizer's
-//! [`default_context`](super::NerModelConfiguration::default_context).
+//! [`default_context`].
+//!
+//! [`Context::candidate_languages`]: nvisy_core::Context
+//! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+//! [`default_context`]: super::NerModelConfiguration::default_context
 
 use std::sync::Arc;
 
@@ -48,14 +52,17 @@ impl GlinerRecognizer {
     ///
     /// `name` is what gets stamped on the entity's recognition
     /// step provenance and is the key the
-    /// [`ContextEnhancer`](nvisy_core::context::ContextEnhancer)
+    /// [`ContextEnhancer`]
     /// uses to look up the recognizer's
-    /// [`default_context`](super::NerModelConfiguration::default_context).
+    /// [`default_context`].
     ///
     /// `supported_kinds` is the recognizer's advertised kind
     /// allowlist. When the per-call context restricts to a subset,
     /// the recognizer asks the backend for only that subset;
     /// otherwise it asks for everything in `supported_kinds`.
+    ///
+    /// [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+    /// [`default_context`]: super::NerModelConfiguration::default_context
     pub fn new<B: GlinerBackend>(
         name: impl Into<String>,
         backend: B,

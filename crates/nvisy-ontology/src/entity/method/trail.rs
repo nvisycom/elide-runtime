@@ -58,9 +58,11 @@ pub struct TrailStep {
 }
 
 impl TrailStep {
-    /// Construct a base [`Recognition`](TrailStepKind::Recognition)
+    /// Construct a base [`Recognition`]
     /// step — a recognizer firing for the first time. `original` is
     /// `None`.
+    ///
+    /// [`Recognition`]: TrailStepKind::Recognition
     pub fn recognition(
         source: impl Into<String>,
         adjusted: Confidence,
@@ -77,9 +79,11 @@ impl TrailStep {
         }
     }
 
-    /// Construct a [`Refinement`](TrailStepKind::Refinement) step —
+    /// Construct a [`Refinement`] step —
     /// a post-recognition score tweak (context boost or penalty,
     /// validator pass, etc.).
+    ///
+    /// [`Refinement`]: TrailStepKind::Refinement
     pub fn refinement(
         source: impl Into<String>,
         original: Confidence,
@@ -96,9 +100,11 @@ impl TrailStep {
         }
     }
 
-    /// Construct a [`Verification`](TrailStepKind::Verification)
+    /// Construct a [`Verification`]
     /// step — an LLM/VLM verify pass confirmed or rejected the
     /// detection.
+    ///
+    /// [`Verification`]: TrailStepKind::Verification
     pub fn verification(
         source: impl Into<String>,
         original: Confidence,
@@ -116,8 +122,10 @@ impl TrailStep {
         }
     }
 
-    /// Construct a [`Fusion`](TrailStepKind::Fusion) step — dedup
+    /// Construct a [`Fusion`] step — dedup
     /// merged overlapping matches into this entity.
+    ///
+    /// [`Fusion`]: TrailStepKind::Fusion
     pub fn fusion(original: Confidence, adjusted: Confidence, reason: impl Into<String>) -> Self {
         Self {
             source: "dedup".to_owned(),
@@ -129,8 +137,10 @@ impl TrailStep {
         }
     }
 
-    /// Construct a [`Calibration`](TrailStepKind::Calibration) step
+    /// Construct a [`Calibration`] step
     /// — the per-method calibration multiplier was applied.
+    ///
+    /// [`Calibration`]: TrailStepKind::Calibration
     pub fn calibration(
         original: Confidence,
         adjusted: Confidence,

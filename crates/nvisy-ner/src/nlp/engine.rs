@@ -1,14 +1,18 @@
 //! [`NlpEngine`]: the producer-side trait that builds
-//! [`NlpArtifacts`](nvisy_core::nlp::NlpArtifacts) for one or more
+//! [`NlpArtifacts`] for one or more
 //! texts.
 //!
 //! Pluggable so different deployment shapes (pure language
 //! detection, hosted full-NLP service, future in-process model) can
 //! be wired interchangeably. The orchestrator calls `process` (or
 //! `process_batch`) once per scan, wraps the result in an `Arc`,
-//! and hands it to every text [`Recognizer`](nvisy_core::Recognizer)
+//! and hands it to every text [`Recognizer`]
 //! plus the
-//! [`ContextEnhancer`](nvisy_core::context::ContextEnhancer).
+//! [`ContextEnhancer`].
+//!
+//! [`NlpArtifacts`]: nvisy_core::nlp::NlpArtifacts
+//! [`Recognizer`]: nvisy_core::Recognizer
+//! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
 
 use async_trait::async_trait;
 use nvisy_core::Result;
@@ -18,7 +22,7 @@ use nvisy_ontology::primitive::LanguageTag;
 /// Builds [`NlpArtifacts`] for the orchestrator's shared-NLP pass.
 ///
 /// Engines advertise their capabilities via
-/// [`capabilities`](Self::capabilities) so the orchestrator can
+/// [`capabilities`] so the orchestrator can
 /// refuse impossible compositions at construction time (e.g.
 /// wiring a lemma-aware enhancer to an engine that doesn't produce
 /// lemmas). Engines also advertise the languages they support so a
@@ -26,6 +30,8 @@ use nvisy_ontology::primitive::LanguageTag;
 ///
 /// `Send + Sync + 'static` — engines live behind `Arc<dyn _>` in
 /// the orchestrator and are shared across recognition tasks.
+///
+/// [`capabilities`]: Self::capabilities
 #[async_trait]
 pub trait NlpEngine: Send + Sync + 'static {
     /// Languages this engine can produce artifacts for. Empty when
@@ -52,9 +58,11 @@ pub trait NlpEngine: Send + Sync + 'static {
     async fn process(&self, text: &str, hint: Option<&LanguageTag>) -> Result<NlpArtifacts>;
 
     /// Process a batch of texts. The default fans out via
-    /// [`process`](Self::process) concurrently; engines with
+    /// [`process`] concurrently; engines with
     /// native batching (`capabilities().batch_native == true`)
     /// should override.
+    ///
+    /// [`process`]: Self::process
     ///
     /// # Errors
     ///

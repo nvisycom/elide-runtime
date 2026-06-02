@@ -12,13 +12,18 @@ pub use self::plan::Redaction;
 /// for the plan [`Redaction`] node's optional fields.
 ///
 /// Matches the `*Config` naming used by
-/// [`EngineConfig`](crate::pipeline::EngineConfig),
-/// [`ExtractionConfig`](crate::pipeline::ExtractionConfig),
-/// [`DetectionConfig`](crate::pipeline::DetectionConfig) so all four
-/// [`RuntimeConfig`](crate::pipeline::RuntimeConfig) subsystem
+/// [`EngineConfig`],
+/// [`ExtractionConfig`],
+/// [`DetectionConfig`] so all four
+/// [`RuntimeConfig`] subsystem
 /// sections share one shape: a struct deserialized from one TOML
 /// section, built once at engine startup, shared across runs via
 /// `Arc`.
+///
+/// [`EngineConfig`]: crate::pipeline::EngineConfig
+/// [`ExtractionConfig`]: crate::pipeline::ExtractionConfig
+/// [`DetectionConfig`]: crate::pipeline::DetectionConfig
+/// [`RuntimeConfig`]: crate::pipeline::RuntimeConfig
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactionConfig {
     /// Default minimum confidence threshold for entities that

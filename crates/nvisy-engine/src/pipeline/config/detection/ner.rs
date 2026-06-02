@@ -28,9 +28,11 @@ pub enum NerBackend {
     #[default]
     Noop,
 
-    /// Externalised [`BentoBackend`](nvisy_ner::backend::BentoBackend)
+    /// Externalised [`BentoBackend`]
     /// — calls the `inference-gliner` Bento over HTTP. Requires
     /// `nvisy-engine` to be built with the `bento` feature.
+    ///
+    /// [`BentoBackend`]: nvisy_ner::backend::BentoBackend
     Bento {
         /// Base URL of the `inference-gliner` Bento (for example
         /// `http://localhost:3000` or

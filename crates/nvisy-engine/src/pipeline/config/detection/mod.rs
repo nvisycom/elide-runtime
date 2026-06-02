@@ -19,12 +19,14 @@ pub use self::pattern::PatternDetection;
 pub use self::plan::Detection;
 
 /// Configuration for the
-/// [`RecognizerRegistry`](crate::detection::RecognizerRegistry).
+/// [`RecognizerRegistry`].
 ///
 /// Each field maps to a `[detection.*]` section in `Nvisy.toml`.
 /// Every field is `Option<_>` so missing sections are valid —
 /// `None` means the recognizer is not loaded (or uses its always-on
 /// default for `pattern`).
+///
+/// [`RecognizerRegistry`]: crate::detection::RecognizerRegistry
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct DetectionConfig {

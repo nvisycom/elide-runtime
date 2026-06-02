@@ -10,13 +10,17 @@
 //! - [`Dictionary::builder`] — chainable, ground-up
 //! - [`Dictionary::from_json`] — self-contained JSON
 //!
-//! Term sources are first-class — see [`Terms`](crate::Terms) for
-//! [`from_text`](crate::Terms::from_text) and
-//! [`from_csv`](crate::Terms::from_csv) constructors. The builder's
-//! [`with_terms`](DictionaryBuilder::with_terms) setter accepts
+//! Term sources are first-class — see [`Terms`] for
+//! [`from_text`] and
+//! [`from_csv`] constructors. The builder's
+//! [`with_terms`] setter accepts
 //! anything convertible to [`Terms`].
 //!
 //! [`Pattern`]: crate::Pattern
+//! [`Terms`]: crate::Terms
+//! [`from_text`]: crate::Terms::from_text
+//! [`from_csv`]: crate::Terms::from_csv
+//! [`with_terms`]: DictionaryBuilder::with_terms
 
 use derive_builder::Builder;
 use nvisy_core::Error;
@@ -66,12 +70,14 @@ impl Dictionary {
     /// Parse a self-contained dictionary from a JSON byte slice. The
     /// JSON must include a `terms` field; for metadata-only JSON
     /// paired with a separate term source, use
-    /// [`metadata_from_json`](Self::metadata_from_json) instead.
+    /// [`metadata_from_json`] instead.
     ///
     /// # Errors
     ///
     /// Returns a validation error when the JSON is malformed or
     /// missing required fields.
+    ///
+    /// [`metadata_from_json`]: Self::metadata_from_json
     pub fn from_json(bytes: &[u8]) -> Result<Self, Error> {
         serde_json::from_slice(bytes)
             .map_err(|e| Error::validation(format!("dictionary JSON: {e}"), "nvisy-pattern"))
@@ -80,8 +86,8 @@ impl Dictionary {
     /// Parse the metadata fields of a dictionary from JSON (no
     /// `terms` required) and return a seeded builder. The caller is
     /// expected to chain
-    /// [`with_terms`](DictionaryBuilder::with_terms) before
-    /// [`build`](DictionaryBuilder::build).
+    /// [`with_terms`] before
+    /// [`build`].
     ///
     /// Useful when shipped or user-supplied dictionaries split
     /// metadata into a JSON sidecar and store the actual terms as
@@ -91,6 +97,9 @@ impl Dictionary {
     ///
     /// Returns a validation error when the JSON is malformed or
     /// missing required metadata fields.
+    ///
+    /// [`with_terms`]: DictionaryBuilder::with_terms
+    /// [`build`]: DictionaryBuilder::build
     pub fn metadata_from_json(bytes: &[u8]) -> Result<DictionaryBuilder, Error> {
         let metadata: DictionaryMetadata = serde_json::from_slice(bytes).map_err(|e| {
             Error::validation(format!("dictionary metadata JSON: {e}"), "nvisy-pattern")

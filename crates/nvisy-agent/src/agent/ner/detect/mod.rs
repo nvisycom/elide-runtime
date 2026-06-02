@@ -102,12 +102,12 @@ impl NerAgent {
     /// recognition step:
     ///
     /// - Candidates carrying `hint_id = Some(i)` get an
-    ///   [`Annotation`](TrailProvenance::Annotation) provenance
+    ///   [`Annotation`] provenance
     ///   using `hints[i].name` (and the entity_id, if any, is
     ///   forwarded). Out-of-range `hint_id`s are treated as fresh
     ///   discoveries.
     /// - Candidates without `hint_id` get a
-    ///   [`Model`](TrailProvenance::Model) provenance carrying
+    ///   [`Model`] provenance carrying
     ///   this agent's model name.
     ///
     /// Candidates the localizer can't resolve are dropped per
@@ -115,6 +115,8 @@ impl NerAgent {
     ///
     /// [`hints`]: crate::agent::LlmNerContext::hints
     /// [`unresolved_policy`]: Self::with_unresolved_policy
+    /// [`Annotation`]: TrailProvenance::Annotation
+    /// [`Model`]: TrailProvenance::Model
     #[tracing::instrument(
         target = TARGET,
         skip_all,

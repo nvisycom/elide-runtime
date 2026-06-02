@@ -32,7 +32,9 @@ pub enum AggregationStrategy {
     Max,
     /// Merge adjacent same-label tokens; the span's score is the
     /// arithmetic mean across constituent tokens. Smoother than
-    /// [`Max`](Self::Max), more lenient at span boundaries.
+    /// [`Max`], more lenient at span boundaries.
+    ///
+    /// [`Max`]: Self::Max
     Average,
     /// Merge based on `B-`/`I-`/`O` BIO tags rather than label
     /// equality. The span's score is the first token's. Match

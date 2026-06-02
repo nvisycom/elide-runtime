@@ -1,8 +1,10 @@
 //! End-to-end: feed real input through the
 //! recognizer → [`ContextEnhancer`] handoff, and verify that
 //! confidence is boosted, the recognition step's `contextual` flag is
-//! set, and a [`Refinement`](nvisy_ontology::entity::TrailStepKind::Refinement)
+//! set, and a [`Refinement`]
 //! step is appended only for matches that had a nearby keyword.
+//!
+//! [`Refinement`]: nvisy_ontology::entity::TrailStepKind::Refinement
 
 use nvisy_core::context::{Context, ContextEnhancer};
 use nvisy_core::{Context as CoreContext, Recognizer, TextData};

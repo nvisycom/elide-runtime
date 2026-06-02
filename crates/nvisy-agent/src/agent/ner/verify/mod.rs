@@ -11,7 +11,7 @@
 //! - **Rejected** — dropped.
 //! - **Corrected** — kept with optional adjustments to entity kind
 //!   / confidence, and a
-//!   [`Verification`](nvisy_ontology::entity::TrailStepKind::Verification)
+//!   [`Verification`]
 //!   step appended to its trail carrying the verifier model's
 //!   provenance. `value` and `bbox` fields in the verdict are
 //!   ignored (the entity's location and thus surface form are
@@ -22,6 +22,7 @@
 //!
 //! [`Entity<Text>`]: nvisy_ontology::entity::Entity
 //! [`VerificationOutput`]: crate::agent::base::VerificationOutput
+//! [`Verification`]: nvisy_ontology::entity::TrailStepKind::Verification
 
 mod prompt;
 

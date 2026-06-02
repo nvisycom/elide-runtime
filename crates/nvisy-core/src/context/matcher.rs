@@ -2,7 +2,7 @@
 //!
 //! - [`SubstringMatcher`] — ASCII case-insensitive substring search
 //!   over the raw text window. The fallback when no
-//!   [`NlpArtifacts`](crate::nlp::NlpArtifacts) is available.
+//!   [`NlpArtifacts`] is available.
 //! - [`LemmaMatcher`] — matches keywords against lemmatized tokens
 //!   from `NlpArtifacts.tokens`. Recognizes morphological variants
 //!   ("running" → "run", "SSNs" → "ssn") that substring matching
@@ -10,8 +10,11 @@
 //!   lemmatization.
 //!
 //! Both implementations are stateless; the
-//! [`ContextEnhancer`](super::ContextEnhancer) owns one as a
+//! [`ContextEnhancer`] owns one as a
 //! configured strategy.
+//!
+//! [`NlpArtifacts`]: crate::nlp::NlpArtifacts
+//! [`ContextEnhancer`]: super::ContextEnhancer
 
 use crate::nlp::Tokens;
 
@@ -29,18 +32,23 @@ pub trait KeywordMatcher: Send + Sync {
     /// `true` if at least one keyword from `keywords` appears in
     /// the input. `window` is the raw text slice surrounding the
     /// entity match; `tokens` is the subset of
-    /// [`Tokens`](crate::nlp::Tokens) covering that same range
-    /// when an [`NlpArtifacts`](crate::nlp::NlpArtifacts) was
+    /// [`Tokens`] covering that same range
+    /// when an [`NlpArtifacts`] was
     /// available, `None` otherwise.
+    ///
+    /// [`Tokens`]: crate::nlp::Tokens
+    /// [`NlpArtifacts`]: crate::nlp::NlpArtifacts
     fn any_match(&self, window: &str, tokens: Option<&Tokens>, keywords: &[String]) -> bool;
 }
 
 /// ASCII case-insensitive substring matcher. The default — used
-/// whenever no [`NlpArtifacts`](crate::nlp::NlpArtifacts) was
+/// whenever no [`NlpArtifacts`] was
 /// produced, or whenever the caller explicitly picks raw matching.
 ///
 /// Fast, allocation-light, permissive: the keyword `"email"` fires
 /// inside `"MyEmailAddress"`. Ignores the `tokens` argument.
+///
+/// [`NlpArtifacts`]: crate::nlp::NlpArtifacts
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SubstringMatcher;
 

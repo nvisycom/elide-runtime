@@ -1,7 +1,7 @@
 //! [`LabelMap`]: model-label → [`EntityKind`] translation table.
 //!
 //! Lives client-side as part of
-//! [`NerModelConfiguration`](super::NerModelConfiguration). Lets
+//! [`NerModelConfiguration`]. Lets
 //! the adapter recognizers (`NlpRecognizer`, `GlinerRecognizer`)
 //! consume raw model labels uniformly regardless of which backend
 //! produced them — swap backends without re-implementing
@@ -12,6 +12,8 @@
 //! primary path is label→kind. The reverse lookup is a linear
 //! scan; if a future backend needs frequent reverse lookups we'll
 //! cache both directions.
+//!
+//! [`NerModelConfiguration`]: super::NerModelConfiguration
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -27,7 +29,9 @@ use serde::{Deserialize, Serialize};
 /// snake_case string form to itself, so backends that already
 /// return canonical labels (the Bento `inference-gliner` today)
 /// pass through unchanged. Custom backends register their own
-/// model-specific labels via [`with_entry`](Self::with_entry).
+/// model-specific labels via [`with_entry`].
+///
+/// [`with_entry`]: Self::with_entry
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct LabelMap {
@@ -37,7 +41,9 @@ pub struct LabelMap {
 impl LabelMap {
     /// Empty map. Backends with no recognizable labels see every
     /// span dropped — typically you want
-    /// [`canonical`](Self::canonical) instead.
+    /// [`canonical`] instead.
+    ///
+    /// [`canonical`]: Self::canonical
     #[must_use]
     pub fn new() -> Self {
         Self::default()

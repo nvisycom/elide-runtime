@@ -1,7 +1,7 @@
 //! [`LinguaNlpEngine`]: language-only [`NlpEngine`].
 //!
 //! Produces [`NlpArtifacts`] populated only on the
-//! [`languages`](nvisy_core::nlp::NlpArtifacts::languages) field —
+//! [`languages`] field —
 //! no tokens, no NER, no stopwords. Used by pattern-only
 //! pipelines that still want a resolved language carried on the
 //! artifact (for engine-level routing or for downstream
@@ -9,7 +9,10 @@
 //!
 //! When `process` receives a `hint`, detection is skipped and the
 //! hint becomes a single-entry detection with provenance
-//! [`Asserted`](nvisy_ontology::primitive::LanguageProvenance::Asserted).
+//! [`Asserted`].
+//!
+//! [`languages`]: nvisy_core::nlp::NlpArtifacts::languages
+//! [`Asserted`]: nvisy_ontology::primitive::LanguageProvenance::Asserted
 
 use async_trait::async_trait;
 use nvisy_core::Result;
@@ -45,7 +48,9 @@ impl LinguaNlpEngine {
     /// Construct an engine restricted to `candidates`. Tags lingua
     /// doesn't recognise are silently skipped at detector-build
     /// time. An empty input is equivalent to
-    /// [`unrestricted`](Self::unrestricted).
+    /// [`unrestricted`].
+    ///
+    /// [`unrestricted`]: Self::unrestricted
     #[must_use]
     pub fn with_candidates(candidates: impl IntoIterator<Item = LanguageTag>) -> Self {
         Self {

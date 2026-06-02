@@ -13,8 +13,10 @@ use serde::{Deserialize, Serialize};
 /// Per-plan knobs for the redaction phase.
 ///
 /// Unset fields fall back to `[redaction]` defaults in `Nvisy.toml`
-/// ([`RedactionConfig`](super::RedactionConfig)); if neither is set,
+/// ([`RedactionConfig`]); if neither is set,
 /// hard-coded defaults apply (0.5 threshold, no metadata stripping).
+///
+/// [`RedactionConfig`]: super::RedactionConfig
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Redaction {

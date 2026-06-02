@@ -11,7 +11,7 @@
 //! # Layering
 //!
 //! - [`ModalityData`] extends [`nvisy_ontology::modality::Modality`]
-//!   with an associated [`Data`](ModalityData::Data) type — the
+//!   with an associated [`Data`] type — the
 //!   modality-specific payload (text bytes, image bytes + dims, …)
 //!   recognizers actually scan.
 //! - [`Context<D>`] wraps the payload plus *shared* per-call concerns
@@ -21,6 +21,7 @@
 //! - [`Recognizer<M>`] takes `&Context<M::Data>` and emits entities.
 //!
 //! [`Entity<M>`]: nvisy_ontology::entity::Entity
+//! [`Data`]: ModalityData::Data
 
 use std::sync::Arc;
 
@@ -45,7 +46,7 @@ pub trait ModalityData: Modality {
 
 /// Per-call input for a [`Recognizer`].
 ///
-/// Bundles the modality-specific [`data`](Self::data) (e.g. text
+/// Bundles the modality-specific [`data`] (e.g. text
 /// bytes for [`Text`], image bytes + pixel dims for [`Image`]) with
 /// the *shared* concerns every recognizer regardless of modality
 /// can read: a language hint, candidate languages, and a correlation
@@ -53,6 +54,8 @@ pub trait ModalityData: Modality {
 ///
 /// Recognizers are free to ignore the shared fields; pattern
 /// recognizers in particular don't care about language.
+///
+/// [`data`]: Self::data
 #[derive(Debug, Clone)]
 pub struct Context<D> {
     /// Modality-specific payload (text bytes, image bytes + dims, …).
@@ -62,7 +65,9 @@ pub struct Context<D> {
     /// backends) skip their own detection.
     pub language: Option<LanguageTag>,
     /// Restrict language auto-detection to this subset when
-    /// [`language`](Self::language) is `None`. Empty means "any".
+    /// [`language`] is `None`. Empty means "any".
+    ///
+    /// [`language`]: Self::language
     pub candidate_languages: Vec<LanguageTag>,
     /// Correlation UUID propagated through the tracing span for this
     /// call. Recognizer bodies do not read this directly; it's set
@@ -112,10 +117,12 @@ impl<D> Context<D> {
 /// recognizers; the trait does not assume a central registry.
 ///
 /// Recognizers are stateless from the caller's perspective — the
-/// default [`reset`](Self::reset) is a no-op. Long-lived
+/// default [`reset`] is a no-op. Long-lived
 /// implementations (LLM agents with cumulative usage trackers, OCR
 /// backends with batch caches) override `reset` to drop
 /// per-document state between runs.
+///
+/// [`reset`]: Self::reset
 #[async_trait::async_trait]
 pub trait Recognizer<M: ModalityData>: Send + Sync {
     /// Detect entities in `ctx` and return them in modality-local
@@ -137,13 +144,15 @@ pub trait Recognizer<M: ModalityData>: Send + Sync {
 /// caller share one payload across multiple recognizers without
 /// duplicating the source bytes.
 ///
-/// [`artifacts`](Self::artifacts) is the shared-NLP-pass opt-in.
+/// [`artifacts`] is the shared-NLP-pass opt-in.
 /// When the orchestrator pre-ran an `NlpEngine`, it wraps the
 /// result in an `Arc` and stamps it here so every text recognizer
 /// reads the same tokens, lemmas, language detections, and NER
 /// spans from one source of truth. Recognizers that don't need
 /// artifacts (most patterns) ignore the field; recognizers that
 /// require them (NER adapter) error when it's absent.
+///
+/// [`artifacts`]: Self::artifacts
 #[derive(Debug, Clone)]
 pub struct TextData {
     /// The text the recognizer should scan. Byte offsets in emitted
@@ -152,7 +161,9 @@ pub struct TextData {
     /// Shared NLP artifacts produced by the orchestrator's
     /// `NlpEngine` pass. `None` when no shared pass was run; in
     /// that case lemma-dependent code paths fall back to substring
-    /// scans against [`text`](Self::text).
+    /// scans against [`text`].
+    ///
+    /// [`text`]: Self::text
     pub artifacts: Option<Arc<NlpArtifacts>>,
 }
 
@@ -160,7 +171,9 @@ impl TextData {
     /// Construct from anything convertible to [`HipStr<'static>`] —
     /// owned `String`, borrowed `&'static str`, an existing
     /// `HipStr`, …. No artifacts attached; use
-    /// [`with_artifacts`](Self::with_artifacts) to attach them.
+    /// [`with_artifacts`] to attach them.
+    ///
+    /// [`with_artifacts`]: Self::with_artifacts
     pub fn new(text: impl Into<HipStr<'static>>) -> Self {
         Self {
             text: text.into(),

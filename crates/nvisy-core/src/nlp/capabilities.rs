@@ -17,16 +17,21 @@
 ///
 /// Fields are independent — each is `true` when the engine
 /// guarantees the corresponding field of
-/// [`NlpArtifacts`](super::NlpArtifacts) will be populated with
+/// [`NlpArtifacts`] will be populated with
 /// meaningful data, `false` when the engine leaves the field at its
-/// default ([`Tokens::empty`](super::Tokens::empty),
+/// default ([`Tokens::empty`],
 /// `Vec::new`, …).
+///
+/// [`NlpArtifacts`]: super::NlpArtifacts
+/// [`Tokens::empty`]: super::Tokens::empty
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NlpCapabilities {
     /// Engine emits tokens with byte offsets.
     pub produces_tokens: bool,
     /// Engine emits lemmas alongside tokens. Always implies
-    /// [`produces_tokens`](Self::produces_tokens).
+    /// [`produces_tokens`].
+    ///
+    /// [`produces_tokens`]: Self::produces_tokens
     pub produces_lemmas: bool,
     /// Engine emits NER spans.
     pub produces_ner: bool,
@@ -40,7 +45,9 @@ pub struct NlpCapabilities {
 impl NlpCapabilities {
     /// All capabilities off. Useful as a starting point for builder
     /// patterns; for a truly capabilities-free engine, prefer
-    /// [`language_only`](Self::language_only).
+    /// [`language_only`].
+    ///
+    /// [`language_only`]: Self::language_only
     pub const NONE: Self = Self {
         produces_tokens: false,
         produces_lemmas: false,

@@ -6,7 +6,7 @@
 //! has no knowledge of [`Document`], blocks, or pipeline phases.
 //!
 //! The Document-walking glue that drives the registry per-block /
-//! per-image lives in [`DetectionPhase`](crate::pipeline::DetectionPhase) —
+//! per-image lives in [`DetectionPhase`] —
 //! that's where block iteration, entity-kind filtering, and
 //! span-to-location lifting happen.
 //!
@@ -18,6 +18,7 @@
 //!
 //! [`Context`]: nvisy_core::Context
 //! [`Document`]: nvisy_ontology::document::Document
+//! [`DetectionPhase`]: crate::pipeline::DetectionPhase
 
 mod registry;
 

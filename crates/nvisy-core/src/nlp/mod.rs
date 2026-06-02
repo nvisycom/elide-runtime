@@ -3,7 +3,7 @@
 //!
 //! These are the platform-level shapes produced by an `NlpEngine`
 //! (declared in `nvisy-ner`) and consumed by every text
-//! [`Recognizer`](crate::Recognizer) plus the `ContextEnhancer`
+//! [`Recognizer`] plus the `ContextEnhancer`
 //! (in `nvisy_core::context`, declared in a sibling module). Splitting them into this module —
 //! instead of leaving them inside the producer crate — lets
 //! `nvisy-pattern`, `nvisy_core::context`, and `nvisy-ner` all read
@@ -15,13 +15,13 @@
 //! [`NlpArtifacts`] value that bundles:
 //!
 //! - the language(s) the engine resolved
-//!   ([`languages`](NlpArtifacts::languages)),
+//!   ([`languages`]),
 //! - the tokenized text with optional lemmas
-//!   ([`tokens`](NlpArtifacts::tokens)),
+//!   ([`tokens`]),
 //! - any NER spans the model predicted, in raw pre-normalization
-//!   form ([`ner`](NlpArtifacts::ner)),
+//!   form ([`ner`]),
 //! - the stopword set resolved for the dominant language
-//!   ([`stopwords`](NlpArtifacts::stopwords)).
+//!   ([`stopwords`]).
 //!
 //! The orchestrator wraps the artifacts in an `Arc` and hands the
 //! same reference to every recognizer. Recognizers that don't need
@@ -40,6 +40,12 @@
 //! - **Consumer** (this module): the value types every NLP engine
 //!   produces and every recognizer/enhancer reads. No engine
 //!   implementations live here.
+//!
+//! [`Recognizer`]: crate::Recognizer
+//! [`languages`]: NlpArtifacts::languages
+//! [`tokens`]: NlpArtifacts::tokens
+//! [`ner`]: NlpArtifacts::ner
+//! [`stopwords`]: NlpArtifacts::stopwords
 
 mod aggregation;
 mod artifacts;

@@ -1,15 +1,19 @@
 //! [`LinguaDetector`]: thin wrapper around the
-//! [`lingua`](https://crates.io/crates/lingua) crate's
+//! [`lingua`] crate's
 //! `LanguageDetector`.
 //!
 //! Owns the lingua detector and exposes one method,
-//! [`detect`](LinguaDetector::detect), that returns a
+//! [`detect`], that returns a
 //! [`Vec<LanguageDetection>`] in our ontology shape. Used by
-//! [`LinguaNlpEngine`](super::LinguaNlpEngine).
+//! [`LinguaNlpEngine`].
 //!
 //! Construction takes either a candidate-language set or "all
 //! languages compiled into the lingua feature set" — the latter
 //! is the unrestricted fallback.
+//!
+//! [`lingua`]: https://crates.io/crates/lingua
+//! [`detect`]: LinguaDetector::detect
+//! [`LinguaNlpEngine`]: super::LinguaNlpEngine
 
 use std::collections::HashSet;
 use std::fmt;
@@ -37,8 +41,10 @@ impl LinguaDetector {
     /// tags (no matching ISO 639-1 primary subtag in lingua) are
     /// silently skipped. Returns `None` when no tag matched —
     /// `LinguaNlpEngine` falls back to
-    /// [`for_all_languages`](Self::for_all_languages) in that
+    /// [`for_all_languages`] in that
     /// case.
+    ///
+    /// [`for_all_languages`]: Self::for_all_languages
     pub(crate) fn for_languages(tags: &[LanguageTag]) -> Option<Self> {
         let langs = tags_to_languages(tags);
         if langs.is_empty() {

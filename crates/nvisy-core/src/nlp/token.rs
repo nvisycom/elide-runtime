@@ -7,12 +7,16 @@
 //! (`is_stop`, `is_punct`).
 //!
 //! [`Tokens`] is the owning collection plus lookup helpers the
-//! enhancer uses: [`around`](Tokens::around) gets the slice of
-//! tokens within a byte window, [`lemmas_in`](Tokens::lemmas_in)
+//! enhancer uses: [`around`] gets the slice of
+//! tokens within a byte window, [`lemmas_in`]
 //! iterates lemmas covering a byte range. Both work in *source-text
 //! byte offsets* — the same coordinate space as
-//! [`Entity::location`](nvisy_ontology::entity::Entity::location)
+//! [`Entity::location`]
 //! — so there's no coordinate translation at the call site.
+//!
+//! [`around`]: Tokens::around
+//! [`lemmas_in`]: Tokens::lemmas_in
+//! [`Entity::location`]: nvisy_ontology::entity::Entity::location
 //!
 //! The shape is intentionally minimal. POS tags, morphology,
 //! dependency trees, and other heavier features are not part of the
@@ -35,15 +39,19 @@ use hipstr::HipStr;
 pub struct Token {
     /// Surface form as it appears in the source text.
     pub text: HipStr<'static>,
-    /// Lemma when the engine produced one; otherwise == [`text`](Self::text).
+    /// Lemma when the engine produced one; otherwise == [`text`].
+    ///
+    /// [`text`]: Self::text
     pub lemma: HipStr<'static>,
     /// Byte range this token occupies in the source text. Use this
     /// to map back to substrings of the original input.
     pub offset: Range<usize>,
     /// Engine-asserted stopword flag (e.g. "the", "a", "of" for
     /// English). Engines without a stopword list set this to
-    /// `false`; the artifact's [`StopwordSet`](super::StopwordSet)
+    /// `false`; the artifact's [`StopwordSet`]
     /// is the authoritative source.
+    ///
+    /// [`StopwordSet`]: super::StopwordSet
     pub is_stop: bool,
     /// Engine-asserted punctuation flag.
     pub is_punct: bool,
@@ -86,7 +94,9 @@ impl Token {
 }
 
 /// The owning token sequence carried by an
-/// [`NlpArtifacts`](super::NlpArtifacts).
+/// [`NlpArtifacts`].
+///
+/// [`NlpArtifacts`]: super::NlpArtifacts
 ///
 /// Tokens are sorted by `offset.start` (engines should produce them
 /// in order; consumer-side code assumes this). The collection

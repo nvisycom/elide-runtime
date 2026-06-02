@@ -17,13 +17,19 @@ use std::collections::HashMap;
 
 use super::Context;
 
-/// Lookup table the [`ContextEnhancer`](super::ContextEnhancer)
+/// Lookup table the [`ContextEnhancer`]
 /// reads at boost time.
 ///
-/// Construct with [`new`](Self::new), populate with
-/// [`with_entry`](Self::with_entry) /
-/// [`with_entries`](Self::with_entries), then hand to a
-/// [`ContextEnhancerBuilder`](super::ContextEnhancerBuilder).
+/// Construct with [`new`], populate with
+/// [`with_entry`] /
+/// [`with_entries`], then hand to a
+/// [`ContextEnhancerBuilder`].
+///
+/// [`ContextEnhancer`]: super::ContextEnhancer
+/// [`new`]: Self::new
+/// [`with_entry`]: Self::with_entry
+/// [`with_entries`]: Self::with_entries
+/// [`ContextEnhancerBuilder`]: super::ContextEnhancerBuilder
 #[derive(Debug, Clone, Default)]
 pub struct ContextRegistry {
     entries: HashMap<String, Context>,
@@ -65,7 +71,9 @@ impl ContextRegistry {
     /// Look up the [`Context`] for `name`. Returns `None` when the
     /// name was never registered or when the registered context
     /// had an empty keyword list (which is treated as "not
-    /// registered" — see [`with_entry`](Self::with_entry)).
+    /// registered" — see [`with_entry`]).
+    ///
+    /// [`with_entry`]: Self::with_entry
     #[must_use]
     pub fn get(&self, name: &str) -> Option<&Context> {
         self.entries.get(name)

@@ -8,17 +8,22 @@
 //! engines.
 //!
 //! Score is the model's confidence in the raw `[0.0, 1.0]` range;
-//! adapters re-clamp to [`Confidence`](nvisy_ontology::primitive::Confidence)
+//! adapters re-clamp to [`Confidence`]
 //! and may demote via the configured `low_confidence_score_multiplier`.
+//!
+//! [`Confidence`]: nvisy_ontology::primitive::Confidence
 
 use std::ops::Range;
 
 /// One raw entity span predicted by a NER model.
 ///
 /// Pre-normalization: the label is the model's string, not a
-/// translated [`EntityKind`](nvisy_ontology::entity::EntityKind).
+/// translated [`EntityKind`].
 /// Coordinate space is byte offsets into the same source text the
-/// surrounding [`NlpArtifacts`](super::NlpArtifacts) covers.
+/// surrounding [`NlpArtifacts`] covers.
+///
+/// [`EntityKind`]: nvisy_ontology::entity::EntityKind
+/// [`NlpArtifacts`]: super::NlpArtifacts
 #[derive(Debug, Clone, PartialEq)]
 pub struct RawNerSpan {
     /// Model-emitted label, verbatim.

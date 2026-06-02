@@ -9,7 +9,7 @@
 //! [`ConflictResolution`], [`SpanSize`]).
 //!
 //! The phase orchestrator that drives this per [`DocumentTree`] node
-//! lives in [`DeduplicationPhase`](crate::pipeline::DeduplicationPhase). It calls
+//! lives in [`DeduplicationPhase`]. It calls
 //! [`LayerPipeline::from_params`] to assemble the canonical four-step
 //! recipe, then runs the pipeline against each node's entities.
 //!
@@ -25,6 +25,7 @@
 //! [`LayerPipeline::new`] + [`LayerPipeline::with_layer`].
 //!
 //! [`DocumentTree`]: crate::core::DocumentTree
+//! [`DeduplicationPhase`]: crate::pipeline::DeduplicationPhase
 
 mod calibrate;
 mod filter;

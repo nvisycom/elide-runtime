@@ -1,5 +1,7 @@
 //! [`Terms`]: a literal-string list, the term source for
-//! [`Dictionary`](crate::Dictionary).
+//! [`Dictionary`].
+//!
+//! [`Dictionary`]: crate::Dictionary
 //!
 //! A `Terms` value is the bag of literals the recognizer's
 //! Aho-Corasick automaton scans for. Construct it from any common

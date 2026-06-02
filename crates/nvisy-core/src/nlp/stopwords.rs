@@ -1,5 +1,5 @@
 //! [`StopwordSet`]: the resolved stopword list for one
-//! [`NlpArtifacts`](super::NlpArtifacts).
+//! [`NlpArtifacts`].
 //!
 //! Engines that have a stopword list for the artifact's dominant
 //! language pre-resolve it once at `process_text` time and store it
@@ -12,11 +12,15 @@
 //! argument before checking); engines normalizing to a non-ASCII
 //! language can override by populating with already-lowercased
 //! tokens and querying through [`StopwordSet::contains_exact`].
+//!
+//! [`NlpArtifacts`]: super::NlpArtifacts
 
 use std::collections::HashSet;
 
 /// Resolved stopword set carried on an
-/// [`NlpArtifacts`](super::NlpArtifacts).
+/// [`NlpArtifacts`].
+///
+/// [`NlpArtifacts`]: super::NlpArtifacts
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StopwordSet {
     inner: HashSet<String>,
@@ -31,8 +35,10 @@ impl StopwordSet {
     }
 
     /// Construct from an iterator of stopwords. Inputs are
-    /// ASCII-lowercased on insert so [`contains`](Self::contains)
+    /// ASCII-lowercased on insert so [`contains`]
     /// matches case-insensitively.
+    ///
+    /// [`contains`]: Self::contains
     pub fn from_iter_lowered<I, S>(iter: I) -> Self
     where
         I: IntoIterator<Item = S>,

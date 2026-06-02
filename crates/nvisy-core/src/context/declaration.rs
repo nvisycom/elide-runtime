@@ -5,7 +5,9 @@
 //! per-recognizer for NER (a single `default_context` on
 //! `NlpRecognizer`). The shape is identical regardless of who
 //! registers it; the difference is only *what name* gets stored
-//! against it in the [`ContextRegistry`](super::ContextRegistry).
+//! against it in the [`ContextRegistry`].
+//!
+//! [`ContextRegistry`]: super::ContextRegistry
 //!
 //! `window` and `boost` are `Option<_>` so the common case is "I
 //! have keywords; use the enhancer's defaults." Override only when
@@ -19,7 +21,9 @@ use serde::{Deserialize, Serialize};
 ///
 /// Anything that wants to participate in post-recognition keyword
 /// boosting registers one of these against its name in a
-/// [`ContextRegistry`](super::ContextRegistry).
+/// [`ContextRegistry`].
+///
+/// [`ContextRegistry`]: super::ContextRegistry
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Context {

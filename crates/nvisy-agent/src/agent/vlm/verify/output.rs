@@ -50,9 +50,11 @@ pub(super) fn merge(
 /// Returns `None` for rejected entities, or `Some(corrected)` with
 /// updated fields for corrected entities. Bounding-box updates
 /// rebuild the entity's [`Image`] location, and a
-/// [`Verification`](nvisy_ontology::entity::TrailStepKind::Verification)
+/// [`Verification`]
 /// step is appended to the entity's trail with the verifier's
 /// provenance.
+///
+/// [`Verification`]: nvisy_ontology::entity::TrailStepKind::Verification
 fn apply(
     verified: VerifiedEntity,
     mut entity: Entity<Image>,

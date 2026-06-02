@@ -7,20 +7,27 @@
 //! *add* to or *reshape* the collection return an empty `Vec`.
 //!
 //! The four built-in layers
-//! ([`CalibrateLayer`](super::CalibrateLayer),
-//! [`FilterLayer`](super::FilterLayer),
-//! [`FuseLayer`](super::FuseLayer),
-//! [`ResolveConflictsLayer`](super::ResolveConflictsLayer)) cover the
+//! ([`CalibrateLayer`],
+//! [`FilterLayer`],
+//! [`FuseLayer`],
+//! [`ResolveConflictsLayer`]) cover the
 //! canonical dedup recipe. Operators compose them — or their own
-//! custom layers — through [`LayerPipeline`](super::LayerPipeline).
+//! custom layers — through [`LayerPipeline`].
 //!
 //! # Generic over the resolver type
 //!
 //! Both `Layer<M, R>` and [`LayerContext<'_, M, R>`] are parameterised
-//! by `R: ValueAt<M>` so the value-resolver call ([`fuse`](super::FuseLayer)
+//! by `R: ValueAt<M>` so the value-resolver call ([`fuse`]
 //! is the only built-in caller) is monomorphised. Object safety still
 //! holds — `LayerPipeline` stores `Box<dyn Layer<M, R>>` for a
 //! specific `R` chosen at pipeline construction.
+//!
+//! [`CalibrateLayer`]: super::CalibrateLayer
+//! [`FilterLayer`]: super::FilterLayer
+//! [`FuseLayer`]: super::FuseLayer
+//! [`ResolveConflictsLayer`]: super::ResolveConflictsLayer
+//! [`LayerPipeline`]: super::LayerPipeline
+//! [`fuse`]: super::FuseLayer
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::Entity;
@@ -33,7 +40,7 @@ use crate::core::ValueAt;
 ///
 /// Carries the value resolver (for layers that need to read source
 /// text at a location — fuse, today) and an optional correlation id
-/// (for tracing — see [`Context::correlation_id`](nvisy_core::Context)).
+/// (for tracing — see [`Context::correlation_id`]).
 ///
 /// Built with [`Self::new`] then optionally extended through the
 /// `with_*` setters:
@@ -42,6 +49,8 @@ use crate::core::ValueAt;
 /// let ctx = LayerContext::new(&resolver).with_correlation_id(run_id);
 /// pipeline.run(entities, &ctx).await;
 /// ```
+///
+/// [`Context::correlation_id`]: nvisy_core::Context
 pub struct LayerContext<'a, M: Modality, R: ValueAt<M> + ?Sized> {
     /// Resolver for "what value sits at this location?". Layers that
     /// only inspect entity metadata can ignore this field.

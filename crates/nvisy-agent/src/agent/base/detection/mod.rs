@@ -33,8 +33,10 @@ pub(crate) const ALL_TYPES_HINT: &str = "all entity types";
 pub struct NerHint {
     /// Uploader-supplied name (optional). Forwarded into the
     /// resulting entity's recognition trail step as an
-    /// [`Annotation`](nvisy_ontology::entity::TrailProvenance::Annotation)
+    /// [`Annotation`]
     /// provenance when the LLM confirms or adjusts this hint.
+    ///
+    /// [`Annotation`]: nvisy_ontology::entity::TrailProvenance::Annotation
     pub name: Option<String>,
     /// Uploader-claimed entity kind (optional).
     pub entity_kind: Option<EntityKind>,

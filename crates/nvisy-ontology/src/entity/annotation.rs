@@ -90,8 +90,10 @@ pub enum AnnotationKind<M: Modality> {
         /// region treated as sensitive without committing to a
         /// kind — synthesised entities fall back to
         /// [`EntityKind::Unresolved`]. The broad
-        /// [`EntityCategory`](super::EntityCategory) is derived via
+        /// [`EntityCategory`] is derived via
         /// [`EntityKind::category`].
+        ///
+        /// [`EntityCategory`]: super::EntityCategory
         #[serde(skip_serializing_if = "Option::is_none")]
         entity_kind: Option<EntityKind>,
         /// Modality-specific location this inclusion targets.

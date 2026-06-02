@@ -1,4 +1,4 @@
-//! [`Registry`]: actor-scoped content, context, and policy store.
+//! [`Registry`]: actor-scoped content and policy store.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -7,7 +7,6 @@ use std::sync::Arc;
 use fjall::{Database, Keyspace};
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentMetadata, ContentSource};
-use nvisy_ontology::context::Context;
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::policy::Policy;
 use nvisy_ontology::provenance::AnyAudit;
@@ -21,7 +20,7 @@ use super::resource_cache::ResourceCache;
 
 const TARGET: &str = "nvisy_engine::ingestion::registry";
 
-/// Actor-scoped content, context, and policy store backed by fjall.
+/// Actor-scoped content and policy store backed by fjall.
 ///
 /// Cheaply cloneable (`Arc` internally).
 #[derive(Clone)]
@@ -34,10 +33,8 @@ struct RegistryInner {
     db: Database,
     content_ks: Keyspace,
     content_meta_ks: Keyspace,
-    contexts_ks: Keyspace,
     policies_ks: Keyspace,
     audits_ks: Keyspace,
-    context_cache: ResourceCache<Context>,
     policy_cache: ResourceCache<Policy<Text>>,
 }
 
@@ -57,7 +54,6 @@ impl Registry {
         let db = Database::open_at(&base_dir)?;
         let content_ks = db.open_blob_keyspace("content")?;
         let content_meta_ks = db.open_keyspace("content_meta")?;
-        let contexts_ks = db.open_keyspace("contexts")?;
         let policies_ks = db.open_keyspace("policies")?;
         let audits_ks = db.open_keyspace("run_outputs")?;
 
@@ -68,10 +64,8 @@ impl Registry {
                 db,
                 content_ks,
                 content_meta_ks,
-                contexts_ks,
                 policies_ks,
                 audits_ks,
-                context_cache: ResourceCache::new("context"),
                 policy_cache: ResourceCache::new("policy"),
             }),
         })
@@ -81,11 +75,6 @@ impl Registry {
     #[must_use]
     pub fn base_dir(&self) -> &Path {
         &self.inner.base_dir
-    }
-
-    /// Returns the shared context cache.
-    pub fn context_cache(&self) -> &ResourceCache<Context> {
-        &self.inner.context_cache
     }
 
     /// Returns the shared policy cache.
@@ -318,42 +307,6 @@ impl Registry {
         blocking(move || ks.resource_ids(actor_id)).await
     }
 
-    #[tracing::instrument(target = TARGET, name = "registry.register_context", skip(self, context), fields(%actor_id))]
-    pub async fn register_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid> {
-        let id = context.id;
-        let key = CompositeKey::new(actor_id, id);
-        self.store_json(&self.inner.contexts_ks, key, &context)
-            .await?;
-        tracing::trace!(target: TARGET, %id, "context registered");
-        Ok(id)
-    }
-
-    #[tracing::instrument(target = TARGET, name = "registry.read_context", skip(self), fields(%actor_id, %context_id))]
-    pub async fn read_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<Context> {
-        let key = CompositeKey::new(actor_id, context_id);
-        self.load_json(&self.inner.contexts_ks, key, "context")
-            .await
-    }
-
-    #[tracing::instrument(target = TARGET, name = "registry.unregister_context", skip(self), fields(%actor_id, %context_id))]
-    pub async fn unregister_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<()> {
-        let key = CompositeKey::new(actor_id, context_id);
-        self.remove_entry(&self.inner.contexts_ks, key, "context")
-            .await
-    }
-
-    #[tracing::instrument(target = TARGET, name = "registry.unregister_all_contexts", skip(self), fields(%actor_id))]
-    pub async fn unregister_all_contexts(&self, actor_id: Uuid) -> Result<usize> {
-        self.remove_all_entries(&self.inner.contexts_ks, actor_id)
-            .await
-    }
-
-    #[tracing::instrument(target = TARGET, name = "registry.list_contexts", skip(self), fields(%actor_id))]
-    pub async fn list_contexts(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
-        self.list_resource_ids(&self.inner.contexts_ks, actor_id)
-            .await
-    }
-
     #[tracing::instrument(target = TARGET, name = "registry.register_policy", skip(self, policy), fields(%actor_id))]
     pub async fn register_policy(&self, actor_id: Uuid, policy: Policy<Text>) -> Result<Uuid> {
         let id = policy.id;
@@ -424,17 +377,8 @@ impl Registry {
 mod tests {
     use nvisy_core::ErrorKind;
     use nvisy_core::content::{Content, ContentData};
-    use nvisy_ontology::context::Context;
 
     use super::*;
-
-    fn test_context(name: &str) -> Context {
-        Context::builder()
-            .with_name(name)
-            .with_version(semver::Version::new(1, 0, 0))
-            .build()
-            .unwrap()
-    }
 
     fn temp_registry() -> anyhow::Result<(tempfile::TempDir, Registry)> {
         let temp = tempfile::tempdir()?;
@@ -517,42 +461,6 @@ mod tests {
             .await?;
         assert_eq!(registry.unregister_all_content(actor).await?, 2);
         assert!(registry.list_content(actor).await?.is_empty());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn register_and_read_context() -> anyhow::Result<()> {
-        let (_temp, registry) = temp_registry()?;
-        let actor = Uuid::now_v7();
-        let id = registry
-            .register_context(actor, test_context("test-ctx"))
-            .await?;
-        let ctx = registry.read_context(actor, id).await?;
-        assert_eq!(ctx.name, "test-ctx");
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn context_scoped_by_actor() -> anyhow::Result<()> {
-        let (_temp, registry) = temp_registry()?;
-        let actor_a = Uuid::now_v7();
-        let actor_b = Uuid::now_v7();
-        let id = registry
-            .register_context(actor_a, test_context("private"))
-            .await?;
-        assert!(registry.read_context(actor_b, id).await.is_err());
-        registry.read_context(actor_a, id).await?;
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn unregister_all_contexts() -> anyhow::Result<()> {
-        let (_temp, registry) = temp_registry()?;
-        let actor = Uuid::now_v7();
-        registry.register_context(actor, test_context("c1")).await?;
-        registry.register_context(actor, test_context("c2")).await?;
-        assert_eq!(registry.unregister_all_contexts(actor).await?, 2);
-        assert!(registry.list_contexts(actor).await?.is_empty());
         Ok(())
     }
 

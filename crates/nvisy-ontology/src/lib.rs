@@ -4,7 +4,6 @@
 
 mod error;
 
-pub mod context;
 pub mod document;
 pub mod entity;
 pub mod modality;

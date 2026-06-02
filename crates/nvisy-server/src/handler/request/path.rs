@@ -14,9 +14,6 @@ pub struct ResourcePath {
 /// Path parameter for file endpoints.
 pub type ContentPath = ResourcePath;
 
-/// Path parameter for context endpoints.
-pub type ContextPath = ResourcePath;
-
 /// Path parameter for policy endpoints.
 pub type PolicyPath = ResourcePath;
 

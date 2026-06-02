@@ -59,7 +59,6 @@ fn base_input(actor_id: Uuid, content_id: Uuid, dry_run: bool) -> EngineInput {
             content_ids: vec![content_id],
             ..Default::default()
         }],
-        context_ids: Vec::new(),
         plan: Default::default(),
         exports: vec![ExportFile {
             content_ids: vec![Uuid::new_v4()],

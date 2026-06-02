@@ -1,11 +1,9 @@
 //! Import node configuration.
 //!
-//! [`ImportFile`] runs, alongside [`LoadContext`]. It is always
-//! the first processing step: it resolves previously uploaded content by UUID,
-//! optionally decompresses and decrypts it, then feeds the raw bytes into the
-//! pipeline envelope for downstream extraction.
-//!
-//! [`LoadContext`]: crate::ingestion::LoadContext
+//! [`ImportFile`] is always the first processing step: it resolves
+//! previously uploaded content by UUID, optionally decompresses and
+//! decrypts it, then feeds the raw bytes into the pipeline envelope
+//! for downstream extraction.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

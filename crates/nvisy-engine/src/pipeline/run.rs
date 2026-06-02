@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::context::Context;
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::policy::{Policy, Retention, RetentionPolicy, RetentionScope};
 use tokio_util::sync::CancellationToken;
@@ -27,7 +26,7 @@ use crate::core::{PolicyStore, RunContext, SharedData};
 use crate::detection::RecognizerRegistry;
 use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;
-use crate::ingestion::registry::{Registry, ResourceGuard};
+use crate::ingestion::registry::Registry;
 use crate::pipeline::RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
@@ -121,10 +120,8 @@ impl Pipeline {
         // evaluation; no re-sorting needed.
         let policy_ids: Vec<Uuid> = input.policies.clone();
 
-        // Acquire contexts and policies into the registry caches.
-        let (_context_guard, _policy_guard) = self
-            .acquire_resources(actor_id, &input.context_ids, &policy_ids)
-            .await;
+        // Acquire policies into the registry cache.
+        let _policy_guard = self.acquire_policies(actor_id, &policy_ids).await;
 
         let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
         // Registry holds Policy<Text> only today (#199 will widen
@@ -258,29 +255,13 @@ impl Pipeline {
         Ok(output)
     }
 
-    /// Acquire contexts and policies into the registry caches.
-    async fn acquire_resources(
+    /// Acquire policies into the registry cache.
+    async fn acquire_policies(
         &self,
         actor_id: Uuid,
-        context_ids: &[Uuid],
         policy_ids: &[Uuid],
-    ) -> (ResourceGuard<Context>, ResourceGuard<Policy<Text>>) {
-        let context_guard = self
-            .registry
-            .context_cache()
-            .acquire(context_ids, |id| async move {
-                match self.registry.read_context(actor_id, id).await {
-                    Ok(ctx) => Some(ctx),
-                    Err(e) => {
-                        tracing::warn!(%id, error = %e, "failed to load context");
-                        None
-                    }
-                }
-            })
-            .await;
-
-        let policy_guard = self
-            .registry
+    ) -> crate::ingestion::registry::ResourceGuard<Policy<Text>> {
+        self.registry
             .policy_cache()
             .acquire(policy_ids, |id| async move {
                 match self.registry.read_policy(actor_id, id).await {
@@ -291,9 +272,7 @@ impl Pipeline {
                     }
                 }
             })
-            .await;
-
-        (context_guard, policy_guard)
+            .await
     }
 
     /// Enforce retention policies after a pipeline run.

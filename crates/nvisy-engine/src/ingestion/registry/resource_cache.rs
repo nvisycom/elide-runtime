@@ -39,9 +39,8 @@ struct CachedEntry<T> {
 ///
 /// # Type parameters
 ///
-/// - `T`: the cached resource type (e.g. [`Context`], [`Policy`]).
+/// - `T`: the cached resource type (e.g. [`Policy`]).
 ///
-/// [`Context`]: nvisy_ontology::context::Context
 /// [`Policy`]: nvisy_ontology::policy::Policy
 pub struct ResourceCache<T> {
     label: &'static str,

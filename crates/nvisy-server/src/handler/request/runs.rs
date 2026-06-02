@@ -32,9 +32,6 @@ pub struct NewRun {
     /// Content sources to ingest at the start of the run.
     #[serde(default)]
     pub imports: Vec<ImportFile>,
-    /// Reference-data contexts to load into the cache before phases run.
-    #[serde(default)]
-    pub context_ids: Vec<Uuid>,
 
     /// Extraction settings per modality.
     #[serde(default)]
@@ -65,7 +62,6 @@ impl NewRun {
             policies: self.policies,
             dry_run: self.dry_run,
             imports: self.imports,
-            context_ids: self.context_ids,
             plan: Plan {
                 extraction: self.extraction,
                 detection: self.detection,
@@ -104,7 +100,6 @@ mod tests {
         assert!(input.policies.is_empty());
         assert!(!input.dry_run);
         assert!(input.imports.is_empty());
-        assert!(input.context_ids.is_empty());
         assert!(input.plan.detection.entity_kinds.is_empty());
         assert!(input.exports.is_empty());
     }

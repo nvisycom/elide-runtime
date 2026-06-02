@@ -50,8 +50,6 @@ pub struct EngineInput {
 
     /// Content sources to ingest at the start of the run.
     pub imports: Vec<ImportFile>,
-    /// Reference-data contexts to load into the cache before phases run.
-    pub context_ids: Vec<Uuid>,
 
     /// Per-phase behaviour knobs the pipeline reads for each document.
     pub plan: Plan,

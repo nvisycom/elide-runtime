@@ -24,7 +24,6 @@ use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Audio, EmbeddedDocument, Image, Tabular, Text, TextBlock};
 use nvisy_ontology::provenance::AnyAudit;
-use uuid::Uuid;
 
 use super::SharedHandle;
 
@@ -48,10 +47,6 @@ pub struct DocumentTree {
     /// detection forwards it to recognizers that need source
     /// context.
     pub metadata: ContentMetadata,
-
-    /// IDs of reference-data `Context`s loaded by `LoadContext`
-    /// nodes. Each UUID resolves through the engine's context cache.
-    pub contexts: Vec<Uuid>,
 }
 
 /// Modality-erased root document for a [`DocumentTree`].
@@ -113,14 +108,12 @@ impl AnyDocument {
 }
 
 impl DocumentTree {
-    /// Construct a new tree from its parts. `contexts` starts empty;
-    /// the importer / context loader populates it before phases run.
+    /// Construct a new tree from its parts.
     pub fn new(root: AnyDocument, handle: SharedHandle, metadata: ContentMetadata) -> Self {
         Self {
             root,
             handle,
             metadata,
-            contexts: Vec::new(),
         }
     }
 

@@ -1,11 +1,9 @@
-//! Ingestion: the pipeline's edge — content + context I/O.
+//! Ingestion: the pipeline's edge — content I/O.
 //!
 //! These configs form the boundary between the outside world and the
 //! pipeline. [`ImportFile`] pulls content in and [`ExportFile`]
 //! pushes processed content out; both share the same
 //! [`CompressionAlgorithm`] / [`EncryptionConfig`] codec options.
-//! [`LoadContext`] loads reference-data contexts before any phase
-//! runs.
 
 pub(crate) mod compression;
 pub mod encryption;
@@ -13,10 +11,9 @@ mod export;
 mod exporter;
 mod import;
 mod importer;
-mod load_context;
 pub mod registry;
 
-use nvisy_ontology::Error;
+use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +21,6 @@ pub use self::export::ExportFile;
 pub(crate) use self::exporter::Exporter;
 pub use self::import::ImportFile;
 pub(crate) use self::importer::Importer;
-pub use self::load_context::LoadContext;
 
 /// Supported compression algorithms for import/export.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,9 +54,10 @@ impl EncryptionAlgorithm {
     pub fn from_wire_tag(tag: u8) -> Result<Self, Error> {
         match tag {
             0x01 => Ok(Self::Aes256Gcm),
-            _ => Err(Error::new(format!(
-                "unknown encryption algorithm tag: 0x{tag:02x} (valid: 0x01 = aes256gcm)"
-            ))),
+            _ => Err(Error::validation(
+                format!("unknown encryption algorithm tag: 0x{tag:02x} (valid: 0x01 = aes256gcm)"),
+                "encryption-wire",
+            )),
         }
     }
 }

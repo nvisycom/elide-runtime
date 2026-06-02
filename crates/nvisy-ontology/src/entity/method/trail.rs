@@ -13,11 +13,11 @@
 //! by [`TrailStepKind::Refinement`] / [`TrailStepKind::Verification`]
 //! / [`TrailStepKind::Fusion`] / [`TrailStepKind::Calibration`].
 //!
-//! `source` matches the recognizer's registration name in the
-//! `DetectionEngine` for recognizer-produced steps; well-known
-//! constants (`"dedup"`, `"calibration"`) cover post-recognition
-//! steps. `reason` is free text so custom recognizers can describe
-//! novel adjustments without extending an enum.
+//! `source` is the recognizer's self-reported identifier for
+//! recognizer-produced steps; well-known constants (`"dedup"`,
+//! `"calibration"`) cover post-recognition steps. `reason` is free
+//! text so custom recognizers can describe novel adjustments without
+//! extending an enum.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -35,10 +35,9 @@ use crate::primitive::Confidence;
 pub struct TrailStep {
     /// Identifier of the source that produced this step. For
     /// recognizer-produced steps this is the recognizer's
-    /// registration name in the `DetectionEngine`
-    /// (`"pattern"`, `"ner"`, `"llm"`, `"vlm"`, or a custom
-    /// recognizer's name). For post-recognition steps it is a
-    /// well-known constant (`"dedup"`, `"calibration"`).
+    /// self-reported name (`"pattern"`, `"ner"`, `"llm"`, `"vlm"`,
+    /// or a custom recognizer's name). For post-recognition steps
+    /// it is a well-known constant (`"dedup"`, `"calibration"`).
     pub source: String,
     /// Which category of step this is — recognition, refinement,
     /// verification, fusion, or calibration.
@@ -201,5 +200,33 @@ impl TrailProvenance {
     #[must_use]
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
+    }
+
+    /// The source recognizer / model / annotation name that
+    /// produced this step, when one is available. Used by the
+    /// post-recognition enhancer to look up the source's declared
+    /// context keywords in its registry.
+    ///
+    /// Returns `None` for `DenyList` (no per-match identity) and
+    /// for [`TrailProvenance::None`] (no structured provenance).
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Pattern(p) => p.name(),
+            Self::Model(m) => Some(m.name.as_str()),
+            Self::Annotation(a) => a.name.as_deref(),
+            Self::None => None,
+        }
+    }
+
+    /// Mark this provenance as contextually adjusted. Dispatches to
+    /// the per-variant flag; no-op for variants that don't track
+    /// contextual adjustment (`Annotation`, `None`).
+    pub fn mark_contextual(&mut self) {
+        match self {
+            Self::Pattern(p) => p.mark_contextual(),
+            Self::Model(m) => m.mark_contextual(),
+            Self::Annotation(_) | Self::None => {}
+        }
     }
 }

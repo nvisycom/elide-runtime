@@ -35,10 +35,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
-# Async
+# Async trait sugar
 async-trait = { workspace = true, features = [] }
-futures = { workspace = true, features = [] }
-tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 
 # Inference & AI frameworks
 bentoml = { workspace = true, optional = true }
@@ -49,12 +47,8 @@ lingua = { workspace = true, features = [] }
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 
-# Derive macros and error handling
-thiserror = { workspace = true, features = [] }
-derive_builder = { workspace = true, features = [] }
-
 # Identifiers
-uuid = { workspace = true, features = ["v4", "v7"] }
+uuid = { workspace = true, features = ["v7"] }
 
 # Observability
 tracing = { workspace = true, features = [] }

@@ -1,11 +1,9 @@
 //! Run request types.
 
-use nvisy_engine::deduplication::DeduplicationParams;
-use nvisy_engine::detection::Detection;
-use nvisy_engine::extraction::Extraction;
 use nvisy_engine::ingestion::{ExportFile, ImportFile};
-use nvisy_engine::pipeline::{EngineInput, Plan, RunStatus};
-use nvisy_engine::redaction::Redaction;
+use nvisy_engine::pipeline::{
+    DeduplicationParams, Detection, EngineInput, Extraction, Plan, Redaction, RunStatus,
+};
 use nvisy_engine::validation::Validation;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -41,7 +39,7 @@ pub struct NewRun {
     /// Extraction settings per modality.
     #[serde(default)]
     pub extraction: Extraction,
-    /// Detection settings (which recognizer kinds + per-call hints).
+    /// Detection settings (post-detection entity-kind allowlist).
     #[serde(default)]
     pub detection: Detection,
     /// Deduplication settings applied to combined detection results.
@@ -107,7 +105,7 @@ mod tests {
         assert!(!input.dry_run);
         assert!(input.imports.is_empty());
         assert!(input.context_ids.is_empty());
-        assert!(input.plan.detection.kinds.is_empty());
+        assert!(input.plan.detection.entity_kinds.is_empty());
         assert!(input.exports.is_empty());
     }
 

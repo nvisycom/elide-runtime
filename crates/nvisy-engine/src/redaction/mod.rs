@@ -17,9 +17,7 @@
 //! [`AuditEntry`]: nvisy_ontology::provenance::AuditEntry
 
 mod apply;
-mod config;
 mod evaluate;
-mod plan;
 mod strategy;
 
 use nvisy_core::Result;
@@ -30,14 +28,12 @@ use nvisy_ontology::modality::{Modality, Overlap};
 use nvisy_ontology::primitive::ConfidenceThreshold;
 use tracing::Instrument;
 
-pub use self::config::RedactionConfig;
 use self::evaluate::TARGET;
 pub use self::evaluate::{ApplyRedactions, ApplyRedactionsImpl};
-pub use self::plan::Redaction;
 use crate::core::{
     DocumentTree, DocumentView, NodeMut, PolicyStore, RunContext, SharedHandle, ValueAt,
 };
-use crate::pipeline::EngineInput;
+use crate::pipeline::{EngineInput, RedactionConfig};
 
 /// Redaction phase: evaluate policies, attach an [`AuditEntry<M>`]
 /// to each [`EntityRecord<M>`] the policy chain decides on, then

@@ -3,7 +3,8 @@
 #![doc = include_str!("../README.md")]
 
 pub mod content;
-pub mod media;
+pub mod context;
+pub mod nlp;
 mod recognizer;
 pub use self::recognizer::{Context, ImageData, ModalityData, Recognizer, TextData};
 

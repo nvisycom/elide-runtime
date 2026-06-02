@@ -19,7 +19,7 @@
 macro_rules! impl_image_handler {
     ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
         impl ::nvisy_codec::handler::Handler for $handler {
-            fn document_type(&self) -> ::nvisy_core::media::DocumentType {
+            fn document_type(&self) -> ::nvisy_core::content::DocumentType {
                 $doc_type
             }
 

@@ -21,7 +21,15 @@ mod orchestrator;
 mod run;
 mod runs;
 
-pub use self::config::{EngineConfig, ResourceLimits, RuntimeConfig};
+#[cfg(feature = "image")]
+pub use self::config::OcrExtractorConfig;
+#[cfg(feature = "audio")]
+pub use self::config::SttExtractorConfig;
+pub use self::config::{
+    AudioPlan, DeduplicationParams, Detection, DetectionConfig, EngineConfig, Extraction,
+    ExtractionConfig, ImagePlan, NerBackend, NerDetection, PatternDetection, Redaction,
+    RedactionConfig, ResourceLimits, RuntimeConfig, TabularPlan, TextPlan,
+};
 pub use self::engine::{Engine, EngineInput, EngineOutput};
 pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,

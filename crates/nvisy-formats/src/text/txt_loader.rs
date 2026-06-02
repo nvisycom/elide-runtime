@@ -53,8 +53,7 @@ mod tests {
     use bytes::Bytes;
     use nvisy_codec::handler::Handler;
     use nvisy_core::Error;
-    use nvisy_core::content::ContentSource;
-    use nvisy_core::media::{DocumentType, TextFormat};
+    use nvisy_core::content::{ContentSource, DocumentType, TextFormat};
 
     use super::*;
 

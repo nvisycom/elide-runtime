@@ -1,158 +1,124 @@
-//! [`NerRecognizer`]: NER over [`NerInner`].
+//! NER-recognizer wiring.
 //!
-//! Wraps the NER recognizer from `nvisy-ner` so every detection
-//! call goes through its orchestration: language detection
-//! (asserted-bypass-able) and NER backend dispatch.
+//! The engine registers a [`nvisy_ner::recognition::GlinerRecognizer`]
+//! directly — it already implements
+//! [`nvisy_core::Recognizer<Text>`](nvisy_core::Recognizer). No
+//! engine-side adapter wrapper.
+//!
+//! [`NerDetection`] is the operator-facing config; the
+//! [`build_recognizer`] free function turns that config into the
+//! built recognizer wrapped in an `Arc`. Backend selection is
+//! config-driven via the local [`NerBackend`] enum which produces
+//! a [`GlinerBackend`](nvisy_ner::backend::GlinerBackend) impl.
+//! [`NoopBackend`] is the baseline; [`BentoBackend`] (feature
+//! `bento`) is the externalised inference service.
 //!
 //! Post-filtering (entity-kind allowlist, score threshold) is
 //! applied centrally at the detection layer, not inside this
 //! recognizer.
 //!
-//! Backend selection is config-driven via [`NerBackend`], whose
-//! [`attach_ner_backend`] helper hands the selected backend to the
-//! [`RecognizerBuilder`]. [`NoopBackend`] is the baseline;
-//! [`BentoBackend`] (feature `bento`) is the externalised
-//! inference service.
+//! Per-call language hinting is the caller's job today — the
+//! engine's dispatch loop forwards `ctx.language` if set; otherwise
+//! the underlying GLiNER backend is multilingual and works without
+//! a hint. A future shared `NlpEngine` pass will run language
+//! detection once per scan and stamp the result on the artifact.
 //!
-//! Construct via [`from_config`] for the configured backend, or
-//! [`from_inner`] to inject a pre-built [`NerInner`]
-//! with a custom backend (tests, future backends, anything
-//! implementing [`Backend`]).
-//!
-//! [`Backend`]: nvisy_ner::Backend
-//! [`NerBackend`]: nvisy_ner::NerBackend
-//! [`attach_ner_backend`]: nvisy_ner::NerBackend::attach_ner_backend
 //! [`NoopBackend`]: nvisy_ner::backend::NoopBackend
 //! [`BentoBackend`]: nvisy_ner::backend::BentoBackend
-//! [`RecognizerBuilder`]: nvisy_ner::RecognizerBuilder
-//! [`from_config`]: NerRecognizer::from_config
-//! [`from_inner`]: NerRecognizer::from_inner
 
-mod params;
+use std::sync::Arc;
 
-use nvisy_core::{Error, Result};
-use nvisy_ner::language::LinguaLanguagePolicy;
-use nvisy_ner::{Context as NerContext, Recognizer as NerInner, RecognizerBuilder};
-use nvisy_ontology::entity::Entity;
+use nvisy_core::{Recognizer, Result};
+use nvisy_ner::backend;
+use nvisy_ner::recognition::{GlinerRecognizer, NerModelConfiguration};
+use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::modality::Text;
 
-pub use self::params::NerDetection;
-use crate::detection::TextDetectionContext;
-use crate::detection::recognizer::TextRecognizer;
+use crate::pipeline::{NerBackend, NerDetection};
 
-/// NER recognizer backed by [`NerInner`].
-pub struct NerRecognizer {
-    inner: NerInner,
-}
+/// Stable name the recognizer registers under (also surfaced in
+/// trail provenance).
+const RECOGNIZER_NAME: &str = "ner";
 
-impl NerRecognizer {
-    /// Build from a [`NerDetection`] config bundle.
-    ///
-    /// Constructs a [`NerInner`] with the backend the
-    /// config selects via [`NerBackend::attach_ner_backend`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the underlying recognizer cannot be
-    /// constructed, or if the config selects a backend whose
-    /// feature wasn't compiled in.
-    ///
-    /// [`NerBackend::attach_ner_backend`]: nvisy_ner::NerBackend::attach_ner_backend
-    pub async fn from_config(cfg: &NerDetection) -> Result<Self> {
-        let builder = RecognizerBuilder::default().with_language_policy(LinguaLanguagePolicy);
-        let builder = cfg.backend.attach_ner_backend(builder)?;
-        let inner = builder
-            .build()
-            .map_err(|e| Error::runtime(e.to_string(), "ner", false))?;
-        Ok(Self::from_inner(inner))
-    }
-
-    /// Build from a pre-constructed [`NerInner`].
-    ///
-    /// Escape hatch for callers that already own a recognizer
-    /// (custom backend, test fixture, recognizer shared across
-    /// wrappers). Prefer [`from_config`] for ordinary use.
-    ///
-    /// [`from_config`]: Self::from_config
-    pub fn from_inner(inner: NerInner) -> Self {
-        Self { inner }
-    }
-}
-
-#[async_trait::async_trait]
-impl TextRecognizer for NerRecognizer {
-    #[tracing::instrument(
-        skip_all,
-        fields(
-            text_len = ctx.text.len(),
-            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
+/// Build the engine-side NER recognizer from a [`NerDetection`]
+/// config.
+///
+/// # Errors
+///
+/// Returns an error if the selected backend cannot be constructed,
+/// or if the config selects a backend whose feature wasn't compiled
+/// in.
+pub fn build_recognizer(cfg: &NerDetection) -> Result<Arc<dyn Recognizer<Text>>> {
+    let recognizer = match &cfg.backend {
+        NerBackend::Noop => GlinerRecognizer::new(
+            RECOGNIZER_NAME,
+            backend::NoopBackend,
+            default_text_kinds(),
+            NerModelConfiguration::default(),
         ),
-    )]
-    async fn recognize(&self, ctx: &TextDetectionContext) -> Result<Vec<Entity<Text>>> {
-        let ner_ctx = NerContext {
-            language: ctx.language.clone(),
-            candidate_languages: ctx.candidate_languages.clone(),
-            // Zero-shot backends consume this as `requested_kinds`
-            // (detection-shaping). The post-filter pass at the
-            // detection layer re-applies the allowlist on the
-            // produced entities.
-            entity_kinds: ctx.entities.clone(),
-            correlation_id: ctx.correlation_id,
-        };
-        let artifacts = self.inner.recognize(&ctx.text, &ner_ctx).await?;
-        Ok(artifacts.entities)
-    }
+
+        #[cfg(feature = "bento")]
+        NerBackend::Bento { base_url } => {
+            let backend = backend::BentoBackend::new(backend::BentoParams::new(base_url.clone()))?;
+            GlinerRecognizer::new(
+                RECOGNIZER_NAME,
+                backend,
+                default_text_kinds(),
+                NerModelConfiguration::default(),
+            )
+        }
+
+        #[cfg(not(feature = "bento"))]
+        NerBackend::Bento { .. } => {
+            return Err(nvisy_core::Error::validation(
+                "NerBackend::Bento requires nvisy-engine to be built with the `bento` feature",
+                "ner",
+            ));
+        }
+    };
+    Ok(Arc::new(recognizer))
+}
+
+/// Default kind allowlist for the engine-side NER recognizer.
+///
+/// Every defined [`EntityKind`] except those that only surface in
+/// images (biometric templates, visual elements). The zero-shot
+/// model is fed this list as "look for any of these"; centralized
+/// post-filtering at the engine layer narrows further per call.
+fn default_text_kinds() -> Vec<EntityKind> {
+    EntityKind::all()
+        .filter(|k| !k.is_biometric() && !k.is_visual())
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ner::NerBackend;
+    use nvisy_core::{Context, TextData};
 
     use super::*;
 
     #[tokio::test]
-    async fn from_config_noop_builds() {
+    async fn build_noop_yields_no_entities() {
         let cfg = NerDetection {
             enabled: true,
             backend: NerBackend::Noop,
         };
-        let recognizer = match NerRecognizer::from_config(&cfg).await {
-            Ok(r) => r,
-            Err(e) => panic!("from_config(Noop) failed: {e}"),
-        };
-        let ctx = TextDetectionContext::new("The quick brown fox");
+        let recognizer = build_recognizer(&cfg).expect("builds");
+        let ctx = Context::new(TextData::new("The quick brown fox"));
         let out = recognizer.recognize(&ctx).await.unwrap();
         assert!(out.is_empty());
     }
 
-    #[cfg(feature = "bento")]
-    #[tokio::test]
-    async fn from_config_bento_with_invalid_url_errors() {
-        let cfg = NerDetection {
-            enabled: true,
-            backend: NerBackend::Bento {
-                base_url: "not a url".to_owned(),
-            },
-        };
-        match NerRecognizer::from_config(&cfg).await {
-            Ok(_) => panic!("expected invalid base_url to error"),
-            Err(e) => assert!(
-                e.to_string().to_lowercase().contains("bento"),
-                "error should mention bento: {e}",
-            ),
-        }
-    }
-
     #[cfg(not(feature = "bento"))]
     #[tokio::test]
-    async fn from_config_bento_without_feature_errors_clearly() {
+    async fn bento_without_feature_errors_clearly() {
         let cfg = NerDetection {
             enabled: true,
             backend: NerBackend::Bento {
                 base_url: "http://localhost:3000".to_owned(),
             },
         };
-        match NerRecognizer::from_config(&cfg).await {
+        match build_recognizer(&cfg) {
             Ok(_) => panic!("Bento should not build without `bento` feature"),
             Err(e) => assert!(
                 e.to_string().contains("`bento` feature"),

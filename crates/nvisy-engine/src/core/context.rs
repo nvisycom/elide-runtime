@@ -21,9 +21,9 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use super::SharedData;
-use crate::detection::DetectionEngine;
+use crate::detection::RecognizerRegistry;
 use crate::extraction::ExtractionEngine;
-use crate::redaction::RedactionConfig;
+use crate::pipeline::RedactionConfig;
 
 /// Per-run execution context shared across all document tasks.
 ///
@@ -44,11 +44,10 @@ pub struct RunContext {
     pub(crate) shared: Arc<SharedData>,
     /// Pre-built extractor registry.
     pub(crate) extraction_engine: ExtractionEngine,
-    /// Pre-built detection engine. Always present; when the plan
-    /// requests no recognizers the engine is built empty and the
-    /// per-modality dispatch short-circuits on empty recognizer
-    /// lists.
-    pub(crate) detection_engine: DetectionEngine,
+    /// Pre-built recognizer registry. Always present; when no
+    /// recognizers are registered the per-modality dispatch
+    /// short-circuits on the empty list.
+    pub(crate) recognizer_registry: RecognizerRegistry,
     /// Server-wide redaction defaults. Per-plan `Redaction` fields
     /// fall back to these.
     pub(crate) redaction_config: RedactionConfig,
@@ -65,7 +64,7 @@ impl RunContext {
         cancel: CancellationToken,
         shared: Arc<SharedData>,
         extraction_engine: ExtractionEngine,
-        detection_engine: DetectionEngine,
+        recognizer_registry: RecognizerRegistry,
         redaction_config: RedactionConfig,
         concurrency: Option<NonZeroUsize>,
         dry_run: bool,
@@ -74,7 +73,7 @@ impl RunContext {
             cancel,
             shared,
             extraction_engine,
-            detection_engine,
+            recognizer_registry,
             redaction_config,
             concurrency,
             dry_run,
@@ -93,11 +92,11 @@ impl RunContext {
         &self.extraction_engine
     }
 
-    /// Pre-built detection engine borrowed by [`DetectionPhase`].
+    /// Pre-built recognizer registry borrowed by [`DetectionPhase`].
     ///
     /// [`DetectionPhase`]: crate::detection::DetectionPhase
-    pub(crate) fn detection_engine(&self) -> &DetectionEngine {
-        &self.detection_engine
+    pub(crate) fn recognizer_registry(&self) -> &RecognizerRegistry {
+        &self.recognizer_registry
     }
 
     /// Server-wide redaction defaults the [`RedactionPhase`] reads.

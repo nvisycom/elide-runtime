@@ -14,8 +14,7 @@
 //! [`ImageHandler::redact`]: nvisy_codec::handler::ImageHandler::redact
 //! [`Image`]: nvisy_ontology::modality::Image
 
-use nvisy_core::content::ContentSource;
-use nvisy_core::media::{DocumentType, ImageFormat};
+use nvisy_core::content::{ContentSource, DocumentType, ImageFormat};
 
 /// Handler for loaded PNG content.
 ///

@@ -10,24 +10,20 @@
 //! - [`ocr`] — image OCR backend (`image` cargo feature).
 //! - [`stt`] — audio STT backend (`audio` cargo feature).
 
-mod config;
 mod engine;
 #[cfg(feature = "image")]
 mod ocr;
-mod plan;
 #[cfg(feature = "audio")]
 mod stt;
 
 use nvisy_core::Result;
 use tracing::Instrument;
 
-pub use self::config::ExtractionConfig;
 pub use self::engine::ExtractionEngine;
 #[cfg(feature = "image")]
-pub use self::ocr::{OcrExtractor, OcrExtractorConfig};
-pub use self::plan::{AudioPlan, Extraction, ImagePlan, TabularPlan, TextPlan};
+pub use self::ocr::OcrExtractor;
 #[cfg(feature = "audio")]
-pub use self::stt::{SttExtractor, SttExtractorConfig};
+pub use self::stt::SttExtractor;
 use crate::core::{DocumentTree, RunContext};
 use crate::pipeline::EngineInput;
 

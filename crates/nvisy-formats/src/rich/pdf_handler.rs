@@ -19,8 +19,7 @@ use bytes::Bytes;
 use nvisy_codec::core::{Handle, Located, LocationStream};
 use nvisy_codec::handler::{Handler, ImageData, ImageRedaction, TextData, TextRedaction};
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
-use nvisy_core::media::DocumentType;
+use nvisy_core::content::{ContentData, ContentSource, DocumentType};
 use nvisy_ontology::modality::{Image, Text};
 use nvisy_ontology::primitive::{BoundingBox, Dpi};
 

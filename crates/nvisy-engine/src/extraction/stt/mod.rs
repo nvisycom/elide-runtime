@@ -5,39 +5,18 @@
 //!
 //! [`ExtractionEngine`]: super::ExtractionEngine
 
-use nvisy_agent::audio::SttProvider;
-use nvisy_agent::audio::stt::{SttConfig, SttService};
+use nvisy_agent::audio::stt::SttService;
 use nvisy_codec::DocumentHandle;
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Audio, AudioBlock, AudioExtraction};
 use nvisy_ontology::primitive::TimeSpan;
-use serde::{Deserialize, Serialize};
 
 use crate::core::SharedHandle;
+use crate::pipeline::SttExtractorConfig;
 
 const TARGET: &str = "nvisy_engine::extraction::audio::stt";
-
-/// `[extractor.stt]` config bundle.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SttExtractorConfig {
-    /// Enable this extractor. When `false`, the extractor is
-    /// neither built nor dispatched, but the config is preserved
-    /// so operators can toggle without losing it. Defaults to
-    /// `true`.
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    /// STT provider selection + connection settings.
-    pub provider: SttProvider,
-    /// STT sampling/retry parameters.
-    #[serde(default)]
-    pub agent: SttConfig,
-}
-
-fn default_true() -> bool {
-    true
-}
 
 /// Pre-built STT extractor: transcription service wrapping a provider.
 pub struct SttExtractor {

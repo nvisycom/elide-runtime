@@ -22,6 +22,8 @@
 //!
 //! [`Entity<M>`]: nvisy_ontology::entity::Entity
 
+use std::sync::Arc;
+
 use bytes::Bytes;
 use hipstr::HipStr;
 use nvisy_ontology::entity::Entity;
@@ -30,6 +32,7 @@ use nvisy_ontology::primitive::{Dimensions, LanguageTag};
 use uuid::Uuid;
 
 use crate::Result;
+use crate::nlp::NlpArtifacts;
 
 /// Extension of [`Modality`] that adds the per-call payload type
 /// recognizers consume. Modalities that don't (yet) have recognizers
@@ -133,19 +136,46 @@ pub trait Recognizer<M: ModalityData>: Send + Sync {
 /// for non-inline text, inline copy for short strings) let the
 /// caller share one payload across multiple recognizers without
 /// duplicating the source bytes.
+///
+/// [`artifacts`](Self::artifacts) is the shared-NLP-pass opt-in.
+/// When the orchestrator pre-ran an `NlpEngine`, it wraps the
+/// result in an `Arc` and stamps it here so every text recognizer
+/// reads the same tokens, lemmas, language detections, and NER
+/// spans from one source of truth. Recognizers that don't need
+/// artifacts (most patterns) ignore the field; recognizers that
+/// require them (NER adapter) error when it's absent.
 #[derive(Debug, Clone)]
 pub struct TextData {
     /// The text the recognizer should scan. Byte offsets in emitted
     /// entities refer back into this string.
     pub text: HipStr<'static>,
+    /// Shared NLP artifacts produced by the orchestrator's
+    /// `NlpEngine` pass. `None` when no shared pass was run; in
+    /// that case lemma-dependent code paths fall back to substring
+    /// scans against [`text`](Self::text).
+    pub artifacts: Option<Arc<NlpArtifacts>>,
 }
 
 impl TextData {
     /// Construct from anything convertible to [`HipStr<'static>`] —
     /// owned `String`, borrowed `&'static str`, an existing
-    /// `HipStr`, …
+    /// `HipStr`, …. No artifacts attached; use
+    /// [`with_artifacts`](Self::with_artifacts) to attach them.
     pub fn new(text: impl Into<HipStr<'static>>) -> Self {
-        Self { text: text.into() }
+        Self {
+            text: text.into(),
+            artifacts: None,
+        }
+    }
+
+    /// Attach shared NLP artifacts. The orchestrator wraps its
+    /// `NlpEngine::process` output in an `Arc` and stamps it here
+    /// so every recognizer reads the same tokens / lemmas / NER
+    /// spans.
+    #[must_use]
+    pub fn with_artifacts(mut self, artifacts: Arc<NlpArtifacts>) -> Self {
+        self.artifacts = Some(artifacts);
+        self
     }
 }
 

@@ -21,7 +21,6 @@
 mod calibrate;
 mod filter;
 mod fuse;
-mod params;
 mod resolve;
 mod span_size;
 
@@ -40,13 +39,11 @@ use self::filter::Filter;
 pub use self::filter::FilterParams;
 use self::fuse::Fuse;
 pub use self::fuse::{DeduplicationStrategy, GroupingCriteria};
-pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
 pub use self::span_size::SpanSize;
 use crate::core::{DocumentTree, DocumentView, NodeMut, RunContext, SharedHandle, ValueAt};
-use crate::detection::Detection;
-use crate::pipeline::EngineInput;
+use crate::pipeline::{DeduplicationParams, Detection, EngineInput};
 
 const TARGET: &str = "nvisy_engine::deduplication";
 

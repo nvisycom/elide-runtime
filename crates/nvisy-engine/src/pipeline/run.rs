@@ -24,11 +24,11 @@ use super::orchestrator::Orchestrator;
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::core::{PolicyStore, RunContext, SharedData};
-use crate::detection::DetectionEngine;
+use crate::detection::RecognizerRegistry;
 use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::{Registry, ResourceGuard};
-use crate::redaction::RedactionConfig;
+use crate::pipeline::RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -44,7 +44,7 @@ pub(super) struct Pipeline {
     runs: RunState,
     base_config: RuntimeConfig,
     extraction_engine: Arc<ExtractionEngine>,
-    detection_engine: Arc<DetectionEngine>,
+    recognizer_registry: Arc<RecognizerRegistry>,
     redaction_config: Arc<RedactionConfig>,
 }
 
@@ -56,7 +56,7 @@ impl Pipeline {
         runs: RunState,
         base_config: RuntimeConfig,
         extraction_engine: Arc<ExtractionEngine>,
-        detection_engine: Arc<DetectionEngine>,
+        recognizer_registry: Arc<RecognizerRegistry>,
         redaction_config: Arc<RedactionConfig>,
     ) -> Self {
         Self {
@@ -66,7 +66,7 @@ impl Pipeline {
             runs,
             base_config,
             extraction_engine,
-            detection_engine,
+            recognizer_registry,
             redaction_config,
         }
     }
@@ -155,10 +155,10 @@ impl Pipeline {
             shared_data.key_provider = kp.clone();
         }
 
-        // Reuse the engine-wide DetectionEngine. Per-request
-        // recognizer selection happens at dispatch time via
-        // `Detection.kinds`, not by rebuilding the engine.
-        let detection_engine = (*self.detection_engine).clone();
+        // Reuse the engine-wide RecognizerRegistry. Every registered
+        // recognizer runs on every request — there is no per-plan
+        // recognizer-name filter.
+        let recognizer_registry = (*self.recognizer_registry).clone();
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
@@ -166,7 +166,7 @@ impl Pipeline {
             cancel,
             Arc::new(shared_data),
             (*self.extraction_engine).clone(),
-            detection_engine,
+            recognizer_registry,
             (*self.redaction_config).clone(),
             concurrency,
             input.dry_run,

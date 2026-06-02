@@ -1,76 +1,71 @@
-//! [`DetectionEngine`]: the per-modality recognizer registry +
+//! [`RecognizerRegistry`]: per-modality recognizer container +
 //! dispatcher.
 //!
-//! Holds two `Vec<(String, Arc<dyn _Recognizer>)>` registries — one
-//! per modality — and dispatches each registered recognizer against
-//! a per-modality context. Built-in recognizers are registered under
-//! the stable [`names`] constants ([`names::PATTERN`], [`names::LLM`],
-//! [`names::NER`], [`names::VLM`]); operators can append custom
-//! recognizers under any unique name they choose via
-//! [`DetectionEngine::add_text_recognizer`] / [`add_image_recognizer`].
+//! Holds two `Vec<Arc<dyn Recognizer<M>>>` registries — one per
+//! modality. Every registered recognizer runs on every dispatch;
+//! there is no per-request name-based allowlist. Operators shape the
+//! result set by tuning what they register at engine startup
+//! (built-ins through [`DetectionConfig`], custom recognizers through
+//! [`add_text_recognizer`] / [`add_image_recognizer`]) and by
+//! filtering downstream via [`Detection::entity_kinds`].
 //!
-//! Per-run filtering is name-based: [`Detection::kinds`] is a
-//! `Vec<String>` allowlist. Empty means "run every registered
-//! recognizer". Names that don't match any registered recognizer are
-//! warn-logged at dispatch and silently skipped — matching Presidio's
-//! lenient `entities=[...]` semantics.
+//! Beyond registration this type also drives dispatch: per-modality
+//! [`Context`] construction, fan-out via [`JoinSet`] (CPU-bound
+//! pattern + I/O-bound NER overlap across worker threads), entity
+//! lifting from block-local offsets to modality coordinates, image
+//! location iteration, and per-document reset. Presidio's
+//! `RecognizerRegistry` covers only the container part; the rest sits
+//! here for now because no separate "analyzer" layer has earned its
+//! keep.
 //!
-//! Each recognizer runs on its own [`JoinSet`] task so CPU-bound work
-//! (pattern) and I/O-bound work (LLM/NER/VLM) overlap across worker
-//! threads. Failure is fail-fast within a modality: on the first task
-//! error every other in-flight task in that modality is aborted and
-//! the error is returned.
+//! Failure is fail-fast within a modality: on the first task error
+//! every other in-flight task in that modality is aborted and the
+//! error is returned.
 //!
-//! [`DetectionPhase`]: super::DetectionPhase
-//! [`Detection::kinds`]: super::Detection::kinds
+//! [`Detection::entity_kinds`]: super::Detection::entity_kinds
 //! [`JoinSet`]: tokio::task::JoinSet
-//! [`names`]: super::recognizer::names
-//! [`add_image_recognizer`]: DetectionEngine::add_image_recognizer
+//! [`add_text_recognizer`]: RecognizerRegistry::add_text_recognizer
+//! [`add_image_recognizer`]: RecognizerRegistry::add_image_recognizer
+//! [`Context`]: nvisy_core::Context
 
-use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
-use nvisy_agent::agent::NerHint;
-use nvisy_core::{Error, Result};
-use nvisy_ontology::document::{Document, Span};
-use nvisy_ontology::entity::{Annotation, AnnotationKind, AnnotationStrength, Entity};
+use nvisy_core::{Context, Error, ImageData, Recognizer, Result, TextData};
+use nvisy_ontology::document::Document;
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Audio, Image, Modality, ModalityBlock, Overlap, Tabular, Text};
 use tokio::task::JoinSet;
 use tracing::Instrument;
 
-use super::config::DetectionConfig;
-use super::context::{ImageDetectionContext, TextDetectionContext};
 use super::lift::{LiftFromBlock, ProjectIntoBlock};
-use super::llm::build_recognizer as build_llm_recognizer;
-use super::ner::NerRecognizer;
-use super::plan::Detection;
-use super::recognizer::{ImageRecognizer, TextRecognizer, names};
-use super::vlm::build_recognizer as build_vlm_recognizer;
+use super::ner::build_recognizer as build_ner_recognizer;
+use super::pattern::build_recognizer as build_pattern_recognizer;
 use crate::core::{NodeMut, SharedHandle};
+use crate::pipeline::{Detection, DetectionConfig};
 
 pub(super) const TARGET: &str = "nvisy_engine::detection";
 
-/// Name-based registry + dispatcher.
+/// Per-modality recognizer container + dispatcher.
 ///
-/// Each modality keeps an ordered `Vec<(name, recognizer)>`; iteration
-/// order matches registration order. Built once at startup from a
-/// [`DetectionConfig`] (which registers built-ins for each opted-in
-/// `[detection.*]` section), then optionally extended by the operator
-/// with [`add_text_recognizer`] / [`add_image_recognizer`].
+/// Each modality keeps an ordered `Vec<Arc<dyn Recognizer<M>>>`;
+/// iteration order matches registration order. Built once at startup
+/// from a [`DetectionConfig`] (which registers built-ins for each
+/// opted-in `[detection.*]` section), then optionally extended by
+/// the operator with [`add_text_recognizer`] / [`add_image_recognizer`].
 ///
 /// [`add_text_recognizer`]: Self::add_text_recognizer
 /// [`add_image_recognizer`]: Self::add_image_recognizer
 #[derive(Default, Clone)]
-pub struct DetectionEngine {
-    /// Text-side registry: pairs of `(stable name, recognizer)`.
-    pub text: Vec<(String, Arc<dyn TextRecognizer>)>,
-    /// Image-side registry: pairs of `(stable name, recognizer)`.
-    pub image: Vec<(String, Arc<dyn ImageRecognizer>)>,
+pub struct RecognizerRegistry {
+    /// Text-modality recognizers, dispatched in registration order.
+    pub text: Vec<Arc<dyn Recognizer<Text>>>,
+    /// Image-modality recognizers, dispatched in registration order.
+    pub image: Vec<Arc<dyn Recognizer<Image>>>,
 }
 
-impl DetectionEngine {
-    /// Build an empty engine. Useful for tests; production callers
+impl RecognizerRegistry {
+    /// Build an empty registry. Useful for tests; production callers
     /// normally use [`from_config`].
     ///
     /// [`from_config`]: Self::from_config
@@ -78,90 +73,61 @@ impl DetectionEngine {
         Self::default()
     }
 
-    /// Build the engine once from a [`DetectionConfig`].
+    /// Build the registry from a [`DetectionConfig`].
     ///
-    /// Each opted-in section drives one built-in registration under
-    /// the corresponding stable name ([`names::PATTERN`],
-    /// [`names::LLM`], [`names::NER`], [`names::VLM`]). Construction
-    /// is eager — model loads, HTTP-client setup, and regex
-    /// compilation all happen here so per-run dispatch is cheap.
+    /// Pattern detection is always-on: even when `cfg.pattern` is
+    /// `None`, a pattern recognizer with the shipped default registry
+    /// is registered. NER is opt-in via `cfg.ner`.
     ///
     /// # Errors
     ///
-    /// Returns the first construction error encountered (NER backend
-    /// init failure, LLM provider misconfiguration). Pattern
-    /// construction is infallible.
+    /// Returns the first construction error encountered — pattern
+    /// compile failure (would be a bug in `nvisy-pattern`'s shipped
+    /// patterns), NER backend init failure (e.g. invalid Bento base
+    /// URL), or a config-selected backend whose feature wasn't
+    /// compiled in.
     pub async fn from_config(cfg: &DetectionConfig) -> Result<Self> {
-        let mut engine = Self::new();
+        let mut registry = Self::new();
 
-        if let Some(c) = cfg.llm.as_ref().filter(|c| c.enabled) {
-            engine.add_text_recognizer(names::LLM, build_llm_recognizer(c.clone())?);
+        let pattern_cfg = cfg.pattern.clone().unwrap_or_default();
+        if pattern_cfg.enabled {
+            registry.add_text_recognizer(build_pattern_recognizer(&pattern_cfg)?);
         }
+
         if let Some(c) = cfg.ner.as_ref().filter(|c| c.enabled) {
-            engine.add_text_recognizer(names::NER, Arc::new(NerRecognizer::from_config(c).await?));
-        }
-        if let Some(c) = cfg.vlm.as_ref().filter(|c| c.enabled) {
-            engine.add_image_recognizer(names::VLM, build_vlm_recognizer(c.clone())?);
+            registry.add_text_recognizer(build_ner_recognizer(c)?);
         }
 
-        Ok(engine)
+        Ok(registry)
     }
 
-    /// Register a text-modality recognizer under `name`. Names must
-    /// be unique within the text registry; re-registering an
-    /// existing name panics.
-    pub fn add_text_recognizer(
-        &mut self,
-        name: impl Into<String>,
-        recognizer: Arc<dyn TextRecognizer>,
-    ) {
-        let name = name.into();
-        assert!(
-            !self.text.iter().any(|(n, _)| n == &name),
-            "duplicate text recognizer name: {name}",
-        );
-        self.text.push((name, recognizer));
+    /// Register a text-modality recognizer. Appended to the existing
+    /// list; iteration order at dispatch matches registration order.
+    pub fn add_text_recognizer(&mut self, recognizer: Arc<dyn Recognizer<Text>>) {
+        self.text.push(recognizer);
     }
 
-    /// Register an image-modality recognizer under `name`. Names
-    /// must be unique within the image registry; re-registering an
-    /// existing name panics.
-    pub fn add_image_recognizer(
-        &mut self,
-        name: impl Into<String>,
-        recognizer: Arc<dyn ImageRecognizer>,
-    ) {
-        let name = name.into();
-        assert!(
-            !self.image.iter().any(|(n, _)| n == &name),
-            "duplicate image recognizer name: {name}",
-        );
-        self.image.push((name, recognizer));
+    /// Register an image-modality recognizer. Appended to the
+    /// existing list; iteration order at dispatch matches registration
+    /// order.
+    pub fn add_image_recognizer(&mut self, recognizer: Arc<dyn Recognizer<Image>>) {
+        self.image.push(recognizer);
     }
 
-    /// Run the configured text recognizers (filtered by `kinds`)
-    /// against `ctx` in parallel and return the combined entity set.
-    async fn run_text(
-        &self,
-        ctx: TextDetectionContext,
-        kinds: &[String],
-    ) -> Result<Vec<Entity<Text>>> {
+    /// Run every registered text recognizer against `ctx` in parallel
+    /// and return the combined entity set.
+    async fn run_text(&self, ctx: Context<TextData>) -> Result<Vec<Entity<Text>>> {
         let span = tracing::debug_span!(
             target: TARGET,
             "detect.text",
-            text_len = ctx.text.len(),
+            text_len = ctx.data.text.len(),
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         );
-
-        warn_unmatched_kinds(kinds, &self.text);
 
         let ctx = Arc::new(ctx);
         let mut set: JoinSet<Result<Vec<Entity<Text>>>> = JoinSet::new();
 
-        for (name, recognizer) in &self.text {
-            if !name_allowed(kinds, name) {
-                continue;
-            }
+        for recognizer in &self.text {
             let recognizer = Arc::clone(recognizer);
             let ctx = Arc::clone(&ctx);
             set.spawn(async move { recognizer.recognize(&ctx).await });
@@ -172,32 +138,23 @@ impl DetectionEngine {
             .await
     }
 
-    /// Run the configured image recognizers (filtered by `kinds`)
-    /// against `ctx` in parallel and return the combined entity set.
+    /// Run every registered image recognizer against `ctx` in
+    /// parallel and return the combined entity set.
     #[cfg(feature = "image")]
-    async fn run_image(
-        &self,
-        ctx: ImageDetectionContext,
-        kinds: &[String],
-    ) -> Result<Vec<Entity<Image>>> {
+    async fn run_image(&self, ctx: Context<ImageData>) -> Result<Vec<Entity<Image>>> {
         let span = tracing::debug_span!(
             target: TARGET,
             "detect.image",
-            image_bytes = ctx.image.len(),
-            width = ctx.dims.width,
-            height = ctx.dims.height,
+            image_bytes = ctx.data.bytes.len(),
+            width = ctx.data.dims.width,
+            height = ctx.data.dims.height,
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         );
-
-        warn_unmatched_kinds(kinds, &self.image);
 
         let ctx = Arc::new(ctx);
         let mut set: JoinSet<Result<Vec<Entity<Image>>>> = JoinSet::new();
 
-        for (name, recognizer) in &self.image {
-            if !name_allowed(kinds, name) {
-                continue;
-            }
+        for recognizer in &self.image {
             let recognizer = Arc::clone(recognizer);
             let ctx = Arc::clone(&ctx);
             set.spawn(async move { recognizer.recognize(&ctx).await });
@@ -211,34 +168,11 @@ impl DetectionEngine {
     /// Reset per-document state on every registered recognizer.
     /// Call at document boundaries.
     pub async fn reset(&self) {
-        for (_, recognizer) in &self.text {
+        for recognizer in &self.text {
             recognizer.reset().await;
         }
-        for (_, recognizer) in &self.image {
+        for recognizer in &self.image {
             recognizer.reset().await;
-        }
-    }
-}
-
-/// True when `kinds` is empty (no filter) or contains `name`.
-fn name_allowed(kinds: &[String], name: &str) -> bool {
-    kinds.is_empty() || kinds.iter().any(|k| k == name)
-}
-
-/// Warn-log any names in `kinds` that don't match any registered
-/// recognizer. Helps operators catch typos without breaking the run.
-fn warn_unmatched_kinds<R: ?Sized>(kinds: &[String], registry: &[(String, Arc<R>)]) {
-    if kinds.is_empty() {
-        return;
-    }
-    let registered: HashSet<&str> = registry.iter().map(|(n, _)| n.as_str()).collect();
-    for requested in kinds {
-        if !registered.contains(requested.as_str()) {
-            tracing::warn!(
-                target: TARGET,
-                name = %requested,
-                "plan requested recognizer `{requested}` but no such recognizer is registered",
-            );
         }
     }
 }
@@ -265,7 +199,7 @@ async fn collect_join_set<E: Modality>(
                 set.abort_all();
                 return Err(Error::runtime(
                     format!("recognizer task panicked or was cancelled: {join_err}"),
-                    "detection-engine",
+                    "recognizer-registry",
                     false,
                 ));
             }
@@ -274,17 +208,11 @@ async fn collect_join_set<E: Modality>(
     Ok(all)
 }
 
-impl fmt::Debug for DetectionEngine {
+impl fmt::Debug for RecognizerRegistry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DetectionEngine")
-            .field(
-                "text",
-                &self.text.iter().map(|(n, _)| n).collect::<Vec<_>>(),
-            )
-            .field(
-                "image",
-                &self.image.iter().map(|(n, _)| n).collect::<Vec<_>>(),
-            )
+        f.debug_struct("RecognizerRegistry")
+            .field("text", &self.text.len())
+            .field("image", &self.image.len())
             .finish()
     }
 }
@@ -292,13 +220,13 @@ impl fmt::Debug for DetectionEngine {
 /// Shared text-side block loop. Used by every modality that exposes
 /// text via `ModalityBlock::scan_text` (today: every modality).
 ///
-/// Recursion into [`TextBlock::Embed`] children is the
-/// orchestrator's job; this loop scans the target's *own* blocks
-/// only and skips embeds via `scan_text` returning `None`.
+/// Recursion into [`TextBlock::Embed`] children is the orchestrator's
+/// job; this loop scans the target's *own* blocks only and skips
+/// embeds via `scan_text` returning `None`.
 ///
 /// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 pub(crate) async fn detect_text_blocks<M>(
-    engine: &DetectionEngine,
+    registry: &RecognizerRegistry,
     doc: &mut Document<M>,
     cfg: &Detection,
     run_id: uuid::Uuid,
@@ -313,8 +241,6 @@ where
     let mut lifted: Vec<Entity<M>> = Vec::new();
     let mut scanned_blocks = 0usize;
 
-    let labels: Vec<String> = doc.labels.iter().map(|l| l.label.clone()).collect();
-
     for block in &doc.blocks {
         let Some(text) = block.kind.scan_text() else {
             continue;
@@ -324,18 +250,15 @@ where
         }
         scanned_blocks += 1;
 
-        let hints = collect_hints_for_block::<M>(&doc.annotations, &block.spans);
-
-        let mut ctx = TextDetectionContext::new(text.to_owned());
+        let mut ctx = Context::new(TextData::new(text.to_owned()));
         ctx.correlation_id = Some(run_id);
-        if !cfg.entity_kinds.is_empty() {
-            ctx.entities = Some(cfg.entity_kinds.clone());
-        }
-        ctx.hints = hints;
-        ctx.labels = labels.clone();
 
-        let detected = engine.run_text(ctx, &cfg.kinds).await?;
+        let detected = registry.run_text(ctx).await?;
         for entity in detected {
+            // Centralized entity-kind allowlist filter.
+            if !cfg.entity_kinds.is_empty() && !cfg.entity_kinds.contains(&entity.entity_kind) {
+                continue;
+            }
             let Some(location) =
                 M::lift_from_block(&block.spans, entity.location.start, entity.location.end)
             else {
@@ -367,7 +290,7 @@ where
     Ok(())
 }
 
-impl DetectionEngine {
+impl RecognizerRegistry {
     /// Run text recognizers over every block in `doc` and reset
     /// per-document state. Shared by every modality whose detection
     /// is purely text-based.
@@ -386,10 +309,10 @@ impl DetectionEngine {
     }
 
     /// Run image recognizers once per image location reachable via
-    /// the target's handle, appending detections to `doc.audit`.
-    /// Each call sees the raw encoded image bytes plus the image's
-    /// pixel dimensions; recognizers emit absolute image-coord
-    /// entities directly (no per-block lifting).
+    /// the target's handle, appending detections to `doc.audit`. Each
+    /// call sees the raw encoded image bytes plus the image's pixel
+    /// dimensions; recognizers emit absolute image-coord entities
+    /// directly (no per-block lifting).
     #[cfg(feature = "image")]
     pub(crate) async fn detect_image_locations(
         &self,
@@ -402,7 +325,6 @@ impl DetectionEngine {
             return Ok(());
         }
 
-        let labels: Vec<String> = doc.labels.iter().map(|l| l.label.clone()).collect();
         let locations: Vec<_> = {
             use futures::StreamExt;
             handle.lock().await.image_locations().collect().await
@@ -415,18 +337,20 @@ impl DetectionEngine {
             let dims = image_data.dimensions();
             let bytes = image_data
                 .encode_png()
-                .map_err(|e| Error::runtime(e.to_string(), "detection-engine", false))?;
+                .map_err(|e| Error::runtime(e.to_string(), "recognizer-registry", false))?;
 
-            let mut ctx = ImageDetectionContext::new(bytes, dims);
+            let mut ctx = Context::new(ImageData::new(bytes, dims));
             ctx.correlation_id = Some(run_id);
-            if !cfg.entity_kinds.is_empty() {
-                ctx.entities = Some(cfg.entity_kinds.clone());
-            }
-            ctx.labels = labels.clone();
 
-            let detected = self.run_image(ctx, &cfg.kinds).await?;
-            detected_total += detected.len();
-            doc.add_entities(detected);
+            let detected = self.run_image(ctx).await?;
+            let filtered: Vec<Entity<Image>> = detected
+                .into_iter()
+                .filter(|e| {
+                    cfg.entity_kinds.is_empty() || cfg.entity_kinds.contains(&e.entity_kind)
+                })
+                .collect();
+            detected_total += filtered.len();
+            doc.add_entities(filtered);
         }
 
         tracing::debug!(
@@ -439,8 +363,8 @@ impl DetectionEngine {
 
     /// Image-node detection body. Runs text recognizers over each
     /// OCR'd block ("runs alongside" image-side recognizers), then
-    /// image recognizers once per image location with raw bytes.
-    /// When the `image` feature is off only the text pass runs.
+    /// image recognizers once per image location with raw bytes. When
+    /// the `image` feature is off only the text pass runs.
     #[cfg(feature = "image")]
     async fn detect_image(
         &self,
@@ -483,40 +407,4 @@ impl DetectionEngine {
             NodeMut::Image(doc) => self.detect_image(doc, handle, cfg, run_id).await,
         }
     }
-}
-
-/// Collect [`NerHint`]s for a single block: walk every
-/// [`Hint`]-strength [`Inclusion`] annotation, project each one
-/// onto the block's text-byte coordinates via [`ProjectIntoBlock`],
-/// and emit a hint when the projection succeeds.
-///
-/// [`Hint`]: AnnotationStrength::Hint
-/// [`Inclusion`]: AnnotationKind::Inclusion
-fn collect_hints_for_block<M>(annotations: &[Annotation<M>], spans: &[Span<M>]) -> Vec<NerHint>
-where
-    M: Modality + Overlap + ProjectIntoBlock,
-{
-    annotations
-        .iter()
-        .filter_map(|ann| {
-            let AnnotationKind::Inclusion {
-                entity_kind,
-                target,
-                strength: AnnotationStrength::Hint { .. },
-            } = &ann.kind
-            else {
-                return None;
-            };
-            let (start, end) = M::project_into_block(spans, target)?;
-            if start >= end {
-                return None;
-            }
-            Some(NerHint {
-                name: ann.name.clone(),
-                entity_kind: *entity_kind,
-                start,
-                end,
-            })
-        })
-        .collect()
 }

@@ -21,20 +21,22 @@ registry; per-modality dispatch goes through the `Extract<M>` trait.
 
 `detection::*` is the recognizer-side machinery:
 
-- A modality-typed `Recognizer<Modality, Context>` trait with
-  built-in adapters — `PatternRecognizer`, `NerRecognizer`,
-  `LlmNerPipeline` (text), and `VlmPipeline` (image).
-- `DetectionEngine` holds those recognizers as named slots, split
-  into `TextRecognizers` (pattern is always-on; `llm`/`ner` are
-  `Option`) and `ImageRecognizers` (`vlm` is `Option`), built once
-  from `[detection.*]` config and shared via `Arc` across runs.
-- Per-run dispatch parallelises every present slot via `JoinSet`,
-  filtered by the plan's `Detection.kinds` allowlist — text blocks
-  fan their `scan_text` to every selected text recognizer; image
-  envelopes fan each image location to every selected image
-  recognizer.
-- `Detection::into_engine()` assembles a per-run engine from the
-  registry, picking recognizers by `RecognizerKind`.
+- Recognizers implement `nvisy_core::Recognizer<M>` directly — one
+  trait per modality, no engine-side adapter layer. Built-ins today
+  are `nvisy_pattern::recognition::PatternRecognizer` (text) and
+  `nvisy_ner::recognition::GlinerRecognizer` (text). LLM and VLM
+  recognizers exist on disk under `detection/{llm,vlm}/` but are
+  parked pending a rework to implement `Recognizer<M>` directly.
+- `RecognizerRegistry` holds two `Vec<Arc<dyn Recognizer<M>>>`
+  registries — text and image — built once from `[detection.*]`
+  config (`pattern` is always-on, `ner` is `Option`) and shared via
+  `Arc` across runs.
+- Per-run dispatch parallelises every registered recognizer via
+  `JoinSet`; every registered recognizer runs on every request (no
+  per-plan recognizer-name filter). Text blocks fan their
+  `scan_text` to every text recognizer; image documents fan each
+  image location to every image recognizer. Post-detection,
+  `Detection.entity_kinds` filters the merged result set by kind.
 
 `deduplication::*`, `redaction::*`, `validation::*` are the
 subsequent pipeline phases (merge overlapping detections, apply

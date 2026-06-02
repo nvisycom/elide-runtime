@@ -11,11 +11,10 @@
 
 use derive_builder::Builder;
 use nvisy_core::Error;
+use nvisy_core::context::Context;
 use nvisy_ontology::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use super::context::Context;
 
 /// Regex-backed detection rule.
 ///
@@ -92,5 +91,5 @@ impl RegexBuilder {
 }
 
 fn context_is_default(ctx: &Context) -> bool {
-    ctx.keywords.is_empty() && ctx.window.is_none() && ctx.boost.is_none()
+    ctx.is_empty() && ctx.window.is_none() && ctx.boost.is_none()
 }

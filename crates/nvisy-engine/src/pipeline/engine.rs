@@ -23,12 +23,12 @@ use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
 use crate::core::Plan;
-use crate::detection::DetectionEngine;
+use crate::detection::RecognizerRegistry;
 use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::Registry;
 use crate::ingestion::{ExportFile, ImportFile};
-use crate::redaction::RedactionConfig;
+use crate::pipeline::RedactionConfig;
 
 /// Input required to execute a redaction pipeline.
 ///
@@ -85,9 +85,9 @@ pub(super) struct EngineInner {
     /// Pre-built extractor registry, constructed once from
     /// `runtime_config.extraction` and shared across every run.
     pub extraction_engine: Arc<ExtractionEngine>,
-    /// Pre-built detection engine, constructed once from
+    /// Pre-built recognizer registry, constructed once from
     /// `runtime_config.detection` and shared across every run.
-    pub detection_engine: Arc<DetectionEngine>,
+    pub recognizer_registry: Arc<RecognizerRegistry>,
     /// Server-wide redaction defaults shared across every run.
     pub redaction_config: Arc<RedactionConfig>,
     /// Content and context storage backend.
@@ -145,9 +145,9 @@ impl Engine {
                 .transpose()?
                 .unwrap_or_default(),
         );
-        let detection_engine = Arc::new(match config.detection.as_ref() {
-            Some(section) => DetectionEngine::from_config(section).await?,
-            None => DetectionEngine::default(),
+        let recognizer_registry = Arc::new(match config.detection.as_ref() {
+            Some(section) => RecognizerRegistry::from_config(section).await?,
+            None => RecognizerRegistry::default(),
         });
         let redaction_config = Arc::new(config.redaction.clone().unwrap_or_default());
 
@@ -155,7 +155,7 @@ impl Engine {
             inner: Arc::new(EngineInner {
                 runtime_config: config,
                 extraction_engine,
-                detection_engine,
+                recognizer_registry,
                 redaction_config,
                 registry,
                 key_provider: None,
@@ -221,7 +221,7 @@ impl Engine {
             self.inner.runs.clone(),
             self.inner.runtime_config.clone(),
             Arc::clone(&self.inner.extraction_engine),
-            Arc::clone(&self.inner.detection_engine),
+            Arc::clone(&self.inner.recognizer_registry),
             Arc::clone(&self.inner.redaction_config),
         )
     }

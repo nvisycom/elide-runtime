@@ -22,8 +22,7 @@ use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
 use nvisy_codec::core::{Handle, Located, LocationStream, Redactions};
 use nvisy_codec::handler::{AudioData, AudioRedaction, Handler, sort_redactions_for_audio};
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
-use nvisy_core::media::{AudioFormat, DocumentType};
+use nvisy_core::content::{AudioFormat, ContentData, ContentSource, DocumentType};
 use nvisy_ontology::modality::Audio;
 use nvisy_ontology::primitive::TimeSpan;
 

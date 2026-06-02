@@ -13,7 +13,7 @@ use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::media::DocumentType;
+use super::DocumentType;
 
 /// Descriptive metadata associated with content.
 ///

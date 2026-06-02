@@ -9,7 +9,7 @@
 //! [`DocumentTree`] in pre-order and dispatches per [`NodeMut`]
 //! variant to its own per-modality body. Phases own their engine
 //! handles (extraction's `ExtractionEngine`, detection's
-//! `DetectionEngine`) so the orchestrator doesn't have to thread
+//! `RecognizerRegistry`) so the orchestrator doesn't have to thread
 //! them through.
 //!
 //! [`DocumentTree`]: crate::core::DocumentTree
@@ -56,7 +56,7 @@ impl DocumentPipeline {
         };
         Self {
             extraction: ExtractionPhase::new(ctx.extraction_engine().clone()),
-            detection: DetectionPhase::new(ctx.detection_engine().clone()),
+            detection: DetectionPhase::new(ctx.recognizer_registry().clone()),
             deduplication: DeduplicationPhase::new(),
             redaction,
             validation,

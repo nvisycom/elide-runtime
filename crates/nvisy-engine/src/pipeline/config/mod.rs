@@ -2,13 +2,12 @@
 //!
 //! [`RuntimeConfig`] is the top-level configuration object containing
 //! optional subsystem sections — [`EngineConfig`],
-//! [`ExtractionConfig`], and [`DetectionConfig`].
+//! [`ExtractionConfig`], [`DetectionConfig`], [`RedactionConfig`].
 //!
-//! Per-request overrides are supported via [`RuntimeConfig::merge`],
-//! which replaces entire sections (not individual fields) when the
-//! override provides a non-`None` value — with the exception of
-//! `extractor` and `recognizer`, which are built once at engine
-//! startup and never per-request-overridden.
+//! Per-request plan nodes ([`Detection`], [`Extraction`],
+//! [`Redaction`], [`DeduplicationParams`]) live alongside their
+//! corresponding config sections; the per-phase `crate::detection`,
+//! `crate::extraction`, … modules consume them at dispatch time.
 //!
 //! # Post-load steps
 //!
@@ -17,7 +16,11 @@
 //!    from environment variables.
 //! 2. Call [`RuntimeConfig::validate`] to check structural constraints.
 
+mod deduplication;
+mod detection;
 mod engine;
+mod extraction;
+mod redaction;
 mod validate;
 
 use std::num::NonZeroUsize;
@@ -25,10 +28,17 @@ use std::num::NonZeroUsize;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
+pub use self::deduplication::DeduplicationParams;
+pub use self::detection::{Detection, DetectionConfig, NerBackend, NerDetection, PatternDetection};
 pub use self::engine::{EngineConfig, ResourceLimits};
-use crate::detection::DetectionConfig;
-use crate::extraction::ExtractionConfig;
-use crate::redaction::RedactionConfig;
+#[cfg(feature = "image")]
+pub use self::extraction::OcrExtractorConfig;
+#[cfg(feature = "audio")]
+pub use self::extraction::SttExtractorConfig;
+pub use self::extraction::{
+    AudioPlan, Extraction, ExtractionConfig, ImagePlan, TabularPlan, TextPlan,
+};
+pub use self::redaction::{Redaction, RedactionConfig};
 
 fn default_config_version() -> Version {
     Version::new(0, 1, 0)
@@ -44,8 +54,8 @@ fn default_config_version() -> Version {
 /// startup, builds the per-section state behind `Arc`s on its inner
 /// shared state, and never re-reads it. Per-request override is not
 /// supported — plans tune behaviour through their own per-phase
-/// config nodes (`Extraction`, `Detection`, `Redaction`, …), not by
-/// resupplying a `RuntimeConfig`.
+/// config nodes ([`Extraction`], [`Detection`], [`Redaction`], …),
+/// not by resupplying a `RuntimeConfig`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Configuration schema version.
@@ -54,14 +64,13 @@ pub struct RuntimeConfig {
 
     /// Engine-level execution policies, networking, and resource limits.
     pub engine: Option<EngineConfig>,
-    /// Extraction registry — `[extraction.ocr]`, `[extraction.stt]`
+    /// Extraction registry — `[extractor.ocr]`, `[extractor.stt]`
     /// sub-sections. Built once at engine startup; the `Extraction`
     /// phase config carries per-call flags only.
     pub extraction: Option<ExtractionConfig>,
-    /// Detection registry — `[detection.llm]`, `[detection.ner]`,
-    /// `[detection.pattern]`, `[detection.vlm]` sub-sections. Built
-    /// once at engine startup; the `Detection` phase config only
-    /// references these by kind.
+    /// Detection registry — `[detection.pattern]`, `[detection.ner]`
+    /// sub-sections. Built once at engine startup; the `Detection`
+    /// phase config only references these by kind.
     pub detection: Option<DetectionConfig>,
     /// Deployment-wide redaction defaults — `[redaction]` section.
     /// Built once at engine startup; the per-plan `Redaction`

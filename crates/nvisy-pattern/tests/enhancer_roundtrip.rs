@@ -4,10 +4,10 @@
 //! set, and a [`Refinement`](nvisy_ontology::entity::TrailStepKind::Refinement)
 //! step is appended only for matches that had a nearby keyword.
 
+use nvisy_core::context::{Context, ContextEnhancer};
 use nvisy_core::{Context as CoreContext, Recognizer, TextData};
 use nvisy_ontology::entity::{EntityKind, PatternProvenance, TrailProvenance, TrailStepKind};
-use nvisy_pattern::enhancement::ContextEnhancer;
-use nvisy_pattern::recognition::{Context, PatternRecognizer, PatternRegistry, Regex};
+use nvisy_pattern::recognition::{PatternRecognizer, PatternRegistry, Regex};
 
 #[tokio::test]
 async fn enhancer_boosts_matches_near_keyword_only() {
@@ -43,12 +43,12 @@ async fn enhancer_boosts_matches_near_keyword_only() {
     }
 
     let enhancer = ContextEnhancer::builder()
-        .with_registry(&registry)
+        .with_registry(registry.context_registry())
         .with_default_window(20)
         .with_default_boost(0.3)
         .build()
         .expect("enhancer builds");
-    enhancer.enhance(&mut entities, text);
+    enhancer.enhance(&mut entities, text, None);
 
     // First match has `SSN:` within the 20-byte window → boosted.
     let near = entities

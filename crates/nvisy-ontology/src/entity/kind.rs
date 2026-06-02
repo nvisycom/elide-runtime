@@ -7,13 +7,13 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
+use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
 use super::category::EntityCategory;
 
 /// Specific kind of sensitive entity detected or targeted for redaction.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Display)]
-#[derive(EnumString, Serialize, Deserialize, JsonSchema)]
+#[derive(EnumIter, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
@@ -193,6 +193,20 @@ pub enum EntityKind {
 }
 
 impl EntityKind {
+    /// Every defined [`EntityKind`] variant, in declaration order.
+    ///
+    /// Use with combinators to build category-filtered allowlists
+    /// without enumerating variants by hand:
+    ///
+    /// ```ignore
+    /// let text_kinds: Vec<EntityKind> = EntityKind::all()
+    ///     .filter(|k| !k.is_biometric() && !k.is_visual())
+    ///     .collect();
+    /// ```
+    pub fn all() -> impl Iterator<Item = EntityKind> {
+        <Self as IntoEnumIterator>::iter()
+    }
+
     /// Returns the [`EntityCategory`] this entity kind belongs to.
     pub fn category(&self) -> EntityCategory {
         match self {
@@ -284,6 +298,90 @@ impl EntityKind {
 
             Self::Unresolved => EntityCategory::Unresolved,
         }
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::PersonalIdentity`].
+    #[must_use]
+    pub fn is_personal_identity(&self) -> bool {
+        self.category() == EntityCategory::PersonalIdentity
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::ContactInfo`].
+    #[must_use]
+    pub fn is_contact_info(&self) -> bool {
+        self.category() == EntityCategory::ContactInfo
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::Demographic`].
+    #[must_use]
+    pub fn is_demographic(&self) -> bool {
+        self.category() == EntityCategory::Demographic
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::Financial`].
+    #[must_use]
+    pub fn is_financial(&self) -> bool {
+        self.category() == EntityCategory::Financial
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::Health`].
+    #[must_use]
+    pub fn is_health(&self) -> bool {
+        self.category() == EntityCategory::Health
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::Biometric`].
+    #[must_use]
+    pub fn is_biometric(&self) -> bool {
+        self.category() == EntityCategory::Biometric
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::Credentials`].
+    #[must_use]
+    pub fn is_credentials(&self) -> bool {
+        self.category() == EntityCategory::Credentials
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::NetworkIdentifier`].
+    #[must_use]
+    pub fn is_network_identifier(&self) -> bool {
+        self.category() == EntityCategory::NetworkIdentifier
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::Location`].
+    #[must_use]
+    pub fn is_location(&self) -> bool {
+        self.category() == EntityCategory::Location
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::Visual`].
+    #[must_use]
+    pub fn is_visual(&self) -> bool {
+        self.category() == EntityCategory::Visual
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::Organizational`].
+    #[must_use]
+    pub fn is_organizational(&self) -> bool {
+        self.category() == EntityCategory::Organizational
+    }
+
+    /// Convenience predicate: this kind belongs to
+    /// [`EntityCategory::GeneralPurpose`].
+    #[must_use]
+    pub fn is_general_purpose(&self) -> bool {
+        self.category() == EntityCategory::GeneralPurpose
     }
 }
 

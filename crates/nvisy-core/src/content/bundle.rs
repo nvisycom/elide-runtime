@@ -6,9 +6,8 @@ use std::path::Path;
 use derive_more::{AsRef, Deref};
 use serde::{Deserialize, Serialize};
 
-use super::{ContentData, ContentMetadata, ContentSource};
+use super::{ContentData, ContentMetadata, ContentSource, DocumentType};
 use crate::error::Result;
-use crate::media::DocumentType;
 
 /// Complete content representation: raw bytes plus optional
 /// metadata.
@@ -130,7 +129,7 @@ impl Content {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::{ImageFormat, TextFormat};
+    use crate::content::{ImageFormat, TextFormat};
 
     #[test]
     fn infer_document_type_from_metadata() {

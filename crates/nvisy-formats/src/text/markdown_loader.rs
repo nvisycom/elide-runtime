@@ -6,7 +6,7 @@
 //! is carried by the [`DocumentType`] so downstream operations can
 //! apply Markdown-aware processing when needed.
 //!
-//! [`DocumentType`]: nvisy_core::media::DocumentType
+//! [`DocumentType`]: nvisy_core::content::DocumentType
 
 use nvisy_codec::handler::Loader;
 use nvisy_core::Error;

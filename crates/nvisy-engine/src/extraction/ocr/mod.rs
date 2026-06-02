@@ -8,32 +8,14 @@
 use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Result;
-use nvisy_ocr::{Context as OcrContext, ImageFormat, ImageInput, OcrBackend};
+use nvisy_ocr::{Context as OcrContext, ImageFormat, ImageInput};
 use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Image, ImageExtraction};
-use serde::{Deserialize, Serialize};
 
 use crate::core::SharedHandle;
+use crate::pipeline::OcrExtractorConfig;
 
 const TARGET: &str = "nvisy_engine::extraction::image::ocr";
-
-/// `[extractor.ocr]` config bundle.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct OcrExtractorConfig {
-    /// Enable this extractor. When `false`, the extractor is
-    /// neither built nor dispatched, but the config is preserved
-    /// so operators can toggle without losing it. Defaults to
-    /// `true`.
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    /// OCR backend selection + connection settings.
-    #[serde(default)]
-    pub backend: OcrBackend,
-}
-
-fn default_true() -> bool {
-    true
-}
 
 /// Pre-built OCR extractor wrapping a configured
 /// [`nvisy_ocr::Extractor`].

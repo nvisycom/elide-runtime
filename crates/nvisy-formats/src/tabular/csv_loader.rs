@@ -137,8 +137,7 @@ mod tests {
     use bytes::Bytes;
     use nvisy_codec::handler::Handler;
     use nvisy_core::Error;
-    use nvisy_core::content::ContentSource;
-    use nvisy_core::media::{DocumentType, SpreadsheetFormat};
+    use nvisy_core::content::{ContentSource, DocumentType, SpreadsheetFormat};
 
     use super::*;
 

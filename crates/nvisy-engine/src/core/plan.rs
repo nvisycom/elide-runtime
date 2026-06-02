@@ -7,10 +7,7 @@
 //!
 //! [`EngineInput`]: super::EngineInput
 
-use crate::deduplication::DeduplicationParams;
-use crate::detection::Detection;
-use crate::extraction::Extraction;
-use crate::redaction::Redaction;
+use crate::pipeline::{DeduplicationParams, Detection, Extraction, Redaction};
 use crate::validation::Validation;
 
 /// Per-request bundle of per-phase configs.
@@ -23,7 +20,7 @@ use crate::validation::Validation;
 pub struct Plan {
     /// Extraction settings per modality.
     pub extraction: Extraction,
-    /// Detection settings (which recognizer kinds + per-call hints).
+    /// Detection settings (post-detection entity-kind allowlist).
     pub detection: Detection,
     /// Deduplication settings applied to combined detection results.
     pub deduplication: DeduplicationParams,

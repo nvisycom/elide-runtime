@@ -52,8 +52,7 @@ mod tests {
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
     use nvisy_codec::core::Handle;
     use nvisy_codec::handler::Handler;
-    use nvisy_core::content::ContentSource;
-    use nvisy_core::media::DocumentType;
+    use nvisy_core::content::{ContentSource, DocumentType};
     use nvisy_ontology::modality::Text;
 
     use super::*;

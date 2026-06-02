@@ -23,6 +23,8 @@ use nvisy_codec::handler::RichHandle;
 #[cfg(feature = "internal_tabular")]
 use nvisy_codec::handler::TabularHandle;
 use nvisy_core::Error;
+#[cfg(feature = "internal_audio")]
+use nvisy_core::content::AudioFormat;
 use nvisy_core::content::Content;
 #[cfg(any(
     feature = "internal_text",
@@ -32,8 +34,6 @@ use nvisy_core::content::Content;
     feature = "internal_rich",
 ))]
 use nvisy_core::content::ContentData;
-#[cfg(feature = "internal_audio")]
-use nvisy_core::media::AudioFormat;
 #[cfg(any(
     feature = "internal_text",
     feature = "internal_tabular",
@@ -41,15 +41,15 @@ use nvisy_core::media::AudioFormat;
     feature = "internal_audio",
     feature = "internal_rich",
 ))]
-use nvisy_core::media::DocumentType;
+use nvisy_core::content::DocumentType;
 #[cfg(feature = "internal_image")]
-use nvisy_core::media::ImageFormat;
+use nvisy_core::content::ImageFormat;
 #[cfg(feature = "internal_tabular")]
-use nvisy_core::media::SpreadsheetFormat;
+use nvisy_core::content::SpreadsheetFormat;
 #[cfg(feature = "internal_text")]
-use nvisy_core::media::TextFormat;
+use nvisy_core::content::TextFormat;
 #[cfg(feature = "docx")]
-use nvisy_core::media::WordFormat;
+use nvisy_core::content::WordFormat;
 #[cfg(feature = "internal_audio")]
 use nvisy_ontology::modality::Audio;
 #[cfg(feature = "internal_image")]

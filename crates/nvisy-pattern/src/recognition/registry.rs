@@ -1,13 +1,16 @@
 //! [`PatternRegistry`]: a curated bundle of [`Regex`]es and
 //! [`Dictionary`]s that downstream consumers borrow.
 //!
-//! Both
-//! [`PatternRecognizer`](super::PatternRecognizer) and
-//! [`ContextEnhancer`](crate::enhancement::ContextEnhancer) accept a
-//! `PatternRegistry`, pulling the data they need to do their job
-//! (compiled scanners on one side, keyword lookup on the other).
+//! Both [`PatternRecognizer`](super::PatternRecognizer) and the
+//! shared [`ContextEnhancer`](nvisy_core::context::ContextEnhancer)
+//! consume a registry — the recognizer compiles its rules into
+//! pooled scanners; the enhancer reads per-rule context keywords
+//! via [`PatternRegistry::context_registry`].
+//!
 //! Centralising the rule set here means no duplication of
 //! [`Regex`] / [`Dictionary`] storage between the two consumers.
+
+use nvisy_core::context::ContextRegistry;
 
 use super::dictionary::Dictionary;
 use super::regex_rule::Regex;
@@ -57,6 +60,30 @@ impl PatternRegistry {
     #[must_use]
     pub fn dictionaries(&self) -> &[Dictionary] {
         &self.dictionaries
+    }
+
+    /// Build a [`ContextRegistry`] containing every per-rule
+    /// context keyword declaration in this registry.
+    ///
+    /// Each [`Regex`] and [`Dictionary`] that declares a non-empty
+    /// context contributes one entry, keyed on its rule name.
+    /// Rules without context declarations are skipped.
+    ///
+    /// Use this to wire the
+    /// [`ContextEnhancer`](nvisy_core::context::ContextEnhancer)
+    /// against the same source of truth the recognizer compiles
+    /// from — no duplication of keyword data between rule
+    /// registration and enhancer construction.
+    #[must_use]
+    pub fn context_registry(&self) -> ContextRegistry {
+        let mut registry = ContextRegistry::new();
+        for r in &self.regexes {
+            registry = registry.with_entry(r.name.clone(), r.context.clone());
+        }
+        for d in &self.dictionaries {
+            registry = registry.with_entry(d.name.clone(), d.context.clone());
+        }
+        registry
     }
 }
 

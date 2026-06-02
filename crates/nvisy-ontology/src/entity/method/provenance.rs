@@ -80,6 +80,13 @@ pub struct ModelProvenance {
     /// Model version string.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    /// Whether contextual analysis (keyword co-occurrence) adjusted
+    /// the confidence score for this match. Mirrors the
+    /// `contextual` flag on [`PatternProvenance`] so post-recognition
+    /// enhancers can record their decision uniformly across
+    /// pattern- and model-based detections.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub contextual: bool,
 }
 
 impl ModelProvenance {
@@ -88,6 +95,7 @@ impl ModelProvenance {
         Self {
             name: name.into(),
             version: None,
+            contextual: false,
         }
     }
 
@@ -95,6 +103,13 @@ impl ModelProvenance {
     pub fn with_version(mut self, version: impl Into<String>) -> Self {
         self.version = Some(version.into());
         self
+    }
+
+    /// Mark this provenance as contextually adjusted. Set by the
+    /// `ContextEnhancer` when keyword co-occurrence boosted the
+    /// match's confidence.
+    pub fn mark_contextual(&mut self) {
+        self.contextual = true;
     }
 }
 

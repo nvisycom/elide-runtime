@@ -245,29 +245,6 @@ async fn analytics_reflects_failed_run() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn detection_kinds_with_unconfigured_recognizer_silently_skips() -> anyhow::Result<()> {
-    use nvisy_engine::detection::{Detection, names};
-
-    let (engine, _dir) = fixtures::engine().await;
-    let actor = fixtures::actor();
-    let content_id = fixtures::upload_text(&engine, actor, "test").await;
-
-    // Request the LLM recognizer without configuring `[detection.llm]`.
-    // No section is configured at engine startup, so the LLM slot is
-    // never registered; dispatch filters by `kinds` and warn-logs the
-    // unknown name, then runs whatever else is registered. The run
-    // succeeds.
-    let mut input = fixtures::engine_input(actor, content_id);
-    input.plan.detection = Detection {
-        kinds: vec![names::LLM.to_owned()],
-        ..Default::default()
-    };
-
-    engine.run(input).await?;
-    Ok(())
-}
-
-#[tokio::test]
 async fn empty_extraction_succeeds() -> anyhow::Result<()> {
     // Default Extraction config (no per-modality flags) is valid;
     // text content needs no extractor so the phase is a no-op.

@@ -30,13 +30,12 @@ use nvisy_ontology::modality::{
     TextBlock, TextContent,
 };
 
-use super::Extraction;
-use super::config::ExtractionConfig;
 #[cfg(feature = "image")]
 use super::ocr::OcrExtractor;
 #[cfg(feature = "audio")]
 use super::stt::SttExtractor;
 use crate::core::{NodeMut, SharedHandle};
+use crate::pipeline::{Extraction, ExtractionConfig};
 
 const TARGET: &str = "nvisy_engine::extraction";
 

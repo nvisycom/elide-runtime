@@ -11,7 +11,7 @@ mod context;
 mod input;
 
 use nvisy_core::Error;
-pub use nvisy_core::media::ImageFormat;
+pub use nvisy_core::content::ImageFormat;
 use nvisy_ontology::document::Block;
 use nvisy_ontology::entity::ModelProvenance;
 use nvisy_ontology::modality::Image;

@@ -3232,13 +3232,10 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bentoml",
- "derive_builder",
- "futures",
  "lingua",
  "nvisy-core",
  "nvisy-ontology",
  "serde",
- "thiserror 2.0.18",
  "tokio",
  "tracing",
  "uuid",

@@ -16,8 +16,7 @@
 //! [`Handle<M>`]: crate::core::Handle
 
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
-use nvisy_core::media::DocumentType;
+use nvisy_core::content::{ContentData, ContentSource, DocumentType};
 
 #[cfg(feature = "audio")]
 mod audio;

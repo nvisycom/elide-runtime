@@ -3155,6 +3155,51 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-document"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "async-trait",
+ "base64",
+ "bytes",
+ "derive_builder",
+ "derive_more",
+ "fjall",
+ "futures",
+ "humantime-serde",
+ "jiff",
+ "nvisy-agent",
+ "nvisy-codec",
+ "nvisy-core",
+ "nvisy-document",
+ "nvisy-formats",
+ "nvisy-ner",
+ "nvisy-ocr",
+ "nvisy-pattern",
+ "nvisy-toolkit",
+ "oxilangtag",
+ "rand 0.10.1",
+ "schemars 1.2.1",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "sha2 0.11.0",
+ "strum 0.28.0",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing",
+ "type-map",
+ "unicode-normalization",
+ "uuid",
+ "validator",
+]
+
+[[package]]
 name = "nvisy-engine"
 version = "0.1.0"
 dependencies = [
@@ -3320,6 +3365,32 @@ dependencies = [
  "tower-http",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "nvisy-toolkit"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "derive_builder",
+ "derive_more",
+ "futures",
+ "nvisy-agent",
+ "nvisy-core",
+ "nvisy-ner",
+ "nvisy-ocr",
+ "nvisy-pattern",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "strum 0.28.0",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "unicode-normalization",
+ "uuid",
+ "validator",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ members = [
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
+    "./crates/nvisy-document",
     "./crates/nvisy-engine",
     "./crates/nvisy-formats",
     "./crates/nvisy-ner",
@@ -14,6 +15,7 @@ members = [
     "./crates/nvisy-ontology",
     "./crates/nvisy-pattern",
     "./crates/nvisy-server",
+    "./crates/nvisy-toolkit",
 ]
 
 [workspace.package]
@@ -38,7 +40,9 @@ documentation = "https://docs.rs/nvisy-runtime"
 nvisy-agent = { path = "./crates/nvisy-agent", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
+nvisy-document = { path = "./crates/nvisy-document", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-toolkit = { path = "./crates/nvisy-toolkit", version = "0.1.0" }
 nvisy-formats = { path = "./crates/nvisy-formats", version = "0.1.0", default-features = false }
 nvisy-ner = { path = "./crates/nvisy-ner", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }

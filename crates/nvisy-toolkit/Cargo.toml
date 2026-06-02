@@ -1,0 +1,66 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-toolkit"
+description = "Composable component library for Nvisy pipelines: recognizers, dedup layers, checks, redaction strategies"
+keywords = ["nvisy", "toolkit", "components", "pipeline"]
+categories = ["data-structures"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = true
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[features]
+default = ["tabular", "image", "audio"]
+tabular = []
+image = []
+audio = []
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Internal crates
+nvisy-core = { workspace = true, features = [] }
+
+# Detection backends (recognizer registry)
+nvisy-ner = { workspace = true, features = [] }
+nvisy-ocr = { workspace = true, features = [] }
+nvisy-pattern = { workspace = true, features = [] }
+nvisy-agent = { workspace = true, features = [] }
+
+# (De)serialization
+serde = { workspace = true, features = [] }
+serde_json = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
+
+# Async runtime
+async-trait = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+futures = { workspace = true, features = [] }
+
+# Primitive datatypes
+uuid = { workspace = true, features = [] }
+bytes = { workspace = true, features = [] }
+
+# Derive macros and error handling
+thiserror = { workspace = true, features = [] }
+derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into"] }
+strum = { workspace = true, features = [] }
+
+# Utilities
+validator = { workspace = true, features = [] }
+unicode-normalization = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }

@@ -16,7 +16,7 @@ use std::mem;
 
 use nvisy_core::ValueAt;
 use nvisy_core::entity::{Entity, EntityKind};
-use nvisy_core::modality::Overlap;
+use nvisy_core::modality::{Modality, Overlap};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -75,7 +75,7 @@ impl GroupingCriteria {
 }
 
 /// Extension trait that groups entities for deduplication.
-pub(super) trait GroupEntities<M: nvisy_core::modality::Modality> {
+pub(super) trait GroupEntities<M: Modality> {
     /// Partition entities into groups of candidates that should be fused.
     ///
     /// Each returned `Vec<Entity>` contains entities that share the same
@@ -90,7 +90,8 @@ pub(super) trait GroupEntities<M: nvisy_core::modality::Modality> {
 
 impl<M> GroupEntities<M> for Vec<Entity<M>>
 where
-    M: nvisy_core::modality::Modality + Overlap,
+    M: Modality,
+    M::Location: Overlap,
 {
     async fn group<V: ValueAt<M> + ?Sized>(
         self,

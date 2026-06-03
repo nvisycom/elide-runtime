@@ -1,14 +1,20 @@
-//! Per-modality coordinate types and the [`Modality`] marker trait.
+//! Per-modality marker types and the [`Modality`] trait.
 //!
 //! Generic containers ([`Entity<M>`]) are parameterised over
-//! `M: Modality`, where `M` is one of [`Text`], [`Image`], [`Audio`],
-//! or [`Tabular`]. This enforces at compile time that a recognizer
-//! wired for text cannot be passed an audio document.
+//! `M: Modality`, where `M` is one of the zero-sized markers
+//! [`Text`], [`Image`], [`Audio`], or [`Tabular`]. Each marker's
+//! [`Modality::Location`] associated type names the actual
+//! coordinate value those containers store ([`TextLocation`],
+//! [`ImageLocation`], [`AudioLocation`], [`TabularLocation`]).
 //!
-//! [`Modality`] is intentionally minimal: just a marker trait with
-//! the structural bounds every generic container needs. The
-//! document-shape side (`Block`, `Metadata`) lives in
-//! `nvisy-document`; the redaction-shape side (`Strategy`,
+//! Splitting the marker from the data lets the type system carry
+//! "which modality" cleanly while the data can grow shape (e.g. an
+//! image location adding polygon variants) without touching the
+//! marker.
+//!
+//! [`Modality`] is intentionally minimal: marker + location +
+//! extraction. The document-shape side (`Block`, `Metadata`) lives
+//! in `nvisy-document`; the redaction-shape side (`Strategy`,
 //! `Replacement`) lives in `nvisy-toolkit`. Each layer adds its own
 //! extension trait (`DocumentModality`, `Redactable`) atop this
 //! marker — toolkit and document don't pollute core.
@@ -22,18 +28,37 @@ mod text;
 
 use std::fmt::Debug;
 
-pub use self::audio::{Audio, AudioExtraction};
-pub use self::image::{Image, ImageExtraction};
-pub use self::tabular::{Tabular, TabularExtraction};
-pub use self::text::{ContextWindow, Text, TextExtraction};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
-/// Marker trait implemented by every per-modality coordinate type.
+pub use self::audio::{Audio, AudioExtraction, AudioLocation};
+pub use self::image::{Image, ImageExtraction, ImageLocation};
+pub use self::tabular::{Tabular, TabularExtraction, TabularLocation};
+pub use self::text::{ContextWindow, Text, TextExtraction, TextLocation};
+
+/// Marker trait implemented by every per-modality marker type
+/// ([`Text`], [`Image`], [`Audio`], [`Tabular`]).
 ///
-/// Keeps only the structural bounds every generic container needs
-/// (`Clone`, `Debug`, `PartialEq`, thread-safety). Per-layer shape
-/// (document blocks/metadata, redaction strategies) lives in
-/// extension traits in the layers that own those concerns.
-pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {}
+/// The associated [`Location`] type names the actual coordinate
+/// value carried by generic containers parameterised on `M` —
+/// `Entity<M>::location` is `M::Location`, etc. The marker type
+/// itself is zero-sized; the data lives behind the associated
+/// type.
+///
+/// [`Location`]: Self::Location
+pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'static {
+    /// Coordinate value carried by generic containers parameterised
+    /// on this modality.
+    type Location: Clone
+        + Debug
+        + PartialEq
+        + Send
+        + Sync
+        + Serialize
+        + DeserializeOwned
+        + schemars::JsonSchema
+        + 'static;
+}
 
 /// Extension of [`Modality`] that names the per-modality
 /// [`Extraction`] enum recording how a document's primary content was
@@ -71,12 +96,16 @@ impl ModalityExtraction for Tabular {
 
 /// Check whether two coordinates of the same modality overlap.
 ///
+/// Implemented on the per-modality [`Location`] types, not on the
+/// markers — the markers carry no data and have nothing to compare.
 /// Semantics vary by modality:
 /// - **Text**: byte-range interval overlap (`start < other.end && other.start < end`).
 /// - **Image**: bounding box intersection.
 /// - **Audio**: time span overlap.
 /// - **Tabular**: same cell (row + column), with optional intra-cell
 ///   byte-range check when offsets are present.
+///
+/// [`Location`]: Modality::Location
 pub trait Overlap {
     fn overlaps(&self, other: &Self) -> bool;
 }

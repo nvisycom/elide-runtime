@@ -14,7 +14,7 @@
 
 use std::cmp::Reverse;
 
-use nvisy_core::modality::Audio;
+use nvisy_core::modality::{Audio, AudioLocation};
 
 use crate::core::{Codable, Redactions};
 
@@ -35,8 +35,8 @@ impl Codable for Audio {
 /// redactions: later spans first so a `Remove` doesn't invalidate
 /// earlier sample indices.
 pub fn sort_redactions_for_audio(
-    redactions: Redactions<Audio, AudioRedaction>,
-) -> Vec<(Audio, AudioRedaction)> {
+    redactions: Redactions<AudioLocation, AudioRedaction>,
+) -> Vec<(AudioLocation, AudioRedaction)> {
     let mut items = redactions.items;
     items.sort_by_key(|(loc, _)| Reverse(loc.time_span.start_us));
     items

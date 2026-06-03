@@ -31,25 +31,28 @@ pub struct LlmRecognizer<M: ModalityData> {
     /// registry key.
     name: String,
     /// Backend that sends the prompt to the model and returns its
-    /// reply. Required. Set via
-    /// [`with_backend`](LlmRecognizerBuilder::with_backend), which
-    /// accepts any concrete [`LlmBackend`] impl by value and wraps it
-    /// in `Arc` internally.
+    /// reply. Required. Set via [`with_backend`], which accepts any
+    /// concrete [`LlmBackend`] impl by value and wraps it in `Arc`
+    /// internally.
+    ///
+    /// [`with_backend`]: LlmRecognizerBuilder::with_backend
     #[builder(setter(custom))]
     backend: Arc<dyn LlmBackend>,
     /// Modality-specific prompt builder + response lifter. Required.
-    /// Set via [`with_prompt`](LlmRecognizerBuilder::with_prompt),
-    /// which accepts any concrete [`Prompt<M>`] impl by value and
-    /// wraps it in `Arc` internally.
+    /// Set via [`with_prompt`], which accepts any concrete
+    /// [`Prompt<M>`] impl by value and wraps it in `Arc` internally.
+    ///
+    /// [`with_prompt`]: LlmRecognizerBuilder::with_prompt
     #[builder(setter(custom))]
     prompt: Arc<dyn Prompt<M>>,
 }
 
 impl<M: ModalityData> LlmRecognizer<M> {
     /// Start the chainable builder. `name`, `backend`, and `prompt`
-    /// are required — calling
-    /// [`build`](LlmRecognizerBuilder::build) without them returns a
+    /// are required — calling [`build`] without them returns a
     /// validation error.
+    ///
+    /// [`build`]: LlmRecognizerBuilder::build
     #[must_use]
     pub fn builder() -> LlmRecognizerBuilder<M> {
         LlmRecognizerBuilder::default()

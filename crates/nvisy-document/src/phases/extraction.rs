@@ -30,13 +30,17 @@ use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData as CodecImageData;
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
-use nvisy_core::modality::{Audio, Image, ImageExtraction, Tabular, Text};
+use nvisy_core::modality::{
+    Audio, Image, ImageExtraction, ImageLocation, Tabular, TabularLocation, Text,
+};
 #[cfg(feature = "audio")]
 use nvisy_core::recognition::AudioData;
 #[cfg(feature = "image")]
 use nvisy_core::recognition::ImageData;
 #[cfg(any(feature = "image", feature = "audio"))]
 use nvisy_core::recognition::RecognizerInput;
+use nvisy_ocr::core::OcrOutput;
+use nvisy_toolkit::extraction::registry::ImageExtractorOutput;
 use nvisy_toolkit::extraction::{Extractor, ExtractorRegistry};
 use tracing::Instrument;
 
@@ -259,7 +263,7 @@ async fn populate_tabular_blocks(doc: &mut Document<Tabular>, handle: &SharedHan
         return;
     }
 
-    let mut rows: BTreeMap<u32, Vec<Tabular>> = BTreeMap::new();
+    let mut rows: BTreeMap<u32, Vec<TabularLocation>> = BTreeMap::new();
     for located in locations {
         rows.entry(located.location.row_index)
             .or_default()
@@ -332,7 +336,7 @@ async fn populate_image_doc(
 /// the extractor's provenance on the document metadata.
 #[cfg(feature = "image")]
 async fn run_ocr_into(
-    ocr: &dyn Extractor<Image, Output = nvisy_toolkit::extraction::registry::ImageExtractorOutput>,
+    ocr: &dyn Extractor<Image, Output = ImageExtractorOutput>,
     doc: &mut Document<Image>,
     handle: &SharedHandle,
 ) -> Result<()> {
@@ -370,7 +374,7 @@ async fn run_ocr_into(
 /// Convert a backend-shaped [`OcrOutput`] to a document-shaped
 /// [`Block<Image>`].
 #[cfg(feature = "image")]
-fn ocr_output_to_block(output: nvisy_ocr::core::OcrOutput) -> Block<Image> {
+fn ocr_output_to_block(output: OcrOutput) -> Block<Image> {
     use nvisy_ocr::core::OcrBlockKind;
     let kind = match output.kind {
         OcrBlockKind::Text { region, text } => ImageBlock::Text { region, text },
@@ -397,9 +401,11 @@ fn ocr_output_to_block(output: nvisy_ocr::core::OcrOutput) -> Block<Image> {
 }
 
 #[cfg(feature = "image")]
-async fn collect_image_inputs(handle: &SharedHandle) -> Vec<Located<Image, CodecImageData>> {
+async fn collect_image_inputs(
+    handle: &SharedHandle,
+) -> Vec<Located<ImageLocation, CodecImageData>> {
     let guard = handle.lock().await;
-    let locations: Vec<Located<Image>> = guard.image_locations().collect().await;
+    let locations: Vec<Located<ImageLocation>> = guard.image_locations().collect().await;
     drop(guard);
     let mut out = Vec::with_capacity(locations.len());
     for located in locations {

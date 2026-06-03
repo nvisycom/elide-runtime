@@ -11,7 +11,6 @@
 //! [`EntityRecord<M>`]: crate::provenance::EntityRecord
 //! [`Decision`]: crate::core::Decision
 
-#[cfg(feature = "audio")]
 use nvisy_codec::handler::AudioOutput;
 #[cfg(feature = "image")]
 use nvisy_codec::handler::ImageOutput;
@@ -23,6 +22,7 @@ use nvisy_core::modality::Audio;
 use nvisy_core::modality::Image;
 use nvisy_core::modality::{Tabular, Text};
 use nvisy_core::primitive::ConfidenceThreshold;
+use nvisy_toolkit::redaction::Redactable;
 
 use super::apply;
 #[cfg(feature = "audio")]
@@ -32,6 +32,8 @@ use super::codec::to_image_redaction;
 use super::codec::{to_tabular_redaction, to_text_redaction};
 use crate::core::{Decision, PolicyStore, SharedHandle};
 use crate::document::Document;
+#[cfg(feature = "audio")]
+use crate::modality::DocumentModality;
 #[cfg(feature = "audio")]
 use crate::policy::AudioMethodTag;
 #[cfg(feature = "image")]
@@ -49,10 +51,7 @@ pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 /// `RedactionPhase::run` is parameterised over this so the apply
 /// path is shared.
 #[async_trait::async_trait]
-pub trait ApplyRedactions<
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
->: Send + Sync
-{
+pub trait ApplyRedactions<M: DocumentModality + Redactable>: Send + Sync {
     async fn apply_pending(doc: &mut Document<M>, handle: &SharedHandle) -> Result<()>;
 }
 
@@ -241,7 +240,7 @@ pub(crate) async fn evaluate<M>(
     metadata: &ContentMetadata,
     policies: &PolicyStore,
 ) where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
 {
     for record in records {
         let entity = &record.entity;
@@ -289,7 +288,7 @@ pub(crate) async fn evaluate<M>(
     }
 }
 
-fn audit_entry<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>(
+fn audit_entry<M: DocumentModality + Redactable>(
     decision: AuditDecision<M>,
     execution: Execution<M>,
 ) -> AuditEntry<M> {
@@ -307,6 +306,7 @@ mod tests {
     use nvisy_core::content::ContentMetadata;
     use nvisy_core::entity::Entity;
     use nvisy_core::primitive::Confidence;
+    use nvisy_formats::test_utils::decode_text;
     use semver::Version;
     use tokio::sync::Mutex;
 
@@ -338,11 +338,8 @@ mod tests {
     }
 
     async fn text_fixture(text: &str) -> Bundle {
-        let handle: SharedHandle = Arc::new(Mutex::new(
-            nvisy_formats::test_utils::decode_text(text)
-                .await
-                .expect("decode text"),
-        ));
+        let handle: SharedHandle =
+            Arc::new(Mutex::new(decode_text(text).await.expect("decode text")));
         let source = handle.lock().await.source();
         let doc = Document::<Text>::new(
             TextMetadata {

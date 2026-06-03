@@ -22,6 +22,7 @@ mod record;
 
 use derive_more::{From, IsVariant};
 use nvisy_core::entity::{ContentSource, Entity};
+use nvisy_toolkit::redaction::Redactable;
 pub use nvisy_toolkit::redaction::{TabularReplacement, TextReplacement};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -30,7 +31,7 @@ use uuid::Uuid;
 
 pub use self::entry::{AuditEntry, AuditEntryBuilder, Decision, EntryMetadata, Execution};
 pub use self::record::EntityRecord;
-use crate::modality::{Audio, Image, Tabular, Text};
+use crate::modality::{Audio, DocumentModality, Image, Tabular, Text};
 
 /// A per-document audit trail: per-entity records bundling the
 /// detected entity with the audit entry (if any) produced for it
@@ -51,7 +52,7 @@ use crate::modality::{Audio, Image, Tabular, Text};
     )
 )]
 #[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
-pub struct Audit<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> {
+pub struct Audit<M: DocumentModality + Redactable> {
     /// Content source this audit belongs to.
     pub source: ContentSource,
     /// Identifier of the pipeline run that produced this audit.
@@ -66,7 +67,7 @@ pub struct Audit<M: crate::modality::DocumentModality + nvisy_toolkit::redaction
     pub records: Vec<EntityRecord<M>>,
 }
 
-impl<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> Audit<M> {
+impl<M: DocumentModality + Redactable> Audit<M> {
     /// Create a new empty audit for the given source.
     pub fn new(source: ContentSource) -> Self {
         Self {

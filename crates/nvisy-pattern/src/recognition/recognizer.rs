@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use async_trait::async_trait;
-use nvisy_core::entity::{Entity, PatternProvenance, TrailProvenance, TrailStep};
-use nvisy_core::modality::Text;
+use nvisy_core::entity::{Entity, EntityKind, PatternProvenance, TrailProvenance, TrailStep};
+use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use nvisy_core::{EntityRecognizer, Error, RecognizerInput, RecognizerOutput, Result};
 use regex::{Regex, RegexSet};
@@ -31,7 +31,7 @@ use crate::validators::{Validator, ValidatorRegistry};
 /// [`ContextEnhancer`]: crate::ContextEnhancer
 struct CompiledPattern {
     name: String,
-    entity_kind: nvisy_core::entity::EntityKind,
+    entity_kind: EntityKind,
     regex: Regex,
     raw_regex: String,
     score: Confidence,
@@ -45,7 +45,7 @@ struct CompiledPattern {
 /// emission metadata.
 struct CompiledDictionary {
     name: String,
-    entity_kind: nvisy_core::entity::EntityKind,
+    entity_kind: EntityKind,
     /// First term-id (inclusive) for this dictionary inside the
     /// shared automaton.
     term_start: usize,
@@ -262,7 +262,7 @@ fn build_pattern_entity(pat: &CompiledPattern, start: usize, end: usize) -> Enti
         .with_entity_kind(pat.entity_kind)
         .with_trail(vec![step])
         .with_confidence(pat.score)
-        .with_location(Text::new(start, end))
+        .with_location(TextLocation::new(start, end))
         .build()
         .expect("required fields provided")
 }
@@ -282,7 +282,7 @@ fn build_dictionary_entity(dict: &CompiledDictionary, start: usize, end: usize) 
         .with_entity_kind(dict.entity_kind)
         .with_trail(vec![step])
         .with_confidence(dict.score)
-        .with_location(Text::new(start, end))
+        .with_location(TextLocation::new(start, end))
         .build()
         .expect("required fields provided")
 }

@@ -1,5 +1,5 @@
-//! Audio modality coordinate type plus the [`AudioExtraction`]
-//! provenance enum recording how the document was produced.
+//! [`Audio`] modality marker, [`AudioLocation`] coordinate type, and
+//! the [`AudioExtraction`] provenance enum.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,11 +9,20 @@ use super::{Modality, Overlap};
 use crate::entity::ModelProvenance;
 use crate::primitive::TimeSpan;
 
+/// Audio modality marker (zero-sized).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Audio;
+
+impl Modality for Audio {
+    type Location = AudioLocation;
+}
+
 /// A time interval within audio content.
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Audio {
+pub struct AudioLocation {
     /// Time interval.
     pub time_span: TimeSpan,
     /// Speaker identifier from diarization.
@@ -24,9 +33,9 @@ pub struct Audio {
     pub audio_id: Option<Uuid>,
 }
 
-impl Audio {
-    /// Create an [`Audio`] covering `time_span`, with no speaker
-    /// attribution or audio-document link.
+impl AudioLocation {
+    /// Create an [`AudioLocation`] covering `time_span`, with no
+    /// speaker attribution or audio-document link.
     pub fn new(time_span: TimeSpan) -> Self {
         Self {
             time_span,
@@ -36,9 +45,7 @@ impl Audio {
     }
 }
 
-impl Modality for Audio {}
-
-impl Overlap for Audio {
+impl Overlap for AudioLocation {
     /// Two audio intervals overlap only when they target the same
     /// stream (matching `audio_id`) on the same `speaker_id` and
     /// their time spans intersect. Two voices captured on the same

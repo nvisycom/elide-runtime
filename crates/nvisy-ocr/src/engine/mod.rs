@@ -8,7 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use nvisy_core::entity::ModelProvenance;
 use nvisy_core::modality::{Image, ImageExtraction};
-use nvisy_core::{Error, RecognizerInput, Result};
+use nvisy_core::{Error, Extractor as CoreExtractor, RecognizerInput, Result};
 use tracing::instrument;
 
 use crate::core::{Backend, Context, ImageFormat, ImageInput, OcrOutput};
@@ -97,7 +97,7 @@ impl Extractor {
 /// hold images in other formats should re-encode before constructing
 /// the [`nvisy_core::ImageData`] payload.
 #[async_trait]
-impl nvisy_core::Extractor<Image> for Extractor {
+impl CoreExtractor<Image> for Extractor {
     type Output = Vec<OcrOutput>;
 
     fn extraction(&self) -> ImageExtraction {

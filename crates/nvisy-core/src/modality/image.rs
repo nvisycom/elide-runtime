@@ -1,5 +1,5 @@
-//! Image modality coordinate type plus the [`ImageExtraction`]
-//! provenance enum recording how the document was produced.
+//! [`Image`] modality marker, [`ImageLocation`] coordinate type, and
+//! the [`ImageExtraction`] provenance enum.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,11 +9,20 @@ use super::{Modality, Overlap};
 use crate::entity::ModelProvenance;
 use crate::primitive::{BoundingBox, Polygon};
 
+/// Image modality marker (zero-sized).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Image;
+
+impl Modality for Image {
+    type Location = ImageLocation;
+}
+
 /// A region within image content.
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Image {
+pub struct ImageLocation {
     /// Axis-aligned bounding box of the region.
     pub bounding_box: BoundingBox,
     /// Polygon vertices for the region when the source produced a
@@ -30,9 +39,9 @@ pub struct Image {
     pub page_number: Option<u32>,
 }
 
-impl Image {
-    /// Create an [`Image`] from the bounding box alone, with every
-    /// optional field unset.
+impl ImageLocation {
+    /// Create an [`ImageLocation`] from the bounding box alone, with
+    /// every optional field unset.
     pub fn new(bounding_box: BoundingBox) -> Self {
         Self {
             bounding_box,
@@ -48,9 +57,7 @@ impl Image {
     }
 }
 
-impl Modality for Image {}
-
-impl Overlap for Image {
+impl Overlap for ImageLocation {
     /// Two image regions overlap only when they target the same
     /// image (matching `image_id`) on the same page (matching
     /// `page_number`) and their bounding boxes intersect. Without

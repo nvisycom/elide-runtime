@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 use nvisy_core::ValueAt;
 use nvisy_core::entity::Entity;
-use nvisy_core::modality::Overlap;
+use nvisy_core::modality::{Modality, Overlap};
 
 use super::calibrate::CalibrateLayer;
 use super::filter::{FilterLayer, FilterParams};
@@ -32,12 +32,12 @@ const TARGET: &str = "nvisy_document::deduplication";
 /// `dyn ValueAt<M>`) so each layer's `value_at` call is
 /// monomorphised. Layers that don't touch the resolver compile
 /// against any `R: ValueAt<M>` uniformly.
-pub struct LayerPipeline<M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> {
+pub struct LayerPipeline<M: Modality, R: ValueAt<M> + ?Sized> {
     layers: Vec<Box<dyn Layer<M, R>>>,
     _marker: PhantomData<fn(&M, &R)>,
 }
 
-impl<M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> LayerPipeline<M, R> {
+impl<M: Modality, R: ValueAt<M> + ?Sized> LayerPipeline<M, R> {
     /// Empty pipeline. Use [`Self::with_layer`] to append layers.
     pub fn new() -> Self {
         Self {
@@ -88,7 +88,8 @@ impl<M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> LayerPipeline<M,
 
 impl<M, R> LayerPipeline<M, R>
 where
-    M: nvisy_core::modality::Modality + Overlap + SpanSize,
+    M: Modality,
+    M::Location: Overlap + SpanSize,
     R: ValueAt<M> + ?Sized,
 {
     /// Build the canonical four-layer dedup recipe: calibrate →
@@ -105,7 +106,7 @@ where
     }
 }
 
-impl<M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> Default for LayerPipeline<M, R> {
+impl<M: Modality, R: ValueAt<M> + ?Sized> Default for LayerPipeline<M, R> {
     fn default() -> Self {
         Self::new()
     }

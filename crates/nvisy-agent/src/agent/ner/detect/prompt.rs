@@ -179,7 +179,7 @@ fn ceil_char_boundary(s: &str, mut pos: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use nvisy_core::entity::EntityKind;
-    use nvisy_core::modality::Text;
+    use nvisy_core::modality::TextLocation;
 
     use super::*;
 
@@ -210,7 +210,7 @@ mod tests {
         let text = "Hello Alice, your invoice 12345 is ready.";
         let alice_start = text.find("Alice").unwrap();
         let hints = vec![
-            Hint::new(Text::new(alice_start, alice_start + 5))
+            Hint::new(TextLocation::new(alice_start, alice_start + 5))
                 .with_name("customer")
                 .with_entity_kind(EntityKind::PersonName),
         ];

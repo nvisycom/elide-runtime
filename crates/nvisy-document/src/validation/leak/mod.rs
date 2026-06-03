@@ -23,12 +23,14 @@
 
 use futures::StreamExt;
 use nvisy_core::modality::{Tabular, Text};
+use nvisy_toolkit::redaction::Redactable;
 use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 use super::check::{Check, CheckContext, Finding, FindingKind, Severity};
 use crate::core::{SharedHandle, ValueAt};
 use crate::document::Document;
+use crate::modality::DocumentModality;
 use crate::provenance::EntityRecord;
 
 /// A single leak detected by [`LeakCheck`].
@@ -59,7 +61,7 @@ pub struct LeakFinding {
 #[async_trait::async_trait]
 pub trait CheckLeaks<M, P>: Send + Sync
 where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
     P: ValueAt<M> + ?Sized,
 {
     /// Inspect `doc` and emit a typed list of leak findings.
@@ -139,7 +141,7 @@ where
 #[async_trait::async_trait]
 impl<M, P> Check<M, P> for LeakCheck
 where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
     P: ValueAt<M> + ?Sized,
     LeakCheck: CheckLeaks<M, P>,
 {
@@ -177,7 +179,7 @@ async fn check_text_like<M, P>(
     redacted_text: Option<&str>,
 ) -> Vec<LeakFinding>
 where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
     P: ValueAt<M> + ?Sized,
 {
     let applied: Vec<&EntityRecord<M>> = doc

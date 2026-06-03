@@ -140,6 +140,7 @@ impl CryptoService {
 #[cfg(test)]
 mod tests {
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
+    use nvisy_formats::decode;
 
     use super::*;
     use crate::phases::ingestion::encryption::{SharedKeyProvider, StaticKeyProvider};
@@ -153,7 +154,7 @@ mod tests {
         let data = ContentData::from_text(ContentSource::new(), "Hello, world!");
         let meta = ContentMetadata::new().with_content_type("text/plain");
         let content = Content::with_metadata(data, meta);
-        let doc = nvisy_formats::decode(&content).await.expect("decode text");
+        let doc = decode(&content).await.expect("decode text");
         std::sync::Arc::new(tokio::sync::Mutex::new(doc))
     }
 

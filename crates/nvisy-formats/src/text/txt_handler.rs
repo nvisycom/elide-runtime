@@ -14,7 +14,7 @@ use nvisy_codec::core::{Handle, Located, LocationStream};
 use nvisy_codec::handler::{Handler, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType, TextFormat};
-use nvisy_core::modality::Text;
+use nvisy_core::modality::{Text, TextLocation};
 
 use super::redact;
 
@@ -54,7 +54,7 @@ impl Handler for TxtHandler {
 
 #[async_trait::async_trait]
 impl Handle<Text> for TxtHandler {
-    fn locations(&self) -> LocationStream<'_, Text> {
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
         let source = self.source;
         let items: Vec<_> = self
             .line_offsets()
@@ -62,7 +62,7 @@ impl Handle<Text> for TxtHandler {
             .map(|(start, end)| {
                 Located::new(
                     source,
-                    Text {
+                    TextLocation {
                         start,
                         end,
                         ..Default::default()
@@ -73,7 +73,7 @@ impl Handle<Text> for TxtHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &Text) -> Option<TextData> {
+    async fn read(&self, location: &TextLocation) -> Option<TextData> {
         let offsets = self.line_offsets();
         let line_idx = offsets
             .iter()
@@ -85,7 +85,11 @@ impl Handle<Text> for TxtHandler {
         line.get(local_start..local_end).map(TextData::from)
     }
 
-    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
+    async fn redact_at(
+        &mut self,
+        location: &TextLocation,
+        redaction: TextRedaction,
+    ) -> Result<(), Error> {
         let offsets = self.line_offsets();
         let Some(line_idx) = offsets
             .iter()
@@ -198,7 +202,7 @@ mod tests {
     #[tokio::test]
     async fn read_returns_line() {
         let h = handler("hello\nworld\n");
-        let loc = Text {
+        let loc = TextLocation {
             start: 6,
             end: 11,
             ..Default::default()
@@ -209,7 +213,7 @@ mod tests {
     #[tokio::test]
     async fn read_cross_line_returns_none() {
         let h = handler("hello\nworld\n");
-        let loc = Text {
+        let loc = TextLocation {
             start: 3,
             end: 8,
             ..Default::default()
@@ -238,7 +242,7 @@ mod tests {
         let mut h = handler("hello world");
         let mut rs = Redactions::new();
         rs.push(
-            Text {
+            TextLocation {
                 start: 6,
                 end: 11,
                 ..Default::default()
@@ -273,7 +277,7 @@ mod tests {
         let mut h = handler("one line");
         let mut rs = Redactions::new();
         rs.push(
-            Text {
+            TextLocation {
                 start: 999,
                 end: 1000,
                 ..Default::default()

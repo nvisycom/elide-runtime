@@ -2,11 +2,13 @@
 //! audit entry produced for it during redaction.
 
 use nvisy_core::entity::Entity;
+use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::entry::AuditEntry;
+use crate::modality::DocumentModality;
 
 /// One per-entity record on an [`Audit<M>`]: the detected entity
 /// plus the audit entry produced for it during redaction (if any).
@@ -35,8 +37,7 @@ use super::entry::AuditEntry;
     )
 )]
 #[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
-pub struct EntityRecord<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>
-{
+pub struct EntityRecord<M: DocumentModality + Redactable> {
     /// The detected entity.
     pub entity: Entity<M>,
     /// The redaction record for this entity, if a strategy decided
@@ -45,7 +46,7 @@ pub struct EntityRecord<M: crate::modality::DocumentModality + nvisy_toolkit::re
     pub audit: Option<AuditEntry<M>>,
 }
 
-impl<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> EntityRecord<M> {
+impl<M: DocumentModality + Redactable> EntityRecord<M> {
     /// Wrap an [`Entity<M>`] with no audit decision yet.
     pub fn new(entity: Entity<M>) -> Self {
         Self {

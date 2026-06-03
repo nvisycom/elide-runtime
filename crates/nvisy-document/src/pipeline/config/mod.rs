@@ -23,6 +23,7 @@ mod redaction;
 
 use std::num::NonZeroUsize;
 
+use nvisy_core::Error;
 pub use nvisy_toolkit::deduplication::DeduplicationParams;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -112,12 +113,12 @@ impl RuntimeConfig {
     /// # Errors
     ///
     /// Returns a validation error listing all constraint violations.
-    pub fn validate(&self) -> Result<(), nvisy_core::Error> {
+    pub fn validate(&self) -> Result<(), Error> {
         use validator::Validate;
         if let Some(ref engine) = self.engine {
             engine
                 .validate()
-                .map_err(|e| nvisy_core::Error::validation(format!("engine: {e}"), "config"))?;
+                .map_err(|e| Error::validation(format!("engine: {e}"), "config"))?;
         }
         Ok(())
     }

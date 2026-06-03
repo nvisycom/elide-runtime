@@ -17,7 +17,7 @@
 //! [`Model`]: TrailProvenance::Model
 
 use nvisy_core::entity::{Entity, TrailStep};
-use nvisy_core::modality::Text;
+use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::Confidence;
 
 use super::localize::LocalizedCandidate;
@@ -53,7 +53,7 @@ where
             dropped_bad_confidence += 1;
             continue;
         };
-        let loc = Text::new(l.start_offset, l.end_offset);
+        let loc = TextLocation::new(l.start_offset, l.end_offset);
         let step = step_for(&l, confidence);
 
         let mut b = Entity::builder()

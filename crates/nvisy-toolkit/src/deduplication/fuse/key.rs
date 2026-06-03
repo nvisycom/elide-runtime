@@ -2,6 +2,7 @@
 
 use nvisy_core::ValueAt;
 use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::modality::Modality;
 
 use super::group::GroupingCriteria;
 
@@ -21,7 +22,7 @@ pub(super) struct GroupKey {
 }
 
 impl GroupKey {
-    pub(super) async fn new<M: nvisy_core::modality::Modality, V: ValueAt<M> + ?Sized>(
+    pub(super) async fn new<M: Modality, V: ValueAt<M> + ?Sized>(
         entity: &Entity<M>,
         criteria: GroupingCriteria,
         view: &V,

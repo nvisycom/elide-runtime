@@ -31,6 +31,7 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use nvisy_core::ValueAt;
 use nvisy_core::entity::Entity;
+use nvisy_core::modality::Modality;
 use uuid::Uuid;
 
 /// Read-only context every [`Layer::apply`] call receives.
@@ -48,7 +49,7 @@ use uuid::Uuid;
 /// ```
 ///
 /// [`RecognizerInput::correlation_id`]: nvisy_core::RecognizerInput::correlation_id
-pub struct LayerContext<'a, M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> {
+pub struct LayerContext<'a, M: Modality, R: ValueAt<M> + ?Sized> {
     /// Resolver for "what value sits at this location?". Layers that
     /// only inspect entity metadata can ignore this field.
     pub resolver: &'a R,
@@ -62,7 +63,7 @@ pub struct LayerContext<'a, M: nvisy_core::modality::Modality, R: ValueAt<M> + ?
     _marker: PhantomData<&'a M>,
 }
 
-impl<'a, M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> LayerContext<'a, M, R> {
+impl<'a, M: Modality, R: ValueAt<M> + ?Sized> LayerContext<'a, M, R> {
     /// Construct a context with just a value resolver; correlation
     /// id defaults to `None`.
     pub fn new(resolver: &'a R) -> Self {
@@ -88,7 +89,7 @@ impl<'a, M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> LayerContext
 /// or resolve conflicts return the discarded entities so the pipeline
 /// can roll up drop counts.
 #[async_trait]
-pub trait Layer<M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized>: Send + Sync {
+pub trait Layer<M: Modality, R: ValueAt<M> + ?Sized>: Send + Sync {
     /// Run this layer against `entities`. Returns the dropped vec.
     async fn apply(
         &self,

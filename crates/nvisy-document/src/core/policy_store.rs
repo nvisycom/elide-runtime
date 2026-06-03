@@ -19,9 +19,11 @@ use std::sync::Arc;
 
 use nvisy_core::content::ContentMetadata;
 use nvisy_core::entity::Entity;
+use nvisy_toolkit::redaction::Redactable;
 use type_map::concurrent::TypeMap;
 use uuid::Uuid;
 
+use crate::modality::DocumentModality;
 use crate::policy::{Action, Condition, Policy, PolicyRule, RuleRank};
 
 /// Heterogeneous container of policies across all modalities,
@@ -54,18 +56,12 @@ impl PolicyStore {
     /// preserved (callers feed policies in precedence order). The
     /// policy is held by [`Arc`] so it can also live in the
     /// registry's cross-run cache without copying.
-    pub fn insert<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>(
-        &mut self,
-        policy: Arc<Policy<M>>,
-    ) {
+    pub fn insert<M: DocumentModality + Redactable>(&mut self, policy: Arc<Policy<M>>) {
         self.bucket_mut::<M>().push(policy);
     }
 
     /// Replace the policy stack for modality `M`.
-    pub fn set<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>(
-        &mut self,
-        policies: Vec<Arc<Policy<M>>>,
-    ) {
+    pub fn set<M: DocumentModality + Redactable>(&mut self, policies: Vec<Arc<Policy<M>>>) {
         self.inner.insert::<Vec<Arc<Policy<M>>>>(policies);
     }
 
@@ -73,9 +69,7 @@ impl PolicyStore {
     /// slice when no policies of that modality have been inserted.
     /// Each element is an `Arc<Policy<M>>` — deref through it to
     /// read fields.
-    pub fn get<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>(
-        &self,
-    ) -> &[Arc<Policy<M>>] {
+    pub fn get<M: DocumentModality + Redactable>(&self) -> &[Arc<Policy<M>>] {
         self.inner
             .get::<Vec<Arc<Policy<M>>>>()
             .map(Vec::as_slice)
@@ -83,16 +77,12 @@ impl PolicyStore {
     }
 
     /// Number of policies stored for modality `M`.
-    pub fn len<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>(
-        &self,
-    ) -> usize {
+    pub fn len<M: DocumentModality + Redactable>(&self) -> usize {
         self.get::<M>().len()
     }
 
     /// `true` when no policies for modality `M` are stored.
-    pub fn is_empty<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>(
-        &self,
-    ) -> bool {
+    pub fn is_empty<M: DocumentModality + Redactable>(&self) -> bool {
         self.get::<M>().is_empty()
     }
 
@@ -107,9 +97,7 @@ impl PolicyStore {
     /// chain produced a decision; the caller's default-threshold
     /// path takes over. Crate-internal — the evaluator in
     /// `redaction::evaluate` is the only caller.
-    pub(crate) fn resolve<
-        M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
-    >(
+    pub(crate) fn resolve<M: DocumentModality + Redactable>(
         &self,
         entity: &Entity<M>,
         document_labels: &[&str],
@@ -146,9 +134,7 @@ impl PolicyStore {
         Decision::Fallthrough
     }
 
-    fn bucket_mut<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>(
-        &mut self,
-    ) -> &mut Vec<Arc<Policy<M>>> {
+    fn bucket_mut<M: DocumentModality + Redactable>(&mut self) -> &mut Vec<Arc<Policy<M>>> {
         self.inner
             .entry::<Vec<Arc<Policy<M>>>>()
             .or_insert_with(Vec::new)
@@ -162,9 +148,7 @@ impl std::fmt::Debug for PolicyStore {
 }
 
 /// Outcome of walking a per-modality policy chain for one entity.
-pub(crate) enum Decision<
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
-> {
+pub(crate) enum Decision<M: DocumentModality + Redactable> {
     /// A rule chose a strategy. `rank` locates the producing rule
     /// inside the chain for codec-side tiebreaking.
     Redact {
@@ -179,7 +163,7 @@ pub(crate) enum Decision<
     Fallthrough,
 }
 
-fn rule_matches<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable>(
+fn rule_matches<M: DocumentModality + Redactable>(
     rule: &PolicyRule<M>,
     entity: &Entity<M>,
     document_labels: &[&str],

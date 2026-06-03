@@ -19,19 +19,24 @@
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
 //! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
 
-#[cfg(feature = "image")]
 use futures::StreamExt;
 use nvisy_core::entity::Entity;
-use nvisy_core::modality::{Audio, Image, Overlap, Tabular, Text};
+#[cfg(feature = "image")]
+use nvisy_core::modality::Modality;
+use nvisy_core::modality::{
+    Audio, AudioLocation, Image, ImageLocation, Overlap, Tabular, TabularLocation, Text,
+    TextLocation,
+};
 #[cfg(feature = "image")]
 use nvisy_core::{Error, ImageData};
 use nvisy_core::{RecognizerInput, Result, TextData};
 use nvisy_toolkit::detection::RecognizerRegistry;
+use nvisy_toolkit::redaction::Redactable;
 use tracing::Instrument;
 
 use crate::core::{DocumentTree, NodeMut, RunContext, SharedHandle};
 use crate::document::{Document, Span};
-use crate::modality::ModalityBlock;
+use crate::modality::{DocumentModality, ModalityBlock};
 use crate::pipeline::{Detection, EngineInput};
 
 const TARGET: &str = "nvisy_engine::detection";
@@ -118,10 +123,8 @@ async fn detect_text_only<M>(
     run_id: uuid::Uuid,
 ) -> Result<()>
 where
-    M: crate::modality::DocumentModality
-        + nvisy_toolkit::redaction::Redactable
-        + LiftFromBlock
-        + Overlap,
+    M: DocumentModality + Redactable + LiftFromBlock,
+    M::Location: Overlap,
 {
     detect_text_blocks(registry, doc, cfg, run_id).await?;
     registry.reset().await;
@@ -172,10 +175,8 @@ async fn detect_text_blocks<M>(
     run_id: uuid::Uuid,
 ) -> Result<()>
 where
-    M: crate::modality::DocumentModality
-        + nvisy_toolkit::redaction::Redactable
-        + LiftFromBlock
-        + Overlap,
+    M: DocumentModality + Redactable + LiftFromBlock,
+    M::Location: Overlap,
 {
     if doc.blocks.is_empty() {
         return Ok(());
@@ -289,12 +290,14 @@ async fn detect_image_locations(
 /// Returns `None` when no span overlaps the requested range — the
 /// dispatcher discards such entities since there's no way to place
 /// them in modality coordinates.
-pub trait LiftFromBlock:
-    crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable + Sized
-{
-    /// Lift block-text byte range `[start, end)` to an absolute `M`
-    /// location.
-    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<Self>;
+pub trait LiftFromBlock: DocumentModality + Redactable + Sized {
+    /// Lift block-text byte range `[start, end)` to an absolute
+    /// modality-location.
+    fn lift_from_block(
+        spans: &[Span<Self>],
+        start: usize,
+        end: usize,
+    ) -> Option<<Self as Modality>::Location>;
 }
 
 impl LiftFromBlock for Text {
@@ -304,13 +307,13 @@ impl LiftFromBlock for Text {
     /// shifts `[start, end)` into that span's source range.
     /// Multi-span text blocks (rare today) take the first
     /// overlapping span as the anchor.
-    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<Self> {
+    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<TextLocation> {
         let span = spans.iter().find(|s| s.overlaps(start, end))?;
         let span_text_start = span.text_start;
         let source_base = span.source.start;
         let lifted_start = source_base + start.saturating_sub(span_text_start);
         let lifted_end = source_base + end.saturating_sub(span_text_start);
-        Some(Text::new(lifted_start, lifted_end))
+        Some(TextLocation::new(lifted_start, lifted_end))
     }
 }
 
@@ -321,12 +324,12 @@ impl LiftFromBlock for Tabular {
     /// to the in-cell substring. Cross-cell matches return the
     /// first overlapping cell's coordinates — they're rare and
     /// downstream redaction operates per-cell anyway.
-    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<Self> {
+    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<TabularLocation> {
         let span = spans.iter().find(|s| s.overlaps(start, end))?;
         let local_start = start.saturating_sub(span.text_start);
         let local_end = end.saturating_sub(span.text_start);
         let cell = &span.source;
-        Some(Tabular {
+        Some(TabularLocation {
             row_index: cell.row_index,
             column_index: cell.column_index,
             start_offset: Some(local_start),
@@ -342,7 +345,7 @@ impl LiftFromBlock for Image {
     /// bounding boxes, folded via [`BoundingBox::union`].
     ///
     /// [`BoundingBox::union`]: nvisy_core::primitive::BoundingBox::union
-    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<Self> {
+    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<ImageLocation> {
         let mut iter = spans.iter().filter(|s| s.overlaps(start, end));
         let first = iter.next()?;
         let mut bbox = first.source.bounding_box;
@@ -351,7 +354,7 @@ impl LiftFromBlock for Image {
         for s in iter {
             bbox = bbox.union(&s.source.bounding_box);
         }
-        Some(Image {
+        Some(ImageLocation {
             bounding_box: bbox,
             polygon: None,
             image_id,
@@ -363,7 +366,7 @@ impl LiftFromBlock for Image {
 impl LiftFromBlock for Audio {
     /// Audio entity location is the union of overlapping word-span
     /// time intervals on the same speaker.
-    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<Self> {
+    fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<AudioLocation> {
         let mut iter = spans.iter().filter(|s| s.overlaps(start, end));
         let first = iter.next()?;
         let mut time_span = first.source.time_span;
@@ -372,7 +375,7 @@ impl LiftFromBlock for Audio {
         for s in iter {
             time_span = time_span.union(&s.source.time_span);
         }
-        Some(Audio {
+        Some(AudioLocation {
             time_span,
             speaker_id,
             audio_id,

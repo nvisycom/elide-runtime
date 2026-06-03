@@ -1,8 +1,10 @@
 //! [`Block`] — universal wrapper around a per-modality block payload.
 
 use nvisy_core::primitive::Confidence;
+use nvisy_toolkit::redaction::Redactable;
 
 use super::Span;
+use crate::modality::DocumentModality;
 
 /// One block of a [`Document<M>`].
 ///
@@ -21,7 +23,7 @@ use super::Span;
 /// [`Document<M>`]: super::Document
 /// [`DocumentEnvelope`]: # "predecessor of DocumentTree"
 #[derive(Debug, Clone, PartialEq)]
-pub struct Block<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> {
+pub struct Block<M: DocumentModality + Redactable> {
     /// Modality-specific payload (variant + its data).
     pub kind: M::Block,
     /// Source-mapped spans into the block's text. Empty for non-
@@ -33,7 +35,7 @@ pub struct Block<M: crate::modality::DocumentModality + nvisy_toolkit::redaction
     pub confidence: Option<Confidence>,
 }
 
-impl<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> Block<M> {
+impl<M: DocumentModality + Redactable> Block<M> {
     /// Construct a new block with empty spans and no confidence.
     pub fn new(kind: M::Block) -> Self {
         Self {

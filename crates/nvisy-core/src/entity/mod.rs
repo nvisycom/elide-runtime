@@ -24,7 +24,6 @@ mod source;
 
 use derive_builder::Builder;
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -40,7 +39,7 @@ pub use self::method::{
 pub use self::source::ContentSource;
 use crate::modality::Modality;
 #[cfg(any(test, feature = "test-utils"))]
-use crate::modality::Text;
+use crate::modality::{Text, TextLocation};
 use crate::primitive::Confidence;
 
 /// A detected sensitive data occurrence within a document.
@@ -58,11 +57,7 @@ use crate::primitive::Confidence;
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
-#[serde(
-    rename_all = "camelCase",
-    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
-)]
-#[schemars(bound = "M: JsonSchema")]
+#[serde(rename_all = "camelCase")]
 pub struct Entity<M: Modality> {
     /// Unique identifier for this entity (UUIDv7).
     #[builder(default = "Uuid::now_v7()")]
@@ -77,7 +72,7 @@ pub struct Entity<M: Modality> {
     /// via [`Entity::category`].
     pub entity_kind: EntityKind,
     /// Modality-specific location of the entity within the document.
-    pub location: M,
+    pub location: M::Location,
     /// Detection confidence score in the range `[0.0, 1.0]`. Equals
     /// the `adjusted` score on the final step in `trail`.
     pub confidence: Confidence,
@@ -151,7 +146,7 @@ impl Entity<Text> {
                 "test fixture",
             )])
             .with_confidence(conf)
-            .with_location(Text::new(start, end))
+            .with_location(TextLocation::new(start, end))
     }
 }
 

@@ -1,5 +1,5 @@
-//! Text modality coordinate type plus the [`TextExtraction`]
-//! provenance enum recording how the document was produced.
+//! [`Text`] modality marker, [`TextLocation`] coordinate type, and
+//! the [`TextExtraction`] provenance enum.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -7,7 +7,20 @@ use serde::{Deserialize, Serialize};
 use super::{Modality, Overlap};
 use crate::entity::ModelProvenance;
 
-/// Half-open `[start, end)` byte range around a [`Text`] location,
+/// Text modality marker (zero-sized).
+///
+/// Used as the type parameter on generic carriers (`Entity<Text>`,
+/// `Hint<Text>`, `RecognizerInput<Text>`, …). The per-call payload
+/// (a [`TextLocation`]) is stored as `M::Location` on those carriers.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Text;
+
+impl Modality for Text {
+    type Location = TextLocation;
+}
+
+/// Half-open `[start, end)` byte range around a [`TextLocation`],
 /// used for the optional surrounding context window. The newtype
 /// makes the "both endpoints or none" invariant unrepresentable —
 /// the previous twin-`Option` fields allowed a `(Some, None)`
@@ -33,7 +46,7 @@ impl ContextWindow {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Text {
+pub struct TextLocation {
     /// Byte or character offset where the range starts.
     pub start: usize,
     /// Byte or character offset where the range ends.
@@ -46,9 +59,9 @@ pub struct Text {
     pub page_number: Option<u32>,
 }
 
-impl Text {
-    /// Create a [`Text`] covering `start..end` with all optional
-    /// fields unset.
+impl TextLocation {
+    /// Create a [`TextLocation`] covering `start..end` with all
+    /// optional fields unset.
     pub fn new(start: usize, end: usize) -> Self {
         Self {
             start,
@@ -69,8 +82,6 @@ impl Text {
     }
 }
 
-impl Modality for Text {}
-
 /// How a [`Document<Text>`]'s text content was produced.
 ///
 /// [`Document<Text>`]: # "carrier owned by nvisy-document"
@@ -87,7 +98,7 @@ pub enum TextExtraction {
     Recognized(ModelProvenance),
 }
 
-impl Overlap for Text {
+impl Overlap for TextLocation {
     /// Two text ranges overlap only when they share a page (or both
     /// have `page_number: None`) and their byte ranges intersect.
     /// Without the page gate, two ranges on different pages of the
@@ -104,28 +115,28 @@ mod tests {
 
     #[test]
     fn len_and_is_empty() {
-        assert_eq!(Text::new(0, 10).len(), 10);
-        assert!(!Text::new(0, 10).is_empty());
-        assert!(Text::new(5, 5).is_empty());
+        assert_eq!(TextLocation::new(0, 10).len(), 10);
+        assert!(!TextLocation::new(0, 10).is_empty());
+        assert!(TextLocation::new(5, 5).is_empty());
     }
 
     #[test]
     fn overlap_intersecting() {
-        assert!(Text::new(0, 10).overlaps(&Text::new(5, 15)));
+        assert!(TextLocation::new(0, 10).overlaps(&TextLocation::new(5, 15)));
     }
 
     #[test]
     fn overlap_contained() {
-        assert!(Text::new(0, 10).overlaps(&Text::new(2, 5)));
+        assert!(TextLocation::new(0, 10).overlaps(&TextLocation::new(2, 5)));
     }
 
     #[test]
     fn no_overlap_adjacent() {
-        assert!(!Text::new(0, 5).overlaps(&Text::new(5, 10)));
+        assert!(!TextLocation::new(0, 5).overlaps(&TextLocation::new(5, 10)));
     }
 
     #[test]
     fn no_overlap_disjoint() {
-        assert!(!Text::new(0, 5).overlaps(&Text::new(10, 15)));
+        assert!(!TextLocation::new(0, 5).overlaps(&TextLocation::new(10, 15)));
     }
 }

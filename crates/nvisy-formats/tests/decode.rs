@@ -8,6 +8,7 @@
 
 use nvisy_codec::DocumentHandle;
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
+use nvisy_formats::decode;
 
 fn content_with(body: &[u8], mime: &str) -> Content {
     let data = ContentData::new(ContentSource::new(), body.to_vec().into());
@@ -18,21 +19,21 @@ fn content_with(body: &[u8], mime: &str) -> Content {
 #[tokio::test]
 async fn decode_routes_txt_to_text_modality() {
     let content = content_with(b"hello\nworld\n", "text/plain");
-    let handle = nvisy_formats::decode(&content).await.expect("decode");
+    let handle = decode(&content).await.expect("decode");
     assert!(matches!(handle, DocumentHandle::Text(_)));
 }
 
 #[tokio::test]
 async fn decode_routes_json_to_text_modality() {
     let content = content_with(br#"{"k":"v"}"#, "application/json");
-    let handle = nvisy_formats::decode(&content).await.expect("decode");
+    let handle = decode(&content).await.expect("decode");
     assert!(matches!(handle, DocumentHandle::Text(_)));
 }
 
 #[tokio::test]
 async fn decode_routes_csv_to_tabular_modality() {
     let content = content_with(b"a,b,c\n1,2,3\n", "text/csv");
-    let handle = nvisy_formats::decode(&content).await.expect("decode");
+    let handle = decode(&content).await.expect("decode");
     assert!(matches!(handle, DocumentHandle::Tabular(_)));
 }
 
@@ -40,7 +41,7 @@ async fn decode_routes_csv_to_tabular_modality() {
 async fn decode_fails_without_mime() {
     let data = ContentData::new(ContentSource::new(), b"???".to_vec().into());
     let content = Content::with_metadata(data, ContentMetadata::new());
-    let err = nvisy_formats::decode(&content).await.unwrap_err();
+    let err = decode(&content).await.unwrap_err();
     let msg = format!("{err}");
     assert!(msg.contains("unable to detect"), "got: {msg}");
 }

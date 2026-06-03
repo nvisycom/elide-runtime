@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 
 use nvisy_core::entity::Entity;
+use nvisy_core::modality::Modality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +27,8 @@ impl ConflictResolution {
     /// strategy.
     pub(super) fn keeps_first<M>(&self, a: &Entity<M>, b: &Entity<M>) -> bool
     where
-        M: nvisy_core::modality::Modality + SpanSize,
+        M: Modality,
+        M::Location: SpanSize,
     {
         match self {
             Self::HighestConfidence => a.confidence.get() >= b.confidence.get(),

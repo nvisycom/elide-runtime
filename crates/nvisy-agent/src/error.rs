@@ -1,5 +1,6 @@
 //! Unified error type covering LLM provider, serialization, and tool failures.
 
+use nvisy_core::{Error as CoreError, ErrorKind as CoreErrorKind};
 use rig::audio_generation::AudioGenerationError;
 use rig::completion::{CompletionError, PromptError, StructuredOutputError};
 use rig::transcription::TranscriptionError;
@@ -110,25 +111,24 @@ impl From<AudioGenerationError> for Error {
 /// public API boundaries.
 ///
 /// [`CoreError`]: nvisy_core::Error
-pub(crate) fn convert<E: Into<Error>>(e: E) -> nvisy_core::Error {
-    nvisy_core::Error::from(e.into())
+pub(crate) fn convert<E: Into<Error>>(e: E) -> CoreError {
+    CoreError::from(e.into())
 }
 
-impl From<Error> for nvisy_core::Error {
+impl From<Error> for CoreError {
     fn from(err: Error) -> Self {
         match &err {
-            Error::Http(_) => nvisy_core::Error::connection(err.to_string(), "rig", true),
+            Error::Http(_) => CoreError::connection(err.to_string(), "rig", true),
             Error::Json(_) => {
-                nvisy_core::Error::new(nvisy_core::ErrorKind::Serialization, err.to_string())
-                    .with_component("rig")
+                CoreError::new(CoreErrorKind::Serialization, err.to_string()).with_component("rig")
             }
             Error::Provider(msg) => {
                 let retryable = is_retryable_provider_error(msg);
-                nvisy_core::Error::connection(err.to_string(), "rig", retryable)
+                CoreError::connection(err.to_string(), "rig", retryable)
             }
-            Error::Response(_) => nvisy_core::Error::runtime(err.to_string(), "rig", false),
-            Error::Request(_) => nvisy_core::Error::validation(err.to_string(), "rig"),
-            Error::Runtime(_) => nvisy_core::Error::runtime(err.to_string(), "rig", false),
+            Error::Response(_) => CoreError::runtime(err.to_string(), "rig", false),
+            Error::Request(_) => CoreError::validation(err.to_string(), "rig"),
+            Error::Runtime(_) => CoreError::runtime(err.to_string(), "rig", false),
         }
     }
 }
@@ -185,14 +185,14 @@ mod tests {
     #[test]
     fn provider_error_conversion_is_retryable() {
         let err = Error::Provider("Rate limit exceeded".to_string());
-        let core_err: nvisy_core::Error = err.into();
+        let core_err: CoreError = err.into();
         assert!(core_err.is_retryable());
     }
 
     #[test]
     fn provider_error_conversion_is_not_retryable() {
         let err = Error::Provider("invalid model".to_string());
-        let core_err: nvisy_core::Error = err.into();
+        let core_err: CoreError = err.into();
         assert!(!core_err.is_retryable());
     }
 }

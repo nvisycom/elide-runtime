@@ -16,11 +16,13 @@
 
 use derive_builder::Builder;
 use jiff::Timestamp;
+use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::modality::DocumentModality;
 use crate::policy::RuleRank;
 
 /// A per-entity redaction record produced during a pipeline run.
@@ -45,7 +47,7 @@ use crate::policy::RuleRank;
     )
 )]
 #[schemars(bound = "M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
-pub struct AuditEntry<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> {
+pub struct AuditEntry<M: DocumentModality + Redactable> {
     /// What the policy evaluator chose for this entity.
     pub decision: Decision<M>,
     /// What the codec applicator did (or didn't).
@@ -56,7 +58,7 @@ pub struct AuditEntry<M: crate::modality::DocumentModality + nvisy_toolkit::reda
     pub metadata: EntryMetadata,
 }
 
-impl<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> AuditEntry<M> {
+impl<M: DocumentModality + Redactable> AuditEntry<M> {
     /// Start building a new audit entry.
     pub fn builder() -> AuditEntryBuilder<M> {
         AuditEntryBuilder::default()
@@ -74,7 +76,7 @@ impl<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable
     )
 )]
 #[schemars(bound = "M::Strategy: JsonSchema")]
-pub struct Decision<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> {
+pub struct Decision<M: DocumentModality + Redactable> {
     /// Identifier of the policy that produced this decision. `None`
     /// when the decision came from a source outside the policy chain
     /// (e.g. the default-threshold fallback path).
@@ -104,7 +106,7 @@ pub struct Decision<M: crate::modality::DocumentModality + nvisy_toolkit::redact
     )
 )]
 #[schemars(bound = "M::Replacement: JsonSchema")]
-pub enum Execution<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> {
+pub enum Execution<M: DocumentModality + Redactable> {
     /// Decision recorded; applicator hasn't run yet.
     Pending,
     /// Applicator ran successfully. `replacement` records *what the
@@ -121,7 +123,7 @@ pub enum Execution<M: crate::modality::DocumentModality + nvisy_toolkit::redacti
     Suppressed,
 }
 
-impl<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> Execution<M> {
+impl<M: DocumentModality + Redactable> Execution<M> {
     /// `true` when the applicator finished and wrote a replacement.
     pub fn is_applied(&self) -> bool {
         matches!(self, Self::Applied { .. })

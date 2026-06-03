@@ -11,7 +11,7 @@ use nvisy_codec::core::{Handle, LocationStream};
 use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType, SpreadsheetFormat};
-use nvisy_core::modality::Tabular;
+use nvisy_core::modality::{Tabular, TabularLocation};
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {
@@ -51,17 +51,17 @@ impl Handler for XlsxHandler {
 
 #[async_trait::async_trait]
 impl Handle<Tabular> for XlsxHandler {
-    fn locations(&self) -> LocationStream<'_, Tabular> {
+    fn locations(&self) -> LocationStream<'_, TabularLocation> {
         LocationStream::empty()
     }
 
-    async fn read(&self, _location: &Tabular) -> Option<TextData> {
+    async fn read(&self, _location: &TabularLocation) -> Option<TextData> {
         None
     }
 
     async fn redact_at(
         &mut self,
-        _location: &Tabular,
+        _location: &TabularLocation,
         _redaction: TabularRedaction,
     ) -> Result<(), Error> {
         Ok(())

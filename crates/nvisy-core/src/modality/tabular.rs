@@ -1,5 +1,5 @@
-//! Tabular modality coordinate type plus the [`TabularExtraction`]
-//! provenance enum recording how the document was produced.
+//! [`Tabular`] modality marker, [`TabularLocation`] coordinate type,
+//! and the [`TabularExtraction`] provenance enum.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -7,11 +7,20 @@ use serde::{Deserialize, Serialize};
 use super::{Modality, Overlap};
 use crate::entity::ModelProvenance;
 
+/// Tabular modality marker (zero-sized).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Tabular;
+
+impl Modality for Tabular {
+    type Location = TabularLocation;
+}
+
 /// A cell (or sub-cell range) within tabular content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Tabular {
+pub struct TabularLocation {
     /// Row index (0-based).
     pub row_index: u32,
     /// Column index (0-based).
@@ -30,10 +39,10 @@ pub struct Tabular {
     pub sheet_name: Option<String>,
 }
 
-impl Tabular {
-    /// Create a [`Tabular`] for the given cell coordinates, with every
-    /// optional field (intra-cell offsets, column name, sheet name)
-    /// unset.
+impl TabularLocation {
+    /// Create a [`TabularLocation`] for the given cell coordinates,
+    /// with every optional field (intra-cell offsets, column name,
+    /// sheet name) unset.
     pub fn new(row_index: u32, column_index: u32) -> Self {
         Self {
             row_index,
@@ -58,9 +67,7 @@ impl Tabular {
     }
 }
 
-impl Modality for Tabular {}
-
-impl Overlap for Tabular {
+impl Overlap for TabularLocation {
     /// Two tabular ranges overlap only when they target the same
     /// cell — matching `row_index`, `column_index`, **and**
     /// `sheet_name` — and their intra-cell byte ranges intersect.
@@ -118,22 +125,22 @@ impl TabularExtraction {
 mod tests {
     use super::*;
 
-    fn cell_with_offsets(row: u32, col: u32, start: usize, end: usize) -> Tabular {
-        Tabular {
+    fn cell_with_offsets(row: u32, col: u32, start: usize, end: usize) -> TabularLocation {
+        TabularLocation {
             start_offset: Some(start),
             end_offset: Some(end),
-            ..Tabular::new(row, col)
+            ..TabularLocation::new(row, col)
         }
     }
 
     #[test]
     fn overlap_same_cell_no_offsets() {
-        assert!(Tabular::new(0, 0).overlaps(&Tabular::new(0, 0)));
+        assert!(TabularLocation::new(0, 0).overlaps(&TabularLocation::new(0, 0)));
     }
 
     #[test]
     fn no_overlap_different_row() {
-        assert!(!Tabular::new(0, 0).overlaps(&Tabular::new(1, 0)));
+        assert!(!TabularLocation::new(0, 0).overlaps(&TabularLocation::new(1, 0)));
     }
 
     #[test]
@@ -148,6 +155,6 @@ mod tests {
 
     #[test]
     fn overlap_same_cell_one_has_offsets() {
-        assert!(Tabular::new(0, 0).overlaps(&cell_with_offsets(0, 0, 5, 10)));
+        assert!(TabularLocation::new(0, 0).overlaps(&cell_with_offsets(0, 0, 5, 10)));
     }
 }

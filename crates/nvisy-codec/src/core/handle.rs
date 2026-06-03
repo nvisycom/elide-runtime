@@ -60,12 +60,12 @@ pub trait Handle<M: Codable>: Handler {
     /// each tagged with the handler's [`ContentSource`].
     ///
     /// [`ContentSource`]: nvisy_core::content::ContentSource
-    fn locations(&self) -> LocationStream<'_, M>;
+    fn locations(&self) -> LocationStream<'_, M::Location>;
 
     /// Read the per-modality payload at the given location.
     ///
     /// Returns `None` if the location is out of bounds.
-    async fn read(&self, location: &M) -> Option<M::Data>;
+    async fn read(&self, location: &M::Location) -> Option<M::Data>;
 
     /// Apply a single redaction at the given location, mutating in
     /// place. Implementations need not handle iteration or overlap —
@@ -73,7 +73,11 @@ pub trait Handle<M: Codable>: Handler {
     /// at a time in insertion order.
     ///
     /// [`redact`]: Handle::redact
-    async fn redact_at(&mut self, location: &M, redaction: M::Redaction) -> Result<(), Error>;
+    async fn redact_at(
+        &mut self,
+        location: &M::Location,
+        redaction: M::Redaction,
+    ) -> Result<(), Error>;
 
     /// Apply every `(location, redaction)` pair in `redactions` to
     /// the handler in insertion order. The first error aborts the
@@ -81,7 +85,10 @@ pub trait Handle<M: Codable>: Handler {
     ///
     /// Handlers with ordering constraints (e.g. audio time-span
     /// merging) override this default with their own batched logic.
-    async fn redact(&mut self, redactions: Redactions<M, M::Redaction>) -> Result<(), Error> {
+    async fn redact(
+        &mut self,
+        redactions: Redactions<M::Location, M::Redaction>,
+    ) -> Result<(), Error> {
         for (location, redaction) in redactions.items {
             self.redact_at(&location, redaction).await?;
         }

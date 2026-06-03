@@ -30,13 +30,15 @@ use nvisy_core::Result;
 use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata};
 use nvisy_core::entity::{Annotation, LabelAnnotation};
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
+use nvisy_formats::decode;
+use nvisy_toolkit::redaction::Redactable;
 use tokio::sync::Mutex;
 
 use crate::core::{AnyDocument, DocumentTree, SharedData, SharedHandle};
 use crate::document::Document;
 use crate::modality::{
-    AudioExtraction, AudioMetadata, ImageExtraction, ImageMetadata, TabularExtraction,
-    TabularMetadata, TextExtraction, TextMetadata,
+    AudioExtraction, AudioMetadata, DocumentModality, ImageExtraction, ImageMetadata,
+    TabularExtraction, TabularMetadata, TextExtraction, TextMetadata,
 };
 use crate::phases::ingestion::compression::CompressionService;
 use crate::phases::ingestion::encryption::{CryptoService, EncryptedContent};
@@ -98,7 +100,7 @@ impl Importer {
             content = replace_data(content, decrypted_data);
         }
 
-        let doc = nvisy_formats::decode(&content).await?;
+        let doc = decode(&content).await?;
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
         let mut metadata = content.into_parts().1.unwrap_or_default();
         let annotations = mem::take(&mut metadata.annotations);
@@ -204,9 +206,7 @@ async fn dispatch(
 ///
 /// [`Assert`]: nvisy_core::entity::AnnotationStrength::Assert
 /// [`Hint`]: nvisy_core::entity::AnnotationStrength::Hint
-fn attach_annotations<
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
->(
+fn attach_annotations<M: DocumentModality + Redactable>(
     doc: &mut Document<M>,
     annotations: Vec<Annotation<M>>,
     labels: Vec<LabelAnnotation>,
@@ -258,6 +258,7 @@ mod tests {
         Annotation, AnnotationKind, AnnotationStrength, EntityKind, LabelAnnotation,
         TrailProvenance,
     };
+    use nvisy_core::modality::TextLocation;
 
     use super::*;
     use crate::core::SharedData;
@@ -306,7 +307,7 @@ mod tests {
             name: Some("uploader".into()),
             kind: AnnotationKind::Inclusion {
                 entity_kind: Some(EntityKind::PersonName),
-                target: Text::new(0, 8),
+                target: TextLocation::new(0, 8),
                 strength: AnnotationStrength::Assert,
             },
         };
@@ -322,7 +323,7 @@ mod tests {
         assert_eq!(doc.audit.records.len(), 1);
         let entity = &doc.audit.records[0].entity;
         assert_eq!(entity.entity_kind, EntityKind::PersonName);
-        assert_eq!(entity.location, Text::new(0, 8));
+        assert_eq!(entity.location, TextLocation::new(0, 8));
         assert!(
             entity
                 .trail
@@ -339,7 +340,7 @@ mod tests {
             name: None,
             kind: AnnotationKind::Inclusion {
                 entity_kind: Some(EntityKind::PersonName),
-                target: Text::new(0, 4),
+                target: TextLocation::new(0, 4),
                 strength: AnnotationStrength::Hint { confidence: None },
             },
         };

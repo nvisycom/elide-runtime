@@ -223,7 +223,7 @@ mod tests {
     use crate::entity::{
         EntityKind, ModelProvenance, PatternProvenance, TrailProvenance, TrailStepKind,
     };
-    use crate::modality::Text;
+    use crate::modality::{Text, TextLocation};
 
     fn pattern_entity(name: &str, span: std::ops::Range<usize>) -> Entity<Text> {
         let confidence = Confidence::new(0.6).unwrap();
@@ -243,7 +243,7 @@ mod tests {
             .with_entity_kind(EntityKind::GovernmentId)
             .with_trail(vec![step])
             .with_confidence(confidence)
-            .with_location(Text::new(span.start, span.end))
+            .with_location(TextLocation::new(span.start, span.end))
             .build()
             .expect("entity builds")
     }
@@ -261,7 +261,7 @@ mod tests {
             .with_entity_kind(EntityKind::PersonName)
             .with_trail(vec![step])
             .with_confidence(confidence)
-            .with_location(Text::new(span.start, span.end))
+            .with_location(TextLocation::new(span.start, span.end))
             .build()
             .expect("entity builds")
     }

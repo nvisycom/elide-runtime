@@ -23,7 +23,6 @@
 //! [`Exclusion`]: AnnotationKind::Exclusion
 
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::{AnnotationProvenance, Entity, EntityKind, TrailProvenance, TrailStep};
@@ -77,12 +76,7 @@ pub enum AnnotationStrength {
 /// [`LabelAnnotation`] because they don't carry a modality
 /// parameter.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(
-    tag = "kind",
-    rename_all = "snake_case",
-    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
-)]
-#[schemars(bound = "M: JsonSchema")]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AnnotationKind<M: Modality> {
     /// Pre-identified region the user wants treated as sensitive.
     Inclusion {
@@ -97,7 +91,7 @@ pub enum AnnotationKind<M: Modality> {
         #[serde(skip_serializing_if = "Option::is_none")]
         entity_kind: Option<EntityKind>,
         /// Modality-specific location this inclusion targets.
-        target: M,
+        target: M::Location,
         /// Whether this is an advisory [`Hint`] (LLM may reject) or
         /// a hard [`Assert`] (engine enforces regardless of
         /// detectors). Lives on `Inclusion` only because exclusions
@@ -114,17 +108,13 @@ pub enum AnnotationKind<M: Modality> {
     /// a user's safety claim would defeat the point.
     Exclusion {
         /// Modality-specific location this exclusion targets.
-        target: M,
+        target: M::Location,
     },
 }
 
 /// A user-provided region annotation on a content region.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(
-    rename_all = "camelCase",
-    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
-)]
-#[schemars(bound = "M: JsonSchema")]
+#[serde(rename_all = "camelCase")]
 pub struct Annotation<M: Modality> {
     /// Optional human-readable name for this annotation.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -206,7 +196,8 @@ impl LabelAnnotation {
 /// [`Exclusion`]: AnnotationKind::Exclusion
 pub fn is_excluded<M>(annotations: &[Annotation<M>], entity: &Entity<M>) -> bool
 where
-    M: Modality + Overlap,
+    M: Modality,
+    M::Location: Overlap,
 {
     annotations.iter().any(|ann| {
         let AnnotationKind::Exclusion { target } = &ann.kind else {
@@ -220,7 +211,7 @@ where
 mod tests {
     use super::*;
     use crate::entity::EntityCategory;
-    use crate::modality::Text;
+    use crate::modality::{Image, ImageLocation, Text, TextLocation};
     use crate::primitive::BoundingBox;
 
     fn inclusion(start: usize, end: usize, strength: AnnotationStrength) -> Annotation<Text> {
@@ -228,7 +219,7 @@ mod tests {
             name: None,
             kind: AnnotationKind::Inclusion {
                 entity_kind: Some(EntityKind::PersonName),
-                target: Text::new(start, end),
+                target: TextLocation::new(start, end),
                 strength,
             },
         }
@@ -238,7 +229,7 @@ mod tests {
         Annotation {
             name: None,
             kind: AnnotationKind::Exclusion {
-                target: Text::new(start, end),
+                target: TextLocation::new(start, end),
             },
         }
     }
@@ -255,7 +246,7 @@ mod tests {
     fn assert_inclusion_produces_entity_at_location() {
         let ann = inclusion(0, 10, AnnotationStrength::Assert);
         let entity = ann.to_inclusion_entity().unwrap();
-        assert_eq!(entity.location, Text::new(0, 10));
+        assert_eq!(entity.location, TextLocation::new(0, 10));
         assert!((entity.confidence.get() - 1.0).abs() < f64::EPSILON);
     }
 
@@ -267,11 +258,11 @@ mod tests {
 
     #[test]
     fn unclassified_assert_inclusion_falls_back_to_unresolved() {
-        let ann = Annotation {
+        let ann: Annotation<Text> = Annotation {
             name: None,
             kind: AnnotationKind::Inclusion {
                 entity_kind: None,
-                target: Text::new(0, 10),
+                target: TextLocation::new(0, 10),
                 strength: AnnotationStrength::Assert,
             },
         };
@@ -288,13 +279,12 @@ mod tests {
 
     #[test]
     fn assert_inclusion_image() {
-        use crate::modality::Image;
         let bbox = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
         let ann: Annotation<Image> = Annotation {
             name: Some("face".into()),
             kind: AnnotationKind::Inclusion {
                 entity_kind: Some(EntityKind::PersonName),
-                target: Image::new(bbox),
+                target: ImageLocation::new(bbox),
                 strength: AnnotationStrength::Assert,
             },
         };

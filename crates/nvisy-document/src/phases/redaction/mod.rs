@@ -32,11 +32,13 @@ use nvisy_core::content::ContentMetadata;
 use nvisy_core::entity::is_excluded;
 use nvisy_core::modality::Overlap;
 use nvisy_core::primitive::ConfidenceThreshold;
+use nvisy_toolkit::redaction::Redactable;
 
 use self::evaluate::TARGET;
 pub use self::evaluate::{ApplyRedactions, ApplyRedactionsImpl};
 use crate::core::{DocumentView, PolicyStore, SharedHandle, ValueAt};
 use crate::document::Document;
+use crate::modality::DocumentModality;
 
 /// Body of the redaction phase, parameterised on the resolved
 /// `default_threshold`. Public to the crate so both the phase
@@ -50,7 +52,8 @@ pub(crate) async fn run_redaction<M>(
     policies: &PolicyStore,
 ) -> Result<()>
 where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable + Overlap,
+    M: DocumentModality + Redactable,
+    M::Location: Overlap,
     for<'a> DocumentView<'a, M>: ValueAt<M>,
     ApplyRedactionsImpl: ApplyRedactions<M>,
 {

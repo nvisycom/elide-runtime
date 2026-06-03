@@ -5,7 +5,7 @@
 
 use std::cmp::Ordering;
 
-use nvisy_core::modality::{Audio, Image, Tabular, Text};
+use nvisy_core::modality::{AudioLocation, ImageLocation, TabularLocation, TextLocation};
 
 /// Extension trait for comparing the spatial/temporal extent of two
 /// locations of the same modality.
@@ -23,19 +23,19 @@ pub trait SpanSize {
     fn span_cmp(&self, other: &Self) -> Option<Ordering>;
 }
 
-impl SpanSize for Text {
+impl SpanSize for TextLocation {
     fn span_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.len().cmp(&other.len()))
     }
 }
 
-impl SpanSize for Image {
+impl SpanSize for ImageLocation {
     fn span_cmp(&self, other: &Self) -> Option<Ordering> {
         self.area().partial_cmp(&other.area())
     }
 }
 
-impl SpanSize for Audio {
+impl SpanSize for AudioLocation {
     fn span_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(
             self.time_span
@@ -45,7 +45,7 @@ impl SpanSize for Audio {
     }
 }
 
-impl SpanSize for Tabular {
+impl SpanSize for TabularLocation {
     fn span_cmp(&self, other: &Self) -> Option<Ordering> {
         let len_a = self
             .end_offset
@@ -69,28 +69,28 @@ mod tests {
 
     #[test]
     fn text_larger_span_wins() {
-        let a = Text::new(0, 10);
-        let b = Text::new(0, 5);
+        let a = TextLocation::new(0, 10);
+        let b = TextLocation::new(0, 5);
         assert_eq!(a.span_cmp(&b), Some(Ordering::Greater));
         assert_eq!(b.span_cmp(&a), Some(Ordering::Less));
     }
 
     #[test]
     fn text_equal_spans() {
-        let a = Text::new(0, 5);
-        let b = Text::new(3, 8);
+        let a = TextLocation::new(0, 5);
+        let b = TextLocation::new(3, 8);
         assert_eq!(a.span_cmp(&b), Some(Ordering::Equal));
     }
 
     #[test]
     fn image_larger_area_wins() {
-        let a = Image::new(BoundingBox {
+        let a = ImageLocation::new(BoundingBox {
             x: 0.0,
             y: 0.0,
             width: 100.0,
             height: 100.0,
         });
-        let b = Image::new(BoundingBox {
+        let b = ImageLocation::new(BoundingBox {
             x: 0.0,
             y: 0.0,
             width: 50.0,
@@ -102,8 +102,8 @@ mod tests {
 
     #[test]
     fn audio_longer_duration_wins() {
-        let a = Audio::new(TimeSpan::new(0, 10_000_000));
-        let b = Audio::new(TimeSpan::new(0, 5_000_000));
+        let a = AudioLocation::new(TimeSpan::new(0, 10_000_000));
+        let b = AudioLocation::new(TimeSpan::new(0, 5_000_000));
         assert_eq!(a.span_cmp(&b), Some(Ordering::Greater));
     }
 }

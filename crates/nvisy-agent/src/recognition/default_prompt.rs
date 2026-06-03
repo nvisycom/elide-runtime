@@ -15,7 +15,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use nvisy_core::RecognizerInput;
 use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_core::modality::{Image, Text};
+use nvisy_core::modality::{Image, ImageLocation, Text, TextLocation};
 use nvisy_core::primitive::Confidence;
 use schemars::Schema;
 
@@ -74,7 +74,7 @@ impl Prompt<Text> for DefaultPrompt {
             let Some(confidence) = Confidence::new(raw.clamp(0.0, 1.0)) else {
                 continue;
             };
-            let location = Text::new(l.start_offset, l.end_offset);
+            let location = TextLocation::new(l.start_offset, l.end_offset);
             let reason = format!("llm identified {entity_kind}");
             let step = TrailStep::recognition(
                 "llm-ner",
@@ -121,7 +121,7 @@ impl Prompt<Image> for DefaultPrompt {
                 continue;
             };
             let bbox = d.bbox.to_pixel(dims);
-            let location = Image::new(bbox);
+            let location = ImageLocation::new(bbox);
             let reason = format!("vlm identified {}", d.entity_kind);
             let step = TrailStep::recognition(
                 "llm-vlm",

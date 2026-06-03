@@ -22,12 +22,14 @@
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
+use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::core::{SharedHandle, ValueAt};
 use crate::document::Document;
+use crate::modality::DocumentModality;
 
 /// Read-only context every [`Check::check`] call receives.
 ///
@@ -47,7 +49,7 @@ use crate::document::Document;
 /// [`LayerContext`]: nvisy_toolkit::deduplication::LayerContext
 pub struct CheckContext<'a, M, P>
 where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
     P: ValueAt<M> + ?Sized,
 {
     /// Resolver for "what value sits at this location?" Backed by
@@ -67,7 +69,7 @@ where
 
 impl<'a, M, P> CheckContext<'a, M, P>
 where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
     P: ValueAt<M> + ?Sized,
 {
     /// Build a context from the resolver + handle.
@@ -158,7 +160,7 @@ pub struct Finding {
 #[async_trait]
 pub trait Check<M, P>: Send + Sync
 where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
     P: ValueAt<M> + ?Sized,
 {
     /// Inspect `doc` and emit a list of findings.

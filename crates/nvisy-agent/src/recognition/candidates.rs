@@ -7,7 +7,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Serde wrapper matching the model's `{"entities": [...]}`
-/// response for the [`Text`](nvisy_core::modality::Text) modality.
+/// response for the [`Text`] modality.
+///
+/// [`Text`]: nvisy_core::modality::Text
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub(super) struct TextCandidates {
     /// Detected candidates.
@@ -43,7 +45,9 @@ pub(super) struct TextCandidate {
 }
 
 /// Serde wrapper matching the model's `{"entities": [...]}`
-/// response for the [`Image`](nvisy_core::modality::Image) modality.
+/// response for the [`Image`] modality.
+///
+/// [`Image`]: nvisy_core::modality::Image
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub(super) struct VlmCandidates {
     pub entities: Vec<VlmCandidate>,

@@ -12,8 +12,8 @@
 //! [`LlmRecognizer`]: super::LlmRecognizer
 //! [`LlmRecognizerBuilder::with_prompt`]: super::LlmRecognizerBuilder::with_prompt
 
-use nvisy_core::RecognizerInput;
 use nvisy_core::entity::Entity;
+use nvisy_core::{ModalityData, RecognizerInput};
 
 use crate::backend::LlmResponse;
 
@@ -27,7 +27,7 @@ use crate::backend::LlmResponse;
 /// indices, etc.) by construction.
 pub trait Prompt<M>: Send + Sync + 'static
 where
-    M: nvisy_core::ModalityData,
+    M: ModalityData,
 {
     /// Render the user prompt for `input`. Fold in source data,
     /// hints, labels, and any base64-encoded binary payloads
@@ -44,6 +44,8 @@ where
     }
 
     /// Parse the response text into entities. The recognizer wraps
-    /// these into a [`RecognizerOutput`](nvisy_core::RecognizerOutput).
+    /// these into a [`RecognizerOutput`].
+    ///
+    /// [`RecognizerOutput`]: nvisy_core::RecognizerOutput
     fn lift(&self, response: &LlmResponse, input: &RecognizerInput<M>) -> Vec<Entity<M>>;
 }

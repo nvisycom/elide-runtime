@@ -20,7 +20,7 @@ use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_core::modality::Image;
+use nvisy_core::modality::{Image, ImageLocation};
 use nvisy_core::primitive::{Confidence, Dimensions};
 use nvisy_core::{EntityRecognizer, RecognizerInput, RecognizerOutput, Result};
 use uuid::Uuid;
@@ -90,7 +90,7 @@ impl VlmAgent {
                 continue;
             };
             let bbox = d.bbox.to_pixel(dims);
-            let location = Image::new(bbox);
+            let location = ImageLocation::new(bbox);
             let provenance = TrailProvenance::Model(model.clone());
             let reason = format!("vlm '{}' identified {}", model.name, d.entity_kind);
             let step = TrailStep::recognition("llm-vlm", confidence, provenance, reason);

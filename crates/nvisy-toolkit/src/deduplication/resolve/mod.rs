@@ -11,7 +11,7 @@ mod strategy;
 use async_trait::async_trait;
 use nvisy_core::ValueAt;
 use nvisy_core::entity::Entity;
-use nvisy_core::modality::Overlap;
+use nvisy_core::modality::{Modality, Overlap};
 
 pub use self::strategy::ConflictResolution;
 use super::layer::{Layer, LayerContext};
@@ -37,7 +37,8 @@ impl ResolveConflictsLayer {
 #[async_trait]
 impl<M, R> Layer<M, R> for ResolveConflictsLayer
 where
-    M: nvisy_core::modality::Modality + Overlap + SpanSize,
+    M: Modality,
+    M::Location: Overlap + SpanSize,
     R: ValueAt<M> + ?Sized,
 {
     async fn apply(
@@ -115,7 +116,8 @@ mod tests {
 
     async fn apply<M>(strategy: ConflictResolution, entities: &mut Vec<Entity<M>>) -> Vec<Entity<M>>
     where
-        M: nvisy_core::modality::Modality + Overlap + SpanSize,
+        M: Modality,
+        M::Location: Overlap + SpanSize,
     {
         let resolver = test_resolver::<M>();
         let ctx = LayerContext::new(&*resolver);

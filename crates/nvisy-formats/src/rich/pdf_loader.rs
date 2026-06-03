@@ -6,6 +6,7 @@
 //! [`lopdf`]: https://docs.rs/lopdf
 
 use nvisy_codec::handler::Loader;
+use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 
 use super::RichTextHandler;
@@ -33,7 +34,7 @@ impl Loader for PdfLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<RichTextHandler, nvisy_core::Error> {
+    ) -> Result<RichTextHandler, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
 

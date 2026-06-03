@@ -8,7 +8,10 @@ use std::sync::Arc;
 use nvisy_codec::DocumentHandle;
 use nvisy_codec::handler::TextData;
 use nvisy_core::ValueAt;
-use nvisy_core::modality::{Audio, Image, Tabular, Text};
+use nvisy_core::modality::{
+    Audio, AudioLocation, Image, ImageLocation, Tabular, TabularLocation, Text, TextLocation,
+};
+use nvisy_toolkit::redaction::Redactable;
 use tokio::sync::Mutex;
 
 use crate::document::Document;
@@ -29,7 +32,7 @@ pub type SharedHandle = Arc<Mutex<DocumentHandle>>;
 /// [`ValueAt`] impls. Phase bodies that need to resolve source
 /// text at a typed location take a `&DocumentView<'_, M>` constructed
 /// once at the top of their dispatch.
-pub struct DocumentView<'a, M: DocumentModality + nvisy_toolkit::redaction::Redactable> {
+pub struct DocumentView<'a, M: DocumentModality + Redactable> {
     /// The document the value resolver reads from. For image/audio
     /// modalities this is the source of the recognised text (no
     /// handle lookup); for text/tabular the handle is consulted.
@@ -39,7 +42,7 @@ pub struct DocumentView<'a, M: DocumentModality + nvisy_toolkit::redaction::Reda
     pub handle: &'a SharedHandle,
 }
 
-impl<'a, M: DocumentModality + nvisy_toolkit::redaction::Redactable> DocumentView<'a, M> {
+impl<'a, M: DocumentModality + Redactable> DocumentView<'a, M> {
     /// Construct a doc+handle view. Borrow-only — does not take
     /// ownership and does not lock the handle.
     pub fn new(doc: &'a Document<M>, handle: &'a SharedHandle) -> Self {
@@ -52,7 +55,7 @@ impl ValueAt<Text> for DocumentView<'_, Text> {
     /// Resolve a [`Text`] location to its source text via the codec
     /// handle. Returns `None` when the handle has no readable bytes
     /// at the location.
-    async fn value_at(&self, location: &Text) -> Option<String> {
+    async fn value_at(&self, location: &TextLocation) -> Option<String> {
         self.handle
             .lock()
             .await
@@ -66,7 +69,7 @@ impl ValueAt<Text> for DocumentView<'_, Text> {
 impl ValueAt<Tabular> for DocumentView<'_, Tabular> {
     /// Resolve a [`Tabular`] location to its source cell value via
     /// the codec handle.
-    async fn value_at(&self, location: &Tabular) -> Option<String> {
+    async fn value_at(&self, location: &TabularLocation) -> Option<String> {
         self.handle
             .lock()
             .await
@@ -82,7 +85,7 @@ impl ValueAt<Image> for DocumentView<'_, Image> {
     /// region by walking the document's blocks. Exact bounding-box
     /// match against a block's `region` returns the whole block
     /// text; sub-region matches consult the block's `spans`.
-    async fn value_at(&self, location: &Image) -> Option<String> {
+    async fn value_at(&self, location: &ImageLocation) -> Option<String> {
         for block in &self.doc.blocks {
             let (text, region) = match &block.kind {
                 ImageBlock::Text { text, region }
@@ -106,7 +109,7 @@ impl ValueAt<Audio> for DocumentView<'_, Audio> {
     /// Resolve an [`Audio`] location to the transcript at that time
     /// span by walking the document's blocks. Exact match returns
     /// the whole `Speech` block; sub-segment matches consult spans.
-    async fn value_at(&self, location: &Audio) -> Option<String> {
+    async fn value_at(&self, location: &AudioLocation) -> Option<String> {
         for block in &self.doc.blocks {
             let AudioBlock::Speech {
                 text, time_span, ..

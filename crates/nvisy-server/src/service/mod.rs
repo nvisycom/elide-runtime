@@ -6,6 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
+use nvisy_core::Result;
 use nvisy_document::phases::ingestion::registry::Registry;
 use nvisy_document::pipeline::{Engine, RuntimeConfig};
 
@@ -26,7 +27,7 @@ impl ServiceState {
     /// # Errors
     ///
     /// Returns an error if the registry database cannot be opened.
-    pub async fn new(config: RuntimeConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
+    pub async fn new(config: RuntimeConfig, data_dir: PathBuf) -> Result<Self> {
         let engine = Engine::open(data_dir, config).await?;
         let registry = engine.registry().clone();
         Ok(Self { engine, registry })

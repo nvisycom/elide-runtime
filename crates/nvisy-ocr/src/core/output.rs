@@ -11,7 +11,7 @@
 //! a [`Block<Image>`] (filling in the span list and confidence). The
 //! lossless 1:1 mapping is documented at the phase site.
 
-use nvisy_core::modality::Image;
+use nvisy_core::modality::ImageLocation;
 use nvisy_core::primitive::Confidence;
 
 /// Backend-shaped recognition output. One per recognized text region.
@@ -38,11 +38,11 @@ pub struct OcrOutput {
 #[non_exhaustive]
 pub enum OcrBlockKind {
     /// A region of recognized text.
-    Text { region: Image, text: String },
+    Text { region: ImageLocation, text: String },
     /// A heading.
-    Heading { region: Image, text: String },
+    Heading { region: ImageLocation, text: String },
     /// A tabular region recognized in the image.
-    Table { region: Image, text: String },
+    Table { region: ImageLocation, text: String },
 }
 
 /// Per-word span emitted by an OCR backend.
@@ -53,7 +53,7 @@ pub struct OcrSpan {
     /// Byte offset where the word ends in the block text.
     pub text_end: usize,
     /// Modality-typed source location (per-word bounding region).
-    pub source: Image,
+    pub source: ImageLocation,
     /// Per-word confidence.
     pub confidence: Confidence,
 }

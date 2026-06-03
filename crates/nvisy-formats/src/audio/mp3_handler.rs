@@ -17,7 +17,7 @@ use nvisy_codec::core::{Handle, Located, LocationStream, Redactions};
 use nvisy_codec::handler::{AudioData, AudioRedaction, Handler, sort_redactions_for_audio};
 use nvisy_core::Error;
 use nvisy_core::content::{AudioFormat, ContentData, ContentSource, DocumentType};
-use nvisy_core::modality::Audio;
+use nvisy_core::modality::{Audio, AudioLocation};
 use nvisy_core::primitive::TimeSpan;
 
 const TARGET: &str = "mp3-handler";
@@ -69,21 +69,21 @@ impl Handler for Mp3Handler {
 
 #[async_trait::async_trait]
 impl Handle<Audio> for Mp3Handler {
-    fn locations(&self) -> LocationStream<'_, Audio> {
-        let location = Audio::new(TimeSpan::new(0, 0));
+    fn locations(&self) -> LocationStream<'_, AudioLocation> {
+        let location = AudioLocation::new(TimeSpan::new(0, 0));
         LocationStream::new(futures::stream::iter(std::iter::once(Located::new(
             self.source,
             location,
         ))))
     }
 
-    async fn read(&self, _location: &Audio) -> Option<AudioData> {
+    async fn read(&self, _location: &AudioLocation) -> Option<AudioData> {
         Some(AudioData::new(self.bytes.clone()))
     }
 
     async fn redact_at(
         &mut self,
-        _location: &Audio,
+        _location: &AudioLocation,
         _redaction: AudioRedaction,
     ) -> Result<(), Error> {
         Err(Error::validation(
@@ -94,7 +94,10 @@ impl Handle<Audio> for Mp3Handler {
 
     /// Override the default loop to apply spans right-to-left so a
     /// removal doesn't invalidate earlier sample indices.
-    async fn redact(&mut self, redactions: Redactions<Audio, AudioRedaction>) -> Result<(), Error> {
+    async fn redact(
+        &mut self,
+        redactions: Redactions<AudioLocation, AudioRedaction>,
+    ) -> Result<(), Error> {
         for (location, redaction) in sort_redactions_for_audio(redactions) {
             self.redact_at(&location, redaction).await?;
         }
@@ -113,7 +116,7 @@ mod tests {
     #[tokio::test]
     async fn redact_with_entries_errors() {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
-        let location = Audio::new(TimeSpan::new(0, 1_000));
+        let location = AudioLocation::new(TimeSpan::new(0, 1_000));
         let mut rs = Redactions::new();
         rs.push(location, AudioRedaction::new(AudioOutput::Silence));
         let err = handler.redact(rs).await.unwrap_err();
@@ -126,7 +129,7 @@ mod tests {
     #[tokio::test]
     async fn empty_redactions_is_noop() {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
-        let rs: Redactions<Audio, AudioRedaction> = Redactions::default();
+        let rs: Redactions<AudioLocation, AudioRedaction> = Redactions::default();
         handler.redact(rs).await.unwrap();
     }
 }

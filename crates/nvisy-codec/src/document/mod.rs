@@ -5,14 +5,14 @@ use std::fmt;
 use derive_more::From;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType};
-#[cfg(feature = "audio")]
-use nvisy_core::modality::Audio;
-#[cfg(feature = "image")]
-use nvisy_core::modality::Image;
 #[cfg(feature = "tabular")]
-use nvisy_core::modality::Tabular;
+use nvisy_core::modality::TabularLocation;
+#[cfg(feature = "audio")]
+use nvisy_core::modality::{Audio, AudioLocation};
+#[cfg(feature = "image")]
+use nvisy_core::modality::{Image, ImageLocation};
 #[cfg(feature = "text")]
-use nvisy_core::modality::Text;
+use nvisy_core::modality::{Text, TextLocation};
 
 use crate::core::{Handle, LocationStream, Redactions};
 use crate::handler::Handler;
@@ -141,7 +141,7 @@ impl DocumentHandle {
 
     /// Stream text locations from text or rich documents.
     #[cfg(feature = "text")]
-    pub fn text_locations(&self) -> LocationStream<'_, Text> {
+    pub fn text_locations(&self) -> LocationStream<'_, TextLocation> {
         match self {
             Self::Text(h) => h.locations(),
             #[cfg(feature = "rich")]
@@ -157,7 +157,7 @@ impl DocumentHandle {
 
     /// Stream tabular (cell) locations from spreadsheet documents.
     #[cfg(feature = "tabular")]
-    pub fn tabular_locations(&self) -> LocationStream<'_, Tabular> {
+    pub fn tabular_locations(&self) -> LocationStream<'_, TabularLocation> {
         match self {
             Self::Tabular(h) => h.locations(),
             _ => LocationStream::empty(),
@@ -177,7 +177,7 @@ impl DocumentHandle {
 
     /// Stream image locations from image or rich documents.
     #[cfg(feature = "image")]
-    pub fn image_locations(&self) -> LocationStream<'_, Image> {
+    pub fn image_locations(&self) -> LocationStream<'_, ImageLocation> {
         match self {
             Self::Image(h) => h.locations(),
             #[cfg(feature = "rich")]
@@ -193,7 +193,7 @@ impl DocumentHandle {
 
     /// Stream audio locations from audio documents.
     #[cfg(feature = "audio")]
-    pub fn audio_locations(&self) -> LocationStream<'_, Audio> {
+    pub fn audio_locations(&self) -> LocationStream<'_, AudioLocation> {
         match self {
             Self::Audio(h) => h.locations(),
             _ => LocationStream::empty(),
@@ -205,7 +205,7 @@ impl DocumentHandle {
     /// Returns `None` if the location is out of bounds or the handle
     /// does not expose text content.
     #[cfg(feature = "text")]
-    pub async fn read_text(&self, location: &Text) -> Option<TextData> {
+    pub async fn read_text(&self, location: &TextLocation) -> Option<TextData> {
         match self {
             Self::Text(h) => h.read(location).await,
             #[cfg(feature = "rich")]
@@ -221,7 +221,7 @@ impl DocumentHandle {
 
     /// Read the cell value at the given tabular location.
     #[cfg(feature = "tabular")]
-    pub async fn read_tabular(&self, location: &Tabular) -> Option<TextData> {
+    pub async fn read_tabular(&self, location: &TabularLocation) -> Option<TextData> {
         match self {
             Self::Tabular(h) => h.read(location).await,
             _ => None,
@@ -230,7 +230,7 @@ impl DocumentHandle {
 
     /// Read image data at the given location.
     #[cfg(feature = "image")]
-    pub async fn read_image(&self, location: &Image) -> Option<ImageData> {
+    pub async fn read_image(&self, location: &ImageLocation) -> Option<ImageData> {
         match self {
             Self::Image(h) => h.read(location).await,
             #[cfg(feature = "rich")]
@@ -246,7 +246,7 @@ impl DocumentHandle {
 
     /// Read audio data at the given location.
     #[cfg(feature = "audio")]
-    pub async fn read_audio(&self, location: &Audio) -> Option<AudioData> {
+    pub async fn read_audio(&self, location: &AudioLocation) -> Option<AudioData> {
         match self {
             Self::Audio(h) => h.read(location).await,
             _ => None,
@@ -257,7 +257,7 @@ impl DocumentHandle {
     #[cfg(feature = "text")]
     pub async fn apply_text_redactions(
         &mut self,
-        redactions: Redactions<Text, TextRedaction>,
+        redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
         match self {
             Self::Text(h) => h.redact(redactions).await,
@@ -276,7 +276,7 @@ impl DocumentHandle {
     #[cfg(feature = "tabular")]
     pub async fn apply_tabular_redactions(
         &mut self,
-        redactions: Redactions<Tabular, TabularRedaction>,
+        redactions: Redactions<TabularLocation, TabularRedaction>,
     ) -> Result<(), Error> {
         match self {
             Self::Tabular(h) => h.redact(redactions).await,
@@ -288,7 +288,7 @@ impl DocumentHandle {
     #[cfg(feature = "image")]
     pub async fn apply_image_redactions(
         &mut self,
-        redactions: Redactions<Image, ImageRedaction>,
+        redactions: Redactions<ImageLocation, ImageRedaction>,
     ) -> Result<(), Error> {
         match self {
             Self::Image(h) => h.redact(redactions).await,
@@ -307,7 +307,7 @@ impl DocumentHandle {
     #[cfg(feature = "audio")]
     pub async fn apply_audio_redactions(
         &mut self,
-        redactions: Redactions<Audio, AudioRedaction>,
+        redactions: Redactions<AudioLocation, AudioRedaction>,
     ) -> Result<(), Error> {
         match self {
             Self::Audio(h) => h.redact(redactions).await,

@@ -1,7 +1,11 @@
 //! [`Span`] — a range within a block's flat text, tagged with its
 //! source coordinates.
 
+use nvisy_core::modality::Modality;
 use nvisy_core::primitive::Confidence;
+use nvisy_toolkit::redaction::Redactable;
+
+use crate::modality::DocumentModality;
 
 /// A range of text within a block's flat `text`, paired with the
 /// source coordinates of where that text came from.
@@ -13,7 +17,7 @@ use nvisy_core::primitive::Confidence;
 /// - one span per transcribed word for audio,
 /// - one span per text run for natively-extracted text.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Span<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> {
+pub struct Span<M: DocumentModality + Redactable> {
     /// Byte offset into the block's `text` where this span starts.
     pub text_start: usize,
     /// Byte offset into the block's `text` where this span ends
@@ -24,10 +28,10 @@ pub struct Span<M: crate::modality::DocumentModality + nvisy_toolkit::redaction:
     /// source already provides the text directly.
     pub confidence: Option<Confidence>,
     /// Source coordinates of where this text came from.
-    pub source: M,
+    pub source: <M as Modality>::Location,
 }
 
-impl<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable> Span<M> {
+impl<M: DocumentModality + Redactable> Span<M> {
     /// Byte length of the span in the block's `text`.
     pub fn len(&self) -> usize {
         self.text_end.saturating_sub(self.text_start)

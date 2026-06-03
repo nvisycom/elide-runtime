@@ -15,7 +15,7 @@ use std::collections::HashSet;
 use async_trait::async_trait;
 use nvisy_core::ValueAt;
 use nvisy_core::entity::{Entity, TrailStep};
-use nvisy_core::modality::Overlap;
+use nvisy_core::modality::{Modality, Overlap};
 use nvisy_core::primitive::Confidence;
 
 use self::group::GroupEntities;
@@ -46,7 +46,8 @@ impl FuseLayer {
 #[async_trait]
 impl<M, R> Layer<M, R> for FuseLayer
 where
-    M: nvisy_core::modality::Modality + Overlap + SpanSize,
+    M: Modality,
+    M::Location: Overlap + SpanSize,
     R: ValueAt<M> + ?Sized,
 {
     async fn apply(
@@ -83,7 +84,8 @@ async fn fuse_group<M, V: ValueAt<M> + ?Sized>(
     view: &V,
 ) -> Entity<M>
 where
-    M: nvisy_core::modality::Modality + SpanSize,
+    M: Modality,
+    M::Location: SpanSize,
 {
     debug_assert!(!group.is_empty());
 
@@ -158,7 +160,7 @@ where
 /// Label the group as plain deduplication or ensemble fusion. Used
 /// only for the trail step's `reason` text — no behaviour depends on
 /// this discriminant.
-fn classify_fusion<M: nvisy_core::modality::Modality>(group: &[Entity<M>]) -> &'static str {
+fn classify_fusion<M: Modality>(group: &[Entity<M>]) -> &'static str {
     let first: HashSet<&str> = group[0].recognizers().collect();
     let all_same = group
         .iter()

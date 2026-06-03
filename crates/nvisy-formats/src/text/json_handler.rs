@@ -23,7 +23,7 @@ use nvisy_codec::core::{Handle, Located, LocationStream};
 use nvisy_codec::handler::{Handler, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType, TextFormat};
-use nvisy_core::modality::Text;
+use nvisy_core::modality::{Text, TextLocation};
 use serde::{Deserialize, Serialize};
 
 use super::redact;
@@ -117,7 +117,7 @@ struct LocatedSpan {
 
 #[async_trait::async_trait]
 impl Handle<Text> for JsonHandler {
-    fn locations(&self) -> LocationStream<'_, Text> {
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
         let source = self.source;
         let items: Vec<_> = self
             .locate_spans()
@@ -125,7 +125,7 @@ impl Handle<Text> for JsonHandler {
             .map(|ls| {
                 Located::new(
                     source,
-                    Text {
+                    TextLocation {
                         start: ls.start,
                         end: ls.end,
                         ..Default::default()
@@ -136,14 +136,18 @@ impl Handle<Text> for JsonHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &Text) -> Option<TextData> {
+    async fn read(&self, location: &TextLocation) -> Option<TextData> {
         self.locate_spans()
             .into_iter()
             .find(|ls| ls.start == location.start && ls.end == location.end)
             .map(|ls| TextData::from(ls.text))
     }
 
-    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
+    async fn redact_at(
+        &mut self,
+        location: &TextLocation,
+        redaction: TextRedaction,
+    ) -> Result<(), Error> {
         let located = self.locate_spans();
         let Some(ls) = located
             .into_iter()
@@ -446,7 +450,7 @@ mod tests {
     #[tokio::test]
     async fn read_rejects_arbitrary_offsets() {
         let h = compact_handler(r#"{"name":"Alice"}"#);
-        let bogus = Text {
+        let bogus = TextLocation {
             start: 3,
             end: 7,
             ..Default::default()

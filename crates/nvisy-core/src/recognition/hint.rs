@@ -32,14 +32,14 @@ pub struct Hint<M: Modality> {
     /// Uploader-claimed entity kind (optional).
     pub entity_kind: Option<EntityKind>,
     /// Region in modality-native coordinates.
-    pub location: M,
+    pub location: M::Location,
 }
 
 impl<M: Modality> Hint<M> {
     /// Construct a hint with only the location set; name and kind
     /// default to `None`.
     #[must_use]
-    pub fn new(location: M) -> Self {
+    pub fn new(location: M::Location) -> Self {
         Self {
             name: None,
             entity_kind: None,

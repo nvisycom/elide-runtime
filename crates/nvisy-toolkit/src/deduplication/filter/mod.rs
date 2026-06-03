@@ -8,6 +8,7 @@
 use async_trait::async_trait;
 use nvisy_core::ValueAt;
 use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::modality::Modality;
 use nvisy_core::primitive::ConfidenceThreshold;
 
 use super::layer::{Layer, LayerContext};
@@ -28,7 +29,7 @@ pub struct FilterParams {
 
 impl FilterParams {
     /// Whether `entity` clears every configured filter knob.
-    pub fn passes<M: nvisy_core::modality::Modality>(&self, entity: &Entity<M>) -> bool {
+    pub fn passes<M: Modality>(&self, entity: &Entity<M>) -> bool {
         if let Some(ref kinds) = self.allowed_kinds
             && !kinds.contains(&entity.entity_kind)
         {
@@ -58,7 +59,7 @@ impl FilterLayer {
 }
 
 #[async_trait]
-impl<M: nvisy_core::modality::Modality, R: ValueAt<M> + ?Sized> Layer<M, R> for FilterLayer {
+impl<M: Modality, R: ValueAt<M> + ?Sized> Layer<M, R> for FilterLayer {
     async fn apply(
         &self,
         entities: &mut Vec<Entity<M>>,
@@ -92,7 +93,7 @@ mod tests {
             .test_build()
     }
 
-    async fn apply<M: nvisy_core::modality::Modality>(
+    async fn apply<M: Modality>(
         params: FilterParams,
         entities: &mut Vec<Entity<M>>,
     ) -> Vec<Entity<M>> {

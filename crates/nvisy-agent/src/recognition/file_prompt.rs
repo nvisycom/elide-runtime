@@ -49,9 +49,9 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use minijinja::{Environment, context};
 use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_core::modality::{Image, Text};
+use nvisy_core::modality::{Image, ImageLocation, Text, TextLocation};
 use nvisy_core::primitive::Confidence;
-use nvisy_core::{LabelMap, RecognizerInput, Result};
+use nvisy_core::{Error, LabelMap, RecognizerInput, Result};
 use schemars::Schema;
 use serde::Deserialize;
 
@@ -100,7 +100,7 @@ struct PromptMeta {
 impl<M> FilePrompt<M> {
     fn from_parsed(parsed: PromptFile, expected_modality: &str) -> Result<Self> {
         if parsed.meta.modality != expected_modality {
-            return Err(nvisy_core::Error::validation(
+            return Err(Error::validation(
                 format!(
                     "prompt file modality is {:?}, expected {:?}",
                     parsed.meta.modality, expected_modality
@@ -113,7 +113,7 @@ impl<M> FilePrompt<M> {
         if let Some(entries) = parsed.label_map {
             for (label, kind_str) in entries {
                 let kind = kind_str.parse::<EntityKind>().map_err(|_| {
-                    nvisy_core::Error::validation(
+                    Error::validation(
                         format!("unknown EntityKind {kind_str:?} in label_map"),
                         "file-prompt",
                     )
@@ -125,7 +125,7 @@ impl<M> FilePrompt<M> {
         let mut env = Environment::new();
         env.add_template_owned("prompt", parsed.template.clone())
             .map_err(|e| {
-                nvisy_core::Error::validation(format!("template compile error: {e}"), "file-prompt")
+                Error::validation(format!("template compile error: {e}"), "file-prompt")
             })?;
 
         Ok(Self {
@@ -159,9 +159,8 @@ impl FilePrompt<Text> {
     /// declares a non-`text` modality, references an unknown
     /// `EntityKind`, or contains an invalid Jinja2 template.
     pub fn from_toml_file(path: impl AsRef<Path>) -> Result<Self> {
-        let raw = fs::read_to_string(path.as_ref()).map_err(|e| {
-            nvisy_core::Error::validation(format!("reading prompt file: {e}"), "file-prompt")
-        })?;
+        let raw = fs::read_to_string(path.as_ref())
+            .map_err(|e| Error::validation(format!("reading prompt file: {e}"), "file-prompt"))?;
         Self::from_toml_str(&raw)
     }
 
@@ -169,11 +168,12 @@ impl FilePrompt<Text> {
     ///
     /// # Errors
     ///
-    /// See [`from_toml_file`](Self::from_toml_file).
+    /// See [`from_toml_file`].
+    ///
+    /// [`from_toml_file`]: Self::from_toml_file
     pub fn from_toml_str(raw: &str) -> Result<Self> {
-        let parsed: PromptFile = toml::from_str(raw).map_err(|e| {
-            nvisy_core::Error::validation(format!("parsing prompt TOML: {e}"), "file-prompt")
-        })?;
+        let parsed: PromptFile = toml::from_str(raw)
+            .map_err(|e| Error::validation(format!("parsing prompt TOML: {e}"), "file-prompt"))?;
         Self::from_parsed(parsed, "text")
     }
 }
@@ -185,9 +185,8 @@ impl FilePrompt<Image> {
     ///
     /// Same as the text-modality loader.
     pub fn from_toml_file(path: impl AsRef<Path>) -> Result<Self> {
-        let raw = fs::read_to_string(path.as_ref()).map_err(|e| {
-            nvisy_core::Error::validation(format!("reading prompt file: {e}"), "file-prompt")
-        })?;
+        let raw = fs::read_to_string(path.as_ref())
+            .map_err(|e| Error::validation(format!("reading prompt file: {e}"), "file-prompt"))?;
         Self::from_toml_str(&raw)
     }
 
@@ -197,9 +196,8 @@ impl FilePrompt<Image> {
     ///
     /// Same as the text-modality loader.
     pub fn from_toml_str(raw: &str) -> Result<Self> {
-        let parsed: PromptFile = toml::from_str(raw).map_err(|e| {
-            nvisy_core::Error::validation(format!("parsing prompt TOML: {e}"), "file-prompt")
-        })?;
+        let parsed: PromptFile = toml::from_str(raw)
+            .map_err(|e| Error::validation(format!("parsing prompt TOML: {e}"), "file-prompt"))?;
         Self::from_parsed(parsed, "image")
     }
 }
@@ -275,7 +273,7 @@ impl Prompt<Text> for FilePrompt<Text> {
             let Some(confidence) = Confidence::new(raw.clamp(0.0, 1.0)) else {
                 continue;
             };
-            let location = Text::new(l.start_offset, l.end_offset);
+            let location = TextLocation::new(l.start_offset, l.end_offset);
             let reason = format!("llm identified {entity_kind}");
             let step = TrailStep::recognition(
                 "llm-ner",
@@ -351,7 +349,7 @@ impl Prompt<Image> for FilePrompt<Image> {
                 continue;
             };
             let bbox = d.bbox.to_pixel(dims);
-            let location = Image::new(bbox);
+            let location = ImageLocation::new(bbox);
             let reason = format!("vlm identified {entity_kind}");
             let step = TrailStep::recognition(
                 "llm-vlm",

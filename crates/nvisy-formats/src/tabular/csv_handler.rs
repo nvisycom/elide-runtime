@@ -16,7 +16,7 @@ use nvisy_codec::core::{Handle, Located, LocationStream};
 use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType, SpreadsheetFormat};
-use nvisy_core::modality::Tabular;
+use nvisy_core::modality::{Tabular, TabularLocation};
 
 use crate::text::redact;
 
@@ -62,7 +62,7 @@ impl Handler for CsvHandler {
 
 #[async_trait::async_trait]
 impl Handle<Tabular> for CsvHandler {
-    fn locations(&self) -> LocationStream<'_, Tabular> {
+    fn locations(&self) -> LocationStream<'_, TabularLocation> {
         let source = self.source;
         let has_headers = self.data.headers.is_some();
 
@@ -72,7 +72,7 @@ impl Handle<Tabular> for CsvHandler {
             for (col, _) in headers.iter().enumerate() {
                 items.push(Located::new(
                     source,
-                    Tabular {
+                    TabularLocation {
                         row_index: 0,
                         column_index: col as u32,
                         start_offset: None,
@@ -89,7 +89,7 @@ impl Handle<Tabular> for CsvHandler {
             for (col, _) in row.iter().enumerate() {
                 items.push(Located::new(
                     source,
-                    Tabular {
+                    TabularLocation {
                         row_index: row_index as u32,
                         column_index: col as u32,
                         start_offset: None,
@@ -104,7 +104,7 @@ impl Handle<Tabular> for CsvHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &Tabular) -> Option<TextData> {
+    async fn read(&self, location: &TabularLocation) -> Option<TextData> {
         let (is_header, data_row) = self.resolve_row(location.row_index)?;
         let col = location.column_index as usize;
         let cell = if is_header {
@@ -117,7 +117,7 @@ impl Handle<Tabular> for CsvHandler {
 
     async fn redact_at(
         &mut self,
-        location: &Tabular,
+        location: &TabularLocation,
         redaction: TabularRedaction,
     ) -> Result<(), Error> {
         let Some((is_header, data_row)) = self.resolve_row(location.row_index) else {
@@ -306,11 +306,11 @@ mod tests {
         })
     }
 
-    fn cell_range(row: u32, col: u32, start: usize, end: usize) -> Tabular {
-        Tabular {
+    fn cell_range(row: u32, col: u32, start: usize, end: usize) -> TabularLocation {
+        TabularLocation {
             start_offset: Some(start),
             end_offset: Some(end),
-            ..Tabular::new(row, col)
+            ..TabularLocation::new(row, col)
         }
     }
 
@@ -339,16 +339,22 @@ mod tests {
     async fn read_returns_cell_value() {
         let h = handler_with_headers(vec!["name"], vec![vec!["Alice"]]);
         // header
-        assert_eq!(h.read(&Tabular::new(0, 0)).await.unwrap().as_str(), "name");
+        assert_eq!(
+            h.read(&TabularLocation::new(0, 0)).await.unwrap().as_str(),
+            "name"
+        );
         // first data row
-        assert_eq!(h.read(&Tabular::new(1, 0)).await.unwrap().as_str(), "Alice");
+        assert_eq!(
+            h.read(&TabularLocation::new(1, 0)).await.unwrap().as_str(),
+            "Alice"
+        );
     }
 
     #[tokio::test]
     async fn read_out_of_bounds_returns_none() {
         let h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
-        assert!(h.read(&Tabular::new(99, 0)).await.is_none());
-        assert!(h.read(&Tabular::new(0, 99)).await.is_none());
+        assert!(h.read(&TabularLocation::new(99, 0)).await.is_none());
+        assert!(h.read(&TabularLocation::new(0, 99)).await.is_none());
     }
 
     #[tokio::test]

@@ -17,8 +17,11 @@
 
 use std::sync::Arc;
 
+#[cfg(feature = "audio")]
+use nvisy_agent::audio::stt::SttOutput;
 use nvisy_core::Extractor;
 use nvisy_core::modality::{Audio, Image};
+use nvisy_ocr::core::OcrOutput;
 
 /// Output shape produced by every image-modality extractor.
 ///
@@ -27,11 +30,11 @@ use nvisy_core::modality::{Audio, Image};
 /// shapes) is a breaking change worth taking deliberately rather than
 /// hiding behind generics.
 #[cfg(feature = "image")]
-pub type ImageExtractorOutput = Vec<nvisy_ocr::core::OcrOutput>;
+pub type ImageExtractorOutput = Vec<OcrOutput>;
 
 /// Output shape produced by every audio-modality extractor.
 #[cfg(feature = "audio")]
-pub type AudioExtractorOutput = nvisy_agent::audio::stt::SttOutput;
+pub type AudioExtractorOutput = SttOutput;
 
 /// Per-modality container of pre-built extractors.
 ///

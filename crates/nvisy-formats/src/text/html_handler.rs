@@ -13,7 +13,7 @@ use nvisy_codec::core::{Handle, Located, LocationStream};
 use nvisy_codec::handler::{Handler, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, DocumentType};
-use nvisy_core::modality::Text;
+use nvisy_core::modality::{Text, TextLocation};
 
 use super::redact;
 
@@ -74,7 +74,7 @@ impl Handler for HtmlHandler {
 
 #[async_trait::async_trait]
 impl Handle<Text> for HtmlHandler {
-    fn locations(&self) -> LocationStream<'_, Text> {
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
         let source = self.source;
         let mut items = Vec::with_capacity(self.data.text_nodes.len());
         let mut offset = 0usize;
@@ -83,7 +83,7 @@ impl Handle<Text> for HtmlHandler {
             let end = start + text.len();
             items.push(Located::new(
                 source,
-                Text {
+                TextLocation {
                     start,
                     end,
                     ..Default::default()
@@ -94,7 +94,7 @@ impl Handle<Text> for HtmlHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &Text) -> Option<TextData> {
+    async fn read(&self, location: &TextLocation) -> Option<TextData> {
         let offsets = self.node_offsets();
         let idx = offsets
             .iter()
@@ -102,7 +102,11 @@ impl Handle<Text> for HtmlHandler {
         self.data.text_nodes.get(idx).cloned().map(TextData::from)
     }
 
-    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
+    async fn redact_at(
+        &mut self,
+        location: &TextLocation,
+        redaction: TextRedaction,
+    ) -> Result<(), Error> {
         let offsets = self.node_offsets();
         let Some(idx) = offsets
             .iter()

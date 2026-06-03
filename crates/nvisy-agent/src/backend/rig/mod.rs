@@ -15,8 +15,8 @@ mod usage;
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use nvisy_core::Result;
 use nvisy_core::http::{HttpConfig, build_http_client};
+use nvisy_core::{Error as CoreError, Result};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::{AssistantContent, Completion, CompletionModel, Message};
@@ -116,7 +116,7 @@ impl RigBackend {
                 .map_err(Error::from)
                 .map_err(crate::error::convert)?;
             let text = extract_text(response.choice.iter())?;
-            Ok::<_, nvisy_core::Error>((text, response.usage))
+            Ok::<_, Error>((text, response.usage))
         })?;
         self.tracker.record(&usage, 0);
         Ok(text)
@@ -166,9 +166,9 @@ impl RigBackendBuilder {
     /// Returns a validation error when `provider` is unset, and the
     /// underlying rig / HTTP error when client construction fails.
     pub fn build(self) -> Result<RigBackend> {
-        let provider = self.provider.ok_or_else(|| {
-            nvisy_core::Error::validation("RigBackendBuilder requires a provider", "rig")
-        })?;
+        let provider = self
+            .provider
+            .ok_or_else(|| CoreError::validation("RigBackendBuilder requires a provider", "rig"))?;
         let config = self.config.unwrap_or_default();
 
         let http = build_http_client(&HttpConfig {
@@ -239,7 +239,7 @@ fn extract_text<'a>(choices: impl Iterator<Item = &'a AssistantContent>) -> Resu
         .collect();
 
     if texts.is_empty() {
-        return Err(nvisy_core::Error::runtime(
+        return Err(CoreError::runtime(
             "LLM response contained no text content",
             "rig",
             false,

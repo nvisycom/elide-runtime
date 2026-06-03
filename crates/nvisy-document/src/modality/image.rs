@@ -1,7 +1,7 @@
 //! Image-modality document shape: [`ImageBlock`], [`ImageMetadata`],
 //! [`PageDimensions`].
 
-use nvisy_core::modality::{Image, ImageExtraction};
+use nvisy_core::modality::{ImageExtraction, ImageLocation};
 use nvisy_core::primitive::LanguageDetection;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ use super::ModalityBlock;
 /// [`Background`], [`Logo`]) carry no text. Every variant carries the
 /// bounding `region` since image blocks are always spatially located.
 ///
+/// [`Image`]: nvisy_core::modality::Image
 /// [`Figure`]: Self::Figure
 /// [`Separator`]: Self::Separator
 /// [`Background`]: Self::Background
@@ -23,24 +24,24 @@ use super::ModalityBlock;
 #[non_exhaustive]
 pub enum ImageBlock {
     /// A region of recognized text (paragraph, line, OCR text block).
-    Text { region: Image, text: String },
+    Text { region: ImageLocation, text: String },
     /// A heading.
-    Heading { region: Image, text: String },
+    Heading { region: ImageLocation, text: String },
     /// A tabular region recognized in the image.
-    Table { region: Image, text: String },
+    Table { region: ImageLocation, text: String },
     /// A figure, illustration or photograph.
-    Figure { region: Image },
+    Figure { region: ImageLocation },
     /// A separator (rule, line, divider).
-    Separator { region: Image },
+    Separator { region: ImageLocation },
     /// A background element (watermark, fill, decoration).
-    Background { region: Image },
+    Background { region: ImageLocation },
     /// A logo or brand mark.
-    Logo { region: Image },
+    Logo { region: ImageLocation },
 }
 
 impl ImageBlock {
     /// The image region this block occupies.
-    pub fn region(&self) -> &Image {
+    pub fn region(&self) -> &ImageLocation {
         match self {
             Self::Text { region, .. }
             | Self::Heading { region, .. }

@@ -23,7 +23,7 @@ use nvisy_codec::core::{Handle, Located, LocationStream, Redactions};
 use nvisy_codec::handler::{AudioData, AudioRedaction, Handler, sort_redactions_for_audio};
 use nvisy_core::Error;
 use nvisy_core::content::{AudioFormat, ContentData, ContentSource, DocumentType};
-use nvisy_core::modality::Audio;
+use nvisy_core::modality::{Audio, AudioLocation};
 use nvisy_core::primitive::TimeSpan;
 
 use super::redact;
@@ -77,20 +77,20 @@ impl Handler for WavHandler {
 
 #[async_trait::async_trait]
 impl Handle<Audio> for WavHandler {
-    fn locations(&self) -> LocationStream<'_, Audio> {
+    fn locations(&self) -> LocationStream<'_, AudioLocation> {
         // Single-track audio: the entire audio as one location with a
         // time span covering the full duration. Duration is unknown
         // without decoding — use 0..0 as a placeholder. The actual
         // time span is set by the STT extraction operation after
         // transcription.
-        let location = Audio::new(TimeSpan::new(0, 0));
+        let location = AudioLocation::new(TimeSpan::new(0, 0));
         LocationStream::new(futures::stream::iter(std::iter::once(Located::new(
             self.source,
             location,
         ))))
     }
 
-    async fn read(&self, _location: &Audio) -> Option<AudioData> {
+    async fn read(&self, _location: &AudioLocation) -> Option<AudioData> {
         // Full audio segment: extracting a sub-segment by time span
         // requires decoding, which we don't do here.
         Some(AudioData::new(self.bytes.clone()))
@@ -98,7 +98,7 @@ impl Handle<Audio> for WavHandler {
 
     async fn redact_at(
         &mut self,
-        location: &Audio,
+        location: &AudioLocation,
         redaction: AudioRedaction,
     ) -> Result<(), Error> {
         let spec = read_spec(&self.bytes)?;
@@ -131,7 +131,10 @@ impl Handle<Audio> for WavHandler {
 
     /// Override the default loop to apply spans right-to-left so a
     /// removal doesn't invalidate earlier sample indices.
-    async fn redact(&mut self, redactions: Redactions<Audio, AudioRedaction>) -> Result<(), Error> {
+    async fn redact(
+        &mut self,
+        redactions: Redactions<AudioLocation, AudioRedaction>,
+    ) -> Result<(), Error> {
         for (location, redaction) in sort_redactions_for_audio(redactions) {
             self.redact_at(&location, redaction).await?;
         }
@@ -227,7 +230,7 @@ mod tests {
 
         let mut rs = Redactions::new();
         rs.push(
-            Audio::new(TimeSpan::new(3_000, 6_000)),
+            AudioLocation::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Silence),
         );
         handler.redact(rs).await.unwrap();
@@ -243,7 +246,7 @@ mod tests {
 
         let mut rs = Redactions::new();
         rs.push(
-            Audio::new(TimeSpan::new(3_000, 6_000)),
+            AudioLocation::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Remove),
         );
         handler.redact(rs).await.unwrap();
@@ -263,11 +266,11 @@ mod tests {
 
         let mut rs = Redactions::new();
         rs.push(
-            Audio::new(TimeSpan::new(1_000, 3_000)),
+            AudioLocation::new(TimeSpan::new(1_000, 3_000)),
             AudioRedaction::new(AudioOutput::Remove),
         );
         rs.push(
-            Audio::new(TimeSpan::new(6_000, 8_000)),
+            AudioLocation::new(TimeSpan::new(6_000, 8_000)),
             AudioRedaction::new(AudioOutput::Remove),
         );
         handler.redact(rs).await.unwrap();
@@ -284,7 +287,7 @@ mod tests {
         let original = bytes.clone();
         let mut handler = WavHandler::new(bytes);
 
-        let rs: Redactions<Audio, AudioRedaction> = Redactions::default();
+        let rs: Redactions<AudioLocation, AudioRedaction> = Redactions::default();
         handler.redact(rs).await.unwrap();
         assert_eq!(handler.bytes(), &original);
     }
@@ -295,7 +298,7 @@ mod tests {
         let mut handler = WavHandler::new(Bytes::from_static(b"not-a-wav"));
         let mut rs = Redactions::new();
         rs.push(
-            Audio::new(TimeSpan::new(0, 1_000)),
+            AudioLocation::new(TimeSpan::new(0, 1_000)),
             AudioRedaction::new(AudioOutput::Silence),
         );
         let err = handler.redact(rs).await.unwrap_err();

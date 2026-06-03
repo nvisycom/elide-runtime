@@ -13,9 +13,9 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 
 use crate::entity::EntityKind;
 
@@ -51,83 +51,9 @@ impl LabelMap {
     /// returns canonical labels.
     #[must_use]
     pub fn canonical() -> Self {
-        let mut entries = HashMap::new();
-        // Discovery via from_str round-trip: enumerate the labels
-        // we know about. The list mirrors the EntityKind enum.
-        // Kept lazy — adding a variant doesn't break the map (the
-        // variant just isn't recognized until added here).
-        for label in [
-            "person_name",
-            "date_of_birth",
-            "government_id",
-            "tax_id",
-            "drivers_license",
-            "passport_number",
-            "national_insurance_number",
-            "vehicle_id",
-            "license_plate",
-            "email_address",
-            "phone_number",
-            "address",
-            "postal_code",
-            "url",
-            "age",
-            "gender",
-            "ethnicity",
-            "religion",
-            "nationality",
-            "citizenship",
-            "language",
-            "payment_card",
-            "card_security_code",
-            "card_expiry",
-            "bank_account",
-            "bank_routing",
-            "iban",
-            "swift_code",
-            "crypto_address",
-            "currency",
-            "amount",
-            "medical_id",
-            "insurance_id",
-            "prescription_id",
-            "diagnosis",
-            "medication",
-            "fingerprint",
-            "voiceprint",
-            "retina_scan",
-            "facial_geometry",
-            "password",
-            "api_key",
-            "auth_token",
-            "private_key",
-            "ip_address",
-            "mac_address",
-            "device_id",
-            "username",
-            "coordinates",
-            "geolocation_metadata",
-            "face",
-            "handwriting",
-            "signature",
-            "logo",
-            "barcode",
-            "organization_name",
-            "department_name",
-            "facility_name",
-            "case_number",
-            "internal_id",
-            "date_time",
-            "event",
-            "occupation",
-            "product",
-            "quantity",
-            "unresolved",
-        ] {
-            if let Ok(kind) = EntityKind::from_str(label) {
-                entries.insert(label.to_owned(), kind);
-            }
-        }
+        let entries = EntityKind::iter()
+            .map(|kind| (kind.to_string(), kind))
+            .collect();
         Self { entries }
     }
 

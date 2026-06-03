@@ -20,7 +20,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_core::modality::Text;
+use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::Confidence;
 use nvisy_core::{EntityRecognizer, Error, RecognizerInput, RecognizerOutput, Result};
 
@@ -44,9 +44,10 @@ pub struct NerRecognizer {
     /// [`default_context`]: NerModel::default_context
     name: String,
     /// Backend that turns `(text, kinds)` into raw spans. Required.
-    /// Set via [`with_engine`](NerRecognizerBuilder::with_engine),
-    /// which accepts any concrete [`NerBackend`] impl by value and
-    /// wraps it in `Arc` internally.
+    /// Set via [`with_engine`], which accepts any concrete
+    /// [`NerBackend`] impl by value and wraps it in `Arc` internally.
+    ///
+    /// [`with_engine`]: NerRecognizerBuilder::with_engine
     #[builder(setter(custom))]
     engine: Arc<dyn NerBackend>,
     /// Kinds the recognizer advertises. When non-empty, the
@@ -63,8 +64,10 @@ pub struct NerRecognizer {
 
 impl NerRecognizer {
     /// Start the chainable builder. `name` and `engine` are
-    /// required — calling [`build`](NerRecognizerBuilder::build)
-    /// without them returns a validation error.
+    /// required — calling [`build`] without them returns a
+    /// validation error.
+    ///
+    /// [`build`]: NerRecognizerBuilder::build
     #[must_use]
     pub fn builder() -> NerRecognizerBuilder {
         NerRecognizerBuilder::default()
@@ -104,7 +107,7 @@ impl NerRecognizer {
             .with_entity_kind(kind)
             .with_trail(vec![step])
             .with_confidence(confidence)
-            .with_location(Text::new(span.offset.start, span.offset.end))
+            .with_location(TextLocation::new(span.offset.start, span.offset.end))
             .build()
             .expect("required fields provided")
     }

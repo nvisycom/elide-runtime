@@ -49,12 +49,14 @@ pub use self::span_size::SpanSize;
 pub(crate) fn test_resolver<M: nvisy_core::modality::Modality>() -> Box<dyn nvisy_core::ValueAt<M>>
 {
     use async_trait::async_trait;
+    use nvisy_core::ValueAt;
+    use nvisy_core::modality::Modality;
 
     struct Noop<M>(std::marker::PhantomData<M>);
 
     #[async_trait]
-    impl<M: nvisy_core::modality::Modality> nvisy_core::ValueAt<M> for Noop<M> {
-        async fn value_at(&self, _location: &M) -> Option<String> {
+    impl<M: Modality> ValueAt<M> for Noop<M> {
+        async fn value_at(&self, _location: &M::Location) -> Option<String> {
             None
         }
     }

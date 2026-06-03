@@ -76,7 +76,7 @@ impl ExtractionConfig {
 
                 #[cfg(not(feature = "bento"))]
                 OcrBackend::Bento { .. } => {
-                    return Err(nvisy_core::Error::validation(
+                    return Err(Error::validation(
                         "OcrBackend::Bento requires the `bento` feature",
                         "ocr",
                     ));

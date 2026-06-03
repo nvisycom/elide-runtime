@@ -25,9 +25,12 @@
 use nvisy_codec::core::Redactions;
 use nvisy_core::Result;
 use nvisy_core::entity::EntityKind;
+use nvisy_core::modality::Modality;
+use nvisy_toolkit::redaction::Redactable;
 
 use crate::core::{DocumentView, SharedHandle, ValueAt};
 use crate::document::Document;
+use crate::modality::DocumentModality;
 use crate::provenance::{AuditEntry, Execution};
 
 const TARGET: &str = "nvisy_engine::redaction::apply";
@@ -37,10 +40,7 @@ const TARGET: &str = "nvisy_engine::redaction::apply";
 /// codec wire type: the audit entry (for its strategy), the
 /// entity's kind (for `{entityType}` placeholder substitution),
 /// and the original value.
-pub(super) struct EntryView<
-    'a,
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
-> {
+pub(super) struct EntryView<'a, M: DocumentModality + Redactable> {
     pub(super) entry: &'a AuditEntry<M>,
     pub(super) entity_kind: EntityKind,
     pub(super) original: &'a str,
@@ -49,18 +49,13 @@ pub(super) struct EntryView<
 /// One assembled per-modality batch ready to hand to the codec,
 /// plus the side-tables the caller needs to commit audit state
 /// after the codec accepts (or rejects) it.
-pub(super) struct ApplyBatch<
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
-    R,
-> {
-    pub(super) batch: Redactions<M, R>,
+pub(super) struct ApplyBatch<M: DocumentModality + Redactable, R> {
+    pub(super) batch: Redactions<<M as Modality>::Location, R>,
     pub(super) applied: Vec<(usize, R)>,
     pub(super) failed: Vec<(usize, String)>,
 }
 
-impl<M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable, R>
-    ApplyBatch<M, R>
-{
+impl<M: DocumentModality + Redactable, R> ApplyBatch<M, R> {
     /// True when the batch produced no work — caller can short-
     /// circuit without touching the codec or the audit.
     pub(super) fn is_noop(&self) -> bool {
@@ -84,7 +79,7 @@ pub(super) async fn build<M, R, F>(
     to_redaction: F,
 ) -> ApplyBatch<M, R>
 where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
     R: Clone,
     F: Fn(EntryView<'_, M>) -> Result<R>,
     for<'a> DocumentView<'a, M>: ValueAt<M>,
@@ -107,7 +102,7 @@ where
         };
     }
 
-    let mut batch: Redactions<M, R> = Redactions::new();
+    let mut batch: Redactions<<M as Modality>::Location, R> = Redactions::new();
     let mut applied: Vec<(usize, R)> = Vec::with_capacity(pending.len());
     let mut failed: Vec<(usize, String)> = Vec::new();
 
@@ -162,7 +157,7 @@ pub(super) fn commit<M, R, ToReplacement>(
     failed: Vec<(usize, String)>,
     to_replacement: ToReplacement,
 ) where
-    M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
+    M: DocumentModality + Redactable,
     ToReplacement: Fn(&R) -> M::Replacement,
 {
     for (idx, redaction) in applied {

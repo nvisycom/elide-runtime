@@ -18,6 +18,7 @@
 //! [`LabelMap`]: crate::LabelMap
 
 use bentoml::prelude::*;
+use nvisy_core::entity::EntityKind;
 use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
@@ -119,12 +120,13 @@ impl NerBackend for BentoBackend {
     }
 }
 
-/// Serialise an [`EntityKind`](nvisy_core::entity::EntityKind) to its
+/// Serialise an [`EntityKind`] to its
 /// canonical snake_case label. The Bento service returns normalized
 /// kinds; we round-trip through the wire label so [`LabelMap`] sees
 /// a uniform raw label across backends.
 ///
+/// [`EntityKind`]: nvisy_core::entity::EntityKind
 /// [`LabelMap`]: crate::LabelMap
-fn entity_kind_label(kind: nvisy_core::entity::EntityKind) -> String {
+fn entity_kind_label(kind: EntityKind) -> String {
     kind.to_string()
 }

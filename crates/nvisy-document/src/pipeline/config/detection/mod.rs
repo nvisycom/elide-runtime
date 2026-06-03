@@ -16,7 +16,11 @@ mod pattern;
 mod plan;
 
 use nvisy_core::Result;
+use nvisy_core::entity::EntityKind;
 use nvisy_ner::NerRecognizer;
+use nvisy_ner::backend::NoopBackend;
+#[cfg(feature = "bento")]
+use nvisy_ner::backend::{BentoBackend, BentoParams};
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};
 use nvisy_toolkit::detection::RecognizerRegistry;
 
@@ -79,7 +83,7 @@ impl DetectionConfig {
                 NerBackend::Noop => {
                     let recognizer = NerRecognizer::builder()
                         .with_name(NER_RECOGNIZER_NAME)
-                        .with_engine(nvisy_ner::backend::NoopBackend)
+                        .with_engine(NoopBackend)
                         .with_supported_kinds(default_text_kinds())
                         .build()?;
                     reg.add_text_recognizer(recognizer)
@@ -87,9 +91,7 @@ impl DetectionConfig {
 
                 #[cfg(feature = "bento")]
                 NerBackend::Bento { base_url } => {
-                    let backend = nvisy_ner::backend::BentoBackend::new(
-                        nvisy_ner::backend::BentoParams::new(base_url.clone()),
-                    )?;
+                    let backend = BentoBackend::new(BentoParams::new(base_url.clone()))?;
                     let recognizer = NerRecognizer::builder()
                         .with_name(NER_RECOGNIZER_NAME)
                         .with_engine(backend)
@@ -100,7 +102,7 @@ impl DetectionConfig {
 
                 #[cfg(not(feature = "bento"))]
                 NerBackend::Bento { .. } => {
-                    return Err(nvisy_core::Error::validation(
+                    return Err(Error::validation(
                         "NerBackend::Bento requires the `bento` feature",
                         "ner",
                     ));
@@ -120,8 +122,8 @@ impl DetectionConfig {
 /// post-filtering at the dispatch layer narrows further per call.
 ///
 /// [`EntityKind`]: nvisy_core::entity::EntityKind
-fn default_text_kinds() -> Vec<nvisy_core::entity::EntityKind> {
-    nvisy_core::entity::EntityKind::all()
+fn default_text_kinds() -> Vec<EntityKind> {
+    EntityKind::all()
         .filter(|k| !k.is_biometric() && !k.is_visual())
         .collect()
 }

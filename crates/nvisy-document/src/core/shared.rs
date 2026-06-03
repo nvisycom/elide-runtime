@@ -12,9 +12,11 @@
 use std::fmt;
 use std::sync::Arc;
 
+use nvisy_toolkit::redaction::Redactable;
 use uuid::Uuid;
 
 use super::PolicyStore;
+use crate::modality::DocumentModality;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::ingestion::registry::Registry;
 use crate::policy::Policy;
@@ -54,20 +56,13 @@ impl SharedData {
     /// Append a single policy for modality `M`. The policy is held
     /// as an [`Arc`] so it can also live in the registry's cross-run
     /// cache without copying.
-    pub fn with_policy<
-        M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
-    >(
-        mut self,
-        policy: Arc<Policy<M>>,
-    ) -> Self {
+    pub fn with_policy<M: DocumentModality + Redactable>(mut self, policy: Arc<Policy<M>>) -> Self {
         self.policies.insert(policy);
         self
     }
 
     /// Replace the policy stack for modality `M`.
-    pub fn with_policies<
-        M: crate::modality::DocumentModality + nvisy_toolkit::redaction::Redactable,
-    >(
+    pub fn with_policies<M: DocumentModality + Redactable>(
         mut self,
         policies: Vec<Arc<Policy<M>>>,
     ) -> Self {

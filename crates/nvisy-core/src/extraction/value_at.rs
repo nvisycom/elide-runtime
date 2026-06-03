@@ -20,5 +20,5 @@ use crate::modality::Modality;
 pub trait ValueAt<M: Modality>: Sync {
     /// Resolve a location to its source-text representation, or
     /// `None` when no readable text exists at the location.
-    async fn value_at(&self, location: &M) -> Option<String>;
+    async fn value_at(&self, location: &M::Location) -> Option<String>;
 }

@@ -7,10 +7,10 @@ use reqwest_middleware::ClientWithMiddleware;
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "openai-whisper")]
-use crate::agent::AuthenticatedProvider;
-use crate::agent::UnauthenticatedProvider;
 use crate::error::Error;
+#[cfg(feature = "openai-whisper")]
+use crate::provider::AuthenticatedProvider;
+use crate::provider::UnauthenticatedProvider;
 
 /// Supported providers for speech-to-text transcription.
 #[derive(Debug, Clone, Serialize, Deserialize)]

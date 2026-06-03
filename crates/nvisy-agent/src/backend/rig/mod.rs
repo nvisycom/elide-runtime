@@ -9,7 +9,6 @@
 mod config;
 mod context;
 mod inner;
-mod provider;
 mod usage;
 
 use std::borrow::Cow;
@@ -26,10 +25,10 @@ use rig::providers::gemini;
 pub use self::config::LlmConfig;
 pub use self::context::ContextWindow;
 use self::inner::{RigInner, dispatch};
-pub use self::provider::{AuthenticatedProvider, LlmProvider, UnauthenticatedProvider};
 pub use self::usage::{UsageStats, UsageTracker};
 use super::llm_backend::{LlmBackend, LlmRequest, LlmResponse};
 use crate::error::Error;
+use crate::provider::LlmProvider;
 
 const TARGET: &str = "nvisy_agent::backend::rig";
 

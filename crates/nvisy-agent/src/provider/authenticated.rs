@@ -1,11 +1,5 @@
 //! LLM providers that require an API key.
 
-#[cfg(any(
-    feature = "openai-gpt",
-    feature = "openai-whisper",
-    feature = "anthropic-claude",
-    feature = "google-gemini"
-))]
 use std::fmt;
 
 #[cfg(any(
@@ -21,12 +15,7 @@ use rig::providers::anthropic;
 use rig::providers::gemini;
 #[cfg(any(feature = "openai-gpt", feature = "openai-whisper"))]
 use rig::providers::openai;
-#[cfg(any(
-    feature = "openai-gpt",
-    feature = "openai-whisper",
-    feature = "anthropic-claude",
-    feature = "google-gemini"
-))]
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[cfg(any(
@@ -38,25 +27,21 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
-#[cfg(any(
-    feature = "openai-gpt",
-    feature = "openai-whisper",
-    feature = "anthropic-claude",
-    feature = "google-gemini"
-))]
-#[derive(Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+///
+/// Shared between the LLM-completion path (`backend::rig`) and the
+/// speech-to-text path (`audio::stt`). The connection parameters are
+/// the same shape — only the rig-side product (`completion::Client` vs
+/// `transcription::Client`) differs at use-site.
+#[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct AuthenticatedProvider {
+    /// API key for the provider.
     pub api_key: String,
+    /// Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`, `whisper-1`).
     pub model: String,
+    /// Optional base URL override. `None` uses the provider's default.
     pub base_url: Option<String>,
 }
 
-#[cfg(any(
-    feature = "openai-gpt",
-    feature = "openai-whisper",
-    feature = "anthropic-claude",
-    feature = "google-gemini"
-))]
 impl fmt::Debug for AuthenticatedProvider {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AuthenticatedProvider")
@@ -67,14 +52,10 @@ impl fmt::Debug for AuthenticatedProvider {
     }
 }
 
-#[cfg(any(
-    feature = "openai-gpt",
-    feature = "openai-whisper",
-    feature = "anthropic-claude",
-    feature = "google-gemini"
-))]
 impl AuthenticatedProvider {
-    /// Build an OpenAI rig-core client.
+    /// Build an OpenAI rig-core client. Used by both the LLM
+    /// completion path (`openai-gpt`) and the STT path
+    /// (`openai-whisper`).
     #[cfg(any(feature = "openai-gpt", feature = "openai-whisper"))]
     #[cfg_attr(
         docsrs,

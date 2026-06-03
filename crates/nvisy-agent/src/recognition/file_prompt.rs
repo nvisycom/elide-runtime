@@ -40,28 +40,29 @@
 //! """
 //! ```
 
+use std::collections::HashMap;
 use std::fs;
 use std::marker::PhantomData;
 use std::path::Path;
-use std::sync::OnceLock;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use minijinja::{Environment, context};
-use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
-use nvisy_core::modality::{Image, ImageLocation, Text, TextLocation};
-use nvisy_core::primitive::Confidence;
+use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::modality::{Image, Text};
 use nvisy_core::{Error, LabelMap, RecognizerInput, Result};
 use schemars::Schema;
 use serde::Deserialize;
 
 use super::candidates::{TextCandidates, VlmCandidates};
-use super::localize::{UnresolvedCandidatePolicy, localize_all};
+use super::lift::{lift_image, lift_text};
 use super::prompt::Prompt;
 use super::response_parser::parse_json;
+use super::schemas::{text_schema, vlm_schema};
 use crate::backend::LlmResponse;
 
-const DEFAULT_CONFIDENCE: f64 = 0.5;
+/// Half-width of the snippet rendered around a hint's location.
+const HINT_SNIPPET_HALF_WIDTH: usize = 80;
 
 /// File-driven [`Prompt`] impl.
 ///
@@ -84,7 +85,7 @@ struct PromptFile {
     schema_version: Option<u32>,
     meta: PromptMeta,
     #[serde(default)]
-    label_map: Option<std::collections::HashMap<String, String>>,
+    label_map: Option<HashMap<String, String>>,
     #[serde(default)]
     labels_to_ignore: Vec<String>,
     template: String,
@@ -202,32 +203,15 @@ impl FilePrompt<Image> {
     }
 }
 
-fn text_schema() -> &'static Schema {
-    static CACHE: OnceLock<Schema> = OnceLock::new();
-    CACHE.get_or_init(|| schemars::schema_for!(TextCandidates))
-}
-
-fn vlm_schema() -> &'static Schema {
-    static CACHE: OnceLock<Schema> = OnceLock::new();
-    CACHE.get_or_init(|| schemars::schema_for!(VlmCandidates))
-}
-
 impl Prompt<Text> for FilePrompt<Text> {
     fn build(&self, input: &RecognizerInput<Text>) -> String {
+        let text = input.data.text.as_str();
         let hints: Vec<_> = input
             .hints
             .iter()
             .map(|h| {
-                let value = value_at(
-                    input.data.text.as_str(),
-                    h.location.start,
-                    h.location.end,
-                );
-                let snippet = snippet_around(
-                    input.data.text.as_str(),
-                    h.location.start,
-                    h.location.end,
-                );
+                let value = value_at(text, h.location.start, h.location.end);
+                let snippet = snippet_around(text, h.location.start, h.location.end);
                 context! {
                     name => h.name.as_deref().unwrap_or(""),
                     kind => h.entity_kind.map(|k| k.to_string()).unwrap_or_else(|| "unknown".to_owned()),
@@ -237,7 +221,7 @@ impl Prompt<Text> for FilePrompt<Text> {
             })
             .collect();
         let ctx = context! {
-            text => input.data.text.as_str(),
+            text => text,
             hints => hints,
             labels => input.labels.clone(),
         };
@@ -255,43 +239,12 @@ impl Prompt<Text> for FilePrompt<Text> {
         let Ok(parsed): Result<TextCandidates, _> = parse_json(&response.text) else {
             return Vec::new();
         };
-        let text = input.data.text.as_str();
-        let localized = localize_all(text, parsed.entities, UnresolvedCandidatePolicy::default());
-        let model = ModelProvenance::new("llm".to_owned());
-
-        let mut out = Vec::with_capacity(localized.len());
-        for l in localized {
-            let Some(entity_kind) = resolve_kind(
-                l.candidate.entity_type,
-                l.candidate.value.as_str(),
-                &self.label_map,
-                &self.labels_to_ignore,
-            ) else {
-                continue;
-            };
-            let raw = l.candidate.confidence.unwrap_or(DEFAULT_CONFIDENCE);
-            let Some(confidence) = Confidence::new(raw.clamp(0.0, 1.0)) else {
-                continue;
-            };
-            let location = TextLocation::new(l.start_offset, l.end_offset);
-            let reason = format!("llm identified {entity_kind}");
-            let step = TrailStep::recognition(
-                "llm-ner",
-                confidence,
-                TrailProvenance::Model(model.clone()),
-                reason,
-            );
-            let mut b = Entity::builder()
-                .with_entity_kind(entity_kind)
-                .with_trail(vec![step])
-                .with_confidence(confidence)
-                .with_location(location);
-            if let Some(id) = l.candidate.entity_id {
-                b = b.with_entity_id(id);
-            }
-            out.push(b.build().expect("required fields provided"));
-        }
-        out
+        lift_text(
+            input,
+            parsed.entities,
+            &self.label_map,
+            &self.labels_to_ignore,
+        )
     }
 }
 
@@ -334,61 +287,13 @@ impl Prompt<Image> for FilePrompt<Image> {
         let Ok(parsed): Result<VlmCandidates, _> = parse_json(&response.text) else {
             return Vec::new();
         };
-        let dims = input.data.dims;
-        let model = ModelProvenance::new("llm".to_owned());
-
-        let mut out = Vec::with_capacity(parsed.entities.len());
-        for d in parsed.entities {
-            let kind_str = d.entity_kind.to_string();
-            if self.labels_to_ignore.iter().any(|l| l == &kind_str) {
-                continue;
-            }
-            let entity_kind = self.label_map.lookup(&kind_str).unwrap_or(d.entity_kind);
-            let raw = d.confidence.unwrap_or(DEFAULT_CONFIDENCE);
-            let Some(confidence) = Confidence::new(raw.clamp(0.0, 1.0)) else {
-                continue;
-            };
-            let bbox = d.bbox.to_pixel(dims);
-            let location = ImageLocation::new(bbox);
-            let reason = format!("vlm identified {entity_kind}");
-            let step = TrailStep::recognition(
-                "llm-vlm",
-                confidence,
-                TrailProvenance::Model(model.clone()),
-                reason,
-            );
-            let entity = Entity::builder()
-                .with_entity_kind(entity_kind)
-                .with_trail(vec![step])
-                .with_confidence(confidence)
-                .with_location(location)
-                .build()
-                .expect("required fields provided");
-            out.push(entity);
-        }
-        out
+        lift_image(
+            input,
+            parsed.entities,
+            &self.label_map,
+            &self.labels_to_ignore,
+        )
     }
-}
-
-fn resolve_kind(
-    typed: Option<EntityKind>,
-    value: &str,
-    label_map: &LabelMap,
-    labels_to_ignore: &[String],
-) -> Option<EntityKind> {
-    if let Some(kind) = typed {
-        let s = kind.to_string();
-        if labels_to_ignore.iter().any(|l| l == &s) {
-            return None;
-        }
-        return Some(label_map.lookup(&s).unwrap_or(kind));
-    }
-    // No typed kind from the model — look up the literal value in
-    // the label map (covers raw-string-label backends).
-    if labels_to_ignore.iter().any(|l| l == value) {
-        return None;
-    }
-    label_map.lookup(value)
 }
 
 fn value_at(text: &str, start: usize, end: usize) -> &str {
@@ -404,9 +309,8 @@ fn value_at(text: &str, start: usize, end: usize) -> &str {
 }
 
 fn snippet_around(text: &str, start: usize, end: usize) -> &str {
-    const HALF: usize = 80;
-    let lo = floor_char_boundary(text, start.saturating_sub(HALF));
-    let hi = ceil_char_boundary(text, (end + HALF).min(text.len()));
+    let lo = floor_char_boundary(text, start.saturating_sub(HINT_SNIPPET_HALF_WIDTH));
+    let hi = ceil_char_boundary(text, (end + HINT_SNIPPET_HALF_WIDTH).min(text.len()));
     &text[lo..hi]
 }
 

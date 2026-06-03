@@ -67,3 +67,7 @@ unicode-normalization = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+# Internal test utilities (Entity::test_builder, …).
+nvisy-core = { workspace = true, features = ["test-utils"] }

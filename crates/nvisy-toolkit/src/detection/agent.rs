@@ -1,16 +1,13 @@
 //! Re-export the [`nvisy_agent`] surface as
 //! `nvisy_toolkit::detection::agent`.
 //!
-//! A consumer that wants the shipped LLM-driven recognizers — the
-//! text-side [`NerAgent`] (impls
-//! [`EntityRecognizer<Text>`](nvisy_core::EntityRecognizer)) and the
-//! image-side [`VlmAgent`] (impls
-//! [`EntityRecognizer<Image>`](nvisy_core::EntityRecognizer)) — only
-//! needs the `nvisy-toolkit` dep. Both register straight into the
-//! shared [`RecognizerRegistry`](super::RecognizerRegistry) like any
-//! other recognizer.
+//! A consumer that wants the shipped LLM-driven recognizer
+//! ([`LlmRecognizer<M>`], implementing [`EntityRecognizer<M>`]) only
+//! needs the `nvisy-toolkit` dep. The recognizer registers straight
+//! into the shared [`RecognizerRegistry`] like any other recognizer.
 //!
-//! [`NerAgent`]: nvisy_agent::agent::ner::NerAgent
-//! [`VlmAgent`]: nvisy_agent::agent::vlm::VlmAgent
+//! [`LlmRecognizer<M>`]: nvisy_agent::LlmRecognizer
+//! [`EntityRecognizer<M>`]: nvisy_core::EntityRecognizer
+//! [`RecognizerRegistry`]: super::RecognizerRegistry
 
 pub use nvisy_agent::*;

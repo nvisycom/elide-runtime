@@ -20,9 +20,6 @@
 //! `pipeline::config::detection` — they're the glue that turns config
 //! into concrete `Arc<dyn EntityRecognizer<M>>` instances that get
 //! inserted into [`RecognizerRegistry`].
-//!
-//! [`NerAgent`]: nvisy_agent::agent::ner::NerAgent
-//! [`VlmAgent`]: nvisy_agent::agent::vlm::VlmAgent
 
 pub mod agent;
 pub mod ner;

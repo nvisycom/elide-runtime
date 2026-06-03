@@ -11,10 +11,12 @@
 mod candidates;
 mod default_prompt;
 mod file_prompt;
+mod lift;
 mod llm_recognizer;
 mod localize;
 mod prompt;
 mod response_parser;
+mod schemas;
 mod text_prompt;
 mod vlm_prompt;
 

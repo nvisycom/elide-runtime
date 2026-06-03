@@ -1,5 +1,13 @@
-//! Provider configuration for LLM agents.
+//! [`LlmProvider`]: tagged union of LLM provider connection
+//! parameters used by [`RigBackend`].
+//!
+//! Holds connection parameters and the model name only; the actual
+//! rig-core client is constructed lazily when a [`RigBackend`] is
+//! built.
+//!
+//! [`RigBackend`]: crate::backend::RigBackend
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[cfg(any(
@@ -10,36 +18,27 @@ use serde::{Deserialize, Serialize};
 use super::AuthenticatedProvider;
 use super::UnauthenticatedProvider;
 
-/// Supported LLM providers for agent-based tasks (NER, CV, OCR, text generation).
-///
-/// Each variant holds connection parameters and the model name. The actual
-/// rig client is constructed lazily when an agent is built.
-///
-/// # Example
-/// ```rust,ignore
-/// let provider = AgentProvider::openai("sk-...", "gpt-4o");
-/// let agent = NerAgent::new(&provider, config);
-/// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+/// Supported LLM providers for agent-based tasks.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum AgentProvider {
-    /// OpenAI (GPT-4o, GPT-4, etc.)
+pub enum LlmProvider {
+    /// OpenAI (GPT-4o, GPT-4, etc.).
     #[cfg(feature = "openai-gpt")]
     #[cfg_attr(docsrs, doc(cfg(feature = "openai-gpt")))]
     OpenAi(AuthenticatedProvider),
-    /// Anthropic (Claude)
+    /// Anthropic (Claude).
     #[cfg(feature = "anthropic-claude")]
     #[cfg_attr(docsrs, doc(cfg(feature = "anthropic-claude")))]
     Anthropic(AuthenticatedProvider),
-    /// Google Gemini
+    /// Google Gemini.
     #[cfg(feature = "google-gemini")]
     #[cfg_attr(docsrs, doc(cfg(feature = "google-gemini")))]
     Gemini(AuthenticatedProvider),
-    /// Ollama (local models)
+    /// Ollama (local models).
     Ollama(UnauthenticatedProvider),
 }
 
-impl AgentProvider {
+impl LlmProvider {
     /// Create an OpenAI provider.
     #[cfg(feature = "openai-gpt")]
     #[cfg_attr(docsrs, doc(cfg(feature = "openai-gpt")))]

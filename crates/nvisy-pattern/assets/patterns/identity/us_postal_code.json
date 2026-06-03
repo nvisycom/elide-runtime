@@ -1,6 +1,0 @@
-{
-  "name": "us-postal-code",
-  "entityKind": "postal_code",
-  "regex": "\\b\\d{5}(?:-\\d{4})?\\b",
-  "score": 0.5
-}

@@ -1,6 +1,6 @@
 //! End-to-end: load user-supplied rules from the on-disk wire shape
-//! (`testdata/patterns/*.json`, `testdata/dictionaries/*.{json,csv}`)
-//! through [`Regex::from_json`], [`Dictionary::metadata_from_json`],
+//! (`testdata/patterns/*.toml`, `testdata/dictionaries/*.{toml,csv}`)
+//! through [`Regex::from_toml`], [`Dictionary::metadata_from_toml`],
 //! and [`Terms::from_csv`], mix them with shipped patterns, and
 //! confirm a real internal-handoff document yields the custom
 //! entities.
@@ -10,22 +10,21 @@ use nvisy_core::{EntityRecognizer, RecognizerInput, TextData};
 use nvisy_pattern::{Dictionary, PatternRecognizer, PatternRegistry, Regex, Terms};
 
 #[tokio::test]
-async fn user_json_rules_load_and_detect() {
-    let employee_id = Regex::from_json(include_bytes!("../testdata/patterns/employee_id.json"))
-        .expect("employee_id.json parses");
+async fn user_toml_rules_load_and_detect() {
+    let employee_id = Regex::from_toml(include_str!("../testdata/patterns/employee_id.toml"))
+        .expect("employee_id.toml parses");
     let product_code_regex =
-        Regex::from_json(include_bytes!("../testdata/patterns/product_codes.json"))
-            .expect("product_codes.json parses");
+        Regex::from_toml(include_str!("../testdata/patterns/product_codes.toml"))
+            .expect("product_codes.toml parses");
 
     let terms = Terms::from_csv(include_bytes!("../testdata/dictionaries/product_codes.csv"))
         .expect("product_codes.csv parses");
-    let product_code_dict = Dictionary::metadata_from_json(include_bytes!(
-        "../testdata/dictionaries/product_codes.json"
-    ))
-    .expect("product_codes metadata parses")
-    .with_terms(terms)
-    .build()
-    .expect("dictionary builds");
+    let product_code_dict =
+        Dictionary::metadata_from_toml(include_str!("../testdata/dictionaries/product_codes.toml"))
+            .expect("product_codes metadata parses")
+            .with_terms(terms)
+            .build()
+            .expect("dictionary builds");
 
     // 4 rows × 3 columns; every non-empty cell becomes a term.
     assert_eq!(product_code_dict.terms.len(), 12);

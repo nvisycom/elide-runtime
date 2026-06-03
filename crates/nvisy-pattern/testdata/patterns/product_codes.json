@@ -1,6 +1,0 @@
-{
-  "name": "internal-product-code",
-  "entityKind": "internal_id",
-  "regex": "\\b(?:WIDGET-\\d{3}|SPROCKET-\\d{2}|GADGET-X\\d)\\b",
-  "score": 0.9
-}

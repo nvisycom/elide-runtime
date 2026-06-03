@@ -1,6 +1,0 @@
-{
-  "name": "us-passport",
-  "entityKind": "passport_number",
-  "regex": "\\b[A-Z]\\d{8}\\b",
-  "score": 0.5
-}

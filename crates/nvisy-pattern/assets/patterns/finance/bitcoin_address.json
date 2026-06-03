@@ -1,6 +1,0 @@
-{
-  "name": "bitcoin-address",
-  "entityKind": "crypto_address",
-  "regex": "\\b(?:bc1[a-z0-9]{25,39}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\\b",
-  "score": 0.85
-}

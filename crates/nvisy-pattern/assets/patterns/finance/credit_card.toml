@@ -1,0 +1,8 @@
+name = "credit-card"
+entity_kind = "payment_card"
+regex = "\\b(?:\\d[ \\-]*?){13,19}\\b"
+score = 0.85
+validator = "luhn"
+
+[context]
+keywords = ["card", "credit", "debit", "payment", "visa", "mastercard", "amex"]

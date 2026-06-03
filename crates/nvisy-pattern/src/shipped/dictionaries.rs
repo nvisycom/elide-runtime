@@ -1,9 +1,9 @@
 //! Built-in [`Dictionary`]s, embedded at compile time.
 //!
-//! Each accessor pairs a JSON metadata sidecar
-//! (`assets/dictionaries/**/*.json`) with a term source
+//! Each accessor pairs a TOML metadata sidecar
+//! (`assets/dictionaries/**/*.toml`) with a term source
 //! (`*.csv` for multi-column term lists, `*.txt` for one-per-line),
-//! merging them via [`Dictionary::metadata_from_json`] +
+//! merging them via [`Dictionary::metadata_from_toml`] +
 //! [`Terms::from_csv`] / [`Terms::from_text`].
 //!
 //! [`Dictionary`]: crate::Dictionary
@@ -11,7 +11,7 @@
 use crate::recognition::{Dictionary, Terms};
 
 macro_rules! shipped_dictionary {
-    ($(#[$meta:meta])* fn $name:ident from $json:literal with csv $terms:literal) => {
+    ($(#[$meta:meta])* fn $name:ident from $meta_path:literal with csv $terms:literal) => {
         $(#[$meta])*
         #[must_use]
         pub fn $name() -> Dictionary {
@@ -20,17 +20,17 @@ macro_rules! shipped_dictionary {
                 $terms
             )))
             .expect(concat!("shipped term source `", $terms, "` parses"));
-            Dictionary::metadata_from_json(include_bytes!(concat!(
+            Dictionary::metadata_from_toml(include_str!(concat!(
                 "../../assets/dictionaries/",
-                $json
+                $meta_path
             )))
-            .expect(concat!("shipped metadata `", $json, "` is well-formed"))
+            .expect(concat!("shipped metadata `", $meta_path, "` is well-formed"))
             .with_terms(terms)
             .build()
-            .expect(concat!("shipped dictionary `", $json, "` builds"))
+            .expect(concat!("shipped dictionary `", $meta_path, "` builds"))
         }
     };
-    ($(#[$meta:meta])* fn $name:ident from $json:literal with text $terms:literal) => {
+    ($(#[$meta:meta])* fn $name:ident from $meta_path:literal with text $terms:literal) => {
         $(#[$meta])*
         #[must_use]
         pub fn $name() -> Dictionary {
@@ -39,14 +39,14 @@ macro_rules! shipped_dictionary {
                 $terms
             )))
             .expect(concat!("shipped term source `", $terms, "` parses"));
-            Dictionary::metadata_from_json(include_bytes!(concat!(
+            Dictionary::metadata_from_toml(include_str!(concat!(
                 "../../assets/dictionaries/",
-                $json
+                $meta_path
             )))
-            .expect(concat!("shipped metadata `", $json, "` is well-formed"))
+            .expect(concat!("shipped metadata `", $meta_path, "` is well-formed"))
             .with_terms(terms)
             .build()
-            .expect(concat!("shipped dictionary `", $json, "` builds"))
+            .expect(concat!("shipped dictionary `", $meta_path, "` builds"))
         }
     };
 }
@@ -54,25 +54,25 @@ macro_rules! shipped_dictionary {
 shipped_dictionary!(
     /// Cryptocurrency names and ticker symbols (BTC, Bitcoin, ETH,
     /// Ethereum, …).
-    fn cryptocurrencies from "finance/cryptocurrencies.json" with csv "finance/cryptocurrencies.csv"
+    fn cryptocurrencies from "finance/cryptocurrencies.toml" with csv "finance/cryptocurrencies.csv"
 );
 shipped_dictionary!(
     /// Fiat currency names and ISO 4217 codes (USD, US Dollar, EUR,
     /// Euro, …).
-    fn currencies from "finance/currencies.json" with csv "finance/currencies.csv"
+    fn currencies from "finance/currencies.toml" with csv "finance/currencies.csv"
 );
 shipped_dictionary!(
     /// Human-language names and ISO 639 codes (English, en,
     /// French, fr, …).
-    fn languages from "general/languages.json" with csv "general/languages.csv"
+    fn languages from "general/languages.toml" with csv "general/languages.csv"
 );
 shipped_dictionary!(
     /// Demonyms and nationality terms (American, French, …).
-    fn nationalities from "general/nationalities.json" with text "general/nationalities.txt"
+    fn nationalities from "general/nationalities.toml" with text "general/nationalities.txt"
 );
 shipped_dictionary!(
     /// Religious affiliations (Christianity, Islam, …).
-    fn religions from "general/religions.json" with text "general/religions.txt"
+    fn religions from "general/religions.toml" with text "general/religions.txt"
 );
 
 /// Every built-in dictionary shipped by this crate, in arbitrary

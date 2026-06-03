@@ -7,20 +7,20 @@
 //! match before emitting an entity.
 //!
 //! Construct via [`Regex::builder`] for the chainable style or
-//! [`Regex::from_json`] when loading a definition file.
+//! [`Regex::from_toml`] when loading a definition file.
 
 use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::context::Context;
 use nvisy_core::entity::EntityKind;
-use nvisy_core::primitive::LanguageTag;
+use nvisy_core::primitive::{Confidence, LanguageTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Regex-backed detection rule.
 ///
 /// Identical fields whether built via [`RegexBuilder`] or loaded
-/// from a JSON file via [`Regex::from_json`].
+/// from a TOML file via [`Regex::from_toml`].
 #[derive(Debug, Clone, PartialEq, Builder)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[builder(
@@ -29,7 +29,6 @@ use serde::{Deserialize, Serialize};
     setter(into, strip_option, prefix = "with"),
     build_fn(error = "Error", validate = "RegexBuilder::validate")
 )]
-#[serde(rename_all = "camelCase")]
 pub struct Regex {
     /// Human-readable identifier (e.g. `"ssn"`, `"credit_card"`).
     /// Surfaced in trail steps so downstream consumers can see
@@ -44,8 +43,8 @@ pub struct Regex {
     /// [`PatternRecognizer::build`]: super::PatternRecognizer
     pub regex: String,
     /// Confidence score stamped on every match before any boost.
-    #[builder(default = "1.0")]
-    pub score: f64,
+    #[builder(default = "Confidence::MAX")]
+    pub score: Confidence,
     /// Optional context keywords. Carried through to emitted
     /// entities so a downstream enhancer can apply boosts.
     #[builder(default)]
@@ -77,15 +76,15 @@ impl Regex {
         RegexBuilder::default()
     }
 
-    /// Parse a regex rule from a JSON byte slice.
+    /// Parse a regex rule from a TOML string.
     ///
     /// # Errors
     ///
-    /// Returns a validation error when the JSON is malformed or
+    /// Returns a validation error when the TOML is malformed or
     /// missing required fields.
-    pub fn from_json(bytes: &[u8]) -> Result<Self, Error> {
-        serde_json::from_slice(bytes)
-            .map_err(|e| Error::validation(format!("regex JSON: {e}"), "nvisy-pattern"))
+    pub fn from_toml(raw: &str) -> Result<Self, Error> {
+        toml::from_str(raw)
+            .map_err(|e| Error::validation(format!("regex TOML: {e}"), "nvisy-pattern"))
     }
 }
 

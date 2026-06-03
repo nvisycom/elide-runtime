@@ -29,7 +29,7 @@ nvisy-core = { workspace = true, features = [] }
 # (De)serialization
 csv = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
-serde_json = { workspace = true, features = [] }
+toml = { workspace = true, features = ["parse"] }
 schemars = { workspace = true, features = [] }
 
 # Derive macros and error handling

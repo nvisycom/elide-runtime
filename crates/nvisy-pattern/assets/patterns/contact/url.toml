@@ -1,0 +1,4 @@
+name = "url"
+entity_kind = "url"
+regex = "\\bhttps?://[^\\s/$.?#][^\\s]*\\b"
+score = 0.9

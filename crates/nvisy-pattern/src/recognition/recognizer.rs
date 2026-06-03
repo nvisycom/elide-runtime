@@ -136,19 +136,13 @@ impl PatternRecognizerBuilder {
                     )
                 })?),
             };
-            let score = Confidence::try_clamped(pattern.score).ok_or_else(|| {
-                Error::validation(
-                    format!("pattern `{}`: score not finite", pattern.name),
-                    "nvisy-pattern",
-                )
-            })?;
             regex_sources.push(pattern.regex.clone());
             compiled_patterns.push(CompiledPattern {
                 name: pattern.name.clone(),
                 entity_kind: pattern.entity_kind,
                 regex,
                 raw_regex: pattern.regex.clone(),
-                score,
+                score: pattern.score,
                 validator,
                 languages: pattern.languages.clone(),
             });
@@ -168,18 +162,12 @@ impl PatternRecognizerBuilder {
             let term_start = all_terms.len();
             all_terms.extend(dict.terms.as_slice().iter().cloned());
             let term_end = all_terms.len();
-            let score = Confidence::try_clamped(dict.score).ok_or_else(|| {
-                Error::validation(
-                    format!("dictionary `{}`: score not finite", dict.name),
-                    "nvisy-pattern",
-                )
-            })?;
             compiled_dicts.push(CompiledDictionary {
                 name: dict.name.clone(),
                 entity_kind: dict.entity_kind,
                 term_start,
                 term_end,
-                score,
+                score: dict.score,
                 languages: dict.languages.clone(),
             });
         }

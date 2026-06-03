@@ -8,6 +8,7 @@
 
 use nvisy_core::context::{Context, ContextEnhancer};
 use nvisy_core::entity::{EntityKind, PatternProvenance, TrailProvenance, TrailStepKind};
+use nvisy_core::primitive::Confidence;
 use nvisy_core::{EntityRecognizer, RecognizerInput, TextData};
 use nvisy_pattern::{PatternRecognizer, PatternRegistry, Regex};
 
@@ -17,7 +18,7 @@ async fn enhancer_boosts_matches_near_keyword_only() {
         .with_name("ssn")
         .with_entity_kind(EntityKind::GovernmentId)
         .with_regex(r"\b\d{3}-\d{2}-\d{4}\b")
-        .with_score(0.6)
+        .with_score(Confidence::clamped(0.6))
         .with_context(Context::new(["ssn", "social security"]))
         .build()
         .expect("ssn regex builds");

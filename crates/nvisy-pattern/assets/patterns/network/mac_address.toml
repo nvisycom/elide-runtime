@@ -1,0 +1,4 @@
+name = "mac-address"
+entity_kind = "mac_address"
+regex = "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b"
+score = 0.85

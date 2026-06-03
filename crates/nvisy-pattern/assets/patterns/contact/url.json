@@ -1,6 +1,0 @@
-{
-  "name": "url",
-  "entityKind": "url",
-  "regex": "\\bhttps?://[^\\s/$.?#][^\\s]*\\b",
-  "score": 0.9
-}

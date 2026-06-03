@@ -1,0 +1,3 @@
+name = "cryptocurrencies"
+entity_kind = "currency"
+score = 0.85

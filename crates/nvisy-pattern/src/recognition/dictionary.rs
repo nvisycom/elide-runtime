@@ -8,7 +8,7 @@
 //! Construct via:
 //!
 //! - [`Dictionary::builder`] — chainable, ground-up
-//! - [`Dictionary::from_json`] — self-contained JSON
+//! - [`Dictionary::from_toml`] — self-contained TOML
 //!
 //! Term sources are first-class — see [`Terms`] for
 //! [`from_text`] and
@@ -26,7 +26,7 @@ use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::context::Context;
 use nvisy_core::entity::EntityKind;
-use nvisy_core::primitive::LanguageTag;
+use nvisy_core::primitive::{Confidence, LanguageTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -41,7 +41,6 @@ use super::terms::Terms;
     setter(into, strip_option, prefix = "with"),
     build_fn(error = "Error")
 )]
-#[serde(rename_all = "camelCase")]
 pub struct Dictionary {
     /// Human-readable identifier (e.g. `"nationalities"`).
     pub name: String,
@@ -51,8 +50,8 @@ pub struct Dictionary {
     /// an Aho-Corasick automaton at build time.
     pub terms: Terms,
     /// Confidence score stamped on every match before any boost.
-    #[builder(default = "1.0")]
-    pub score: f64,
+    #[builder(default = "Confidence::MAX")]
+    pub score: Confidence,
     /// Optional context keywords carried through to emitted entities
     /// for a downstream enhancer to apply boosts.
     #[builder(default)]
@@ -76,42 +75,42 @@ impl Dictionary {
         DictionaryBuilder::default()
     }
 
-    /// Parse a self-contained dictionary from a JSON byte slice. The
-    /// JSON must include a `terms` field; for metadata-only JSON
+    /// Parse a self-contained dictionary from a TOML string. The
+    /// TOML must include a `terms` field; for metadata-only TOML
     /// paired with a separate term source, use
-    /// [`metadata_from_json`] instead.
+    /// [`metadata_from_toml`] instead.
     ///
     /// # Errors
     ///
-    /// Returns a validation error when the JSON is malformed or
+    /// Returns a validation error when the TOML is malformed or
     /// missing required fields.
     ///
-    /// [`metadata_from_json`]: Self::metadata_from_json
-    pub fn from_json(bytes: &[u8]) -> Result<Self, Error> {
-        serde_json::from_slice(bytes)
-            .map_err(|e| Error::validation(format!("dictionary JSON: {e}"), "nvisy-pattern"))
+    /// [`metadata_from_toml`]: Self::metadata_from_toml
+    pub fn from_toml(raw: &str) -> Result<Self, Error> {
+        toml::from_str(raw)
+            .map_err(|e| Error::validation(format!("dictionary TOML: {e}"), "nvisy-pattern"))
     }
 
-    /// Parse the metadata fields of a dictionary from JSON (no
+    /// Parse the metadata fields of a dictionary from TOML (no
     /// `terms` required) and return a seeded builder. The caller is
     /// expected to chain
     /// [`with_terms`] before
     /// [`build`].
     ///
     /// Useful when shipped or user-supplied dictionaries split
-    /// metadata into a JSON sidecar and store the actual terms as
+    /// metadata into a TOML sidecar and store the actual terms as
     /// CSV / TXT.
     ///
     /// # Errors
     ///
-    /// Returns a validation error when the JSON is malformed or
+    /// Returns a validation error when the TOML is malformed or
     /// missing required metadata fields.
     ///
     /// [`with_terms`]: DictionaryBuilder::with_terms
     /// [`build`]: DictionaryBuilder::build
-    pub fn metadata_from_json(bytes: &[u8]) -> Result<DictionaryBuilder, Error> {
-        let metadata: DictionaryMetadata = serde_json::from_slice(bytes).map_err(|e| {
-            Error::validation(format!("dictionary metadata JSON: {e}"), "nvisy-pattern")
+    pub fn metadata_from_toml(raw: &str) -> Result<DictionaryBuilder, Error> {
+        let metadata: DictionaryMetadata = toml::from_str(raw).map_err(|e| {
+            Error::validation(format!("dictionary metadata TOML: {e}"), "nvisy-pattern")
         })?;
         let mut builder = Dictionary::builder()
             .with_name(metadata.name)
@@ -126,15 +125,14 @@ impl Dictionary {
     }
 }
 
-/// Wire shape for the dictionary metadata sidecar JSON — every
+/// Wire shape for the dictionary metadata sidecar TOML — every
 /// field [`Dictionary`] carries except `terms`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct DictionaryMetadata {
     name: String,
     entity_kind: EntityKind,
     #[serde(default)]
-    score: Option<f64>,
+    score: Option<Confidence>,
     #[serde(default)]
     context: Option<Context>,
 }

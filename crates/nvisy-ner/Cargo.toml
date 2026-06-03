@@ -46,6 +46,12 @@ lingua = { workspace = true, features = [] }
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 
+# Builder derive macro
+derive_builder = { workspace = true, features = [] }
+
+# Heterogeneous typed map for shared-NLP artifacts
+type-map = { workspace = true, features = [] }
+
 # Identifiers
 uuid = { workspace = true, features = ["v7"] }
 

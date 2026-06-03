@@ -4,9 +4,15 @@
 //! `Arc<dyn EntityRecognizer<M>>` per modality. The trait the registry
 //! holds ([`nvisy_core::EntityRecognizer`]) lives in `nvisy-core` so
 //! backend crates can implement it without depending on toolkit. Each
-//! backend crate is re-exported here under its own submodule ([`ner`]
-//! and [`pattern`]) so a consumer that wants the shipped recognizers
-//! only needs to depend on `nvisy-toolkit`.
+//! backend crate is re-exported here under its own submodule so a
+//! consumer that wants the shipped recognizers only needs to depend on
+//! `nvisy-toolkit`.
+//!
+//! Three backend submodules ship today:
+//!
+//! - [`pattern`] — `nvisy_pattern`: regex + dictionary rules.
+//! - [`ner`] — `nvisy_ner`: zero-shot and adapter NER recognizers.
+//! - [`agent`] — `nvisy_agent`: LLM-driven recognizers.
 //!
 //! TOML-deserialisable backend selectors and config bundles
 //! (`NerBackend`, `NerDetection`, `PatternDetection`,
@@ -14,7 +20,11 @@
 //! `pipeline::config::detection` — they're the glue that turns config
 //! into concrete `Arc<dyn EntityRecognizer<M>>` instances that get
 //! inserted into [`RecognizerRegistry`].
+//!
+//! [`NerAgent`]: nvisy_agent::agent::ner::NerAgent
+//! [`VlmAgent`]: nvisy_agent::agent::vlm::VlmAgent
 
+pub mod agent;
 pub mod ner;
 pub mod pattern;
 mod registry;

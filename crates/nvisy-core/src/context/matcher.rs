@@ -1,10 +1,11 @@
 //! [`KeywordMatcher`] strategy + the two shipped implementations.
 //!
 //! - [`SubstringMatcher`] — ASCII case-insensitive substring search
-//!   over the raw text window. The fallback when no
-//!   [`NlpArtifacts`] is available.
+//!   over the raw text window. The fallback when no [`Tokens`] are
+//!   present in `TextData.artifacts`.
 //! - [`LemmaMatcher`] — matches keywords against lemmatized tokens
-//!   from `NlpArtifacts.tokens`. Recognizes morphological variants
+//!   stamped on `TextData.artifacts` as a [`Tokens`] entry by an
+//!   upstream NLP engine. Recognizes morphological variants
 //!   ("running" → "run", "SSNs" → "ssn") that substring matching
 //!   misses, at the cost of needing a producer engine with
 //!   lemmatization.
@@ -13,7 +14,7 @@
 //! [`ContextEnhancer`] owns one as a
 //! configured strategy.
 //!
-//! [`NlpArtifacts`]: crate::nlp::NlpArtifacts
+//! [`Tokens`]: crate::nlp::Tokens
 //! [`ContextEnhancer`]: super::ContextEnhancer
 
 use crate::nlp::Tokens;
@@ -31,24 +32,22 @@ use crate::nlp::Tokens;
 pub trait KeywordMatcher: Send + Sync {
     /// `true` if at least one keyword from `keywords` appears in
     /// the input. `window` is the raw text slice surrounding the
-    /// entity match; `tokens` is the subset of
-    /// [`Tokens`] covering that same range
-    /// when an [`NlpArtifacts`] was
-    /// available, `None` otherwise.
+    /// entity match; `tokens` is the subset of [`Tokens`] covering
+    /// that same range when an upstream NLP engine produced one,
+    /// `None` otherwise.
     ///
     /// [`Tokens`]: crate::nlp::Tokens
-    /// [`NlpArtifacts`]: crate::nlp::NlpArtifacts
     fn any_match(&self, window: &str, tokens: Option<&Tokens>, keywords: &[String]) -> bool;
 }
 
 /// ASCII case-insensitive substring matcher. The default — used
-/// whenever no [`NlpArtifacts`] was
-/// produced, or whenever the caller explicitly picks raw matching.
+/// whenever no [`Tokens`] were stamped on `TextData.artifacts`, or
+/// whenever the caller explicitly picks raw matching.
 ///
 /// Fast, allocation-light, permissive: the keyword `"email"` fires
 /// inside `"MyEmailAddress"`. Ignores the `tokens` argument.
 ///
-/// [`NlpArtifacts`]: crate::nlp::NlpArtifacts
+/// [`Tokens`]: crate::nlp::Tokens
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SubstringMatcher;
 

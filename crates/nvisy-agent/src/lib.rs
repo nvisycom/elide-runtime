@@ -4,5 +4,10 @@
 
 pub mod agent;
 pub mod audio;
+pub mod backend;
 pub(crate) mod error;
-pub mod pipeline;
+mod recognition;
+
+pub use self::recognition::{
+    DefaultPrompt, FilePrompt, LlmRecognizer, LlmRecognizerBuilder, Prompt,
+};

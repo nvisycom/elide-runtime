@@ -3,78 +3,76 @@
 //! The detect pass does two things in one LLM call:
 //!
 //! 1. Open-ended discovery: find every sensitive entity in the
-//!    source text matching the configured `entity_kinds` (or all
-//!    kinds when empty). Each candidate carries its own confidence;
+//!    source text. Each candidate carries its own confidence;
 //!    threshold filtering happens later in the engine's
 //!    deduplication step, not in the prompt.
-//! 2. Per-hint adjudication: for each user-supplied [`NerHint`] in
-//!    [`LlmNerContext::hints`], either emit a candidate carrying
-//!    `hint_id = Some(<that hint's index>)` (confirming or
-//!    relocating it) or omit any reference to it (implicit
-//!    rejection).
+//! 2. Per-hint adjudication: for each uploader-supplied
+//!    [`Hint<Text>`] on [`RecognizerInput::hints`], either emit a
+//!    candidate carrying `hint_id = Some(<that hint's index>)`
+//!    (confirming or relocating it) or omit any reference to it
+//!    (implicit rejection).
 //!
 //! Both kinds of output share the [`NerCandidate`] shape; only the
 //! optional `hint_id` distinguishes them. Provenance stamping
-//! (`Annotation` for hint responses, `LlmNer` for discoveries) is
+//! (`Annotation` for hint responses, `Model` for discoveries) is
 //! handled downstream of this prompt by the agent.
 //!
-//! [`NerHint`]: crate::agent::NerHint
-//! [`LlmNerContext::hints`]: crate::agent::LlmNerContext::hints
+//! [`Hint<Text>`]: nvisy_core::Hint
+//! [`RecognizerInput::hints`]: nvisy_core::RecognizerInput::hints
 //! [`NerCandidate`]: super::NerCandidate
 
-use crate::agent::{ALL_TYPES_HINT, LlmNerContext};
+use nvisy_core::Hint;
+use nvisy_core::modality::Text;
 
-/// Builds user prompts for the unified detect pass.
+/// Builds user prompts for the unified detect pass from a per-call
+/// text + hints + labels triple.
 pub(crate) struct NerPromptBuilder<'a> {
-    config: &'a LlmNerContext,
+    text: &'a str,
+    hints: &'a [Hint<Text>],
+    labels: &'a [String],
 }
 
 impl<'a> NerPromptBuilder<'a> {
-    /// Create a prompt builder from a [`LlmNerContext`].
-    pub fn new(config: &'a LlmNerContext) -> Self {
-        Self { config }
+    /// Create a prompt builder from the per-call source text, the
+    /// uploader-supplied hints, and the document labels.
+    pub fn new(text: &'a str, hints: &'a [Hint<Text>], labels: &'a [String]) -> Self {
+        Self {
+            text,
+            hints,
+            labels,
+        }
     }
 
-    /// Build the user prompt for the given text.
-    pub fn build(&self, text: &str) -> String {
+    /// Build the user prompt.
+    pub fn build(&self) -> String {
         let mut prompt = String::new();
         self.render_instruction(&mut prompt);
-        self.render_source(&mut prompt, text);
+        self.render_source(&mut prompt);
         self.render_labels(&mut prompt);
-        self.render_hints(&mut prompt, text);
+        self.render_hints(&mut prompt);
         prompt
     }
 
     fn render_instruction(&self, prompt: &mut String) {
-        let types = if self.config.entity_kinds.is_empty() {
-            ALL_TYPES_HINT.to_string()
-        } else {
-            self.config
-                .entity_kinds
-                .iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        prompt.push_str(&format!(
-            "Detect entities of types [{types}] in the following text. \
+        prompt.push_str(
+            "Detect every sensitive entity in the following text. \
              Return a JSON object with an \"entities\" key whose value is an array of \
              candidates. Each candidate has keys: entity_id, entity_type, \
-             value, confidence, context, description, hint_id."
-        ));
+             value, confidence, context, description, hint_id.",
+        );
     }
 
-    fn render_source(&self, prompt: &mut String, text: &str) {
+    fn render_source(&self, prompt: &mut String) {
         prompt.push_str("\n\n---\n");
-        prompt.push_str(text);
+        prompt.push_str(self.text);
         prompt.push_str("\n---");
     }
 
     fn render_labels(&self, prompt: &mut String) {
-        if self.config.labels.is_empty() {
+        if self.labels.is_empty() {
             return;
         }
-        let labels = self.config.labels.join(", ");
+        let labels = self.labels.join(", ");
         prompt.push_str(&format!(
             "\n\nDocument context labels (adjust sensitivity to \
              domain-specific terms accordingly): {labels}."
@@ -85,8 +83,8 @@ impl<'a> NerPromptBuilder<'a> {
     /// with its claimed metadata and a snippet so the LLM has
     /// enough context to confirm, relocate, or reject. Empty when
     /// there are no hints.
-    fn render_hints(&self, prompt: &mut String, text: &str) {
-        if self.config.hints.is_empty() {
+    fn render_hints(&self, prompt: &mut String) {
+        if self.hints.is_empty() {
             return;
         }
         prompt.push_str(
@@ -96,9 +94,9 @@ impl<'a> NerPromptBuilder<'a> {
              to point at the corrected location), or omit any reference to that \
              hint_id to reject it. Hints:",
         );
-        for (i, h) in self.config.hints.iter().enumerate() {
-            let value = value_at(text, h.start, h.end);
-            let snippet = snippet_around(text, h.start, h.end);
+        for (i, h) in self.hints.iter().enumerate() {
+            let value = value_at(self.text, h.location.start, h.location.end);
+            let snippet = snippet_around(self.text, h.location.start, h.location.end);
             let name = h.name.as_deref().unwrap_or("");
             let kind = h
                 .entity_kind
@@ -181,35 +179,21 @@ fn ceil_char_boundary(s: &str, mut pos: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use nvisy_core::entity::EntityKind;
+    use nvisy_core::modality::Text;
 
     use super::*;
-    use crate::agent::NerHint;
 
     #[test]
-    fn renders_entity_kinds() {
-        let config = LlmNerContext {
-            entity_kinds: vec![EntityKind::PersonName, EntityKind::GovernmentId],
-            ..Default::default()
-        };
-        let prompt = NerPromptBuilder::new(&config).build("Hello world");
-        assert!(prompt.contains("person_name, government_id"));
+    fn renders_source_text() {
+        let prompt = NerPromptBuilder::new("Hello world", &[], &[]).build();
         assert!(prompt.contains("Hello world"));
-    }
-
-    #[test]
-    fn renders_all_kinds_when_empty() {
-        let config = LlmNerContext::default();
-        let prompt = NerPromptBuilder::new(&config).build("test");
-        assert!(prompt.contains("all entity types"));
+        assert!(prompt.contains("Detect every sensitive entity"));
     }
 
     #[test]
     fn renders_labels_when_present() {
-        let config = LlmNerContext {
-            labels: vec!["medical".into(), "internal".into()],
-            ..Default::default()
-        };
-        let prompt = NerPromptBuilder::new(&config).build("some text");
+        let labels = vec!["medical".to_string(), "internal".to_string()];
+        let prompt = NerPromptBuilder::new("some text", &[], &labels).build();
         assert!(prompt.contains("Document context labels"));
         assert!(prompt.contains("medical"));
         assert!(prompt.contains("internal"));
@@ -217,8 +201,7 @@ mod tests {
 
     #[test]
     fn omits_label_section_when_empty() {
-        let config = LlmNerContext::default();
-        let prompt = NerPromptBuilder::new(&config).build("plain");
+        let prompt = NerPromptBuilder::new("plain", &[], &[]).build();
         assert!(!prompt.contains("Document context labels"));
     }
 
@@ -226,16 +209,12 @@ mod tests {
     fn renders_hints_with_index_value_and_snippet() {
         let text = "Hello Alice, your invoice 12345 is ready.";
         let alice_start = text.find("Alice").unwrap();
-        let config = LlmNerContext {
-            hints: vec![NerHint {
-                name: Some("customer".into()),
-                entity_kind: Some(EntityKind::PersonName),
-                start: alice_start,
-                end: alice_start + 5,
-            }],
-            ..Default::default()
-        };
-        let prompt = NerPromptBuilder::new(&config).build(text);
+        let hints = vec![
+            Hint::new(Text::new(alice_start, alice_start + 5))
+                .with_name("customer")
+                .with_entity_kind(EntityKind::PersonName),
+        ];
+        let prompt = NerPromptBuilder::new(text, &hints, &[]).build();
         assert!(prompt.contains("[hint 0]"));
         assert!(prompt.contains("name=\"customer\""));
         assert!(prompt.contains("kind=person_name"));
@@ -246,8 +225,7 @@ mod tests {
 
     #[test]
     fn omits_hint_section_when_empty() {
-        let config = LlmNerContext::default();
-        let prompt = NerPromptBuilder::new(&config).build("plain text");
+        let prompt = NerPromptBuilder::new("plain text", &[], &[]).build();
         assert!(!prompt.contains("[hint"));
         assert!(!prompt.contains("uploader marked these regions"));
     }

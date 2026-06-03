@@ -16,8 +16,7 @@ mod pattern;
 mod plan;
 
 use nvisy_core::Result;
-use nvisy_ner::backend as ner_backend;
-use nvisy_ner::recognition::{GlinerRecognizer, NerModelConfiguration};
+use nvisy_ner::NerRecognizer;
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};
 use nvisy_toolkit::detection::RecognizerRegistry;
 
@@ -77,24 +76,26 @@ impl DetectionConfig {
 
         if let Some(ner_cfg) = self.ner.as_ref().filter(|c| c.enabled) {
             reg = match &ner_cfg.backend {
-                NerBackend::Noop => reg.add_text_recognizer(GlinerRecognizer::new(
-                    NER_RECOGNIZER_NAME,
-                    ner_backend::NoopBackend,
-                    default_text_kinds(),
-                    NerModelConfiguration::default(),
-                )),
+                NerBackend::Noop => {
+                    let recognizer = NerRecognizer::builder()
+                        .with_name(NER_RECOGNIZER_NAME)
+                        .with_engine(nvisy_ner::backend::NoopBackend)
+                        .with_supported_kinds(default_text_kinds())
+                        .build()?;
+                    reg.add_text_recognizer(recognizer)
+                }
 
                 #[cfg(feature = "bento")]
                 NerBackend::Bento { base_url } => {
-                    let backend = ner_backend::BentoBackend::new(ner_backend::BentoParams::new(
-                        base_url.clone(),
-                    ))?;
-                    reg.add_text_recognizer(GlinerRecognizer::new(
-                        NER_RECOGNIZER_NAME,
-                        backend,
-                        default_text_kinds(),
-                        NerModelConfiguration::default(),
-                    ))
+                    let backend = nvisy_ner::backend::BentoBackend::new(
+                        nvisy_ner::backend::BentoParams::new(base_url.clone()),
+                    )?;
+                    let recognizer = NerRecognizer::builder()
+                        .with_name(NER_RECOGNIZER_NAME)
+                        .with_engine(backend)
+                        .with_supported_kinds(default_text_kinds())
+                        .build()?;
+                    reg.add_text_recognizer(recognizer)
                 }
 
                 #[cfg(not(feature = "bento"))]

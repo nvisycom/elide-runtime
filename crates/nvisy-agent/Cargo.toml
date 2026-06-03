@@ -53,6 +53,8 @@ reqwest-middleware = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
+toml = { workspace = true, features = ["parse"] }
+minijinja = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }

@@ -1,5 +1,5 @@
 //! [`StopwordSet`]: the resolved stopword list for one
-//! [`NlpArtifacts`].
+//! `TextData::artifacts`.
 //!
 //! Engines that have a stopword list for the artifact's dominant
 //! language pre-resolve it once at `process_text` time and store it
@@ -13,14 +13,14 @@
 //! language can override by populating with already-lowercased
 //! tokens and querying through [`StopwordSet::contains_exact`].
 //!
-//! [`NlpArtifacts`]: super::NlpArtifacts
+//! `TextData::artifacts`: super::TextData::artifacts
 
 use std::collections::HashSet;
 
 /// Resolved stopword set carried on an
-/// [`NlpArtifacts`].
+/// `TextData::artifacts`.
 ///
-/// [`NlpArtifacts`]: super::NlpArtifacts
+/// `TextData::artifacts`: super::TextData::artifacts
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StopwordSet {
     inner: HashSet<String>,

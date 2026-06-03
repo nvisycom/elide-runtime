@@ -1,26 +1,23 @@
 //! [`LabelMap`]: model-label → [`EntityKind`] translation table.
 //!
-//! Lives client-side as part of
-//! [`NerModelConfiguration`]. Lets
-//! the adapter recognizers (`NlpRecognizer`, `GlinerRecognizer`)
-//! consume raw model labels uniformly regardless of which backend
-//! produced them — swap backends without re-implementing
-//! translation.
+//! Shared translation table used by every model-driven recognizer
+//! (NER backends, LLM recognizers, …). Lets a recognizer consume
+//! raw model labels uniformly regardless of which backend produced
+//! them — swap backends without re-implementing translation.
 //!
-//! The map is bidirectional in spirit (look up an `EntityKind` to
+//! The map is bidirectional in spirit (look up an [`EntityKind`] to
 //! find the canonical label a backend should be asked for) but the
 //! primary path is label→kind. The reverse lookup is a linear
 //! scan; if a future backend needs frequent reverse lookups we'll
 //! cache both directions.
-//!
-//! [`NerModelConfiguration`]: super::NerModelConfiguration
 
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use nvisy_core::entity::EntityKind;
 use serde::{Deserialize, Serialize};
+
+use crate::entity::EntityKind;
 
 /// Translation table from raw model labels to canonical
 /// [`EntityKind`] values.

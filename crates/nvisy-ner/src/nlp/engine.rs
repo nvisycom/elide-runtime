@@ -1,32 +1,37 @@
-//! [`NlpEngine`]: the producer-side trait that builds
-//! [`NlpArtifacts`] for one or more
-//! texts.
+//! [`NlpEngine`]: the producer-side trait that builds the
+//! shared-NLP-pass [`TypeMap`] for one or more texts.
+//!
+//! Engines stamp typed enrichment entries —
+//! [`LanguageDetections`](nvisy_core::nlp::LanguageDetections),
+//! [`Tokens`](nvisy_core::nlp::Tokens),
+//! [`StopwordSet`](nvisy_core::nlp::StopwordSet) — into the
+//! returned `TypeMap`. An orchestrator that wants shared NLP runs
+//! `process` once per scan and hands the result to recognizers via
+//! [`TextData::with_artifacts`](nvisy_core::TextData::with_artifacts).
 //!
 //! Pluggable so different deployment shapes (pure language
 //! detection, hosted full-NLP service, future in-process model) can
 //! be wired interchangeably. The orchestrator calls `process` (or
-//! `process_batch`) once per scan, wraps the result in an `Arc`,
-//! and hands it to every text [`Recognizer`]
-//! plus the
-//! [`ContextEnhancer`].
+//! `process_batch`) once per scan; recognizers and the
+//! [`ContextEnhancer`] borrow the resulting map by reference.
 //!
-//! [`NlpArtifacts`]: nvisy_core::nlp::NlpArtifacts
-//! [`Recognizer`]: nvisy_core::Recognizer
 //! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_core::nlp::{NlpArtifacts, NlpCapabilities};
 use nvisy_core::primitive::LanguageTag;
+use type_map::concurrent::TypeMap;
 
-/// Builds [`NlpArtifacts`] for the orchestrator's shared-NLP pass.
+use super::capabilities::NlpCapabilities;
+
+/// Builds the shared-NLP-pass [`TypeMap`] for the orchestrator.
 ///
 /// Engines advertise their capabilities via
-/// [`capabilities`] so the orchestrator can
-/// refuse impossible compositions at construction time (e.g.
-/// wiring a lemma-aware enhancer to an engine that doesn't produce
-/// lemmas). Engines also advertise the languages they support so a
-/// future per-language registry can route correctly.
+/// [`capabilities`] so the orchestrator can refuse impossible
+/// compositions at construction time (e.g. wiring a lemma-aware
+/// enhancer to an engine that doesn't produce lemmas). Engines also
+/// advertise the languages they support so a future per-language
+/// registry can route correctly.
 ///
 /// `Send + Sync + 'static` — engines live behind `Arc<dyn _>` in
 /// the orchestrator and are shared across recognition tasks.
@@ -41,10 +46,11 @@ pub trait NlpEngine: Send + Sync + 'static {
 
     /// What the engine can produce. Advisory — consumers can still
     /// call `process` even when capabilities are off, they just
-    /// get the default-empty fields back.
+    /// get an empty map back.
     fn capabilities(&self) -> NlpCapabilities;
 
-    /// Process one text. Returns the artifact bundle.
+    /// Process one text. Returns a [`TypeMap`] populated with one
+    /// typed entry per enrichment the engine produced.
     ///
     /// `hint` is the caller-asserted language; engines that can
     /// skip detection when given a hint should do so.
@@ -53,9 +59,8 @@ pub trait NlpEngine: Send + Sync + 'static {
     ///
     /// Returns a runtime error when the underlying detection or
     /// inference call fails. Empty input is not an error — engines
-    /// should produce an empty artifact (or whatever's defensible
-    /// per capability).
-    async fn process(&self, text: &str, hint: Option<&LanguageTag>) -> Result<NlpArtifacts>;
+    /// should return an empty (or sparsely populated) map.
+    async fn process(&self, text: &str, hint: Option<&LanguageTag>) -> Result<TypeMap>;
 
     /// Process a batch of texts. The default fans out via
     /// [`process`] concurrently; engines with
@@ -71,7 +76,7 @@ pub trait NlpEngine: Send + Sync + 'static {
         &self,
         texts: &[&str],
         hint: Option<&LanguageTag>,
-    ) -> Result<Vec<NlpArtifacts>> {
+    ) -> Result<Vec<TypeMap>> {
         let mut out = Vec::with_capacity(texts.len());
         for text in texts {
             out.push(self.process(text, hint).await?);

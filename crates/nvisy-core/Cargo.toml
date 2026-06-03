@@ -53,6 +53,7 @@ uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
 semver = { workspace = true, features = [] }
 oxilangtag = { workspace = true, features = [] }
+type-map = { workspace = true, features = [] }
 
 # File type detection
 infer = { workspace = true, features = [] }

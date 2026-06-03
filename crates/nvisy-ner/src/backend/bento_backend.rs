@@ -1,31 +1,29 @@
-//! [`BentoBackend`]: zero-shot NER over the externalised
+//! [`BentoBackend`]: NER backend over the externalised
 //! `inference-gliner` Bento.
 //!
-//! Implements [`GlinerBackend`]. The wire shape mirrors
+//! Implements [`NerBackend`]. The wire shape mirrors
 //! `nvisy_core.ner.v1` from [`nvisycom/inference`]; per-request
 //! `correlation_id` propagation rides on the `x-request-id`
-//! header.
+//! header. Today the service is zero-shot — it requires a per-call
+//! `kinds` list — so the backend errors out when called with
+//! `kinds = None`.
 //!
 //! Wire compatibility note: the inference service today returns
 //! `kind: EntityKind` (already normalized server-side); this
 //! backend serialises that back to a string label so the
-//! [`GlinerRecognizer`]'s
-//! [`LabelMap`] sees a uniform raw
-//! label regardless of which backend produced it. When the
-//! service later moves to returning raw model labels, only the
-//! wire-type module needs to change.
+//! recognizer's [`LabelMap`] sees a uniform raw label regardless
+//! of which backend produced it.
 //!
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
-//! [`GlinerRecognizer`]: crate::recognition::GlinerRecognizer
-//! [`LabelMap`]: crate::recognition::LabelMap
+//! [`LabelMap`]: crate::LabelMap
 
 use bentoml::prelude::*;
-use nvisy_core::nlp::RawNerSpan;
 use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
 use super::bento_types::{WireBatch, WireRequest, WireResponse};
-use super::gliner_backend::{GlinerBackend, GlinerRequest};
+use super::ner_backend::{NerBackend, NerRequest, NerResponse};
+use super::ner_span::RawNerSpan;
 
 const COMPONENT: &str = "ner-bento";
 const RECOGNIZE_ROUTE: &str = "recognize";
@@ -47,7 +45,7 @@ impl BentoParams {
     }
 }
 
-/// [`GlinerBackend`] backed by an externalised BentoML service.
+/// [`NerBackend`] backed by an externalised BentoML service.
 #[derive(Debug)]
 pub struct BentoBackend {
     endpoint: Endpoint,
@@ -72,17 +70,23 @@ impl BentoBackend {
 }
 
 #[async_trait::async_trait]
-impl GlinerBackend for BentoBackend {
-    #[tracing::instrument(skip_all, fields(kinds = request.kinds.len()))]
-    async fn predict(&self, request: GlinerRequest<'_>) -> Result<Vec<RawNerSpan>> {
-        if request.kinds.is_empty() {
-            return Ok(Vec::new());
+impl NerBackend for BentoBackend {
+    #[tracing::instrument(skip_all)]
+    async fn predict(&self, request: NerRequest<'_>) -> Result<NerResponse> {
+        let Some(kinds) = request.kinds else {
+            return Err(Error::validation(
+                "BentoBackend requires per-call kinds (the inference-gliner service is zero-shot)",
+                COMPONENT,
+            ));
+        };
+        if kinds.is_empty() {
+            return Ok(NerResponse::default());
         }
 
         let language = request.language.map(|l| l.as_str().to_owned());
         let wire_request = WireRequest {
             text: request.text.to_owned(),
-            kinds: request.kinds.to_vec(),
+            kinds: kinds.to_vec(),
             threshold: 0.0,
             language,
         };
@@ -111,16 +115,16 @@ impl GlinerBackend for BentoBackend {
                 ));
             }
         }
-        Ok(spans)
+        Ok(NerResponse::new(spans))
     }
 }
 
-/// Serialise an [`EntityKind`] to its canonical snake_case label.
-/// The Bento service already returns normalized kinds; we convert
-/// back to the wire label so [`LabelMap`]
-/// sees a uniform raw label across backends.
+/// Serialise an [`EntityKind`](nvisy_core::entity::EntityKind) to its
+/// canonical snake_case label. The Bento service returns normalized
+/// kinds; we round-trip through the wire label so [`LabelMap`] sees
+/// a uniform raw label across backends.
 ///
-/// [`LabelMap`]: crate::recognition::LabelMap
+/// [`LabelMap`]: crate::LabelMap
 fn entity_kind_label(kind: nvisy_core::entity::EntityKind) -> String {
     kind.to_string()
 }

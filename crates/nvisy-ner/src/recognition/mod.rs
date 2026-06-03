@@ -1,35 +1,21 @@
-//! Recognizer adapters and their configuration.
+//! Recognizer layer: the [`NerRecognizer`] that drives any
+//! [`NerBackend`] backend, the [`NerModel`] normalization knobs it
+//! applies to raw spans, and the [`LabelMap`] translation table
+//! shared across backends.
 //!
-//! Two shapes ship:
+//! Implements [`EntityRecognizer<Text>`] so it composes with the
+//! rest of the platform through the same trait every other text
+//! recognizer uses.
 //!
-//! - [`NlpRecognizer`] — dumb adapter. Reads
-//!   [`NlpArtifacts.ner`]
-//!   that an upstream [`NlpEngine`]
-//!   already produced; normalizes through [`LabelMap`] +
-//!   [`NerModelConfiguration`] and emits entities. Requires the
-//!   orchestrator to run an `NlpEngine` first.
-//! - [`GlinerRecognizer`] — zero-shot bypass. Ignores shared
-//!   artifacts, calls a [`GlinerBackend`]
-//!   directly with a requested-kinds list. Used when the backend
-//!   is itself a zero-shot model (the externalised
-//!   `inference-gliner` Bento) and doesn't fit the
-//!   tokenizer→adapter pattern.
-//!
-//! Both implement [`EntityRecognizer<Text>`] so
-//! the engine treats them uniformly with every other text
-//! recognizer (pattern, future LLM).
-//!
-//! [`NlpArtifacts.ner`]: nvisy_core::nlp::NlpArtifacts::ner
-//! [`NlpEngine`]: crate::nlp::NlpEngine
-//! [`GlinerBackend`]: crate::backend::GlinerBackend
+//! [`NerBackend`]: crate::backend::NerBackend
 //! [`EntityRecognizer<Text>`]: nvisy_core::EntityRecognizer
+//! [`Text`]: nvisy_core::modality::Text
 
+mod aggregation;
 mod config;
-mod gliner_recognizer;
-mod label_map;
-mod nlp_recognizer;
+mod recognizer;
 
-pub use self::config::NerModelConfiguration;
-pub use self::gliner_recognizer::GlinerRecognizer;
-pub use self::label_map::LabelMap;
-pub use self::nlp_recognizer::NlpRecognizer;
+pub use nvisy_core::LabelMap;
+
+pub use self::config::{NerModel, NerModelBuilder};
+pub use self::recognizer::{NerRecognizer, NerRecognizerBuilder};

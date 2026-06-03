@@ -349,17 +349,17 @@ async fn run_ocr_into(
         "running OCR extraction",
     );
 
-    for input in inputs {
-        let png = match input.data.encode_png() {
+    for image_input in inputs {
+        let png = match image_input.data.encode_png() {
             Ok(p) => p,
             Err(e) => {
                 tracing::warn!(target: TARGET, error = %e, "skipping image: PNG encode failed");
                 continue;
             }
         };
-        let dims = input.data.dimensions();
-        let ctx = RecognizerInput::new(ImageData::new(png, dims));
-        let outputs = ocr.extract(&ctx).await?;
+        let dims = image_input.data.dimensions();
+        let input = RecognizerInput::new(ImageData::new(png, dims));
+        let outputs = ocr.extract(&input).await?;
         for output in outputs {
             doc.blocks.push(ocr_output_to_block(output));
         }
@@ -453,8 +453,8 @@ async fn populate_audio_doc(
         tracing::warn!(target: TARGET, "diarization not yet supported, skipping");
     }
 
-    let ctx = RecognizerInput::new(AudioData::new(audio_bytes.as_bytes().to_vec(), filename));
-    let stt_out = stt_arc.extract(&ctx).await?;
+    let input = RecognizerInput::new(AudioData::new(audio_bytes.as_bytes().to_vec(), filename));
+    let stt_out = stt_arc.extract(&input).await?;
 
     if stt_out.text.is_empty() {
         tracing::debug!(target: TARGET, "transcription returned empty text");

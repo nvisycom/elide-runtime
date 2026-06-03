@@ -8,19 +8,25 @@
 //! model provenance (fresh discoveries) or an annotation provenance
 //! (responses to per-call hints).
 //!
+//! Implements [`EntityRecognizer<Text>`] so it composes with the
+//! rest of the platform through the same trait every other text
+//! recognizer uses. Per-document hints + labels flow in via
+//! [`RecognizerInput`].
+//!
 //! [`BaseAgent`]: super::BaseAgent
 //! [`Entity<Text>`]: nvisy_core::entity::Entity
+//! [`EntityRecognizer<Text>`]: nvisy_core::EntityRecognizer
+//! [`RecognizerInput`]: nvisy_core::RecognizerInput
 
 mod build;
 mod localize;
 mod output;
 mod prompt;
 
-use nvisy_core::Result;
-use nvisy_core::entity::{
-    AnnotationProvenance, Entity, ModelProvenance, TrailProvenance, TrailStep,
-};
+use async_trait::async_trait;
+use nvisy_core::entity::{AnnotationProvenance, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::Text;
+use nvisy_core::{EntityRecognizer, RecognizerInput, RecognizerOutput, Result};
 use uuid::Uuid;
 
 use self::build::build_entities;
@@ -30,7 +36,7 @@ pub use self::output::NerCandidate;
 use self::output::NerCandidates;
 use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker};
-use crate::agent::{AgentConfig, AgentProvider, LlmNerContext};
+use crate::agent::{AgentConfig, AgentProvider};
 
 const TARGET: &str = "nvisy_agent::agent::ner";
 
@@ -38,19 +44,21 @@ const TARGET: &str = "nvisy_agent::agent::ner";
 ///
 /// # Workflow
 ///
-/// 1. Caller passes the source text plus a [`LlmNerContext`] to
-///    [`detect`].
+/// 1. Caller calls [`recognize`] with a [`RecognizerInput<Text>`]
+///    carrying the source text plus any uploader-supplied hints and
+///    document labels.
 /// 2. The agent builds a user prompt via `NerPromptBuilder` that
-///    specifies entity types, confidence thresholds, and any
-///    Hint-strength inclusion descriptions the uploader supplied.
+///    folds in any hints for per-hint adjudication alongside
+///    open-ended discovery.
 /// 3. Structured output is parsed into `Vec<NerCandidate>`,
 ///    localized back into byte ranges via the shared localizer,
-///    and lifted into `Vec<Entity<Text>>` stamped with this
-///    agent's model provenance.
+///    and lifted into a [`RecognizerOutput<Text>`] stamped with
+///    this agent's model provenance (or annotation provenance for
+///    candidates carrying `hint_id`).
 ///
 /// Stateless — no cross-call coreference tracking.
 ///
-/// [`detect`]: Self::detect
+/// [`recognize`]: EntityRecognizer::recognize
 pub struct NerAgent {
     base: BaseAgent,
     unresolved: UnresolvedCandidatePolicy,
@@ -59,6 +67,8 @@ pub struct NerAgent {
 impl NerAgent {
     /// Create a new NER agent. The HTTP client is built internally
     /// from `config.max_retries` and otherwise-default settings.
+    /// `config.preamble` falls back to the built-in NER system
+    /// prompt when unset.
     pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
         config
             .preamble
@@ -73,6 +83,7 @@ impl NerAgent {
     }
 
     /// Configure how unresolvable candidates are handled.
+    #[must_use]
     pub fn with_unresolved_policy(mut self, policy: UnresolvedCandidatePolicy) -> Self {
         self.unresolved = policy;
         self
@@ -92,12 +103,15 @@ impl NerAgent {
     pub fn model_name(&self) -> &str {
         self.base.model_name()
     }
+}
 
-    /// Detect entities in text.
+#[async_trait]
+impl EntityRecognizer<Text> for NerAgent {
+    /// Detect entities in `input.data.text`.
     ///
     /// Performs unified entity detection: open-ended discovery
     /// across the source text **plus** per-hint adjudication for
-    /// any [`hints`] in `config`. Returns ready-to-use
+    /// any [`hints`] on the input. Returns ready-to-use
     /// [`Entity<Text>`] values whose trail starts with a
     /// recognition step:
     ///
@@ -113,22 +127,30 @@ impl NerAgent {
     /// Candidates the localizer can't resolve are dropped per
     /// this agent's [`unresolved_policy`].
     ///
-    /// [`hints`]: crate::agent::LlmNerContext::hints
-    /// [`unresolved_policy`]: Self::with_unresolved_policy
+    /// [`Entity<Text>`]: nvisy_core::entity::Entity
+    /// [`hints`]: nvisy_core::RecognizerInput::hints
+    /// [`unresolved_policy`]: NerAgent::with_unresolved_policy
     /// [`Annotation`]: TrailProvenance::Annotation
     /// [`Model`]: TrailProvenance::Model
     #[tracing::instrument(
         target = TARGET,
         skip_all,
-        fields(text_len = text.len(), hint_count = config.hints.len()),
+        fields(
+            text_len = input.data.text.len(),
+            hint_count = input.hints.len(),
+            label_count = input.labels.len(),
+        ),
     )]
-    pub async fn detect(&self, text: &str, config: &LlmNerContext) -> Result<Vec<Entity<Text>>> {
-        let prompt = NerPromptBuilder::new(config).build(text);
+    async fn recognize(&self, input: &RecognizerInput<Text>) -> Result<RecognizerOutput<Text>> {
+        let text = input.data.text.as_str();
+        let hints = &input.hints;
+        let labels = &input.labels;
+
+        let prompt = NerPromptBuilder::new(text, hints, labels).build();
 
         tracing::debug!(
             target: TARGET,
             prompt_len = prompt.len(),
-            entity_kinds = config.entity_kinds.len(),
             "built ner prompt"
         );
 
@@ -142,7 +164,6 @@ impl NerAgent {
         let localized = localize_all(text, result.entities, self.unresolved);
         let model_name = self.base.model_name().to_owned();
         let model = ModelProvenance::new(model_name.clone());
-        let hints = &config.hints;
         let entities = build_entities(localized, |l, confidence| match l.candidate.hint_id {
             Some(i) if i < hints.len() => {
                 let provenance = TrailProvenance::Annotation(AnnotationProvenance {
@@ -164,6 +185,10 @@ impl NerAgent {
             "ner detection complete"
         );
 
-        Ok(entities)
+        Ok(RecognizerOutput::new(entities))
+    }
+
+    async fn reset(&self) {
+        self.base.tracker().reset();
     }
 }

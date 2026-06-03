@@ -5,9 +5,11 @@
 //! `NerModelConfiguration`. The producer engine may apply them
 //! server-side (the Bento `inference-gliner` already returns
 //! aggregated spans), in which case the consumer-side knobs are
-//! advisory; or the producer may emit unaggregated token-classification
-//! output, in which case the consumer-side adapter
-//! ([`NlpRecognizer`] in `nvisy-ner`) applies them itself.
+//! advisory; or the producer may emit unaggregated
+//! token-classification output, in which case [`NerRecognizer`]
+//! applies them itself.
+//!
+//! [`NerRecognizer`]: super::NerRecognizer
 
 use serde::{Deserialize, Serialize};
 

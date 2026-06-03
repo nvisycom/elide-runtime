@@ -30,8 +30,12 @@ async fn enhancer_boosts_matches_near_keyword_only() {
 
     // Two SSN-shaped numbers: one near the keyword, one not.
     let text = "First SSN: 123-45-6789. Unrelated number 987-65-4329 elsewhere.";
-    let ctx = RecognizerInput::new(TextData::new(text.to_owned()));
-    let mut entities = recognizer.recognize(&ctx).await.expect("recognize");
+    let input = RecognizerInput::new(TextData::new(text.to_owned()));
+    let mut entities = recognizer
+        .recognize(&input)
+        .await
+        .expect("recognize")
+        .entities;
     assert_eq!(entities.len(), 2, "two SSN matches expected");
 
     // Snapshot base confidences keyed by match text so we can compare
@@ -50,7 +54,7 @@ async fn enhancer_boosts_matches_near_keyword_only() {
         .with_default_boost(0.3)
         .build()
         .expect("enhancer builds");
-    enhancer.enhance(&mut entities, text, None);
+    enhancer.enhance(&mut entities, text, &type_map::concurrent::TypeMap::new());
 
     // First match has `SSN:` within the 20-byte window → boosted.
     let near = entities

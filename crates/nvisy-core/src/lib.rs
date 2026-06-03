@@ -12,7 +12,8 @@ pub mod primitive;
 pub mod recognition;
 pub use self::extraction::{Extractor, ValueAt};
 pub use self::recognition::{
-    AudioData, EntityRecognizer, ImageData, ModalityData, RecognizerInput, TextData,
+    AudioData, EntityRecognizer, Hint, ImageData, LabelMap, ModalityData, RecognizerInput,
+    RecognizerOutput, TextData,
 };
 
 #[cfg(feature = "http")]

@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use nvisy_core::entity::{Entity, PatternProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::Text;
 use nvisy_core::primitive::{Confidence, LanguageTag};
-use nvisy_core::{EntityRecognizer, Error, RecognizerInput, Result, TextData};
+use nvisy_core::{EntityRecognizer, Error, RecognizerInput, RecognizerOutput, Result};
 use regex::{Regex, RegexSet};
 
 use super::registry::PatternRegistry;
@@ -211,14 +211,14 @@ impl PatternRecognizerBuilder {
 
 #[async_trait]
 impl EntityRecognizer<Text> for PatternRecognizer {
-    async fn recognize(&self, ctx: &RecognizerInput<TextData>) -> Result<Vec<Entity<Text>>> {
-        let text = ctx.data.text.as_str();
+    async fn recognize(&self, input: &RecognizerInput<Text>) -> Result<RecognizerOutput<Text>> {
+        let text = input.data.text.as_str();
         let mut entities = Vec::new();
 
         if let Some(set) = self.regex_set.as_ref() {
             for pattern_id in set.matches(text).into_iter() {
                 let pat = &self.patterns[pattern_id];
-                if !ctx.applies_to_language(&pat.languages) {
+                if !input.applies_to_language(&pat.languages) {
                     continue;
                 }
                 for m in pat.regex.find_iter(text) {
@@ -238,14 +238,14 @@ impl EntityRecognizer<Text> for PatternRecognizer {
                 let Some(dict) = self.dictionary_owning_term(term_id) else {
                     continue;
                 };
-                if !ctx.applies_to_language(&dict.languages) {
+                if !input.applies_to_language(&dict.languages) {
                     continue;
                 }
                 entities.push(build_dictionary_entity(dict, mat.start(), mat.end()));
             }
         }
 
-        Ok(entities)
+        Ok(RecognizerOutput::new(entities))
     }
 }
 

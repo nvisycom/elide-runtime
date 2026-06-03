@@ -49,6 +49,6 @@ where
     /// stamps into the document's metadata at extraction time.
     fn extraction(&self) -> M::Extraction;
 
-    /// Extract from `ctx`, returning the modality-specific output.
-    async fn extract(&self, ctx: &RecognizerInput<M::Data>) -> Result<Self::Output>;
+    /// Extract from `input`, returning the modality-specific output.
+    async fn extract(&self, input: &RecognizerInput<M>) -> Result<Self::Output>;
 }

@@ -2,7 +2,7 @@
 //! reads at boost time.
 //!
 //! The recognizer side of the pipeline (`PatternRecognizer`,
-//! `NlpRecognizer`, `GlinerRecognizer`, …) registers one entry per
+//! `NerRecognizer`, …) registers one entry per
 //! source name — for patterns that's one entry per
 //! `Regex`/`Dictionary` rule; for NER it's typically one entry per
 //! recognizer keyed on the recognizer's name. The enhancer reads

@@ -43,8 +43,12 @@ async fn user_json_rules_load_and_detect() {
         .expect("recognizer builds");
 
     let text = include_str!("../testdata/inputs/internal.txt");
-    let ctx = RecognizerInput::new(TextData::new(text.to_owned()));
-    let entities = recognizer.recognize(&ctx).await.expect("recognize");
+    let input = RecognizerInput::new(TextData::new(text.to_owned()));
+    let entities = recognizer
+        .recognize(&input)
+        .await
+        .expect("recognize")
+        .entities;
 
     // The custom regex finds both employee numbers.
     let emp_hits: Vec<&str> = entities

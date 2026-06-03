@@ -3,7 +3,7 @@
 //! Carried by anything that declares context — per-rule for
 //! patterns (each `Regex`/`Dictionary` may declare one),
 //! per-recognizer for NER (a single `default_context` on
-//! `NlpRecognizer`). The shape is identical regardless of who
+//! `NerRecognizer`). The shape is identical regardless of who
 //! registers it; the difference is only *what name* gets stored
 //! against it in the [`ContextRegistry`].
 //!

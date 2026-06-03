@@ -94,9 +94,9 @@ impl Token {
 }
 
 /// The owning token sequence carried by an
-/// [`NlpArtifacts`].
+/// `TextData::artifacts`.
 ///
-/// [`NlpArtifacts`]: super::NlpArtifacts
+/// `TextData::artifacts`: super::TextData::artifacts
 ///
 /// Tokens are sorted by `offset.start` (engines should produce them
 /// in order; consumer-side code assumes this). The collection

@@ -4,4 +4,8 @@
 
 pub mod backend;
 pub mod nlp;
-pub mod recognition;
+mod recognition;
+
+pub use self::recognition::{
+    LabelMap, NerModel, NerModelBuilder, NerRecognizer, NerRecognizerBuilder,
+};

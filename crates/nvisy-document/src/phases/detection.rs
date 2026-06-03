@@ -193,10 +193,10 @@ where
         }
         scanned_blocks += 1;
 
-        let mut ctx = RecognizerInput::new(TextData::new(text.to_owned()));
-        ctx.correlation_id = Some(run_id);
+        let mut input = RecognizerInput::new(TextData::new(text.to_owned()));
+        input.correlation_id = Some(run_id);
 
-        let detected = registry.run_text(ctx).await?;
+        let detected = registry.run_text(input).await?;
         for entity in detected {
             // Centralised entity-kind allowlist filter.
             if !cfg.entity_kinds.is_empty() && !cfg.entity_kinds.contains(&entity.entity_kind) {
@@ -261,10 +261,10 @@ async fn detect_image_locations(
             .encode_png()
             .map_err(|e| Error::runtime(e.to_string(), "recognizer-registry", false))?;
 
-        let mut ctx = RecognizerInput::new(ImageData::new(bytes, dims));
-        ctx.correlation_id = Some(run_id);
+        let mut input = RecognizerInput::new(ImageData::new(bytes, dims));
+        input.correlation_id = Some(run_id);
 
-        let detected = registry.run_image(ctx).await?;
+        let detected = registry.run_image(input).await?;
         let filtered: Vec<Entity<Image>> = detected
             .into_iter()
             .filter(|e| cfg.entity_kinds.is_empty() || cfg.entity_kinds.contains(&e.entity_kind))

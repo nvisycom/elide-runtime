@@ -2,12 +2,13 @@
 //! any [`Entity<Text>`] regardless of which recognizer produced it.
 
 use derive_builder::{Builder, UninitializedFieldError};
+use type_map::concurrent::TypeMap;
 
 use super::matcher::{KeywordMatcher, SubstringMatcher};
 use super::registry::ContextRegistry;
 use crate::entity::{Entity, TrailStep};
 use crate::modality::Text;
-use crate::nlp::NlpArtifacts;
+use crate::nlp::Tokens;
 use crate::primitive::Confidence;
 
 /// Post-recognition enhancer that boosts entity confidence when
@@ -20,9 +21,8 @@ use crate::primitive::Confidence;
 /// [`Context::window`] / [`Context::boost`] take precedence.
 ///
 /// The matcher strategy defaults to [`SubstringMatcher`] when not
-/// supplied. Wire [`LemmaMatcher`] instead
-/// when the orchestrator produces
-/// [`NlpArtifacts`] with lemmas and you
+/// supplied. Wire [`LemmaMatcher`] instead when an upstream
+/// `NlpEngine` populates [`Tokens`] in `TextData.artifacts` and you
 /// want morphological-variant boosting.
 ///
 /// [`builder`]: Self::builder
@@ -31,7 +31,7 @@ use crate::primitive::Confidence;
 /// [`default_window`]: ContextEnhancerBuilder::with_default_window
 /// [`default_boost`]: ContextEnhancerBuilder::with_default_boost
 /// [`LemmaMatcher`]: super::LemmaMatcher
-/// [`NlpArtifacts`]: crate::nlp::NlpArtifacts
+/// [`Tokens`]: crate::nlp::Tokens
 #[derive(Builder)]
 #[builder(
     name = "ContextEnhancerBuilder",
@@ -86,30 +86,24 @@ impl ContextEnhancer {
     /// For each entity, looks at its first recognition step's
     /// provenance to identify the source name, looks the name up
     /// in the [`ContextRegistry`], walks the surrounding window
-    /// (token-based when `artifacts` is `Some` and the matcher
-    /// uses tokens, substring-based otherwise), and bumps the
-    /// confidence by the configured boost — capped at `1.0`. A
-    /// [`Refinement`]
-    /// step is appended to the trail, and the recognition step's
-    /// `contextual` flag is set.
+    /// (token-based when [`Tokens`] are present in `artifacts` and
+    /// the matcher uses tokens, substring-based otherwise), and
+    /// bumps the confidence by the configured boost — capped at
+    /// `1.0`. A [`Refinement`] step is appended to the trail, and
+    /// the recognition step's `contextual` flag is set.
     ///
     /// Entities whose source isn't in the registry (or whose
     /// declared context has an empty keyword list) pass through
     /// unchanged.
     ///
     /// [`Refinement`]: crate::entity::TrailStepKind::Refinement
-    pub fn enhance(
-        &self,
-        entities: &mut [Entity<Text>],
-        text: &str,
-        artifacts: Option<&NlpArtifacts>,
-    ) {
+    pub fn enhance(&self, entities: &mut [Entity<Text>], text: &str, artifacts: &TypeMap) {
         for entity in entities.iter_mut() {
             self.enhance_one(entity, text, artifacts);
         }
     }
 
-    fn enhance_one(&self, entity: &mut Entity<Text>, text: &str, artifacts: Option<&NlpArtifacts>) {
+    fn enhance_one(&self, entity: &mut Entity<Text>, text: &str, artifacts: &TypeMap) {
         let Some(name) = entity
             .trail
             .first()
@@ -130,20 +124,16 @@ impl ContextEnhancer {
         let start = entity.location.start;
         let end = entity.location.end;
         let snippet = window_around(text, start, end, window);
-        let tokens_in_window = artifacts.map(|a| {
-            // Build a temporary owning `Tokens` from the in-window
-            // slice so the matcher's `Option<&Tokens>` signature is
-            // honored without allocating a new collection. Use the
-            // slice via the `around` helper.
-            a.tokens.around(start..end, window)
-        });
-        // The matcher reads tokens by reference; we hand it the
-        // owned-sequence form by wrapping the slice into a temporary
-        // `Tokens` only when needed.
+        let tokens_in_window = artifacts
+            .get::<Tokens>()
+            .map(|t| t.around(start..end, window));
+        // The matcher reads tokens by reference; wrap the in-window
+        // slice into a temporary owning `Tokens` only when one is
+        // present.
         let owned_tokens;
         let tokens_arg = match tokens_in_window {
             Some(slice) if !slice.is_empty() => {
-                owned_tokens = crate::nlp::Tokens::new(slice.to_vec());
+                owned_tokens = Tokens::new(slice.to_vec());
                 Some(&owned_tokens)
             }
             _ => None,
@@ -226,6 +216,8 @@ impl From<UninitializedFieldError> for ContextEnhancerBuilderError {
 
 #[cfg(test)]
 mod tests {
+    use type_map::concurrent::TypeMap;
+
     use super::*;
     use crate::context::Context;
     use crate::entity::{
@@ -291,7 +283,7 @@ mod tests {
         let text = "Your SSN: 123-45-6789";
         let mut entities = vec![pattern_entity("ssn", 10..21)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, &TypeMap::new());
         assert!(entities[0].confidence.get() > before);
         assert!(
             entities[0]
@@ -315,7 +307,7 @@ mod tests {
         let text = "Mr. Smith is named in the report.";
         let mut entities = vec![model_entity("gliner", 4..9)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, &TypeMap::new());
         assert!(entities[0].confidence.get() > before);
         let TrailProvenance::Model(prov) = &entities[0].trail[0].provenance else {
             panic!("expected model provenance");
@@ -330,7 +322,7 @@ mod tests {
         let text = "Your SSN: 123-45-6789";
         let mut entities = vec![pattern_entity("ssn", 10..21)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, &TypeMap::new());
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -342,7 +334,7 @@ mod tests {
         let text = "far_keyword                            XYZ here";
         let mut entities = vec![pattern_entity("far", 39..42)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, &TypeMap::new());
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -356,7 +348,7 @@ mod tests {
         // Push base confidence to 0.95
         entity.confidence = Confidence::new(0.95).unwrap();
         let mut entities = vec![entity];
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, &TypeMap::new());
         assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
 }

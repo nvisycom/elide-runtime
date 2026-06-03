@@ -16,14 +16,9 @@
 /// Per-engine capability advertisement.
 ///
 /// Fields are independent — each is `true` when the engine
-/// guarantees the corresponding field of
-/// [`NlpArtifacts`] will be populated with
-/// meaningful data, `false` when the engine leaves the field at its
-/// default ([`Tokens::empty`],
-/// `Vec::new`, …).
-///
-/// [`NlpArtifacts`]: super::NlpArtifacts
-/// [`Tokens::empty`]: super::Tokens::empty
+/// guarantees the corresponding artifact will be inserted into the
+/// shared `TypeMap` with meaningful data, `false` when the engine
+/// leaves it absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NlpCapabilities {
     /// Engine emits tokens with byte offsets.

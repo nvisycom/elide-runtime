@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Image, Modality, Text};
-use nvisy_core::{EntityRecognizer, Error, ImageData, RecognizerInput, Result, TextData};
+use nvisy_core::{EntityRecognizer, Error, RecognizerInput, RecognizerOutput, Result};
 use tokio::task::JoinSet;
 use tracing::Instrument;
 
@@ -93,23 +93,23 @@ impl RecognizerRegistry {
         self
     }
 
-    /// Run every registered text recognizer against `ctx` in parallel
-    /// and return the combined entity set.
-    pub async fn run_text(&self, ctx: RecognizerInput<TextData>) -> Result<Vec<Entity<Text>>> {
+    /// Run every registered text recognizer against `input` in
+    /// parallel and return the combined entity set.
+    pub async fn run_text(&self, input: RecognizerInput<Text>) -> Result<Vec<Entity<Text>>> {
         let span = tracing::debug_span!(
             target: TARGET,
             "detect.text",
-            text_len = ctx.data.text.len(),
-            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
+            text_len = input.data.text.len(),
+            correlation_id = input.correlation_id.as_ref().map(|id| id.to_string()),
         );
 
-        let ctx = Arc::new(ctx);
-        let mut set: JoinSet<Result<Vec<Entity<Text>>>> = JoinSet::new();
+        let input = Arc::new(input);
+        let mut set: JoinSet<Result<RecognizerOutput<Text>>> = JoinSet::new();
 
         for recognizer in &self.text {
             let recognizer = Arc::clone(recognizer);
-            let ctx = Arc::clone(&ctx);
-            set.spawn(async move { recognizer.recognize(&ctx).await });
+            let input = Arc::clone(&input);
+            set.spawn(async move { recognizer.recognize(&input).await });
         }
 
         async move { collect_join_set(set).await }
@@ -117,26 +117,26 @@ impl RecognizerRegistry {
             .await
     }
 
-    /// Run every registered image recognizer against `ctx` in
+    /// Run every registered image recognizer against `input` in
     /// parallel and return the combined entity set.
     #[cfg(feature = "image")]
-    pub async fn run_image(&self, ctx: RecognizerInput<ImageData>) -> Result<Vec<Entity<Image>>> {
+    pub async fn run_image(&self, input: RecognizerInput<Image>) -> Result<Vec<Entity<Image>>> {
         let span = tracing::debug_span!(
             target: TARGET,
             "detect.image",
-            image_bytes = ctx.data.bytes.len(),
-            width = ctx.data.dims.width,
-            height = ctx.data.dims.height,
-            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
+            image_bytes = input.data.bytes.len(),
+            width = input.data.dims.width,
+            height = input.data.dims.height,
+            correlation_id = input.correlation_id.as_ref().map(|id| id.to_string()),
         );
 
-        let ctx = Arc::new(ctx);
-        let mut set: JoinSet<Result<Vec<Entity<Image>>>> = JoinSet::new();
+        let input = Arc::new(input);
+        let mut set: JoinSet<Result<RecognizerOutput<Image>>> = JoinSet::new();
 
         for recognizer in &self.image {
             let recognizer = Arc::clone(recognizer);
-            let ctx = Arc::clone(&ctx);
-            set.spawn(async move { recognizer.recognize(&ctx).await });
+            let input = Arc::clone(&input);
+            set.spawn(async move { recognizer.recognize(&input).await });
         }
 
         async move { collect_join_set(set).await }
@@ -157,18 +157,18 @@ impl RecognizerRegistry {
 }
 
 async fn collect_join_set<E: Modality>(
-    mut set: JoinSet<Result<Vec<Entity<E>>>>,
+    mut set: JoinSet<Result<RecognizerOutput<E>>>,
 ) -> Result<Vec<Entity<E>>> {
     let mut all = Vec::new();
     while let Some(joined) = set.join_next().await {
         match joined {
-            Ok(Ok(entities)) => {
+            Ok(Ok(output)) => {
                 tracing::debug!(
                     target: TARGET,
-                    detected = entities.len(),
+                    detected = output.entities.len(),
                     "recognizer produced entities",
                 );
-                all.extend(entities);
+                all.extend(output.entities);
             }
             Ok(Err(e)) => {
                 set.abort_all();

@@ -58,13 +58,13 @@ pub struct NerCandidate {
     /// — not consumed by the engine, but preserved on the entity
     /// for downstream visibility.
     pub description: Option<String>,
-    /// Index into [`LlmNerContext::hints`] when this candidate is
+    /// Index into [`RecognizerInput::hints`] when this candidate is
     /// the LLM's response to a user-supplied hint; `None` for
     /// fresh discoveries. Drives recognition-step stamping:
     /// `Some(i)` → annotation provenance with the hint's name;
     /// `None` → model provenance with the agent's model name.
     ///
-    /// [`LlmNerContext::hints`]: crate::agent::LlmNerContext::hints
+    /// [`RecognizerInput::hints`]: nvisy_core::RecognizerInput::hints
     #[serde(default)]
     pub hint_id: Option<usize>,
 }

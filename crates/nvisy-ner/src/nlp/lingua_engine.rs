@@ -1,24 +1,24 @@
 //! [`LinguaNlpEngine`]: language-only [`NlpEngine`].
 //!
-//! Produces [`NlpArtifacts`] populated only on the
-//! [`languages`] field —
-//! no tokens, no NER, no stopwords. Used by pattern-only
-//! pipelines that still want a resolved language carried on the
-//! artifact (for engine-level routing or for downstream
-//! language-aware policies).
+//! Stamps a [`LanguageDetections`] entry onto the artifact
+//! [`TypeMap`]; never produces tokens, NER, or stopwords. Used by
+//! pattern-only pipelines that still want a resolved language
+//! carried on the artifact (for engine-level routing or for
+//! downstream language-aware policies).
 //!
 //! When `process` receives a `hint`, detection is skipped and the
 //! hint becomes a single-entry detection with provenance
 //! [`Asserted`].
 //!
-//! [`languages`]: nvisy_core::nlp::NlpArtifacts::languages
 //! [`Asserted`]: nvisy_core::primitive::LanguageProvenance::Asserted
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_core::nlp::{NlpArtifacts, NlpCapabilities};
+use nvisy_core::nlp::LanguageDetections;
 use nvisy_core::primitive::{LanguageDetection, LanguageProvenance, LanguageTag};
+use type_map::concurrent::TypeMap;
 
+use super::capabilities::NlpCapabilities;
 use super::engine::NlpEngine;
 use super::lingua_detector::LinguaDetector;
 
@@ -84,17 +84,20 @@ impl NlpEngine for LinguaNlpEngine {
         NlpCapabilities::language_only()
     }
 
-    async fn process(&self, text: &str, hint: Option<&LanguageTag>) -> Result<NlpArtifacts> {
-        if let Some(language) = hint {
-            return Ok(NlpArtifacts::language_only(vec![LanguageDetection {
+    async fn process(&self, text: &str, hint: Option<&LanguageTag>) -> Result<TypeMap> {
+        let detections = if let Some(language) = hint {
+            vec![LanguageDetection {
                 language: language.clone(),
                 confidence: None,
                 provenance: LanguageProvenance::Asserted,
                 span: None,
-            }]));
-        }
-        let detections = self.detector().detect(text)?;
-        Ok(NlpArtifacts::language_only(detections))
+            }]
+        } else {
+            self.detector().detect(text)?
+        };
+        let mut artifacts = TypeMap::new();
+        artifacts.insert(LanguageDetections::new(detections));
+        Ok(artifacts)
     }
 }
 
@@ -109,7 +112,10 @@ mod tests {
             .process("The quick brown fox jumps over the lazy dog.", None)
             .await
             .unwrap();
-        let lang = artifacts.dominant_language().expect("language detected");
+        let langs = artifacts
+            .get::<LanguageDetections>()
+            .expect("language detection entry stamped");
+        let lang = langs.dominant().expect("language detected");
         assert_eq!(lang.language.primary_language(), "en");
         assert!(matches!(lang.provenance, LanguageProvenance::Detected));
     }
@@ -122,7 +128,8 @@ mod tests {
             .process("The quick brown fox", Some(&asserted))
             .await
             .unwrap();
-        let lang = artifacts.dominant_language().unwrap();
+        let langs = artifacts.get::<LanguageDetections>().unwrap();
+        let lang = langs.dominant().unwrap();
         assert_eq!(lang.language.primary_language(), "de");
         assert!(matches!(lang.provenance, LanguageProvenance::Asserted));
     }

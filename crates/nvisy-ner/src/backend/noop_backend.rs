@@ -1,29 +1,21 @@
-//! [`NoopBackend`]: zero-entities backend. The default.
-//!
-//! Used by tests and by deployments that detect via patterns / LLM
-//! only and don't want NER at all.
+//! [`NoopBackend`]: no-op [`NerBackend`] for tests + the default
+//! `NerBackend::Noop` config variant in `nvisy-document`.
 
-use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_core::nlp::RawNerSpan;
 
-use super::gliner_backend::{GlinerBackend, GlinerRequest};
+use super::ner_backend::{NerBackend, NerRequest, NerResponse};
 
-/// Zero-entities backend.
-#[derive(Debug, Clone, Copy, Default)]
+/// No-op NER backend: every call returns an empty response.
+///
+/// Useful as a test stub and as the default `[detection.ner]` backend
+/// when the operator wants the NER recognizer wired but isn't ready to
+/// configure a real backend.
+#[derive(Debug, Default, Clone, Copy)]
 pub struct NoopBackend;
 
-impl NoopBackend {
-    /// Construct a [`NoopBackend`].
-    #[must_use]
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-#[async_trait]
-impl GlinerBackend for NoopBackend {
-    async fn predict(&self, _request: GlinerRequest<'_>) -> Result<Vec<RawNerSpan>> {
-        Ok(Vec::new())
+#[async_trait::async_trait]
+impl NerBackend for NoopBackend {
+    async fn predict(&self, _request: NerRequest<'_>) -> Result<NerResponse> {
+        Ok(NerResponse::default())
     }
 }

@@ -21,8 +21,12 @@ fn shipped_recognizer() -> PatternRecognizer {
 
 async fn scan(text: &str) -> (String, Vec<Entity<Text>>) {
     let recognizer = shipped_recognizer();
-    let ctx = RecognizerInput::new(TextData::new(text.to_owned()));
-    let entities = recognizer.recognize(&ctx).await.expect("shipped recognize");
+    let input = RecognizerInput::new(TextData::new(text.to_owned()));
+    let entities = recognizer
+        .recognize(&input)
+        .await
+        .expect("shipped recognize")
+        .entities;
     (text.to_owned(), entities)
 }
 

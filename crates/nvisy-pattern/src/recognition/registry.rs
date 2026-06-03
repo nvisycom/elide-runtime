@@ -1,8 +1,7 @@
 //! [`PatternRegistry`]: a curated bundle of [`Regex`]es and
 //! [`Dictionary`]s that downstream consumers borrow.
 //!
-//! Both [`PatternRecognizer`] and the
-//! shared [`ContextEnhancer`]
+//! Both [`PatternRecognizer`] and the shared [`ContextEnhancer`]
 //! consume a registry — the recognizer compiles its rules into
 //! pooled scanners; the enhancer reads per-rule context keywords
 //! via [`PatternRegistry::context_registry`].

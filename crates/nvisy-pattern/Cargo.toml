@@ -51,3 +51,4 @@ tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
+type-map = { workspace = true, features = [] }

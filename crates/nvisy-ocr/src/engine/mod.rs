@@ -8,7 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use nvisy_core::entity::ModelProvenance;
 use nvisy_core::modality::{Image, ImageExtraction};
-use nvisy_core::{Error, ModalityData, RecognizerInput, Result};
+use nvisy_core::{Error, RecognizerInput, Result};
 use tracing::instrument;
 
 use crate::core::{Backend, Context, ImageFormat, ImageInput, OcrOutput};
@@ -104,19 +104,16 @@ impl nvisy_core::Extractor<Image> for Extractor {
         ImageExtraction::Ocr(self.provenance())
     }
 
-    async fn extract(
-        &self,
-        ctx: &RecognizerInput<<Image as ModalityData>::Data>,
-    ) -> Result<Self::Output> {
-        let input = ImageInput::new(ctx.data.bytes.clone(), ImageFormat::Png);
+    async fn extract(&self, input: &RecognizerInput<Image>) -> Result<Self::Output> {
+        let image_input = ImageInput::new(input.data.bytes.clone(), ImageFormat::Png);
         let mut ocr_ctx = Context::default();
-        if let Some(ref lang) = ctx.language {
+        if let Some(ref lang) = input.language {
             ocr_ctx = ocr_ctx.with_language(lang);
         }
-        if let Some(corr_id) = ctx.correlation_id {
+        if let Some(corr_id) = input.correlation_id {
             ocr_ctx = ocr_ctx.with_correlation_id(corr_id);
         }
-        self.extract_inner(&input, ocr_ctx).await
+        self.extract_inner(&image_input, ocr_ctx).await
     }
 }
 

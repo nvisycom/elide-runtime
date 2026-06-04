@@ -1,12 +1,13 @@
 //! Shared NLP primitives stamped onto
-//! [`TextData::artifacts`](crate::TextData::artifacts) by an upstream
-//! `NlpEngine` and read by text recognizers + the
+//! [`RecognizerInput::artifacts`](crate::RecognizerInput::artifacts)
+//! by an upstream `NlpEngine` and read by text recognizers + the
 //! [`ContextEnhancer`].
 //!
-//! That `artifacts` field is a [`type_map::concurrent::TypeMap`] —
-//! producers insert one typed value per enrichment they computed,
-//! consumers fetch by type and silently no-op when the enrichment
-//! wasn't run. The shipped typed entries are:
+//! That `artifacts` field is an [`Artifacts`](crate::Artifacts)
+//! newtype over [`type_map::concurrent::TypeMap`] — producers
+//! insert one typed value per enrichment they computed, consumers
+//! fetch by type and silently no-op when the enrichment wasn't
+//! run. The shipped typed entries are:
 //!
 //! - [`LanguageDetections`] — languages the engine resolved (covers
 //!   the whole doc, or per-span for multi-language docs).

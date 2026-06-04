@@ -17,7 +17,7 @@
 //! [`Block<M>`]: crate::document::Block
 //! [`Document<M>`]: crate::document::Document
 //! [`DocumentTree`]: crate::core::DocumentTree
-//! [`Extraction`]: nvisy_core::modality::ModalityExtraction::Extraction
+//! [`Extraction`]: nvisy_core::extraction::ModalityExtraction::Extraction
 //! [`Extractor`]: nvisy_toolkit::extraction::Extractor
 //! [`ExtractorRegistry`]: nvisy_toolkit::extraction::ExtractorRegistry
 //! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
@@ -30,15 +30,17 @@ use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData as CodecImageData;
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
+#[cfg(any(feature = "image", feature = "audio"))]
+use nvisy_core::extraction::Span as ExtractionSpan;
+#[cfg(feature = "audio")]
+use nvisy_core::modality::AudioData;
+#[cfg(feature = "image")]
+use nvisy_core::modality::ImageData;
 use nvisy_core::modality::{
     Audio, Image, ImageExtraction, ImageLocation, Tabular, TabularLocation, Text,
 };
-#[cfg(feature = "audio")]
-use nvisy_core::recognition::AudioData;
 #[cfg(feature = "image")]
-use nvisy_core::recognition::ImageData;
-#[cfg(any(feature = "image", feature = "audio"))]
-use nvisy_core::recognition::RecognizerInput;
+use nvisy_core::primitive::BoundingBox;
 use nvisy_ocr::core::OcrOutput;
 use nvisy_toolkit::extraction::registry::ImageExtractorOutput;
 use nvisy_toolkit::extraction::{Extractor, ExtractorRegistry};
@@ -340,8 +342,6 @@ async fn run_ocr_into(
     doc: &mut Document<Image>,
     handle: &SharedHandle,
 ) -> Result<()> {
-    doc.meta.extraction = ocr.extraction();
-
     let inputs = collect_image_inputs(handle).await;
     if inputs.is_empty() {
         return Ok(());
@@ -362,10 +362,17 @@ async fn run_ocr_into(
             }
         };
         let dims = image_input.data.dimensions();
-        let input = RecognizerInput::new(ImageData::new(png, dims));
-        let outputs = ocr.extract(&input).await?;
-        for output in outputs {
-            doc.blocks.push(ocr_output_to_block(output));
+        let location = ImageLocation::new(BoundingBox::new(
+            0.0,
+            0.0,
+            f64::from(dims.width),
+            f64::from(dims.height),
+        ));
+        let span = ExtractionSpan::new(ImageData::new(png, dims), location);
+        let output = ocr.extract(&span).await?;
+        doc.meta.extraction = output.extraction;
+        for block in output.value {
+            doc.blocks.push(ocr_output_to_block(block));
         }
     }
     Ok(())
@@ -427,6 +434,7 @@ async fn populate_audio_doc(
     plan: &Extraction,
 ) -> Result<()> {
     use nvisy_codec::DocumentHandle;
+    use nvisy_core::modality::AudioLocation;
     use nvisy_core::primitive::TimeSpan;
 
     use crate::modality::AudioBlock;
@@ -449,25 +457,26 @@ async fn populate_audio_doc(
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|| "audio.wav".to_string());
 
-    // The plan-side diarization toggle is per-request; the engine's
-    // SttExtractor is built once at startup with diarization=false.
-    // Until real diarization lands (#239) the per-call toggle just
-    // logs a warning; provenance reflects the engine-side flag.
-    doc.meta.extraction = stt_arc.extraction();
-
     if plan.audio.diarization {
         tracing::warn!(target: TARGET, "diarization not yet supported, skipping");
     }
 
-    let input = RecognizerInput::new(AudioData::new(audio_bytes.as_bytes().to_vec(), filename));
-    let stt_out = stt_arc.extract(&input).await?;
+    let time_span = TimeSpan::new(0, 0);
+    let span = ExtractionSpan::new(
+        AudioData::new(audio_bytes.as_bytes().to_vec(), filename),
+        AudioLocation::new(time_span),
+    );
+    let output = stt_arc.extract(&span).await?;
+    // Provenance reflects the engine-side flag; the per-request
+    // diarization toggle above is for future use.
+    doc.meta.extraction = output.extraction;
+    let stt_out = output.value;
 
     if stt_out.text.is_empty() {
         tracing::debug!(target: TARGET, "transcription returned empty text");
         return Ok(());
     }
 
-    let time_span = TimeSpan::new(0, 0);
     doc.blocks.push(Block::new(AudioBlock::Speech {
         time_span,
         text: stt_out.text.clone(),

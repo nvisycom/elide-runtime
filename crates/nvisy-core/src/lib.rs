@@ -10,11 +10,11 @@ pub mod modality;
 pub mod nlp;
 pub mod primitive;
 pub mod recognition;
-pub use self::extraction::{Extractor, ValueAt};
-pub use self::recognition::{
-    AudioData, EntityRecognizer, Hint, ImageData, LabelMap, ModalityData, RecognizerInput,
-    RecognizerOutput, TextData,
+pub use self::extraction::{
+    Artifacts, Extractor, ExtractorOutput, ModalityExtraction, Span, ValueAt,
 };
+pub use self::modality::{AudioData, ImageData, ModalityData, TextData};
+pub use self::recognition::{EntityRecognizer, Hint, LabelMap, RecognizerInput, RecognizerOutput};
 
 #[cfg(feature = "http")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http")))]

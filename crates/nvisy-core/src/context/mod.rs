@@ -2,7 +2,7 @@
 //! [`EntityRecognizer<Text>`].
 //!
 //! The enhancer takes a slice of detected entities plus the source
-//! text and the shared `TextData::artifacts` `TypeMap`, and for each
+//! text and the shared `RecognizerInput::artifacts` `TypeMap`, and for each
 //! entity:
 //!
 //! 1. Pulls the source recognizer's name from the entity's first

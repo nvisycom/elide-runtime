@@ -4,9 +4,9 @@
 //!
 //! Producers (`NlpEngine` impls) construct one of these for the
 //! text they scan and insert it on
-//! [`TextData::artifacts`](crate::TextData::artifacts). Consumers
-//! that care about language (recognizers gating on a language hint,
-//! per-language stopword resolution) fetch by type.
+//! [`RecognizerInput::artifacts`](crate::RecognizerInput::artifacts).
+//! Consumers that care about language (recognizers gating on a
+//! language hint, per-language stopword resolution) fetch by type.
 
 use crate::primitive::LanguageDetection;
 

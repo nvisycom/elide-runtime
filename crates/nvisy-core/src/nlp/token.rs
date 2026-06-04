@@ -93,10 +93,10 @@ impl Token {
     }
 }
 
-/// The owning token sequence carried by an
-/// `TextData::artifacts`.
+/// The owning token sequence carried by a
+/// [`RecognizerInput::artifacts`] bundle.
 ///
-/// `TextData::artifacts`: super::TextData::artifacts
+/// [`RecognizerInput::artifacts`]: crate::RecognizerInput::artifacts
 ///
 /// Tokens are sorted by `offset.start` (engines should produce them
 /// in order; consumer-side code assumes this). The collection

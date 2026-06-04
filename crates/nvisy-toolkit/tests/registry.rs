@@ -27,7 +27,7 @@ use nvisy_agent::provider::LlmProvider;
 use nvisy_agent::{DefaultPrompt, LlmRecognizer};
 use nvisy_core::RecognizerInput;
 use nvisy_core::entity::EntityKind;
-use nvisy_core::recognition::TextData;
+use nvisy_core::modality::TextData;
 use nvisy_ner::NerRecognizer;
 use nvisy_ner::backend::{BentoBackend, BentoParams};
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};

@@ -1,6 +1,8 @@
-//! [`Text`] modality marker, [`TextLocation`] coordinate type, and
-//! the [`TextExtraction`] provenance enum.
+//! [`Text`] modality marker, [`TextLocation`] coordinate type,
+//! [`TextData`] per-call payload, and [`TextExtraction`] provenance
+//! enum.
 
+use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -96,6 +98,37 @@ pub enum TextExtraction {
     /// Text obtained by OCR'ing an image-backed page (image-only PDF,
     /// scanned document).
     Recognized(ModelProvenance),
+}
+
+/// Per-call payload for [`Text`] recognizers and extractors.
+///
+/// Held as a [`HipStr<'static>`] so cheap clones (atomic refcount
+/// for non-inline text, inline copy for short strings) let the
+/// caller share one payload across multiple recognizers without
+/// duplicating the source bytes.
+///
+/// Shared per-call enrichment (lemmatized tokens, language
+/// detections, stopword sets) lives on the surrounding
+/// [`Span<Text>`]'s [`Artifacts`] bundle, not on [`TextData`] —
+/// the same typed-map is reused for every modality and every
+/// recognizer/extractor stage.
+///
+/// [`Span<Text>`]: crate::extraction::Span
+/// [`Artifacts`]: crate::extraction::Artifacts
+#[derive(Debug)]
+pub struct TextData {
+    /// The text the recognizer should scan. Byte offsets in emitted
+    /// entities refer back into this string.
+    pub text: HipStr<'static>,
+}
+
+impl TextData {
+    /// Construct from anything convertible to [`HipStr<'static>`] —
+    /// owned `String`, borrowed `&'static str`, an existing
+    /// `HipStr`, ….
+    pub fn new(text: impl Into<HipStr<'static>>) -> Self {
+        Self { text: text.into() }
+    }
 }
 
 impl Overlap for TextLocation {

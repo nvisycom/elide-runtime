@@ -7,8 +7,8 @@
 mod provider;
 
 use nvisy_core::entity::ModelProvenance;
+use nvisy_core::extraction::{ExtractorOutput, Span};
 use nvisy_core::modality::{Audio, AudioExtraction};
-use nvisy_core::recognition::RecognizerInput;
 use nvisy_core::{Error, Extractor, Result};
 #[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
@@ -146,12 +146,13 @@ impl SttService {
 impl Extractor<Audio> for SttService {
     type Output = SttOutput;
 
-    fn extraction(&self) -> AudioExtraction {
-        AudioExtraction::Transcription(self.provenance())
-    }
-
-    async fn extract(&self, input: &RecognizerInput<Audio>) -> Result<Self::Output> {
-        self.transcribe(input.data.bytes.as_ref(), input.data.filename.as_str())
-            .await
+    async fn extract(&self, span: &Span<Audio>) -> Result<ExtractorOutput<Audio, Self::Output>> {
+        let value = self
+            .transcribe(span.data.bytes.as_ref(), span.data.filename.as_str())
+            .await?;
+        Ok(ExtractorOutput::new(
+            value,
+            AudioExtraction::Transcription(self.provenance()),
+        ))
     }
 }

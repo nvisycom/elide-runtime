@@ -1,13 +1,15 @@
-//! [`Image`] modality marker, [`ImageLocation`] coordinate type, and
-//! the [`ImageExtraction`] provenance enum.
+//! [`Image`] modality marker, [`ImageLocation`] coordinate type,
+//! [`ImageData`] per-call payload, and [`ImageExtraction`]
+//! provenance enum.
 
+use bytes::Bytes;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{Modality, Overlap};
 use crate::entity::ModelProvenance;
-use crate::primitive::{BoundingBox, Polygon};
+use crate::primitive::{BoundingBox, Dimensions, Polygon};
 
 /// Image modality marker (zero-sized).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -54,6 +56,30 @@ impl ImageLocation {
     /// Area of the bounding box in pixels (`width * height`).
     pub fn area(&self) -> f64 {
         self.bounding_box.width * self.bounding_box.height
+    }
+}
+
+/// Per-call payload for [`Image`] recognizers and extractors.
+///
+/// The pixel dimensions are needed alongside the encoded bytes
+/// because recognizers that emit normalised bounding boxes scale
+/// them to pixel coordinates using `dims`.
+#[derive(Debug, Clone)]
+pub struct ImageData {
+    /// Encoded image bytes (typically PNG/JPEG).
+    pub bytes: Bytes,
+    /// Pixel dimensions of the encoded image.
+    pub dims: Dimensions,
+}
+
+impl ImageData {
+    /// Construct with both the encoded bytes and their pixel
+    /// dimensions.
+    pub fn new(bytes: impl Into<Bytes>, dims: Dimensions) -> Self {
+        Self {
+            bytes: bytes.into(),
+            dims,
+        }
     }
 }
 

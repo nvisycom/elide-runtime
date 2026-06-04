@@ -2,9 +2,9 @@
 //!
 //! - [`SubstringMatcher`] — ASCII case-insensitive substring search
 //!   over the raw text window. The fallback when no [`Tokens`] are
-//!   present in `TextData.artifacts`.
+//!   present in `RecognizerInput.artifacts`.
 //! - [`LemmaMatcher`] — matches keywords against lemmatized tokens
-//!   stamped on `TextData.artifacts` as a [`Tokens`] entry by an
+//!   stamped on `RecognizerInput.artifacts` as a [`Tokens`] entry by an
 //!   upstream NLP engine. Recognizes morphological variants
 //!   ("running" → "run", "SSNs" → "ssn") that substring matching
 //!   misses, at the cost of needing a producer engine with
@@ -41,7 +41,7 @@ pub trait KeywordMatcher: Send + Sync {
 }
 
 /// ASCII case-insensitive substring matcher. The default — used
-/// whenever no [`Tokens`] were stamped on `TextData.artifacts`, or
+/// whenever no [`Tokens`] were stamped on `RecognizerInput.artifacts`, or
 /// whenever the caller explicitly picks raw matching.
 ///
 /// Fast, allocation-light, permissive: the keyword `"email"` fires

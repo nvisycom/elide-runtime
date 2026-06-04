@@ -1,6 +1,9 @@
-//! [`Audio`] modality marker, [`AudioLocation`] coordinate type, and
-//! the [`AudioExtraction`] provenance enum.
+//! [`Audio`] modality marker, [`AudioLocation`] coordinate type,
+//! [`AudioData`] per-call payload, and [`AudioExtraction`]
+//! provenance enum.
 
+use bytes::Bytes;
+use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -41,6 +44,32 @@ impl AudioLocation {
             time_span,
             speaker_id: None,
             audio_id: None,
+        }
+    }
+}
+
+/// Per-call payload for [`Audio`] extractors.
+///
+/// Audio backends (STT, diarization) take encoded bytes plus a
+/// filename hint that some providers use to detect the wire format.
+/// No dimensions or sample-rate metadata is carried at this layer —
+/// providers parse the container themselves.
+#[derive(Debug, Clone)]
+pub struct AudioData {
+    /// Encoded audio bytes (WAV / MP3 / FLAC / …).
+    pub bytes: Bytes,
+    /// Filename hint passed to providers that key on the extension
+    /// to pick a decoder. Falls back to a generic name when the
+    /// caller has none.
+    pub filename: HipStr<'static>,
+}
+
+impl AudioData {
+    /// Construct with the encoded bytes and a filename hint.
+    pub fn new(bytes: impl Into<Bytes>, filename: impl Into<HipStr<'static>>) -> Self {
+        Self {
+            bytes: bytes.into(),
+            filename: filename.into(),
         }
     }
 }

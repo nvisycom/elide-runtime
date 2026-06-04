@@ -6,8 +6,13 @@
 //! [`Tokens`](nvisy_core::nlp::Tokens),
 //! [`StopwordSet`](nvisy_core::nlp::StopwordSet) — into the
 //! returned `TypeMap`. An orchestrator that wants shared NLP runs
-//! `process` once per scan and hands the result to recognizers via
-//! [`TextData::with_artifacts`](nvisy_core::TextData::with_artifacts).
+//! `process` once per scan, wraps the result in [`Artifacts`], and
+//! attaches it to each [`RecognizerInput`] via
+//! [`RecognizerInput::with_artifacts`].
+//!
+//! [`Artifacts`]: nvisy_core::Artifacts
+//! [`RecognizerInput`]: nvisy_core::RecognizerInput
+//! [`RecognizerInput::with_artifacts`]: nvisy_core::RecognizerInput::with_artifacts
 //!
 //! Pluggable so different deployment shapes (pure language
 //! detection, hosted full-NLP service, future in-process model) can

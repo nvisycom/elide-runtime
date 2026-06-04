@@ -7,8 +7,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::entity::ModelProvenance;
+use nvisy_core::extraction::{ExtractorOutput, Span};
 use nvisy_core::modality::{Image, ImageExtraction};
-use nvisy_core::{Error, Extractor as CoreExtractor, RecognizerInput, Result};
+use nvisy_core::{Error, Extractor as CoreExtractor, Result};
 use tracing::instrument;
 
 use crate::core::{Backend, Context, ImageFormat, ImageInput, OcrOutput};
@@ -100,20 +101,20 @@ impl Extractor {
 impl CoreExtractor<Image> for Extractor {
     type Output = Vec<OcrOutput>;
 
-    fn extraction(&self) -> ImageExtraction {
-        ImageExtraction::Ocr(self.provenance())
-    }
-
-    async fn extract(&self, input: &RecognizerInput<Image>) -> Result<Self::Output> {
-        let image_input = ImageInput::new(input.data.bytes.clone(), ImageFormat::Png);
+    async fn extract(&self, span: &Span<Image>) -> Result<ExtractorOutput<Image, Self::Output>> {
+        let image_input = ImageInput::new(span.data.bytes.clone(), ImageFormat::Png);
         let mut ocr_ctx = Context::default();
-        if let Some(ref lang) = input.language {
+        if let Some(ref lang) = span.language {
             ocr_ctx = ocr_ctx.with_language(lang);
         }
-        if let Some(corr_id) = input.correlation_id {
+        if let Some(corr_id) = span.correlation_id {
             ocr_ctx = ocr_ctx.with_correlation_id(corr_id);
         }
-        self.extract_inner(&image_input, ocr_ctx).await
+        let value = self.extract_inner(&image_input, ocr_ctx).await?;
+        Ok(ExtractorOutput::new(
+            value,
+            ImageExtraction::Ocr(self.provenance()),
+        ))
     }
 }
 

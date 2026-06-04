@@ -12,9 +12,12 @@
 //! image location adding polygon variants) without touching the
 //! marker.
 //!
-//! [`Modality`] is intentionally minimal: marker + location +
-//! extraction. The document-shape side (`Block`, `Metadata`) lives
-//! in `nvisy-document`; the redaction-shape side (`Strategy`,
+//! [`Modality`] is intentionally minimal: marker + location.
+//! Extension traits ([`crate::ModalityData`] for the recognizer-side
+//! payload type, [`crate::extraction::ModalityExtraction`] for the
+//! per-modality provenance enum) live next to the layer that needs
+//! them. The document-shape side (`Block`, `Metadata`) lives in
+//! `nvisy-document`; the redaction-shape side (`Strategy`,
 //! `Replacement`) lives in `nvisy-toolkit`. Each layer adds its own
 //! extension trait (`DocumentModality`, `Redactable`) atop this
 //! marker — toolkit and document don't pollute core.
@@ -31,10 +34,32 @@ use std::fmt::Debug;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-pub use self::audio::{Audio, AudioExtraction, AudioLocation};
-pub use self::image::{Image, ImageExtraction, ImageLocation};
+pub use self::audio::{Audio, AudioData, AudioExtraction, AudioLocation};
+pub use self::image::{Image, ImageData, ImageExtraction, ImageLocation};
 pub use self::tabular::{Tabular, TabularExtraction, TabularLocation};
-pub use self::text::{ContextWindow, Text, TextExtraction, TextLocation};
+pub use self::text::{ContextWindow, Text, TextData, TextExtraction, TextLocation};
+
+/// Extension of [`Modality`] that adds the per-call payload type
+/// recognizers and extractors consume. Modalities that don't ship
+/// with a payload type — currently [`Tabular`] — simply don't
+/// implement this.
+pub trait ModalityData: Modality {
+    /// Per-call modality-specific payload: the bytes / text /
+    /// dimensions a recognizer or extractor actually scans.
+    type Data: Debug + Send + Sync;
+}
+
+impl ModalityData for Text {
+    type Data = TextData;
+}
+
+impl ModalityData for Image {
+    type Data = ImageData;
+}
+
+impl ModalityData for Audio {
+    type Data = AudioData;
+}
 
 /// Marker trait implemented by every per-modality marker type
 /// ([`Text`], [`Image`], [`Audio`], [`Tabular`]).
@@ -58,40 +83,6 @@ pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'sta
         + DeserializeOwned
         + schemars::JsonSchema
         + 'static;
-}
-
-/// Extension of [`Modality`] that names the per-modality
-/// [`Extraction`] enum recording how a document's primary content was
-/// produced.
-///
-/// `M::Extraction` is the value stamped into the document's
-/// per-modality metadata at extractor time (e.g. `Document<Image>`'s
-/// metadata carries an [`ImageExtraction`]). Generic phase code that
-/// needs to stamp extraction provenance writes `M::Extraction`; the
-/// concrete enum stays modality-keyed and finite.
-///
-/// [`Extraction`]: Self::Extraction
-pub trait ModalityExtraction: Modality {
-    /// Per-modality provenance enum recording how the document was
-    /// produced (e.g. [`TextExtraction`] for [`Text`],
-    /// [`ImageExtraction`] for [`Image`]).
-    type Extraction: Clone + Debug + PartialEq + Send + Sync + 'static;
-}
-
-impl ModalityExtraction for Text {
-    type Extraction = TextExtraction;
-}
-
-impl ModalityExtraction for Image {
-    type Extraction = ImageExtraction;
-}
-
-impl ModalityExtraction for Audio {
-    type Extraction = AudioExtraction;
-}
-
-impl ModalityExtraction for Tabular {
-    type Extraction = TabularExtraction;
 }
 
 /// Check whether two coordinates of the same modality overlap.

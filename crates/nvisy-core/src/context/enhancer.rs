@@ -22,7 +22,7 @@ use crate::primitive::Confidence;
 ///
 /// The matcher strategy defaults to [`SubstringMatcher`] when not
 /// supplied. Wire [`LemmaMatcher`] instead when an upstream
-/// `NlpEngine` populates [`Tokens`] in `TextData.artifacts` and you
+/// `NlpEngine` populates [`Tokens`] in `RecognizerInput.artifacts` and you
 /// want morphological-variant boosting.
 ///
 /// [`builder`]: Self::builder

@@ -5,7 +5,7 @@
 //! NER adapters, context enhancer) can read them without depending
 //! on this crate. This module declares the [`NlpEngine`] trait and
 //! the engines that produce those artifacts into the shared
-//! `TypeMap` stamped on `TextData.artifacts`.
+//! `TypeMap` stamped on `RecognizerInput.artifacts`.
 //!
 //! One engine ships today:
 //! - [`LinguaNlpEngine`] — language-only NLP, backed by the

@@ -18,6 +18,8 @@ mod plan;
 #[cfg(feature = "audio")]
 mod stt;
 
+#[cfg(all(feature = "image", not(feature = "bento")))]
+use nvisy_core::Error;
 use nvisy_core::Result;
 use nvisy_toolkit::extraction::ExtractorRegistry;
 use serde::{Deserialize, Serialize};

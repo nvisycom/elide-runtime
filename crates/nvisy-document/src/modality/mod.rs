@@ -30,11 +30,16 @@ pub use nvisy_core::modality::{
     Audio, AudioExtraction, Image, ImageExtraction, Modality, Tabular, TabularExtraction, Text,
     TextExtraction,
 };
+pub use nvisy_toolkit::redaction::Redactable;
+use schemars::JsonSchema;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 pub use self::audio::{AudioBlock, AudioMetadata};
 pub use self::image::{ImageBlock, ImageMetadata, PageDimensions};
 pub use self::tabular::{ColumnHeader, TabularBlock, TabularMetadata};
 pub use self::text::{EmbeddedDocument, TextBlock, TextContent, TextMetadata};
+use crate::policy::redaction::{AudioRedaction, ImageRedaction, TabularRedaction, TextRedaction};
 
 /// Shared per-block surface every modality's block payload exposes.
 ///
@@ -56,14 +61,20 @@ pub trait ModalityBlock {
     fn scan_text(&self) -> Option<&str>;
 }
 
-/// Document-shape extension of [`Modality`].
+/// Document-shape extension of [`Modality`] + [`Redactable`].
 ///
-/// Adds the document-level shape (block payload, document metadata)
-/// the document carrier and its phases need. Implemented for the
-/// four modalities in this module — code that just needs a marker
-/// can bound on bare `Modality`; code that needs `M::Block` or
-/// `M::Metadata` bounds on `DocumentModality`.
-pub trait DocumentModality: Modality {
+/// Adds the document-level shape (block payload, document metadata,
+/// policy redaction enum) the document carrier and its phases need.
+/// Implemented for the four modalities in this module — code that
+/// just needs a marker can bound on bare `Modality`; code that
+/// needs any document-level associated type bounds on
+/// `DocumentModality`.
+///
+/// The [`Redactable`] super-trait carries `M::Replacement` (what an
+/// `Anonymizer<M>` writes at the entity's location). Folding it into
+/// `DocumentModality` lets every downstream site spell its bound as
+/// `M: DocumentModality` and inherit both axes automatically.
+pub trait DocumentModality: Modality + Redactable {
     /// The modality's block payload. See [`TextBlock`], [`ImageBlock`],
     /// [`AudioBlock`], [`TabularBlock`].
     type Block: ModalityBlock + Clone + Debug + Send + Sync + 'static;
@@ -71,24 +82,51 @@ pub trait DocumentModality: Modality {
     /// Document-level metadata: extraction tag plus modality-specific
     /// fields (languages, page dimensions, column headers).
     type Metadata: Clone + Debug + PartialEq + Send + Sync + 'static;
+
+    /// Operator-spec enum a `redact` policy rule of this modality
+    /// carries. Per-call instantiated for built-ins; `Custom(id)`
+    /// arms resolve through the toolkit-side
+    /// [`RedactionRegistry<Self>`].
+    ///
+    /// The serde + schemars bounds let [`Policy<Self>`][p] /
+    /// [`PolicyRule<Self>`][pr] derive Serialize / Deserialize /
+    /// JsonSchema transparently across all four modalities — the
+    /// per-modality enum types meet them naturally.
+    ///
+    /// [`RedactionRegistry<Self>`]: nvisy_toolkit::redaction::RedactionRegistry
+    /// [p]: crate::policy::Policy
+    /// [pr]: crate::policy::PolicyRule
+    type Redaction: Clone
+        + Debug
+        + PartialEq
+        + Send
+        + Sync
+        + Serialize
+        + DeserializeOwned
+        + JsonSchema
+        + 'static;
 }
 
 impl DocumentModality for Text {
     type Block = TextBlock;
     type Metadata = TextMetadata;
+    type Redaction = TextRedaction;
 }
 
 impl DocumentModality for Image {
     type Block = ImageBlock;
     type Metadata = ImageMetadata;
+    type Redaction = ImageRedaction;
 }
 
 impl DocumentModality for Audio {
     type Block = AudioBlock;
     type Metadata = AudioMetadata;
+    type Redaction = AudioRedaction;
 }
 
 impl DocumentModality for Tabular {
     type Block = TabularBlock;
     type Metadata = TabularMetadata;
+    type Redaction = TabularRedaction;
 }

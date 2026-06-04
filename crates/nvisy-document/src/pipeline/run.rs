@@ -23,9 +23,10 @@ use super::engine::{EngineInput, EngineOutput};
 use super::orchestrator::Orchestrator;
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
-use crate::core::{PolicyStore, RunContext, SharedData};
+use crate::core::{PolicyStore, RunContext, RunEngines, SharedData};
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::ingestion::registry::Registry;
+use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::policy::{Policy, Retention, RetentionPolicy, RetentionScope};
 
@@ -36,15 +37,27 @@ const TARGET: &str = "nvisy_engine::pipeline::run";
 /// Created per-run, not reusable. Owns the run ID, cancellation
 /// token, and all intermediate state needed to drive the run from
 /// preparation through finalization.
+/// Deployment-wide engine state a [`Pipeline`] borrows for the
+/// duration of one run. Bundled because every field is an
+/// `Arc<_>` shared with [`Engine`]; passing them as one argument
+/// keeps the [`Pipeline::new`] surface stable as new engine-shaped
+/// resources land.
+///
+/// [`Engine`]: super::Engine
+pub(super) struct EngineState {
+    pub extraction_engine: Arc<ExtractorRegistry>,
+    pub recognizer_registry: Arc<RecognizerRegistry>,
+    pub redaction_config: Arc<RedactionConfig>,
+    pub redaction_registries: Arc<RedactionRegistries>,
+}
+
 pub(super) struct Pipeline {
     run_id: Uuid,
     registry: Registry,
     key_provider: Option<SharedKeyProvider>,
     runs: RunState,
     base_config: RuntimeConfig,
-    extraction_engine: Arc<ExtractorRegistry>,
-    recognizer_registry: Arc<RecognizerRegistry>,
-    redaction_config: Arc<RedactionConfig>,
+    state: EngineState,
 }
 
 impl Pipeline {
@@ -54,9 +67,7 @@ impl Pipeline {
         key_provider: Option<SharedKeyProvider>,
         runs: RunState,
         base_config: RuntimeConfig,
-        extraction_engine: Arc<ExtractorRegistry>,
-        recognizer_registry: Arc<RecognizerRegistry>,
-        redaction_config: Arc<RedactionConfig>,
+        state: EngineState,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
@@ -64,9 +75,7 @@ impl Pipeline {
             key_provider,
             runs,
             base_config,
-            extraction_engine,
-            recognizer_registry,
-            redaction_config,
+            state,
         }
     }
 
@@ -155,16 +164,20 @@ impl Pipeline {
         // Reuse the engine-wide RecognizerRegistry. Every registered
         // recognizer runs on every request — there is no per-plan
         // recognizer-name filter.
-        let recognizer_registry = (*self.recognizer_registry).clone();
+        let recognizer_registry = (*self.state.recognizer_registry).clone();
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
+        let engines = RunEngines {
+            extraction_engine: (*self.state.extraction_engine).clone(),
+            recognizer_registry,
+            redaction_config: (*self.state.redaction_config).clone(),
+            redaction_registries: (*self.state.redaction_registries).clone(),
+        };
         let ctx = RunContext::new(
             cancel,
             Arc::new(shared_data),
-            (*self.extraction_engine).clone(),
-            recognizer_registry,
-            (*self.redaction_config).clone(),
+            engines,
             concurrency,
             input.dry_run,
         );

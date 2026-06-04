@@ -28,6 +28,7 @@ mod tree;
 pub use nvisy_core::ValueAt;
 
 pub use self::context::RunContext;
+pub(crate) use self::context::RunEngines;
 pub use self::plan::Plan;
 pub(crate) use self::policy_store::Decision;
 pub use self::policy_store::PolicyStore;

@@ -31,7 +31,6 @@ use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata}
 use nvisy_core::entity::{Annotation, LabelAnnotation};
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_formats::decode;
-use nvisy_toolkit::redaction::Redactable;
 use tokio::sync::Mutex;
 
 use crate::core::{AnyDocument, DocumentTree, SharedData, SharedHandle};
@@ -206,7 +205,7 @@ async fn dispatch(
 ///
 /// [`Assert`]: nvisy_core::entity::AnnotationStrength::Assert
 /// [`Hint`]: nvisy_core::entity::AnnotationStrength::Hint
-fn attach_annotations<M: DocumentModality + Redactable>(
+fn attach_annotations<M: DocumentModality>(
     doc: &mut Document<M>,
     annotations: Vec<Annotation<M>>,
     labels: Vec<LabelAnnotation>,

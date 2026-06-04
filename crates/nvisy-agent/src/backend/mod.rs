@@ -7,7 +7,35 @@
 //! provider dispatch, structured-output, retries, and usage
 //! tracking.
 
-mod llm_backend;
+mod request;
+mod response;
 pub mod rig;
 
-pub use self::llm_backend::{LlmBackend, LlmRequest, LlmResponse};
+use nvisy_core::Result;
+
+pub use self::request::LlmRequest;
+pub use self::response::LlmResponse;
+
+/// Per-call LLM backend.
+///
+/// Implemented by everything that turns a `(prompt, schema)` pair
+/// into the model's text reply — rig-backed providers (OpenAI,
+/// Anthropic, Gemini, Ollama), externalised inference gateways, the
+/// in-process no-op test stub.
+///
+/// Object-safe: recognizers hold `Arc<dyn LlmBackend>` and dispatch
+/// per call.
+#[async_trait::async_trait]
+pub trait LlmBackend: Send + Sync + 'static {
+    /// Send `request` to the model and return its reply.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying transport / provider / parse error.
+    async fn predict(&self, request: LlmRequest<'_>) -> Result<LlmResponse>;
+
+    /// Model name the backend is configured to call. Recognizers
+    /// stamp this into entity trail provenance so post-hoc analysis
+    /// can attribute scores to a specific model.
+    fn model(&self) -> &str;
+}

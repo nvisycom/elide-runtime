@@ -66,11 +66,11 @@ const HINT_SNIPPET_HALF_WIDTH: usize = 80;
 
 /// File-driven [`Prompt`] impl.
 ///
-/// Construct via [`from_toml_file`] or [`from_toml_str`]; the modality
+/// Construct via [`from_toml_file`] or [`from_toml`]; the modality
 /// (`M`) is checked against `meta.modality` at parse time.
 ///
 /// [`from_toml_file`]: Self::from_toml_file
-/// [`from_toml_str`]: Self::from_toml_str
+/// [`from_toml`]: Self::from_toml
 pub struct FilePrompt<M> {
     template: String,
     label_map: LabelMap,
@@ -162,7 +162,7 @@ impl FilePrompt<Text> {
     pub fn from_toml_file(path: impl AsRef<Path>) -> Result<Self> {
         let raw = fs::read_to_string(path.as_ref())
             .map_err(|e| Error::validation(format!("reading prompt file: {e}"), "file-prompt"))?;
-        Self::from_toml_str(&raw)
+        Self::from_toml(&raw)
     }
 
     /// Load a text-modality prompt from a TOML string.
@@ -172,7 +172,7 @@ impl FilePrompt<Text> {
     /// See [`from_toml_file`].
     ///
     /// [`from_toml_file`]: Self::from_toml_file
-    pub fn from_toml_str(raw: &str) -> Result<Self> {
+    pub fn from_toml(raw: &str) -> Result<Self> {
         let parsed: PromptFile = toml::from_str(raw)
             .map_err(|e| Error::validation(format!("parsing prompt TOML: {e}"), "file-prompt"))?;
         Self::from_parsed(parsed, "text")
@@ -188,7 +188,7 @@ impl FilePrompt<Image> {
     pub fn from_toml_file(path: impl AsRef<Path>) -> Result<Self> {
         let raw = fs::read_to_string(path.as_ref())
             .map_err(|e| Error::validation(format!("reading prompt file: {e}"), "file-prompt"))?;
-        Self::from_toml_str(&raw)
+        Self::from_toml(&raw)
     }
 
     /// Load an image-modality prompt from a TOML string.
@@ -196,7 +196,7 @@ impl FilePrompt<Image> {
     /// # Errors
     ///
     /// Same as the text-modality loader.
-    pub fn from_toml_str(raw: &str) -> Result<Self> {
+    pub fn from_toml(raw: &str) -> Result<Self> {
         let parsed: PromptFile = toml::from_str(raw)
             .map_err(|e| Error::validation(format!("parsing prompt TOML: {e}"), "file-prompt"))?;
         Self::from_parsed(parsed, "image")

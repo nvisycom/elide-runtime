@@ -42,11 +42,15 @@ for the per-modality provenance value stamped on the document.
 `nvisy_agent::audio::stt::SttService`.
 
 `redaction::*` declares the redaction surface: the `Redactable`
-extension trait that binds per-modality `Strategy` and `Replacement`
-types, the `RedactionStrategy` super-trait, the
-`TextStrategy` / `ImageStrategy` / `AudioStrategy` /
-`TabularStrategy` enums, and the corresponding `*Replacement`
-records.
+extension trait that binds the per-modality `Replacement` record;
+the `Anonymizer<M>` / `Deanonymizer<M>` operator traits; the
+built-in operator structs (`Replace`, `Mask`, `Hash`, `Redact`,
+`Keep`, optionally `Encrypt` / `Decrypt`); and the
+`RedactionRegistry<M>` — a per-modality name-keyed pool of
+deployment-supplied custom operators looked up by
+`AnonymizerId<M>`. Built-ins never live in the registry; they're
+instantiated per-call from the policy's operator-spec enum on the
+document side.
 
 ## Feature Flags
 

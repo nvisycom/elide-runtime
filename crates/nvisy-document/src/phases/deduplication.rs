@@ -18,7 +18,6 @@ use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::Overlap;
 use nvisy_toolkit::deduplication::{FilterParams, LayerContext, LayerPipeline, SpanSize};
-use nvisy_toolkit::redaction::Redactable;
 use tracing::Instrument;
 use uuid::Uuid;
 
@@ -114,7 +113,7 @@ async fn dedup_one<M>(
     run_id: Uuid,
 ) -> Result<()>
 where
-    M: DocumentModality + Redactable,
+    M: DocumentModality,
     M::Location: Overlap + SpanSize,
     for<'a> DocumentView<'a, M>: ValueAt<M>,
 {

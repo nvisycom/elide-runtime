@@ -4,11 +4,11 @@
 use derive_builder::{Builder, UninitializedFieldError};
 use type_map::concurrent::TypeMap;
 
+use super::Tokens;
 use super::matcher::{KeywordMatcher, SubstringMatcher};
 use super::registry::ContextRegistry;
 use crate::entity::{Entity, TrailStep};
 use crate::modality::Text;
-use crate::nlp::Tokens;
 use crate::primitive::Confidence;
 
 /// Post-recognition enhancer that boosts entity confidence when
@@ -31,7 +31,7 @@ use crate::primitive::Confidence;
 /// [`default_window`]: ContextEnhancerBuilder::with_default_window
 /// [`default_boost`]: ContextEnhancerBuilder::with_default_boost
 /// [`LemmaMatcher`]: super::LemmaMatcher
-/// [`Tokens`]: crate::nlp::Tokens
+/// [`Tokens`]: super::Tokens
 #[derive(Builder)]
 #[builder(
     name = "ContextEnhancerBuilder",

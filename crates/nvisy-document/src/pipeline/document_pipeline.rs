@@ -50,7 +50,10 @@ impl DocumentPipeline {
             (None, None)
         } else {
             (
-                Some(RedactionPhase::new(ctx.redaction_config().clone())),
+                Some(RedactionPhase::new(
+                    ctx.redaction_config().clone(),
+                    ctx.redaction_registries().clone(),
+                )),
                 Some(ValidationPhase::new()),
             )
         };

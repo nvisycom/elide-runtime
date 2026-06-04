@@ -2,7 +2,6 @@
 
 use nvisy_core::entity::{Entity, EntityCategory, EntityKind};
 use nvisy_core::primitive::ConfidenceThreshold;
-use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +34,7 @@ impl EntitySelector {
     }
 
     /// Returns `true` if the given entity matches this selector.
-    pub fn matches<M: DocumentModality + Redactable>(&self, entity: &Entity<M>) -> bool {
+    pub fn matches<M: DocumentModality>(&self, entity: &Entity<M>) -> bool {
         if let Some(threshold) = self.confidence_threshold
             && !threshold.admits(entity.confidence)
         {

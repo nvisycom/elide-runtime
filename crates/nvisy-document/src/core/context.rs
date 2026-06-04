@@ -23,6 +23,7 @@ use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
 
 use super::SharedData;
+use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 
 /// Per-run execution context shared across all document tasks.
@@ -49,10 +50,26 @@ pub struct RunContext {
     /// Server-wide redaction defaults. Per-plan `Redaction` fields
     /// fall back to these.
     pub(crate) redaction_config: RedactionConfig,
+    /// Per-modality custom-anonymizer registries. Populated by
+    /// deployment code at engine startup; empty when no custom
+    /// operators are registered (only built-in redaction specs from
+    /// policies are then resolvable).
+    pub(crate) redaction_registries: RedactionRegistries,
     /// Optional limit on how many documents may process concurrently.
     pub(crate) concurrency: Option<NonZeroUsize>,
     /// When `true`, skip redaction, validation, and export phases.
     pub(crate) dry_run: bool,
+}
+
+/// Bundle of the four toolkit-shaped engine resources a
+/// [`RunContext`] borrows from the pipeline orchestrator. Passed as
+/// one argument so [`RunContext::new`] stays narrow as new engine
+/// resources land.
+pub(crate) struct RunEngines {
+    pub extraction_engine: ExtractorRegistry,
+    pub recognizer_registry: RecognizerRegistry,
+    pub redaction_config: RedactionConfig,
+    pub redaction_registries: RedactionRegistries,
 }
 
 impl RunContext {
@@ -61,18 +78,23 @@ impl RunContext {
     pub(crate) fn new(
         cancel: CancellationToken,
         shared: Arc<SharedData>,
-        extraction_engine: ExtractorRegistry,
-        recognizer_registry: RecognizerRegistry,
-        redaction_config: RedactionConfig,
+        engines: RunEngines,
         concurrency: Option<NonZeroUsize>,
         dry_run: bool,
     ) -> Self {
+        let RunEngines {
+            extraction_engine,
+            recognizer_registry,
+            redaction_config,
+            redaction_registries,
+        } = engines;
         Self {
             cancel,
             shared,
             extraction_engine,
             recognizer_registry,
             redaction_config,
+            redaction_registries,
             concurrency,
             dry_run,
         }
@@ -102,6 +124,14 @@ impl RunContext {
     /// [`RedactionPhase`]: crate::pipeline::RedactionPhase
     pub(crate) fn redaction_config(&self) -> &RedactionConfig {
         &self.redaction_config
+    }
+
+    /// Per-modality custom-anonymizer registries the
+    /// [`RedactionPhase`] consults for `Custom`-arm lookups.
+    ///
+    /// [`RedactionPhase`]: crate::pipeline::RedactionPhase
+    pub(crate) fn redaction_registries(&self) -> &RedactionRegistries {
+        &self.redaction_registries
     }
 
     /// Run-wide shared state (policies, registry, key provider).

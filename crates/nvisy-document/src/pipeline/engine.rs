@@ -20,13 +20,14 @@ use tokio::task::JoinSet;
 use uuid::Uuid;
 
 use super::config::{ExtractionConfig, RuntimeConfig};
-use super::run::Pipeline;
+use super::run::{EngineState, Pipeline};
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
 use crate::core::Plan;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::ingestion::registry::Registry;
 use crate::phases::ingestion::{ExportFile, ImportFile};
+use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::provenance::AnyAudit;
 
@@ -88,6 +89,10 @@ pub(super) struct EngineInner {
     pub recognizer_registry: Arc<RecognizerRegistry>,
     /// Server-wide redaction defaults shared across every run.
     pub redaction_config: Arc<RedactionConfig>,
+    /// Per-modality custom-anonymizer registries, shared across runs.
+    /// Empty by default; populated by deployments via
+    /// [`Engine::with_redaction_registries`].
+    pub redaction_registries: Arc<RedactionRegistries>,
     /// Content and context storage backend.
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
@@ -148,6 +153,7 @@ impl Engine {
             None => RecognizerRegistry::default(),
         });
         let redaction_config = Arc::new(config.redaction.clone().unwrap_or_default());
+        let redaction_registries = Arc::new(RedactionRegistries::default());
 
         Ok(Self {
             inner: Arc::new(EngineInner {
@@ -155,6 +161,7 @@ impl Engine {
                 extraction_engine,
                 recognizer_registry,
                 redaction_config,
+                redaction_registries,
                 registry,
                 key_provider: None,
                 runs: RunState::new(),
@@ -196,6 +203,23 @@ impl Engine {
         self
     }
 
+    /// Install the per-modality custom-anonymizer registries the
+    /// redaction phase consults for `Custom`-arm operator lookups.
+    ///
+    /// Replaces whatever registries the engine was constructed with
+    /// (an empty default). Deployments call this once at startup
+    /// after building their `RedactionRegistries`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the engine has already been cloned (Arc is shared).
+    pub fn with_redaction_registries(mut self, registries: RedactionRegistries) -> Self {
+        Arc::get_mut(&mut self.inner)
+            .expect("engine must not be shared during construction")
+            .redaction_registries = Arc::new(registries);
+        self
+    }
+
     /// Returns the base runtime configuration before per-request overrides.
     pub fn config(&self) -> &RuntimeConfig {
         &self.inner.runtime_config
@@ -218,9 +242,12 @@ impl Engine {
             self.inner.key_provider.clone(),
             self.inner.runs.clone(),
             self.inner.runtime_config.clone(),
-            Arc::clone(&self.inner.extraction_engine),
-            Arc::clone(&self.inner.recognizer_registry),
-            Arc::clone(&self.inner.redaction_config),
+            EngineState {
+                extraction_engine: Arc::clone(&self.inner.extraction_engine),
+                recognizer_registry: Arc::clone(&self.inner.recognizer_registry),
+                redaction_config: Arc::clone(&self.inner.redaction_config),
+                redaction_registries: Arc::clone(&self.inner.redaction_registries),
+            },
         )
     }
 

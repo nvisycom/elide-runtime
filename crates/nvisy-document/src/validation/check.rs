@@ -22,7 +22,6 @@
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
-use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -49,7 +48,7 @@ use crate::modality::DocumentModality;
 /// [`LayerContext`]: nvisy_toolkit::deduplication::LayerContext
 pub struct CheckContext<'a, M, P>
 where
-    M: DocumentModality + Redactable,
+    M: DocumentModality,
     P: ValueAt<M> + ?Sized,
 {
     /// Resolver for "what value sits at this location?" Backed by
@@ -69,7 +68,7 @@ where
 
 impl<'a, M, P> CheckContext<'a, M, P>
 where
-    M: DocumentModality + Redactable,
+    M: DocumentModality,
     P: ValueAt<M> + ?Sized,
 {
     /// Build a context from the resolver + handle.
@@ -160,7 +159,7 @@ pub struct Finding {
 #[async_trait]
 pub trait Check<M, P>: Send + Sync
 where
-    M: DocumentModality + Redactable,
+    M: DocumentModality,
     P: ValueAt<M> + ?Sized,
 {
     /// Inspect `doc` and emit a list of findings.

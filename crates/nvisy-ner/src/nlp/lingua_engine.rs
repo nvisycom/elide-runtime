@@ -14,8 +14,9 @@
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_core::nlp::LanguageDetections;
-use nvisy_core::primitive::{LanguageDetection, LanguageProvenance, LanguageTag};
+use nvisy_core::primitive::{
+    LanguageDetection, LanguageDetections, LanguageProvenance, LanguageTag,
+};
 use type_map::concurrent::TypeMap;
 
 use super::capabilities::NlpCapabilities;

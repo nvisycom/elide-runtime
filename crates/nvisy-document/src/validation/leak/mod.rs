@@ -23,7 +23,6 @@
 
 use futures::StreamExt;
 use nvisy_core::modality::{Tabular, Text};
-use nvisy_toolkit::redaction::Redactable;
 use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
@@ -61,7 +60,7 @@ pub struct LeakFinding {
 #[async_trait::async_trait]
 pub trait CheckLeaks<M, P>: Send + Sync
 where
-    M: DocumentModality + Redactable,
+    M: DocumentModality,
     P: ValueAt<M> + ?Sized,
 {
     /// Inspect `doc` and emit a typed list of leak findings.
@@ -141,7 +140,7 @@ where
 #[async_trait::async_trait]
 impl<M, P> Check<M, P> for LeakCheck
 where
-    M: DocumentModality + Redactable,
+    M: DocumentModality,
     P: ValueAt<M> + ?Sized,
     LeakCheck: CheckLeaks<M, P>,
 {
@@ -179,7 +178,7 @@ async fn check_text_like<M, P>(
     redacted_text: Option<&str>,
 ) -> Vec<LeakFinding>
 where
-    M: DocumentModality + Redactable,
+    M: DocumentModality,
     P: ValueAt<M> + ?Sized,
 {
     let applied: Vec<&EntityRecord<M>> = doc

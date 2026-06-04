@@ -22,7 +22,6 @@ mod record;
 
 use derive_more::{From, IsVariant};
 use nvisy_core::entity::{ContentSource, Entity};
-use nvisy_toolkit::redaction::Redactable;
 pub use nvisy_toolkit::redaction::{TabularReplacement, TextReplacement};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -47,12 +46,12 @@ use crate::modality::{Audio, DocumentModality, Image, Tabular, Text};
 #[serde(
     rename_all = "camelCase",
     bound(
-        serialize = "M: Serialize, M::Strategy: Serialize, M::Replacement: Serialize",
-        deserialize = "M: DeserializeOwned, M::Strategy: DeserializeOwned, M::Replacement: DeserializeOwned",
+        serialize = "M: Serialize, M::Replacement: Serialize",
+        deserialize = "M: DeserializeOwned, M::Replacement: DeserializeOwned",
     )
 )]
-#[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
-pub struct Audit<M: DocumentModality + Redactable> {
+#[schemars(bound = "M: JsonSchema, M::Replacement: JsonSchema")]
+pub struct Audit<M: DocumentModality> {
     /// Content source this audit belongs to.
     pub source: ContentSource,
     /// Identifier of the pipeline run that produced this audit.
@@ -67,7 +66,7 @@ pub struct Audit<M: DocumentModality + Redactable> {
     pub records: Vec<EntityRecord<M>>,
 }
 
-impl<M: DocumentModality + Redactable> Audit<M> {
+impl<M: DocumentModality> Audit<M> {
     /// Create a new empty audit for the given source.
     pub fn new(source: ContentSource) -> Self {
         Self {

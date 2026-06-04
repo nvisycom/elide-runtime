@@ -14,8 +14,9 @@ Depends on `nvisy-core` for the atoms (primitives, `Entity`,
 `Modality`, `ValueAt`, the `ModalityExtraction` enums) and on
 `nvisy-toolkit` for the composable components the phases call
 into (`RecognizerRegistry`, `ExtractionEngine`, `LayerPipeline`,
-`CheckPipeline`, redaction strategies). Document is the only place
-where the toolkit-shape and document-shape types meet.
+`CheckPipeline`, `Anonymizer<M>` operators + `RedactionRegistry<M>`).
+Document is the only place where the toolkit-shape and
+document-shape types meet.
 
 `document::*` holds the typed carrier: `Document<M>`, `Block<M>`,
 `Span<M>`, and the `Audit` record that accumulates `EntityRecord`s as
@@ -61,14 +62,18 @@ nodes; per-section deployment configs (`ExtractionConfig`,
 `DetectionConfig`, `RedactionConfig`, `DeduplicationParams`) live in
 the toolkit and are re-exported here.
 
-`policy::*` carries the strategy-policy types: `Policy<M>` itself,
-`PolicyRule<M>`, `Action::Redact { strategy }` / `Action::Suppress`,
-`Condition`, `RetentionPolicy`, and the `RetentionScope` enum that
-drives the retention enforcement at run finalisation.
+`policy::*` carries the redaction-governance types: `Policy<M>`,
+`PolicyRule<M>`, `Action<M>::Redact { operator: M::Redaction }` /
+`Action::Suppress`, the per-modality operator-spec enums
+(`TextRedaction` / `ImageRedaction` / `AudioRedaction` /
+`TabularRedaction`) under `policy::redaction`, `Condition`,
+`RetentionPolicy`, and the `RetentionScope` enum that drives
+retention enforcement at run finalisation.
 
-`provenance::*` is the per-entity audit: `EntityRecord`, `AuditEntry`,
-and the `RedactionMap` of per-modality replacement values produced by
-the redaction phase.
+`provenance::*` is the per-entity audit: `EntityRecord`, the
+`AuditEntry<M>` carrying `Decision<M>` (winning rule + its operator
+spec) and `Execution<M>` (pending / applied / failed / suppressed)
+that accumulates as the redaction phase runs.
 
 `validation::*` owns the `Check<M>` trait, the `CheckPipeline` that
 composes checks, and the canonical `LeakCheck` implementation that

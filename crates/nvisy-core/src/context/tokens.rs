@@ -7,16 +7,22 @@
 //! (`is_stop`, `is_punct`).
 //!
 //! [`Tokens`] is the owning collection plus lookup helpers the
-//! enhancer uses: [`around`] gets the slice of
-//! tokens within a byte window, [`lemmas_in`]
-//! iterates lemmas covering a byte range. Both work in *source-text
-//! byte offsets* — the same coordinate space as
-//! [`Entity::location`]
-//! — so there's no coordinate translation at the call site.
+//! enhancer uses: [`around`] gets the slice of tokens within a byte
+//! window, [`lemmas_in`] iterates lemmas covering a byte range.
+//! Both work in *source-text byte offsets* — the same coordinate
+//! space as [`Entity::location`] — so there's no coordinate
+//! translation at the call site.
 //!
 //! [`around`]: Tokens::around
 //! [`lemmas_in`]: Tokens::lemmas_in
 //! [`Entity::location`]: crate::entity::Entity::location
+//!
+//! Tokens live next to the [`ContextEnhancer`] because that's the
+//! only consumer: the enhancer reads them off
+//! `RecognizerInput::artifacts` to drive lemma-aware keyword
+//! matching. The producer (a tokenizer in some upstream NLP
+//! backend) only needs to know the type by name; the type itself
+//! belongs in the consumer's neighborhood.
 //!
 //! The shape is intentionally minimal. POS tags, morphology,
 //! dependency trees, and other heavier features are not part of the
@@ -25,41 +31,41 @@
 //! produce them — `text == lemma`, `is_stop == false`,
 //! `is_punct == false` are the defaults for a tokenizer-only
 //! engine.
+//!
+//! [`ContextEnhancer`]: super::ContextEnhancer
 
 use std::ops::Range;
 
 use hipstr::HipStr;
 
-/// One token produced by an `NlpEngine`.
+/// One token produced by an upstream tokenizer.
 ///
-/// `lemma` falls back to `text` when the engine has no lemmatizer —
-/// callers that want lemma-aware matching can read `token.lemma`
-/// uniformly without checking which engine produced the artifact.
+/// `lemma` falls back to `text` when the producer has no
+/// lemmatizer — callers that want lemma-aware matching can read
+/// `token.lemma` uniformly without checking which engine produced
+/// the artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     /// Surface form as it appears in the source text.
     pub text: HipStr<'static>,
-    /// Lemma when the engine produced one; otherwise == [`text`].
+    /// Lemma when the producer emitted one; otherwise == [`text`].
     ///
     /// [`text`]: Self::text
     pub lemma: HipStr<'static>,
     /// Byte range this token occupies in the source text. Use this
     /// to map back to substrings of the original input.
     pub offset: Range<usize>,
-    /// Engine-asserted stopword flag (e.g. "the", "a", "of" for
-    /// English). Engines without a stopword list set this to
-    /// `false`; the artifact's [`StopwordSet`]
-    /// is the authoritative source.
-    ///
-    /// [`StopwordSet`]: super::StopwordSet
+    /// Producer-asserted stopword flag (e.g. "the", "a", "of" for
+    /// English). Producers without a stopword list set this to
+    /// `false`.
     pub is_stop: bool,
-    /// Engine-asserted punctuation flag.
+    /// Producer-asserted punctuation flag.
     pub is_punct: bool,
 }
 
 impl Token {
     /// Construct a token with the surface form mirrored into
-    /// `lemma`. Use this from tokenizer-only engines.
+    /// `lemma`. Use this from tokenizer-only producers.
     pub fn from_text(text: impl Into<HipStr<'static>>, offset: Range<usize>) -> Self {
         let text = text.into();
         Self {
@@ -98,16 +104,19 @@ impl Token {
 ///
 /// [`RecognizerInput::artifacts`]: crate::RecognizerInput::artifacts
 ///
-/// Tokens are sorted by `offset.start` (engines should produce them
+/// Tokens are sorted by `offset.start` (producers should emit them
 /// in order; consumer-side code assumes this). The collection
-/// exposes byte-range lookup helpers the `ContextEnhancer` uses to
-/// pull lemmas around an entity match.
+/// exposes byte-range lookup helpers the
+/// [`ContextEnhancer`][ce] uses to pull lemmas around an entity
+/// match.
+///
+/// [ce]: super::ContextEnhancer
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Tokens(Vec<Token>);
 
 impl Tokens {
-    /// Construct an empty token sequence. Use this when the engine
-    /// has no tokenizer (language-only engines).
+    /// Construct an empty token sequence. Use this when the
+    /// producer has no tokenizer (language-only engines).
     #[must_use]
     pub fn empty() -> Self {
         Self::default()

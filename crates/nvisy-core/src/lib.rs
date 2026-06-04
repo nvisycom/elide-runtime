@@ -7,7 +7,6 @@ pub mod context;
 pub mod entity;
 pub mod extraction;
 pub mod modality;
-pub mod nlp;
 pub mod primitive;
 pub mod recognition;
 pub use self::extraction::{

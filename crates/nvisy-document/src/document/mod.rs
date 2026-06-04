@@ -31,7 +31,6 @@ mod block;
 mod span;
 
 use nvisy_core::entity::{Annotation, ContentSource, Entity, LabelAnnotation};
-use nvisy_toolkit::redaction::Redactable;
 
 pub use self::block::Block;
 pub use self::span::Span;
@@ -50,7 +49,7 @@ use crate::provenance::Audit;
 ///
 /// [`Audit<M>`]: crate::provenance::Audit
 #[derive(Debug, Clone)]
-pub struct Document<M: DocumentModality + Redactable> {
+pub struct Document<M: DocumentModality> {
     /// Per-modality document-level metadata.
     pub meta: M::Metadata,
     /// Ordered blocks. One per page, paragraph, speaker turn, row,
@@ -74,7 +73,7 @@ pub struct Document<M: DocumentModality + Redactable> {
     pub audit: Audit<M>,
 }
 
-impl<M: DocumentModality + Redactable> Document<M> {
+impl<M: DocumentModality> Document<M> {
     /// Construct an empty [`Document`] with explicit metadata and a
     /// fresh audit opened against `source`. Blocks, annotations, and
     /// labels start empty; producers push onto them directly.

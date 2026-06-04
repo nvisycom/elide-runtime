@@ -15,6 +15,8 @@ mod ner;
 mod pattern;
 mod plan;
 
+#[cfg(not(feature = "bento"))]
+use nvisy_core::Error;
 use nvisy_core::Result;
 use nvisy_core::entity::EntityKind;
 use nvisy_ner::NerRecognizer;

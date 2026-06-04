@@ -1,31 +1,32 @@
-//! [`Action`] and [`PolicyRule`] — what a policy rule does when it
-//! matches an entity, plus the rule wrapper that binds a selector,
+//! [`Action<M>`] and [`PolicyRule<M>`] — what a policy rule does when
+//! it matches an entity, plus the rule wrapper that binds a selector,
 //! action, conditions, and enabled flag.
 
-use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::condition::Condition;
 use super::selector::EntitySelector;
+use crate::modality::DocumentModality;
 
-/// The action a policy rule performs when it matches an entity.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(
-    tag = "action",
-    rename_all = "snake_case",
-    bound(
-        serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: DeserializeOwned",
-    )
-)]
-#[schemars(bound = "M::Strategy: JsonSchema")]
-pub enum Action<M: Redactable> {
-    /// Apply a redaction to the matched entity.
+/// What a policy rule does when its selector matches an entity.
+///
+/// `Redact` carries the operator spec ([`DocumentModality::Redaction`])
+/// the redaction phase instantiates per entity. The closed
+/// per-modality enum (e.g. `TextRedaction`) carries the inline params
+/// for built-in operators and a `Custom(AnonymizerId<M>)` arm that
+/// resolves through the toolkit-side [`RedactionRegistry<M>`].
+///
+/// [`DocumentModality::Redaction`]: crate::modality::DocumentModality::Redaction
+/// [`RedactionRegistry<M>`]: nvisy_toolkit::redaction::RedactionRegistry
+#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum Action<M: DocumentModality> {
+    /// Redact the matched entity using the given operator spec.
     Redact {
-        /// Redaction strategy to apply.
-        strategy: M::Strategy,
+        /// Operator spec the redaction phase instantiates per entity.
+        operator: M::Redaction,
     },
     /// Suppress a detection (treat as false positive). The entity is
     /// not redacted; an audit entry records the suppression.
@@ -41,18 +42,15 @@ pub enum Action<M: Redactable> {
 ///
 /// [`Policy`]: super::Policy
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(
-    rename_all = "camelCase",
-    bound(
-        serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: DeserializeOwned",
-    )
-)]
-#[schemars(bound = "M::Strategy: JsonSchema")]
-pub struct PolicyRule<M: Redactable> {
+#[serde(rename_all = "camelCase")]
+pub struct PolicyRule<M: DocumentModality> {
     /// Which entities this rule applies to.
     pub selector: EntitySelector,
-    /// What this rule does when it matches.
+    /// What this rule does when it matches. Flattened so the
+    /// `action = "..."` discriminator and (for `Redact`) the
+    /// `operator = ...` payload sit at the rule's top level — the
+    /// shape author-facing TOML reads most naturally.
+    #[serde(flatten)]
     pub action: Action<M>,
     /// Conditions that must all be met for this rule to apply.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

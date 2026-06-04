@@ -3,27 +3,22 @@
 //! [`AuditEntry<M>`] bundles three sub-records into one row of the
 //! audit:
 //!
-//! - [`Decision<M>`] — what the policy evaluator chose (strategy,
-//!   originating rule, the recogniser-extracted text). Immutable
-//!   after evaluation.
+//! - [`Decision<M>`] — what the policy evaluator chose (the rule
+//!   that fired, where it ranks in the chain, and — for `Redact` —
+//!   the operator spec the rule carried). Immutable after evaluation.
 //! - [`Execution<M>`] — what the codec applicator did (still
 //!   pending, applied with an `M::Replacement`, failed with a
-//!   reason, or explicitly suppressed). Mutated by the applicator;
-//!   the variants form a single state machine that replaces the
-//!   pre-reshape combination of `AuditEntryStatus` +
-//!   `RedactionSpec.is_applied` + `RedactionValue.replacement`.
+//!   reason, or explicitly suppressed). Mutated by the applicator.
 //! - [`EntryMetadata`] — when, correlation, optional review.
 
 use derive_builder::Builder;
 use jiff::Timestamp;
-use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::modality::DocumentModality;
-use crate::policy::RuleRank;
+use crate::policy::{Action, RuleRank};
 
 /// A per-entity redaction record produced during a pipeline run.
 ///
@@ -39,15 +34,8 @@ use crate::policy::RuleRank;
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
-#[serde(
-    rename_all = "camelCase",
-    bound(
-        serialize = "M::Strategy: Serialize, M::Replacement: Serialize",
-        deserialize = "M::Strategy: DeserializeOwned, M::Replacement: DeserializeOwned",
-    )
-)]
-#[schemars(bound = "M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
-pub struct AuditEntry<M: DocumentModality + Redactable> {
+#[serde(rename_all = "camelCase")]
+pub struct AuditEntry<M: DocumentModality> {
     /// What the policy evaluator chose for this entity.
     pub decision: Decision<M>,
     /// What the codec applicator did (or didn't).
@@ -58,7 +46,7 @@ pub struct AuditEntry<M: DocumentModality + Redactable> {
     pub metadata: EntryMetadata,
 }
 
-impl<M: DocumentModality + Redactable> AuditEntry<M> {
+impl<M: DocumentModality> AuditEntry<M> {
     /// Start building a new audit entry.
     pub fn builder() -> AuditEntryBuilder<M> {
         AuditEntryBuilder::default()
@@ -67,29 +55,26 @@ impl<M: DocumentModality + Redactable> AuditEntry<M> {
 
 /// What the policy evaluator chose for an entity. Immutable after
 /// evaluation; the applicator only writes to [`AuditEntry::execution`].
+///
+/// The full [`Action<M>`] from the winning rule is carried verbatim
+/// so the audit record names the operator spec the apply phase ran
+/// (or would have run). Callers reading audits can render the
+/// operator without re-resolving the policy chain.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(
-    rename_all = "camelCase",
-    bound(
-        serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: DeserializeOwned",
-    )
-)]
-#[schemars(bound = "M::Strategy: JsonSchema")]
-pub struct Decision<M: DocumentModality + Redactable> {
+#[serde(rename_all = "camelCase")]
+pub struct Decision<M: DocumentModality> {
     /// Identifier of the policy that produced this decision. `None`
     /// when the decision came from a source outside the policy chain
     /// (e.g. the default-threshold fallback path).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy_id: Option<Uuid>,
     /// Position of the producing rule in the per-run policy chain.
-    /// Used by the codec at merge time to break ties when two
-    /// overlapping redactions share the same `LeakProfile` and
-    /// method. `None` for non-policy-driven decisions.
+    /// `None` for non-policy-driven decisions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rank: Option<RuleRank>,
-    /// Redaction strategy the evaluator picked.
-    pub strategy: M::Strategy,
+    /// The action the matching rule picked (with its operator spec
+    /// for [`Action::Redact`]).
+    pub action: Action<M>,
 }
 
 /// State machine for what the codec applicator did with a
@@ -97,33 +82,24 @@ pub struct Decision<M: DocumentModality + Redactable> {
 /// "did the redaction run, and if so what happened" — there is no
 /// parallel `is_applied` flag.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(
-    tag = "status",
-    rename_all = "snake_case",
-    bound(
-        serialize = "M::Replacement: Serialize",
-        deserialize = "M::Replacement: DeserializeOwned",
-    )
-)]
-#[schemars(bound = "M::Replacement: JsonSchema")]
-pub enum Execution<M: DocumentModality + Redactable> {
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum Execution<M: DocumentModality> {
     /// Decision recorded; applicator hasn't run yet.
     Pending,
     /// Applicator ran successfully. `replacement` records *what the
-    /// codec wrote* at the entity's location, in the modality's
+    /// operator wrote* at the entity's location, in the modality's
     /// per-`M::Replacement` shape.
     Applied { replacement: M::Replacement },
-    /// Strategy conversion or codec apply errored. The decision
-    /// stays on the entry; this variant records why no bytes were
-    /// written.
+    /// Operator dispatch or codec apply errored. The decision stays
+    /// on the entry; this variant records why no bytes were written.
     Failed { reason: String },
     /// A `Suppress` rule fired: the entity was deliberately not
-    /// redacted. The decision's `strategy` is recorded for
-    /// completeness but no codec work was scheduled.
+    /// redacted. The decision is recorded for completeness but no
+    /// codec work was scheduled.
     Suppressed,
 }
 
-impl<M: DocumentModality + Redactable> Execution<M> {
+impl<M: DocumentModality> Execution<M> {
     /// `true` when the applicator finished and wrote a replacement.
     pub fn is_applied(&self) -> bool {
         matches!(self, Self::Applied { .. })

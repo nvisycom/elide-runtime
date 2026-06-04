@@ -2,7 +2,6 @@
 //! audit entry produced for it during redaction.
 
 use nvisy_core::entity::Entity;
-use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -32,12 +31,12 @@ use crate::modality::DocumentModality;
 #[serde(
     rename_all = "camelCase",
     bound(
-        serialize = "M: Serialize, M::Strategy: Serialize, M::Replacement: Serialize",
-        deserialize = "M: DeserializeOwned, M::Strategy: DeserializeOwned, M::Replacement: DeserializeOwned",
+        serialize = "M: Serialize, M::Replacement: Serialize",
+        deserialize = "M: DeserializeOwned, M::Replacement: DeserializeOwned",
     )
 )]
-#[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
-pub struct EntityRecord<M: DocumentModality + Redactable> {
+#[schemars(bound = "M: JsonSchema, M::Replacement: JsonSchema")]
+pub struct EntityRecord<M: DocumentModality> {
     /// The detected entity.
     pub entity: Entity<M>,
     /// The redaction record for this entity, if a strategy decided
@@ -46,7 +45,7 @@ pub struct EntityRecord<M: DocumentModality + Redactable> {
     pub audit: Option<AuditEntry<M>>,
 }
 
-impl<M: DocumentModality + Redactable> EntityRecord<M> {
+impl<M: DocumentModality> EntityRecord<M> {
     /// Wrap an [`Entity<M>`] with no audit decision yet.
     pub fn new(entity: Entity<M>) -> Self {
         Self {

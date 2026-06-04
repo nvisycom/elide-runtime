@@ -3328,7 +3328,9 @@ dependencies = [
 name = "nvisy-toolkit"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
  "async-trait",
+ "base64",
  "bytes",
  "derive_builder",
  "derive_more",
@@ -3341,6 +3343,7 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "strum 0.28.0",
  "thiserror 2.0.18",
  "tokio",

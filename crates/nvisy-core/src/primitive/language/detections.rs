@@ -1,21 +1,25 @@
 //! [`LanguageDetections`]: typed wrapper around a list of
-//! [`LanguageDetection`] suitable for storage in the shared NLP
-//! type-map.
+//! [`LanguageDetection`] suitable for storage in a typed-map
+//! artifact bundle.
 //!
-//! Producers (`NlpEngine` impls) construct one of these for the
-//! text they scan and insert it on
-//! [`RecognizerInput::artifacts`](crate::RecognizerInput::artifacts).
-//! Consumers that care about language (recognizers gating on a
-//! language hint, per-language stopword resolution) fetch by type.
+//! Producers (language-detection backends in `nvisy-ner` and other
+//! NLP crates) construct one of these for the text they scan and
+//! insert it on an [`Artifacts`][a] map; consumers that care about
+//! language (recognizers gating on a language hint, per-language
+//! stopword resolution) fetch by type.
+//!
+//! Whole-document detections store one entry with `span = None`;
+//! multi-language documents store one entry per language with the
+//! byte range covered.
+//!
+//! [a]: crate::extraction::Artifacts
 
-use crate::primitive::LanguageDetection;
+use super::LanguageDetection;
 
-/// Languages an NLP engine resolved for one text scan.
+/// Languages a language-detection backend resolved for one text scan.
 ///
 /// Newtype around `Vec<LanguageDetection>` so the type-map sees a
-/// distinct typed entry. Whole-document detections store one entry
-/// with `span = None`; multi-language documents store one entry per
-/// language with the byte range covered.
+/// distinct typed entry.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LanguageDetections(pub Vec<LanguageDetection>);
 

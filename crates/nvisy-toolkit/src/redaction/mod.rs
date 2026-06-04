@@ -1,98 +1,53 @@
-//! Per-modality redaction shape: the [`Redactable`] extension trait
-//! plus per-modality strategy + replacement types.
+//! Redaction layer: per-modality anonymizer/deanonymizer operators
+//! plus the generic [`RedactionRegistry<M>`] that holds
+//! deployment-registered custom operators.
 //!
-//! Adds redaction-side bindings (`Strategy` + `Replacement`) atop the
-//! atomic [`Modality`] marker. Code that drives redaction (the engine
-//! orchestrator, the policy evaluator) bounds on `M: Redactable`;
-//! code that just walks modality-generic data structures bounds on
-//! bare `Modality`.
+//! The toolkit ships:
 //!
-//! [`Modality`]: nvisy_core::modality::Modality
+//! - The [`Anonymizer<M>`] / [`Deanonymizer<M>`] traits operators
+//!   implement.
+//! - A catalogue of built-in operator structs in [`builtin`]
+//!   ([`Replace`][r], [`Mask`][m], [`Hash`][h], [`Redact`][rd],
+//!   [`Keep`][k], [`Encrypt`][e]). Each is a plain struct; consumers
+//!   construct one per rule with whatever params they need.
+//! - [`AnonymizerId<M>`] + [`RedactionRegistry<M>`] for the
+//!   `Custom` escape hatch: stateful Rust operators (KMS clients,
+//!   token vaults, …) that can't be expressed as a config blob.
+//!   Built-in operators do **not** round-trip through the registry.
+//!
+//! Per-modality replacement shapes ([`TextReplacement`],
+//! [`ImageReplacement`], [`AudioReplacement`], [`TabularReplacement`])
+//! describe what an operator emits at the entity's location.
+//!
+//! Dispatch (entity → operator) lives one layer up, in the document
+//! crate: each rule's `Action::Redact { operator }` carries a closed
+//! per-modality enum that either names a built-in (constructed
+//! inline) or a `Custom(AnonymizerId<M>)` (looked up in the
+//! registry).
+//!
+//! [r]: builtin::Replace
+//! [m]: builtin::Mask
+//! [h]: builtin::Hash
+//! [rd]: builtin::Redact
+//! [k]: builtin::Keep
+//! [e]: builtin::Encrypt
 
-pub mod replacement;
-pub mod strategy;
+mod anonymizer;
+mod deanonymizer;
+mod id;
+mod leak_profile;
+mod redactable;
+mod registry;
+mod replacement;
 
-use std::fmt::Debug;
+pub mod builtin;
 
-use nvisy_core::modality::{Audio, Image, Modality, Tabular, Text};
-
-pub use self::replacement::{TabularReplacement, TextReplacement};
-pub use self::strategy::{
-    AudioMethodTag, AudioStrategy, ImageMethodTag, ImageStrategy, TabularStrategy, TextStrategy,
+pub use self::anonymizer::Anonymizer;
+pub use self::deanonymizer::Deanonymizer;
+pub use self::id::AnonymizerId;
+pub use self::leak_profile::LeakProfile;
+pub use self::redactable::Redactable;
+pub use self::registry::RedactionRegistry;
+pub use self::replacement::{
+    AudioReplacement, ImageReplacement, TabularReplacement, TextReplacement,
 };
-
-/// What a redacted output leaks about the original it replaced.
-///
-/// Variants are ordered from most-leaky to least-leaky, so
-/// `Recoverable < Partial < Irrecoverable`. Used today for operator
-/// understanding and policy authoring; future conflict-resolution
-/// passes may consult the ordering when two methods compete.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum LeakProfile {
-    /// The original value is recoverable from the output given the
-    /// right metadata (encryption key, token vault, pseudonym map,
-    /// or the candidate entity list against a hash).
-    Recoverable,
-    /// The original value is gone, but observable shape leaks:
-    /// position, length, bounding box, cell coordinates, or a known
-    /// silence on the timeline.
-    Partial,
-    /// No trace of the original value or its shape remains in the
-    /// output.
-    Irrecoverable,
-}
-
-/// Shape every per-modality redaction strategy implements.
-pub trait RedactionStrategy {
-    /// What the strategy's output leaks about the original.
-    fn leak_profile(&self) -> LeakProfile;
-
-    /// Whether the strategy is reversible — true iff the leak
-    /// profile is [`LeakProfile::Recoverable`].
-    fn is_reversible(&self) -> bool {
-        self.leak_profile() == LeakProfile::Recoverable
-    }
-}
-
-/// Redaction-side extension of [`Modality`].
-///
-/// Adds the strategy + replacement-record shape redaction passes
-/// need. Each modality declares the strategies that make sense for
-/// its data (text picks mask/replace/encrypt/etc., image picks
-/// blur/block/pixelate, audio picks silence/remove, tabular picks
-/// clear/drop-column) and the replacement record shape audited per
-/// applied redaction.
-///
-/// [`Modality`]: nvisy_core::modality::Modality
-pub trait Redactable: Modality {
-    /// The modality's redaction strategy enum.
-    type Strategy: RedactionStrategy + Clone + Debug + Default + PartialEq + Send + Sync + 'static;
-
-    /// What an applied redaction wrote back at the entity's
-    /// location. Text/Tabular carry the replacement string; Image
-    /// /Audio carry the method tag only (the substitution is a
-    /// binary transform whose parameters live on `Strategy`).
-    type Replacement: Clone + Debug + PartialEq + Send + Sync + 'static;
-}
-
-impl Redactable for Text {
-    type Replacement = TextReplacement;
-    type Strategy = TextStrategy;
-}
-
-impl Redactable for Image {
-    type Replacement = ImageMethodTag;
-    type Strategy = ImageStrategy;
-}
-
-impl Redactable for Audio {
-    type Replacement = AudioMethodTag;
-    type Strategy = AudioStrategy;
-}
-
-impl Redactable for Tabular {
-    type Replacement = TabularReplacement;
-    type Strategy = TabularStrategy;
-}

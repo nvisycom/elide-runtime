@@ -26,7 +26,7 @@ pub use self::config::LlmConfig;
 pub use self::context::ContextWindow;
 use self::inner::{RigInner, dispatch};
 pub use self::usage::{UsageStats, UsageTracker};
-use super::llm_backend::{LlmBackend, LlmRequest, LlmResponse};
+use super::{LlmBackend, LlmRequest, LlmResponse};
 use crate::error::Error;
 use crate::provider::LlmProvider;
 

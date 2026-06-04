@@ -31,7 +31,6 @@ use nvisy_core::modality::{
 use nvisy_core::{Error, ImageData};
 use nvisy_core::{RecognizerInput, Result, TextData};
 use nvisy_toolkit::detection::RecognizerRegistry;
-use nvisy_toolkit::redaction::Redactable;
 use tracing::Instrument;
 
 use crate::core::{DocumentTree, NodeMut, RunContext, SharedHandle};
@@ -123,7 +122,7 @@ async fn detect_text_only<M>(
     run_id: uuid::Uuid,
 ) -> Result<()>
 where
-    M: DocumentModality + Redactable + LiftFromBlock,
+    M: DocumentModality + LiftFromBlock,
     M::Location: Overlap,
 {
     detect_text_blocks(registry, doc, cfg, run_id).await?;
@@ -175,7 +174,7 @@ async fn detect_text_blocks<M>(
     run_id: uuid::Uuid,
 ) -> Result<()>
 where
-    M: DocumentModality + Redactable + LiftFromBlock,
+    M: DocumentModality + LiftFromBlock,
     M::Location: Overlap,
 {
     if doc.blocks.is_empty() {
@@ -290,7 +289,7 @@ async fn detect_image_locations(
 /// Returns `None` when no span overlaps the requested range — the
 /// dispatcher discards such entities since there's no way to place
 /// them in modality coordinates.
-pub trait LiftFromBlock: DocumentModality + Redactable + Sized {
+pub trait LiftFromBlock: DocumentModality + Sized {
     /// Lift block-text byte range `[start, end)` to an absolute
     /// modality-location.
     fn lift_from_block(

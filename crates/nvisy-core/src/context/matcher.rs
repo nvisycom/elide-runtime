@@ -14,10 +14,10 @@
 //! [`ContextEnhancer`] owns one as a
 //! configured strategy.
 //!
-//! [`Tokens`]: crate::nlp::Tokens
+//! [`Tokens`]: super::Tokens
 //! [`ContextEnhancer`]: super::ContextEnhancer
 
-use crate::nlp::Tokens;
+use super::Tokens;
 
 /// Decide whether any keyword from `keywords` fires within `window`.
 ///
@@ -36,7 +36,7 @@ pub trait KeywordMatcher: Send + Sync {
     /// that same range when an upstream NLP engine produced one,
     /// `None` otherwise.
     ///
-    /// [`Tokens`]: crate::nlp::Tokens
+    /// [`Tokens`]: super::Tokens
     fn any_match(&self, window: &str, tokens: Option<&Tokens>, keywords: &[String]) -> bool;
 }
 
@@ -47,7 +47,7 @@ pub trait KeywordMatcher: Send + Sync {
 /// Fast, allocation-light, permissive: the keyword `"email"` fires
 /// inside `"MyEmailAddress"`. Ignores the `tokens` argument.
 ///
-/// [`Tokens`]: crate::nlp::Tokens
+/// [`Tokens`]: super::Tokens
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SubstringMatcher;
 
@@ -91,8 +91,8 @@ impl KeywordMatcher for LemmaMatcher {
 
 #[cfg(test)]
 mod tests {
+    use super::super::Token;
     use super::*;
-    use crate::nlp::Token;
 
     #[test]
     fn substring_matches_case_insensitively() {

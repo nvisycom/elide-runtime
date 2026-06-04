@@ -3,7 +3,6 @@
 
 use nvisy_core::modality::Modality;
 use nvisy_core::primitive::Confidence;
-use nvisy_toolkit::redaction::Redactable;
 
 use crate::modality::DocumentModality;
 
@@ -17,7 +16,7 @@ use crate::modality::DocumentModality;
 /// - one span per transcribed word for audio,
 /// - one span per text run for natively-extracted text.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Span<M: DocumentModality + Redactable> {
+pub struct Span<M: DocumentModality> {
     /// Byte offset into the block's `text` where this span starts.
     pub text_start: usize,
     /// Byte offset into the block's `text` where this span ends
@@ -31,7 +30,7 @@ pub struct Span<M: DocumentModality + Redactable> {
     pub source: <M as Modality>::Location,
 }
 
-impl<M: DocumentModality + Redactable> Span<M> {
+impl<M: DocumentModality> Span<M> {
     /// Byte length of the span in the block's `text`.
     pub fn len(&self) -> usize {
         self.text_end.saturating_sub(self.text_start)

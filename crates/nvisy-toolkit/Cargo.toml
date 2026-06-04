@@ -24,6 +24,9 @@ tabular = []
 image = []
 audio = []
 
+## Reversible AES-GCM encrypt/decrypt redaction operators.
+encrypt = ["dep:aes-gcm"]
+
 ## Externalised BentoML backends (NER + OCR).
 bento = ["nvisy-ner/bento", "nvisy-ocr/bento"]
 ## OpenAI Whisper STT provider.
@@ -65,9 +68,23 @@ strum = { workspace = true, features = [] }
 validator = { workspace = true, features = [] }
 unicode-normalization = { workspace = true, features = [] }
 
+# Cryptography for built-in redaction operators
+sha2 = { workspace = true, features = [] }
+aes-gcm = { workspace = true, features = ["aes", "alloc"], optional = true }
+base64 = { workspace = true, features = [] }
+
 # Observability
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 # Internal test utilities (Entity::test_builder, …).
 nvisy-core = { workspace = true, features = ["test-utils"] }
+# Pattern recognizer used by the end-to-end example.
+nvisy-pattern = { workspace = true }
+# Async-trait + tokio runtime for the example.
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[[example]]
+name = "pipeline"
+path = "examples/pipeline.rs"

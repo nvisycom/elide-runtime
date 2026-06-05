@@ -10,10 +10,10 @@ mod xlsx_handler;
 mod xlsx_loader;
 
 #[cfg(feature = "csv")]
-pub use self::csv_handler::{CsvData, CsvHandler};
+pub use self::csv_handler::{CsvData, CsvHandler, format as csv_format};
 #[cfg(feature = "csv")]
-pub use self::csv_loader::{CsvLoader, CsvParams};
+pub use self::csv_loader::CsvLoader;
 #[cfg(feature = "xlsx")]
-pub use self::xlsx_handler::XlsxHandler;
+pub use self::xlsx_handler::{XlsxHandler, format as xlsx_format};
 #[cfg(feature = "xlsx")]
-pub use self::xlsx_loader::{XlsxLoader, XlsxParams};
+pub use self::xlsx_loader::XlsxLoader;

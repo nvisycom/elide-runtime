@@ -31,9 +31,6 @@ tabular = ["text"]
 image = ["dep:image"]
 ## Audio modality wire types: AudioData, AudioOutput, AudioRedaction.
 audio = []
-## Rich-document handler trait (multi-modal containers like PDF / DOCX).
-## Requires both text and image since rich documents expose both.
-rich = ["text", "image"]
 
 [package.metadata.docs.rs]
 all-features = true

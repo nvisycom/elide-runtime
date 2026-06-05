@@ -1,28 +1,27 @@
-//! Content data containers, metadata, source identity, and media
-//! format classification.
+//! Content data containers, metadata, source identity, and small
+//! per-modality format tags.
 //!
 //! - [`ContentData`]: Raw content bytes with source identity
 //! - [`ContentMetadata`]: MIME type, filename, and descriptive attributes
 //! - [`Content`]: [`ContentData`] paired with optional [`ContentMetadata`]
 //! - [`ContentSource`]: UUIDv7-based content identity and lineage
-//! - [`DocumentType`]: top-level format classification (image, audio, text, …)
-//! - `document_format::*`: per-category leaf format enums
-//!   ([`ImageFormat`], [`AudioFormat`], …) nested inside
-//!   [`DocumentType`] variants
+//! - [`ImageFormat`] / [`AudioFormat`]: small per-modality format tags
+//!   used outside the codec layer (notably the OCR backend wire shape)
+//!
+//! Top-level format classification lives on [`FormatId`][fi] in
+//! `nvisy-codec`.
+//!
+//! [fi]: nvisy_codec::FormatId
 
 mod bundle;
 mod content_data;
 mod content_metadata;
 mod document_format;
-mod document_type;
 mod encoding;
 
 pub use self::bundle::Content;
 pub use self::content_data::ContentData;
 pub use self::content_metadata::{AnyAnnotations, ContentMetadata};
-pub use self::document_format::{
-    AudioFormat, ImageFormat, SpreadsheetFormat, TextFormat, WordFormat,
-};
-pub use self::document_type::DocumentType;
+pub use self::document_format::{AudioFormat, ImageFormat};
 pub use self::encoding::TextEncoding;
 pub use crate::entity::ContentSource;

@@ -39,10 +39,23 @@ pub use self::image::{Image, ImageData, ImageExtraction, ImageLocation};
 pub use self::tabular::{Tabular, TabularExtraction, TabularLocation};
 pub use self::text::{ContextWindow, Text, TextData, TextExtraction, TextLocation};
 
+/// Runtime tag identifying which [`Modality`] a generic container
+/// carries. Use for runtime dispatch where the marker type is erased
+/// (typically at the codec / pipeline boundary).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ModalityKind {
+    /// [`Text`] modality.
+    Text,
+    /// [`Tabular`] modality.
+    Tabular,
+    /// [`Image`] modality.
+    Image,
+    /// [`Audio`] modality.
+    Audio,
+}
+
 /// Extension of [`Modality`] that adds the per-call payload type
-/// recognizers and extractors consume. Modalities that don't ship
-/// with a payload type — currently [`Tabular`] — simply don't
-/// implement this.
+/// recognizers and extractors consume.
 pub trait ModalityData: Modality {
     /// Per-call modality-specific payload: the bytes / text /
     /// dimensions a recognizer or extractor actually scans.
@@ -59,6 +72,10 @@ impl ModalityData for Image {
 
 impl ModalityData for Audio {
     type Data = AudioData;
+}
+
+impl ModalityData for Tabular {
+    type Data = TextData;
 }
 
 /// Marker trait implemented by every per-modality marker type

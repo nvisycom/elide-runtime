@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::DocumentType;
 use crate::entity::{Annotation, LabelAnnotation};
 use crate::modality::{Audio, Image, Tabular, Text};
 
@@ -33,8 +32,10 @@ pub struct ContentMetadata {
     pub detected_content_type: Option<String>,
     /// Original filename, if known (e.g. from upload or file path).
     ///
-    /// Used for extension-based format refinement (e.g. `.log` →
-    /// `TextFormat::Log`).
+    /// Used by [`CodecRegistry`][cr] for extension-based format
+    /// resolution.
+    ///
+    /// [cr]: nvisy_codec::CodecRegistry
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filename: Option<PathBuf>,
     /// Content size in bytes, persisted at upload.
@@ -157,35 +158,6 @@ impl ContentMetadata {
         self.content_type
             .as_deref()
             .or(self.detected_content_type.as_deref())
-    }
-
-    /// Infer the [`DocumentType`] from MIME type and filename extension.
-    ///
-    /// Priority: (supplied MIME or detected MIME) first, then refine
-    /// `Text` variants via the filename extension (e.g. `.log` upgrades
-    /// `Text(Txt)` to `Text(Log)`); fall back to the extension alone
-    /// only when neither MIME source produced a hit.
-    #[must_use]
-    pub fn infer_document_type(&self) -> Option<DocumentType> {
-        let from_supplied = self
-            .content_type
-            .as_deref()
-            .and_then(DocumentType::from_mime);
-        let from_detected = self
-            .detected_content_type
-            .as_deref()
-            .and_then(DocumentType::from_mime);
-        let from_ext = self
-            .filename
-            .as_ref()
-            .and_then(|f| f.extension())
-            .and_then(DocumentType::from_extension);
-
-        let result = from_supplied.or(from_detected);
-        match (result, from_ext) {
-            (Some(DocumentType::Text(_)), Some(refined @ DocumentType::Text(_))) => Some(refined),
-            _ => result.or(from_ext),
-        }
     }
 
     /// Get the file extension from the source path, if available.

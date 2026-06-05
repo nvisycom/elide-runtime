@@ -26,6 +26,7 @@ mod text;
 
 use std::fmt::Debug;
 
+pub use nvisy_codec::core::Codable;
 pub use nvisy_core::modality::{
     Audio, AudioExtraction, Image, ImageExtraction, Modality, Tabular, TabularExtraction, Text,
     TextExtraction,
@@ -74,7 +75,7 @@ pub trait ModalityBlock {
 /// `Anonymizer<M>` writes at the entity's location). Folding it into
 /// `DocumentModality` lets every downstream site spell its bound as
 /// `M: DocumentModality` and inherit both axes automatically.
-pub trait DocumentModality: Modality + Redactable {
+pub trait DocumentModality: Modality + Redactable + Codable {
     /// The modality's block payload. See [`TextBlock`], [`ImageBlock`],
     /// [`AudioBlock`], [`TabularBlock`].
     type Block: ModalityBlock + Clone + Debug + Send + Sync + 'static;

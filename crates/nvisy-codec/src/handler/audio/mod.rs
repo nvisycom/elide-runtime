@@ -14,19 +14,18 @@
 
 use std::cmp::Reverse;
 
-use nvisy_core::modality::{Audio, AudioLocation};
+use nvisy_core::modality::{Audio, AudioLocation, ModalityKind};
 
 use crate::core::{Codable, Redactions};
 
-mod audio_data;
 mod instruction;
 
-pub use self::audio_data::AudioData;
 pub use self::instruction::{AudioOutput, AudioRedaction};
 
 impl Codable for Audio {
-    type Data = AudioData;
     type Redaction = AudioRedaction;
+
+    const KIND: ModalityKind = ModalityKind::Audio;
 }
 
 /// Sort an audio redaction batch right-to-left by `time_span.start_us`.
@@ -37,7 +36,7 @@ impl Codable for Audio {
 pub fn sort_redactions_for_audio(
     redactions: Redactions<AudioLocation, AudioRedaction>,
 ) -> Vec<(AudioLocation, AudioRedaction)> {
-    let mut items = redactions.items;
+    let mut items = redactions.into_items();
     items.sort_by_key(|(loc, _)| Reverse(loc.time_span.start_us));
     items
 }

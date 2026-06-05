@@ -1,39 +1,23 @@
-//! JPEG handler: holds a decoded image and provides single-location
-//! access via [`ImageHandler`].
-//!
-//! [`ImageHandler::locations`] yields exactly one full-image
-//! [`Image`]; [`ImageHandler::read`] returns the current
-//! [`DynamicImage`] cropped to the location's
-//! bounding box; [`ImageHandler::redact`] applies bounding-box
-//! redactions in place.
-//!
-//! [`DynamicImage`]: image::DynamicImage
-//! [`ImageHandler`]: nvisy_codec::handler::ImageHandler
-//! [`ImageHandler::locations`]: nvisy_codec::handler::ImageHandler::locations
-//! [`ImageHandler::read`]: nvisy_codec::handler::ImageHandler::read
-//! [`ImageHandler::redact`]: nvisy_codec::handler::ImageHandler::redact
-//! [`Image`]: nvisy_core::modality::Image
+//! JPEG handler: see [`super::png_handler`] for the shared shape.
 
-use nvisy_core::content::{ContentSource, DocumentType, ImageFormat};
+use nvisy_core::content::ContentSource;
 
-/// Handler for loaded JPEG content.
-///
-/// Stores the decoded [`DynamicImage`] directly.
-/// The raw JPEG bytes can be produced on demand via
-/// [`Handler::encode`].
-///
-/// [`DynamicImage`]: image::DynamicImage
-/// [`Handler::encode`]: nvisy_codec::handler::Handler::encode
+use super::JpegLoader;
+
 #[derive(Debug)]
 pub struct JpegHandler {
     source: ContentSource,
     image: image::DynamicImage,
+    yielded: bool,
 }
 
 impl_image_handler!(
-    JpegHandler,
-    DocumentType::Image(ImageFormat::Jpeg),
-    image::ImageFormat::Jpeg,
-    "jpeg-handler",
-    "jpeg.encode"
+    handler = JpegHandler,
+    loader = JpegLoader,
+    format_id = "nvisy.image.jpeg",
+    extensions = ["jpg", "jpeg"],
+    content_types = ["image/jpeg"],
+    image_format = image::ImageFormat::Jpeg,
+    origin = "jpeg-handler",
+    encode_span = "jpeg.encode",
 );

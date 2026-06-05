@@ -1,40 +1,61 @@
-//! WAV handler: holds raw WAV audio bytes and provides location-based
-//! access via [`Handle`].
+//! WAV handler: holds raw WAV audio bytes and exposes them as a
+//! single-track audio handle via [`Handle<Audio>`], with random-access
+//! reads / sample-level redactions via [`IndexedHandle<Audio>`].
 //!
-//! Redaction decodes the WAV via [`hound`], applies a single
-//! sample-level mutation, and re-encodes back to bytes.
-//! Supported formats are `i8` / `i16` / `i32` PCM and `f32` IEEE
-//! float; other bit depths surface a clear error.
+//! Redaction decodes the WAV via [`hound`], applies sample-level
+//! mutations, and re-encodes back to bytes. Supported formats: `i8` /
+//! `i16` / `i32` PCM and `f32` IEEE float; other bit depths surface a
+//! clear error.
 //!
-//! Batched redaction goes through [`Handle::redact`], which
-//! sorts right-to-left by `time_span.start_us` so
-//! [`AudioOutput::Remove`] operations don't shift the indices of
-//! pending redactions.
+//! Batched [`IndexedHandle::redact`] sorts right-to-left by
+//! `time_span.start_us` so [`AudioOutput::Remove`] operations don't
+//! shift the indices of pending redactions.
 //!
-//! [`Handle`]: nvisy_codec::core::Handle
-//! [`Handle::redact`]: nvisy_codec::core::Handle::redact
+//! [`Handle<Audio>`]: nvisy_codec::core::Handle
+//! [`IndexedHandle<Audio>`]: nvisy_codec::core::IndexedHandle
+//! [`IndexedHandle::redact`]: nvisy_codec::core::IndexedHandle::redact
 //! [`AudioOutput::Remove`]: nvisy_codec::handler::AudioOutput::Remove
 
 use std::io::Cursor;
+use std::sync::Arc;
 
+use async_trait::async_trait;
 use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
-use nvisy_codec::core::{Handle, Located, LocationStream, Redactions};
-use nvisy_codec::handler::{AudioData, AudioRedaction, Handler, sort_redactions_for_audio};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
+use nvisy_codec::handler::{AudioRedaction, Handler, sort_redactions_for_audio};
+use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
-use nvisy_core::content::{AudioFormat, ContentData, ContentSource, DocumentType};
-use nvisy_core::modality::{Audio, AudioLocation};
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::modality::{Audio, AudioData, AudioLocation, ModalityKind};
 use nvisy_core::primitive::TimeSpan;
 
-use super::redact;
+use super::{WavLoader, redact};
 
 const TARGET: &str = "wav-handler";
 
-/// Handler for loaded WAV content.
+/// Stable [`FormatId`] for the WAV codec.
+pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.audio.wav");
+
+/// [`Format`] descriptor registered into [`nvisy_codec::CodecRegistry`].
+pub fn format() -> Format {
+    Format {
+        id: FORMAT_ID.clone(),
+        modality: ModalityKind::Audio,
+        extensions: vec!["wav".into()],
+        content_types: vec!["audio/wav".into(), "audio/x-wav".into()],
+        loader: Arc::new(LoaderAdapter::new(WavLoader)),
+    }
+}
+
+/// Handler for loaded WAV content. Stores the encoded bytes; decode
+/// happens on demand inside [`redact_at`].
 #[derive(Debug)]
 pub struct WavHandler {
     source: ContentSource,
     bytes: Bytes,
+    filename: String,
+    yielded: bool,
 }
 
 impl WavHandler {
@@ -43,12 +64,20 @@ impl WavHandler {
         Self {
             source: ContentSource::new(),
             bytes,
+            filename: "audio.wav".to_owned(),
+            yielded: false,
         }
     }
 
-    /// Set the content source for lineage tracking.
+    /// Attach a content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
+        self
+    }
+
+    /// Attach a filename hint for downstream extractors.
+    pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
+        self.filename = filename.into();
         self
     }
 
@@ -56,15 +85,20 @@ impl WavHandler {
     pub fn bytes(&self) -> &Bytes {
         &self.bytes
     }
+
+    /// Rewind the streaming cursor.
+    pub fn rewind(&mut self) {
+        self.yielded = false;
+    }
 }
 
 impl Handler for WavHandler {
-    fn document_type(&self) -> DocumentType {
-        DocumentType::Audio(AudioFormat::Wav)
+    fn format(&self) -> FormatId {
+        FORMAT_ID.clone()
     }
 
-    fn source(&self) -> ContentSource {
-        self.source
+    fn source(&self) -> &ContentSource {
+        &self.source
     }
 
     #[tracing::instrument(name = "wav.encode", skip_all, fields(output_bytes))]
@@ -75,28 +109,49 @@ impl Handler for WavHandler {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl Handle<Audio> for WavHandler {
-    fn locations(&self) -> LocationStream<'_, AudioLocation> {
-        // Single-track audio: the entire audio as one location with a
-        // time span covering the full duration. Duration is unknown
-        // without decoding — use 0..0 as a placeholder. The actual
-        // time span is set by the STT extraction operation after
-        // transcription.
+    async fn next_chunk(&mut self) -> Result<Option<Chunk<Audio>>, Error> {
+        if self.yielded {
+            return Ok(None);
+        }
         let location = AudioLocation::new(TimeSpan::new(0, 0));
-        LocationStream::new(futures::stream::iter(std::iter::once(Located::new(
-            self.source,
+        let data = AudioData::new(self.bytes.clone(), self.filename.clone());
+        self.yielded = true;
+        Ok(Some(Chunk {
             location,
-        ))))
+            data,
+            embed: None,
+        }))
+    }
+}
+
+#[async_trait]
+impl IndexedHandle<Audio> for WavHandler {
+    async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {
+        Ok(Some(AudioData::new(
+            self.bytes.clone(),
+            self.filename.clone(),
+        )))
     }
 
-    async fn read(&self, _location: &AudioLocation) -> Option<AudioData> {
-        // Full audio segment: extracting a sub-segment by time span
-        // requires decoding, which we don't do here.
-        Some(AudioData::new(self.bytes.clone()))
+    /// Apply spans right-to-left so a [`AudioOutput::Remove`] doesn't
+    /// invalidate earlier sample indices.
+    ///
+    /// [`AudioOutput::Remove`]: nvisy_codec::handler::AudioOutput::Remove
+    async fn redact(
+        &mut self,
+        redactions: Redactions<AudioLocation, AudioRedaction>,
+    ) -> Result<(), Error> {
+        for (location, redaction) in sort_redactions_for_audio(redactions) {
+            self.redact_one(&location, redaction)?;
+        }
+        Ok(())
     }
+}
 
-    async fn redact_at(
+impl WavHandler {
+    fn redact_one(
         &mut self,
         location: &AudioLocation,
         redaction: AudioRedaction,
@@ -128,28 +183,14 @@ impl Handle<Audio> for WavHandler {
         self.bytes = Bytes::from(new_bytes);
         Ok(())
     }
-
-    /// Override the default loop to apply spans right-to-left so a
-    /// removal doesn't invalidate earlier sample indices.
-    async fn redact(
-        &mut self,
-        redactions: Redactions<AudioLocation, AudioRedaction>,
-    ) -> Result<(), Error> {
-        for (location, redaction) in sort_redactions_for_audio(redactions) {
-            self.redact_at(&location, redaction).await?;
-        }
-        Ok(())
-    }
 }
 
-/// Read just the WAV header to discover the sample format.
 fn read_spec(bytes: &Bytes) -> Result<WavSpec, Error> {
     let reader = WavReader::new(Cursor::new(bytes.as_ref()))
         .map_err(|e| Error::validation(format!("invalid WAV: {e}"), TARGET))?;
     Ok(reader.spec())
 }
 
-/// Decode → redact → re-encode for a specific sample type.
 fn redact_typed<S>(
     bytes: &Bytes,
     spec: WavSpec,
@@ -193,12 +234,10 @@ where
 #[cfg(test)]
 mod tests {
     use hound::SampleFormat;
-    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::AudioOutput;
 
     use super::*;
 
-    /// Encode a mono i16 PCM WAV with the given samples at 1 kHz.
     fn encode_wav_mono_i16(samples: &[i16]) -> Bytes {
         let spec = WavSpec {
             channels: 1,
@@ -224,17 +263,14 @@ mod tests {
 
     #[tokio::test]
     async fn silence_zeros_samples_in_range() {
-        // 10 samples at 1 kHz = 10 ms.
         let bytes = encode_wav_mono_i16(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         let mut handler = WavHandler::new(bytes);
-
         let mut rs = Redactions::new();
         rs.push(
             AudioLocation::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Silence),
         );
         handler.redact(rs).await.unwrap();
-
         let samples = decode_wav_mono_i16(handler.bytes());
         assert_eq!(samples, vec![1, 2, 3, 0, 0, 0, 7, 8, 9, 10]);
     }
@@ -243,27 +279,20 @@ mod tests {
     async fn remove_shortens_file() {
         let bytes = encode_wav_mono_i16(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         let mut handler = WavHandler::new(bytes);
-
         let mut rs = Redactions::new();
         rs.push(
             AudioLocation::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Remove),
         );
         handler.redact(rs).await.unwrap();
-
         let samples = decode_wav_mono_i16(handler.bytes());
         assert_eq!(samples, vec![1, 2, 3, 7, 8, 9, 10]);
     }
 
     #[tokio::test]
     async fn multiple_removes_apply_right_to_left() {
-        // Two non-overlapping Remove redactions:
-        //   [1..3) removes samples 1..3 (values 2, 3)
-        //   [6..8) removes samples 6..8 (values 7, 8)
-        // Both time spans measured against original 10-sample buffer.
         let bytes = encode_wav_mono_i16(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         let mut handler = WavHandler::new(bytes);
-
         let mut rs = Redactions::new();
         rs.push(
             AudioLocation::new(TimeSpan::new(1_000, 3_000)),
@@ -274,10 +303,7 @@ mod tests {
             AudioRedaction::new(AudioOutput::Remove),
         );
         handler.redact(rs).await.unwrap();
-
         let samples = decode_wav_mono_i16(handler.bytes());
-        // After right-to-left: remove 7,8 first → [1,2,3,4,5,6,9,10],
-        // then remove 2,3 → [1,4,5,6,9,10].
         assert_eq!(samples, vec![1, 4, 5, 6, 9, 10]);
     }
 
@@ -286,7 +312,6 @@ mod tests {
         let bytes = encode_wav_mono_i16(&[1, 2, 3]);
         let original = bytes.clone();
         let mut handler = WavHandler::new(bytes);
-
         let rs: Redactions<AudioLocation, AudioRedaction> = Redactions::default();
         handler.redact(rs).await.unwrap();
         assert_eq!(handler.bytes(), &original);
@@ -294,7 +319,6 @@ mod tests {
 
     #[tokio::test]
     async fn unsupported_format_returns_error() {
-        // Bogus bytes — not a real WAV. read_spec fails.
         let mut handler = WavHandler::new(Bytes::from_static(b"not-a-wav"));
         let mut rs = Redactions::new();
         rs.push(

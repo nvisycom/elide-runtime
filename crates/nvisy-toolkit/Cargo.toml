@@ -57,6 +57,7 @@ futures = { workspace = true, features = [] }
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
+hipstr = { workspace = true, features = [] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }

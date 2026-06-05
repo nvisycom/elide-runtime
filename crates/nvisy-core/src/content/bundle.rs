@@ -6,7 +6,7 @@ use std::path::Path;
 use derive_more::{AsRef, Deref};
 use serde::{Deserialize, Serialize};
 
-use super::{ContentData, ContentMetadata, ContentSource, DocumentType};
+use super::{ContentData, ContentMetadata, ContentSource};
 use crate::error::Result;
 
 /// Complete content representation: raw bytes plus optional
@@ -100,65 +100,8 @@ impl Content {
         self.metadata.as_ref().and_then(|m| m.file_extension())
     }
 
-    /// Infer the [`DocumentType`] from metadata (MIME, filename) with
-    /// fallback to magic-byte detection on the raw bytes.
-    ///
-    /// Delegates to [`ContentMetadata::infer_document_type`] when
-    /// metadata is present, otherwise attempts magic-byte detection.
-    #[must_use]
-    pub fn infer_document_type(&self) -> Option<DocumentType> {
-        if let Some(ref meta) = self.metadata {
-            let result = meta.infer_document_type();
-            if result.is_some() {
-                return result;
-            }
-        }
-        // Last resort: magic-byte detection on raw bytes.
-        self.data
-            .detect_mime()
-            .as_deref()
-            .and_then(DocumentType::from_mime)
-    }
-
     /// Consume and return both data and metadata.
     pub fn into_parts(self) -> (ContentData, Option<ContentMetadata>) {
         (self.data, self.metadata)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::content::{ImageFormat, TextFormat};
-
-    #[test]
-    fn infer_document_type_from_metadata() {
-        let data = ContentData::from("plain text");
-        let metadata = ContentMetadata::new().with_content_type("text/plain");
-        let content = Content::with_metadata(data, metadata);
-
-        assert_eq!(
-            content.infer_document_type(),
-            Some(DocumentType::Text(TextFormat::Txt)),
-        );
-    }
-
-    #[test]
-    fn infer_document_type_from_magic_bytes() {
-        let png = vec![
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
-            0x44, 0x52,
-        ];
-        let content = Content::new(ContentData::from(png));
-        assert_eq!(
-            content.infer_document_type(),
-            Some(DocumentType::Image(ImageFormat::Png)),
-        );
-    }
-
-    #[test]
-    fn infer_document_type_none_for_unknown() {
-        let content = Content::new(ContentData::from("hello world"));
-        assert_eq!(content.infer_document_type(), None);
     }
 }

@@ -7,15 +7,15 @@
     feature = "tabular",
     feature = "image",
     feature = "audio",
-    feature = "rich",
 )))]
 compile_error!(
     "nvisy-codec requires at least one modality feature: \
-     `text`, `tabular`, `image`, `audio`, or `rich`"
+     `text`, `tabular`, `image`, or `audio`"
 );
 
 pub mod core;
 pub mod document;
 pub mod handler;
 
-pub use self::document::{DocumentHandle, HandleModality};
+pub use self::core::{CodecRegistry, ErasedLoader, Format, FormatId, LoaderAdapter, WrapUntyped};
+pub use self::document::{DocumentHandle, UntypedDocumentHandle};

@@ -72,6 +72,11 @@ impl AudioData {
             filename: filename.into(),
         }
     }
+
+    /// View the encoded bytes.
+    pub fn as_bytes(&self) -> &Bytes {
+        &self.bytes
+    }
 }
 
 impl Overlap for AudioLocation {

@@ -1,36 +1,40 @@
-//! Codec core contracts: the per-modality trait surfaces and the
-//! supporting types (locations, spans, redaction collections) those
+//! Codec core contracts: per-modality trait surfaces, format identity,
+//! the registry that composes them, and the supporting types those
 //! traits reference.
 //!
 //! - [`Codable`] — per-modality wire-type associated types.
-//! - [`Handle<M>`] — per-modality capability trait.
-//! - [`Located<L, D>`] / [`LocationStream<L>`] — per-modality
-//!   location streaming primitives. `Located<L>` is the bare
-//!   location form (`Located<L, ()>`); `Located<L, D>` is the same
-//!   record with content data attached. (`L` because the type
-//!   param is the location, not the modality marker — for the
-//!   modality types it's always `M::Location`-shaped, but the
-//!   abstraction is over locations.)
-//! - [`Redactions<S, R>`] — append-only `(location, redaction)` pair
-//!   list handed from the engine to a codec; engine guarantees no
-//!   overlapping locations, codec applies in insertion order.
+//! - [`Handle<M>`] — streaming-default per-modality capability trait.
+//! - [`IndexedHandle<M>`] — random-access super-trait.
+//! - [`EmbeddedHandles`] — rich-format embedded-child lookup.
+//! - [`Chunk<M>`] — one unit yielded by [`Handle::next_chunk`].
+//! - [`HandleId`] — stable identifier for embedded child handles.
+//! - [`FormatId`] — stable identifier for a registered format.
+//! - [`CodecRegistry`] — extension/content-type → [`Format`] lookup +
+//!   decode dispatch.
+//! - [`Format`] — descriptor a [`CodecRegistry`] indexes.
+//! - [`ErasedLoader`] + [`LoaderAdapter`] — object-safe loader surface
+//!   adapting per-modality [`Loader<M>`][lm] impls.
+//! - [`WrapUntyped`] — modality-specific erase into
+//!   [`UntypedDocumentHandle`][udh].
+//! - [`Redactions<S, R>`] — `(location, redaction)` pair list handed
+//!   from the engine to a codec.
 //!
-//! Base traits ([`Handler`], [`Loader`]) live in [`crate::handler`],
-//! since they're spelled out next to the concrete per-modality wire
-//! types implementing them. Concrete per-modality wire types
-//! (`TextData`, `TextRedaction`, `ImageData`, …) live in
-//! [`crate::handler`]; concrete format handlers live in
-//! `nvisy-formats`.
+//! Base traits ([`Handler`], [`Loader<M>`][lm]) live in
+//! [`crate::handler`], next to the concrete per-modality wire types
+//! implementing them. Concrete per-modality wire types (`TextData`,
+//! `TextRedaction`, `ImageData`, …) live in [`crate::handler`];
+//! concrete format handlers live in `nvisy-formats`.
 //!
 //! [`Handler`]: crate::handler::Handler
-//! [`Loader`]: crate::handler::Loader
+//! [lm]: crate::handler::Loader
+//! [udh]: crate::document::UntypedDocumentHandle
 
+mod format;
 mod handle;
-mod located;
 mod redactions;
-mod stream;
+mod registry;
 
-pub use self::handle::{Codable, Handle};
-pub use self::located::Located;
+pub use self::format::FormatId;
+pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId, IndexedHandle};
 pub use self::redactions::Redactions;
-pub use self::stream::LocationStream;
+pub use self::registry::{CodecRegistry, ErasedLoader, Format, LoaderAdapter, WrapUntyped};

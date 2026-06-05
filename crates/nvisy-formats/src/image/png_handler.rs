@@ -1,39 +1,34 @@
-//! PNG handler: holds a decoded image and provides single-location
-//! access via [`ImageHandler`].
+//! PNG handler: holds a decoded image and exposes it as a single
+//! full-image chunk via [`Handle<Image>`], with random-access region
+//! reads / pixel redactions via [`IndexedHandle<Image>`].
 //!
-//! [`ImageHandler::locations`] yields exactly one full-image
-//! [`Image`]; [`ImageHandler::read`] returns the current
-//! [`DynamicImage`] (cropped to the location's
-//! bounding box); [`ImageHandler::redact`] applies bounding-box
-//! redactions in place.
-//!
-//! [`DynamicImage`]: image::DynamicImage
-//! [`ImageHandler`]: nvisy_codec::handler::ImageHandler
-//! [`ImageHandler::locations`]: nvisy_codec::handler::ImageHandler::locations
-//! [`ImageHandler::read`]: nvisy_codec::handler::ImageHandler::read
-//! [`ImageHandler::redact`]: nvisy_codec::handler::ImageHandler::redact
-//! [`Image`]: nvisy_core::modality::Image
+//! [`Handle<Image>`]: nvisy_codec::core::Handle
+//! [`IndexedHandle<Image>`]: nvisy_codec::core::IndexedHandle
 
-use nvisy_core::content::{ContentSource, DocumentType, ImageFormat};
+use nvisy_core::content::ContentSource;
 
-/// Handler for loaded PNG content.
+use super::PngLoader;
+
+/// Handler for loaded PNG content. Stores the decoded
+/// [`DynamicImage`][di] directly; raw PNG bytes are produced on
+/// demand by [`Handler::encode`][he].
 ///
-/// Stores the decoded [`DynamicImage`] directly.
-/// The raw PNG bytes can be produced on demand via
-/// [`Handler::encode`].
-///
-/// [`DynamicImage`]: image::DynamicImage
-/// [`Handler::encode`]: nvisy_codec::handler::Handler::encode
+/// [di]: image::DynamicImage
+/// [he]: nvisy_codec::handler::Handler::encode
 #[derive(Debug)]
 pub struct PngHandler {
     source: ContentSource,
     image: image::DynamicImage,
+    yielded: bool,
 }
 
 impl_image_handler!(
-    PngHandler,
-    DocumentType::Image(ImageFormat::Png),
-    image::ImageFormat::Png,
-    "png-handler",
-    "png.encode"
+    handler = PngHandler,
+    loader = PngLoader,
+    format_id = "nvisy.image.png",
+    extensions = ["png"],
+    content_types = ["image/png"],
+    image_format = image::ImageFormat::Png,
+    origin = "png-handler",
+    encode_span = "png.encode",
 );

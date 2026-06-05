@@ -1,215 +1,103 @@
-//! Type-erased content handle for all supported modalities.
+//! [`UntypedDocumentHandle`] (runtime-tagged handle returned by the
+//! codec registry) and [`DocumentHandle<M>`] (typed view used
+//! downstream of decode).
+//!
+//! # Two-tier handle shape
+//!
+//! The registry can't know up front which modality a decoded format
+//! produces — that's a property of the format descriptor, resolved
+//! at decode time. [`UntypedDocumentHandle`] is the registry-level
+//! return: an enum with one variant per modality, each carrying an
+//! `Arc<dyn Handle<M>>` + the [`FormatId`].
+//!
+//! Consumers downstream of decode commit to a modality via the
+//! consuming accessors ([`into_text`][it], [`into_image`][ii], …),
+//! which yield a [`DocumentHandle<M>`] — a typed wrapper that owns
+//! the underlying [`Handle<M>`] and exposes the per-modality
+//! capability surface without further dispatch.
+//!
+//! [it]: UntypedDocumentHandle::into_text
+//! [ii]: UntypedDocumentHandle::into_image
 
-use std::fmt;
+use std::sync::Arc;
 
-use derive_more::From;
-use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource, DocumentType};
-#[cfg(feature = "tabular")]
-use nvisy_core::modality::TabularLocation;
 #[cfg(feature = "audio")]
-use nvisy_core::modality::{Audio, AudioLocation};
+use nvisy_core::modality::Audio;
 #[cfg(feature = "image")]
-use nvisy_core::modality::{Image, ImageLocation};
-#[cfg(feature = "text")]
-use nvisy_core::modality::{Text, TextLocation};
-
-use crate::core::{Handle, LocationStream, Redactions};
-use crate::handler::Handler;
-#[cfg(feature = "rich")]
-use crate::handler::RichHandle;
-#[cfg(feature = "audio")]
-use crate::handler::{AudioData, AudioRedaction};
-#[cfg(feature = "image")]
-use crate::handler::{ImageData, ImageRedaction};
+use nvisy_core::modality::Image;
+use nvisy_core::modality::ModalityKind;
 #[cfg(feature = "tabular")]
-use crate::handler::{TabularHandle, TabularRedaction};
+use nvisy_core::modality::Tabular;
 #[cfg(feature = "text")]
-use crate::handler::{TextData, TextRedaction};
+use nvisy_core::modality::Text;
 
-/// Cheap, non-generic tag for which modality a [`DocumentHandle`]
-/// carries. Lets callers dispatch on the modality without holding
-/// the handle's lock or matching against the trait-object variants
-/// directly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HandleModality {
-    #[cfg(feature = "text")]
-    Text,
-    #[cfg(feature = "tabular")]
-    Tabular,
-    #[cfg(feature = "image")]
-    Image,
-    #[cfg(feature = "audio")]
-    Audio,
-    #[cfg(feature = "rich")]
-    Rich,
-}
+use crate::core::{Codable, FormatId, IndexedHandle};
 
-/// A fully type-erased document that can hold any supported modality.
+/// Runtime-tagged handle returned by the codec registry, carrying the
+/// underlying [`Handle<M>`] for some `M` along with the
+/// [`FormatId`] of the producing loader.
 ///
-/// Variants are feature-gated by modality (`text`, `tabular`,
-/// `image`, `audio`, `rich`); a `DocumentHandle` built with only the
-/// default features has the `Text` and `Tabular` arms only.
-#[derive(From)]
-pub enum DocumentHandle {
+/// Commit to a modality via [`into_text`][it] / [`into_image`][ii] /
+/// [`into_audio`][ia] / [`into_tabular`][itb] to obtain a typed
+/// [`DocumentHandle<M>`]. The accessors are consuming — once you
+/// commit to a modality, the untyped form is gone.
+///
+/// [it]: Self::into_text
+/// [ii]: Self::into_image
+/// [ia]: Self::into_audio
+/// [itb]: Self::into_tabular
+#[derive(Debug)]
+pub enum UntypedDocumentHandle {
     #[cfg(feature = "text")]
-    Text(Box<dyn Handle<Text>>),
+    /// Text-modality handle.
+    Text(DocumentHandle<Text>),
     #[cfg(feature = "tabular")]
-    Tabular(Box<dyn TabularHandle>),
+    /// Tabular-modality handle.
+    Tabular(DocumentHandle<Tabular>),
     #[cfg(feature = "image")]
-    Image(Box<dyn Handle<Image>>),
+    /// Image-modality handle.
+    Image(DocumentHandle<Image>),
     #[cfg(feature = "audio")]
-    Audio(Box<dyn Handle<Audio>>),
-    #[cfg(feature = "rich")]
-    Rich(Box<dyn RichHandle>),
+    /// Audio-modality handle.
+    Audio(DocumentHandle<Audio>),
 }
 
-impl fmt::Debug for DocumentHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("DocumentHandle")
-            .field(&self.document_type())
-            .finish()
-    }
-}
-
-impl DocumentHandle {
-    /// The modality tag for this handle. Cheaper than matching on
-    /// the variants directly and avoids holding the trait object
-    /// across borrows.
-    pub fn modality(&self) -> HandleModality {
+impl UntypedDocumentHandle {
+    /// The [`FormatId`] of the loader that produced this handle.
+    pub fn format(&self) -> &FormatId {
         match self {
             #[cfg(feature = "text")]
-            Self::Text(_) => HandleModality::Text,
+            Self::Text(h) => h.format(),
             #[cfg(feature = "tabular")]
-            Self::Tabular(_) => HandleModality::Tabular,
+            Self::Tabular(h) => h.format(),
             #[cfg(feature = "image")]
-            Self::Image(_) => HandleModality::Image,
+            Self::Image(h) => h.format(),
             #[cfg(feature = "audio")]
-            Self::Audio(_) => HandleModality::Audio,
-            #[cfg(feature = "rich")]
-            Self::Rich(_) => HandleModality::Rich,
+            Self::Audio(h) => h.format(),
         }
     }
 
-    /// The document type of the underlying content.
-    pub fn document_type(&self) -> DocumentType {
+    /// Runtime modality tag — cheaper than matching variants directly
+    /// when the caller only needs the modality, not the handle.
+    pub fn modality(&self) -> ModalityKind {
         match self {
             #[cfg(feature = "text")]
-            Self::Text(h) => h.document_type(),
+            Self::Text(_) => ModalityKind::Text,
             #[cfg(feature = "tabular")]
-            Self::Tabular(h) => h.document_type(),
+            Self::Tabular(_) => ModalityKind::Tabular,
             #[cfg(feature = "image")]
-            Self::Image(h) => h.document_type(),
+            Self::Image(_) => ModalityKind::Image,
             #[cfg(feature = "audio")]
-            Self::Audio(h) => h.document_type(),
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => Handler::document_type(h.as_ref()),
+            Self::Audio(_) => ModalityKind::Audio,
         }
     }
 
-    /// Content source identity and lineage.
-    pub fn source(&self) -> ContentSource {
-        match self {
-            #[cfg(feature = "text")]
-            Self::Text(h) => h.source(),
-            #[cfg(feature = "tabular")]
-            Self::Tabular(h) => h.source(),
-            #[cfg(feature = "image")]
-            Self::Image(h) => h.source(),
-            #[cfg(feature = "audio")]
-            Self::Audio(h) => h.source(),
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => Handler::source(h.as_ref()),
-        }
-    }
-
-    /// Encode the document back to raw bytes.
-    pub fn encode(&self) -> Result<ContentData, Error> {
-        match self {
-            #[cfg(feature = "text")]
-            Self::Text(h) => h.encode(),
-            #[cfg(feature = "tabular")]
-            Self::Tabular(h) => h.encode(),
-            #[cfg(feature = "image")]
-            Self::Image(h) => h.encode(),
-            #[cfg(feature = "audio")]
-            Self::Audio(h) => h.encode(),
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => Handler::encode(h.as_ref()),
-        }
-    }
-
-    /// Stream text locations from text or rich documents.
+    /// Consume self, returning the inner [`DocumentHandle<Text>`] if
+    /// this handle carries text modality.
     #[cfg(feature = "text")]
-    pub fn text_locations(&self) -> LocationStream<'_, TextLocation> {
+    pub fn into_text(self) -> Option<DocumentHandle<Text>> {
         match self {
-            Self::Text(h) => h.locations(),
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => <dyn Handle<Text>>::locations(h.as_ref()),
-            #[cfg(feature = "tabular")]
-            Self::Tabular(_) => LocationStream::empty(),
-            #[cfg(feature = "image")]
-            Self::Image(_) => LocationStream::empty(),
-            #[cfg(feature = "audio")]
-            Self::Audio(_) => LocationStream::empty(),
-        }
-    }
-
-    /// Stream tabular (cell) locations from spreadsheet documents.
-    #[cfg(feature = "tabular")]
-    pub fn tabular_locations(&self) -> LocationStream<'_, TabularLocation> {
-        match self {
-            Self::Tabular(h) => h.locations(),
-            _ => LocationStream::empty(),
-        }
-    }
-
-    /// `true` when the underlying tabular source carries explicit
-    /// column headers / typed schema; `false` when column semantics
-    /// have to be inferred. `None` for non-tabular handles.
-    #[cfg(feature = "tabular")]
-    pub fn tabular_has_header(&self) -> Option<bool> {
-        match self {
-            Self::Tabular(h) => Some(h.has_header()),
-            _ => None,
-        }
-    }
-
-    /// Stream image locations from image or rich documents.
-    #[cfg(feature = "image")]
-    pub fn image_locations(&self) -> LocationStream<'_, ImageLocation> {
-        match self {
-            Self::Image(h) => h.locations(),
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => <dyn Handle<Image>>::locations(h.as_ref()),
-            #[cfg(feature = "text")]
-            Self::Text(_) => LocationStream::empty(),
-            #[cfg(feature = "tabular")]
-            Self::Tabular(_) => LocationStream::empty(),
-            #[cfg(feature = "audio")]
-            Self::Audio(_) => LocationStream::empty(),
-        }
-    }
-
-    /// Stream audio locations from audio documents.
-    #[cfg(feature = "audio")]
-    pub fn audio_locations(&self) -> LocationStream<'_, AudioLocation> {
-        match self {
-            Self::Audio(h) => h.locations(),
-            _ => LocationStream::empty(),
-        }
-    }
-
-    /// Read text data at the given location.
-    ///
-    /// Returns `None` if the location is out of bounds or the handle
-    /// does not expose text content.
-    #[cfg(feature = "text")]
-    pub async fn read_text(&self, location: &TextLocation) -> Option<TextData> {
-        match self {
-            Self::Text(h) => h.read(location).await,
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => <dyn Handle<Text>>::read(h.as_ref(), location).await,
+            Self::Text(h) => Some(h),
             #[cfg(feature = "tabular")]
             Self::Tabular(_) => None,
             #[cfg(feature = "image")]
@@ -219,22 +107,27 @@ impl DocumentHandle {
         }
     }
 
-    /// Read the cell value at the given tabular location.
+    /// Consume self, returning the inner [`DocumentHandle<Tabular>`]
+    /// if this handle carries tabular modality.
     #[cfg(feature = "tabular")]
-    pub async fn read_tabular(&self, location: &TabularLocation) -> Option<TextData> {
+    pub fn into_tabular(self) -> Option<DocumentHandle<Tabular>> {
         match self {
-            Self::Tabular(h) => h.read(location).await,
-            _ => None,
+            Self::Tabular(h) => Some(h),
+            #[cfg(feature = "text")]
+            Self::Text(_) => None,
+            #[cfg(feature = "image")]
+            Self::Image(_) => None,
+            #[cfg(feature = "audio")]
+            Self::Audio(_) => None,
         }
     }
 
-    /// Read image data at the given location.
+    /// Consume self, returning the inner [`DocumentHandle<Image>`] if
+    /// this handle carries image modality.
     #[cfg(feature = "image")]
-    pub async fn read_image(&self, location: &ImageLocation) -> Option<ImageData> {
+    pub fn into_image(self) -> Option<DocumentHandle<Image>> {
         match self {
-            Self::Image(h) => h.read(location).await,
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => <dyn Handle<Image>>::read(h.as_ref(), location).await,
+            Self::Image(h) => Some(h),
             #[cfg(feature = "text")]
             Self::Text(_) => None,
             #[cfg(feature = "tabular")]
@@ -244,74 +137,78 @@ impl DocumentHandle {
         }
     }
 
-    /// Read audio data at the given location.
+    /// Consume self, returning the inner [`DocumentHandle<Audio>`] if
+    /// this handle carries audio modality.
     #[cfg(feature = "audio")]
-    pub async fn read_audio(&self, location: &AudioLocation) -> Option<AudioData> {
+    pub fn into_audio(self) -> Option<DocumentHandle<Audio>> {
         match self {
-            Self::Audio(h) => h.read(location).await,
-            _ => None,
-        }
-    }
-
-    /// Apply a batch of text redactions to the document.
-    #[cfg(feature = "text")]
-    pub async fn apply_text_redactions(
-        &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
-    ) -> Result<(), Error> {
-        match self {
-            Self::Text(h) => h.redact(redactions).await,
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => <dyn Handle<Text>>::redact(h.as_mut(), redactions).await,
-            #[cfg(feature = "tabular")]
-            Self::Tabular(_) => Ok(()),
-            #[cfg(feature = "image")]
-            Self::Image(_) => Ok(()),
-            #[cfg(feature = "audio")]
-            Self::Audio(_) => Ok(()),
-        }
-    }
-
-    /// Apply a batch of tabular redactions to the document.
-    #[cfg(feature = "tabular")]
-    pub async fn apply_tabular_redactions(
-        &mut self,
-        redactions: Redactions<TabularLocation, TabularRedaction>,
-    ) -> Result<(), Error> {
-        match self {
-            Self::Tabular(h) => h.redact(redactions).await,
-            _ => Ok(()),
-        }
-    }
-
-    /// Apply a batch of image redactions to the document.
-    #[cfg(feature = "image")]
-    pub async fn apply_image_redactions(
-        &mut self,
-        redactions: Redactions<ImageLocation, ImageRedaction>,
-    ) -> Result<(), Error> {
-        match self {
-            Self::Image(h) => h.redact(redactions).await,
-            #[cfg(feature = "rich")]
-            Self::Rich(h) => <dyn Handle<Image>>::redact(h.as_mut(), redactions).await,
+            Self::Audio(h) => Some(h),
             #[cfg(feature = "text")]
-            Self::Text(_) => Ok(()),
+            Self::Text(_) => None,
             #[cfg(feature = "tabular")]
-            Self::Tabular(_) => Ok(()),
-            #[cfg(feature = "audio")]
-            Self::Audio(_) => Ok(()),
+            Self::Tabular(_) => None,
+            #[cfg(feature = "image")]
+            Self::Image(_) => None,
         }
     }
+}
 
-    /// Apply a batch of audio redactions to the document.
-    #[cfg(feature = "audio")]
-    pub async fn apply_audio_redactions(
-        &mut self,
-        redactions: Redactions<AudioLocation, AudioRedaction>,
-    ) -> Result<(), Error> {
-        match self {
-            Self::Audio(h) => h.redact(redactions).await,
-            _ => Ok(()),
+/// Typed view of a single-modality handle. Carries the [`FormatId`]
+/// alongside the handler so audit and provenance can always answer
+/// "what format is this?" without re-decoding.
+///
+/// Constructed via the consuming accessors on
+/// [`UntypedDocumentHandle`]. The inner handler is held in an `Arc`
+/// so the handle can be cloned cheaply and shared across phases.
+pub struct DocumentHandle<M: Codable> {
+    format: FormatId,
+    handler: Arc<dyn IndexedHandle<M>>,
+}
+
+impl<M: Codable> DocumentHandle<M> {
+    /// Wrap a handler and a format id into a typed handle. Used by
+    /// codec loaders to produce the typed handle, which is then
+    /// boxed into an [`UntypedDocumentHandle`] variant for registry
+    /// return.
+    pub fn new(format: FormatId, handler: Arc<dyn IndexedHandle<M>>) -> Self {
+        Self { format, handler }
+    }
+
+    /// The [`FormatId`] of the producing loader.
+    pub fn format(&self) -> &FormatId {
+        &self.format
+    }
+
+    /// Borrow the inner handler. Use this to invoke per-modality
+    /// capability methods ([`IndexedHandle::read`][ir],
+    /// [`Handle::next_chunk`][nc], etc.).
+    ///
+    /// [ir]: crate::core::IndexedHandle::read
+    /// [nc]: crate::core::Handle::next_chunk
+    pub fn handler(&self) -> &Arc<dyn IndexedHandle<M>> {
+        &self.handler
+    }
+
+    /// Consume self, returning the inner handler.
+    pub fn into_handler(self) -> Arc<dyn IndexedHandle<M>> {
+        self.handler
+    }
+}
+
+impl<M: Codable> Clone for DocumentHandle<M> {
+    fn clone(&self) -> Self {
+        Self {
+            format: self.format.clone(),
+            handler: Arc::clone(&self.handler),
         }
+    }
+}
+
+impl<M: Codable> std::fmt::Debug for DocumentHandle<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DocumentHandle")
+            .field("format", &self.format)
+            .field("modality", &std::any::type_name::<M>())
+            .finish()
     }
 }

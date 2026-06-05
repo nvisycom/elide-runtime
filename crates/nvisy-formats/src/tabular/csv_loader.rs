@@ -1,31 +1,29 @@
 //! CSV loader: validates and parses raw CSV content into a
-//! [`CsvHandler`].
-//!
-//! The loader auto-detects the field delimiter (comma, tab, semicolon,
-//! pipe) by inspecting the first line.
+//! [`CsvHandler`]. Auto-detects the field delimiter (comma, tab,
+//! semicolon, pipe) by inspecting the first few lines.
 
+use async_trait::async_trait;
 use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
+use nvisy_core::modality::Tabular;
 
 use super::{CsvData, CsvHandler};
 
 const TARGET: &str = "nvisy_codec::handler::csv";
 
-/// Parameters for [`CsvLoader`].
+/// Loader for CSV files. Produces one [`CsvHandler`] per input.
 #[derive(Debug)]
-pub struct CsvParams {
-    /// Character encoding of the input bytes.
+pub struct CsvLoader {
+    /// Character encoding of the input bytes. Defaults to UTF-8.
     pub encoding: TextEncoding,
-    /// Whether the first row contains column headers.
-    /// Defaults to `true`.
+    /// Whether the first row contains column headers. Defaults to `true`.
     pub has_headers: bool,
-    /// Override the field delimiter. If `None`, the loader will
-    /// auto-detect from the first line.
+    /// Override the field delimiter. `None` triggers auto-detection.
     pub delimiter: Option<u8>,
 }
 
-impl Default for CsvParams {
+impl Default for CsvLoader {
     fn default() -> Self {
         Self {
             encoding: TextEncoding::Utf8,
@@ -35,37 +33,27 @@ impl Default for CsvParams {
     }
 }
 
-/// Loader that validates and parses CSV files.
-///
-/// Produces a single [`CsvHandler`] per input.
-#[derive(Debug, Default)]
-pub struct CsvLoader;
-
-#[async_trait::async_trait]
-impl Loader for CsvLoader {
+#[async_trait]
+impl Loader<Tabular> for CsvLoader {
     type Handler = CsvHandler;
-    type Params = CsvParams;
 
     #[tracing::instrument(name = "csv.decode", skip_all, fields(input_bytes, rows, delimiter))]
-    async fn decode(
-        &self,
-        content: &ContentData,
-        params: &Self::Params,
-    ) -> Result<CsvHandler, Error> {
+    async fn decode(&self, content: ContentData) -> Result<CsvHandler, Error> {
+        let parent = content.content_source;
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
-        let text = params.encoding.decode_bytes(&raw, "csv-loader")?;
+        let text = self.encoding.decode_bytes(&raw, "csv-loader")?;
         let trailing_newline = text.ends_with('\n');
-        let delimiter = params.delimiter.unwrap_or_else(|| detect_delimiter(&text));
+        let delimiter = self.delimiter.unwrap_or_else(|| detect_delimiter(&text));
         tracing::Span::current().record("delimiter", tracing::field::display(delimiter as char));
 
         let mut reader = csv::ReaderBuilder::new()
-            .has_headers(params.has_headers)
+            .has_headers(self.has_headers)
             .delimiter(delimiter)
             .flexible(true)
             .from_reader(text.as_bytes());
 
-        let headers = if params.has_headers {
+        let headers = if self.has_headers {
             let hdr = reader
                 .headers()
                 .map_err(|e| Error::validation(format!("CSV header error: {e}"), "csv-loader"))?;
@@ -80,34 +68,31 @@ impl Loader for CsvLoader {
                 .map_err(|e| Error::validation(format!("CSV parse error: {e}"), "csv-loader"))?;
             rows.push(record.iter().map(String::from).collect());
         }
-
         tracing::Span::current().record("rows", rows.len());
-        let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = CsvHandler::new(CsvData {
+
+        let source = ContentSource::new().with_parent(&parent);
+        Ok(CsvHandler::new(CsvData {
             headers,
             rows,
             delimiter,
             trailing_newline,
         })
-        .with_source(source);
-        Ok(handler)
+        .with_source(source))
     }
 }
 
-/// Auto-detect the CSV delimiter by sampling up to 5 lines and
-/// picking the candidate with the highest, most consistent count.
-///
-/// Tie-break: prefer comma.
+/// Auto-detect the CSV delimiter by sampling up to 5 lines and picking
+/// the candidate with the highest, most consistent count. Tie-break:
+/// prefer comma.
 fn detect_delimiter(text: &str) -> u8 {
     let candidates: &[(u8, char)] = &[(b',', ','), (b'\t', '\t'), (b';', ';'), (b'|', '|')];
-
     let sample_lines: Vec<&str> = text.lines().take(5).collect();
     if sample_lines.is_empty() {
         return b',';
     }
 
     let mut best_byte = b',';
-    let mut best_score = (0usize, 0usize); // (min_count, total_count) — higher is better
+    let mut best_score = (0usize, 0usize);
 
     for &(byte, ch) in candidates {
         let counts: Vec<usize> = sample_lines
@@ -116,9 +101,6 @@ fn detect_delimiter(text: &str) -> u8 {
             .collect();
         let total: usize = counts.iter().sum();
         let min = counts.iter().copied().min().unwrap_or(0);
-
-        // Prefer the candidate with the highest minimum per-line count
-        // (consistency), then highest total. Comma wins ties.
         let score = (min, total);
         if score > best_score || (score == best_score && byte == b',') {
             best_score = score;
@@ -137,7 +119,7 @@ mod tests {
     use bytes::Bytes;
     use nvisy_codec::handler::Handler;
     use nvisy_core::Error;
-    use nvisy_core::content::{ContentSource, DocumentType, SpreadsheetFormat};
+    use nvisy_core::content::ContentSource;
 
     use super::*;
 
@@ -148,12 +130,8 @@ mod tests {
     #[tokio::test]
     async fn load_with_headers() -> Result<(), Error> {
         let content = content_from_str("name,age\nAlice,30\nBob,25\n");
-        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
-
-        assert_eq!(
-            doc.document_type(),
-            DocumentType::Spreadsheet(SpreadsheetFormat::Csv)
-        );
+        let doc = CsvLoader::default().decode(content).await?;
+        assert_eq!(doc.format().as_str(), "nvisy.tabular.csv");
         assert_eq!(
             doc.headers(),
             Some(["name", "age"].map(String::from).as_slice())
@@ -167,13 +145,12 @@ mod tests {
 
     #[tokio::test]
     async fn load_without_headers() -> Result<(), Error> {
-        let params = CsvParams {
+        let loader = CsvLoader {
             has_headers: false,
-            ..CsvParams::default()
+            ..CsvLoader::default()
         };
         let content = content_from_str("x,y\n1,2\n");
-        let doc = CsvLoader.decode(&content, &params).await?;
-
+        let doc = loader.decode(content).await?;
         assert!(doc.headers().is_none());
         assert_eq!(doc.len(), 2);
         assert_eq!(doc.cell(0, 0), Some("x"));
@@ -183,7 +160,7 @@ mod tests {
     #[tokio::test]
     async fn load_tab_delimited() -> Result<(), Error> {
         let content = content_from_str("a\tb\n1\t2\n");
-        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
+        let doc = CsvLoader::default().decode(content).await?;
         assert_eq!(doc.delimiter(), b'\t');
         assert_eq!(doc.headers(), Some(["a", "b"].map(String::from).as_slice()));
         Ok(())
@@ -195,10 +172,7 @@ mod tests {
             ContentSource::new(),
             Bytes::from_static(&[0xFF, 0xFE, 0x00]),
         );
-        let err = CsvLoader
-            .decode(&content, &CsvParams::default())
-            .await
-            .unwrap_err();
+        let err = CsvLoader::default().decode(content).await.unwrap_err();
         assert!(err.to_string().contains("UTF-8"));
     }
 
@@ -210,7 +184,6 @@ mod tests {
 
     #[test]
     fn detect_semicolons_with_commas_in_content() {
-        // Commas appear inside values but semicolons are the real delimiter.
         let text = "\"a,b\";c;d\n\"e,f\";g;h\n";
         assert_eq!(detect_delimiter(text), b';');
     }

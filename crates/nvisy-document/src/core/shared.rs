@@ -12,6 +12,8 @@
 use std::fmt;
 use std::sync::Arc;
 
+use nvisy_codec::CodecRegistry;
+use nvisy_formats::CodecRegistryExt;
 use uuid::Uuid;
 
 use super::PolicyStore;
@@ -30,18 +32,31 @@ pub struct SharedData {
     pub policies: PolicyStore,
     /// Content and context storage.
     pub registry: Registry,
+    /// Codec registry resolving file extensions / content types to
+    /// the appropriate per-format loader. Importers call into this
+    /// to decode raw bytes into a typed [`DocumentHandle<M>`][dh].
+    ///
+    /// Built once at engine construction with
+    /// [`CodecRegistry::builtins`] so every importer in the run
+    /// shares the same set of registered formats.
+    ///
+    /// [dh]: nvisy_codec::DocumentHandle
+    pub codec_registry: CodecRegistry,
     /// Key provider for encryption/decryption.
     pub key_provider: SharedKeyProvider,
 }
 
 impl SharedData {
     /// Create a new shared data with the given run, actor, and registry.
+    /// The codec registry is preloaded with every built-in format the
+    /// active feature set enables.
     pub fn new(run_id: Uuid, actor_id: Uuid, registry: Registry) -> Arc<Self> {
         Arc::new(Self {
             run_id,
             actor_id,
             policies: PolicyStore::new(),
             registry,
+            codec_registry: CodecRegistry::builtins(),
             key_provider: SharedKeyProvider::default(),
         })
     }

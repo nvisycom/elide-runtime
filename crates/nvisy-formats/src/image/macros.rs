@@ -2,29 +2,64 @@
 //! structs (PNG, JPEG, TIFF — anything backed by one
 //! `image::DynamicImage` + a `ContentSource`).
 //!
-//! Generates the `Handler` impl, the `Handle<Image>` impl that calls
-//! the local [`crate::image::redact`] helper, and the inherent
-//! `new` / `with_source` / `image` accessors.
+//! Generates the [`Handler`][h], [`Handle<Image>`][hi],
+//! [`IndexedHandle<Image>`][ih] impls plus inherent constructors and a
+//! `pub fn format() -> Format` descriptor that registers with
+//! [`nvisy_codec::CodecRegistry`].
+//!
+//! [h]: nvisy_codec::handler::Handler
+//! [hi]: nvisy_codec::core::Handle
+//! [ih]: nvisy_codec::core::IndexedHandle
 
-/// Implement [`Handler`] + [`Handle<Image>`] + inherent methods for
-/// an image handler struct that holds a single `DynamicImage` and a
-/// `ContentSource`.
+/// Implement [`Handler`] + [`Handle<Image>`] + [`IndexedHandle<Image>`]
+/// + inherent methods for an image handler struct that holds a single
+/// `DynamicImage`, a `ContentSource`, and a streaming cursor.
 ///
-/// Crate-internal paths are fully qualified via `$crate::…` so the
-/// macro stays self-contained inside `nvisy-formats`.
+/// Each invocation also emits:
+/// - a `pub const FORMAT_ID: FormatId` for the handler's stable id
+/// - a `pub fn format() -> Format` descriptor wiring the matching
+///   loader through [`LoaderAdapter`] into the registry
 ///
 /// [`Handler`]: nvisy_codec::handler::Handler
 /// [`Handle<Image>`]: nvisy_codec::core::Handle
+/// [`IndexedHandle<Image>`]: nvisy_codec::core::IndexedHandle
+/// [`LoaderAdapter`]: nvisy_codec::LoaderAdapter
 #[macro_export]
 macro_rules! impl_image_handler {
-    ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
+    (
+        handler = $handler:ident,
+        loader = $loader:ident,
+        format_id = $format_id:literal,
+        extensions = [$($ext:literal),+ $(,)?],
+        content_types = [$($mime:literal),+ $(,)?],
+        image_format = $img_fmt:expr,
+        origin = $origin:literal,
+        encode_span = $encode_name:literal $(,)?
+    ) => {
+        pub const FORMAT_ID: ::nvisy_codec::FormatId =
+            ::nvisy_codec::FormatId::from_static($format_id);
+
+        /// [`Format`] descriptor registered into
+        /// [`nvisy_codec::CodecRegistry`].
+        pub fn format() -> ::nvisy_codec::Format {
+            ::nvisy_codec::Format {
+                id: FORMAT_ID.clone(),
+                modality: ::nvisy_core::modality::ModalityKind::Image,
+                extensions: vec![$($ext.into()),+],
+                content_types: vec![$($mime.into()),+],
+                loader: ::std::sync::Arc::new(
+                    ::nvisy_codec::LoaderAdapter::new($loader::default()),
+                ),
+            }
+        }
+
         impl ::nvisy_codec::handler::Handler for $handler {
-            fn document_type(&self) -> ::nvisy_core::content::DocumentType {
-                $doc_type
+            fn format(&self) -> ::nvisy_codec::FormatId {
+                FORMAT_ID.clone()
             }
 
-            fn source(&self) -> ::nvisy_core::content::ContentSource {
-                self.source
+            fn source(&self) -> &::nvisy_core::content::ContentSource {
+                &self.source
             }
 
             #[::tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
@@ -32,27 +67,27 @@ macro_rules! impl_image_handler {
                 &self,
             ) -> ::std::result::Result<::nvisy_core::content::ContentData, ::nvisy_core::Error>
             {
-                use ::std::io::Cursor;
-
-                let mut buf = Cursor::new(Vec::new());
-                self.image.write_to(&mut buf, $fmt).map_err(|e| {
-                    ::nvisy_core::Error::validation(format!("encode failed: {e}"), $origin)
-                })?;
-                let out = buf.into_inner();
+                let out = $crate::image::macros::encode_image(&self.image, $img_fmt, $origin)?;
                 ::tracing::Span::current().record("output_bytes", out.len());
-                let source = ::nvisy_core::content::ContentSource::new().with_parent(&self.source);
+                let source = ::nvisy_core::content::ContentSource::new()
+                    .with_parent(&self.source);
                 Ok(::nvisy_core::content::ContentData::new(source, out.into()))
             }
         }
 
         #[::async_trait::async_trait]
         impl ::nvisy_codec::core::Handle<::nvisy_core::modality::Image> for $handler {
-            fn locations(
-                &self,
-            ) -> ::nvisy_codec::core::LocationStream<'_, ::nvisy_core::modality::ImageLocation>
-            {
-                use ::std::iter;
-
+            async fn next_chunk(
+                &mut self,
+            ) -> ::std::result::Result<
+                ::std::option::Option<
+                    ::nvisy_codec::core::Chunk<::nvisy_core::modality::Image>,
+                >,
+                ::nvisy_core::Error,
+            > {
+                if self.yielded {
+                    return Ok(None);
+                }
                 let (w, h) = (self.image.width(), self.image.height());
                 let location = ::nvisy_core::modality::ImageLocation {
                     bounding_box: ::nvisy_core::primitive::BoundingBox {
@@ -65,33 +100,69 @@ macro_rules! impl_image_handler {
                     image_id: None,
                     page_number: None,
                 };
-                ::nvisy_codec::core::LocationStream::new(::futures::stream::iter(iter::once(
-                    ::nvisy_codec::core::Located::new(self.source, location),
-                )))
+                let bytes = $crate::image::macros::encode_image(
+                    &self.image,
+                    $img_fmt,
+                    $origin,
+                )?;
+                let data = ::nvisy_core::modality::ImageData::new(
+                    bytes,
+                    ::nvisy_core::primitive::Dimensions::new(w, h),
+                );
+                self.yielded = true;
+                Ok(Some(::nvisy_codec::core::Chunk {
+                    location,
+                    data,
+                    embed: None,
+                }))
             }
+        }
 
+        #[::async_trait::async_trait]
+        impl ::nvisy_codec::core::IndexedHandle<::nvisy_core::modality::Image> for $handler {
             async fn read(
                 &self,
                 location: &::nvisy_core::modality::ImageLocation,
-            ) -> Option<::nvisy_codec::handler::ImageData> {
+            ) -> ::std::result::Result<
+                ::std::option::Option<::nvisy_core::modality::ImageData>,
+                ::nvisy_core::Error,
+            > {
                 let bb = &location.bounding_box;
                 let x = bb.x.max(0.0) as u32;
                 let y = bb.y.max(0.0) as u32;
-                let w = (bb.width as u32).min(self.image.width().saturating_sub(x));
-                let h = (bb.height as u32).min(self.image.height().saturating_sub(y));
+                let w = (bb.width as u32)
+                    .min(self.image.width().saturating_sub(x));
+                let h = (bb.height as u32)
+                    .min(self.image.height().saturating_sub(y));
                 if w == 0 || h == 0 {
-                    return None;
+                    return Ok(None);
                 }
                 let cropped = self.image.crop_imm(x, y, w, h);
-                Some(::nvisy_codec::handler::ImageData::from(cropped))
+                let bytes = $crate::image::macros::encode_image(
+                    &cropped,
+                    $img_fmt,
+                    $origin,
+                )?;
+                Ok(Some(::nvisy_core::modality::ImageData::new(
+                    bytes,
+                    ::nvisy_core::primitive::Dimensions::new(w, h),
+                )))
             }
 
-            async fn redact_at(
+            async fn redact(
                 &mut self,
-                location: &::nvisy_core::modality::ImageLocation,
-                redaction: ::nvisy_codec::handler::ImageRedaction,
+                redactions: ::nvisy_codec::core::Redactions<
+                    ::nvisy_core::modality::ImageLocation,
+                    ::nvisy_codec::handler::ImageRedaction,
+                >,
             ) -> ::std::result::Result<(), ::nvisy_core::Error> {
-                $crate::image::redact::apply(&mut self.image, &redaction, location.bounding_box);
+                for (location, redaction) in redactions.into_items() {
+                    $crate::image::redact::apply(
+                        &mut self.image,
+                        &redaction,
+                        location.bounding_box,
+                    );
+                }
                 Ok(())
             }
         }
@@ -102,11 +173,15 @@ macro_rules! impl_image_handler {
                 Self {
                     source: ::nvisy_core::content::ContentSource::new(),
                     image,
+                    yielded: false,
                 }
             }
 
-            /// Set the content source for lineage tracking.
-            pub fn with_source(mut self, source: ::nvisy_core::content::ContentSource) -> Self {
+            /// Attach a content source for lineage tracking.
+            pub fn with_source(
+                mut self,
+                source: ::nvisy_core::content::ContentSource,
+            ) -> Self {
                 self.source = source;
                 self
             }
@@ -115,6 +190,27 @@ macro_rules! impl_image_handler {
             pub fn image(&self) -> &::image::DynamicImage {
                 &self.image
             }
+
+            /// Rewind the streaming cursor so [`next_chunk`][nc] yields
+            /// the full-image chunk again.
+            ///
+            /// [nc]: ::nvisy_codec::core::Handle::next_chunk
+            pub fn rewind(&mut self) {
+                self.yielded = false;
+            }
         }
     };
+}
+
+/// Encode a [`DynamicImage`] into bytes via the given [`ImageFormat`].
+pub(crate) fn encode_image(
+    img: &::image::DynamicImage,
+    fmt: ::image::ImageFormat,
+    origin: &'static str,
+) -> ::std::result::Result<::std::vec::Vec<u8>, ::nvisy_core::Error> {
+    use ::std::io::Cursor;
+    let mut buf = Cursor::new(Vec::new());
+    img.write_to(&mut buf, fmt)
+        .map_err(|e| ::nvisy_core::Error::validation(format!("encode failed: {e}"), origin))?;
+    Ok(buf.into_inner())
 }

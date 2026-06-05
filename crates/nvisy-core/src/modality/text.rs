@@ -2,6 +2,7 @@
 //! [`TextData`] per-call payload, and [`TextExtraction`] provenance
 //! enum.
 
+use derive_more::{AsRef, Deref, Display, From};
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -100,7 +101,8 @@ pub enum TextExtraction {
     Recognized(ModelProvenance),
 }
 
-/// Per-call payload for [`Text`] recognizers and extractors.
+/// Per-call payload for [`Text`] recognizers, extractors, and codec
+/// chunk reads.
 ///
 /// Held as a [`HipStr<'static>`] so cheap clones (atomic refcount
 /// for non-inline text, inline copy for short strings) let the
@@ -115,19 +117,52 @@ pub enum TextExtraction {
 ///
 /// [`Span<Text>`]: crate::extraction::Span
 /// [`Artifacts`]: crate::extraction::Artifacts
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Display, From, AsRef, Deref)]
+#[as_ref(forward)]
+#[display("{text}")]
 pub struct TextData {
     /// The text the recognizer should scan. Byte offsets in emitted
     /// entities refer back into this string.
+    #[deref]
     pub text: HipStr<'static>,
 }
 
 impl TextData {
     /// Construct from anything convertible to [`HipStr<'static>`] —
     /// owned `String`, borrowed `&'static str`, an existing
-    /// `HipStr`, ….
+    /// `HipStr`, …
     pub fn new(text: impl Into<HipStr<'static>>) -> Self {
         Self { text: text.into() }
+    }
+
+    /// View the inner string slice.
+    pub fn as_str(&self) -> &str {
+        self.text.as_str()
+    }
+
+    /// Consume the wrapper and return the content as a [`String`],
+    /// allocating only when the underlying [`HipStr`] is borrowed.
+    pub fn into_string(self) -> String {
+        self.text.into()
+    }
+}
+
+impl From<&str> for TextData {
+    fn from(s: &str) -> Self {
+        Self::new(HipStr::from(s))
+    }
+}
+
+impl From<String> for TextData {
+    fn from(s: String) -> Self {
+        Self::new(HipStr::from(s))
+    }
+}
+
+impl PartialEq<&str> for TextData {
+    fn eq(&self, other: &&str) -> bool {
+        self.text.as_str() == *other
     }
 }
 

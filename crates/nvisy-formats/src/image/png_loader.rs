@@ -1,37 +1,32 @@
 //! PNG loader: validates and decodes raw PNG bytes into a
 //! [`PngHandler`].
 
-use nvisy_codec::handler::{ImageData, Loader};
+use async_trait::async_trait;
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::modality::Image;
 
 use super::PngHandler;
 
-/// Parameters for [`PngLoader`].
-#[derive(Debug, Default)]
-pub struct PngParams;
-
-/// Loader that validates and decodes PNG files.
-///
-/// Produces a single [`PngHandler`] per input.
+/// Loader for PNG files. Produces one [`PngHandler`] per input.
 #[derive(Debug, Default)]
 pub struct PngLoader;
 
-#[async_trait::async_trait]
-impl Loader for PngLoader {
+#[async_trait]
+impl Loader<Image> for PngLoader {
     type Handler = PngHandler;
-    type Params = PngParams;
 
     #[tracing::instrument(name = "png.decode", skip_all, fields(input_bytes, width, height))]
-    async fn decode(
-        &self,
-        content: &ContentData,
-        _params: &Self::Params,
-    ) -> Result<PngHandler, Error> {
+    async fn decode(&self, content: ContentData) -> Result<PngHandler, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let image = ImageData::decode(content, "png-loader")?.into_inner();
-        let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = PngHandler::new(image).with_source(source);
-        Ok(handler)
+        let parent = content.content_source;
+        let raw = content.to_bytes();
+        let image = image::load_from_memory(&raw)
+            .map_err(|e| Error::validation(format!("PNG decode failed: {e}"), "png-loader"))?;
+        tracing::Span::current().record("width", image.width());
+        tracing::Span::current().record("height", image.height());
+        let source = ContentSource::new().with_parent(&parent);
+        Ok(PngHandler::new(image).with_source(source))
     }
 }

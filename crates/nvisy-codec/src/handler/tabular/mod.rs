@@ -16,9 +16,8 @@
 //! [`Handle<Tabular>`]: crate::core::Handle
 //! [`Tabular`]: nvisy_core::modality::Tabular
 
-use nvisy_core::modality::Tabular;
+use nvisy_core::modality::{ModalityKind, Tabular};
 
-use super::TextData;
 use crate::core::{Codable, Handle};
 
 mod instruction;
@@ -26,8 +25,9 @@ mod instruction;
 pub use self::instruction::TabularRedaction;
 
 impl Codable for Tabular {
-    type Data = TextData;
     type Redaction = TabularRedaction;
+
+    const KIND: ModalityKind = ModalityKind::Tabular;
 }
 
 /// Extension trait implemented by every tabular handler exposing the

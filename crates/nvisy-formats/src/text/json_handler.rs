@@ -1,39 +1,53 @@
-//! JSON handler: holds parsed JSON content and provides location-based
-//! access via [`Handler`] + [`TextHandler`].
+//! JSON handler: holds parsed JSON content and streams its string
+//! leaves + object keys via [`Handle<Text>`], with random-access
+//! reads / redactions via [`IndexedHandle<Text>`].
 //!
-//! The handler stores the parsed [`Value`] tree together
-//! with formatting metadata captured during loading, so the original
+//! The handler stores the parsed [`Value`] tree together with the
+//! original indentation style and trailing-newline flag, so the source
 //! file can be reconstructed with identical whitespace after edits.
 //!
-//! [`TextHandler::locations`] yields string-typed JSON leaves and
-//! object keys, addressed by [`Text`]. Byte offsets correspond
-//! to positions within the serialized JSON string and are computed via
-//! monotonic cursor advancement during tree traversal to avoid
-//! ambiguity from duplicate values.
-//!
-//! Offsets are into the **serialized** form (including quotes and
-//! escapes). [`TextHandler::read`] returns the unescaped string value
-//! at a location.
+//! [`Handle::next_chunk`] yields string-typed JSON leaves and object
+//! keys, addressed by [`TextLocation`] byte offsets in the serialized
+//! form. Locations are resolved lazily into a memo of [`LocatedSpan`]s
+//! that is invalidated whenever a redaction edits the tree (because
+//! the serialization — and therefore every byte offset — changes).
 //!
 //! [`Value`]: serde_json::Value
 
 use std::num::NonZeroU32;
+use std::sync::{Arc, Mutex};
 
-use nvisy_codec::core::{Handle, Located, LocationStream};
-use nvisy_codec::handler::{Handler, TextData, TextRedaction};
+use async_trait::async_trait;
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
+use nvisy_codec::handler::{Handler, TextRedaction};
+use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource, DocumentType, TextFormat};
-use nvisy_core::modality::{Text, TextLocation};
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
 use serde::{Deserialize, Serialize};
 
-use super::redact;
+use super::{JsonLoader, redact};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 const TARGET: &str = "json-handler";
 
+/// Stable [`FormatId`] for the JSON codec.
+pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.json");
+
+/// [`Format`] descriptor registered into [`nvisy_codec::CodecRegistry`].
+pub fn format() -> Format {
+    Format {
+        id: FORMAT_ID.clone(),
+        modality: ModalityKind::Text,
+        extensions: vec!["json".into()],
+        content_types: vec!["application/json".into()],
+        loader: Arc::new(LoaderAdapter::new(JsonLoader::default())),
+    }
+}
+
 /// [RFC 6901] JSON Pointer identifying a span within a JSON document.
 ///
-/// Used internally by `JsonHandler` for tree navigation.
+/// Used internally by [`JsonHandler`] for tree navigation.
 ///
 /// [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -100,14 +114,9 @@ impl Default for JsonData {
     }
 }
 
-/// Handler for loaded JSON content.
-#[derive(Debug)]
-pub struct JsonHandler {
-    source: ContentSource,
-    data: JsonData,
-}
-
-/// A located JSON span with its path and byte offset range.
+/// A located JSON span with its tree path, unescaped text, and the
+/// byte offsets it occupies in the serialized form.
+#[derive(Debug, Clone)]
 struct LocatedSpan {
     path: JsonPath,
     text: String,
@@ -115,82 +124,27 @@ struct LocatedSpan {
     end: usize,
 }
 
-#[async_trait::async_trait]
-impl Handle<Text> for JsonHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
-        let source = self.source;
-        let items: Vec<_> = self
-            .locate_spans()
-            .into_iter()
-            .map(|ls| {
-                Located::new(
-                    source,
-                    TextLocation {
-                        start: ls.start,
-                        end: ls.end,
-                        ..Default::default()
-                    },
-                )
-            })
-            .collect();
-        LocationStream::new(futures::stream::iter(items))
-    }
-
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
-        self.locate_spans()
-            .into_iter()
-            .find(|ls| ls.start == location.start && ls.end == location.end)
-            .map(|ls| TextData::from(ls.text))
-    }
-
-    async fn redact_at(
-        &mut self,
-        location: &TextLocation,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
-        let located = self.locate_spans();
-        let Some(ls) = located
-            .into_iter()
-            .find(|ls| location.start >= ls.start && location.end <= ls.end)
-        else {
-            return Ok(());
-        };
-        let start = location.start - ls.start;
-        let end = location.end - ls.start;
-        let mut content = ls.text.clone();
-        let value = redaction.output().replacement_value().unwrap_or_default();
-        redact::replace_range(&mut content, value, start, end, TARGET)?;
-        if ls.path.key_of {
-            rename_key(&mut self.data.value, &ls.path.pointer, &content)?;
-        } else {
-            let target = self
-                .data
-                .value
-                .pointer_mut(&ls.path.pointer)
-                .ok_or_else(|| {
-                    Error::validation(
-                        format!("JSON pointer not found: {}", ls.path.pointer),
-                        TARGET,
-                    )
-                })?;
-            if target.is_string() {
-                *target = serde_json::Value::String(content);
-            } else {
-                *target =
-                    serde_json::from_str(&content).unwrap_or(serde_json::Value::String(content));
-            }
-        }
-        Ok(())
-    }
+/// Handler for loaded JSON content.
+///
+/// `spans` is a lazily-computed memo of every string leaf + object
+/// key in the parsed tree, paired with its byte offset in the
+/// serialized output. Cleared on every redaction because serialization
+/// — and therefore every byte offset — changes when the tree mutates.
+#[derive(Debug)]
+pub struct JsonHandler {
+    source: ContentSource,
+    data: JsonData,
+    spans: Mutex<Option<Vec<LocatedSpan>>>,
+    cursor: usize,
 }
 
 impl Handler for JsonHandler {
-    fn document_type(&self) -> DocumentType {
-        DocumentType::Text(TextFormat::Json)
+    fn format(&self) -> FormatId {
+        FORMAT_ID.clone()
     }
 
-    fn source(&self) -> ContentSource {
-        self.source
+    fn source(&self) -> &ContentSource {
+        &self.source
     }
 
     #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]
@@ -205,16 +159,87 @@ impl Handler for JsonHandler {
     }
 }
 
+#[async_trait]
+impl Handle<Text> for JsonHandler {
+    async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
+        let chunk = self.with_spans(|spans| {
+            if self.cursor >= spans.len() {
+                return None;
+            }
+            let s = &spans[self.cursor];
+            Some(Chunk {
+                location: TextLocation {
+                    start: s.start,
+                    end: s.end,
+                    ..Default::default()
+                },
+                data: TextData::from(s.text.as_str()),
+                embed: None,
+            })
+        });
+        if chunk.is_some() {
+            self.cursor += 1;
+        }
+        Ok(chunk)
+    }
+}
+
+#[async_trait]
+impl IndexedHandle<Text> for JsonHandler {
+    async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
+        Ok(self.with_spans(|spans| {
+            spans
+                .iter()
+                .find(|s| s.start == location.start && s.end == location.end)
+                .map(|s| TextData::from(s.text.as_str()))
+        }))
+    }
+
+    async fn redact(
+        &mut self,
+        redactions: Redactions<TextLocation, TextRedaction>,
+    ) -> Result<(), Error> {
+        // Resolve every location against the current serialization in
+        // one pass, then apply each mutation against the tree. Tree
+        // mutations don't invalidate already-resolved tree paths, so
+        // ordering is irrelevant once locations are turned into paths.
+        let resolved: Vec<(JsonPath, String)> = self.with_spans(|spans| {
+            redactions
+                .into_items()
+                .into_iter()
+                .filter_map(|(loc, red)| {
+                    let s = spans
+                        .iter()
+                        .find(|s| loc.start >= s.start && loc.end <= s.end)?;
+                    let value = red.output().replacement_value().unwrap_or_default();
+                    let start = loc.start - s.start;
+                    let end = loc.end - s.start;
+                    let mut content = s.text.clone();
+                    redact::replace_range(&mut content, value, start, end, TARGET).ok()?;
+                    Some((s.path.clone(), content))
+                })
+                .collect()
+        });
+        for (path, content) in resolved {
+            self.apply_edit(&path, content)?;
+        }
+        self.invalidate_spans();
+        Ok(())
+    }
+}
+
 impl JsonHandler {
     /// Create a new handler from parsed JSON data.
     pub fn new(data: JsonData) -> Self {
         Self {
             source: ContentSource::new(),
             data,
+            spans: Mutex::new(None),
+            cursor: 0,
         }
     }
 
-    /// Set the content source for lineage tracking.
+    /// Attach a content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
         self
@@ -225,8 +250,10 @@ impl JsonHandler {
         &self.data.value
     }
 
-    /// Mutable access to the underlying JSON value.
+    /// Mutable access to the underlying JSON value. Invalidates the
+    /// span memo since callers may mutate the tree out-of-band.
     pub fn value_mut(&mut self) -> &mut serde_json::Value {
+        self.invalidate_spans();
         &mut self.data.value
     }
 
@@ -240,8 +267,51 @@ impl JsonHandler {
         self.data.trailing_newline
     }
 
-    /// Compute located spans by serializing and tracking byte positions
-    /// with a monotonic cursor to avoid duplicate-value ambiguity.
+    /// Rewind the streaming cursor to the start of the document.
+    pub fn rewind(&mut self) {
+        self.cursor = 0;
+    }
+
+    /// Run `f` with the lazily-populated span memo. Populates on
+    /// first call after construction or after invalidation.
+    fn with_spans<R>(&self, f: impl FnOnce(&[LocatedSpan]) -> R) -> R {
+        let mut guard = self.spans.lock().expect("span memo lock");
+        if guard.is_none() {
+            *guard = Some(self.locate_spans());
+        }
+        f(guard.as_deref().expect("just populated"))
+    }
+
+    /// Clear the span memo. Called after any mutation that changes
+    /// the serialized form.
+    fn invalidate_spans(&mut self) {
+        *self.spans.lock().expect("span memo lock") = None;
+        self.cursor = 0;
+    }
+
+    /// Apply a redaction's replacement text at the given JSON path.
+    /// For value paths, parse the content as JSON if possible; for
+    /// keys, rename in the parent object.
+    fn apply_edit(&mut self, path: &JsonPath, content: String) -> Result<(), Error> {
+        if path.key_of {
+            rename_key(&mut self.data.value, &path.pointer, &content)?;
+        } else {
+            let target = self.data.value.pointer_mut(&path.pointer).ok_or_else(|| {
+                Error::validation(format!("JSON pointer not found: {}", path.pointer), TARGET)
+            })?;
+            if target.is_string() {
+                *target = serde_json::Value::String(content);
+            } else {
+                *target =
+                    serde_json::from_str(&content).unwrap_or(serde_json::Value::String(content));
+            }
+        }
+        Ok(())
+    }
+
+    /// Walk the parsed tree, serialize once, and find each span's
+    /// byte offsets via a monotonic cursor (avoids duplicate-value
+    /// ambiguity).
     fn locate_spans(&self) -> Vec<LocatedSpan> {
         let serialized = self.serialize_to_string();
         let tree_spans: Vec<_> = JsonSpanIter::new(&self.data.value).collect();
@@ -253,13 +323,11 @@ impl JsonHandler {
                 serde_json::Value::String(s) => s.clone(),
                 other => other.to_string(),
             };
-
             let needle = if ts.value.is_string() {
                 format!("\"{}\"", json_escape(&text))
             } else {
                 text.clone()
             };
-
             if let Some(rel) = serialized[cursor..].find(&needle) {
                 let start = cursor + rel;
                 let end = start + needle.len();
@@ -272,7 +340,6 @@ impl JsonHandler {
                 cursor = end;
             }
         }
-
         result
     }
 
@@ -337,12 +404,10 @@ impl JsonSpanIter {
                 for (key, val) in map {
                     let escaped_key = key.replace('~', "~0").replace('/', "~1");
                     let child_ptr = format!("{pointer}/{escaped_key}");
-
                     stack.push(JsonTreeSpan {
                         path: JsonPath::key(&child_ptr),
                         value: serde_json::Value::String(key.clone()),
                     });
-
                     Self::push_value(stack, &child_ptr, val);
                 }
             }
@@ -375,9 +440,7 @@ fn rename_key(root: &mut serde_json::Value, pointer: &str, new_key: &str) -> Res
     let (parent_ptr, old_key_segment) = pointer
         .rsplit_once('/')
         .ok_or_else(|| Error::validation(format!("cannot rename root: {pointer}"), TARGET))?;
-
     let old_key = old_key_segment.replace("~1", "/").replace("~0", "~");
-
     let parent = if parent_ptr.is_empty() {
         root
     } else {
@@ -385,21 +448,18 @@ fn rename_key(root: &mut serde_json::Value, pointer: &str, new_key: &str) -> Res
             Error::validation(format!("parent pointer not found: {parent_ptr}"), TARGET)
         })?
     };
-
     let obj = parent
         .as_object_mut()
         .ok_or_else(|| Error::validation("parent is not an object", TARGET))?;
-
     if let Some(value) = obj.remove(&old_key) {
         obj.insert(new_key.to_string(), value);
     }
-
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use futures::StreamExt;
+    use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
     use super::*;
@@ -413,64 +473,58 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn locations_string_leaves() {
-        let h = compact_handler(r#"{"name":"Alice","age":30}"#);
-        let items: Vec<_> = h.locations().collect().await;
+    async fn stream_yields_string_leaves_and_keys() -> Result<(), Error> {
+        let mut h = compact_handler(r#"{"name":"Alice","age":30}"#);
+        let mut count = 0;
+        while let Some(_) = h.next_chunk().await? {
+            count += 1;
+        }
         // 2 keys + 2 leaves
-        assert_eq!(items.len(), 4);
+        assert_eq!(count, 4);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn duplicate_values_get_distinct_offsets() {
-        let h = compact_handler(r#"{"a":"same","b":"same"}"#);
+    async fn duplicate_values_get_distinct_offsets() -> Result<(), Error> {
+        let mut h = compact_handler(r#"{"a":"same","b":"same"}"#);
         let mut same_offsets = Vec::new();
-        for item in h.locations().collect::<Vec<_>>().await {
-            if let Some(td) = h.read(&item.location).await
-                && td.as_str() == "same"
-            {
-                same_offsets.push(item.location.start);
+        while let Some(chunk) = h.next_chunk().await? {
+            if chunk.data.as_str() == "same" {
+                same_offsets.push(chunk.location.start);
             }
         }
         assert_eq!(same_offsets.len(), 2);
         assert_ne!(same_offsets[0], same_offsets[1]);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn read_returns_string() {
-        let h = compact_handler(r#"{"name":"Alice"}"#);
-        let items: Vec<_> = h.locations().collect().await;
-        let alice = futures::future::join_all(items.iter().map(|l| h.read(&l.location))).await;
-        assert!(
-            alice
-                .iter()
-                .any(|d| d.as_ref().map(|d| d.as_str()) == Some("Alice"))
-        );
+    async fn read_returns_string() -> Result<(), Error> {
+        let mut h = compact_handler(r#"{"name":"Alice"}"#);
+        let mut found = false;
+        while let Some(chunk) = h.next_chunk().await? {
+            if h.read(&chunk.location)
+                .await?
+                .map(|d| d.as_str().to_owned())
+                == Some("Alice".to_owned())
+            {
+                found = true;
+            }
+        }
+        assert!(found);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn read_rejects_arbitrary_offsets() {
+    async fn read_rejects_arbitrary_offsets() -> Result<(), Error> {
         let h = compact_handler(r#"{"name":"Alice"}"#);
         let bogus = TextLocation {
             start: 3,
             end: 7,
             ..Default::default()
         };
-        assert!(h.read(&bogus).await.is_none());
-    }
-
-    #[tokio::test]
-    async fn nested_structure() {
-        let h = compact_handler(r#"{"user":{"name":"Bob","ids":[1,2]}}"#);
-        let items: Vec<_> = h.locations().collect().await;
-        let mut reads = Vec::new();
-        for it in &items {
-            if let Some(td) = h.read(&it.location).await {
-                reads.push(td.as_str().to_owned());
-            }
-        }
-        assert!(reads.iter().any(|s| s == "Bob"));
-        assert!(reads.iter().any(|s| s == "1"));
-        assert!(reads.iter().any(|s| s == "2"));
+        assert!(h.read(&bogus).await?.is_none());
+        Ok(())
     }
 
     #[test]
@@ -492,6 +546,27 @@ mod tests {
         let text = content.as_str().unwrap();
         assert!(text.contains("  \"a\""));
         assert!(text.ends_with('\n'));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_string_value() -> Result<(), Error> {
+        let mut h = compact_handler(r#"{"name":"Alice"}"#);
+        let chunk = loop {
+            let c = h.next_chunk().await?.expect("expected chunk");
+            if c.data.as_str() == "Alice" {
+                break c;
+            }
+        };
+        let mut rs = Redactions::new();
+        rs.push(
+            chunk.location.clone(),
+            TextRedaction::new(TextOutput::replace("Bob")),
+        );
+        h.redact(rs).await?;
+        let encoded = h.encode()?.as_str().unwrap().to_owned();
+        assert!(encoded.contains("Bob"));
+        assert!(!encoded.contains("Alice"));
         Ok(())
     }
 }

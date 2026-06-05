@@ -1,21 +1,23 @@
-//! TIFF handler: holds a decoded image and provides single-location
-//! access via [`ImageHandler`].
-//!
-//! [`ImageHandler`]: nvisy_codec::handler::ImageHandler
+//! TIFF handler: see [`super::png_handler`] for the shared shape.
 
-use nvisy_core::content::{ContentSource, DocumentType, ImageFormat};
+use nvisy_core::content::ContentSource;
 
-/// Handler for loaded TIFF content.
+use super::TiffLoader;
+
 #[derive(Debug)]
 pub struct TiffHandler {
     source: ContentSource,
     image: image::DynamicImage,
+    yielded: bool,
 }
 
 impl_image_handler!(
-    TiffHandler,
-    DocumentType::Image(ImageFormat::Tiff),
-    image::ImageFormat::Tiff,
-    "tiff-handler",
-    "tiff.encode"
+    handler = TiffHandler,
+    loader = TiffLoader,
+    format_id = "nvisy.image.tiff",
+    extensions = ["tif", "tiff"],
+    content_types = ["image/tiff"],
+    image_format = image::ImageFormat::Tiff,
+    origin = "tiff-handler",
+    encode_span = "tiff.encode",
 );

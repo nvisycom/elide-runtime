@@ -3335,6 +3335,7 @@ dependencies = [
  "derive_builder",
  "derive_more",
  "futures",
+ "hipstr",
  "nvisy-agent",
  "nvisy-core",
  "nvisy-ner",

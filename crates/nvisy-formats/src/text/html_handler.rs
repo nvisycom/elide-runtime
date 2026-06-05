@@ -1,47 +1,74 @@
-//! HTML handler: holds parsed HTML content and provides location-based
-//! access via [`Handler`] + [`Handle`].
+//! HTML handler: holds parsed HTML content and streams its text
+//! nodes via [`Handle<Text>`], with random-access reads / redactions
+//! via [`IndexedHandle<Text>`].
 //!
-//! [`Handle::locations`] yields one location per text node in
-//! document order; offsets are cumulative over the text-node sequence
-//! (not raw HTML bytes). [`Handler::encode`] reconstructs the HTML by
-//! re-parsing the original source into a DOM, applying mutations, and
-//! serializing back with [`Html::html`].
+//! Offsets are cumulative over the **text-node sequence** in document
+//! order, not raw HTML bytes. [`Handler::encode`] reconstructs the
+//! HTML by re-parsing the original source into a DOM, applying
+//! mutations, and serializing back with [`Html::html`].
 //!
 //! [`Html::html`]: scraper::Html::html
 
-use nvisy_codec::core::{Handle, Located, LocationStream};
-use nvisy_codec::handler::{Handler, TextData, TextRedaction};
-use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource, DocumentType};
-use nvisy_core::modality::{Text, TextLocation};
+use std::sync::Arc;
 
-use super::redact;
+use async_trait::async_trait;
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
+use nvisy_codec::handler::{Handler, TextRedaction};
+use nvisy_codec::{Format, FormatId, LoaderAdapter};
+use nvisy_core::Error;
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
+
+use super::{HtmlLoader, redact};
 
 const TARGET: &str = "html-handler";
 
-/// Parsed HTML content stored as extracted text nodes.
+/// Stable [`FormatId`] for the HTML codec.
+pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.html");
+
+/// [`Format`] descriptor registered into [`nvisy_codec::CodecRegistry`].
+pub fn format() -> Format {
+    Format {
+        id: FORMAT_ID.clone(),
+        modality: ModalityKind::Text,
+        extensions: vec!["html".into(), "htm".into()],
+        content_types: vec!["text/html".into()],
+        loader: Arc::new(LoaderAdapter::new(HtmlLoader::default())),
+    }
+}
+
+/// Parsed HTML content: extracted text nodes alongside the raw source
+/// (kept for round-trip reconstruction).
 #[derive(Debug, Clone)]
 pub struct HtmlData {
     /// Text nodes extracted in document order.
     pub text_nodes: Vec<String>,
-    /// The raw HTML source (kept for reconstruction).
+    /// The raw HTML source.
     pub raw: String,
 }
 
 /// Handler for loaded HTML content.
+///
+/// `node_starts` is a cumulative-offset index over the text-node
+/// sequence: `node_starts[i]` is the byte position of text node `i`,
+/// and `node_starts[text_nodes.len()]` is the total length sentinel.
+/// Maintained on every redaction so random-access reads are
+/// `O(log N)` instead of rebuilding the table per call.
 #[derive(Debug)]
 pub struct HtmlHandler {
     source: ContentSource,
     data: HtmlData,
+    node_starts: Vec<usize>,
+    cursor: usize,
 }
 
 impl Handler for HtmlHandler {
-    fn document_type(&self) -> DocumentType {
-        DocumentType::Html
+    fn format(&self) -> FormatId {
+        FORMAT_ID.clone()
     }
 
-    fn source(&self) -> ContentSource {
-        self.source
+    fn source(&self) -> &ContentSource {
+        &self.source
     }
 
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
@@ -72,79 +99,86 @@ impl Handler for HtmlHandler {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl Handle<Text> for HtmlHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
-        let source = self.source;
-        let mut items = Vec::with_capacity(self.data.text_nodes.len());
-        let mut offset = 0usize;
-        for text in &self.data.text_nodes {
-            let start = offset;
-            let end = start + text.len();
-            items.push(Located::new(
-                source,
-                TextLocation {
-                    start,
-                    end,
-                    ..Default::default()
-                },
-            ));
-            offset = end;
+    async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
+        if self.cursor >= self.data.text_nodes.len() {
+            return Ok(None);
         }
-        LocationStream::new(futures::stream::iter(items))
+        let i = self.cursor;
+        let start = self.node_starts[i];
+        let end = self.node_starts[i + 1];
+        let text = &self.data.text_nodes[i];
+        self.cursor += 1;
+        Ok(Some(Chunk {
+            location: TextLocation {
+                start,
+                end,
+                ..Default::default()
+            },
+            data: TextData::from(text.as_str()),
+            embed: None,
+        }))
     }
+}
 
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
-        let offsets = self.node_offsets();
-        let idx = offsets
-            .iter()
-            .position(|&(start, _)| start == location.start)?;
-        self.data.text_nodes.get(idx).cloned().map(TextData::from)
-    }
-
-    async fn redact_at(
-        &mut self,
-        location: &TextLocation,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
-        let offsets = self.node_offsets();
-        let Some(idx) = offsets
-            .iter()
-            .position(|&(start, end)| location.start >= start && location.end <= end)
-        else {
-            return Ok(());
+#[async_trait]
+impl IndexedHandle<Text> for HtmlHandler {
+    async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
+        let Some(i) = self.node_for(location.start) else {
+            return Ok(None);
         };
-        let node_start = offsets[idx].0;
-        let start = location.start - node_start;
-        let end = location.end - node_start;
-        let value = redaction.output().replacement_value().unwrap_or_default();
-        redact::replace_range(&mut self.data.text_nodes[idx], value, start, end, TARGET)
+        let node_start = self.node_starts[i];
+        let node_end = self.node_starts[i + 1];
+        if location.end > node_end {
+            return Ok(None);
+        }
+        let local_start = location.start - node_start;
+        let local_end = location.end - node_start;
+        Ok(self.data.text_nodes[i]
+            .get(local_start..local_end)
+            .map(TextData::from))
+    }
+
+    async fn redact(
+        &mut self,
+        redactions: Redactions<TextLocation, TextRedaction>,
+    ) -> Result<(), Error> {
+        let mut items = redactions.into_items();
+        items.sort_by(|(a, _), (b, _)| b.start.cmp(&a.start));
+        for (location, redaction) in items {
+            self.redact_one(&location, redaction)?;
+        }
+        Ok(())
     }
 }
 
 impl HtmlHandler {
     /// Create a new handler from parsed HTML data.
     pub fn new(data: HtmlData) -> Self {
+        let node_starts = compute_node_starts(&data.text_nodes);
         Self {
             source: ContentSource::new(),
             data,
+            node_starts,
+            cursor: 0,
         }
     }
 
-    /// Set the content source for lineage tracking.
+    /// Attach a content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
         self
     }
 
-    /// All extracted text nodes.
+    /// All extracted text nodes in document order.
     pub fn text_nodes(&self) -> &[String] {
         &self.data.text_nodes
     }
 
     /// A specific text node by 0-based index.
     pub fn text_node(&self, index: usize) -> Option<&str> {
-        self.data.text_nodes.get(index).map(|s| s.as_str())
+        self.data.text_nodes.get(index).map(String::as_str)
     }
 
     /// Total number of text nodes.
@@ -167,25 +201,72 @@ impl HtmlHandler {
         self.data
     }
 
-    fn node_offsets(&self) -> Vec<(usize, usize)> {
-        let mut offset = 0;
-        self.data
-            .text_nodes
-            .iter()
-            .map(|text| {
-                let start = offset;
-                let end = start + text.len();
-                offset = end;
-                (start, end)
-            })
-            .collect()
+    /// Rewind the streaming cursor to the start of the document.
+    pub fn rewind(&mut self) {
+        self.cursor = 0;
     }
+
+    fn node_for(&self, byte_offset: usize) -> Option<usize> {
+        match self.node_starts.binary_search(&byte_offset) {
+            Ok(i) if i < self.data.text_nodes.len() => Some(i),
+            Ok(_) => None,
+            Err(i) if i > 0 && i <= self.data.text_nodes.len() => Some(i - 1),
+            _ => None,
+        }
+    }
+
+    fn shift_starts_after(&mut self, i: usize, delta: isize) {
+        if delta == 0 {
+            return;
+        }
+        for s in &mut self.node_starts[i + 1..] {
+            *s = (*s as isize + delta) as usize;
+        }
+    }
+
+    fn redact_one(
+        &mut self,
+        location: &TextLocation,
+        redaction: TextRedaction,
+    ) -> Result<(), Error> {
+        let Some(i) = self.node_for(location.start) else {
+            return Ok(());
+        };
+        let node_start = self.node_starts[i];
+        let node_end = self.node_starts[i + 1];
+        if location.end > node_end {
+            return Ok(());
+        }
+        let local_start = location.start - node_start;
+        let local_end = location.end - node_start;
+        let value = redaction.output().replacement_value().unwrap_or_default();
+        let before_len = self.data.text_nodes[i].len();
+        redact::replace_range(
+            &mut self.data.text_nodes[i],
+            value,
+            local_start,
+            local_end,
+            TARGET,
+        )?;
+        let delta = self.data.text_nodes[i].len() as isize - before_len as isize;
+        self.shift_starts_after(i, delta);
+        Ok(())
+    }
+}
+
+fn compute_node_starts(text_nodes: &[String]) -> Vec<usize> {
+    let mut starts = Vec::with_capacity(text_nodes.len() + 1);
+    let mut offset = 0usize;
+    for text in text_nodes {
+        starts.push(offset);
+        offset += text.len();
+    }
+    starts.push(offset);
+    starts
 }
 
 #[cfg(test)]
 mod tests {
-    use futures::StreamExt;
-    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
@@ -223,12 +304,10 @@ mod tests {
     async fn encode_after_redact() -> Result<(), Error> {
         let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
         let mut h = handler_from_html(raw);
-        let items: Vec<_> = h.locations().collect().await;
+        let first = h.next_chunk().await?.unwrap();
+        let loc = first.location.clone();
         let mut rs = Redactions::new();
-        rs.push(
-            items[0].location.clone(),
-            TextRedaction::new(TextOutput::replace("[REDACTED]")),
-        );
+        rs.push(loc, TextRedaction::new(TextOutput::replace("[REDACTED]")));
         h.redact(rs).await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));
@@ -237,9 +316,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn locations_returns_text_nodes() {
-        let h = handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
-        let items: Vec<_> = h.locations().collect().await;
-        assert_eq!(items.len(), 2);
+    async fn stream_yields_each_text_node() -> Result<(), Error> {
+        let mut h =
+            handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
+        let mut count = 0;
+        while let Some(_) = h.next_chunk().await? {
+            count += 1;
+        }
+        assert_eq!(count, 2);
+        Ok(())
     }
 }

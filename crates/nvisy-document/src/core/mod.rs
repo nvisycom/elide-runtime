@@ -10,11 +10,11 @@
 //!
 //! - [`RunContext`] — per-run shared state (engines, policies,
 //!   cancellation, dry-run flag).
-//! - [`DocumentTree`] — the per-document tree of nodes phases walk;
-//!   the [`NodeMut`] variant the walk yields drives the per-modality
-//!   dispatch.
-//! - [`DocumentView`] / [`ValueAt`] — the read-only view phases use to
-//!   resolve a modality-typed location to its source string.
+//! - [`DocumentTree<M>`] — the typed per-document carrier phases mutate.
+//! - [`AnyTree`] — the modality-erased tree at the import boundary;
+//!   the orchestrator matches once and dispatches into typed pipelines.
+//! - [`ValueAt`] / [`SourceAt`] — implemented on [`DocumentTree<M>`]
+//!   so phases that need to resolve a location pass `&tree` directly.
 //! - [`Plan`] — the per-request bundle of per-phase configs phases
 //!   read from `input.plan.X`.
 
@@ -33,5 +33,4 @@ pub use self::plan::Plan;
 pub(crate) use self::policy_store::Decision;
 pub use self::policy_store::PolicyStore;
 pub use self::shared::SharedData;
-pub use self::target::{DocumentView, SharedHandle};
-pub use self::tree::{AnyDocument, DocumentTree, NodeMut};
+pub use self::tree::{AnyTree, DocumentTree};

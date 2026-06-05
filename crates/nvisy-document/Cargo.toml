@@ -59,37 +59,32 @@ base64 = { workspace = true, features = [] }
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
-serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 toml = { workspace = true, features = [] }
 humantime-serde = { workspace = true, features = [] }
 
-# Async runtime and parallelism
+# Async runtime
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 tokio-util = { workspace = true, features = [] }
-futures = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
 semver = { workspace = true, features = ["serde"] }
-oxilangtag = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 
 # Heterogeneous container for PolicyStore
 type-map = { workspace = true, features = [] }
 
 # Derive macros and error handling
-thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }
 derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator"] }
 strum = { workspace = true, features = [] }
 
-# Encryption and hashing
+# Encryption
 aes-gcm = { workspace = true, features = [] }
-sha2 = { workspace = true, features = [] }
 
 # Utilities
 validator = { workspace = true, features = [] }
@@ -104,3 +99,6 @@ tracing = { workspace = true, features = [] }
 nvisy-document = { path = ".", features = ["test-utils"] }
 nvisy-formats = { workspace = true, features = ["txt", "csv", "test-utils"] }
 tempfile = { workspace = true, features = [] }
+
+[package.metadata.cargo-machete]
+ignored = ["humantime-serde"]

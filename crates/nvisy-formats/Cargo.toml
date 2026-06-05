@@ -32,9 +32,11 @@ html = ["nvisy-codec/text", "internal_text", "dep:scraper"]
 ## CSV loader and handler via the `csv` crate. Tabular cells reuse the
 ## text redact helper, so this pulls `internal_text`.
 csv = ["nvisy-codec/tabular", "internal_tabular", "internal_text", "dep:csv"]
-## Excel (`.xlsx`) loader and handler via `calamine`. Pulls
-## `internal_text` for the same reason as `csv`.
-xlsx = ["nvisy-codec/tabular", "internal_tabular", "internal_text", "dep:calamine"]
+## Excel (`.xlsx`) loader and handler. Pulls `internal_text` for the
+## same reason as `csv`. The handler is a stub today (decode returns
+## empty); a parser dep will be wired back in when real extraction
+## lands.
+xlsx = ["nvisy-codec/tabular", "internal_tabular", "internal_text"]
 ## PNG loader and handler.
 png = ["nvisy-codec/image", "internal_image"]
 ## JPEG loader and handler.
@@ -49,10 +51,10 @@ mp3 = ["nvisy-codec/audio", "internal_audio"]
 ## PDF loader, handler, and page-to-image rendering via `lopdf` + `pdfium-render`.
 ## Pulls `internal_text` (page-text redact) + `internal_image` (PngHandler for rendered pages + extracted figures) + `png` (the concrete image format wrapping rendered pages).
 pdf = ["nvisy-codec/text", "nvisy-codec/image", "internal_rich", "internal_text", "internal_image", "png", "dep:lopdf", "dep:pdfium-render", "dep:rayon"]
-## DOCX loader via `zip` + `quick-xml`.
-## DOCX loader via `zip` + `quick-xml`. Pulls `internal_text` only —
-## DOCX text extraction is stubbed today, no image rendering needed.
-docx = ["nvisy-codec/text", "internal_rich", "internal_text", "dep:zip", "dep:quick-xml"]
+## DOCX loader. Pulls `internal_text` only — DOCX text extraction is
+## stubbed today, no image rendering needed. Parser deps (`zip` +
+## `quick-xml`) will be wired back in when real extraction lands.
+docx = ["nvisy-codec/text", "internal_rich", "internal_text"]
 
 ## All text formats: `txt` + `json` + `markdown` + `html`.
 text = ["txt", "json", "markdown", "html"]
@@ -88,9 +90,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-codec = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
 
-# Async runtime and parallelism
+# Async runtime
 async-trait = { workspace = true, features = [] }
-futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["sync"] }
 
 # (De)serialization
@@ -99,9 +100,6 @@ serde_json = { workspace = true, features = [] }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
-
-# Error handling
-thiserror = { workspace = true, features = [] }
 
 # Image processing — pulled in unconditionally because the image
 # handler structs reference `image::DynamicImage` directly. The
@@ -119,11 +117,8 @@ pdfium-render = { workspace = true, optional = true, features = [] }
 rayon = { workspace = true, optional = true, features = [] }
 
 # Document parsing (feature-gated)
-calamine = { workspace = true, optional = true, features = [] }
 csv = { workspace = true, optional = true, features = [] }
-quick-xml = { workspace = true, optional = true, features = [] }
 scraper = { workspace = true, optional = true, features = [] }
-zip = { workspace = true, optional = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

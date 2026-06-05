@@ -42,7 +42,6 @@ http = [
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
-serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 humantime-serde = { workspace = true, features = [], optional = true }
 
@@ -51,7 +50,6 @@ bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
-semver = { workspace = true, features = [] }
 oxilangtag = { workspace = true, features = [] }
 type-map = { workspace = true, features = [] }
 
@@ -78,3 +76,6 @@ reqwest-tracing = { workspace = true, features = [], optional = true }
 
 # Observability
 tracing = { workspace = true, features = [] }
+
+[package.metadata.cargo-machete]
+ignored = ["humantime-serde"]

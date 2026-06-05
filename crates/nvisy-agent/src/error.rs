@@ -63,6 +63,9 @@ impl From<PromptError> for Error {
             PromptError::PromptCancelled { reason, .. } => {
                 Self::Runtime(format!("prompt cancelled: {reason}"))
             }
+            PromptError::UnknownToolCall { tool_name, .. } => {
+                Self::Runtime(format!("agent called unknown tool: {tool_name}"))
+            }
         }
     }
 }

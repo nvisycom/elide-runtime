@@ -9,10 +9,9 @@
 
 use std::mem;
 
-use nvisy_core::Result;
-use nvisy_core::ValueAt;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Audio, Image, Overlap, Tabular, Text};
+use nvisy_core::{Result, ValueAt};
 use nvisy_toolkit::deduplication::{FilterParams, LayerContext, LayerPipeline, SpanSize};
 use tracing::Instrument;
 use uuid::Uuid;
@@ -85,9 +84,17 @@ impl DeduplicationPhase {
     {
         let span = tracing::info_span!(target: TARGET, "phase", name = "deduplication");
         let run_id = ctx.shared().run_id;
-        async move { dedup_one(tree, &input.plan.deduplication, &input.plan.detection, run_id).await }
-            .instrument(span)
+        async move {
+            dedup_one(
+                tree,
+                &input.plan.deduplication,
+                &input.plan.detection,
+                run_id,
+            )
             .await
+        }
+        .instrument(span)
+        .await
     }
 }
 

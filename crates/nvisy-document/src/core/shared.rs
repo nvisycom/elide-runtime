@@ -34,13 +34,13 @@ pub struct SharedData {
     pub registry: Registry,
     /// Codec registry resolving file extensions / content types to
     /// the appropriate per-format loader. Importers call into this
-    /// to decode raw bytes into a typed [`DocumentHandle<M>`][dh].
+    /// to decode raw bytes into a typed [`DocumentHandle<M>`].
     ///
     /// Built once at engine construction with
     /// [`CodecRegistry::builtins`] so every importer in the run
     /// shares the same set of registered formats.
     ///
-    /// [dh]: nvisy_codec::DocumentHandle
+    /// [`DocumentHandle<M>`]: nvisy_codec::DocumentHandle
     pub codec_registry: CodecRegistry,
     /// Key provider for encryption/decryption.
     pub key_provider: SharedKeyProvider,

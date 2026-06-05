@@ -8,15 +8,15 @@
 //!
 //! Embedded image extraction (figures, page rasterization for OCR)
 //! lives on inherent methods rather than `Handle<Image>` — see
-//! [`render_pages`][rp] and [`extract_embedded_images`][eei]. These
+//! [`render_pages`] and [`extract_embedded_images`]. These
 //! return [`DocumentHandle<Image>`] values backed by PNG bytes so
 //! downstream extractors can route them through the standard image
 //! pipeline.
 //!
 //! [`Handle<Text>`]: nvisy_codec::core::Handle
 //! [`IndexedHandle<Text>`]: nvisy_codec::core::IndexedHandle
-//! [rp]: PdfHandler::render_pages
-//! [eei]: PdfHandler::extract_embedded_images
+//! [`render_pages`]: PdfHandler::render_pages
+//! [`extract_embedded_images`]: PdfHandler::extract_embedded_images
 
 use std::sync::Arc;
 

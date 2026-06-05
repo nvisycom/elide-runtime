@@ -89,14 +89,14 @@ pub trait DocumentModality: Modality + Redactable + Codable {
     /// arms resolve through the toolkit-side
     /// [`RedactionRegistry<Self>`].
     ///
-    /// The serde + schemars bounds let [`Policy<Self>`][p] /
-    /// [`PolicyRule<Self>`][pr] derive Serialize / Deserialize /
+    /// The serde + schemars bounds let [`Policy<Self>`] /
+    /// [`PolicyRule<Self>`] derive Serialize / Deserialize /
     /// JsonSchema transparently across all four modalities — the
     /// per-modality enum types meet them naturally.
     ///
     /// [`RedactionRegistry<Self>`]: nvisy_toolkit::redaction::RedactionRegistry
-    /// [p]: crate::policy::Policy
-    /// [pr]: crate::policy::PolicyRule
+    /// [`Policy<Self>`]: crate::policy::Policy
+    /// [`PolicyRule<Self>`]: crate::policy::PolicyRule
     type Redaction: Clone
         + Debug
         + PartialEq

@@ -2,14 +2,14 @@
 //! structs (PNG, JPEG, TIFF — anything backed by one
 //! `image::DynamicImage` + a `ContentSource`).
 //!
-//! Generates the [`Handler`][h], [`Handle<Image>`][hi],
-//! [`IndexedHandle<Image>`][ih] impls plus inherent constructors and a
+//! Generates the [`Handler`], [`Handle<Image>`],
+//! [`IndexedHandle<Image>`] impls plus inherent constructors and a
 //! `pub fn format() -> Format` descriptor that registers with
 //! [`nvisy_codec::CodecRegistry`].
 //!
-//! [h]: nvisy_codec::handler::Handler
-//! [hi]: nvisy_codec::core::Handle
-//! [ih]: nvisy_codec::core::IndexedHandle
+//! [`Handler`]: nvisy_codec::handler::Handler
+//! [`Handle<Image>`]: nvisy_codec::core::Handle
+//! [`IndexedHandle<Image>`]: nvisy_codec::core::IndexedHandle
 
 /// Implement [`Handler`] + [`Handle<Image>`] + [`IndexedHandle<Image>`]
 /// + inherent methods for an image handler struct that holds a single
@@ -191,10 +191,10 @@ macro_rules! impl_image_handler {
                 &self.image
             }
 
-            /// Rewind the streaming cursor so [`next_chunk`][nc] yields
+            /// Rewind the streaming cursor so [`next_chunk`] yields
             /// the full-image chunk again.
             ///
-            /// [nc]: ::nvisy_codec::core::Handle::next_chunk
+            /// [`next_chunk`]: ::nvisy_codec::core::Handle::next_chunk
             pub fn rewind(&mut self) {
                 self.yielded = false;
             }

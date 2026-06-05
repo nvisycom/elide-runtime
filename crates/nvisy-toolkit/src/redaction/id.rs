@@ -6,8 +6,8 @@
 //! a `AnonymizerId<Text>` cannot be handed to the image registry.
 //!
 //! The built-in operators bundled with the toolkit
-//! ([`Replace`][r], [`Mask`][m], [`Hash`][h], [`Redact`][rd],
-//! [`Keep`][k], [`Encrypt`][e]) do **not** carry an `AnonymizerId` —
+//! ([`Replace`], [`Mask`], [`Hash`], [`Redact`],
+//! [`Keep`], [`Encrypt`]) do **not** carry an `AnonymizerId` —
 //! they are instantiated per-call from policy-supplied params and
 //! never round-trip through the registry. `AnonymizerId` exists
 //! solely for the `Custom` escape hatch used to plug stateful Rust
@@ -16,12 +16,12 @@
 //!
 //! [`Anonymizer<M>`]: super::Anonymizer
 //! [`RedactionRegistry<M>`]: super::RedactionRegistry
-//! [r]: super::builtin::Replace
-//! [m]: super::builtin::Mask
-//! [h]: super::builtin::Hash
-//! [rd]: super::builtin::Redact
-//! [k]: super::builtin::Keep
-//! [e]: super::builtin::Encrypt
+//! [`Replace`]: super::builtin::Replace
+//! [`Mask`]: super::builtin::Mask
+//! [`Hash`]: super::builtin::Hash
+//! [`Redact`]: super::builtin::Redact
+//! [`Keep`]: super::builtin::Keep
+//! [`Encrypt`]: super::builtin::Encrypt
 
 use std::borrow::Cow;
 use std::fmt::{self, Debug, Display};

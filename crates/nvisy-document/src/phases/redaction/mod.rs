@@ -34,13 +34,12 @@
 pub mod phase;
 mod registries;
 
-use nvisy_core::Result;
-use nvisy_core::ValueAt;
 use nvisy_core::content::ContentMetadata;
 use nvisy_core::entity::is_excluded;
 use nvisy_core::extraction::SourceAt;
 use nvisy_core::modality::{ModalityData, Overlap};
 use nvisy_core::primitive::ConfidenceThreshold;
+use nvisy_core::{Result, ValueAt};
 use nvisy_toolkit::redaction::RedactionRegistry;
 
 pub use self::registries::RedactionRegistries;

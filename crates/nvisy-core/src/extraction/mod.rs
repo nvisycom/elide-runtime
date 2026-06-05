@@ -17,11 +17,10 @@
 //!   layer, validation check) bounds on to read source *text* at a
 //!   per-modality location.
 //! - [`SourceAt`] — sibling trait returning the full per-modality
-//!   [`M::Data`][md] payload an `Anonymizer<M>` operates on; bounded
+//!   [`M::Data`] payload an `Anonymizer<M>` operates on; bounded
 //!   by the redaction phase.
 //!
-//! [md]: crate::modality::ModalityData::Data
-//!
+//! [`M::Data`]: crate::modality::ModalityData::Data
 //! [`EntityRecognizer`]: crate::EntityRecognizer
 
 mod artifacts;

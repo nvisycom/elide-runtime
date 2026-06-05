@@ -14,13 +14,13 @@
 //!
 //! # Ordering
 //!
-//! The engine makes no ordering guarantee. [`IndexedHandle::redact`][r]
+//! The engine makes no ordering guarantee. [`IndexedHandle::redact`]
 //! implementations reorder the batch as needed (right-to-left for text
 //! or audio so earlier shifts don't invalidate later coordinates,
 //! batched per page for PDF, …). Callers that need a single redaction
 //! build a one-element batch with [`Redactions::single`].
 //!
-//! [r]: crate::core::IndexedHandle::redact
+//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
 
 use std::fmt;
 

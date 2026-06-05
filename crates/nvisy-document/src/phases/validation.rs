@@ -18,9 +18,7 @@ use tracing::Instrument;
 
 use crate::core::{DocumentTree, RunContext};
 use crate::pipeline::EngineInput;
-use crate::validation::{
-    CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity,
-};
+use crate::validation::{CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity};
 
 const TARGET: &str = "nvisy_engine::validation";
 

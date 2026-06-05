@@ -1,7 +1,7 @@
 //! [`FormatId`]: stable identifier for a registered codec format.
 //!
 //! Open string namespace — downstream crates ship their own formats
-//! by registering a [`Format`][f] descriptor with a unique
+//! by registering a [`Format`] descriptor with a unique
 //! [`FormatId`].
 //!
 //! Convention: dot-separated namespace. Built-in formats use the
@@ -9,7 +9,7 @@
 //! Third-party formats use their own namespace
 //! (e.g. `"acme.parquet.v2"`).
 //!
-//! [f]: crate::Format
+//! [`Format`]: crate::Format
 
 use std::borrow::Cow;
 use std::fmt;

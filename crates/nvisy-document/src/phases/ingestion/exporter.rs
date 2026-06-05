@@ -62,11 +62,7 @@ impl Exporter {
         }
     }
 
-    async fn export_one<M>(
-        &self,
-        tree: &DocumentTree<M>,
-        shared: &Arc<SharedData>,
-    ) -> Result<()>
+    async fn export_one<M>(&self, tree: &DocumentTree<M>, shared: &Arc<SharedData>) -> Result<()>
     where
         M: DocumentModality + Codable,
     {

@@ -32,10 +32,10 @@ pub struct ContentMetadata {
     pub detected_content_type: Option<String>,
     /// Original filename, if known (e.g. from upload or file path).
     ///
-    /// Used by [`CodecRegistry`][cr] for extension-based format
+    /// Used by [`CodecRegistry`] for extension-based format
     /// resolution.
     ///
-    /// [cr]: nvisy_codec::CodecRegistry
+    /// [`CodecRegistry`]: nvisy_codec::CodecRegistry
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filename: Option<PathBuf>,
     /// Content size in bytes, persisted at upload.

@@ -3,10 +3,10 @@
 //! [`ImageFormat`] / [`AudioFormat`] are useful when a piece of code
 //! needs to know "what kind of bytes is this" without going through a
 //! full codec handler — for example, the OCR backend's
-//! [`ImageInput`][ii] attaches one of these to the raw bytes it sends
+//! [`ImageInput`] attaches one of these to the raw bytes it sends
 //! over the wire so the backend knows how to decode.
 //!
-//! [ii]: nvisy_ocr::ImageInput
+//! [`ImageInput`]: nvisy_ocr::ImageInput
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

@@ -3,9 +3,8 @@
 //!
 //! No tabular operators exist yet in the toolkit, but the enum
 //! exists so policy schemas can be parameterised uniformly over all
-//! four modalities. Only [`Custom`][c] is implementable today.
-//!
-//! [c]: TabularRedaction::Custom
+//! four modalities. Only [`TabularRedaction::Custom`] is
+//! implementable today.
 
 use nvisy_core::modality::Tabular;
 use nvisy_toolkit::redaction::AnonymizerId;

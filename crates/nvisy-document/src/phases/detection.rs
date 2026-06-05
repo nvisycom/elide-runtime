@@ -82,8 +82,14 @@ impl DetectionPhase {
         let cfg = &input.plan.detection;
         async move {
             detect_text_blocks(&self.registry, &mut tree.root, cfg, run_id).await?;
-            detect_image_chunks(&self.registry, &mut tree.root, tree.handle.handler_mut(), cfg, run_id)
-                .await?;
+            detect_image_chunks(
+                &self.registry,
+                &mut tree.root,
+                tree.handle.handler_mut(),
+                cfg,
+                run_id,
+            )
+            .await?;
             self.registry.reset().await;
             Ok(())
         }

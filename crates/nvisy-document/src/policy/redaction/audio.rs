@@ -2,11 +2,11 @@
 //! rule carries.
 //!
 //! The toolkit ships no built-in audio operators yet, so the only
-//! variant today is [`Custom`][c] — deployments register their own
-//! audio anonymisers (silence, white-noise, beep, …) on the
-//! [`RedactionRegistry<Audio>`] and reference them by id.
+//! variant today is [`AudioRedaction::Custom`] — deployments
+//! register their own audio anonymisers (silence, white-noise,
+//! beep, …) on the [`RedactionRegistry<Audio>`] and reference them
+//! by id.
 //!
-//! [c]: AudioRedaction::Custom
 //! [`RedactionRegistry<Audio>`]: nvisy_toolkit::redaction::RedactionRegistry
 
 use nvisy_core::modality::Audio;

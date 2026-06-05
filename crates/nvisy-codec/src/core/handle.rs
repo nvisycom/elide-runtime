@@ -3,13 +3,13 @@
 //!
 //! [`Codable`] extends [`Modality`] with the wire types the codec
 //! exchanges for that modality — the per-location `Data` payload
-//! ([`TextData`][td] / [`ImageData`][id] / [`AudioData`][ad]) and the
+//! ([`TextData`] / [`ImageData`] / [`AudioData`]) and the
 //! per-location `Redaction` instruction
-//! ([`TextRedaction`][tr] / [`ImageRedaction`][ir] / …).
+//! ([`TextRedaction`] / [`ImageRedaction`] / …).
 //!
 //! [`Handle<M>`] is the **streaming-default** per-modality capability
 //! trait every format handler implements. It exposes a single
-//! [`next_chunk`][nc] method: handlers yield decoded
+//! [`next_chunk`] method: handlers yield decoded
 //! `(location, data, [embed])` chunks as they advance through the
 //! underlying bytes. The handler owns the cursor.
 //!
@@ -20,19 +20,18 @@
 //!
 //! [`EmbeddedHandles`] is the **rich-format capability**: a text
 //! handler whose chunks reference embedded image (or other modality)
-//! handles exposes them via [`get`][eg]. Each embedded handle is a
-//! first-class [`UntypedDocumentHandle`][udh] with its own source
-//! identity and cursor — the rich handler does **not** implement
-//! multiple `Handle<M>` traits itself.
+//! handles exposes them via [`EmbeddedHandles::get`]. Each embedded
+//! handle is a first-class [`UntypedDocumentHandle`] with its own
+//! source identity and cursor — the rich handler does **not**
+//! implement multiple `Handle<M>` traits itself.
 //!
-//! [td]: crate::handler::TextData
-//! [id]: crate::handler::ImageData
-//! [ad]: crate::handler::AudioData
-//! [tr]: crate::handler::TextRedaction
-//! [ir]: crate::handler::ImageRedaction
-//! [nc]: Handle::next_chunk
-//! [eg]: EmbeddedHandles::get
-//! [udh]: crate::document::UntypedDocumentHandle
+//! [`TextData`]: crate::handler::TextData
+//! [`ImageData`]: crate::handler::ImageData
+//! [`AudioData`]: crate::handler::AudioData
+//! [`TextRedaction`]: crate::handler::TextRedaction
+//! [`ImageRedaction`]: crate::handler::ImageRedaction
+//! [`next_chunk`]: Handle::next_chunk
+//! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
 //! [`Modality`]: nvisy_core::modality::Modality
 
 use std::fmt;
@@ -54,19 +53,19 @@ use crate::handler::Handler;
 pub trait Codable: ModalityData {
     /// Runtime tag for this modality. Used by the codec registry to
     /// erase a typed [`crate::DocumentHandle`] into an
-    /// [`UntypedDocumentHandle`][udh] variant.
+    /// [`UntypedDocumentHandle`] variant.
     ///
-    /// [udh]: crate::document::UntypedDocumentHandle
+    /// [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
     const KIND: ModalityKind;
 
     /// Per-location byte-write instruction the codec applies during
     /// [`IndexedHandle::redact`]. Distinct from the document-side
-    /// policy [`Redaction`][r] enum that names *what* the user wants
-    /// redacted: this type is the *result* of running the resolved
-    /// anonymizer, ready for the codec to write into the underlying
-    /// bytes.
+    /// policy [`DocumentModality::Redaction`] enum that names *what*
+    /// the user wants redacted: this type is the *result* of running
+    /// the resolved anonymizer, ready for the codec to write into
+    /// the underlying bytes.
     ///
-    /// [r]: nvisy_document::modality::DocumentModality::Redaction
+    /// [`DocumentModality::Redaction`]: nvisy_document::modality::DocumentModality::Redaction
     type Instruction: Send + Sync + 'static;
 }
 
@@ -149,13 +148,13 @@ pub trait Handle<M: Codable>: Handler {
 #[async_trait::async_trait]
 pub trait IndexedHandle<M: Codable>: Handle<M> {
     /// Read the wire payload at the given location. Used by
-    /// [`ValueAt`][va] resolvers to fetch bytes for a coordinate
-    /// already known from somewhere else (an entity audit record, an
+    /// [`ValueAt`] resolvers to fetch bytes for a coordinate already
+    /// known from somewhere else (an entity audit record, an
     /// annotation). Extraction itself does not call this — it drives
     /// [`Handle::next_chunk`] which returns `(location, data)`
     /// together.
     ///
-    /// [va]: nvisy_core::ValueAt
+    /// [`ValueAt`]: nvisy_core::ValueAt
     async fn read(&self, location: &M::Location) -> Result<Option<M::Data>, Error>;
 
     /// Apply a batch of `(location, redaction)` pairs in whatever
@@ -175,17 +174,16 @@ pub trait IndexedHandle<M: Codable>: Handle<M> {
 /// chunks reference embedded child handles.
 ///
 /// A primary handler that emits [`Chunk`]s with
-/// [`embed = Some(id)`][ce] implements this trait so consumers can
+/// [`Chunk::embed`] set implements this trait so consumers can
 /// resolve the referenced handle on demand. Embedded handles are
-/// **first-class** [`UntypedDocumentHandle`][udh]s — they carry their
+/// **first-class** [`UntypedDocumentHandle`]s — they carry their
 /// own source identity, format, and cursor.
 ///
 /// Lookup is lazy: implementations decode the referenced child on
 /// demand, so a 500-page PDF with 2000 images does not pay the
 /// extraction cost until a consumer asks for a specific image.
 ///
-/// [ce]: Chunk::embed
-/// [udh]: crate::document::UntypedDocumentHandle
+/// [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
 pub trait EmbeddedHandles: Send + Sync {
     /// Resolve an embedded child handle. Returns `None` if the id was
     /// never issued by this handler or the child can no longer be

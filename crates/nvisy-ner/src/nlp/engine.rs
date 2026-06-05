@@ -2,13 +2,14 @@
 //! shared-NLP-pass [`TypeMap`] for one or more texts.
 //!
 //! Engines stamp typed enrichment entries —
-//! [`LanguageDetections`](nvisy_core::primitive::LanguageDetections)
-//! and [`Tokens`](nvisy_core::context::Tokens) — into the returned
+//! [`LanguageDetections`] and [`Tokens`] — into the returned
 //! `TypeMap`. An orchestrator that wants shared NLP runs
 //! `process` once per scan, wraps the result in [`Artifacts`], and
 //! attaches it to each [`RecognizerInput`] via
 //! [`RecognizerInput::with_artifacts`].
 //!
+//! [`LanguageDetections`]: nvisy_core::primitive::LanguageDetections
+//! [`Tokens`]: nvisy_core::context::Tokens
 //! [`Artifacts`]: nvisy_core::Artifacts
 //! [`RecognizerInput`]: nvisy_core::RecognizerInput
 //! [`RecognizerInput::with_artifacts`]: nvisy_core::RecognizerInput::with_artifacts

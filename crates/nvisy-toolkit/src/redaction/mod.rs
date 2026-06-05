@@ -7,8 +7,8 @@
 //! - The [`Anonymizer<M>`] / [`Deanonymizer<M>`] traits operators
 //!   implement.
 //! - A catalogue of built-in operator structs in [`builtin`]
-//!   ([`Replace`][r], [`Mask`][m], [`Hash`][h], [`Redact`][rd],
-//!   [`Keep`][k], [`Encrypt`][e]). Each is a plain struct; consumers
+//!   ([`Replace`], [`Mask`], [`Hash`], [`Redact`],
+//!   [`Keep`], [`Encrypt`]). Each is a plain struct; consumers
 //!   construct one per rule with whatever params they need.
 //! - [`AnonymizerId<M>`] + [`RedactionRegistry<M>`] for the
 //!   `Custom` escape hatch: stateful Rust operators (KMS clients,
@@ -25,12 +25,12 @@
 //! inline) or a `Custom(AnonymizerId<M>)` (looked up in the
 //! registry).
 //!
-//! [r]: builtin::Replace
-//! [m]: builtin::Mask
-//! [h]: builtin::Hash
-//! [rd]: builtin::Redact
-//! [k]: builtin::Keep
-//! [e]: builtin::Encrypt
+//! [`Replace`]: builtin::Replace
+//! [`Mask`]: builtin::Mask
+//! [`Hash`]: builtin::Hash
+//! [`Redact`]: builtin::Redact
+//! [`Keep`]: builtin::Keep
+//! [`Encrypt`]: builtin::Encrypt
 
 mod anonymizer;
 mod deanonymizer;

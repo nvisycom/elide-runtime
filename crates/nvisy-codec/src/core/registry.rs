@@ -150,10 +150,10 @@ pub struct CodecRegistry {
 }
 
 impl CodecRegistry {
-    /// Empty registry. Use [`register`][r] to populate it, or call a
+    /// Empty registry. Use [`register`] to populate it, or call a
     /// crate-level boot helper that registers every built-in format.
     ///
-    /// [r]: Self::register
+    /// [`register`]: Self::register
     pub fn new() -> Self {
         Self::default()
     }

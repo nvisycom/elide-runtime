@@ -3,7 +3,7 @@
 //!
 //! Built once at startup by deployment code. Holds *only* the custom
 //! operators users plug in to extend the closed set of built-ins —
-//! the built-in operators ([`Replace`][r], [`Mask`][m], …) are
+//! the built-in operators ([`Replace`], [`Mask`], …) are
 //! instantiated per-call from the policy's operator-spec enum and
 //! never live here.
 //!
@@ -18,8 +18,8 @@
 //! ```
 //!
 //! [`Anonymizer<M>`]: super::Anonymizer
-//! [r]: super::builtin::Replace
-//! [m]: super::builtin::Mask
+//! [`Replace`]: super::builtin::Replace
+//! [`Mask`]: super::builtin::Mask
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -39,8 +39,10 @@ pub struct RedactionRegistry<M: Redactable + ModalityData> {
 }
 
 impl<M: Redactable + ModalityData> RedactionRegistry<M> {
-    /// Build an empty registry. Use [`insert`][Self::insert] to
-    /// register custom operators.
+    /// Build an empty registry. Use [`insert`] to register custom
+    /// operators.
+    ///
+    /// [`insert`]: Self::insert
     #[must_use]
     pub fn new() -> Self {
         Self {

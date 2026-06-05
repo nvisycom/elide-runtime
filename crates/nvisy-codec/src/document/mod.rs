@@ -11,13 +11,13 @@
 //! `Arc<dyn Handle<M>>` + the [`FormatId`].
 //!
 //! Consumers downstream of decode commit to a modality via the
-//! consuming accessors ([`into_text`][it], [`into_image`][ii], …),
+//! consuming accessors ([`into_text`], [`into_image`], …),
 //! which yield a [`DocumentHandle<M>`] — a typed wrapper that owns
 //! the underlying [`Handle<M>`] and exposes the per-modality
 //! capability surface without further dispatch.
 //!
-//! [it]: UntypedDocumentHandle::into_text
-//! [ii]: UntypedDocumentHandle::into_image
+//! [`into_text`]: UntypedDocumentHandle::into_text
+//! [`into_image`]: UntypedDocumentHandle::into_image
 
 #[cfg(feature = "audio")]
 use nvisy_core::modality::Audio;
@@ -35,15 +35,15 @@ use crate::core::{Codable, FormatId, IndexedHandle};
 /// underlying [`Handle<M>`] for some `M` along with the
 /// [`FormatId`] of the producing loader.
 ///
-/// Commit to a modality via [`into_text`][it] / [`into_image`][ii] /
-/// [`into_audio`][ia] / [`into_tabular`][itb] to obtain a typed
+/// Commit to a modality via [`into_text`] / [`into_image`] /
+/// [`into_audio`] / [`into_tabular`] to obtain a typed
 /// [`DocumentHandle<M>`]. The accessors are consuming — once you
 /// commit to a modality, the untyped form is gone.
 ///
-/// [it]: Self::into_text
-/// [ii]: Self::into_image
-/// [ia]: Self::into_audio
-/// [itb]: Self::into_tabular
+/// [`into_text`]: Self::into_text
+/// [`into_image`]: Self::into_image
+/// [`into_audio`]: Self::into_audio
+/// [`into_tabular`]: Self::into_tabular
 #[derive(Debug)]
 pub enum UntypedDocumentHandle {
     #[cfg(feature = "text")]
@@ -180,19 +180,19 @@ impl<M: Codable> DocumentHandle<M> {
     }
 
     /// Borrow the inner handler. Use this for read-only capability
-    /// methods ([`IndexedHandle::read`][ir]).
+    /// methods ([`IndexedHandle::read`]).
     ///
-    /// [ir]: crate::core::IndexedHandle::read
+    /// [`IndexedHandle::read`]: crate::core::IndexedHandle::read
     pub fn handler(&self) -> &dyn IndexedHandle<M> {
         &*self.handler
     }
 
     /// Mutably borrow the inner handler. Use this for cursor-advancing
-    /// methods ([`Handle::next_chunk`][nc]) and the redaction batch
-    /// applicator ([`IndexedHandle::redact`][rd]).
+    /// methods ([`Handle::next_chunk`]) and the redaction batch
+    /// applicator ([`IndexedHandle::redact`]).
     ///
-    /// [nc]: crate::core::Handle::next_chunk
-    /// [rd]: crate::core::IndexedHandle::redact
+    /// [`Handle::next_chunk`]: crate::core::Handle::next_chunk
+    /// [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
     pub fn handler_mut(&mut self) -> &mut dyn IndexedHandle<M> {
         &mut *self.handler
     }

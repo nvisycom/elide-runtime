@@ -4,7 +4,7 @@
 //!
 //! Producers (language-detection backends in `nvisy-ner` and other
 //! NLP crates) construct one of these for the text they scan and
-//! insert it on an [`Artifacts`][a] map; consumers that care about
+//! insert it on an [`Artifacts`] map; consumers that care about
 //! language (recognizers gating on a language hint, per-language
 //! stopword resolution) fetch by type.
 //!
@@ -12,7 +12,7 @@
 //! multi-language documents store one entry per language with the
 //! byte range covered.
 //!
-//! [a]: crate::extraction::Artifacts
+//! [`Artifacts`]: crate::extraction::Artifacts
 
 use super::LanguageDetection;
 

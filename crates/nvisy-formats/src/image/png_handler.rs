@@ -10,11 +10,11 @@ use nvisy_core::content::ContentSource;
 use super::PngLoader;
 
 /// Handler for loaded PNG content. Stores the decoded
-/// [`DynamicImage`][di] directly; raw PNG bytes are produced on
-/// demand by [`Handler::encode`][he].
+/// [`DynamicImage`] directly; raw PNG bytes are produced on
+/// demand by [`Handler::encode`].
 ///
-/// [di]: image::DynamicImage
-/// [he]: nvisy_codec::handler::Handler::encode
+/// [`DynamicImage`]: image::DynamicImage
+/// [`Handler::encode`]: nvisy_codec::handler::Handler::encode
 #[derive(Debug)]
 pub struct PngHandler {
     source: ContentSource,

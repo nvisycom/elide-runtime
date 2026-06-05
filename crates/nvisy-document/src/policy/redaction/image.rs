@@ -2,11 +2,11 @@
 //! rule carries.
 //!
 //! The toolkit ships no built-in image operators yet, so the only
-//! variant today is [`Custom`][c] — deployments register their own
-//! image anonymisers (blur, pixelate, blackbox, …) on the
-//! [`RedactionRegistry<Image>`] and reference them by id.
+//! variant today is [`ImageRedaction::Custom`] — deployments
+//! register their own image anonymisers (blur, pixelate,
+//! blackbox, …) on the [`RedactionRegistry<Image>`] and reference
+//! them by id.
 //!
-//! [c]: ImageRedaction::Custom
 //! [`RedactionRegistry<Image>`]: nvisy_toolkit::redaction::RedactionRegistry
 
 use nvisy_core::modality::Image;

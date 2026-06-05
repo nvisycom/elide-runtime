@@ -65,14 +65,14 @@ pub trait Handler: Send + Sync + 'static {
     fn encode(&self) -> Result<ContentData, Error>;
 
     /// Embedded-child accessor for rich formats (PDF, DOCX) whose
-    /// chunks reference inner [`UntypedDocumentHandle`][udh] handles.
+    /// chunks reference inner [`UntypedDocumentHandle`] handles.
     /// Returns `None` for leaf formats — the default — so only rich
     /// handlers need to override.
     ///
     /// The engine importer walks this to build the embed tree under
     /// the root document, without an `Any` downcast at the call site.
     ///
-    /// [udh]: crate::document::UntypedDocumentHandle
+    /// [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
     fn embedded(&self) -> Option<&dyn EmbeddedHandles> {
         None
     }
@@ -82,13 +82,13 @@ pub trait Handler: Send + Sync + 'static {
 ///
 /// A loader validates and parses raw content for modality `M`,
 /// producing a handler that implements [`IndexedHandle<M>`] (which
-/// in turn implies [`Handle<M>`][h]). Loaders are the leaves the
-/// [`CodecRegistry`][cr] composes — registering a format means
+/// in turn implies [`Handle<M>`]). Loaders are the leaves the
+/// [`CodecRegistry`] composes — registering a format means
 /// registering its loader.
 ///
-/// [h]: crate::core::Handle
+/// [`Handle<M>`]: crate::core::Handle
 /// [`IndexedHandle<M>`]: crate::core::IndexedHandle
-/// [cr]: crate::CodecRegistry
+/// [`CodecRegistry`]: crate::CodecRegistry
 #[async_trait::async_trait]
 pub trait Loader<M: Codable>: Send + Sync + 'static {
     /// The handler type this loader produces.

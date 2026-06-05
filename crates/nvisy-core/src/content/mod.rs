@@ -8,10 +8,10 @@
 //! - [`ImageFormat`] / [`AudioFormat`]: small per-modality format tags
 //!   used outside the codec layer (notably the OCR backend wire shape)
 //!
-//! Top-level format classification lives on [`FormatId`][fi] in
+//! Top-level format classification lives on [`FormatId`] in
 //! `nvisy-codec`.
 //!
-//! [fi]: nvisy_codec::FormatId
+//! [`FormatId`]: nvisy_codec::FormatId
 
 mod bundle;
 mod content_data;

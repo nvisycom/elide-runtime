@@ -13,21 +13,21 @@
 //!   decode dispatch.
 //! - [`Format`] — descriptor a [`CodecRegistry`] indexes.
 //! - [`ErasedLoader`] + [`LoaderAdapter`] — object-safe loader surface
-//!   adapting per-modality [`Loader<M>`][lm] impls.
+//!   adapting per-modality [`Loader<M>`] impls.
 //! - [`WrapUntyped`] — modality-specific erase into
-//!   [`UntypedDocumentHandle`][udh].
+//!   [`UntypedDocumentHandle`].
 //! - [`Redactions<S, R>`] — `(location, redaction)` pair list handed
 //!   from the engine to a codec.
 //!
-//! Base traits ([`Handler`], [`Loader<M>`][lm]) live in
+//! Base traits ([`Handler`], [`Loader<M>`]) live in
 //! [`crate::handler`], next to the concrete per-modality wire types
 //! implementing them. Concrete per-modality wire types (`TextData`,
 //! `TextRedaction`, `ImageData`, …) live in [`crate::handler`];
 //! concrete format handlers live in `nvisy-formats`.
 //!
 //! [`Handler`]: crate::handler::Handler
-//! [lm]: crate::handler::Loader
-//! [udh]: crate::document::UntypedDocumentHandle
+//! [`Loader<M>`]: crate::handler::Loader
+//! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
 
 mod format;
 mod handle;

@@ -19,13 +19,13 @@ use nvisy_codec::CodecRegistry;
 /// [`CodecRegistry`]. Bring it into scope with
 /// `use nvisy_formats::CodecRegistryExt;`.
 ///
-/// - [`builtins`][b] — fresh registry preloaded with every built-in
+/// - [`builtins`] — fresh registry preloaded with every built-in
 ///   format the active feature set enables.
-/// - [`with_builtins`][wb] — builder form: adds the built-ins to an
+/// - [`with_builtins`] — builder form: adds the built-ins to an
 ///   existing registry (typically pre-seeded with custom formats).
 ///
-/// [b]: CodecRegistryExt::builtins
-/// [wb]: CodecRegistryExt::with_builtins
+/// [`builtins`]: CodecRegistryExt::builtins
+/// [`with_builtins`]: CodecRegistryExt::with_builtins
 pub trait CodecRegistryExt: Sized {
     /// Fresh [`CodecRegistry`] preloaded with every built-in format.
     fn builtins() -> Self;

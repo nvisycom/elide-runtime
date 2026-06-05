@@ -1,31 +1,30 @@
 //! [`TextRedaction`]: the operator spec a text-modality policy rule
 //! carries.
 //!
-//! Built-in variants ([`Replace`][r], [`Mask`][m], [`Hash`][h],
-//! [`Redact`][rd], [`Keep`][k]) are instantiated per-call from the
-//! params on the variant — no registry round-trip. [`Custom`][c]
-//! names a deployment-registered operator looked up in the
-//! [`RedactionRegistry<Text>`] at apply time.
+//! Built-in variants ([`Replace`], [`Mask`], [`Hash`],
+//! [`Redact`], [`Keep`]) are instantiated per-call from the
+//! params on the variant — no registry round-trip.
+//! [`TextRedaction::Custom`] names a deployment-registered operator
+//! looked up in the [`RedactionRegistry<Text>`] at apply time.
 //!
 //! ## Why no `Encrypt` variant?
 //!
-//! [`Encrypt`][e] needs 32 bytes of raw key material plus an
-//! [`Aes256Gcm`][gcm] instance. Putting either in a TOML / JSON wire
+//! [`Encrypt`] needs 32 bytes of raw key material plus an
+//! [`Aes256Gcm`] instance. Putting either in a TOML / JSON wire
 //! shape is unsafe (key leakage in version control, log dumps) and
 //! awkward (binary blobs in declarative config). Deployments that
-//! want reversible AES-256-GCM redaction build an [`Encrypt`][e] in
+//! want reversible AES-256-GCM redaction build an [`Encrypt`] in
 //! Rust code, register it as a custom anonymizer on the
 //! [`RedactionRegistry<Text>`], and reference it from policy with
 //! `{ kind = "custom", id = "..." }`.
 //!
-//! [r]: nvisy_toolkit::redaction::builtin::Replace
-//! [m]: nvisy_toolkit::redaction::builtin::Mask
-//! [h]: nvisy_toolkit::redaction::builtin::Hash
-//! [rd]: nvisy_toolkit::redaction::builtin::Redact
-//! [k]: nvisy_toolkit::redaction::builtin::Keep
-//! [e]: nvisy_toolkit::redaction::builtin::Encrypt
-//! [gcm]: https://docs.rs/aes-gcm
-//! [c]: TextRedaction::Custom
+//! [`Replace`]: nvisy_toolkit::redaction::builtin::Replace
+//! [`Mask`]: nvisy_toolkit::redaction::builtin::Mask
+//! [`Hash`]: nvisy_toolkit::redaction::builtin::Hash
+//! [`Redact`]: nvisy_toolkit::redaction::builtin::Redact
+//! [`Keep`]: nvisy_toolkit::redaction::builtin::Keep
+//! [`Encrypt`]: nvisy_toolkit::redaction::builtin::Encrypt
+//! [`Aes256Gcm`]: https://docs.rs/aes-gcm
 //! [`RedactionRegistry<Text>`]: nvisy_toolkit::redaction::RedactionRegistry
 
 use nvisy_core::modality::Text;

@@ -69,11 +69,7 @@ impl Importer {
     /// Decode `content` into a single-element `Vec<AnyTree>`. The
     /// vector shape is preserved so the orchestrator's collection
     /// loop stays uniform across import sources.
-    pub async fn import(
-        &self,
-        content: Content,
-        shared: &Arc<SharedData>,
-    ) -> Result<Vec<AnyTree>> {
+    pub async fn import(&self, content: Content, shared: &Arc<SharedData>) -> Result<Vec<AnyTree>> {
         let mut content = content;
 
         if let Some(algorithm) = self.decompression {
@@ -121,14 +117,15 @@ impl Importer {
 
 /// Resolve a format from the registry by extension (preferred) or
 /// MIME content type, then decode the raw bytes through its loader.
-async fn decode(
-    registry: &CodecRegistry,
-    content: &Content,
-) -> Result<UntypedDocumentHandle> {
+async fn decode(registry: &CodecRegistry, content: &Content) -> Result<UntypedDocumentHandle> {
     let format = content
         .file_extension()
         .and_then(|ext| registry.by_extension(ext))
-        .or_else(|| content.content_type().and_then(|ct| registry.by_content_type(ct)))
+        .or_else(|| {
+            content
+                .content_type()
+                .and_then(|ct| registry.by_content_type(ct))
+        })
         .ok_or_else(|| {
             Error::validation(
                 format!(
@@ -153,10 +150,7 @@ fn build_tree(
 ) -> AnyTree {
     match untyped {
         UntypedDocumentHandle::Text(handle) => {
-            let mut doc = Document::<Text>::new(
-                TextMetadata::from(TextExtraction::Native),
-                source,
-            );
+            let mut doc = Document::<Text>::new(TextMetadata::from(TextExtraction::Native), source);
             attach_annotations(
                 &mut doc,
                 mem::take(&mut annotations.text),
@@ -177,10 +171,8 @@ fn build_tree(
             AnyTree::Tabular(DocumentTree::new(doc, handle, metadata))
         }
         UntypedDocumentHandle::Image(handle) => {
-            let mut doc = Document::<Image>::new(
-                ImageMetadata::from(ImageExtraction::Pending),
-                source,
-            );
+            let mut doc =
+                Document::<Image>::new(ImageMetadata::from(ImageExtraction::Pending), source);
             attach_annotations(
                 &mut doc,
                 mem::take(&mut annotations.image),
@@ -189,10 +181,8 @@ fn build_tree(
             AnyTree::Image(DocumentTree::new(doc, handle, metadata))
         }
         UntypedDocumentHandle::Audio(handle) => {
-            let mut doc = Document::<Audio>::new(
-                AudioMetadata::from(AudioExtraction::Pending),
-                source,
-            );
+            let mut doc =
+                Document::<Audio>::new(AudioMetadata::from(AudioExtraction::Pending), source);
             attach_annotations(
                 &mut doc,
                 mem::take(&mut annotations.audio),

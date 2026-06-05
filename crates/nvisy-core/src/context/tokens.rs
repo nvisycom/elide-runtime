@@ -106,11 +106,10 @@ impl Token {
 ///
 /// Tokens are sorted by `offset.start` (producers should emit them
 /// in order; consumer-side code assumes this). The collection
-/// exposes byte-range lookup helpers the
-/// [`ContextEnhancer`][ce] uses to pull lemmas around an entity
-/// match.
+/// exposes byte-range lookup helpers the [`ContextEnhancer`] uses
+/// to pull lemmas around an entity match.
 ///
-/// [ce]: super::ContextEnhancer
+/// [`ContextEnhancer`]: super::ContextEnhancer
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Tokens(Vec<Token>);
 

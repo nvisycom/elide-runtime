@@ -7,7 +7,7 @@
 //! a codec-backed implementation had to invent its own adapter.
 //! `MemoryBuffer<M>` is the shipped adapter:
 //!
-//! - Owns its bytes via the underlying [`M::Data`][md] payload, so
+//! - Owns its bytes via the underlying [`M::Data`] payload, so
 //!   it can be both read from (`ValueAt`, `SourceAt`) and written
 //!   to (per-modality `redact` methods) without borrow-checker
 //!   gymnastics.
@@ -19,7 +19,7 @@
 //!   there's no tabular in-memory loader to ship, no tabular
 //!   anonymizer, and no `M::Data` to wrap.
 //!
-//! [md]: ModalityData::Data
+//! [`M::Data`]: ModalityData::Data
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`ValueAt`]: nvisy_core::extraction::ValueAt
 //! [`SourceAt`]: nvisy_core::extraction::SourceAt
@@ -41,11 +41,11 @@ const TARGET: &str = "nvisy_toolkit::ingestion::memory";
 
 /// Owned in-memory source buffer for modality `M`.
 ///
-/// Wraps the per-modality recognizer-input payload ([`M::Data`][md])
+/// Wraps the per-modality recognizer-input payload ([`M::Data`])
 /// so callers have one type that loads, reads, and (for text)
 /// rewrites.
 ///
-/// [md]: ModalityData::Data
+/// [`M::Data`]: ModalityData::Data
 #[derive(Debug, Clone)]
 pub struct MemoryBuffer<M: ModalityData>(pub M::Data);
 

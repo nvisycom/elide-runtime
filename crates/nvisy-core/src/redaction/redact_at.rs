@@ -13,13 +13,12 @@
 //! audio so earlier shifts don't invalidate later coordinates,
 //! batched per page for PDF, …).
 //!
-//! [`DataAt`]: super::DataAt
-//! [`TextAt`]: super::TextAt
+//! [`DataAt`]: crate::extraction::DataAt
+//! [`TextAt`]: crate::extraction::TextAt
 
-use super::Redactions;
 use crate::Result;
 use crate::modality::ModalityData;
-use crate::redaction::Redactable;
+use crate::redaction::{Redactable, Redactions};
 
 /// Apply a batch of `(location, replacement)` pairs to a per-modality
 /// source. Producer guarantees non-overlapping locations; the

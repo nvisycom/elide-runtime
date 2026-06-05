@@ -154,7 +154,7 @@ macro_rules! impl_image_handler {
 
             async fn redact(
                 &mut self,
-                redactions: ::nvisy_core::extraction::Redactions<
+                redactions: ::nvisy_core::redaction::Redactions<
                     ::nvisy_core::modality::Image,
                 >,
             ) -> ::std::result::Result<(), ::nvisy_core::Error> {

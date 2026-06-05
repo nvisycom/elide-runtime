@@ -27,10 +27,9 @@ use nvisy_codec::handler::Handler;
 use nvisy_codec::{DocumentHandle, Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
-use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{Image, ModalityKind, Text, TextData, TextLocation};
 use nvisy_core::primitive::Dpi;
-use nvisy_core::redaction::TextReplacement;
+use nvisy_core::redaction::{Redactions, TextReplacement};
 
 use super::PdfLoader;
 use super::pdf_render::PdfRenderer;

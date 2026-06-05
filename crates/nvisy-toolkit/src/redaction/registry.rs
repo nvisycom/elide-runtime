@@ -41,8 +41,8 @@ use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_core::entity::{Entity, EntityKind};
-use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::ModalityData;
+use nvisy_core::redaction::Redactions;
 
 use super::{Anonymizer, AnonymizerId, Redactable};
 
@@ -146,7 +146,7 @@ impl<M: Redactable + ModalityData> RedactionRegistry<M> {
     ///
     /// [`resolve`]: Self::resolve
     /// [`Anonymizer::apply`]: super::Anonymizer::apply
-    /// [`RedactAt<M>`]: nvisy_core::extraction::RedactAt
+    /// [`RedactAt<M>`]: nvisy_core::redaction::RedactAt
     pub async fn apply_all<'a, I>(&self, entities: I, source: &M::Data) -> Result<Redactions<M>>
     where
         I: IntoIterator<Item = &'a Entity<M>>,

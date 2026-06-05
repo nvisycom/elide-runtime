@@ -37,9 +37,8 @@
 use std::fmt;
 
 use nvisy_core::Error;
-use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{ModalityData, ModalityKind};
-use nvisy_core::redaction::Redactable;
+use nvisy_core::redaction::{Redactable, Redactions};
 use uuid::Uuid;
 
 use crate::handler::Handler;

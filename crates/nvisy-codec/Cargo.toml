@@ -21,15 +21,15 @@ documentation = { workspace = true }
 [features]
 default = ["text", "tabular"]
 
-## Text modality wire types: TextData, TextOutput, TextRedaction.
+## Text modality wire types: enables the `Codable for Text` impl.
 text = []
-## Tabular modality wire types: TabularRedaction.
-## Pulls in text infra for TextData (cell values are textual).
+## Tabular modality wire types: enables the `Codable for Tabular`
+## impl. Pulls in `text` because tabular cells are textual.
 tabular = ["text"]
-## Image modality wire types: ImageData, ImageOutput, ImageRedaction.
-## Pulls the `image` crate for `DynamicImage`.
-image = ["dep:image"]
-## Audio modality wire types: AudioData, AudioOutput, AudioRedaction.
+## Image modality wire types: enables the `Codable for Image` impl.
+image = []
+## Audio modality wire types: enables the `Codable for Audio` impl
+## and the `sort_redactions_for_audio` helper.
 audio = []
 
 [package.metadata.docs.rs]
@@ -40,9 +40,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Async runtime and parallelism
+# Async runtime
 async-trait = { workspace = true, features = [] }
-futures = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = [] }
@@ -50,18 +49,11 @@ serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
 # Primitive datatypes
-bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 
-# Derive macros and error handling
-derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "into", "into_iterator"] }
+# Error handling
 thiserror = { workspace = true, features = [] }
-
-# Image processing (feature-gated) — `DynamicImage` is referenced by
-# the image handler's wire types; the per-region pixel ops live in
-# `nvisy-formats` and pull `imageproc` themselves.
-image = { workspace = true, optional = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

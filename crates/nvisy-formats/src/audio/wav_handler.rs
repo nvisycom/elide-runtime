@@ -27,10 +27,9 @@ use nvisy_codec::handler::{Handler, sort_redactions_for_audio};
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
-use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{Audio, AudioData, AudioLocation, ModalityKind};
 use nvisy_core::primitive::TimeSpan;
-use nvisy_core::redaction::AudioReplacement;
+use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use super::{WavLoader, redact};
 

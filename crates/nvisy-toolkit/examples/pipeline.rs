@@ -14,9 +14,9 @@
 
 use nvisy_core::Result;
 use nvisy_core::entity::EntityKind;
-use nvisy_core::extraction::RedactAt;
 use nvisy_core::modality::Text;
 use nvisy_core::recognition::RecognizerInput;
+use nvisy_core::redaction::RedactAt;
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};
 use nvisy_toolkit::deduplication::{
     DeduplicationParams, FilterParams, LayerContext, LayerPipeline,

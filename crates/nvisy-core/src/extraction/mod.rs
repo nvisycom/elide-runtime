@@ -27,8 +27,6 @@ mod artifacts;
 mod data_at;
 mod modality;
 mod output;
-mod redact_at;
-mod redactions;
 mod span;
 mod text_at;
 
@@ -36,8 +34,6 @@ pub use self::artifacts::Artifacts;
 pub use self::data_at::DataAt;
 pub use self::modality::ModalityExtraction;
 pub use self::output::ExtractorOutput;
-pub use self::redact_at::RedactAt;
-pub use self::redactions::Redactions;
 pub use self::span::Span;
 pub use self::text_at::TextAt;
 use crate::Result;

@@ -13,8 +13,8 @@ use nvisy_codec::handler::{Handler, TabularHandle};
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
-use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{ModalityKind, Tabular, TabularLocation, TextData};
+use nvisy_core::redaction::Redactions;
 
 use super::XlsxLoader;
 

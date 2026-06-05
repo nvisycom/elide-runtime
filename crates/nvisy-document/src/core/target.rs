@@ -8,11 +8,12 @@
 //! ([`RedactAt::redact_at`]) always goes through the codec handle.
 
 use async_trait::async_trait;
-use nvisy_core::extraction::{DataAt, RedactAt, Redactions};
+use nvisy_core::extraction::DataAt;
 use nvisy_core::modality::{
     Audio, AudioData, AudioLocation, Image, ImageData, ImageLocation, Tabular, TabularLocation,
     Text, TextData, TextLocation,
 };
+use nvisy_core::redaction::{RedactAt, Redactions};
 use nvisy_core::{Result, TextAt};
 
 use super::DocumentTree;

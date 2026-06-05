@@ -19,7 +19,7 @@
 //!
 //! The `(location, replacement)` pair list passed to
 //! [`IndexedHandle::redact`] is
-//! [`nvisy_core::extraction::Redactions<M>`]; the per-modality
+//! [`nvisy_core::redaction::Redactions<M>`]; the per-modality
 //! replacement enum is [`nvisy_core::redaction`] — codec depends on
 //! core, not the reverse.
 //!

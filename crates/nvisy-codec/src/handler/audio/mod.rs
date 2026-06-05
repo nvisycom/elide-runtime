@@ -18,9 +18,8 @@
 
 use std::cmp::Reverse;
 
-use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{Audio, AudioLocation, ModalityKind};
-use nvisy_core::redaction::AudioReplacement;
+use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use crate::core::Codable;
 

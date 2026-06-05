@@ -3129,11 +3129,7 @@ name = "nvisy-codec"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "bytes",
- "derive_more",
- "futures",
  "hipstr",
- "image",
  "nvisy-core",
  "schemars 1.2.1",
  "serde",

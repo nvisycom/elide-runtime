@@ -29,13 +29,13 @@ use std::path::Path;
 
 use bytes::Bytes;
 use hipstr::HipStr;
-use nvisy_core::extraction::{DataAt, RedactAt, Redactions, TextAt};
+use nvisy_core::extraction::{DataAt, TextAt};
 use nvisy_core::modality::{
     Audio, AudioData, AudioLocation, Image, ImageData, ImageLocation, ModalityData, Text, TextData,
     TextLocation,
 };
 use nvisy_core::primitive::Dimensions;
-use nvisy_core::redaction::TextReplacement;
+use nvisy_core::redaction::{RedactAt, Redactions, TextReplacement};
 use nvisy_core::{Error, Result};
 
 const TARGET: &str = "nvisy_toolkit::ingestion::memory";

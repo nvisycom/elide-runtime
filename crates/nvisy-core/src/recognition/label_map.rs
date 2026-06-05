@@ -1,0 +1,136 @@
+//! [`LabelMap`]: model-label → [`EntityKind`] translation table.
+//!
+//! Shared translation table used by every model-driven recognizer
+//! (NER backends, LLM recognizers, …). Lets a recognizer consume
+//! raw model labels uniformly regardless of which backend produced
+//! them — swap backends without re-implementing translation.
+//!
+//! The map is bidirectional in spirit (look up an [`EntityKind`] to
+//! find the canonical label a backend should be asked for) but the
+//! primary path is label→kind. The reverse lookup is a linear
+//! scan; if a future backend needs frequent reverse lookups we'll
+//! cache both directions.
+
+use std::borrow::Cow;
+use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
+
+use crate::entity::EntityKind;
+
+/// Translation table from raw model labels to canonical
+/// [`EntityKind`] values.
+///
+/// The default ([`LabelMap::canonical`]) maps every `EntityKind`'s
+/// snake_case string form to itself, so backends that already
+/// return canonical labels (the Bento `inference-gliner` today)
+/// pass through unchanged. Custom backends register their own
+/// model-specific labels via [`with_entry`].
+///
+/// [`with_entry`]: Self::with_entry
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct LabelMap {
+    entries: HashMap<String, EntityKind>,
+}
+
+impl LabelMap {
+    /// Empty map. Backends with no recognizable labels see every
+    /// span dropped — typically you want
+    /// [`canonical`] instead.
+    ///
+    /// [`canonical`]: Self::canonical
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Identity map: every [`EntityKind`] mapped to its own
+    /// canonical snake_case label. Use when the backend already
+    /// returns canonical labels.
+    #[must_use]
+    pub fn canonical() -> Self {
+        let entries = EntityKind::iter()
+            .map(|kind| (kind.to_string(), kind))
+            .collect();
+        Self { entries }
+    }
+
+    /// Register one label→kind entry. Last write wins on duplicate
+    /// labels.
+    #[must_use]
+    pub fn with_entry(mut self, label: impl Into<Cow<'static, str>>, kind: EntityKind) -> Self {
+        self.entries.insert(label.into().into_owned(), kind);
+        self
+    }
+
+    /// Register many entries.
+    #[must_use]
+    pub fn with_entries<I, S>(mut self, entries: I) -> Self
+    where
+        I: IntoIterator<Item = (S, EntityKind)>,
+        S: Into<String>,
+    {
+        for (label, kind) in entries {
+            self.entries.insert(label.into(), kind);
+        }
+        self
+    }
+
+    /// Look up a raw label. `None` when not registered.
+    #[must_use]
+    pub fn lookup(&self, label: &str) -> Option<EntityKind> {
+        self.entries.get(label).copied()
+    }
+
+    /// Find a label string that maps to `kind`. Linear scan;
+    /// returns the first match. Used by zero-shot backends that
+    /// need to format requested-kinds as raw labels for the
+    /// service.
+    #[must_use]
+    pub fn label_for(&self, kind: EntityKind) -> Option<&str> {
+        self.entries
+            .iter()
+            .find_map(|(label, k)| (*k == kind).then_some(label.as_str()))
+    }
+
+    /// Number of registered entries.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether the map is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_map_resolves_known_labels() {
+        let map = LabelMap::canonical();
+        assert_eq!(map.lookup("email_address"), Some(EntityKind::EmailAddress));
+        assert_eq!(map.lookup("ssn"), None);
+    }
+
+    #[test]
+    fn custom_entries_override_canonical() {
+        let map = LabelMap::canonical().with_entry("PER", EntityKind::PersonName);
+        assert_eq!(map.lookup("PER"), Some(EntityKind::PersonName));
+    }
+
+    #[test]
+    fn label_for_round_trips() {
+        let map = LabelMap::canonical();
+        assert_eq!(
+            map.label_for(EntityKind::EmailAddress),
+            Some("email_address")
+        );
+    }
+}

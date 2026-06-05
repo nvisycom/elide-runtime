@@ -10,9 +10,9 @@
 use std::cell::RefCell;
 use std::sync::LazyLock;
 
-use nvisy_codec::handler::ImageData;
+use image::DynamicImage;
 use nvisy_core::Error;
-use nvisy_ontology::primitive::Dpi;
+use nvisy_core::primitive::Dpi;
 use pdfium_render::prelude::*;
 
 /// Dedicated single-thread pool for PDFium operations.
@@ -60,7 +60,7 @@ impl PdfRenderer {
     /// Dispatches work to a dedicated single-thread pool where the
     /// PDFium binding is lazily initialised and reused. A typical DPI
     /// value for OCR is [`Dpi::OCR`] (300).
-    pub fn parallel_render(pdf_bytes: &[u8], dpi: Dpi) -> Result<Vec<ImageData>, Error> {
+    pub fn parallel_render(pdf_bytes: &[u8], dpi: Dpi) -> Result<Vec<DynamicImage>, Error> {
         let bytes = pdf_bytes.to_vec();
 
         PDF_POOL.install(|| {
@@ -78,7 +78,7 @@ impl PdfRenderer {
     /// Iterates over all page objects across every page, collecting
     /// image objects via [`PdfPageImageObject::get_raw_image`]. Each
     /// image is paired with its 0-based sequential index.
-    pub fn extract_images(pdf_bytes: &[u8]) -> Result<Vec<ImageData>, Error> {
+    pub fn extract_images(pdf_bytes: &[u8]) -> Result<Vec<DynamicImage>, Error> {
         let bytes = pdf_bytes.to_vec();
 
         PDF_POOL.install(|| {
@@ -92,7 +92,7 @@ impl PdfRenderer {
     }
 
     /// Extract embedded images using the bound PDFium instance.
-    fn extract(&self, pdf_bytes: &[u8]) -> Result<Vec<ImageData>, Error> {
+    fn extract(&self, pdf_bytes: &[u8]) -> Result<Vec<DynamicImage>, Error> {
         let document = self
             .pdfium
             .load_pdf_from_byte_slice(pdf_bytes, None)
@@ -103,7 +103,7 @@ impl PdfRenderer {
             for object in page.objects().iter() {
                 if let Some(image_object) = object.as_image_object() {
                     match image_object.get_raw_image() {
-                        Ok(img) => images.push(ImageData::from(img)),
+                        Ok(img) => images.push(img),
                         Err(e) => {
                             tracing::warn!(
                                 target: "nvisy_codec::pdf_render",
@@ -120,7 +120,7 @@ impl PdfRenderer {
     }
 
     /// Render all pages using the bound PDFium instance.
-    fn render(&self, pdf_bytes: &[u8], dpi: Dpi) -> Result<Vec<ImageData>, Error> {
+    fn render(&self, pdf_bytes: &[u8], dpi: Dpi) -> Result<Vec<DynamicImage>, Error> {
         let document = self
             .pdfium
             .load_pdf_from_byte_slice(pdf_bytes, None)
@@ -144,7 +144,7 @@ impl PdfRenderer {
                     false,
                 )
             })?;
-            images.push(ImageData::from(image));
+            images.push(image);
         }
 
         Ok(images)

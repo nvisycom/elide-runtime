@@ -14,11 +14,10 @@
 //! [`Tabular`] modality.
 //!
 //! [`Handle<Tabular>`]: crate::core::Handle
-//! [`Tabular`]: nvisy_ontology::modality::Tabular
+//! [`Tabular`]: nvisy_core::modality::Tabular
 
-use nvisy_ontology::modality::Tabular;
+use nvisy_core::modality::{ModalityKind, Tabular};
 
-use super::TextData;
 use crate::core::{Codable, Handle};
 
 mod instruction;
@@ -26,8 +25,9 @@ mod instruction;
 pub use self::instruction::TabularRedaction;
 
 impl Codable for Tabular {
-    type Data = TextData;
-    type Redaction = TabularRedaction;
+    type Instruction = TabularRedaction;
+
+    const KIND: ModalityKind = ModalityKind::Tabular;
 }
 
 /// Extension trait implemented by every tabular handler exposing the
@@ -39,11 +39,12 @@ impl Codable for Tabular {
 /// [`TabularExtraction::SchemaInferred`] when column semantics must be
 /// inferred from data.
 ///
+/// [`TabularExtraction::SchemaTyped`]: nvisy_core::modality::TabularExtraction::SchemaTyped
+/// [`TabularExtraction::SchemaInferred`]: nvisy_core::modality::TabularExtraction::SchemaInferred
+///
 /// Implementing this trait is required for every tabular handler that
 /// participates in the importer fan-out.
 ///
-/// [`TabularExtraction::SchemaTyped`]: nvisy_ontology::modality::TabularExtraction::SchemaTyped
-/// [`TabularExtraction::SchemaInferred`]: nvisy_ontology::modality::TabularExtraction::SchemaInferred
 pub trait TabularHandle: Handle<Tabular> {
     /// `true` when the source format carries explicit column headers
     /// or typed schema (CSV with header row, Parquet, XLSX); `false`

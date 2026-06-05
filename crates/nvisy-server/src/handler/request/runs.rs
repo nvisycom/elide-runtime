@@ -1,12 +1,10 @@
 //! Run request types.
 
-use nvisy_engine::deduplication::DeduplicationParams;
-use nvisy_engine::detection::Detection;
-use nvisy_engine::extraction::Extraction;
-use nvisy_engine::ingestion::{ExportFile, ImportFile};
-use nvisy_engine::pipeline::{EngineInput, Plan, RunStatus};
-use nvisy_engine::redaction::Redaction;
-use nvisy_engine::validation::Validation;
+use nvisy_document::phases::ingestion::{ExportFile, ImportFile};
+use nvisy_document::pipeline::{
+    DeduplicationParams, Detection, EngineInput, Extraction, Plan, Redaction, RunStatus,
+};
+use nvisy_document::validation::Validation;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -34,14 +32,11 @@ pub struct NewRun {
     /// Content sources to ingest at the start of the run.
     #[serde(default)]
     pub imports: Vec<ImportFile>,
-    /// Reference-data contexts to load into the cache before phases run.
-    #[serde(default)]
-    pub context_ids: Vec<Uuid>,
 
     /// Extraction settings per modality.
     #[serde(default)]
     pub extraction: Extraction,
-    /// Detection settings (which recognizer kinds + per-call hints).
+    /// Detection settings (post-detection entity-kind allowlist).
     #[serde(default)]
     pub detection: Detection,
     /// Deduplication settings applied to combined detection results.
@@ -67,7 +62,6 @@ impl NewRun {
             policies: self.policies,
             dry_run: self.dry_run,
             imports: self.imports,
-            context_ids: self.context_ids,
             plan: Plan {
                 extraction: self.extraction,
                 detection: self.detection,
@@ -106,8 +100,7 @@ mod tests {
         assert!(input.policies.is_empty());
         assert!(!input.dry_run);
         assert!(input.imports.is_empty());
-        assert!(input.context_ids.is_empty());
-        assert!(input.plan.detection.kinds.is_empty());
+        assert!(input.plan.detection.entity_kinds.is_empty());
         assert!(input.exports.is_empty());
     }
 

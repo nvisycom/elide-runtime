@@ -1,18 +1,37 @@
 //! XLSX handler (stub: awaiting full spreadsheet support).
 //!
-//! Implements [`Handle`] only — the underlying ZIP-of-XML
-//! structure does not map to flat byte offsets, so the handler does
-//! not implement [`TextHandler`].
-//!
-//! [`Handle`]: nvisy_codec::core::Handle
-//! [`TextHandler`]: nvisy_codec::handler::TextHandler
+//! Decodes to an empty handler — emits no chunks, reads return `None`,
+//! redactions are no-ops, encode fails. Wired into the registry so
+//! downstream code can resolve XLSX without a runtime panic, while
+//! signalling that meaningful tabular access isn't implemented yet.
 
-use nvisy_codec::core::{Handle, LocationStream};
-use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction, TextData};
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
+use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction};
+use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
-use nvisy_core::media::{DocumentType, SpreadsheetFormat};
-use nvisy_ontology::modality::Tabular;
+use nvisy_core::modality::{ModalityKind, Tabular, TabularLocation, TextData};
+
+use super::XlsxLoader;
+
+/// Stable [`FormatId`] for the XLSX codec.
+pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.xlsx");
+
+/// [`Format`] descriptor registered into [`nvisy_codec::CodecRegistry`].
+pub fn format() -> Format {
+    Format {
+        id: FORMAT_ID.clone(),
+        modality: ModalityKind::Tabular,
+        extensions: vec!["xlsx".into()],
+        content_types: vec![
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".into(),
+        ],
+        loader: Arc::new(LoaderAdapter::new(XlsxLoader)),
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {
@@ -20,12 +39,10 @@ pub struct XlsxHandler {
 }
 
 impl XlsxHandler {
-    /// Create a new stub handler.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
         self
@@ -33,12 +50,12 @@ impl XlsxHandler {
 }
 
 impl Handler for XlsxHandler {
-    fn document_type(&self) -> DocumentType {
-        DocumentType::Spreadsheet(SpreadsheetFormat::Xlsx)
+    fn format(&self) -> FormatId {
+        FORMAT_ID.clone()
     }
 
-    fn source(&self) -> ContentSource {
-        self.source
+    fn source(&self) -> &ContentSource {
+        &self.source
     }
 
     #[tracing::instrument(name = "xlsx.encode", skip_all)]
@@ -50,20 +67,22 @@ impl Handler for XlsxHandler {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl Handle<Tabular> for XlsxHandler {
-    fn locations(&self) -> LocationStream<'_, Tabular> {
-        LocationStream::empty()
+    async fn next_chunk(&mut self) -> Result<Option<Chunk<Tabular>>, Error> {
+        Ok(None)
+    }
+}
+
+#[async_trait]
+impl IndexedHandle<Tabular> for XlsxHandler {
+    async fn read(&self, _location: &TabularLocation) -> Result<Option<TextData>, Error> {
+        Ok(None)
     }
 
-    async fn read(&self, _location: &Tabular) -> Option<TextData> {
-        None
-    }
-
-    async fn redact_at(
+    async fn redact(
         &mut self,
-        _location: &Tabular,
-        _redaction: TabularRedaction,
+        _redactions: Redactions<TabularLocation, TabularRedaction>,
     ) -> Result<(), Error> {
         Ok(())
     }
@@ -71,9 +90,7 @@ impl Handle<Tabular> for XlsxHandler {
 
 impl TabularHandle for XlsxHandler {
     fn has_header(&self) -> bool {
-        // XLSX always carries a typed schema (cell types, named
-        // ranges, header row). Stays `true` even though the stub
-        // handler returns no locations today.
+        // XLSX always carries a typed schema.
         true
     }
 }

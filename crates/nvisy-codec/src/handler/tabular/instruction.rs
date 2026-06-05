@@ -13,7 +13,7 @@ use crate::handler::TextOutput;
 ///
 /// [`Redactions`]: crate::core::Redactions
 /// [`TextRedaction`]: crate::handler::TextRedaction
-/// [`Tabular`]: nvisy_ontology::modality::Tabular
+/// [`Tabular`]: nvisy_core::modality::Tabular
 #[derive(Debug, Clone, PartialEq)]
 pub struct TabularRedaction {
     /// The redaction output that carries the replacement value.

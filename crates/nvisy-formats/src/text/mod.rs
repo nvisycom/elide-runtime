@@ -18,16 +18,16 @@ mod txt_handler;
 mod txt_loader;
 
 #[cfg(feature = "html")]
-pub use self::html_handler::{HtmlData, HtmlHandler};
+pub use self::html_handler::{HtmlData, HtmlHandler, format as html_format};
 #[cfg(feature = "html")]
-pub use self::html_loader::{HtmlLoader, HtmlParams};
+pub use self::html_loader::HtmlLoader;
 #[cfg(feature = "json")]
-pub use self::json_handler::{JsonData, JsonHandler, JsonIndent};
+pub use self::json_handler::{JsonData, JsonHandler, JsonIndent, format as json_format};
 #[cfg(feature = "json")]
-pub use self::json_loader::{JsonLoader, JsonParams};
+pub use self::json_loader::JsonLoader;
 #[cfg(feature = "markdown")]
-pub use self::markdown_loader::{MarkdownLoader, MarkdownParams};
+pub use self::markdown_loader::{MarkdownLoader, format as markdown_format};
 #[cfg(feature = "txt")]
-pub use self::txt_handler::TxtHandler;
+pub use self::txt_handler::{TxtHandler, format as txt_format};
 #[cfg(feature = "txt")]
-pub use self::txt_loader::{TxtLoader, TxtParams};
+pub use self::txt_loader::TxtLoader;

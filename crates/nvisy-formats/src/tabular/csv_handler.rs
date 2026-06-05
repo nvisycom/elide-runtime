@@ -1,27 +1,41 @@
-//! CSV handler: holds parsed CSV content and provides cell-coordinate
-//! access via [`Handler`] + [`Handle`].
+//! CSV handler: holds parsed CSV content and streams cell coordinates
+//! via [`Handle<Tabular>`], with random-access reads / redactions via
+//! [`IndexedHandle<Tabular>`].
 //!
-//! [`Handle::locations`] yields one [`Tabular`] per
-//! cell using `(row, col)` coordinates. Row `0` is the header row
-//! (if present); row `1` is the first data row when headers exist,
-//! else row `0` is the first data row. [`Handle::read`]
-//! returns the cell's value as [`TextData`].
-//! [`Handle::redact`] mutates cells by coordinate, applying
-//! intra-cell byte-offset replacements via the shared
-//! [`crate::text::redact::replace_range`] helper.
-//!
-//! [`Tabular`]: nvisy_ontology::modality::Tabular
+//! Cell coordinates are `(row, col)`. Row 0 is the header row (if
+//! present); row 1 is the first data row when headers exist, else row
+//! 0 is the first data row. Intra-cell byte offsets on a
+//! [`TabularLocation`] address sub-strings within a cell value;
+//! omitting them redacts the whole cell.
 
-use nvisy_codec::core::{Handle, Located, LocationStream};
-use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction, TextData};
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
+use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction};
+use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
-use nvisy_core::media::{DocumentType, SpreadsheetFormat};
-use nvisy_ontology::modality::Tabular;
+use nvisy_core::modality::{ModalityKind, Tabular, TabularLocation, TextData};
 
+use super::CsvLoader;
 use crate::text::redact;
 
 const TARGET: &str = "csv-handler";
+
+/// Stable [`FormatId`] for the CSV codec.
+pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.csv");
+
+/// [`Format`] descriptor registered into [`nvisy_codec::CodecRegistry`].
+pub fn format() -> Format {
+    Format {
+        id: FORMAT_ID.clone(),
+        modality: ModalityKind::Tabular,
+        extensions: vec!["csv".into()],
+        content_types: vec!["text/csv".into()],
+        loader: Arc::new(LoaderAdapter::new(CsvLoader::default())),
+    }
+}
 
 /// Parsed CSV content.
 #[derive(Debug, Clone)]
@@ -36,20 +50,30 @@ pub struct CsvData {
     pub trailing_newline: bool,
 }
 
-/// Handler for loaded CSV content.
+/// Handler for loaded CSV content. Cell coordinates double as the
+/// index — no derived offset table to maintain.
 #[derive(Debug)]
 pub struct CsvHandler {
     source: ContentSource,
     data: CsvData,
+    cursor: CsvCursor,
+}
+
+/// Streaming cursor over a CSV: walks header row (if present) then
+/// data rows, one cell at a time in row-major order.
+#[derive(Debug, Default)]
+struct CsvCursor {
+    row: u32,
+    col: u32,
 }
 
 impl Handler for CsvHandler {
-    fn document_type(&self) -> DocumentType {
-        DocumentType::Spreadsheet(SpreadsheetFormat::Csv)
+    fn format(&self) -> FormatId {
+        FORMAT_ID.clone()
     }
 
-    fn source(&self) -> ContentSource {
-        self.source
+    fn source(&self) -> &ContentSource {
+        &self.source
     }
 
     #[tracing::instrument(name = "csv.encode", skip_all, fields(output_bytes))]
@@ -61,93 +85,78 @@ impl Handler for CsvHandler {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl Handle<Tabular> for CsvHandler {
-    fn locations(&self) -> LocationStream<'_, Tabular> {
-        let source = self.source;
-        let has_headers = self.data.headers.is_some();
-
-        let mut items: Vec<_> = Vec::new();
-
-        if let Some(headers) = &self.data.headers {
-            for (col, _) in headers.iter().enumerate() {
-                items.push(Located::new(
-                    source,
-                    Tabular {
-                        row_index: 0,
-                        column_index: col as u32,
-                        start_offset: None,
-                        end_offset: None,
-                        column_name: Some(headers[col].clone()),
-                        sheet_name: None,
-                    },
-                ));
-            }
-        }
-
-        for (data_row, row) in self.data.rows.iter().enumerate() {
-            let row_index = if has_headers { data_row + 1 } else { data_row };
-            for (col, _) in row.iter().enumerate() {
-                items.push(Located::new(
-                    source,
-                    Tabular {
-                        row_index: row_index as u32,
-                        column_index: col as u32,
-                        start_offset: None,
-                        end_offset: None,
-                        column_name: self.data.headers.as_ref().and_then(|h| h.get(col).cloned()),
-                        sheet_name: None,
-                    },
-                ));
-            }
-        }
-
-        LocationStream::new(futures::stream::iter(items))
-    }
-
-    async fn read(&self, location: &Tabular) -> Option<TextData> {
-        let (is_header, data_row) = self.resolve_row(location.row_index)?;
-        let col = location.column_index as usize;
-        let cell = if is_header {
-            self.data.headers.as_ref()?.get(col)?
+    async fn next_chunk(&mut self) -> Result<Option<Chunk<Tabular>>, Error> {
+        let total_rows = if self.data.headers.is_some() {
+            self.data.rows.len() as u32 + 1
         } else {
-            self.data.rows.get(data_row)?.get(col)?
+            self.data.rows.len() as u32
         };
-        Some(TextData::from(cell.clone()))
+
+        if self.cursor.row >= total_rows {
+            return Ok(None);
+        }
+        let row_len = self.row_len(self.cursor.row).unwrap_or(0);
+        if (self.cursor.col as usize) >= row_len {
+            self.cursor.row += 1;
+            self.cursor.col = 0;
+            return Box::pin(self.next_chunk()).await;
+        }
+
+        let row = self.cursor.row;
+        let col = self.cursor.col;
+        let location = TabularLocation {
+            row_index: row,
+            column_index: col,
+            start_offset: None,
+            end_offset: None,
+            column_name: self
+                .data
+                .headers
+                .as_ref()
+                .and_then(|h| h.get(col as usize).cloned()),
+            sheet_name: None,
+        };
+        let cell = self.cell_at(row, col).expect("bounds checked above");
+        let data = TextData::from(cell.to_owned());
+
+        self.cursor.col += 1;
+        Ok(Some(Chunk {
+            location,
+            data,
+            embed: None,
+        }))
+    }
+}
+
+#[async_trait]
+impl IndexedHandle<Tabular> for CsvHandler {
+    async fn read(&self, location: &TabularLocation) -> Result<Option<TextData>, Error> {
+        Ok(self
+            .cell_at(location.row_index, location.column_index)
+            .map(|s| TextData::from(s.to_owned())))
     }
 
-    async fn redact_at(
+    async fn redact(
         &mut self,
-        location: &Tabular,
-        redaction: TabularRedaction,
+        redactions: Redactions<TabularLocation, TabularRedaction>,
     ) -> Result<(), Error> {
-        let Some((is_header, data_row)) = self.resolve_row(location.row_index) else {
-            return Ok(());
-        };
-        let col = location.column_index as usize;
-        let cell = if is_header {
-            let Some(headers) = self.data.headers.as_mut() else {
-                return Ok(());
-            };
-            let Some(cell) = headers.get_mut(col) else {
-                return Ok(());
-            };
-            cell
-        } else {
-            let Some(row) = self.data.rows.get_mut(data_row) else {
-                return Ok(());
-            };
-            let Some(cell) = row.get_mut(col) else {
-                return Ok(());
-            };
-            cell
-        };
-        // Intra-cell byte range comes from the location; omitted means
-        // redact the whole cell.
-        let start = location.start_offset.unwrap_or(0);
-        let end = location.end_offset.unwrap_or(cell.len());
-        let value = redaction.output().replacement_value().unwrap_or_default();
-        redact::replace_range(cell, value, start, end, TARGET)
+        // Multiple redactions can target intra-cell byte ranges within
+        // the same cell; apply right-to-left over byte offsets so an
+        // earlier shrink doesn't invalidate later offsets.
+        let mut items = redactions.into_items();
+        items.sort_by(|(a, _), (b, _)| {
+            (b.row_index, b.column_index, b.start_offset.unwrap_or(0)).cmp(&(
+                a.row_index,
+                a.column_index,
+                a.start_offset.unwrap_or(0),
+            ))
+        });
+        for (location, redaction) in items {
+            self.redact_one(&location, redaction)?;
+        }
+        Ok(())
     }
 }
 
@@ -163,10 +172,11 @@ impl CsvHandler {
         Self {
             source: ContentSource::new(),
             data,
+            cursor: CsvCursor::default(),
         }
     }
 
-    /// Set the content source for lineage tracking.
+    /// Attach a content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
         self
@@ -177,7 +187,7 @@ impl CsvHandler {
         self.data.headers.as_deref()
     }
 
-    /// All data rows.
+    /// All data rows (excluding the header row).
     pub fn rows(&self) -> &[Vec<String>] {
         &self.data.rows
     }
@@ -187,19 +197,16 @@ impl CsvHandler {
         &mut self.data.rows
     }
 
-    /// A specific cell by `(data_row, col)`.
-    ///
-    /// `data_row` is 0-based against the data rows (header is *not*
-    /// data row 0). Use [`Tabular`] coordinates with
-    /// [`Handle::read`] if you need to address the header row.
-    ///
-    /// [`Handle::read`]: nvisy_codec::core::Handle::read
+    /// A specific cell by `(data_row, col)`. `data_row` is 0-based
+    /// against the data rows; the header is *not* data row 0. Use
+    /// [`IndexedHandle::read`] with [`TabularLocation`] if you need
+    /// to address the header.
     pub fn cell(&self, data_row: usize, col: usize) -> Option<&str> {
         self.data
             .rows
             .get(data_row)
             .and_then(|r| r.get(col))
-            .map(|s| s.as_str())
+            .map(String::as_str)
     }
 
     /// Number of data rows (excluding the header).
@@ -222,30 +229,68 @@ impl CsvHandler {
         self.data.trailing_newline
     }
 
+    /// Rewind the streaming cursor to the start of the document.
+    pub fn rewind(&mut self) {
+        self.cursor = CsvCursor::default();
+    }
+
     /// Consume the handler and return the inner [`CsvData`].
     pub fn into_data(self) -> CsvData {
         self.data
     }
 
-    /// Resolve a [`Tabular::row_index`] to `(is_header, data_row)`.
-    ///
-    /// Returns `None` when the row index is out of range.
-    ///
-    /// [`Tabular::row_index`]: nvisy_ontology::modality::Tabular::row_index
-    fn resolve_row(&self, row_index: u32) -> Option<(bool, usize)> {
+    fn cell_at(&self, row_index: u32, column_index: u32) -> Option<&str> {
+        let col = column_index as usize;
+        if self.data.headers.is_some() && row_index == 0 {
+            return self.data.headers.as_ref()?.get(col).map(String::as_str);
+        }
         let data_row = if self.data.headers.is_some() {
-            if row_index == 0 {
-                return Some((true, 0));
-            }
             (row_index - 1) as usize
         } else {
             row_index as usize
         };
-        (data_row < self.data.rows.len()).then_some((false, data_row))
+        self.data.rows.get(data_row)?.get(col).map(String::as_str)
     }
 
-    /// Serialize to bytes (with CRLF→LF normalization and trailing
-    /// newline handling).
+    fn cell_at_mut(&mut self, row_index: u32, column_index: u32) -> Option<&mut String> {
+        let col = column_index as usize;
+        if self.data.headers.is_some() && row_index == 0 {
+            return self.data.headers.as_mut()?.get_mut(col);
+        }
+        let data_row = if self.data.headers.is_some() {
+            (row_index - 1) as usize
+        } else {
+            row_index as usize
+        };
+        self.data.rows.get_mut(data_row)?.get_mut(col)
+    }
+
+    fn row_len(&self, row_index: u32) -> Option<usize> {
+        if self.data.headers.is_some() && row_index == 0 {
+            return self.data.headers.as_ref().map(|h| h.len());
+        }
+        let data_row = if self.data.headers.is_some() {
+            (row_index - 1) as usize
+        } else {
+            row_index as usize
+        };
+        self.data.rows.get(data_row).map(|r| r.len())
+    }
+
+    fn redact_one(
+        &mut self,
+        location: &TabularLocation,
+        redaction: TabularRedaction,
+    ) -> Result<(), Error> {
+        let Some(cell) = self.cell_at_mut(location.row_index, location.column_index) else {
+            return Ok(());
+        };
+        let start = location.start_offset.unwrap_or(0);
+        let end = location.end_offset.unwrap_or(cell.len());
+        let value = redaction.output().replacement_value().unwrap_or_default();
+        redact::replace_range(cell, value, start, end, TARGET)
+    }
+
     fn serialize_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut wtr = csv::WriterBuilder::new()
             .delimiter(self.data.delimiter)
@@ -263,21 +308,16 @@ impl CsvHandler {
         let mut bytes = wtr
             .into_inner()
             .map_err(|e| Error::validation(format!("CSV encode error: {e}"), TARGET))?;
-
         bytes.retain(|&b| b != b'\r');
-
         if !self.data.trailing_newline && bytes.last() == Some(&b'\n') {
             bytes.pop();
         }
-
         Ok(bytes)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use futures::StreamExt;
-    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
@@ -307,49 +347,65 @@ mod tests {
         })
     }
 
-    fn cell_range(row: u32, col: u32, start: usize, end: usize) -> Tabular {
-        Tabular {
+    fn cell_range(row: u32, col: u32, start: usize, end: usize) -> TabularLocation {
+        TabularLocation {
             start_offset: Some(start),
             end_offset: Some(end),
-            ..Tabular::new(row, col)
+            ..TabularLocation::new(row, col)
         }
     }
 
     #[tokio::test]
-    async fn locations_yield_header_then_rows() {
-        let h = handler_with_headers(vec!["name", "age"], vec![vec!["Alice", "30"]]);
-        let items: Vec<_> = h.locations().collect().await;
-        assert_eq!(items.len(), 4);
-        assert_eq!(items[0].location.row_index, 0);
-        assert_eq!(items[0].location.column_index, 0);
-        assert_eq!(items[0].location.column_name.as_deref(), Some("name"));
-        assert_eq!(items[2].location.row_index, 1); // first data row
-        assert_eq!(items[2].location.column_index, 0);
+    async fn stream_walks_headers_then_rows() -> Result<(), Error> {
+        let mut h = handler_with_headers(vec!["name", "age"], vec![vec!["Alice", "30"]]);
+        let first = h.next_chunk().await?.unwrap();
+        assert_eq!(first.location.row_index, 0);
+        assert_eq!(first.location.column_index, 0);
+        assert_eq!(first.location.column_name.as_deref(), Some("name"));
+        // Drain the rest and count.
+        let mut count = 1;
+        while h.next_chunk().await?.is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 4); // 2 header + 2 data
+        Ok(())
     }
 
     #[tokio::test]
-    async fn locations_no_headers_start_at_row_zero() {
-        let h = handler_no_headers(vec![vec!["a", "b"], vec!["c", "d"]]);
-        let items: Vec<_> = h.locations().collect().await;
-        assert_eq!(items.len(), 4);
-        assert_eq!(items[0].location.row_index, 0);
-        assert_eq!(items[2].location.row_index, 1);
+    async fn stream_no_headers_starts_at_row_zero() -> Result<(), Error> {
+        let mut h = handler_no_headers(vec![vec!["a", "b"], vec!["c", "d"]]);
+        let first = h.next_chunk().await?.unwrap();
+        assert_eq!(first.location.row_index, 0);
+        assert_eq!(first.location.column_index, 0);
+        assert!(first.location.column_name.is_none());
+        let mut count = 1;
+        while h.next_chunk().await?.is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 4);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn read_returns_cell_value() {
+    async fn read_returns_cell_value() -> Result<(), Error> {
         let h = handler_with_headers(vec!["name"], vec![vec!["Alice"]]);
-        // header
-        assert_eq!(h.read(&Tabular::new(0, 0)).await.unwrap().as_str(), "name");
-        // first data row
-        assert_eq!(h.read(&Tabular::new(1, 0)).await.unwrap().as_str(), "Alice");
+        assert_eq!(
+            h.read(&TabularLocation::new(0, 0)).await?.unwrap().as_str(),
+            "name"
+        );
+        assert_eq!(
+            h.read(&TabularLocation::new(1, 0)).await?.unwrap().as_str(),
+            "Alice"
+        );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn read_out_of_bounds_returns_none() {
+    async fn read_out_of_bounds_returns_none() -> Result<(), Error> {
         let h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
-        assert!(h.read(&Tabular::new(99, 0)).await.is_none());
-        assert!(h.read(&Tabular::new(0, 99)).await.is_none());
+        assert!(h.read(&TabularLocation::new(99, 0)).await?.is_none());
+        assert!(h.read(&TabularLocation::new(0, 99)).await?.is_none());
+        Ok(())
     }
 
     #[tokio::test]
@@ -388,6 +444,24 @@ mod tests {
         );
         h.redact(rs).await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_two_ranges_same_cell() -> Result<(), Error> {
+        // Two intra-cell ranges within "Alice Smith"; expected right-to-left.
+        let mut h = handler_with_headers(vec!["bio"], vec![vec!["Alice Smith"]]);
+        let mut rs = Redactions::new();
+        rs.push(
+            cell_range(1, 0, 0, 5),
+            TabularRedaction::new(TextOutput::replace("[A]")),
+        );
+        rs.push(
+            cell_range(1, 0, 6, 11),
+            TabularRedaction::new(TextOutput::replace("[B]")),
+        );
+        h.redact(rs).await?;
+        assert_eq!(h.cell(0, 0), Some("[A] [B]"));
         Ok(())
     }
 

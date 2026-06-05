@@ -14,7 +14,7 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_engine::pipeline::{AnalyticsSnapshot, Engine};
+use nvisy_document::pipeline::{AnalyticsSnapshot, Engine};
 
 use super::response::{ComponentCheck, Health, ServiceStatus};
 use crate::extract::Json;

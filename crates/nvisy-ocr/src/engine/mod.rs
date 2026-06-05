@@ -5,13 +5,14 @@
 use std::fmt;
 use std::sync::Arc;
 
-use nvisy_core::Error;
-use nvisy_ontology::document::Block;
-use nvisy_ontology::entity::ModelProvenance;
-use nvisy_ontology::modality::Image;
+use async_trait::async_trait;
+use nvisy_core::entity::ModelProvenance;
+use nvisy_core::extraction::{ExtractorOutput, Span};
+use nvisy_core::modality::{Image, ImageExtraction};
+use nvisy_core::{Error, Extractor as CoreExtractor, Result};
 use tracing::instrument;
 
-use crate::core::{Backend, Context, ImageInput};
+use crate::core::{Backend, Context, ImageFormat, ImageInput, OcrOutput};
 
 const TARGET: &str = "nvisy_ocr::engine";
 
@@ -59,7 +60,7 @@ impl Extractor {
         &self,
         image: &ImageInput,
         ctx: Context<'_>,
-    ) -> Result<Vec<Block<Image>>, Error> {
+    ) -> Result<Vec<OcrOutput>, Error> {
         let blocks = self.backend.run(image, ctx).await?;
         tracing::debug!(
             target: TARGET,
@@ -77,7 +78,7 @@ impl Extractor {
         &self,
         images: &[ImageInput],
         ctx: Context<'_>,
-    ) -> Result<Vec<Block<Image>>, Error> {
+    ) -> Result<Vec<OcrOutput>, Error> {
         let blocks = self.backend.run_batch(images, ctx).await?;
         tracing::debug!(
             target: TARGET,
@@ -85,5 +86,49 @@ impl Extractor {
             "batch ocr complete",
         );
         Ok(blocks)
+    }
+}
+
+/// Bridge `nvisy_ocr::Extractor` into the toolkit-side
+/// [`nvisy_core::Extractor<Image>`] surface. The extractor's output
+/// is the backend-shaped `Vec<OcrOutput>`; consumers translate that
+/// into per-document `Block<Image>` values.
+///
+/// The bridge assumes the input bytes are PNG-encoded. Callers that
+/// hold images in other formats should re-encode before constructing
+/// the [`nvisy_core::ImageData`] payload.
+#[async_trait]
+impl CoreExtractor<Image> for Extractor {
+    type Output = Vec<OcrOutput>;
+
+    async fn extract(&self, span: &Span<Image>) -> Result<ExtractorOutput<Image, Self::Output>> {
+        let image_input = ImageInput::new(span.data.bytes.clone(), ImageFormat::Png);
+        let mut ocr_ctx = Context::default();
+        if let Some(ref lang) = span.language {
+            ocr_ctx = ocr_ctx.with_language(lang);
+        }
+        if let Some(corr_id) = span.correlation_id {
+            ocr_ctx = ocr_ctx.with_correlation_id(corr_id);
+        }
+        let value = self.extract_inner(&image_input, ocr_ctx).await?;
+        Ok(ExtractorOutput::new(
+            value,
+            ImageExtraction::Ocr(self.provenance()),
+        ))
+    }
+}
+
+impl Extractor {
+    /// Internal helper so the trait impl can re-use the same body as
+    /// the inherent [`extract`] method without recursing through the
+    /// trait dispatch.
+    ///
+    /// [`extract`]: Self::extract
+    async fn extract_inner(
+        &self,
+        image: &ImageInput,
+        ctx: Context<'_>,
+    ) -> Result<Vec<OcrOutput>, Error> {
+        self.backend.run(image, ctx).await
     }
 }

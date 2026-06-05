@@ -6,8 +6,10 @@
 
 mod provider;
 
-use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::{ModelKind, ModelProvenance};
+use nvisy_core::entity::ModelProvenance;
+use nvisy_core::extraction::{ExtractorOutput, Span};
+use nvisy_core::modality::{Audio, AudioExtraction};
+use nvisy_core::{Error, Extractor, Result};
 #[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
 use schemars::JsonSchema;
@@ -92,17 +94,8 @@ impl SttService {
     }
 
     /// Provenance of the underlying transcription model.
-    ///
-    /// `kind` is [`ModelKind::Gateway`] for hosted providers
-    /// (currently OpenAI Whisper) and [`ModelKind::SelfHosted`] for
-    /// local providers.
     pub fn provenance(&self) -> ModelProvenance {
-        let kind = match &self.inner {
-            #[cfg(feature = "openai-whisper")]
-            SttModels::OpenAi(_) => ModelKind::Gateway,
-            SttModels::Local => ModelKind::SelfHosted,
-        };
-        ModelProvenance::new(self.config.model.clone(), kind)
+        ModelProvenance::new(self.config.model.clone())
     }
 
     /// Transcribe audio data to text.
@@ -146,5 +139,20 @@ impl SttService {
                 false,
             )),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl Extractor<Audio> for SttService {
+    type Output = SttOutput;
+
+    async fn extract(&self, span: &Span<Audio>) -> Result<ExtractorOutput<Audio, Self::Output>> {
+        let value = self
+            .transcribe(span.data.bytes.as_ref(), span.data.filename.as_str())
+            .await?;
+        Ok(ExtractorOutput::new(
+            value,
+            AudioExtraction::Transcription(self.provenance()),
+        ))
     }
 }

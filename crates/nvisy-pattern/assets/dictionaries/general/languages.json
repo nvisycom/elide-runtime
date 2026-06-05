@@ -1,7 +1,0 @@
-{
-  "name": "languages",
-  "description": "Human language names (English-language spellings) and ISO 639 codes.",
-  "version": "1.0.0",
-  "languages": ["en"],
-  "regions": ["global"]
-}

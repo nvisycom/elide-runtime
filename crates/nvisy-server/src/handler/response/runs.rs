@@ -1,6 +1,6 @@
 //! Run response types.
 
-use nvisy_engine::pipeline::RunEntry;
+use nvisy_document::pipeline::RunEntry;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

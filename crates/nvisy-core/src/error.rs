@@ -241,20 +241,18 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<nvisy_ontology::Error> for Error {
-    fn from(err: nvisy_ontology::Error) -> Self {
-        // Ontology errors carry only a message today. Tag as
-        // validation (every current producer site is validation-shaped)
-        // and preserve the original via the source chain so the
-        // cause survives.
-        let message = err.message.clone();
-        Self::validation(message, "ontology").with_source(err)
-    }
-}
-
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Self {
         Self::serialization(err.to_string(), "serde_json").with_source(err)
+    }
+}
+
+impl From<derive_builder::UninitializedFieldError> for Error {
+    fn from(err: derive_builder::UninitializedFieldError) -> Self {
+        Self::validation(
+            format!("missing required field `{}`", err.field_name()),
+            "derive_builder",
+        )
     }
 }
 

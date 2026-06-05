@@ -1,0 +1,3 @@
+name = "product_codes"
+entity_kind = "internal_id"
+score = 0.8

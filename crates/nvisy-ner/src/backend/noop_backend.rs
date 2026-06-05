@@ -1,33 +1,21 @@
-//! [`NoopBackend`] — returns no entities. Default selection in
-//! [`NerDetection`], and the placeholder backend for tests and
-//! pipelines where NER is opt-in and the caller chose to opt out.
-//!
-//! [`NerDetection`]: ../../../nvisy_engine/detection/ner/struct.NerDetection.html
+//! [`NoopBackend`]: no-op [`NerBackend`] for tests + the default
+//! `NerBackend::Noop` config variant in `nvisy-document`.
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::Text;
 
-use crate::core::{Backend, Context};
+use super::ner_backend::{NerBackend, NerRequest, NerResponse};
 
-/// A [`Backend`] that produces no entities.
+/// No-op NER backend: every call returns an empty response.
 ///
-/// Useful in unit tests that need an `Engine` without a real
-/// model, and as a placeholder in pipelines where NER is opt-in and
-/// the caller chose to opt out.
+/// Useful as a test stub and as the default `[detection.ner]` backend
+/// when the operator wants the NER recognizer wired but isn't ready to
+/// configure a real backend.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NoopBackend;
 
-impl NoopBackend {
-    /// Construct an empty backend.
-    pub fn new() -> Self {
-        Self
-    }
-}
-
 #[async_trait::async_trait]
-impl Backend for NoopBackend {
-    async fn recognize(&self, _text: &str, _ctx: &Context) -> Result<Vec<Entity<Text>>> {
-        Ok(Vec::new())
+impl NerBackend for NoopBackend {
+    async fn predict(&self, _request: NerRequest<'_>) -> Result<NerResponse> {
+        Ok(NerResponse::default())
     }
 }

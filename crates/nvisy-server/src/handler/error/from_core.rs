@@ -2,27 +2,29 @@
 //!
 //! [`CoreError`]: nvisy_core::Error
 
+use nvisy_core::{Error as CoreError, ErrorKind as CoreErrorKind};
+
 use super::http_error::Error;
 use super::http_kind::ErrorKind;
 
-impl From<nvisy_core::Error> for Error<'static> {
-    fn from(err: nvisy_core::Error) -> Self {
+impl From<CoreError> for Error<'static> {
+    fn from(err: CoreError) -> Self {
         let kind = match err.kind() {
-            nvisy_core::ErrorKind::Validation => {
+            CoreErrorKind::Validation => {
                 if err.component() == Some("run") {
                     ErrorKind::Conflict
                 } else {
                     ErrorKind::BadRequest
                 }
             }
-            nvisy_core::ErrorKind::Serialization => ErrorKind::BadRequest,
-            nvisy_core::ErrorKind::Policy => ErrorKind::Forbidden,
-            nvisy_core::ErrorKind::NotFound => ErrorKind::NotFound,
-            nvisy_core::ErrorKind::Connection
-            | nvisy_core::ErrorKind::Timeout
-            | nvisy_core::ErrorKind::Cancellation
-            | nvisy_core::ErrorKind::Runtime
-            | nvisy_core::ErrorKind::Internal => ErrorKind::InternalServerError,
+            CoreErrorKind::Serialization => ErrorKind::BadRequest,
+            CoreErrorKind::Policy => ErrorKind::Forbidden,
+            CoreErrorKind::NotFound => ErrorKind::NotFound,
+            CoreErrorKind::Connection
+            | CoreErrorKind::Timeout
+            | CoreErrorKind::Cancellation
+            | CoreErrorKind::Runtime
+            | CoreErrorKind::Internal => ErrorKind::InternalServerError,
         };
 
         let component = err.component().map(str::to_owned);
@@ -40,8 +42,7 @@ mod tests {
 
     #[test]
     fn from_nvisy_core_validation() {
-        let core_err =
-            nvisy_core::Error::new(nvisy_core::ErrorKind::Validation, "field is required");
+        let core_err = CoreError::new(CoreErrorKind::Validation, "field is required");
         let err = Error::from(core_err);
         assert_eq!(err.kind(), ErrorKind::BadRequest);
         assert_eq!(err.message(), Some("field is required"));
@@ -49,19 +50,16 @@ mod tests {
 
     #[test]
     fn from_nvisy_core_validation_run_conflict() {
-        let core_err = nvisy_core::Error::new(
-            nvisy_core::ErrorKind::Validation,
-            "run has already finished",
-        )
-        .with_component("run");
+        let core_err = CoreError::new(CoreErrorKind::Validation, "run has already finished")
+            .with_component("run");
         let err = Error::from(core_err);
         assert_eq!(err.kind(), ErrorKind::Conflict);
     }
 
     #[test]
     fn from_nvisy_core_not_found() {
-        let core_err = nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "missing")
-            .with_component("registry");
+        let core_err =
+            CoreError::new(CoreErrorKind::NotFound, "missing").with_component("registry");
         let err = Error::from(core_err);
         assert_eq!(err.kind(), ErrorKind::NotFound);
         assert_eq!(err.message(), Some("missing"));
@@ -70,7 +68,7 @@ mod tests {
 
     #[test]
     fn from_nvisy_core_internal() {
-        let core_err = nvisy_core::Error::new(nvisy_core::ErrorKind::Runtime, "unexpected");
+        let core_err = CoreError::new(CoreErrorKind::Runtime, "unexpected");
         let err = Error::from(core_err);
         assert_eq!(err.kind(), ErrorKind::InternalServerError);
     }

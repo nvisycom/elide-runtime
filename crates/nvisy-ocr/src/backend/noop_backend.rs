@@ -7,11 +7,9 @@
 //! purely on metadata or on entities sourced from elsewhere.
 
 use nvisy_core::Error;
-use nvisy_ontology::document::Block;
-use nvisy_ontology::entity::{ModelKind, ModelProvenance};
-use nvisy_ontology::modality::Image;
+use nvisy_core::entity::ModelProvenance;
 
-use crate::core::{Backend, Context, ImageInput};
+use crate::core::{Backend, Context, ImageInput, OcrOutput};
 
 /// A [`Backend`] that produces no OCR results.
 ///
@@ -29,14 +27,10 @@ impl NoopBackend {
 #[async_trait::async_trait]
 impl Backend for NoopBackend {
     fn provenance(&self) -> ModelProvenance {
-        ModelProvenance::new("noop-ocr", ModelKind::SelfHosted)
+        ModelProvenance::new("noop-ocr")
     }
 
-    async fn run(
-        &self,
-        _image: &ImageInput,
-        _ctx: Context<'_>,
-    ) -> Result<Vec<Block<Image>>, Error> {
+    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Vec<OcrOutput>, Error> {
         Ok(Vec::new())
     }
 }

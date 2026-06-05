@@ -1,7 +1,7 @@
 //! Image-format implementations: PNG, JPEG, TIFF.
 
 #[macro_use]
-mod macros;
+pub(crate) mod macros;
 mod image_ops;
 pub(crate) mod redact;
 
@@ -19,14 +19,14 @@ mod tiff_handler;
 mod tiff_loader;
 
 #[cfg(feature = "jpeg")]
-pub use self::jpeg_handler::JpegHandler;
+pub use self::jpeg_handler::{JpegHandler, format as jpeg_format};
 #[cfg(feature = "jpeg")]
-pub use self::jpeg_loader::{JpegLoader, JpegParams};
+pub use self::jpeg_loader::JpegLoader;
 #[cfg(feature = "png")]
-pub use self::png_handler::PngHandler;
+pub use self::png_handler::{PngHandler, format as png_format};
 #[cfg(feature = "png")]
-pub use self::png_loader::{PngLoader, PngParams};
+pub use self::png_loader::PngLoader;
 #[cfg(feature = "tiff")]
-pub use self::tiff_handler::TiffHandler;
+pub use self::tiff_handler::{TiffHandler, format as tiff_format};
 #[cfg(feature = "tiff")]
-pub use self::tiff_loader::{TiffLoader, TiffParams};
+pub use self::tiff_loader::TiffLoader;

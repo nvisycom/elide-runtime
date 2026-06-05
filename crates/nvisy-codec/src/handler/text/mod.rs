@@ -8,17 +8,16 @@
 //!
 //! [`Handle<Text>`]: crate::core::Handle
 
-use nvisy_ontology::modality::Text;
+use nvisy_core::modality::{ModalityKind, Text};
 
 use crate::core::Codable;
 
 mod instruction;
-mod text_data;
 
 pub use self::instruction::{TextOutput, TextRedaction};
-pub use self::text_data::TextData;
 
 impl Codable for Text {
-    type Data = TextData;
-    type Redaction = TextRedaction;
+    type Instruction = TextRedaction;
+
+    const KIND: ModalityKind = ModalityKind::Text;
 }

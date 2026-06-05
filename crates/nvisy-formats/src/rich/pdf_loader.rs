@@ -1,60 +1,45 @@
-//! PDF loader: parses raw PDF content into a [`RichTextHandler`].
-//!
-//! Text is extracted per page via [`lopdf`].  The raw bytes are
-//! preserved for encoding and rendering.
+//! PDF loader: parses raw PDF content into a [`PdfHandler`]. Text is
+//! extracted per page via [`lopdf`]; the raw bytes are preserved for
+//! encoding and rendering.
 //!
 //! [`lopdf`]: https://docs.rs/lopdf
 
+use async_trait::async_trait;
 use nvisy_codec::handler::Loader;
+use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::modality::Text;
 
-use super::RichTextHandler;
+use super::PdfHandler;
 
-/// Parameters for [`PdfLoader`].
+/// Loader for PDF files. Produces one [`PdfHandler`] per input.
 #[derive(Debug, Default)]
-pub struct PdfParams {
+pub struct PdfLoader {
     /// Optional password for encrypted PDFs.
     pub password: Option<String>,
 }
 
-/// Loader that parses PDF files and extracts per-page text.
-///
-/// Produces a single [`RichTextHandler`] per input.
-#[derive(Debug, Default)]
-pub struct PdfLoader;
-
-#[async_trait::async_trait]
-impl Loader for PdfLoader {
-    type Handler = RichTextHandler;
-    type Params = PdfParams;
+#[async_trait]
+impl Loader<Text> for PdfLoader {
+    type Handler = PdfHandler;
 
     #[tracing::instrument(name = "pdf.decode", skip_all, fields(input_bytes))]
-    async fn decode(
-        &self,
-        content: &ContentData,
-        params: &Self::Params,
-    ) -> Result<RichTextHandler, nvisy_core::Error> {
+    async fn decode(&self, content: ContentData) -> Result<PdfHandler, Error> {
+        let parent = content.content_source;
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
-
-        let source = ContentSource::new().with_parent(&content.content_source);
-        let handler =
-            RichTextHandler::from_pdf(raw, params.password.as_deref())?.with_source(source);
-
-        Ok(handler)
+        let source = ContentSource::new().with_parent(&parent);
+        Ok(PdfHandler::from_pdf(raw, self.password.as_deref())?.with_source(source))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use futures::StreamExt;
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
     use nvisy_codec::core::Handle;
     use nvisy_codec::handler::Handler;
     use nvisy_core::content::ContentSource;
-    use nvisy_core::media::DocumentType;
-    use nvisy_ontology::modality::Text;
 
     use super::*;
 
@@ -62,14 +47,11 @@ mod tests {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))
     }
 
-    /// Build a minimal valid PDF with one blank page using lopdf.
     fn minimal_pdf() -> Vec<u8> {
         let mut doc = Document::with_version("1.5");
-
         let pages_id = doc.new_object_id();
         let page_id = doc.new_object_id();
         let content_id = doc.add_object(Stream::new(Dictionary::new(), Vec::new()));
-
         doc.set_object(
             page_id,
             Object::Dictionary(dictionary! {
@@ -79,7 +61,6 @@ mod tests {
                 "Contents" => content_id,
             }),
         );
-
         doc.set_object(
             pages_id,
             Object::Dictionary(dictionary! {
@@ -88,13 +69,11 @@ mod tests {
                 "Count" => 1,
             }),
         );
-
         let catalog_id = doc.add_object(dictionary! {
             "Type" => "Catalog",
             "Pages" => pages_id,
         });
         doc.trailer.set("Root", catalog_id);
-
         let mut buf = Vec::new();
         doc.save_to(&mut buf).expect("failed to save minimal PDF");
         buf
@@ -103,10 +82,7 @@ mod tests {
     #[tokio::test]
     async fn load_invalid_pdf_returns_error() {
         let content = content_from_bytes(b"not a pdf");
-        let err = PdfLoader
-            .decode(&content, &PdfParams::default())
-            .await
-            .unwrap_err();
+        let err = PdfLoader::default().decode(content).await.unwrap_err();
         assert!(err.to_string().contains("failed to extract text from PDF"));
     }
 
@@ -114,19 +90,9 @@ mod tests {
     async fn load_minimal_pdf() {
         let raw = minimal_pdf();
         let content = content_from_bytes(&raw);
-        let doc = PdfLoader
-            .decode(&content, &PdfParams::default())
-            .await
-            .unwrap();
-
-        assert_eq!(doc.document_type(), DocumentType::Pdf);
-        let pages: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&doc)
-            .collect()
-            .await;
-        assert_eq!(pages.len(), 1);
-        let text = <RichTextHandler as Handle<Text>>::read(&doc, &pages[0].location)
-            .await
-            .unwrap();
-        assert!(text.as_str().trim().is_empty());
+        let mut doc = PdfLoader::default().decode(content).await.unwrap();
+        assert_eq!(doc.format().as_str(), "nvisy.rich.pdf");
+        let chunk = doc.next_chunk().await.unwrap().expect("one page");
+        assert!(chunk.data.as_str().trim().is_empty());
     }
 }

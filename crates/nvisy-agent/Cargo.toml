@@ -37,7 +37,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = ["http"] }
-nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework
 rig = { workspace = true, features = ["derive", "reqwest-middleware", "audio"] }
@@ -54,6 +53,8 @@ reqwest-middleware = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
+toml = { workspace = true, features = ["parse"] }
+minijinja = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }

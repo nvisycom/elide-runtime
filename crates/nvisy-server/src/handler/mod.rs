@@ -14,7 +14,6 @@
 pub mod error;
 pub mod utility;
 
-mod contexts;
 mod files;
 mod infra;
 mod policies;
@@ -35,7 +34,6 @@ use crate::service::ServiceState;
 /// ```text
 /// /health                      (unversioned)
 /// /api/v1/analytics
-/// /api/v1/contexts[/{id}]
 /// /api/v1/files[/{id}]
 /// /api/v1/policies[/{id}]
 /// /api/v1/runs[/{id}[/cancel]]
@@ -56,7 +54,6 @@ pub fn routes() -> ApiRouter<ServiceState> {
 fn v1_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(infra::routes_v1())
-        .merge(contexts::routes_v1())
         .merge(files::routes_v1())
         .merge(policies::routes_v1())
         .merge(runs::routes_v1())

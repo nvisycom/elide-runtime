@@ -2,8 +2,8 @@
 
 [package]
 name = "nvisy-pattern"
-description = "Built-in regex patterns and dictionaries for PII/PHI detection"
-keywords = ["nvisy", "pattern", "pii", "dictionary"]
+description = "Pattern and dictionary recognizers for PII/PHI detection"
+keywords = ["nvisy", "pattern", "dictionary", "pii"]
 categories = ["text-processing"]
 readme = "README.md"
 
@@ -25,24 +25,15 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
-nvisy-ontology = { workspace = true, features = [] }
 
 # (De)serialization
 csv = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
-serde_json = { workspace = true, features = [] }
+toml = { workspace = true, features = ["parse"] }
 schemars = { workspace = true, features = [] }
 
-# Versioning (sidecar metadata)
-semver = { workspace = true, features = ["serde"] }
-
-# Storage, file detection, and asset embedding
-include_dir = { workspace = true, features = [] }
-
-# Filesystem traversal
-walkdir = { workspace = true, features = [] }
-
 # Derive macros and error handling
+derive_builder = { workspace = true, features = [] }
 thiserror = { workspace = true, features = [] }
 
 # Pattern matching
@@ -52,8 +43,12 @@ aho-corasick = { workspace = true, features = [] }
 # Identifiers
 uuid = { workspace = true, features = [] }
 
+# Async trait sugar
+async-trait = { workspace = true, features = [] }
+
 # Observability
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
-tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }
+type-map = { workspace = true, features = [] }

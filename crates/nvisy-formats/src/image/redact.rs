@@ -7,7 +7,7 @@
 
 use image::DynamicImage;
 use nvisy_codec::handler::{ImageOutput, ImageRedaction};
-use nvisy_ontology::primitive::BoundingBox;
+use nvisy_core::primitive::BoundingBox;
 
 use super::image_ops::ImageOps;
 

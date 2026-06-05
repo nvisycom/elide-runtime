@@ -5,7 +5,7 @@
 use image::DynamicImage;
 use image::imageops::FilterType;
 use imageproc::filter::gaussian_blur_f32;
-use nvisy_ontology::primitive::{Color, IBoundingBox};
+use nvisy_core::primitive::{Color, IBoundingBox};
 
 /// Mutating image-transform operations on individual bounding-box
 /// regions.

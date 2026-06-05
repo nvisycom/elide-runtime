@@ -1,0 +1,106 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-document"
+description = "Whole-document carrier + pipeline orchestrator for Nvisy: Document<M>, Audit, Policy, ingestion, the document runner"
+keywords = ["nvisy", "document", "pipeline", "orchestrator"]
+categories = ["data-structures", "concurrency"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = true
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[features]
+default = ["tabular", "image", "audio", "rich"]
+test-utils = ["dep:tempfile"]
+
+tabular = ["nvisy-codec/tabular", "nvisy-formats/tabular"]
+image = ["nvisy-codec/image", "nvisy-formats/image"]
+audio = ["nvisy-codec/audio", "nvisy-formats/audio"]
+rich = ["image", "nvisy-codec/text", "nvisy-codec/image", "nvisy-formats/rich"]
+
+openai = ["nvisy-agent/openai-gpt", "nvisy-agent/openai-whisper"]
+anthropic = ["nvisy-agent/anthropic-claude"]
+google = ["nvisy-agent/google-gemini"]
+
+bento = ["nvisy-toolkit/bento", "nvisy-ner/bento", "nvisy-ocr/bento"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Internal crates
+nvisy-core = { workspace = true, features = ["http"] }
+nvisy-toolkit = { workspace = true, features = [] }
+nvisy-codec = { workspace = true, features = ["text"] }
+nvisy-formats = { workspace = true, features = ["text"] }
+
+# Detection + extraction backends used by the phase wiring
+nvisy-ner = { workspace = true, features = [] }
+nvisy-ocr = { workspace = true, features = [] }
+nvisy-pattern = { workspace = true, features = [] }
+nvisy-agent = { workspace = true, features = [] }
+
+# Storage
+fjall = { workspace = true, features = [] }
+
+# Encoding
+base64 = { workspace = true, features = [] }
+
+# (De)serialization
+serde = { workspace = true, features = [] }
+serde_json = { workspace = true, features = [] }
+serde_with = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
+toml = { workspace = true, features = [] }
+humantime-serde = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tokio-util = { workspace = true, features = [] }
+futures = { workspace = true, features = [] }
+
+# Primitive datatypes
+uuid = { workspace = true, features = [] }
+jiff = { workspace = true, features = [] }
+semver = { workspace = true, features = ["serde"] }
+oxilangtag = { workspace = true, features = [] }
+bytes = { workspace = true, features = [] }
+
+# Heterogeneous container for PolicyStore
+type-map = { workspace = true, features = [] }
+
+# Derive macros and error handling
+thiserror = { workspace = true, features = [] }
+anyhow = { workspace = true, features = [] }
+derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator"] }
+strum = { workspace = true, features = [] }
+
+# Encryption and hashing
+aes-gcm = { workspace = true, features = [] }
+sha2 = { workspace = true, features = [] }
+
+# Utilities
+validator = { workspace = true, features = [] }
+rand = { workspace = true, features = [] }
+tempfile = { workspace = true, features = [], optional = true }
+unicode-normalization = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+nvisy-document = { path = ".", features = ["test-utils"] }
+nvisy-formats = { workspace = true, features = ["txt", "csv", "test-utils"] }
+tempfile = { workspace = true, features = [] }

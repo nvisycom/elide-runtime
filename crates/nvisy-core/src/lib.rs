@@ -3,7 +3,18 @@
 #![doc = include_str!("../README.md")]
 
 pub mod content;
-pub mod media;
+pub mod context;
+pub mod entity;
+pub mod extraction;
+pub mod modality;
+pub mod primitive;
+pub mod recognition;
+
+pub use self::extraction::{
+    Artifacts, Extractor, ExtractorOutput, ModalityExtraction, Span, ValueAt,
+};
+pub use self::modality::{AudioData, ImageData, ModalityData, TextData};
+pub use self::recognition::{EntityRecognizer, Hint, LabelMap, RecognizerInput, RecognizerOutput};
 
 #[cfg(feature = "http")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http")))]

@@ -1,50 +1,38 @@
 //! Plain-text loader: validates and parses raw text content into a
 //! [`TxtHandler`].
-//!
-//! The loader splits the input into lines and records whether the
-//! source ended with a trailing newline so the file can be
-//! reconstructed after edits.
 
+use async_trait::async_trait;
 use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
+use nvisy_core::modality::Text;
 
 use super::TxtHandler;
 
-/// Parameters for [`TxtLoader`].
+/// Loader that validates and parses plain-text files. Produces one
+/// [`TxtHandler`] per input.
 #[derive(Debug, Default)]
-pub struct TxtParams {
-    /// Character encoding of the input bytes.
+pub struct TxtLoader {
+    /// Character encoding of the input bytes. Defaults to UTF-8.
     pub encoding: TextEncoding,
 }
 
-/// Loader that validates and parses plain-text files.
-///
-/// Produces a single [`TxtHandler`] per input.
-#[derive(Debug, Default)]
-pub struct TxtLoader;
-
-#[async_trait::async_trait]
-impl Loader for TxtLoader {
+#[async_trait]
+impl Loader<Text> for TxtLoader {
     type Handler = TxtHandler;
-    type Params = TxtParams;
 
     #[tracing::instrument(name = "txt.decode", skip_all, fields(input_bytes, lines))]
-    async fn decode(
-        &self,
-        content: &ContentData,
-        params: &Self::Params,
-    ) -> Result<TxtHandler, Error> {
+    async fn decode(&self, content: ContentData) -> Result<TxtHandler, Error> {
+        let parent = content.content_source;
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
-        let text = params.encoding.decode_bytes(&raw, "txt-loader")?;
+        let text = self.encoding.decode_bytes(&raw, "txt-loader")?;
         let trailing_newline = text.ends_with('\n');
         let lines: Vec<String> = text.lines().map(String::from).collect();
         tracing::Span::current().record("lines", lines.len());
 
-        let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = TxtHandler::new(lines, trailing_newline).with_source(source);
-        Ok(handler)
+        let source = ContentSource::new().with_parent(&parent);
+        Ok(TxtHandler::new(lines, trailing_newline).with_source(source))
     }
 }
 
@@ -54,7 +42,6 @@ mod tests {
     use nvisy_codec::handler::Handler;
     use nvisy_core::Error;
     use nvisy_core::content::ContentSource;
-    use nvisy_core::media::{DocumentType, TextFormat};
 
     use super::*;
 
@@ -65,9 +52,8 @@ mod tests {
     #[tokio::test]
     async fn load_multiline() -> Result<(), Error> {
         let content = content_from_str("hello\nworld\n");
-        let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
-
-        assert_eq!(doc.document_type(), DocumentType::Text(TextFormat::Txt));
+        let doc = TxtLoader::default().decode(content).await?;
+        assert_eq!(doc.format().as_str(), "nvisy.text.txt");
         assert_eq!(doc.lines(), &["hello", "world"]);
         assert!(doc.trailing_newline());
         Ok(())
@@ -76,8 +62,7 @@ mod tests {
     #[tokio::test]
     async fn load_no_trailing_newline() -> Result<(), Error> {
         let content = content_from_str("single line");
-        let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
-
+        let doc = TxtLoader::default().decode(content).await?;
         assert_eq!(doc.len(), 1);
         assert_eq!(doc.line(0), Some("single line"));
         assert!(!doc.trailing_newline());
@@ -90,10 +75,7 @@ mod tests {
             ContentSource::new(),
             Bytes::from_static(&[0xFF, 0xFE, 0x00]),
         );
-        let err = TxtLoader
-            .decode(&content, &TxtParams::default())
-            .await
-            .unwrap_err();
+        let err = TxtLoader::default().decode(content).await.unwrap_err();
         assert!(err.to_string().contains("UTF-8"));
     }
 }

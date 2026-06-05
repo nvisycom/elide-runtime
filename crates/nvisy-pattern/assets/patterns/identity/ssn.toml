@@ -1,0 +1,8 @@
+name = "ssn"
+entity_kind = "government_id"
+regex = "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b"
+score = 0.9
+validator = "ssn"
+
+[context]
+keywords = ["social security", "ssn", "tax id", "taxpayer identification"]

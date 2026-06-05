@@ -1,35 +1,27 @@
 //! MP3 loader: wraps raw audio bytes into a [`Mp3Handler`].
 
+use async_trait::async_trait;
 use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::modality::Audio;
 
 use super::Mp3Handler;
 
-/// Parameters for [`Mp3Loader`].
-#[derive(Debug, Default)]
-pub struct Mp3Params;
-
-/// Loader that wraps raw MP3 bytes.
-///
-/// Produces a single [`Mp3Handler`] per input.
+/// Loader that wraps raw MP3 bytes. Produces one [`Mp3Handler`] per input.
 #[derive(Debug, Default)]
 pub struct Mp3Loader;
 
-#[async_trait::async_trait]
-impl Loader for Mp3Loader {
+#[async_trait]
+impl Loader<Audio> for Mp3Loader {
     type Handler = Mp3Handler;
-    type Params = Mp3Params;
 
     #[tracing::instrument(name = "mp3.decode", skip_all, fields(input_bytes))]
-    async fn decode(
-        &self,
-        content: &ContentData,
-        _params: &Self::Params,
-    ) -> Result<Mp3Handler, Error> {
+    async fn decode(&self, content: ContentData) -> Result<Mp3Handler, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = Mp3Handler::new(content.to_bytes()).with_source(source);
-        Ok(handler)
+        let parent = content.content_source;
+        let bytes = content.to_bytes();
+        let source = ContentSource::new().with_parent(&parent);
+        Ok(Mp3Handler::new(bytes).with_source(source))
     }
 }

@@ -1,45 +1,36 @@
-//! HTML loader: validates and parses raw HTML content into a
+//! HTML loader: validates and parses raw HTML content into an
 //! [`HtmlHandler`].
 //!
-//! The loader parses the input using [`scraper`], extracts text nodes
-//! in document order, and produces a handler backed by those nodes.
-//!
-//! [`scraper`]: https://docs.rs/scraper
+//! Parses the input using [`scraper`], extracts text nodes in document
+//! order, and produces a handler backed by those nodes plus the raw
+//! source (used to reconstruct the HTML after edits).
 
+use async_trait::async_trait;
 use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
+use nvisy_core::modality::Text;
 use scraper::Html;
 
 use super::{HtmlData, HtmlHandler};
 
-/// Parameters for [`HtmlLoader`].
+/// Loader for HTML files. Produces one [`HtmlHandler`] per input.
 #[derive(Debug, Default)]
-pub struct HtmlParams {
-    /// Character encoding of the input bytes.
+pub struct HtmlLoader {
+    /// Character encoding of the input bytes. Defaults to UTF-8.
     pub encoding: TextEncoding,
 }
 
-/// Loader that validates and parses HTML files.
-///
-/// Produces a single [`HtmlHandler`] per input.
-#[derive(Debug, Default)]
-pub struct HtmlLoader;
-
-#[async_trait::async_trait]
-impl Loader for HtmlLoader {
+#[async_trait]
+impl Loader<Text> for HtmlLoader {
     type Handler = HtmlHandler;
-    type Params = HtmlParams;
 
     #[tracing::instrument(name = "html.decode", skip_all, fields(input_bytes, text_nodes))]
-    async fn decode(
-        &self,
-        content: &ContentData,
-        params: &Self::Params,
-    ) -> Result<HtmlHandler, Error> {
+    async fn decode(&self, content: ContentData) -> Result<HtmlHandler, Error> {
+        let parent = content.content_source;
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
-        let text = params.encoding.decode_bytes(&raw, "html-loader")?;
+        let text = self.encoding.decode_bytes(&raw, "html-loader")?;
         let dom = Html::parse_document(&text);
 
         let text_nodes: Vec<String> = dom
@@ -55,12 +46,11 @@ impl Loader for HtmlLoader {
             .collect();
         tracing::Span::current().record("text_nodes", text_nodes.len());
 
-        let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = HtmlHandler::new(HtmlData {
+        let source = ContentSource::new().with_parent(&parent);
+        Ok(HtmlHandler::new(HtmlData {
             text_nodes,
             raw: text,
         })
-        .with_source(source);
-        Ok(handler)
+        .with_source(source))
     }
 }

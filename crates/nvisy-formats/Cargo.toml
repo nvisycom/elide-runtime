@@ -29,10 +29,12 @@ json = ["nvisy-codec/text", "internal_text"]
 markdown = ["nvisy-codec/text", "internal_text"]
 ## HTML loader and handler via `scraper`.
 html = ["nvisy-codec/text", "internal_text", "dep:scraper"]
-## CSV loader and handler via the `csv` crate.
-csv = ["nvisy-codec/tabular", "internal_tabular", "dep:csv"]
-## Excel (`.xlsx`) loader and handler via `calamine`.
-xlsx = ["nvisy-codec/tabular", "internal_tabular", "dep:calamine"]
+## CSV loader and handler via the `csv` crate. Tabular cells reuse the
+## text redact helper, so this pulls `internal_text`.
+csv = ["nvisy-codec/tabular", "internal_tabular", "internal_text", "dep:csv"]
+## Excel (`.xlsx`) loader and handler via `calamine`. Pulls
+## `internal_text` for the same reason as `csv`.
+xlsx = ["nvisy-codec/tabular", "internal_tabular", "internal_text", "dep:calamine"]
 ## PNG loader and handler.
 png = ["nvisy-codec/image", "internal_image"]
 ## JPEG loader and handler.
@@ -44,9 +46,13 @@ wav = ["nvisy-codec/audio", "internal_audio", "dep:hound"]
 ## MP3 audio loader and handler (read-only — no pure-Rust encoder).
 mp3 = ["nvisy-codec/audio", "internal_audio"]
 ## PDF loader, handler, and page-to-image rendering via `lopdf` + `pdfium-render`.
-pdf = ["nvisy-codec/rich", "internal_rich", "dep:lopdf", "dep:pdfium-render", "dep:rayon"]
+## PDF loader, handler, and page-to-image rendering via `lopdf` + `pdfium-render`.
+## Pulls `internal_text` (page-text redact) + `internal_image` (PngHandler for rendered pages + extracted figures) + `png` (the concrete image format wrapping rendered pages).
+pdf = ["nvisy-codec/text", "nvisy-codec/image", "internal_rich", "internal_text", "internal_image", "png", "dep:lopdf", "dep:pdfium-render", "dep:rayon"]
 ## DOCX loader via `zip` + `quick-xml`.
-docx = ["nvisy-codec/rich", "internal_rich", "dep:zip", "dep:quick-xml"]
+## DOCX loader via `zip` + `quick-xml`. Pulls `internal_text` only —
+## DOCX text extraction is stubbed today, no image rendering needed.
+docx = ["nvisy-codec/text", "internal_rich", "internal_text", "dep:zip", "dep:quick-xml"]
 
 ## All text formats: `txt` + `json` + `markdown` + `html`.
 text = ["txt", "json", "markdown", "html"]
@@ -81,7 +87,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-codec = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
-nvisy-ontology = { workspace = true, features = [] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

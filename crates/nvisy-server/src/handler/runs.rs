@@ -19,7 +19,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{Engine, RunFilter, RunSnapshot};
+use nvisy_document::pipeline::{Engine, RunFilter, RunSnapshot};
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath, RunQuery};

@@ -31,9 +31,6 @@ tabular = ["text"]
 image = ["dep:image"]
 ## Audio modality wire types: AudioData, AudioOutput, AudioRedaction.
 audio = []
-## Rich-document handler trait (multi-modal containers like PDF / DOCX).
-## Requires both text and image since rich documents expose both.
-rich = ["text", "image"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -42,7 +39,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
-nvisy-ontology = { workspace = true, features = [] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

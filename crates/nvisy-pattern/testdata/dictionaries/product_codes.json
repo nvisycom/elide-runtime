@@ -1,6 +1,0 @@
-{
-  "name": "product_codes",
-  "description": "Synthetic product-code dictionary for engine-extension tests. Headerless CSV (the loader treats row 0 as data); columns are code, full_name, alias.",
-  "version": "0.1.0",
-  "industries": ["internal"]
-}

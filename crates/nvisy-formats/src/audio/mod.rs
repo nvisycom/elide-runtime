@@ -13,10 +13,10 @@ mod wav_handler;
 mod wav_loader;
 
 #[cfg(feature = "mp3")]
-pub use self::mp3_handler::Mp3Handler;
+pub use self::mp3_handler::{Mp3Handler, format as mp3_format};
 #[cfg(feature = "mp3")]
-pub use self::mp3_loader::{Mp3Loader, Mp3Params};
+pub use self::mp3_loader::Mp3Loader;
 #[cfg(feature = "wav")]
-pub use self::wav_handler::WavHandler;
+pub use self::wav_handler::{WavHandler, format as wav_format};
 #[cfg(feature = "wav")]
-pub use self::wav_loader::{WavLoader, WavParams};
+pub use self::wav_loader::WavLoader;

@@ -60,12 +60,10 @@ pub trait Codable: ModalityData {
 
     /// Per-location byte-write instruction the codec applies during
     /// [`IndexedHandle::redact`]. Distinct from the document-side
-    /// policy [`DocumentModality::Redaction`] enum that names *what*
-    /// the user wants redacted: this type is the *result* of running
-    /// the resolved anonymizer, ready for the codec to write into
-    /// the underlying bytes.
-    ///
-    /// [`DocumentModality::Redaction`]: nvisy_document::modality::DocumentModality::Redaction
+    /// policy `DocumentModality::Redaction` enum (in `nvisy-document`)
+    /// that names *what* the user wants redacted: this type is the
+    /// *result* of running the resolved anonymizer, ready for the
+    /// codec to write into the underlying bytes.
     type Instruction: Send + Sync + 'static;
 }
 

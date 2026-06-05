@@ -18,9 +18,11 @@ defined in [`nvisy-codec`] for every supported file format:
 | Audio | WAV, MP3 |
 | Rich | PDF, DOCX |
 
-The entry point is [`decode`], which dispatches a [`Content`] to the
-appropriate loader by its detected document type and returns a
-ready-to-use [`DocumentHandle`].
+The entry point is `CodecRegistryExt::builtins`, which returns a
+preloaded `CodecRegistry` (from `nvisy-codec`). Resolve a format by
+extension or MIME type and call its `Loader::decode` to obtain an
+`UntypedDocumentHandle`; commit to a modality via the consuming
+`into_*` accessors to get a typed `DocumentHandle<M>`.
 
 ## Feature Flags
 

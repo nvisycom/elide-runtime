@@ -17,6 +17,8 @@
 //!   so phases that need to resolve a location pass `&tree` directly.
 //! - [`Plan`] — the per-request bundle of per-phase configs phases
 //!   read from `input.plan.X`.
+//!
+//! [`SourceAt`]: nvisy_core::extraction::SourceAt
 
 mod context;
 mod plan;

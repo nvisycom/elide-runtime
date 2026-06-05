@@ -235,7 +235,7 @@ impl IndexedHandle<Text> for PdfHandler {
         // Right-to-left so each page's length delta doesn't invalidate
         // earlier byte offsets.
         let mut items = redactions.into_items();
-        items.sort_by(|(a, _), (b, _)| b.start.cmp(&a.start));
+        items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
         for (location, redaction) in items {
             self.redact_one(&location, redaction)?;
         }

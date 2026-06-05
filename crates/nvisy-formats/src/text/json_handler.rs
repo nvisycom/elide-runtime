@@ -476,7 +476,7 @@ mod tests {
     async fn stream_yields_string_leaves_and_keys() -> Result<(), Error> {
         let mut h = compact_handler(r#"{"name":"Alice","age":30}"#);
         let mut count = 0;
-        while let Some(_) = h.next_chunk().await? {
+        while h.next_chunk().await?.is_some() {
             count += 1;
         }
         // 2 keys + 2 leaves

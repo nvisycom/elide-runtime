@@ -49,7 +49,9 @@ pub fn format() -> Format {
 }
 
 /// Handler for loaded WAV content. Stores the encoded bytes; decode
-/// happens on demand inside [`redact`].
+/// happens on demand inside [`IndexedHandle::redact`].
+///
+/// [`IndexedHandle::redact`]: nvisy_codec::core::IndexedHandle::redact
 #[derive(Debug)]
 pub struct WavHandler {
     source: ContentSource,

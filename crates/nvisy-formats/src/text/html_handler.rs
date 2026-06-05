@@ -145,7 +145,7 @@ impl IndexedHandle<Text> for HtmlHandler {
         redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
         let mut items = redactions.into_items();
-        items.sort_by(|(a, _), (b, _)| b.start.cmp(&a.start));
+        items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
         for (location, redaction) in items {
             self.redact_one(&location, redaction)?;
         }
@@ -320,7 +320,7 @@ mod tests {
         let mut h =
             handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
         let mut count = 0;
-        while let Some(_) = h.next_chunk().await? {
+        while h.next_chunk().await?.is_some() {
             count += 1;
         }
         assert_eq!(count, 2);

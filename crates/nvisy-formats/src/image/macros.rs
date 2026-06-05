@@ -11,9 +11,10 @@
 //! [`Handle<Image>`]: nvisy_codec::core::Handle
 //! [`IndexedHandle<Image>`]: nvisy_codec::core::IndexedHandle
 
-/// Implement [`Handler`] + [`Handle<Image>`] + [`IndexedHandle<Image>`]
-/// + inherent methods for an image handler struct that holds a single
-/// `DynamicImage`, a `ContentSource`, and a streaming cursor.
+/// Implement [`Handler`], [`Handle<Image>`], [`IndexedHandle<Image>`],
+/// and the shared inherent methods for an image handler struct that
+/// holds a single `DynamicImage`, a `ContentSource`, and a streaming
+/// cursor.
 ///
 /// Each invocation also emits:
 /// - a `pub const FORMAT_ID: FormatId` for the handler's stable id
@@ -41,6 +42,8 @@ macro_rules! impl_image_handler {
 
         /// [`Format`] descriptor registered into
         /// [`nvisy_codec::CodecRegistry`].
+        ///
+        /// [`Format`]: ::nvisy_codec::Format
         pub fn format() -> ::nvisy_codec::Format {
             ::nvisy_codec::Format {
                 id: FORMAT_ID.clone(),

@@ -122,7 +122,7 @@ impl IndexedHandle<Text> for TxtHandler {
         // Apply right-to-left so each edit's length delta doesn't
         // invalidate earlier locations.
         let mut items = redactions.into_items();
-        items.sort_by(|(a, _), (b, _)| b.start.cmp(&a.start));
+        items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
         for (location, redaction) in items {
             self.redact_one(&location, redaction)?;
         }

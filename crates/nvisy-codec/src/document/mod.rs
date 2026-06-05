@@ -16,6 +16,7 @@
 //! the underlying [`Handle<M>`] and exposes the per-modality
 //! capability surface without further dispatch.
 //!
+//! [`Handle<M>`]: crate::core::Handle
 //! [`into_text`]: UntypedDocumentHandle::into_text
 //! [`into_image`]: UntypedDocumentHandle::into_image
 
@@ -40,6 +41,7 @@ use crate::core::{Codable, FormatId, IndexedHandle};
 /// [`DocumentHandle<M>`]. The accessors are consuming — once you
 /// commit to a modality, the untyped form is gone.
 ///
+/// [`Handle<M>`]: crate::core::Handle
 /// [`into_text`]: Self::into_text
 /// [`into_image`]: Self::into_image
 /// [`into_audio`]: Self::into_audio

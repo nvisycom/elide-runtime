@@ -1,6 +1,5 @@
 //! Codec core contracts: per-modality trait surfaces, format identity,
-//! the registry that composes them, and the supporting types those
-//! traits reference.
+//! and the registry that composes them.
 //!
 //! - [`Codable`] — per-modality wire-type associated types.
 //! - [`Handle<M>`] — streaming-default per-modality capability trait.
@@ -16,6 +15,8 @@
 //!   adapting per-modality [`Loader<M>`] impls.
 //! - [`WrapUntyped`] — modality-specific erase into
 //!   [`UntypedDocumentHandle`].
+//! - [`Handler`] — base trait every format handler implements.
+//! - [`Loader<M>`] — per-modality decoder the registry composes.
 //!
 //! The `(location, replacement)` pair list passed to
 //! [`IndexedHandle::redact`] is
@@ -23,20 +24,18 @@
 //! replacement enum is [`nvisy_core::redaction`] — codec depends on
 //! core, not the reverse.
 //!
-//! Base traits ([`Handler`], [`Loader<M>`]) live in
-//! [`crate::handler`], next to the concrete per-modality wire types
-//! implementing them. Concrete per-modality wire types (`TextData`,
-//! `ImageData`, …) live in [`crate::handler`]; concrete format
-//! handlers live in `nvisy-formats`.
+//! Concrete format implementations and their `impl Codable for X`
+//! blocks live in the per-modality top-level modules (`crate::text`,
+//! `crate::image`, `crate::audio`, `crate::tabular`, `crate::rich`).
 //!
-//! [`Handler`]: crate::handler::Handler
-//! [`Loader<M>`]: crate::handler::Loader
 //! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
 
 mod format;
 mod handle;
+mod handler;
 mod registry;
 
 pub use self::format::FormatId;
 pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId, IndexedHandle};
+pub use self::handler::{Handler, Loader};
 pub use self::registry::{CodecRegistry, ErasedLoader, Format, LoaderAdapter, WrapUntyped};

@@ -20,6 +20,8 @@
 //! [`into_text`]: UntypedDocumentHandle::into_text
 //! [`into_image`]: UntypedDocumentHandle::into_image
 
+mod decoded_buffer;
+
 #[cfg(feature = "audio")]
 use nvisy_core::modality::Audio;
 #[cfg(feature = "image")]
@@ -30,6 +32,7 @@ use nvisy_core::modality::Tabular;
 #[cfg(feature = "text")]
 use nvisy_core::modality::Text;
 
+pub use self::decoded_buffer::DecodedBuffer;
 use crate::core::{Codable, FormatId, IndexedHandle};
 
 /// Runtime-tagged handle returned by the codec registry, carrying the

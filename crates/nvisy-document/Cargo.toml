@@ -22,10 +22,10 @@ documentation = { workspace = true }
 default = ["tabular", "image", "audio", "rich"]
 test-utils = ["dep:tempfile"]
 
-tabular = ["nvisy-codec/tabular", "nvisy-formats/tabular"]
-image = ["nvisy-codec/image", "nvisy-formats/image"]
-audio = ["nvisy-codec/audio", "nvisy-formats/audio"]
-rich = ["image", "nvisy-codec/text", "nvisy-codec/image", "nvisy-formats/rich"]
+tabular = ["nvisy-codec/tabular"]
+image = ["nvisy-codec/image"]
+audio = ["nvisy-codec/audio"]
+rich = ["image", "nvisy-codec/rich"]
 
 openai = ["nvisy-agent/openai-gpt", "nvisy-agent/openai-whisper"]
 anthropic = ["nvisy-agent/anthropic-claude"]
@@ -42,7 +42,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = ["http"] }
 nvisy-toolkit = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = ["text"] }
-nvisy-formats = { workspace = true, features = ["text"] }
 
 # Detection + extraction backends used by the phase wiring
 nvisy-ner = { workspace = true, features = [] }
@@ -97,7 +96,7 @@ tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 nvisy-document = { path = ".", features = ["test-utils"] }
-nvisy-formats = { workspace = true, features = ["txt", "csv", "test-utils"] }
+nvisy-codec = { workspace = true, features = ["txt", "csv", "test-utils"] }
 tempfile = { workspace = true, features = [] }
 
 [package.metadata.cargo-machete]

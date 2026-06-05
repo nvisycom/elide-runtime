@@ -25,11 +25,11 @@
 //! source identity and cursor — the rich handler does **not**
 //! implement multiple `Handle<M>` traits itself.
 //!
-//! [`TextData`]: crate::handler::TextData
-//! [`ImageData`]: crate::handler::ImageData
-//! [`AudioData`]: crate::handler::AudioData
-//! [`TextRedaction`]: crate::handler::TextRedaction
-//! [`ImageRedaction`]: crate::handler::ImageRedaction
+//! [`TextData`]: crate::core::TextData
+//! [`ImageData`]: crate::core::ImageData
+//! [`AudioData`]: crate::core::AudioData
+//! [`TextRedaction`]: crate::core::TextRedaction
+//! [`ImageRedaction`]: crate::core::ImageRedaction
 //! [`next_chunk`]: Handle::next_chunk
 //! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
 //! [`Modality`]: nvisy_core::modality::Modality
@@ -41,7 +41,7 @@ use nvisy_core::modality::{ModalityData, ModalityKind};
 use nvisy_core::redaction::{Redactable, Redactions};
 use uuid::Uuid;
 
-use crate::handler::Handler;
+use crate::core::Handler;
 
 /// Codec-side extension of [`ModalityData`]: adds the per-location
 /// redaction instruction the codec applies, and the runtime tag the

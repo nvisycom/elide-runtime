@@ -2950,8 +2950,20 @@ name = "nvisy-codec"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
+ "csv",
+ "hound",
+ "image",
+ "imageproc",
+ "lopdf",
  "nvisy-core",
+ "pdfium-render",
+ "rayon",
+ "scraper",
+ "serde",
+ "serde_json",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -3001,7 +3013,6 @@ dependencies = [
  "nvisy-codec",
  "nvisy-core",
  "nvisy-document",
- "nvisy-formats",
  "nvisy-ner",
  "nvisy-ocr",
  "nvisy-pattern",
@@ -3021,28 +3032,6 @@ dependencies = [
  "unicode-normalization",
  "uuid",
  "validator",
-]
-
-[[package]]
-name = "nvisy-formats"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "csv",
- "hound",
- "image",
- "imageproc",
- "lopdf",
- "nvisy-codec",
- "nvisy-core",
- "pdfium-render",
- "rayon",
- "scraper",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
 ]
 
 [[package]]

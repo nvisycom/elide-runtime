@@ -18,7 +18,6 @@ use nvisy_core::primitive::{Confidence, ConfidenceThreshold};
 use nvisy_document::core::DocumentTree;
 use nvisy_document::document::Document;
 use nvisy_document::modality::{TextExtraction, TextMetadata};
-use nvisy_formats::CodecRegistryExt;
 use nvisy_toolkit::deduplication::{
     DeduplicationParams, DeduplicationStrategy, FilterParams, FuseLayer, GroupingCriteria, Layer,
     LayerContext, LayerPipeline,
@@ -41,7 +40,7 @@ fn ner_step(confidence: Confidence) -> TrailStep {
 const TEXT: &str = "John Smith";
 
 async fn tree_from(text: &str) -> DocumentTree<Text> {
-    let registry = CodecRegistry::builtins();
+    let registry = CodecRegistry::with_builtin();
     let format = registry.by_extension("txt").expect("txt codec registered");
     let data = ContentData::new(ContentSource::new(), text.as_bytes().to_vec().into());
     let untyped = format.loader.decode(data).await.expect("decode");

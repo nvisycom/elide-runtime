@@ -3,11 +3,11 @@
 //!
 //! Redaction is **not supported**: no pure-Rust MP3 encoder exists
 //! and pulling a C dependency (libmp3lame) is out of scope here.
-//! [`IndexedHandle::redact_at`] returns an error. Convert audio to
+//! [`IndexedHandle::redact`] returns an error. Convert audio to
 //! WAV upstream if redaction is required.
 //!
 //! [`Handle<Audio>`]: nvisy_codec::core::Handle
-//! [`IndexedHandle::redact_at`]: nvisy_codec::core::IndexedHandle::redact_at
+//! [`IndexedHandle::redact`]: nvisy_codec::core::IndexedHandle::redact
 
 use std::sync::Arc;
 

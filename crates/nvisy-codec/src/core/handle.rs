@@ -59,9 +59,15 @@ pub trait Codable: ModalityData {
     /// [udh]: crate::document::UntypedDocumentHandle
     const KIND: ModalityKind;
 
-    /// Per-location redaction instruction applied by
-    /// [`IndexedHandle::redact_at`].
-    type Redaction: Send + Sync + 'static;
+    /// Per-location byte-write instruction the codec applies during
+    /// [`IndexedHandle::redact`]. Distinct from the document-side
+    /// policy [`Redaction`][r] enum that names *what* the user wants
+    /// redacted: this type is the *result* of running the resolved
+    /// anonymizer, ready for the codec to write into the underlying
+    /// bytes.
+    ///
+    /// [r]: nvisy_document::modality::DocumentModality::Redaction
+    type Instruction: Send + Sync + 'static;
 }
 
 /// Stable identifier for an embedded child handle inside a rich
@@ -105,7 +111,7 @@ impl fmt::Display for HandleId {
 ///
 /// `data` is the per-modality wire payload; `location` is the
 /// coordinate the handler will accept in [`IndexedHandle::read`] /
-/// [`IndexedHandle::redact_at`] to address the same chunk again.
+/// [`IndexedHandle::redact`] to address the same chunk again.
 ///
 /// `embed` is `Some(id)` only for text chunks that reference an
 /// embedded child handle (e.g. an image figure in a PDF); resolve it
@@ -142,7 +148,14 @@ pub trait Handle<M: Codable>: Handler {
 /// driving [`Handle::next_chunk`] and buffering as needed.
 #[async_trait::async_trait]
 pub trait IndexedHandle<M: Codable>: Handle<M> {
-    /// Read the wire payload at the given location.
+    /// Read the wire payload at the given location. Used by
+    /// [`ValueAt`][va] resolvers to fetch bytes for a coordinate
+    /// already known from somewhere else (an entity audit record, an
+    /// annotation). Extraction itself does not call this — it drives
+    /// [`Handle::next_chunk`] which returns `(location, data)`
+    /// together.
+    ///
+    /// [va]: nvisy_core::ValueAt
     async fn read(&self, location: &M::Location) -> Result<Option<M::Data>, Error>;
 
     /// Apply a batch of `(location, redaction)` pairs in whatever
@@ -154,7 +167,7 @@ pub trait IndexedHandle<M: Codable>: Handle<M> {
     /// Use [`Redactions::single`] when only one redaction is needed.
     async fn redact(
         &mut self,
-        redactions: Redactions<M::Location, M::Redaction>,
+        redactions: Redactions<M::Location, M::Instruction>,
     ) -> Result<(), Error>;
 }
 

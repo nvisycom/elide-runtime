@@ -307,7 +307,7 @@ fn compute_page_starts(pages: &[String]) -> Vec<usize> {
 fn wrap_as_image_handle(img: image::DynamicImage) -> DocumentHandle<Image> {
     let handler = PngHandler::new(img);
     let format = handler.format();
-    DocumentHandle::new(format, Arc::new(handler))
+    DocumentHandle::new(format, Box::new(handler))
 }
 
 #[cfg(test)]

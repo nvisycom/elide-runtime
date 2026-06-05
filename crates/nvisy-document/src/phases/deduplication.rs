@@ -1,28 +1,23 @@
-//! [`DeduplicationPhase`]: per-node dedup driver.
+//! [`DeduplicationPhase`]: per-document dedup driver.
 //!
-//! Walks the [`DocumentTree`], pulling each node's entity records,
-//! running the canonical dedup pipeline (calibrate → filter → fuse →
-//! resolve) via [`LayerPipeline::from_params`], and rewrapping the
-//! result. Stateless; per-run config comes from `input.plan`.
+//! Runs the canonical dedup pipeline (calibrate → filter → fuse →
+//! resolve) via [`LayerPipeline::from_params`] against each
+//! [`DocumentTree<M>`]'s audit records. Stateless; per-run config
+//! comes from `input.plan` each call.
 //!
-//! The pipeline + individual layers live in
-//! [`nvisy_toolkit::deduplication`]; this phase is purely the
-//! document-traversal glue.
-//!
-//! [`DocumentTree`]: crate::core::DocumentTree
 //! [`LayerPipeline::from_params`]: nvisy_toolkit::deduplication::LayerPipeline::from_params
 
 use std::mem;
 
 use nvisy_core::Result;
+use nvisy_core::ValueAt;
 use nvisy_core::entity::Entity;
-use nvisy_core::modality::Overlap;
+use nvisy_core::modality::{Audio, Image, Overlap, Tabular, Text};
 use nvisy_toolkit::deduplication::{FilterParams, LayerContext, LayerPipeline, SpanSize};
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::core::{DocumentTree, DocumentView, NodeMut, RunContext, SharedHandle, ValueAt};
-use crate::document::Document;
+use crate::core::{DocumentTree, RunContext};
 use crate::modality::DocumentModality;
 use crate::pipeline::{DeduplicationParams, Detection, EngineInput};
 use crate::provenance::EntityRecord;
@@ -37,50 +32,62 @@ const TARGET: &str = "nvisy_engine::deduplication";
 pub struct DeduplicationPhase;
 
 impl DeduplicationPhase {
-    /// Build the phase. Stateless.
     pub fn new() -> Self {
         Self
     }
 
-    /// Walk the tree and run the per-node dedup body. Visits the root
-    /// first, then iterates nested embedded documents; each per-node
-    /// body borrows the detection + dedup plan and handle directly
-    /// from this scope.
-    pub(crate) async fn apply(
+    pub(crate) async fn apply_text(
         &self,
         ctx: &RunContext,
         input: &EngineInput,
-        tree: &mut DocumentTree,
+        tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
+        self.run(ctx, input, tree).await
+    }
+
+    pub(crate) async fn apply_tabular(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Tabular>,
+    ) -> Result<()> {
+        self.run(ctx, input, tree).await
+    }
+
+    pub(crate) async fn apply_image(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Image>,
+    ) -> Result<()> {
+        self.run(ctx, input, tree).await
+    }
+
+    pub(crate) async fn apply_audio(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Audio>,
+    ) -> Result<()> {
+        self.run(ctx, input, tree).await
+    }
+
+    async fn run<M>(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<M>,
+    ) -> Result<()>
+    where
+        M: DocumentModality,
+        M::Location: Overlap + SpanSize,
+        DocumentTree<M>: ValueAt<M>,
+    {
         let span = tracing::info_span!(target: TARGET, "phase", name = "deduplication");
         let run_id = ctx.shared().run_id;
-        // Snapshot the tree-owned handle so it doesn't conflict with
-        // the per-node `&mut` borrows produced by `root_mut` /
-        // `embeds_mut` further down.
-        let handle = tree.handle.clone();
-        async move {
-            dispatch(
-                tree.root_mut(),
-                &handle,
-                &input.plan.deduplication,
-                &input.plan.detection,
-                run_id,
-            )
-            .await?;
-            for node in tree.embeds_mut() {
-                dispatch(
-                    node,
-                    &handle,
-                    &input.plan.deduplication,
-                    &input.plan.detection,
-                    run_id,
-                )
-                .await?;
-            }
-            Ok(())
-        }
-        .instrument(span)
-        .await
+        async move { dedup_one(tree, &input.plan.deduplication, &input.plan.detection, run_id).await }
+            .instrument(span)
+            .await
     }
 }
 
@@ -90,24 +97,8 @@ impl Default for DeduplicationPhase {
     }
 }
 
-async fn dispatch(
-    node: NodeMut<'_>,
-    handle: &SharedHandle,
-    dedup: &DeduplicationParams,
-    detection: &Detection,
-    run_id: Uuid,
-) -> Result<()> {
-    match node {
-        NodeMut::Text(doc) => dedup_one(doc, handle, dedup, detection, run_id).await,
-        NodeMut::Tabular(doc) => dedup_one(doc, handle, dedup, detection, run_id).await,
-        NodeMut::Image(doc) => dedup_one(doc, handle, dedup, detection, run_id).await,
-        NodeMut::Audio(doc) => dedup_one(doc, handle, dedup, detection, run_id).await,
-    }
-}
-
 async fn dedup_one<M>(
-    doc: &mut Document<M>,
-    handle: &SharedHandle,
+    tree: &mut DocumentTree<M>,
     dedup: &DeduplicationParams,
     detection: &Detection,
     run_id: Uuid,
@@ -115,9 +106,9 @@ async fn dedup_one<M>(
 where
     M: DocumentModality,
     M::Location: Overlap + SpanSize,
-    for<'a> DocumentView<'a, M>: ValueAt<M>,
+    DocumentTree<M>: ValueAt<M>,
 {
-    if doc.audit.records.is_empty() {
+    if tree.root.audit.records.is_empty() {
         return Ok(());
     }
     let filter = FilterParams {
@@ -126,20 +117,17 @@ where
     };
     tracing::debug!(
         target: TARGET,
-        entities = doc.audit.records.len(),
+        entities = tree.root.audit.records.len(),
         "running deduplication",
     );
     // Dedup runs before redaction evaluation, so every record's
     // `audit` is still None; we can pull entities out, dedup, and
     // rewrap without losing audit state.
-    let records = mem::take(&mut doc.audit.records);
+    let records = mem::take(&mut tree.root.audit.records);
     let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
-    let deduped = {
-        let view = DocumentView::new(doc, handle);
-        let pipeline: LayerPipeline<M, _> = LayerPipeline::from_params(dedup, filter);
-        let ctx = LayerContext::new(&view).with_correlation_id(run_id);
-        pipeline.run(entities, &ctx).await
-    };
-    doc.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
+    let pipeline: LayerPipeline<M, _> = LayerPipeline::from_params(dedup, filter);
+    let ctx = LayerContext::new(&*tree).with_correlation_id(run_id);
+    let deduped = pipeline.run(entities, &ctx).await;
+    tree.root.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
     Ok(())
 }

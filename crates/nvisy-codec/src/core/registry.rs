@@ -94,7 +94,7 @@ where
     async fn decode(&self, content: ContentData) -> Result<UntypedDocumentHandle, Error> {
         let handler = self.loader.decode(content).await?;
         let format = handler.format();
-        let handle: Arc<dyn IndexedHandle<M>> = Arc::new(handler);
+        let handle: Box<dyn IndexedHandle<M>> = Box::new(handler);
         let typed = DocumentHandle::new(format, handle);
         Ok(M::wrap(typed))
     }

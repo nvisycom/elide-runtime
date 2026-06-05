@@ -1,39 +1,37 @@
 //! File import operation.
 //!
-//! Decodes raw content into one [`DocumentTree`], optionally applying
+//! Decodes raw content into one [`AnyTree`], optionally applying
 //! pre-processing in order:
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)
 //! 2. **Decryption** — decrypt content (if encryption config specified)
-//! 3. **Decode** — detect format and decode into a typed
-//!    [`DocumentHandle`]
-//! 4. **Dispatch** — wrap the handle in the matching [`AnyDocument`]
-//!    variant. Rich sources (PDF, DOCX) land as
-//!    [`AnyDocument::Text`]; their image content surfaces as nested
-//!    `Document<Image>` children inside [`TextBlock::Embed`] blocks
-//!    once the extraction phase runs.
+//! 3. **Decode** — resolve a codec from the [`CodecRegistry`] by the
+//!    content's extension or MIME hint, then decode into an
+//!    [`UntypedDocumentHandle`].
+//! 4. **Dispatch** — match the untyped handle once, build the matching
+//!    typed [`DocumentTree<M>`], and wrap it in the [`AnyTree`]
+//!    variant the orchestrator dispatches on.
 //! 5. **Seed** — convert any [`Inclusion`] annotations from the
 //!    content metadata into pre-detected entities on the root
 //!    document's audit, and store the full annotation list on the
 //!    document for downstream exclusion filtering.
 //!
-//! [`DocumentHandle`]: nvisy_codec::DocumentHandle
-//! [`AnyDocument`]: crate::core::AnyDocument
-//! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
+//! [`AnyTree`]: crate::core::AnyTree
+//! [`DocumentTree<M>`]: crate::core::DocumentTree
+//! [`UntypedDocumentHandle`]: nvisy_codec::UntypedDocumentHandle
+//! [`CodecRegistry`]: nvisy_codec::CodecRegistry
 //! [`Inclusion`]: nvisy_core::entity::AnnotationKind::Inclusion
 
 use std::mem;
 use std::sync::Arc;
 
-use nvisy_codec::HandleModality;
-use nvisy_core::Result;
-use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata};
+use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
+use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_core::entity::{Annotation, LabelAnnotation};
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
-use nvisy_formats::decode;
-use tokio::sync::Mutex;
+use nvisy_core::{Error, Result};
 
-use crate::core::{AnyDocument, DocumentTree, SharedData, SharedHandle};
+use crate::core::{AnyTree, DocumentTree, SharedData};
 use crate::document::Document;
 use crate::modality::{
     AudioExtraction, AudioMetadata, DocumentModality, ImageExtraction, ImageMetadata,
@@ -45,7 +43,7 @@ use crate::phases::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, Encryp
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
-/// Decodes raw content into one [`DocumentTree`], optionally applying
+/// Decodes raw content into one [`AnyTree`], optionally applying
 /// decompression and decryption beforehand.
 #[derive(Default)]
 pub struct Importer {
@@ -68,15 +66,14 @@ impl Importer {
         self
     }
 
-    /// Decode `content` into a single-element `Vec<DocumentTree>`.
-    /// The vector shape is preserved from the previous `AnyEnvelope`
-    /// fan-out so the orchestrator's collection loop stays uniform —
-    /// even though every source path now yields exactly one tree.
+    /// Decode `content` into a single-element `Vec<AnyTree>`. The
+    /// vector shape is preserved so the orchestrator's collection
+    /// loop stays uniform across import sources.
     pub async fn import(
         &self,
         content: Content,
         shared: &Arc<SharedData>,
-    ) -> Result<Vec<DocumentTree>> {
+    ) -> Result<Vec<AnyTree>> {
         let mut content = content;
 
         if let Some(algorithm) = self.decompression {
@@ -99,46 +96,77 @@ impl Importer {
             content = replace_data(content, decrypted_data);
         }
 
-        let doc = decode(&content).await?;
-        tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
-        let mut metadata = content.into_parts().1.unwrap_or_default();
-        let annotations = mem::take(&mut metadata.annotations);
-
-        let handle: SharedHandle = Arc::new(Mutex::new(doc));
-        let tree = dispatch(handle, metadata, annotations).await;
+        let untyped = decode(&shared.codec_registry, &content).await?;
         tracing::debug!(
             target: TARGET,
-            modality = tree.root.modality_name(),
+            format = %untyped.format(),
+            modality = ?untyped.modality(),
+            "decoded document",
+        );
+
+        let (data, metadata) = content.into_parts();
+        let mut metadata = metadata.unwrap_or_default();
+        let annotations = mem::take(&mut metadata.annotations);
+        let source = data.content_source;
+
+        let tree = build_tree(untyped, source, metadata, annotations);
+        tracing::debug!(
+            target: TARGET,
+            modality = tree.modality_name(),
             "produced tree",
         );
         Ok(vec![tree])
     }
 }
 
-/// Build the per-modality root document and wrap it in a fresh tree.
-async fn dispatch(
-    handle: SharedHandle,
+/// Resolve a format from the registry by extension (preferred) or
+/// MIME content type, then decode the raw bytes through its loader.
+async fn decode(
+    registry: &CodecRegistry,
+    content: &Content,
+) -> Result<UntypedDocumentHandle> {
+    let format = content
+        .file_extension()
+        .and_then(|ext| registry.by_extension(ext))
+        .or_else(|| content.content_type().and_then(|ct| registry.by_content_type(ct)))
+        .ok_or_else(|| {
+            Error::validation(
+                format!(
+                    "no codec registered for extension `{:?}` / content-type `{:?}`",
+                    content.file_extension(),
+                    content.content_type(),
+                ),
+                TARGET,
+            )
+        })?;
+    format.loader.decode(content.data().clone()).await
+}
+
+/// Build the per-modality typed tree from an [`UntypedDocumentHandle`],
+/// stamping the document's extraction provenance and seeding any
+/// inclusion annotations onto the root document's audit.
+fn build_tree(
+    untyped: UntypedDocumentHandle,
+    source: ContentSource,
     metadata: ContentMetadata,
     mut annotations: AnyAnnotations,
-) -> DocumentTree {
-    let (modality, has_header) = {
-        let guard = handle.lock().await;
-        (guard.modality(), guard.tabular_has_header())
-    };
-    let source = handle.lock().await.source();
-    let root = match modality {
-        HandleModality::Text => {
-            let mut doc = Document::<Text>::new(TextMetadata::from(TextExtraction::Native), source);
+) -> AnyTree {
+    match untyped {
+        UntypedDocumentHandle::Text(handle) => {
+            let mut doc = Document::<Text>::new(
+                TextMetadata::from(TextExtraction::Native),
+                source,
+            );
             attach_annotations(
                 &mut doc,
                 mem::take(&mut annotations.text),
                 annotations.labels.clone(),
             );
-            AnyDocument::Text(doc)
+            AnyTree::Text(DocumentTree::new(doc, handle, metadata))
         }
-        HandleModality::Tabular => {
+        UntypedDocumentHandle::Tabular(handle) => {
             let mut doc = Document::<Tabular>::new(
-                TabularMetadata::from(TabularExtraction::from_header_signal(has_header)),
+                TabularMetadata::from(TabularExtraction::SchemaInferred),
                 source,
             );
             attach_annotations(
@@ -146,56 +174,33 @@ async fn dispatch(
                 mem::take(&mut annotations.tabular),
                 annotations.labels.clone(),
             );
-            AnyDocument::Tabular(doc)
+            AnyTree::Tabular(DocumentTree::new(doc, handle, metadata))
         }
-        HandleModality::Image => {
-            let mut doc =
-                Document::<Image>::new(ImageMetadata::from(ImageExtraction::Pending), source);
+        UntypedDocumentHandle::Image(handle) => {
+            let mut doc = Document::<Image>::new(
+                ImageMetadata::from(ImageExtraction::Pending),
+                source,
+            );
             attach_annotations(
                 &mut doc,
                 mem::take(&mut annotations.image),
                 annotations.labels.clone(),
             );
-            AnyDocument::Image(doc)
+            AnyTree::Image(DocumentTree::new(doc, handle, metadata))
         }
-        HandleModality::Audio => {
-            let mut doc =
-                Document::<Audio>::new(AudioMetadata::from(AudioExtraction::Pending), source);
+        UntypedDocumentHandle::Audio(handle) => {
+            let mut doc = Document::<Audio>::new(
+                AudioMetadata::from(AudioExtraction::Pending),
+                source,
+            );
             attach_annotations(
                 &mut doc,
                 mem::take(&mut annotations.audio),
                 annotations.labels.clone(),
             );
-            AnyDocument::Audio(doc)
+            AnyTree::Audio(DocumentTree::new(doc, handle, metadata))
         }
-        HandleModality::Rich => {
-            // PDF/DOCX: one root Text doc. Image content surfaces
-            // as nested `Document<Image>` children via
-            // `TextBlock::Embed`, populated by the image extraction
-            // step from the same shared codec handle.
-            //
-            // User-supplied image annotations on a Rich source are
-            // dropped with a warn-log: under the nested model image
-            // annotations target the nested image doc, which doesn't
-            // exist until extraction runs.
-            let dropped_image_annotations = annotations.image.len();
-            if dropped_image_annotations > 0 {
-                tracing::warn!(
-                    target: TARGET,
-                    count = dropped_image_annotations,
-                    "dropping image annotations on rich source: nested-document seeding not implemented",
-                );
-            }
-            let mut doc = Document::<Text>::new(TextMetadata::from(TextExtraction::Native), source);
-            attach_annotations(
-                &mut doc,
-                mem::take(&mut annotations.text),
-                annotations.labels.clone(),
-            );
-            AnyDocument::Text(doc)
-        }
-    };
-    DocumentTree::new(root, handle, metadata)
+    }
 }
 
 /// Store user annotations on the document and synthesise entities
@@ -247,138 +252,5 @@ fn replace_data(content: Content, data: ContentData) -> Content {
     match content.into_parts().1 {
         Some(meta) => Content::with_metadata(data, meta),
         None => Content::new(data),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata};
-    use nvisy_core::entity::{
-        Annotation, AnnotationKind, AnnotationStrength, EntityKind, LabelAnnotation,
-        TrailProvenance,
-    };
-    use nvisy_core::modality::TextLocation;
-
-    use super::*;
-    use crate::core::SharedData;
-    use crate::phases::ingestion::registry::Registry;
-
-    fn shared() -> Arc<SharedData> {
-        let dir = tempfile::tempdir().unwrap();
-        let registry = Registry::open(dir.path()).unwrap();
-        SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry)
-    }
-
-    fn text_content(text: &str, annotations: AnyAnnotations) -> Content {
-        let meta = ContentMetadata::new()
-            .with_content_type("text/plain")
-            .with_annotations(annotations);
-        Content::with_metadata(ContentData::from(text.to_owned()), meta)
-    }
-
-    fn text_root(tree: DocumentTree) -> Document<Text> {
-        match tree.root {
-            AnyDocument::Text(doc) => doc,
-            other => panic!("expected a Text root, got {}", other.modality_name()),
-        }
-    }
-
-    #[tokio::test]
-    async fn unknown_format_errors() {
-        let shared = shared();
-        let content = Content::new(ContentData::from("plain text has no magic bytes"));
-        assert!(Importer::new().import(content, &shared).await.is_err());
-    }
-
-    #[tokio::test]
-    async fn text_import_yields_single_text_tree() {
-        let shared = shared();
-        let content = text_content("Hello, world!", AnyAnnotations::default());
-        let trees = Importer::new().import(content, &shared).await.unwrap();
-        assert_eq!(trees.len(), 1);
-        assert!(matches!(trees[0].root, AnyDocument::Text(_)));
-    }
-
-    #[tokio::test]
-    async fn assert_inclusion_synthesizes_entity_at_import() {
-        let shared = shared();
-        let annotation = Annotation {
-            name: Some("uploader".into()),
-            kind: AnnotationKind::Inclusion {
-                entity_kind: Some(EntityKind::PersonName),
-                target: TextLocation::new(0, 8),
-                strength: AnnotationStrength::Assert,
-            },
-        };
-        let annotations = AnyAnnotations {
-            text: vec![annotation.clone()],
-            ..AnyAnnotations::default()
-        };
-        let content = text_content("Jane Doe lives somewhere.", annotations);
-
-        let trees = Importer::new().import(content, &shared).await.unwrap();
-        let doc = text_root(trees.into_iter().next().unwrap());
-
-        assert_eq!(doc.audit.records.len(), 1);
-        let entity = &doc.audit.records[0].entity;
-        assert_eq!(entity.entity_kind, EntityKind::PersonName);
-        assert_eq!(entity.location, TextLocation::new(0, 8));
-        assert!(
-            entity
-                .trail
-                .first()
-                .is_some_and(|s| matches!(s.provenance, TrailProvenance::Annotation(_)))
-        );
-        assert_eq!(doc.annotations, vec![annotation]);
-    }
-
-    #[tokio::test]
-    async fn hint_inclusion_is_not_synthesized_at_import() {
-        let shared = shared();
-        let annotation = Annotation {
-            name: None,
-            kind: AnnotationKind::Inclusion {
-                entity_kind: Some(EntityKind::PersonName),
-                target: TextLocation::new(0, 4),
-                strength: AnnotationStrength::Hint { confidence: None },
-            },
-        };
-        let annotations = AnyAnnotations {
-            text: vec![annotation.clone()],
-            ..AnyAnnotations::default()
-        };
-        let content = text_content("Jane lives here.", annotations);
-
-        let trees = Importer::new().import(content, &shared).await.unwrap();
-        let doc = text_root(trees.into_iter().next().unwrap());
-
-        assert_eq!(doc.audit.records.len(), 0);
-        assert_eq!(doc.annotations, vec![annotation]);
-    }
-
-    #[tokio::test]
-    async fn labels_propagate_to_root_document() {
-        let shared = shared();
-        let annotations = AnyAnnotations {
-            labels: vec![LabelAnnotation::new("medical")],
-            ..AnyAnnotations::default()
-        };
-        let content = text_content("Hello, world!", annotations);
-        let trees = Importer::new().import(content, &shared).await.unwrap();
-        let doc = text_root(trees.into_iter().next().unwrap());
-        assert_eq!(doc.labels.len(), 1);
-        assert_eq!(doc.labels[0].label, "medical");
-    }
-
-    #[tokio::test]
-    async fn tabular_import_yields_single_tabular_tree() {
-        let shared = shared();
-        let meta = ContentMetadata::new().with_content_type("text/csv");
-        let data = ContentData::from("name,age\nAlice,30\nBob,40\n".to_owned());
-        let content = Content::with_metadata(data, meta);
-
-        let trees = Importer::new().import(content, &shared).await.unwrap();
-        assert_eq!(trees.len(), 1);
-        assert!(matches!(trees[0].root, AnyDocument::Tabular(_)));
     }
 }

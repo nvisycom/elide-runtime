@@ -9,7 +9,6 @@ use rand::RngExt;
 
 use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, NONCE_SIZE, WireEnvelope};
-use crate::core::SharedHandle;
 use crate::phases::ingestion::EncryptionAlgorithm;
 
 const TARGET: &str = "nvisy_engine::op::encryption";
@@ -29,13 +28,12 @@ impl CryptoService {
         }
     }
 
-    /// Encrypt the bytes reachable through a [`SharedHandle`] into
-    /// an [`EncryptedContent`] blob. Modality-agnostic — uses only
-    /// the handle's encoded bytes and content source.
-    pub async fn encrypt(&self, handle: &SharedHandle) -> Result<EncryptedContent> {
-        let content_data = handle.lock().await.encode()?;
-        let source = content_data.content_source;
-        let plaintext = content_data.as_bytes();
+    /// Encrypt the supplied encoded content into an
+    /// [`EncryptedContent`] blob. Modality-agnostic — the caller has
+    /// already pulled bytes out of whatever handle they own.
+    pub async fn encrypt(&self, content: &ContentData) -> Result<EncryptedContent> {
+        let source = content.content_source;
+        let plaintext = content.as_bytes();
 
         let raw_key = self.key_provider.resolve(&self.key_id)?;
         let cipher = Aes256Gcm::new_from_slice(&raw_key).map_err(|e| {
@@ -139,8 +137,7 @@ impl CryptoService {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
-    use nvisy_formats::decode;
+    use nvisy_core::content::{ContentData, ContentSource};
 
     use super::*;
     use crate::phases::ingestion::encryption::{SharedKeyProvider, StaticKeyProvider};
@@ -150,32 +147,18 @@ mod tests {
         SharedKeyProvider::new(StaticKeyProvider::new([("test-key".to_string(), key)]))
     }
 
-    async fn test_handle() -> SharedHandle {
-        let data = ContentData::from_text(ContentSource::new(), "Hello, world!");
-        let meta = ContentMetadata::new().with_content_type("text/plain");
-        let content = Content::with_metadata(data, meta);
-        let doc = decode(&content).await.expect("decode text");
-        std::sync::Arc::new(tokio::sync::Mutex::new(doc))
-    }
-
-    async fn encoded_bytes(handle: &SharedHandle) -> Vec<u8> {
-        handle
-            .lock()
-            .await
-            .encode()
-            .expect("encode")
-            .into_bytes()
-            .to_vec()
+    fn test_content() -> ContentData {
+        ContentData::from_text(ContentSource::new(), "Hello, world!")
     }
 
     #[tokio::test]
     async fn round_trip_encrypt_decrypt() {
         let provider = test_key_provider();
-        let handle = test_handle().await;
-        let original_bytes = encoded_bytes(&handle).await;
+        let content = test_content();
+        let original_bytes = content.as_bytes().to_vec();
 
         let svc = CryptoService::new("test-key", provider);
-        let encrypted = svc.encrypt(&handle).await.expect("encrypt");
+        let encrypted = svc.encrypt(&content).await.expect("encrypt");
 
         assert_eq!(encrypted.key_id, "test-key");
         assert_eq!(encrypted.algorithm, EncryptionAlgorithm::Aes256Gcm);
@@ -188,10 +171,10 @@ mod tests {
     #[tokio::test]
     async fn wrong_key_fails_decryption() {
         let provider = test_key_provider();
-        let handle = test_handle().await;
+        let content = test_content();
 
         let enc_svc = CryptoService::new("test-key", provider);
-        let encrypted = enc_svc.encrypt(&handle).await.expect("encrypt");
+        let encrypted = enc_svc.encrypt(&content).await.expect("encrypt");
 
         let wrong_provider = SharedKeyProvider::new(StaticKeyProvider::new([(
             "test-key".to_string(),
@@ -204,19 +187,19 @@ mod tests {
     #[tokio::test]
     async fn unknown_key_id_fails() {
         let empty_provider = SharedKeyProvider::new(StaticKeyProvider::new([]));
-        let handle = test_handle().await;
+        let content = test_content();
 
         let svc = CryptoService::new("nonexistent", empty_provider);
-        assert!(svc.encrypt(&handle).await.is_err());
+        assert!(svc.encrypt(&content).await.is_err());
     }
 
     #[tokio::test]
     async fn tampered_ciphertext_fails() {
         let provider = test_key_provider();
-        let handle = test_handle().await;
+        let content = test_content();
 
         let svc = CryptoService::new("test-key", provider);
-        let mut encrypted = svc.encrypt(&handle).await.expect("encrypt");
+        let mut encrypted = svc.encrypt(&content).await.expect("encrypt");
 
         let mut tampered = encrypted.ciphertext.to_vec();
         let last = tampered.len() - 1;

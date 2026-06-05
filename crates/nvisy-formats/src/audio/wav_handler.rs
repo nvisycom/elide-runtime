@@ -49,7 +49,7 @@ pub fn format() -> Format {
 }
 
 /// Handler for loaded WAV content. Stores the encoded bytes; decode
-/// happens on demand inside [`redact_at`].
+/// happens on demand inside [`redact`].
 #[derive(Debug)]
 pub struct WavHandler {
     source: ContentSource,

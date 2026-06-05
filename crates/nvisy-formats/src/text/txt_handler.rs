@@ -40,12 +40,12 @@ pub fn format() -> Format {
 /// `line_starts` is a cumulative-offset index maintained alongside
 /// `lines`: `line_starts[i]` is the byte position of line `i` in the
 /// serialized output, and `line_starts[lines.len()]` is the total
-/// length sentinel. Random-access [`read`][r] and [`redact_at`][ra]
+/// length sentinel. Random-access [`read`][r] and [`redact`][rd]
 /// resolve a byte offset to a line in `O(log N)` instead of rebuilding
 /// the table on every call.
 ///
 /// [r]: IndexedHandle::read
-/// [ra]: IndexedHandle::redact_at
+/// [rd]: IndexedHandle::redact
 #[derive(Debug)]
 pub struct TxtHandler {
     source: ContentSource,

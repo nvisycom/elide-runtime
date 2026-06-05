@@ -1,41 +1,23 @@
-//! [`ExtractionPhase`]: Document-walking glue around the toolkit-side
-//! [`ExtractorRegistry`].
+//! [`ExtractionPhase`]: pulls chunks through the codec and writes
+//! per-modality [`Block<M>`] values onto each [`DocumentTree<M>`].
 //!
-//! The engine knows nothing about documents — it just holds typed
-//! slots of pre-built per-modality [`Extractor`] implementations. This
-//! phase is the bridge: it walks each [`Document<M>`] in the
-//! [`DocumentTree`], pulls bytes through the codec handle, calls the
-//! engine's slot for the modality of the node, converts the
-//! extractor-shaped output into per-modality [`Block<M>`] values, and
-//! stamps the matching [`Extraction`] provenance value into the
-//! document's metadata.
-//!
-//! Recursion into [`TextBlock::Embed`] children is handled here by
-//! visiting the root then iterating nested embedded documents; the
-//! engine has no awareness of nesting.
+//! Text and tabular extraction drive [`Handle::next_chunk`] — one
+//! pass through the codec yields `(location, data)` pairs the phase
+//! turns into blocks. Image and audio still go through the toolkit
+//! extractor slots (OCR / STT) because the codec only carries raw
+//! bytes for those modalities; the per-extractor output is what
+//! becomes a [`Block<Image>`] or [`Block<Audio>`].
 //!
 //! [`Block<M>`]: crate::document::Block
-//! [`Document<M>`]: crate::document::Document
-//! [`DocumentTree`]: crate::core::DocumentTree
-//! [`Extraction`]: nvisy_core::extraction::ModalityExtraction::Extraction
-//! [`Extractor`]: nvisy_toolkit::extraction::Extractor
-//! [`ExtractorRegistry`]: nvisy_toolkit::extraction::ExtractorRegistry
-//! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
+//! [`DocumentTree<M>`]: crate::core::DocumentTree
+//! [`Handle::next_chunk`]: nvisy_codec::core::Handle::next_chunk
 
 use std::collections::BTreeMap;
 
-use futures::StreamExt;
-use nvisy_codec::HandleModality;
-use nvisy_codec::core::Located;
-use nvisy_codec::handler::ImageData as CodecImageData;
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 #[cfg(any(feature = "image", feature = "audio"))]
 use nvisy_core::extraction::Span as ExtractionSpan;
-#[cfg(feature = "audio")]
-use nvisy_core::modality::AudioData;
-#[cfg(feature = "image")]
-use nvisy_core::modality::ImageData;
 use nvisy_core::modality::{
     Audio, Image, ImageExtraction, ImageLocation, Tabular, TabularLocation, Text,
 };
@@ -46,11 +28,9 @@ use nvisy_toolkit::extraction::registry::ImageExtractorOutput;
 use nvisy_toolkit::extraction::{Extractor, ExtractorRegistry};
 use tracing::Instrument;
 
-use crate::core::{DocumentTree, NodeMut, RunContext, SharedHandle};
+use crate::core::{DocumentTree, RunContext};
 use crate::document::{Block, Document, Span};
-use crate::modality::{
-    EmbeddedDocument, ImageBlock, ImageMetadata, TabularBlock, TextBlock, TextContent,
-};
+use crate::modality::{ImageBlock, TabularBlock, TextBlock, TextContent};
 use crate::pipeline::{EngineInput, Extraction};
 
 const TARGET: &str = "nvisy_engine::extraction";
@@ -81,212 +61,140 @@ impl ExtractionPhase {
         Self { engine }
     }
 
-    /// Walk the tree and run the right extractor against each node.
-    /// Visits the root first, then iterates nested embedded documents.
-    pub(crate) async fn apply(
+    /// Apply to a [`Text`] tree: walk every text chunk, append one
+    /// block per chunk with a single span mapping flat block text
+    /// back to the codec's [`Text`] coordinates.
+    pub(crate) async fn apply_text(
+        &self,
+        _ctx: &RunContext,
+        _input: &EngineInput,
+        tree: &mut DocumentTree<Text>,
+    ) -> Result<()> {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.text");
+        async move { populate_text_blocks(&mut tree.root, tree.handle.handler_mut()).await }
+            .instrument(span)
+            .await
+    }
+
+    /// Apply to a [`Tabular`] tree: walk every cell chunk and group
+    /// cells into one block per row, with one span per cell mapping
+    /// the cell's substring back to its `(row, col)` coordinates.
+    pub(crate) async fn apply_tabular(
+        &self,
+        _ctx: &RunContext,
+        _input: &EngineInput,
+        tree: &mut DocumentTree<Tabular>,
+    ) -> Result<()> {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.tabular");
+        async move { populate_tabular_blocks(&mut tree.root, tree.handle.handler_mut()).await }
+            .instrument(span)
+            .await
+    }
+
+    /// Apply to an [`Image`] tree: run the OCR extractor against every
+    /// image chunk and write the extractor's output as
+    /// [`Block<Image>`] values.
+    pub(crate) async fn apply_image(
+        &self,
+        _ctx: &RunContext,
+        _input: &EngineInput,
+        tree: &mut DocumentTree<Image>,
+    ) -> Result<()> {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.image");
+        async move { populate_image_doc(&self.engine, &mut tree.root, tree.handle.handler_mut()).await }
+            .instrument(span)
+            .await
+    }
+
+    /// Apply to an [`Audio`] tree: pull the audio chunk's bytes, run
+    /// the STT extractor, write the transcript as a [`Block<Audio>`].
+    pub(crate) async fn apply_audio(
         &self,
         _ctx: &RunContext,
         input: &EngineInput,
-        tree: &mut DocumentTree,
+        tree: &mut DocumentTree<Audio>,
     ) -> Result<()> {
-        let span = tracing::info_span!(target: TARGET, "phase", name = "extraction");
-        let handle = tree.handle.clone();
+        let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.audio");
         let metadata = tree.metadata.clone();
         async move {
-            dispatch(
+            populate_audio_doc(
                 &self.engine,
-                tree.root_mut(),
-                &handle,
+                &mut tree.root,
+                tree.handle.handler_mut(),
                 &metadata,
                 &input.plan.extraction,
             )
-            .await?;
-            for node in tree.embeds_mut() {
-                dispatch(
-                    &self.engine,
-                    node,
-                    &handle,
-                    &metadata,
-                    &input.plan.extraction,
-                )
-                .await?;
-            }
-            Ok(())
+            .await
         }
         .instrument(span)
         .await
     }
 }
 
-/// Route a [`NodeMut`] to the matching per-modality populator.
-async fn dispatch(
-    engine: &ExtractorRegistry,
-    node: NodeMut<'_>,
-    handle: &SharedHandle,
-    metadata: &ContentMetadata,
-    plan: &Extraction,
-) -> Result<()> {
-    match node {
-        NodeMut::Text(doc) => {
-            populate_text_blocks(doc, handle).await;
-            populate_image_embeds(engine, doc, handle).await;
-        }
-        NodeMut::Tabular(doc) => {
-            populate_tabular_blocks(doc, handle).await;
-        }
-        NodeMut::Image(doc) => {
-            populate_image_doc(engine, doc, handle).await?;
-        }
-        NodeMut::Audio(doc) => {
-            populate_audio_doc(engine, doc, handle, metadata, plan).await?;
-        }
-    }
-    Ok(())
-}
-
-/// Append one [`Block<Text>`] per codec text location to `doc`.
-/// Each block's span maps its flat text (`0..text.len()`) back to the
+/// Walk the codec's text chunks and append one [`Block<Text>`] per
+/// chunk. Each block's single span maps `0..text.len()` back to the
 /// codec's [`Text`] coordinates so downstream detection can resolve
 /// entity offsets to source locations uniformly across modalities.
-async fn populate_text_blocks(doc: &mut Document<Text>, handle: &SharedHandle) {
-    let locations: Vec<_> = {
-        let guard = handle.lock().await;
-        guard.text_locations().collect().await
-    };
-    if locations.is_empty() {
-        return;
-    }
-
-    let mut blocks = Vec::with_capacity(locations.len());
-    for located in locations {
-        let Some(data) = handle.lock().await.read_text(&located.location).await else {
-            continue;
-        };
-        let text = data.into_inner();
+async fn populate_text_blocks(
+    doc: &mut Document<Text>,
+    handle: &mut dyn nvisy_codec::core::IndexedHandle<Text>,
+) -> Result<()> {
+    let mut blocks = Vec::new();
+    while let Some(chunk) = handle.next_chunk().await? {
+        let text = chunk.data.into_string();
         let span = Span {
             text_start: 0,
             text_end: text.len(),
             confidence: None,
-            source: located.location,
+            source: chunk.location,
         };
         let block =
             Block::new(TextBlock::Text(TextContent::Paragraph { text })).with_spans(vec![span]);
         blocks.push(block);
     }
 
+    if blocks.is_empty() {
+        return Ok(());
+    }
     tracing::debug!(
         target: TARGET,
         blocks = blocks.len(),
         "populated text document",
     );
-
     doc.blocks.extend(blocks);
+    Ok(())
 }
 
-/// For rich handles (PDF/DOCX), append one [`TextBlock::Embed`] per
-/// image location reachable through the handle, then OCR each region
-/// into the nested [`Document<Image>`] using the outer handle.
-///
-/// When no OCR backend is configured, this still appends the embed
-/// placeholders (so downstream phases can recurse into them) but
-/// leaves the nested doc's blocks empty.
-async fn populate_image_embeds(
-    engine: &ExtractorRegistry,
-    doc: &mut Document<Text>,
-    handle: &SharedHandle,
-) {
-    let is_rich = {
-        let guard = handle.lock().await;
-        matches!(guard.modality(), HandleModality::Rich)
-    };
-    if !is_rich {
-        return;
-    }
-
-    let locations: Vec<_> = {
-        let guard = handle.lock().await;
-        guard.image_locations().collect().await
-    };
-    if locations.is_empty() {
-        return;
-    }
-
-    let source = doc.audit.source;
-    let mut embeds_appended = 0usize;
-    for _ in &locations {
-        let nested = Document::<Image>::new(ImageMetadata::from(ImageExtraction::Pending), source);
-        let block = Block::new(TextBlock::Embed(Box::new(EmbeddedDocument::Image(nested))));
-        doc.blocks.push(block);
-        embeds_appended += 1;
-    }
-
-    tracing::debug!(
-        target: TARGET,
-        embeds = embeds_appended,
-        "appended image embed placeholders",
-    );
-
-    #[cfg(feature = "image")]
-    {
-        let Some(ref ocr) = engine.image else {
-            return;
-        };
-
-        for block in doc.blocks.iter_mut() {
-            let TextBlock::Embed(embed) = &mut block.kind else {
-                continue;
-            };
-            let EmbeddedDocument::Image(ref mut nested) = **embed else {
-                continue;
-            };
-            if let Err(e) = run_ocr_into(ocr.as_ref(), nested, handle).await {
-                tracing::warn!(
-                    target: TARGET,
-                    error = %e,
-                    "OCR failed for nested image doc; leaving blocks empty",
-                );
-            }
-        }
-    }
-    #[cfg(not(feature = "image"))]
-    let _ = engine;
-}
-
-/// Append one [`Block<Tabular>`] per row to `doc`. Each block carries
-/// the concatenated row text and one span per cell mapping the cell's
-/// substring range back to the codec's per-cell [`Tabular`]
-/// coordinates.
-async fn populate_tabular_blocks(doc: &mut Document<Tabular>, handle: &SharedHandle) {
-    let locations: Vec<_> = {
-        let guard = handle.lock().await;
-        guard.tabular_locations().collect().await
-    };
-    if locations.is_empty() {
-        return;
-    }
-
-    let mut rows: BTreeMap<u32, Vec<TabularLocation>> = BTreeMap::new();
-    for located in locations {
-        rows.entry(located.location.row_index)
+/// Walk the codec's tabular chunks and group cells into one block per
+/// row. Each block carries the row's concatenated text and one span
+/// per cell mapping the substring range back to the codec's
+/// [`Tabular`] coordinates.
+async fn populate_tabular_blocks(
+    doc: &mut Document<Tabular>,
+    handle: &mut dyn nvisy_codec::core::IndexedHandle<Tabular>,
+) -> Result<()> {
+    let mut rows: BTreeMap<u32, Vec<(TabularLocation, String)>> = BTreeMap::new();
+    while let Some(chunk) = handle.next_chunk().await? {
+        let value = chunk.data.into_string();
+        rows.entry(chunk.location.row_index)
             .or_default()
-            .push(located.location);
+            .push((chunk.location, value));
+    }
+    if rows.is_empty() {
+        return Ok(());
     }
     for cells in rows.values_mut() {
-        cells.sort_by_key(|c| c.column_index);
+        cells.sort_by_key(|(loc, _)| loc.column_index);
     }
 
     let mut blocks = Vec::with_capacity(rows.len());
     for cells in rows.into_values() {
         let mut text = String::new();
         let mut spans = Vec::with_capacity(cells.len());
-        for (i, cell) in cells.into_iter().enumerate() {
+        for (i, (cell, value)) in cells.into_iter().enumerate() {
             if i > 0 {
                 text.push_str(TABULAR_CELL_SEPARATOR);
             }
-            let Some(value) = handle.lock().await.read_tabular(&cell).await else {
-                continue;
-            };
-            let value = value.into_inner();
             let start = text.len();
             text.push_str(&value);
             let end = text.len();
@@ -306,8 +214,8 @@ async fn populate_tabular_blocks(doc: &mut Document<Tabular>, handle: &SharedHan
         rows = blocks.len(),
         "populated tabular document",
     );
-
     doc.blocks.extend(blocks);
+    Ok(())
 }
 
 /// Run image extraction over `doc` using the supplied codec handle.
@@ -316,7 +224,7 @@ async fn populate_tabular_blocks(doc: &mut Document<Tabular>, handle: &SharedHan
 async fn populate_image_doc(
     engine: &ExtractorRegistry,
     doc: &mut Document<Image>,
-    handle: &SharedHandle,
+    handle: &mut dyn nvisy_codec::core::IndexedHandle<Image>,
 ) -> Result<()> {
     if let Some(ref ocr) = engine.image {
         run_ocr_into(ocr.as_ref(), doc, handle).await?;
@@ -328,52 +236,39 @@ async fn populate_image_doc(
 async fn populate_image_doc(
     _engine: &ExtractorRegistry,
     _doc: &mut Document<Image>,
-    _handle: &SharedHandle,
+    _handle: &mut dyn nvisy_codec::core::IndexedHandle<Image>,
 ) -> Result<()> {
     Ok(())
 }
 
-/// Drive a single OCR extractor over every image region reachable via
+/// Drive a single OCR extractor over every image chunk reachable via
 /// `handle`, populating `doc` with the resulting blocks and stamping
 /// the extractor's provenance on the document metadata.
 #[cfg(feature = "image")]
 async fn run_ocr_into(
     ocr: &dyn Extractor<Image, Output = ImageExtractorOutput>,
     doc: &mut Document<Image>,
-    handle: &SharedHandle,
+    handle: &mut dyn nvisy_codec::core::IndexedHandle<Image>,
 ) -> Result<()> {
-    let inputs = collect_image_inputs(handle).await;
-    if inputs.is_empty() {
-        return Ok(());
-    }
-
-    tracing::debug!(
-        target: TARGET,
-        regions = inputs.len(),
-        "running OCR extraction",
-    );
-
-    for image_input in inputs {
-        let png = match image_input.data.encode_png() {
-            Ok(p) => p,
-            Err(e) => {
-                tracing::warn!(target: TARGET, error = %e, "skipping image: PNG encode failed");
-                continue;
-            }
-        };
-        let dims = image_input.data.dimensions();
+    while let Some(chunk) = handle.next_chunk().await? {
+        let dims = chunk.data.dims;
         let location = ImageLocation::new(BoundingBox::new(
             0.0,
             0.0,
             f64::from(dims.width),
             f64::from(dims.height),
         ));
-        let span = ExtractionSpan::new(ImageData::new(png, dims), location);
+        let span = ExtractionSpan::new(chunk.data, location);
         let output = ocr.extract(&span).await?;
         doc.meta.extraction = output.extraction;
         for block in output.value {
             doc.blocks.push(ocr_output_to_block(block));
         }
+    }
+    if doc.blocks.is_empty() && matches!(doc.meta.extraction, ImageExtraction::Pending) {
+        // No chunks streamed and no extractor output stamped — leave
+        // the document in its `Pending` extraction state.
+        tracing::debug!(target: TARGET, "no image chunks to OCR");
     }
     Ok(())
 }
@@ -387,7 +282,6 @@ fn ocr_output_to_block(output: OcrOutput) -> Block<Image> {
         OcrBlockKind::Text { region, text } => ImageBlock::Text { region, text },
         OcrBlockKind::Heading { region, text } => ImageBlock::Heading { region, text },
         OcrBlockKind::Table { region, text } => ImageBlock::Table { region, text },
-        // Forward-compat: `OcrBlockKind` is `#[non_exhaustive]`.
         _ => unreachable!("OcrBlockKind has no further variants"),
     };
     let spans: Vec<Span<Image>> = output
@@ -407,83 +301,47 @@ fn ocr_output_to_block(output: OcrOutput) -> Block<Image> {
     }
 }
 
-#[cfg(feature = "image")]
-async fn collect_image_inputs(
-    handle: &SharedHandle,
-) -> Vec<Located<ImageLocation, CodecImageData>> {
-    let guard = handle.lock().await;
-    let locations: Vec<Located<ImageLocation>> = guard.image_locations().collect().await;
-    drop(guard);
-    let mut out = Vec::with_capacity(locations.len());
-    for located in locations {
-        if let Some(data) = handle.lock().await.read_image(&located.location).await {
-            out.push(located.with_data(data));
-        }
-    }
-    out
-}
-
 /// Transcribe the audio reachable via `handle` into `doc`, optionally
 /// diarising when the plan requests it.
 #[cfg(feature = "audio")]
 async fn populate_audio_doc(
     engine: &ExtractorRegistry,
     doc: &mut Document<Audio>,
-    handle: &SharedHandle,
-    metadata: &ContentMetadata,
+    handle: &mut dyn nvisy_codec::core::IndexedHandle<Audio>,
+    _metadata: &ContentMetadata,
     plan: &Extraction,
 ) -> Result<()> {
-    use nvisy_codec::DocumentHandle;
     use nvisy_core::modality::AudioLocation;
-    use nvisy_core::primitive::TimeSpan;
 
     use crate::modality::AudioBlock;
 
     let Some(ref stt_arc) = engine.audio else {
         return Ok(());
     };
-    // Pull bytes out of the audio handle.
-    let audio_bytes = {
-        let handle = handle.lock().await;
-        let DocumentHandle::Audio(ref handler) = *handle else {
-            return Ok(());
-        };
-        handler.encode()?
-    };
-
-    let filename = metadata
-        .filename
-        .as_deref()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| "audio.wav".to_string());
 
     if plan.audio.diarization {
         tracing::warn!(target: TARGET, "diarization not yet supported, skipping");
     }
 
-    let time_span = TimeSpan::new(0, 0);
-    let span = ExtractionSpan::new(
-        AudioData::new(audio_bytes.as_bytes().to_vec(), filename),
-        AudioLocation::new(time_span),
-    );
-    let output = stt_arc.extract(&span).await?;
-    // Provenance reflects the engine-side flag; the per-request
-    // diarization toggle above is for future use.
-    doc.meta.extraction = output.extraction;
-    let stt_out = output.value;
+    while let Some(chunk) = handle.next_chunk().await? {
+        let time_span = chunk.location.time_span;
+        let span = ExtractionSpan::new(chunk.data, AudioLocation::new(time_span));
+        let output = stt_arc.extract(&span).await?;
+        doc.meta.extraction = output.extraction;
+        let stt_out = output.value;
 
-    if stt_out.text.is_empty() {
-        tracing::debug!(target: TARGET, "transcription returned empty text");
-        return Ok(());
+        if stt_out.text.is_empty() {
+            tracing::debug!(target: TARGET, "transcription returned empty text");
+            continue;
+        }
+        doc.blocks.push(Block::new(AudioBlock::Speech {
+            time_span,
+            text: stt_out.text.clone(),
+            speaker_id: None,
+        }));
     }
 
-    doc.blocks.push(Block::new(AudioBlock::Speech {
-        time_span,
-        text: stt_out.text.clone(),
-        speaker_id: None,
-    }));
-
-    tracing::debug!(target: TARGET, "audio transcript captured");
+    tracing::debug!(target: TARGET, "audio extraction complete");
     Ok(())
 }
 
@@ -491,7 +349,7 @@ async fn populate_audio_doc(
 async fn populate_audio_doc(
     _engine: &ExtractorRegistry,
     _doc: &mut Document<Audio>,
-    _handle: &SharedHandle,
+    _handle: &mut dyn nvisy_codec::core::IndexedHandle<Audio>,
     _metadata: &ContentMetadata,
     _plan: &Extraction,
 ) -> Result<()> {

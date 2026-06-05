@@ -25,7 +25,7 @@ mod instruction;
 pub use self::instruction::TabularRedaction;
 
 impl Codable for Tabular {
-    type Redaction = TabularRedaction;
+    type Instruction = TabularRedaction;
 
     const KIND: ModalityKind = ModalityKind::Tabular;
 }

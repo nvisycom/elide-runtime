@@ -2,14 +2,10 @@
 //! flat fixed-order plan.
 //!
 //! The [`Orchestrator`] drives the pipeline at the top level: it
-//! imports documents into [`DocumentTree`]s, fans them out to
-//! concurrent per-document tasks, and collects the results. Each
-//! per-document task runs a single shared [`DocumentPipeline`]
-//! against the tree.
-//!
-//! [`DocumentPipeline`] walks every tree node (root + nested
-//! embeds) and dispatches the right per-modality body for each
-//! phase.
+//! imports documents into [`AnyTree`]s, fans them out to concurrent
+//! per-document tasks, and collects the results. Each per-document
+//! task matches the [`AnyTree`] variant once and dispatches into the
+//! typed [`DocumentPipeline`] entry point.
 
 use std::sync::Arc;
 
@@ -19,7 +15,7 @@ use tokio::task::JoinSet;
 
 use super::document_pipeline::DocumentPipeline;
 use super::engine::EngineInput;
-use crate::core::{DocumentTree, RunContext};
+use crate::core::{AnyTree, RunContext};
 use crate::phases::ingestion::{Exporter, ImportFile as ImportFileConfig, Importer};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -27,7 +23,7 @@ const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 /// Result of processing a single document through the pipeline.
 pub(crate) struct DocumentResult {
     /// The processed tree, if the document completed successfully.
-    pub tree: Option<DocumentTree>,
+    pub tree: Option<AnyTree>,
     /// Error message if the document failed, `None` on success.
     pub error: Option<String>,
 }
@@ -59,8 +55,7 @@ impl Orchestrator {
         let trees = self.run_imports(&input.imports).await?;
 
         // Build the per-document pipeline once and share it across
-        // every spawned task (phases are cheap to clone — they hold
-        // `Arc`s to the long-lived engines).
+        // every spawned task.
         let pipeline = Arc::new(DocumentPipeline::from_context(&self.ctx));
 
         let mut results: Vec<DocumentResult> = Vec::new();
@@ -103,11 +98,7 @@ impl Orchestrator {
     }
 
     /// Execute import steps to produce trees.
-    ///
-    /// Each imported content yields exactly one [`DocumentTree`];
-    /// rich documents land as `AnyDocument::Text` with their image
-    /// content as nested embeds populated later by extraction.
-    async fn run_imports(&self, imports: &[ImportFileConfig]) -> Result<Vec<DocumentTree>, Error> {
+    async fn run_imports(&self, imports: &[ImportFileConfig]) -> Result<Vec<AnyTree>, Error> {
         let mut trees = Vec::new();
 
         for cfg in imports {
@@ -133,9 +124,11 @@ impl Orchestrator {
 }
 
 /// Spawn-able task that runs the document pipeline against one tree.
+/// Matches the [`AnyTree`] variant once to pick the typed `run_*`
+/// entry point, then exports if not a dry-run.
 async fn run_one(
     pipeline: Arc<DocumentPipeline>,
-    mut tree: DocumentTree,
+    tree: AnyTree,
     ctx: Arc<RunContext>,
     sem: Option<Arc<Semaphore>>,
     input: Arc<EngineInput>,
@@ -152,7 +145,15 @@ async fn run_one(
         },
         None => None,
     };
-    if let Err(e) = pipeline.run(&ctx, &input, &mut tree).await {
+
+    let mut tree = tree;
+    let result = match &mut tree {
+        AnyTree::Text(t) => pipeline.run_text(&ctx, &input, t).await,
+        AnyTree::Tabular(t) => pipeline.run_tabular(&ctx, &input, t).await,
+        AnyTree::Image(t) => pipeline.run_image(&ctx, &input, t).await,
+        AnyTree::Audio(t) => pipeline.run_audio(&ctx, &input, t).await,
+    };
+    if let Err(e) = result {
         return DocumentResult {
             tree: None,
             error: Some(e.to_string()),

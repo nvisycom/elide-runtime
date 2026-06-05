@@ -35,6 +35,7 @@ pub mod phase;
 mod registries;
 
 use nvisy_core::Result;
+use nvisy_core::ValueAt;
 use nvisy_core::content::ContentMetadata;
 use nvisy_core::entity::is_excluded;
 use nvisy_core::extraction::SourceAt;
@@ -43,8 +44,7 @@ use nvisy_core::primitive::ConfidenceThreshold;
 use nvisy_toolkit::redaction::RedactionRegistry;
 
 pub use self::registries::RedactionRegistries;
-use crate::core::{Decision, DocumentView, PolicyStore, SharedHandle, ValueAt};
-use crate::document::Document;
+use crate::core::{Decision, DocumentTree, PolicyStore};
 use crate::modality::DocumentModality;
 use crate::policy::Action;
 use crate::policy::redaction::Instantiate;
@@ -57,8 +57,7 @@ pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 /// and the test-only path drive it through the same code.
 pub(crate) async fn run_redaction<M>(
     default_threshold: ConfidenceThreshold,
-    doc: &mut Document<M>,
-    handle: &SharedHandle,
+    tree: &mut DocumentTree<M>,
     metadata: &ContentMetadata,
     policies: &PolicyStore,
     registry: &RedactionRegistry<M>,
@@ -67,19 +66,20 @@ where
     M: DocumentModality + ModalityData,
     M::Location: Overlap,
     M::Redaction: Instantiate<M>,
-    for<'a> DocumentView<'a, M>: ValueAt<M> + SourceAt<M>,
+    DocumentTree<M>: ValueAt<M> + SourceAt<M>,
 {
-    if doc.audit.records.is_empty() {
+    if tree.root.audit.records.is_empty() {
         return Ok(());
     }
 
-    let before_filter = doc.audit.records.len();
-    let annotations = std::mem::take(&mut doc.annotations);
-    doc.audit
+    let before_filter = tree.root.audit.records.len();
+    let annotations = std::mem::take(&mut tree.root.annotations);
+    tree.root
+        .audit
         .records
         .retain(|record| !is_excluded(&annotations, &record.entity));
-    doc.annotations = annotations;
-    let dropped = before_filter - doc.audit.records.len();
+    tree.root.annotations = annotations;
+    let dropped = before_filter - tree.root.audit.records.len();
     if dropped > 0 {
         tracing::debug!(
             target: TARGET,
@@ -88,15 +88,15 @@ where
         );
     }
 
-    if doc.audit.records.is_empty() {
+    if tree.root.audit.records.is_empty() {
         return Ok(());
     }
 
-    let document_labels: Vec<&str> = doc.labels.iter().map(|l| l.label.as_str()).collect();
+    let document_labels: Vec<&str> = tree.root.labels.iter().map(|l| l.label.as_str()).collect();
 
     // Resolve policies first; defer the apply step so we can borrow
     // the records mutably without holding the immutable doc fields.
-    for record in &mut doc.audit.records {
+    for record in &mut tree.root.audit.records {
         if record.audit.is_some() {
             continue;
         }
@@ -134,17 +134,17 @@ where
 
     // Apply step: walk the records that landed `Pending`, instantiate
     // the rule's operator spec, pull the per-entity source payload
-    // through `SourceAt`, run the operator, and write the produced
-    // replacement back as `Execution::Applied`. Construction errors
-    // and `apply` errors both flip the record to `Execution::Failed`.
+    // through `SourceAt` on the tree, run the operator, write the
+    // produced replacement back as `Execution::Applied`. Operator
+    // construction errors and `apply` errors flip the record to
+    // `Execution::Failed`.
     //
     // TODO(redaction-rewrite): collect the produced `M::Replacement`s
     // into a codec batch and flush them through `handle.redact()` so
     // the on-disk payload reflects the audit decisions.
-    let view = DocumentView::new(&*doc, handle);
     let mut apply_outcomes: Vec<(usize, Execution<M>)> = Vec::new();
 
-    for (idx, record) in doc.audit.records.iter().enumerate() {
+    for (idx, record) in tree.root.audit.records.iter().enumerate() {
         let Some(audit) = record.audit.as_ref() else {
             continue;
         };
@@ -158,7 +158,7 @@ where
             Err(err) => Execution::Failed {
                 reason: err.to_string(),
             },
-            Ok(anonymizer) => match view.source_at(&record.entity.location).await {
+            Ok(anonymizer) => match tree.source_at(&record.entity.location).await {
                 None => Execution::Failed {
                     reason: "source payload unavailable at entity location".into(),
                 },
@@ -174,14 +174,14 @@ where
     }
 
     for (idx, outcome) in apply_outcomes {
-        if let Some(audit) = doc.audit.records[idx].audit.as_mut() {
+        if let Some(audit) = tree.root.audit.records[idx].audit.as_mut() {
             audit.execution = outcome;
         }
     }
 
     tracing::debug!(
         target: TARGET,
-        entries = doc.audit.entries().count(),
+        entries = tree.root.audit.entries().count(),
         "policy evaluation + operator dispatch complete",
     );
 

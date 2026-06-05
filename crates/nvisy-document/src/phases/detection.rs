@@ -1,39 +1,24 @@
-//! [`DetectionPhase`]: Document-walking glue around
-//! [`RecognizerRegistry`].
+//! [`DetectionPhase`]: per-modality recognition driver.
 //!
-//! The registry knows nothing about documents — it only takes a
-//! [`RecognizerInput`] and runs every registered recognizer in parallel.
-//! This phase is the bridge: it walks each [`Document<M>`] in the
-//! [`DocumentTree`], builds a `RecognizerInput` per block / image location,
-//! feeds them to the registry, filters the merged result by the
-//! plan's entity-kind allowlist, and lifts block-local offsets back
-//! to absolute modality coordinates.
+//! Walks each [`Document<M>`]'s blocks, runs the matching recognizers
+//! through [`RecognizerRegistry`], filters by the plan's entity-kind
+//! allowlist, and lifts block-local offsets back to absolute modality
+//! coordinates. For image trees, additionally walks every image chunk
+//! and runs image-side recognizers against the raw bytes.
 //!
-//! Recursion into [`TextBlock::Embed`] children is handled here by
-//! visiting the root then iterating nested embedded documents; the
-//! registry has no awareness of nesting.
-//!
-//! [`RecognizerInput`]: nvisy_core::RecognizerInput
 //! [`Document<M>`]: crate::document::Document
-//! [`DocumentTree`]: crate::core::DocumentTree
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
-//! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
 
-use futures::StreamExt;
 use nvisy_core::entity::Entity;
-#[cfg(feature = "image")]
-use nvisy_core::modality::Modality;
 use nvisy_core::modality::{
     Audio, AudioLocation, Image, ImageLocation, Overlap, Tabular, TabularLocation, Text,
     TextLocation,
 };
-#[cfg(feature = "image")]
-use nvisy_core::{Error, ImageData};
 use nvisy_core::{RecognizerInput, Result, TextData};
 use nvisy_toolkit::detection::RecognizerRegistry;
 use tracing::Instrument;
 
-use crate::core::{DocumentTree, NodeMut, RunContext, SharedHandle};
+use crate::core::{DocumentTree, RunContext};
 use crate::document::{Document, Span};
 use crate::modality::{DocumentModality, ModalityBlock};
 use crate::pipeline::{Detection, EngineInput};
@@ -41,7 +26,7 @@ use crate::pipeline::{Detection, EngineInput};
 const TARGET: &str = "nvisy_engine::detection";
 
 /// Detection phase: runs every registered recognizer over each
-/// node's blocks and writes [`EntityRecord`]s to `doc.audit`.
+/// document's blocks and writes [`EntityRecord`]s to `doc.audit`.
 ///
 /// Holds a [`RecognizerRegistry`] by value — the registry's
 /// recognizer lists keep the underlying recognizers shared via `Arc`
@@ -59,34 +44,68 @@ impl DetectionPhase {
         Self { registry }
     }
 
-    /// Walk the tree and dispatch the right recognizers per modality
-    /// node. Visits the root first, then iterates nested embedded
-    /// documents; each per-node body borrows the registry, handle,
-    /// and detection plan directly from this scope.
-    pub(crate) async fn apply(
+    pub(crate) async fn apply_text(
         &self,
         ctx: &RunContext,
         input: &EngineInput,
-        tree: &mut DocumentTree,
+        tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
-        let span = tracing::info_span!(target: TARGET, "phase", name = "detection");
+        self.run_text_only(ctx, input, &mut tree.root).await
+    }
+
+    pub(crate) async fn apply_tabular(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Tabular>,
+    ) -> Result<()> {
+        self.run_text_only(ctx, input, &mut tree.root).await
+    }
+
+    pub(crate) async fn apply_audio(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Audio>,
+    ) -> Result<()> {
+        self.run_text_only(ctx, input, &mut tree.root).await
+    }
+
+    pub(crate) async fn apply_image(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Image>,
+    ) -> Result<()> {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "detection.image");
         let run_id = ctx.shared().run_id;
-        // Snapshot the tree-owned handle so it doesn't conflict with
-        // the per-node `&mut` borrows produced by `root_mut` /
-        // `embeds_mut` further down.
-        let handle = tree.handle.clone();
+        let cfg = &input.plan.detection;
         async move {
-            dispatch(
-                &self.registry,
-                tree.root_mut(),
-                &handle,
-                &input.plan.detection,
-                run_id,
-            )
-            .await?;
-            for node in tree.embeds_mut() {
-                dispatch(&self.registry, node, &handle, &input.plan.detection, run_id).await?;
-            }
+            detect_text_blocks(&self.registry, &mut tree.root, cfg, run_id).await?;
+            detect_image_chunks(&self.registry, &mut tree.root, tree.handle.handler_mut(), cfg, run_id)
+                .await?;
+            self.registry.reset().await;
+            Ok(())
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn run_text_only<M>(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        doc: &mut Document<M>,
+    ) -> Result<()>
+    where
+        M: DocumentModality + LiftFromBlock,
+        M::Location: Overlap,
+    {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "detection.text_only");
+        let run_id = ctx.shared().run_id;
+        async move {
+            detect_text_blocks(&self.registry, doc, &input.plan.detection, run_id).await?;
+            self.registry.reset().await;
             Ok(())
         }
         .instrument(span)
@@ -94,79 +113,8 @@ impl DetectionPhase {
     }
 }
 
-/// Per-node dispatch: route a [`NodeMut`] to the matching
-/// per-modality detection body, using `registry` to run the
-/// recognizers.
-async fn dispatch(
-    registry: &RecognizerRegistry,
-    node: NodeMut<'_>,
-    handle: &SharedHandle,
-    cfg: &Detection,
-    run_id: uuid::Uuid,
-) -> Result<()> {
-    match node {
-        NodeMut::Text(doc) => detect_text_only::<Text>(registry, doc, cfg, run_id).await,
-        NodeMut::Tabular(doc) => detect_text_only::<Tabular>(registry, doc, cfg, run_id).await,
-        NodeMut::Audio(doc) => detect_text_only::<Audio>(registry, doc, cfg, run_id).await,
-        NodeMut::Image(doc) => detect_image(registry, doc, handle, cfg, run_id).await,
-    }
-}
-
-/// Run text recognizers over every block in `doc` and reset
-/// per-document state. Shared by every modality whose detection is
-/// purely text-based.
-async fn detect_text_only<M>(
-    registry: &RecognizerRegistry,
-    doc: &mut Document<M>,
-    cfg: &Detection,
-    run_id: uuid::Uuid,
-) -> Result<()>
-where
-    M: DocumentModality + LiftFromBlock,
-    M::Location: Overlap,
-{
-    detect_text_blocks(registry, doc, cfg, run_id).await?;
-    registry.reset().await;
-    Ok(())
-}
-
-/// Image-node detection body. Runs text recognizers over each OCR'd
-/// block ("runs alongside" image-side recognizers), then image
-/// recognizers once per image location with raw bytes. When the
-/// `image` feature is off only the text pass runs.
-#[cfg(feature = "image")]
-async fn detect_image(
-    registry: &RecognizerRegistry,
-    doc: &mut Document<Image>,
-    handle: &SharedHandle,
-    cfg: &Detection,
-    run_id: uuid::Uuid,
-) -> Result<()> {
-    detect_text_blocks(registry, doc, cfg, run_id).await?;
-    detect_image_locations(registry, doc, handle, cfg, run_id).await?;
-    registry.reset().await;
-    Ok(())
-}
-
-#[cfg(not(feature = "image"))]
-async fn detect_image(
-    registry: &RecognizerRegistry,
-    doc: &mut Document<Image>,
-    _handle: &SharedHandle,
-    cfg: &Detection,
-    run_id: uuid::Uuid,
-) -> Result<()> {
-    detect_text_only(registry, doc, cfg, run_id).await
-}
-
 /// Shared text-side block loop. Used by every modality that exposes
 /// text via [`ModalityBlock::scan_text`] (today: every modality).
-///
-/// Recursion into [`TextBlock::Embed`] children is the caller's job;
-/// this loop scans the target's *own* blocks only and skips embeds
-/// via `scan_text` returning `None`.
-///
-/// [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
 async fn detect_text_blocks<M>(
     registry: &RecognizerRegistry,
     doc: &mut Document<M>,
@@ -198,7 +146,6 @@ where
 
         let detected = registry.run_text(input).await?;
         for entity in detected {
-            // Centralised entity-kind allowlist filter.
             if !cfg.entity_kinds.is_empty() && !cfg.entity_kinds.contains(&entity.entity_kind) {
                 continue;
             }
@@ -233,16 +180,14 @@ where
     Ok(())
 }
 
-/// Run image recognizers once per image location reachable via the
-/// target's handle, appending detections to `doc.audit`. Each call
-/// sees the raw encoded image bytes plus the image's pixel
-/// dimensions; recognizers emit absolute image-coord entities
-/// directly (no per-block lifting).
+/// Walk every image chunk reachable through the handle, run the
+/// registry's image recognizers against the raw bytes, and append
+/// resulting entities to the document's audit.
 #[cfg(feature = "image")]
-async fn detect_image_locations(
+async fn detect_image_chunks(
     registry: &RecognizerRegistry,
     doc: &mut Document<Image>,
-    handle: &SharedHandle,
+    handle: &mut dyn nvisy_codec::core::IndexedHandle<Image>,
     cfg: &Detection,
     run_id: uuid::Uuid,
 ) -> Result<()> {
@@ -250,18 +195,9 @@ async fn detect_image_locations(
         return Ok(());
     }
 
-    let locations: Vec<_> = handle.lock().await.image_locations().collect().await;
     let mut detected_total = 0usize;
-    for located in locations {
-        let Some(image_data) = handle.lock().await.read_image(&located.location).await else {
-            continue;
-        };
-        let dims = image_data.dimensions();
-        let bytes = image_data
-            .encode_png()
-            .map_err(|e| Error::runtime(e.to_string(), "recognizer-registry", false))?;
-
-        let mut input = RecognizerInput::new(ImageData::new(bytes, dims));
+    while let Some(chunk) = handle.next_chunk().await? {
+        let mut input = RecognizerInput::new(chunk.data);
         input.correlation_id = Some(run_id);
 
         let detected = registry.run_image(input).await?;
@@ -281,31 +217,30 @@ async fn detect_image_locations(
     Ok(())
 }
 
+#[cfg(not(feature = "image"))]
+async fn detect_image_chunks(
+    _registry: &RecognizerRegistry,
+    _doc: &mut Document<Image>,
+    _handle: &mut dyn nvisy_codec::core::IndexedHandle<Image>,
+    _cfg: &Detection,
+    _run_id: uuid::Uuid,
+) -> Result<()> {
+    Ok(())
+}
+
 // ---- block-text ↔ modality-location lifting ----------------------
 
 /// Map a block-text byte range to an absolute `M` location using the
 /// block's spans.
-///
-/// Returns `None` when no span overlaps the requested range — the
-/// dispatcher discards such entities since there's no way to place
-/// them in modality coordinates.
 pub trait LiftFromBlock: DocumentModality + Sized {
-    /// Lift block-text byte range `[start, end)` to an absolute
-    /// modality-location.
     fn lift_from_block(
         spans: &[Span<Self>],
         start: usize,
         end: usize,
-    ) -> Option<<Self as Modality>::Location>;
+    ) -> Option<<Self as nvisy_core::modality::Modality>::Location>;
 }
 
 impl LiftFromBlock for Text {
-    /// For text the block normally has exactly one span covering
-    /// `0..text.len()` whose `source: Text` carries the
-    /// document-relative offsets. The entity's lifted location
-    /// shifts `[start, end)` into that span's source range.
-    /// Multi-span text blocks (rare today) take the first
-    /// overlapping span as the anchor.
     fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<TextLocation> {
         let span = spans.iter().find(|s| s.overlaps(start, end))?;
         let span_text_start = span.text_start;
@@ -317,12 +252,6 @@ impl LiftFromBlock for Text {
 }
 
 impl LiftFromBlock for Tabular {
-    /// Tabular cells live in distinct `(row, col)` coordinates. When
-    /// the entity spans a single cell, the cell's coordinates are
-    /// returned with intra-cell `start_offset`/`end_offset` adjusted
-    /// to the in-cell substring. Cross-cell matches return the
-    /// first overlapping cell's coordinates — they're rare and
-    /// downstream redaction operates per-cell anyway.
     fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<TabularLocation> {
         let span = spans.iter().find(|s| s.overlaps(start, end))?;
         let local_start = start.saturating_sub(span.text_start);
@@ -340,10 +269,6 @@ impl LiftFromBlock for Tabular {
 }
 
 impl LiftFromBlock for Image {
-    /// Image entity location is the union of overlapping word-span
-    /// bounding boxes, folded via [`BoundingBox::union`].
-    ///
-    /// [`BoundingBox::union`]: nvisy_core::primitive::BoundingBox::union
     fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<ImageLocation> {
         let mut iter = spans.iter().filter(|s| s.overlaps(start, end));
         let first = iter.next()?;
@@ -363,8 +288,6 @@ impl LiftFromBlock for Image {
 }
 
 impl LiftFromBlock for Audio {
-    /// Audio entity location is the union of overlapping word-span
-    /// time intervals on the same speaker.
     fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<AudioLocation> {
         let mut iter = spans.iter().filter(|s| s.overlaps(start, end));
         let first = iter.next()?;

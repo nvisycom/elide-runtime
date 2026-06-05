@@ -21,13 +21,12 @@
 //! [`Check`]: super::Check
 //! [`CheckPipeline`]: super::CheckPipeline
 
-use futures::StreamExt;
+use nvisy_core::ValueAt;
 use nvisy_core::modality::{Tabular, Text};
 use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 use super::check::{Check, CheckContext, Finding, FindingKind, Severity};
-use crate::core::{SharedHandle, ValueAt};
 use crate::document::Document;
 use crate::modality::DocumentModality;
 use crate::provenance::EntityRecord;
@@ -98,12 +97,10 @@ where
         doc: &Document<Text>,
         ctx: &CheckContext<'_, Text, P>,
     ) -> Vec<LeakFinding> {
-        let redacted = read_text(ctx.handle).await;
-        check_text_like::<Text, P>(doc, ctx.resolver, redacted.as_deref()).await
+        check_text_like::<Text, P>(doc, ctx.resolver, ctx.redacted_output).await
     }
 }
 
-#[cfg(feature = "tabular")]
 #[async_trait::async_trait]
 impl<P> CheckLeaks<Tabular, P> for LeakCheck
 where
@@ -114,23 +111,7 @@ where
         doc: &Document<Tabular>,
         ctx: &CheckContext<'_, Tabular, P>,
     ) -> Vec<LeakFinding> {
-        let redacted = read_tabular(ctx.handle).await;
-        check_text_like::<Tabular, P>(doc, ctx.resolver, redacted.as_deref()).await
-    }
-}
-
-#[cfg(not(feature = "tabular"))]
-#[async_trait::async_trait]
-impl<P> CheckLeaks<Tabular, P> for LeakCheck
-where
-    P: ValueAt<Tabular> + ?Sized,
-{
-    async fn check_leaks(
-        &self,
-        _doc: &Document<Tabular>,
-        _ctx: &CheckContext<'_, Tabular, P>,
-    ) -> Vec<LeakFinding> {
-        Vec::new()
+        check_text_like::<Tabular, P>(doc, ctx.resolver, ctx.redacted_output).await
     }
 }
 
@@ -207,44 +188,6 @@ where
     }
 
     leaks
-}
-
-async fn read_text(handle: &SharedHandle) -> Option<String> {
-    let locations: Vec<_> = {
-        let guard = handle.lock().await;
-        guard.text_locations().collect().await
-    };
-    if locations.is_empty() {
-        return None;
-    }
-    let mut buf = String::new();
-    for located in &locations {
-        if let Some(data) = handle.lock().await.read_text(&located.location).await {
-            buf.push_str(data.as_str());
-        }
-    }
-    Some(buf)
-}
-
-#[cfg(feature = "tabular")]
-async fn read_tabular(handle: &SharedHandle) -> Option<String> {
-    let locations: Vec<_> = {
-        let guard = handle.lock().await;
-        guard.tabular_locations().collect().await
-    };
-    if locations.is_empty() {
-        return None;
-    }
-    let mut buf = String::new();
-    for located in &locations {
-        if let Some(data) = handle.lock().await.read_tabular(&located.location).await {
-            if !buf.is_empty() {
-                buf.push('\n');
-            }
-            buf.push_str(data.as_str());
-        }
-    }
-    Some(buf)
 }
 
 /// Fold a string for case-insensitive substring matching across

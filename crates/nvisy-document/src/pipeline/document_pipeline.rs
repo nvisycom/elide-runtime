@@ -1,20 +1,16 @@
 //! [`DocumentPipeline`]: the per-document phase sequence.
 //!
-//! Replaces the old [`Phase<M>`] + dispatch-trait stack with a plain
-//! struct holding one concrete instance of each phase. Phase order is
-//! a type-level fact (the field order); adding or removing a phase is
+//! Holds one concrete instance of each phase. Phase order is a
+//! type-level fact (the field order); adding or removing a phase is
 //! a struct edit, not a Vec push.
 //!
-//! Each phase exposes an `apply(ctx, tree)` method that walks the
-//! [`DocumentTree`] in pre-order and dispatches per [`NodeMut`]
-//! variant to its own per-modality body. Phases own their engine
-//! handles (extraction's `ExtractorRegistry`, detection's
-//! `RecognizerRegistry`) so the orchestrator doesn't have to thread
-//! them through.
+//! Each typed `run_*` method drives the per-modality `apply_*` entry
+//! points on every phase in order. The orchestrator picks the right
+//! method based on the [`AnyTree`] variant it's dispatching.
 //!
-//! [`DocumentTree`]: crate::core::DocumentTree
-//! [`NodeMut`]: crate::core::NodeMut
+//! [`AnyTree`]: crate::core::AnyTree
 
+use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
 
 use super::engine::EngineInput;
@@ -41,10 +37,7 @@ pub(crate) struct DocumentPipeline {
 }
 
 impl DocumentPipeline {
-    /// Assemble the pipeline from the per-run context. Each phase
-    /// clones its long-lived engine / config out of `ctx`. The
-    /// clones are cheap — the engines internally hold `Arc`-wrapped
-    /// shared state.
+    /// Assemble the pipeline from the per-run context.
     pub(crate) fn from_context(ctx: &RunContext) -> Self {
         let (redaction, validation) = if ctx.dry_run() {
             (None, None)
@@ -66,37 +59,99 @@ impl DocumentPipeline {
         }
     }
 
-    /// Drive `tree` through every phase in order. Stops on the first
-    /// phase error and surfaces it to the caller.
-    pub(crate) async fn run(
+    pub(crate) async fn run_text(
         &self,
         ctx: &RunContext,
         input: &EngineInput,
-        tree: &mut DocumentTree,
+        tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
         check_cancelled(ctx)?;
-        self.extraction.apply(ctx, input, tree).await?;
-
+        self.extraction.apply_text(ctx, input, tree).await?;
         check_cancelled(ctx)?;
-        self.detection.apply(ctx, input, tree).await?;
-
+        self.detection.apply_text(ctx, input, tree).await?;
         check_cancelled(ctx)?;
-        self.deduplication.apply(ctx, input, tree).await?;
-
-        if let Some(ref redaction) = self.redaction {
+        self.deduplication.apply_text(ctx, input, tree).await?;
+        if let Some(ref r) = self.redaction {
             check_cancelled(ctx)?;
-            redaction.apply(ctx, input, tree).await?;
+            r.apply_text(ctx, input, tree).await?;
         }
-        if let Some(ref validation) = self.validation {
+        if let Some(ref v) = self.validation {
             check_cancelled(ctx)?;
-            validation.apply(ctx, input, tree).await?;
+            v.apply_text(ctx, input, tree).await?;
         }
+        check_cancelled(ctx)
+    }
+
+    pub(crate) async fn run_tabular(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Tabular>,
+    ) -> Result<()> {
         check_cancelled(ctx)?;
-        Ok(())
+        self.extraction.apply_tabular(ctx, input, tree).await?;
+        check_cancelled(ctx)?;
+        self.detection.apply_tabular(ctx, input, tree).await?;
+        check_cancelled(ctx)?;
+        self.deduplication.apply_tabular(ctx, input, tree).await?;
+        if let Some(ref r) = self.redaction {
+            check_cancelled(ctx)?;
+            r.apply_tabular(ctx, input, tree).await?;
+        }
+        if let Some(ref v) = self.validation {
+            check_cancelled(ctx)?;
+            v.apply_tabular(ctx, input, tree).await?;
+        }
+        check_cancelled(ctx)
+    }
+
+    pub(crate) async fn run_image(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Image>,
+    ) -> Result<()> {
+        check_cancelled(ctx)?;
+        self.extraction.apply_image(ctx, input, tree).await?;
+        check_cancelled(ctx)?;
+        self.detection.apply_image(ctx, input, tree).await?;
+        check_cancelled(ctx)?;
+        self.deduplication.apply_image(ctx, input, tree).await?;
+        if let Some(ref r) = self.redaction {
+            check_cancelled(ctx)?;
+            r.apply_image(ctx, input, tree).await?;
+        }
+        if let Some(ref v) = self.validation {
+            check_cancelled(ctx)?;
+            v.apply_image(ctx, input, tree).await?;
+        }
+        check_cancelled(ctx)
+    }
+
+    pub(crate) async fn run_audio(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Audio>,
+    ) -> Result<()> {
+        check_cancelled(ctx)?;
+        self.extraction.apply_audio(ctx, input, tree).await?;
+        check_cancelled(ctx)?;
+        self.detection.apply_audio(ctx, input, tree).await?;
+        check_cancelled(ctx)?;
+        self.deduplication.apply_audio(ctx, input, tree).await?;
+        if let Some(ref r) = self.redaction {
+            check_cancelled(ctx)?;
+            r.apply_audio(ctx, input, tree).await?;
+        }
+        if let Some(ref v) = self.validation {
+            check_cancelled(ctx)?;
+            v.apply_audio(ctx, input, tree).await?;
+        }
+        check_cancelled(ctx)
     }
 }
 
-/// Cancellation guard shared by every phase.
 fn check_cancelled(ctx: &RunContext) -> Result<()> {
     if ctx.is_cancelled() {
         return Err(Error::cancellation("run cancelled", TARGET));

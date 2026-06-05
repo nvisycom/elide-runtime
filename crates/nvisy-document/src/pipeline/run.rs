@@ -11,8 +11,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use nvisy_codec::CodecRegistry;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
+use nvisy_formats::CodecRegistryExt;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
@@ -155,6 +157,7 @@ impl Pipeline {
             actor_id,
             policies: policy_store,
             registry: self.registry.clone(),
+            codec_registry: CodecRegistry::builtins(),
             key_provider: SharedKeyProvider::default(),
         };
         if let Some(ref kp) = self.key_provider {

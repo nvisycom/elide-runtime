@@ -9,6 +9,7 @@ pub mod extraction;
 pub mod modality;
 pub mod primitive;
 pub mod recognition;
+
 pub use self::extraction::{
     Artifacts, Extractor, ExtractorOutput, ModalityExtraction, Span, ValueAt,
 };

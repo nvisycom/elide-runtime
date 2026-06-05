@@ -1,29 +1,28 @@
 //! Deduplication layer integration tests.
 //!
-//! Exercises the toolkit's `LayerPipeline` against real `Document<Text>`
-//! values constructed from in-memory text. These tests live here
-//! rather than in `nvisy-toolkit` because they cross the toolkit ↔
-//! document boundary (they need `Document`, `TextMetadata`, and the
-//! formats `decode_text` helper).
+//! Exercises the toolkit's `LayerPipeline` against real
+//! `DocumentTree<Text>` values constructed from in-memory text via
+//! the codec registry. These tests live here rather than in
+//! `nvisy-toolkit` because they cross the toolkit ↔ document
+//! boundary (they need `DocumentTree`, `TextMetadata`, and a real
+//! decoded codec handle).
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
+use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
 use nvisy_core::ValueAt;
-use nvisy_core::content::ContentMetadata;
+use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep, TrailStepKind};
 use nvisy_core::modality::Text;
 use nvisy_core::primitive::{Confidence, ConfidenceThreshold};
-use nvisy_document::core::{DocumentView, SharedData, SharedHandle};
+use nvisy_document::core::DocumentTree;
 use nvisy_document::document::Document;
 use nvisy_document::modality::{TextExtraction, TextMetadata};
-use nvisy_document::phases::ingestion::registry::Registry;
-use nvisy_formats::test_utils::decode_text;
+use nvisy_formats::CodecRegistryExt;
 use nvisy_toolkit::deduplication::{
     DeduplicationParams, DeduplicationStrategy, FilterParams, FuseLayer, GroupingCriteria, Layer,
     LayerContext, LayerPipeline,
 };
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 fn conf(v: f64) -> Confidence {
@@ -41,16 +40,16 @@ fn ner_step(confidence: Confidence) -> TrailStep {
 
 const TEXT: &str = "John Smith";
 
-struct Fixture {
-    handle: SharedHandle,
-    doc: Document<Text>,
-    _metadata: ContentMetadata,
-    _shared: Arc<SharedData>,
-}
-
-async fn test_fixture(text: &str) -> Fixture {
-    let handle: SharedHandle = Arc::new(Mutex::new(decode_text(text).await.expect("decode text")));
-    let source = handle.lock().await.source();
+async fn tree_from(text: &str) -> DocumentTree<Text> {
+    let registry = CodecRegistry::builtins();
+    let format = registry.by_extension("txt").expect("txt codec registered");
+    let data = ContentData::new(ContentSource::new(), text.as_bytes().to_vec().into());
+    let untyped = format.loader.decode(data).await.expect("decode");
+    let handle = match untyped {
+        UntypedDocumentHandle::Text(h) => h,
+        _ => panic!("txt loader must produce Text"),
+    };
+    let source = handle.handler().source().clone();
     let doc = Document::<Text>::new(
         TextMetadata {
             extraction: TextExtraction::Native,
@@ -59,24 +58,16 @@ async fn test_fixture(text: &str) -> Fixture {
         source,
     );
     let metadata = ContentMetadata::new().with_content_type("text/plain");
-    let registry =
-        Registry::open(tempfile::tempdir().expect("tempdir").path()).expect("open registry");
-    let shared = SharedData::new(Uuid::nil(), Uuid::nil(), registry);
-    Fixture {
-        handle,
-        doc,
-        _metadata: metadata,
-        _shared: shared,
-    }
+    DocumentTree::new(doc, handle, metadata)
 }
 
 async fn fuse_with(
     strategy: DeduplicationStrategy,
     criteria: GroupingCriteria,
-    view: &DocumentView<'_, Text>,
+    tree: &DocumentTree<Text>,
     entities: &mut Vec<Entity<Text>>,
 ) {
-    let ctx = LayerContext::new(view);
+    let ctx = LayerContext::new(tree);
     let layer = FuseLayer::new(strategy, criteria);
     let dropped = layer.apply(entities, &ctx).await;
     assert!(dropped.is_empty(), "fuse never drops");
@@ -84,8 +75,7 @@ async fn fuse_with(
 
 #[tokio::test]
 async fn confidence_threshold_filters() {
-    let fix = test_fixture("John......Jane").await;
-    let view = DocumentView::new(&fix.doc, &fix.handle);
+    let tree = tree_from("John......Jane").await;
     let filter = FilterParams {
         confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
         ..Default::default()
@@ -98,17 +88,16 @@ async fn confidence_threshold_filters() {
     ];
     let pipeline: LayerPipeline<Text, _> =
         LayerPipeline::from_params(&DeduplicationParams::default(), filter);
-    let ctx = LayerContext::new(&view).with_correlation_id(Uuid::nil());
+    let ctx = LayerContext::new(&tree).with_correlation_id(Uuid::nil());
     let result = pipeline.run(entities, &ctx).await;
     assert_eq!(result.len(), 1);
-    let value = view.value_at(&result[0].location).await;
+    let value = tree.value_at(&result[0].location).await;
     assert_eq!(value.as_deref(), Some("John"));
 }
 
 #[tokio::test]
 async fn full_pipeline() {
-    let fix = test_fixture(TEXT).await;
-    let view = DocumentView::new(&fix.doc, &fix.handle);
+    let tree = tree_from(TEXT).await;
     let entities: Vec<Entity<Text>> = vec![
         Entity::test_builder(0, 4)
             .with_confidence(conf(0.7))
@@ -128,7 +117,7 @@ async fn full_pipeline() {
     ];
     let pipeline: LayerPipeline<Text, _> =
         LayerPipeline::from_params(&DeduplicationParams::default(), FilterParams::default());
-    let ctx = LayerContext::new(&view).with_correlation_id(Uuid::nil());
+    let ctx = LayerContext::new(&tree).with_correlation_id(Uuid::nil());
     let result = pipeline.run(entities, &ctx).await;
     assert_eq!(result.len(), 1);
     assert!((result[0].confidence.get() - 0.85).abs() < f64::EPSILON);
@@ -136,8 +125,7 @@ async fn full_pipeline() {
 
 #[tokio::test]
 async fn strict_grouping_fuses_identical_spans_with_max_confidence() {
-    let fix = test_fixture(TEXT).await;
-    let view = DocumentView::new(&fix.doc, &fix.handle);
+    let tree = tree_from(TEXT).await;
     let mut entities: Vec<_> = vec![
         Entity::test_builder(0, 4)
             .with_confidence(conf(0.8))
@@ -147,7 +135,7 @@ async fn strict_grouping_fuses_identical_spans_with_max_confidence() {
     fuse_with(
         DeduplicationStrategy::MaxConfidence,
         GroupingCriteria::Strict,
-        &view,
+        &tree,
         &mut entities,
     )
     .await;
@@ -157,8 +145,7 @@ async fn strict_grouping_fuses_identical_spans_with_max_confidence() {
 
 #[tokio::test]
 async fn narrowing_groups_substring_with_overlap() {
-    let fix = test_fixture(TEXT).await;
-    let view = DocumentView::new(&fix.doc, &fix.handle);
+    let tree = tree_from(TEXT).await;
     let mut entities: Vec<_> = vec![
         Entity::test_builder(0, 4)
             .with_confidence(conf(0.8))
@@ -170,20 +157,19 @@ async fn narrowing_groups_substring_with_overlap() {
     fuse_with(
         DeduplicationStrategy::MaxConfidence,
         GroupingCriteria::Narrowing,
-        &view,
+        &tree,
         &mut entities,
     )
     .await;
     assert_eq!(entities.len(), 1);
-    let value = view.value_at(&entities[0].location).await;
+    let value = tree.value_at(&entities[0].location).await;
     assert_eq!(value.as_deref(), Some("John Smith"));
 }
 
 #[tokio::test]
 async fn widening_groups_across_non_overlapping_locations() {
     let text = format!("{:<100}John Smith", TEXT);
-    let fix = test_fixture(&text).await;
-    let view = DocumentView::new(&fix.doc, &fix.handle);
+    let tree = tree_from(&text).await;
     let mut entities: Vec<_> = vec![
         Entity::test_builder(0, 4).test_build(),
         Entity::test_builder(100, 110)
@@ -193,7 +179,7 @@ async fn widening_groups_across_non_overlapping_locations() {
     fuse_with(
         DeduplicationStrategy::MaxConfidence,
         GroupingCriteria::Widening,
-        &view,
+        &tree,
         &mut entities,
     )
     .await;
@@ -202,8 +188,7 @@ async fn widening_groups_across_non_overlapping_locations() {
 
 #[tokio::test]
 async fn noisy_or_strategy() {
-    let fix = test_fixture(TEXT).await;
-    let view = DocumentView::new(&fix.doc, &fix.handle);
+    let tree = tree_from(TEXT).await;
     let mut entities: Vec<_> = vec![
         Entity::test_builder(0, 4)
             .with_confidence(conf(0.7))
@@ -216,7 +201,7 @@ async fn noisy_or_strategy() {
     fuse_with(
         DeduplicationStrategy::NoisyOr,
         GroupingCriteria::default(),
-        &view,
+        &tree,
         &mut entities,
     )
     .await;
@@ -227,8 +212,7 @@ async fn noisy_or_strategy() {
 
 #[tokio::test]
 async fn weighted_average_strategy() {
-    let fix = test_fixture(TEXT).await;
-    let view = DocumentView::new(&fix.doc, &fix.handle);
+    let tree = tree_from(TEXT).await;
     let mut weights = HashMap::new();
     weights.insert("pattern".to_string(), 1.0);
     weights.insert("ner".to_string(), 2.0);
@@ -244,7 +228,7 @@ async fn weighted_average_strategy() {
     fuse_with(
         DeduplicationStrategy::WeightedAverage { weights },
         GroupingCriteria::default(),
-        &view,
+        &tree,
         &mut entities,
     )
     .await;
@@ -255,8 +239,7 @@ async fn weighted_average_strategy() {
 
 #[tokio::test]
 async fn different_detector_tagged_as_ensemble_fusion() {
-    let fix = test_fixture(TEXT).await;
-    let view = DocumentView::new(&fix.doc, &fix.handle);
+    let tree = tree_from(TEXT).await;
     let mut entities: Vec<_> = vec![
         Entity::test_builder(0, 4)
             .with_confidence(conf(0.8))
@@ -268,7 +251,7 @@ async fn different_detector_tagged_as_ensemble_fusion() {
     fuse_with(
         DeduplicationStrategy::MaxConfidence,
         GroupingCriteria::default(),
-        &view,
+        &tree,
         &mut entities,
     )
     .await;

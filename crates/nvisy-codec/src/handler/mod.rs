@@ -18,7 +18,7 @@
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 
-use crate::core::{Codable, FormatId, IndexedHandle};
+use crate::core::{Codable, EmbeddedHandles, FormatId, IndexedHandle};
 
 #[cfg(feature = "audio")]
 mod audio;
@@ -63,6 +63,19 @@ pub trait Handler: Send + Sync + 'static {
 
     /// Serialize the current handler content back to [`ContentData`].
     fn encode(&self) -> Result<ContentData, Error>;
+
+    /// Embedded-child accessor for rich formats (PDF, DOCX) whose
+    /// chunks reference inner [`UntypedDocumentHandle`][udh] handles.
+    /// Returns `None` for leaf formats — the default — so only rich
+    /// handlers need to override.
+    ///
+    /// The engine importer walks this to build the embed tree under
+    /// the root document, without an `Any` downcast at the call site.
+    ///
+    /// [udh]: crate::document::UntypedDocumentHandle
+    fn embedded(&self) -> Option<&dyn EmbeddedHandles> {
+        None
+    }
 }
 
 /// Per-modality format loader.

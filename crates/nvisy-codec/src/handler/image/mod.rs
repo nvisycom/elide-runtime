@@ -16,7 +16,7 @@ mod instruction;
 pub use self::instruction::{ImageOutput, ImageRedaction};
 
 impl Codable for Image {
-    type Redaction = ImageRedaction;
+    type Instruction = ImageRedaction;
 
     const KIND: ModalityKind = ModalityKind::Image;
 }

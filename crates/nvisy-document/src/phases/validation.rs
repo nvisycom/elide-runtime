@@ -1,8 +1,8 @@
-//! [`ValidationPhase`]: per-node check-pipeline driver.
+//! [`ValidationPhase`]: per-document check-pipeline driver.
 //!
 //! Builds the canonical [`CheckPipeline`] from
 //! [`Validation`] (today: a single [`LeakCheck`] with the configured
-//! [`Severity`]) and runs it against each modality node in the tree.
+//! [`Severity`]) and runs it against each modality tree.
 //! Aggregates findings; any [`Severity::Fail`] finding fails the
 //! run with a validation error.
 //!
@@ -11,13 +11,15 @@
 //! [`Severity`]: crate::validation::Severity
 //! [`Validation`]: crate::validation::Validation
 
+use nvisy_codec::core::IndexedHandle;
+use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
 use tracing::Instrument;
 
-use crate::core::{DocumentTree, DocumentView, NodeMut, RunContext, SharedHandle};
+use crate::core::{DocumentTree, RunContext};
 use crate::pipeline::EngineInput;
 use crate::validation::{
-    CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity, Validation,
+    CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity,
 };
 
 const TARGET: &str = "nvisy_engine::validation";
@@ -31,31 +33,73 @@ impl ValidationPhase {
         Self
     }
 
-    /// Walk the tree and run the canonical check pipeline per node.
-    /// Visits the root first, then iterates nested embedded documents.
-    pub(crate) async fn apply(
+    pub(crate) async fn apply_text(
         &self,
         ctx: &RunContext,
         input: &EngineInput,
-        tree: &mut DocumentTree,
+        tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
-        let span = tracing::info_span!(target: TARGET, "phase", name = "validation");
+        let span = tracing::info_span!(target: TARGET, "phase", name = "validation.text");
         let run_id = ctx.shared().run_id;
         let cfg = input.plan.validation.clone();
-        // Snapshot the tree-owned handle so it doesn't conflict with
-        // the per-node `&mut` borrows produced by `root_mut` /
-        // `embeds_mut` further down.
-        let handle = tree.handle.clone();
         async move {
-            let mut findings = Vec::new();
-            findings.extend(dispatch(tree.root_mut(), &handle, &cfg, run_id).await?);
-            for node in tree.embeds_mut() {
-                findings.extend(dispatch(node, &handle, &cfg, run_id).await?);
+            let redacted = stream_text(tree.handle.handler_mut()).await?;
+            let pipeline: CheckPipeline<Text, DocumentTree<Text>> =
+                CheckPipeline::new().with_check(LeakCheck::new(cfg.leak_severity));
+            let mut check_ctx = CheckContext::new(&*tree).with_correlation_id(run_id);
+            if let Some(ref text) = redacted {
+                check_ctx = check_ctx.with_redacted_output(text);
             }
+            let findings = log_findings("text", pipeline.run(&tree.root, &check_ctx).await);
             finalize(&findings)
         }
         .instrument(span)
         .await
+    }
+
+    pub(crate) async fn apply_tabular(
+        &self,
+        ctx: &RunContext,
+        input: &EngineInput,
+        tree: &mut DocumentTree<Tabular>,
+    ) -> Result<()> {
+        let span = tracing::info_span!(target: TARGET, "phase", name = "validation.tabular");
+        let run_id = ctx.shared().run_id;
+        let cfg = input.plan.validation.clone();
+        async move {
+            let redacted = stream_tabular(tree.handle.handler_mut()).await?;
+            let pipeline: CheckPipeline<Tabular, DocumentTree<Tabular>> =
+                CheckPipeline::new().with_check(LeakCheck::new(cfg.leak_severity));
+            let mut check_ctx = CheckContext::new(&*tree).with_correlation_id(run_id);
+            if let Some(ref text) = redacted {
+                check_ctx = check_ctx.with_redacted_output(text);
+            }
+            let findings = log_findings("tabular", pipeline.run(&tree.root, &check_ctx).await);
+            finalize(&findings)
+        }
+        .instrument(span)
+        .await
+    }
+
+    /// Image and audio have no canonical check today — succeed
+    /// immediately so the pipeline orchestrator can call this
+    /// uniformly per modality.
+    pub(crate) async fn apply_image(
+        &self,
+        _ctx: &RunContext,
+        _input: &EngineInput,
+        _tree: &mut DocumentTree<Image>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    pub(crate) async fn apply_audio(
+        &self,
+        _ctx: &RunContext,
+        _input: &EngineInput,
+        _tree: &mut DocumentTree<Audio>,
+    ) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -65,34 +109,7 @@ impl Default for ValidationPhase {
     }
 }
 
-async fn dispatch(
-    node: NodeMut<'_>,
-    handle: &SharedHandle,
-    cfg: &Validation,
-    run_id: uuid::Uuid,
-) -> Result<Vec<Finding>> {
-    Ok(match node {
-        NodeMut::Text(doc) => {
-            let view = DocumentView::new(doc, handle);
-            let pipeline: CheckPipeline<_, _> =
-                CheckPipeline::new().with_check(LeakCheck::new(cfg.leak_severity));
-            let ctx = CheckContext::new(&view, handle).with_correlation_id(run_id);
-            log_findings("text", pipeline.run(doc, &ctx).await)
-        }
-        NodeMut::Tabular(doc) => {
-            let view = DocumentView::new(doc, handle);
-            let pipeline: CheckPipeline<_, _> =
-                CheckPipeline::new().with_check(LeakCheck::new(cfg.leak_severity));
-            let ctx = CheckContext::new(&view, handle).with_correlation_id(run_id);
-            log_findings("tabular", pipeline.run(doc, &ctx).await)
-        }
-        // Image and Audio have no canonical check today. The
-        // pipeline is empty; nothing runs.
-        NodeMut::Image(_) | NodeMut::Audio(_) => Vec::new(),
-    })
-}
-
-/// Log per-node findings at the appropriate level and return them
+/// Log per-tree findings at the appropriate level and return them
 /// for run-level aggregation.
 fn log_findings(modality: &'static str, findings: Vec<Finding>) -> Vec<Finding> {
     if findings.is_empty() {
@@ -157,4 +174,38 @@ fn finalize(findings: &[Finding]) -> Result<()> {
         ),
         "validation",
     ))
+}
+
+/// Drain the post-redaction text chunks into one concatenated string
+/// for substring-based leak detection. Returns `None` when the handle
+/// has no chunks at all.
+async fn stream_text(handle: &mut dyn IndexedHandle<Text>) -> Result<Option<String>> {
+    let mut buf = String::new();
+    while let Some(chunk) = handle.next_chunk().await? {
+        if !buf.is_empty() {
+            buf.push('\n');
+        }
+        buf.push_str(chunk.data.as_str());
+    }
+    Ok((!buf.is_empty()).then_some(buf))
+}
+
+/// Drain post-redaction tabular cells, separating rows with newlines.
+async fn stream_tabular(handle: &mut dyn IndexedHandle<Tabular>) -> Result<Option<String>> {
+    let mut buf = String::new();
+    let mut current_row: Option<u32> = None;
+    while let Some(chunk) = handle.next_chunk().await? {
+        let row = chunk.location.row_index;
+        if let Some(prev) = current_row
+            && prev != row
+        {
+            buf.push('\n');
+        }
+        if !buf.is_empty() && current_row == Some(row) {
+            buf.push('\t');
+        }
+        buf.push_str(chunk.data.as_str());
+        current_row = Some(row);
+    }
+    Ok((!buf.is_empty()).then_some(buf))
 }

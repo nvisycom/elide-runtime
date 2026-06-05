@@ -19,8 +19,6 @@
 //! [it]: UntypedDocumentHandle::into_text
 //! [ii]: UntypedDocumentHandle::into_image
 
-use std::sync::Arc;
-
 #[cfg(feature = "audio")]
 use nvisy_core::modality::Audio;
 #[cfg(feature = "image")]
@@ -158,19 +156,21 @@ impl UntypedDocumentHandle {
 /// "what format is this?" without re-decoding.
 ///
 /// Constructed via the consuming accessors on
-/// [`UntypedDocumentHandle`]. The inner handler is held in an `Arc`
-/// so the handle can be cloned cheaply and shared across phases.
+/// [`UntypedDocumentHandle`]. The inner handler is held in a `Box`
+/// because the pipeline runs phases sequentially per document — there
+/// is no concurrent access to the handle within a single document's
+/// run, so reference counting buys nothing.
 pub struct DocumentHandle<M: Codable> {
     format: FormatId,
-    handler: Arc<dyn IndexedHandle<M>>,
+    handler: Box<dyn IndexedHandle<M>>,
 }
 
 impl<M: Codable> DocumentHandle<M> {
     /// Wrap a handler and a format id into a typed handle. Used by
     /// codec loaders to produce the typed handle, which is then
-    /// boxed into an [`UntypedDocumentHandle`] variant for registry
+    /// erased into an [`UntypedDocumentHandle`] variant for registry
     /// return.
-    pub fn new(format: FormatId, handler: Arc<dyn IndexedHandle<M>>) -> Self {
+    pub fn new(format: FormatId, handler: Box<dyn IndexedHandle<M>>) -> Self {
         Self { format, handler }
     }
 
@@ -179,28 +179,27 @@ impl<M: Codable> DocumentHandle<M> {
         &self.format
     }
 
-    /// Borrow the inner handler. Use this to invoke per-modality
-    /// capability methods ([`IndexedHandle::read`][ir],
-    /// [`Handle::next_chunk`][nc], etc.).
+    /// Borrow the inner handler. Use this for read-only capability
+    /// methods ([`IndexedHandle::read`][ir]).
     ///
     /// [ir]: crate::core::IndexedHandle::read
+    pub fn handler(&self) -> &dyn IndexedHandle<M> {
+        &*self.handler
+    }
+
+    /// Mutably borrow the inner handler. Use this for cursor-advancing
+    /// methods ([`Handle::next_chunk`][nc]) and the redaction batch
+    /// applicator ([`IndexedHandle::redact`][rd]).
+    ///
     /// [nc]: crate::core::Handle::next_chunk
-    pub fn handler(&self) -> &Arc<dyn IndexedHandle<M>> {
-        &self.handler
+    /// [rd]: crate::core::IndexedHandle::redact
+    pub fn handler_mut(&mut self) -> &mut dyn IndexedHandle<M> {
+        &mut *self.handler
     }
 
     /// Consume self, returning the inner handler.
-    pub fn into_handler(self) -> Arc<dyn IndexedHandle<M>> {
+    pub fn into_handler(self) -> Box<dyn IndexedHandle<M>> {
         self.handler
-    }
-}
-
-impl<M: Codable> Clone for DocumentHandle<M> {
-    fn clone(&self) -> Self {
-        Self {
-            format: self.format.clone(),
-            handler: Arc::clone(&self.handler),
-        }
     }
 }
 

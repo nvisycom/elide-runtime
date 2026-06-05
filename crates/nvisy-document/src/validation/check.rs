@@ -22,11 +22,11 @@
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
+use nvisy_core::ValueAt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::core::{SharedHandle, ValueAt};
 use crate::document::Document;
 use crate::modality::DocumentModality;
 
@@ -52,12 +52,19 @@ where
     P: ValueAt<M> + ?Sized,
 {
     /// Resolver for "what value sits at this location?" Backed by
-    /// `DocumentView<'_, M>` in production, mockable in tests.
+    /// `DocumentTree<M>` in production, mockable in tests.
     pub resolver: &'a P,
-    /// Codec handle used by checks that need to re-read the
-    /// post-redaction bytes (leak detection reads the redacted text;
-    /// future checks may need other slices).
-    pub handle: &'a SharedHandle,
+    /// Concatenated post-redaction output that checks like
+    /// [`LeakCheck`] substring-search against. The validation phase
+    /// streams the (already-redacted) handle chunks once and hands
+    /// the assembled text in — checks never touch the codec
+    /// directly.
+    ///
+    /// `None` when the modality doesn't produce searchable text
+    /// (image / audio at present).
+    ///
+    /// [`LeakCheck`]: crate::validation::LeakCheck
+    pub redacted_output: Option<&'a str>,
     /// Optional correlation id used to stitch tracing spans across
     /// the run.
     pub correlation_id: Option<Uuid>,
@@ -71,14 +78,24 @@ where
     M: DocumentModality,
     P: ValueAt<M> + ?Sized,
 {
-    /// Build a context from the resolver + handle.
-    pub fn new(resolver: &'a P, handle: &'a SharedHandle) -> Self {
+    /// Build a context from the resolver alone. Checks that need the
+    /// post-redaction text attach it via [`with_redacted_output`].
+    ///
+    /// [`with_redacted_output`]: Self::with_redacted_output
+    pub fn new(resolver: &'a P) -> Self {
         Self {
             resolver,
-            handle,
+            redacted_output: None,
             correlation_id: None,
             _marker: PhantomData,
         }
+    }
+
+    /// Attach the streamed post-redaction text the validation phase
+    /// pulled out of the codec handle.
+    pub fn with_redacted_output(mut self, redacted_output: &'a str) -> Self {
+        self.redacted_output = Some(redacted_output);
+        self
     }
 
     /// Attach a correlation id (typically a run id).

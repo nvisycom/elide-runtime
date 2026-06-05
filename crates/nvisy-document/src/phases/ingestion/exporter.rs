@@ -8,11 +8,13 @@
 
 use std::sync::Arc;
 
+use nvisy_codec::core::Codable;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
 use uuid::Uuid;
 
-use crate::core::{DocumentTree, SharedData};
+use crate::core::{AnyTree, DocumentTree, SharedData};
+use crate::modality::DocumentModality;
 use crate::phases::ingestion::compression::CompressionService;
 use crate::phases::ingestion::encryption::CryptoService;
 use crate::phases::ingestion::{CompressionAlgorithm, EncryptionConfig};
@@ -51,14 +53,30 @@ impl Exporter {
     /// Encode the tree's codec handle back to bytes, optionally
     /// encrypt + compress, and write to the registry under every
     /// configured content id.
-    pub(crate) async fn export(&self, tree: &DocumentTree, shared: &Arc<SharedData>) -> Result<()> {
-        let content_data = tree.handle.lock().await.encode()?;
+    pub(crate) async fn export(&self, tree: &AnyTree, shared: &Arc<SharedData>) -> Result<()> {
+        match tree {
+            AnyTree::Text(t) => self.export_one(t, shared).await,
+            AnyTree::Tabular(t) => self.export_one(t, shared).await,
+            AnyTree::Image(t) => self.export_one(t, shared).await,
+            AnyTree::Audio(t) => self.export_one(t, shared).await,
+        }
+    }
+
+    async fn export_one<M>(
+        &self,
+        tree: &DocumentTree<M>,
+        shared: &Arc<SharedData>,
+    ) -> Result<()>
+    where
+        M: DocumentModality + Codable,
+    {
+        let content_data = tree.handle.handler().encode()?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());
 
         if let Some(ref enc_cfg) = self.encryption {
             tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "encrypting export content");
             let crypto = CryptoService::new(&enc_cfg.key_id, shared.key_provider.clone());
-            let encrypted = crypto.encrypt(&tree.handle).await?;
+            let encrypted = crypto.encrypt(&content_data).await?;
             tracing::debug!(
                 target: TARGET,
                 ciphertext_len = encrypted.ciphertext.len(),

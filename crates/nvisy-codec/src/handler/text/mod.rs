@@ -17,7 +17,7 @@ mod instruction;
 pub use self::instruction::{TextOutput, TextRedaction};
 
 impl Codable for Text {
-    type Redaction = TextRedaction;
+    type Instruction = TextRedaction;
 
     const KIND: ModalityKind = ModalityKind::Text;
 }

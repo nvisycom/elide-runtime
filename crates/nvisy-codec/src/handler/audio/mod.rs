@@ -23,7 +23,7 @@ mod instruction;
 pub use self::instruction::{AudioOutput, AudioRedaction};
 
 impl Codable for Audio {
-    type Redaction = AudioRedaction;
+    type Instruction = AudioRedaction;
 
     const KIND: ModalityKind = ModalityKind::Audio;
 }

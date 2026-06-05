@@ -1,4 +1,4 @@
-//! Tabular-modality wire types: [`Codable`] impl + redaction shape.
+//! Tabular-modality wire types: [`Codable`] impl + handler trait.
 //!
 //! Tabular handlers address content by cell coordinate
 //! ([`Tabular`] = row + column, optionally with intra-cell byte
@@ -10,23 +10,23 @@
 //! text crate's redaction helper.
 //!
 //! Tabular handlers return [`TextData`] from `read` — the cell's
-//! string value — so [`Codable::Data`] aliases [`TextData`] for the
-//! [`Tabular`] modality.
+//! string value — so [`ModalityData::Data`] aliases [`TextData`] for
+//! the [`Tabular`] modality. Replacements written during
+//! [`IndexedHandle::redact`] use
+//! [`nvisy_core::redaction::TabularReplacement`].
+//!
+//! [`ModalityData::Data`]: nvisy_core::modality::ModalityData::Data
 //!
 //! [`Handle<Tabular>`]: crate::core::Handle
+//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
 //! [`Tabular`]: nvisy_core::modality::Tabular
+//! [`TextData`]: nvisy_core::modality::TextData
 
 use nvisy_core::modality::{ModalityKind, Tabular};
 
 use crate::core::{Codable, Handle};
 
-mod instruction;
-
-pub use self::instruction::TabularRedaction;
-
 impl Codable for Tabular {
-    type Instruction = TabularRedaction;
-
     const KIND: ModalityKind = ModalityKind::Tabular;
 }
 
@@ -44,7 +44,6 @@ impl Codable for Tabular {
 ///
 /// Implementing this trait is required for every tabular handler that
 /// participates in the importer fan-out.
-///
 pub trait TabularHandle: Handle<Tabular> {
     /// `true` when the source format carries explicit column headers
     /// or typed schema (CSV with header row, Parquet, XLSX); `false`

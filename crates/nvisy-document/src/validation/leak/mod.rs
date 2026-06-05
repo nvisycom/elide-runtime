@@ -21,7 +21,7 @@
 //! [`Check`]: super::Check
 //! [`CheckPipeline`]: super::CheckPipeline
 
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 use nvisy_core::modality::{Tabular, Text};
 use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
@@ -60,7 +60,7 @@ pub struct LeakFinding {
 pub trait CheckLeaks<M, P>: Send + Sync
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
 {
     /// Inspect `doc` and emit a typed list of leak findings.
     async fn check_leaks(
@@ -90,7 +90,7 @@ impl LeakCheck {
 #[async_trait::async_trait]
 impl<P> CheckLeaks<Text, P> for LeakCheck
 where
-    P: ValueAt<Text> + ?Sized,
+    P: TextAt<Text> + ?Sized,
 {
     async fn check_leaks(
         &self,
@@ -104,7 +104,7 @@ where
 #[async_trait::async_trait]
 impl<P> CheckLeaks<Tabular, P> for LeakCheck
 where
-    P: ValueAt<Tabular> + ?Sized,
+    P: TextAt<Tabular> + ?Sized,
 {
     async fn check_leaks(
         &self,
@@ -122,7 +122,7 @@ where
 impl<M, P> Check<M, P> for LeakCheck
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
     LeakCheck: CheckLeaks<M, P>,
 {
     async fn check(&self, doc: &Document<M>, ctx: &CheckContext<'_, M, P>) -> Vec<Finding> {
@@ -150,7 +150,7 @@ where
 /// Shared substring-based leak check used by both Text and Tabular.
 ///
 /// For each applied record, re-reads the (post-redaction) value at
-/// its location through the modality's [`ValueAt`] impl and checks
+/// its location through the modality's [`TextAt`] impl and checks
 /// whether it still contains the original. Records whose value can't
 /// be re-read are conservatively counted as passed.
 async fn check_text_like<M, P>(
@@ -160,7 +160,7 @@ async fn check_text_like<M, P>(
 ) -> Vec<LeakFinding>
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
 {
     let applied: Vec<&EntityRecord<M>> = doc
         .audit
@@ -176,7 +176,7 @@ where
     let mut leaks = Vec::new();
     let folded_text = fold_for_match(text);
     for record in &applied {
-        if let Some(value) = resolver.value_at(&record.entity.location).await {
+        if let Some(value) = resolver.text_at(&record.entity.location).await {
             let folded_value = fold_for_match(&value);
             if !value.is_empty() && folded_text.contains(&folded_value) {
                 leaks.push(LeakFinding {

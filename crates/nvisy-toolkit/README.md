@@ -11,7 +11,7 @@ document-processing pipeline.
 
 Sits between `nvisy-core` (the atoms: primitives, `Entity`, the
 `Modality` marker trait, `ModalityData`, `EntityRecognizer<M>`,
-`ValueAt`, the `ModalityExtraction` extension trait) and
+`TextAt`, the `ModalityExtraction` extension trait) and
 `nvisy-document` (the whole-document runner that wires these
 components together against a `Document<M>` tree). Toolkit owns the
 pieces; document owns the orchestration.

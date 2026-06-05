@@ -12,12 +12,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
-use nvisy_codec::handler::{Handler, TextRedaction};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle};
+use nvisy_codec::handler::Handler;
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
+use nvisy_core::redaction::TextReplacement;
 
 use super::{HtmlLoader, redact};
 
@@ -140,14 +142,11 @@ impl IndexedHandle<Text> for HtmlHandler {
             .map(TextData::from))
     }
 
-    async fn redact(
-        &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
         let mut items = redactions.into_items();
         items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
-        for (location, redaction) in items {
-            self.redact_one(&location, redaction)?;
+        for (location, replacement) in items {
+            self.redact_one(&location, replacement)?;
         }
         Ok(())
     }
@@ -227,7 +226,7 @@ impl HtmlHandler {
     fn redact_one(
         &mut self,
         location: &TextLocation,
-        redaction: TextRedaction,
+        replacement: TextReplacement,
     ) -> Result<(), Error> {
         let Some(i) = self.node_for(location.start) else {
             return Ok(());
@@ -239,7 +238,7 @@ impl HtmlHandler {
         }
         let local_start = location.start - node_start;
         let local_end = location.end - node_start;
-        let value = redaction.output().replacement_value().unwrap_or_default();
+        let value = replacement.replacement_value().unwrap_or_default();
         let before_len = self.data.text_nodes[i].len();
         redact::replace_range(
             &mut self.data.text_nodes[i],
@@ -267,8 +266,8 @@ fn compute_node_starts(text_nodes: &[String]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
+    use nvisy_core::redaction::TextReplacement;
 
     use super::*;
 
@@ -307,7 +306,7 @@ mod tests {
         let first = h.next_chunk().await?.unwrap();
         let loc = first.location.clone();
         let mut rs = Redactions::new();
-        rs.push(loc, TextRedaction::new(TextOutput::replace("[REDACTED]")));
+        rs.push(loc, TextReplacement::substituted("[REDACTED]"));
         h.redact(rs).await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));

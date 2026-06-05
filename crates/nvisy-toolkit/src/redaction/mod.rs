@@ -36,18 +36,16 @@ mod anonymizer;
 mod deanonymizer;
 mod id;
 mod leak_profile;
-mod redactable;
 mod registry;
-mod replacement;
 
 pub mod builtin;
+
+pub use nvisy_core::redaction::{
+    AudioReplacement, ImageReplacement, Redactable, TabularReplacement, TextReplacement,
+};
 
 pub use self::anonymizer::Anonymizer;
 pub use self::deanonymizer::Deanonymizer;
 pub use self::id::AnonymizerId;
 pub use self::leak_profile::LeakProfile;
-pub use self::redactable::Redactable;
 pub use self::registry::RedactionRegistry;
-pub use self::replacement::{
-    AudioReplacement, ImageReplacement, TabularReplacement, TextReplacement,
-};

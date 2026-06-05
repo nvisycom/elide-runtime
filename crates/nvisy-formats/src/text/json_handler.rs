@@ -18,11 +18,12 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
-use nvisy_codec::handler::{Handler, TextRedaction};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle};
+use nvisy_codec::handler::Handler;
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
 use serde::{Deserialize, Serialize};
 
@@ -195,10 +196,7 @@ impl IndexedHandle<Text> for JsonHandler {
         }))
     }
 
-    async fn redact(
-        &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
         // Resolve every location against the current serialization in
         // one pass, then apply each mutation against the tree. Tree
         // mutations don't invalidate already-resolved tree paths, so
@@ -207,11 +205,11 @@ impl IndexedHandle<Text> for JsonHandler {
             redactions
                 .into_items()
                 .into_iter()
-                .filter_map(|(loc, red)| {
+                .filter_map(|(loc, replacement)| {
                     let s = spans
                         .iter()
                         .find(|s| loc.start >= s.start && loc.end <= s.end)?;
-                    let value = red.output().replacement_value().unwrap_or_default();
+                    let value = replacement.replacement_value().unwrap_or_default();
                     let start = loc.start - s.start;
                     let end = loc.end - s.start;
                     let mut content = s.text.clone();
@@ -459,8 +457,8 @@ fn rename_key(root: &mut serde_json::Value, pointer: &str, new_key: &str) -> Res
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
+    use nvisy_core::redaction::TextReplacement;
 
     use super::*;
 
@@ -559,10 +557,7 @@ mod tests {
             }
         };
         let mut rs = Redactions::new();
-        rs.push(
-            chunk.location.clone(),
-            TextRedaction::new(TextOutput::replace("Bob")),
-        );
+        rs.push(chunk.location.clone(), TextReplacement::substituted("Bob"));
         h.redact(rs).await?;
         let encoded = h.encode()?.as_str().unwrap().to_owned();
         assert!(encoded.contains("Bob"));

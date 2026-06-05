@@ -154,15 +154,14 @@ macro_rules! impl_image_handler {
 
             async fn redact(
                 &mut self,
-                redactions: ::nvisy_codec::core::Redactions<
-                    ::nvisy_core::modality::ImageLocation,
-                    ::nvisy_codec::handler::ImageRedaction,
+                redactions: ::nvisy_core::extraction::Redactions<
+                    ::nvisy_core::modality::Image,
                 >,
             ) -> ::std::result::Result<(), ::nvisy_core::Error> {
-                for (location, redaction) in redactions.into_items() {
+                for (location, replacement) in redactions.into_items() {
                     $crate::image::redact::apply(
                         &mut self.image,
-                        &redaction,
+                        &replacement,
                         location.bounding_box,
                     );
                 }

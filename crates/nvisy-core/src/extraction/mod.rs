@@ -13,10 +13,10 @@
 //!   the payload.
 //! - [`ModalityExtraction`] — extension trait naming
 //!   `M::Extraction`.
-//! - [`ValueAt`] — trait every extraction-aware consumer (dedup
+//! - [`TextAt`] — trait every extraction-aware consumer (dedup
 //!   layer, validation check) bounds on to read source *text* at a
 //!   per-modality location.
-//! - [`SourceAt`] — sibling trait returning the full per-modality
+//! - [`DataAt`] — sibling trait returning the full per-modality
 //!   [`M::Data`] payload an `Anonymizer<M>` operates on; bounded
 //!   by the redaction phase.
 //!
@@ -24,18 +24,22 @@
 //! [`EntityRecognizer`]: crate::EntityRecognizer
 
 mod artifacts;
+mod data_at;
 mod modality;
 mod output;
-mod source_at;
+mod redact_at;
+mod redactions;
 mod span;
-mod value_at;
+mod text_at;
 
 pub use self::artifacts::Artifacts;
+pub use self::data_at::DataAt;
 pub use self::modality::ModalityExtraction;
 pub use self::output::ExtractorOutput;
-pub use self::source_at::SourceAt;
+pub use self::redact_at::RedactAt;
+pub use self::redactions::Redactions;
 pub use self::span::Span;
-pub use self::value_at::ValueAt;
+pub use self::text_at::TextAt;
 use crate::Result;
 use crate::modality::ModalityData;
 

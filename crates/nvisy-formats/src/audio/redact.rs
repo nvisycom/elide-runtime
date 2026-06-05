@@ -1,29 +1,29 @@
 //! Per-sample-buffer audio redaction helper shared by every audio
 //! handler (WAV today; MP3 doesn't redact and so doesn't use it).
 //!
-//! Applies one [`AudioRedaction`] to a flat, channel-interleaved
-//! `Vec<S>` sample buffer in place, given the redaction's containing
+//! Applies one [`AudioReplacement`] to a flat, channel-interleaved
+//! `Vec<S>` sample buffer in place, given the replacement's containing
 //! time span and the buffer's sample rate + channel count.
 //!
-//! Ordering across multiple redactions is the caller's
-//! responsibility: an [`AudioOutput::Remove`] shrinks the buffer, so
-//! later time spans must be applied first to keep earlier ones'
+//! Ordering across multiple replacements is the caller's
+//! responsibility: an [`AudioReplacement::Remove`] shrinks the buffer,
+//! so later time spans must be applied first to keep earlier ones'
 //! indices valid. Audio handlers typically override
 //! [`Handle::redact`] to use
 //! [`nvisy_codec::handler::sort_redactions_for_audio`].
 //!
 //! [`Handle::redact`]: nvisy_codec::core::Handle::redact
 
-use nvisy_codec::handler::{AudioOutput, AudioRedaction};
 use nvisy_core::primitive::TimeSpan;
+use nvisy_core::redaction::AudioReplacement;
 
 const TARGET: &str = "nvisy_formats::audio";
 
-/// Apply a single redaction to `samples` in place.
+/// Apply a single replacement to `samples` in place.
 pub(crate) fn apply<S>(
     samples: &mut Vec<S>,
     time_span: TimeSpan,
-    redaction: &AudioRedaction,
+    replacement: &AudioReplacement,
     sample_rate: u32,
     channels: u16,
 ) where
@@ -35,21 +35,21 @@ pub(crate) fn apply<S>(
     if start >= end {
         return;
     }
-    match redaction.output() {
-        AudioOutput::Silence => {
+    match replacement {
+        AudioReplacement::Silence => {
             for s in &mut samples[start..end] {
                 *s = S::default();
             }
         }
-        AudioOutput::Remove => {
+        AudioReplacement::Remove => {
             samples.drain(start..end);
         }
-        AudioOutput::Replace { .. } => {
+        AudioReplacement::Replace { .. } => {
             tracing::warn!(
                 target: TARGET,
                 start_us = time_span.start_us,
                 end_us = time_span.end_us,
-                "AudioOutput::Replace is not yet implemented, skipping",
+                "AudioReplacement::Replace is not yet implemented, skipping",
             );
         }
     }
@@ -57,6 +57,8 @@ pub(crate) fn apply<S>(
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::*;
 
     #[test]
@@ -65,7 +67,7 @@ mod tests {
         apply(
             &mut samples,
             TimeSpan::new(3_000, 6_000),
-            &AudioRedaction::new(AudioOutput::Silence),
+            &AudioReplacement::Silence,
             1000,
             1,
         );
@@ -78,7 +80,7 @@ mod tests {
         apply(
             &mut samples,
             TimeSpan::new(3_000, 6_000),
-            &AudioRedaction::new(AudioOutput::Remove),
+            &AudioReplacement::Remove,
             1000,
             1,
         );
@@ -91,7 +93,7 @@ mod tests {
         apply(
             &mut samples,
             TimeSpan::new(3_000, 6_000),
-            &AudioRedaction::new(AudioOutput::Silence),
+            &AudioReplacement::Silence,
             1000,
             2,
         );
@@ -109,7 +111,7 @@ mod tests {
         apply(
             &mut samples,
             TimeSpan::new(3_000, 6_000),
-            &AudioRedaction::new(AudioOutput::Remove),
+            &AudioReplacement::Remove,
             1000,
             2,
         );
@@ -126,7 +128,7 @@ mod tests {
         apply(
             &mut samples,
             TimeSpan::new(0, 999_999_000),
-            &AudioRedaction::new(AudioOutput::Silence),
+            &AudioReplacement::Silence,
             1000,
             1,
         );
@@ -139,7 +141,7 @@ mod tests {
         apply(
             &mut samples,
             TimeSpan::new(0, 3_000),
-            &AudioRedaction::new(AudioOutput::Replace { data: vec![] }),
+            &AudioReplacement::Replace { data: Bytes::new() },
             1000,
             1,
         );

@@ -22,13 +22,15 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
-use nvisy_codec::handler::{Handler, TextRedaction};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle};
+use nvisy_codec::handler::Handler;
 use nvisy_codec::{DocumentHandle, Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{Image, ModalityKind, Text, TextData, TextLocation};
 use nvisy_core::primitive::Dpi;
+use nvisy_core::redaction::TextReplacement;
 
 use super::PdfLoader;
 use super::pdf_render::PdfRenderer;
@@ -228,16 +230,13 @@ impl IndexedHandle<Text> for PdfHandler {
             .map(TextData::from))
     }
 
-    async fn redact(
-        &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
         // Right-to-left so each page's length delta doesn't invalidate
         // earlier byte offsets.
         let mut items = redactions.into_items();
         items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
-        for (location, redaction) in items {
-            self.redact_one(&location, redaction)?;
+        for (location, replacement) in items {
+            self.redact_one(&location, replacement)?;
         }
         Ok(())
     }
@@ -247,7 +246,7 @@ impl PdfHandler {
     fn redact_one(
         &mut self,
         location: &TextLocation,
-        redaction: TextRedaction,
+        replacement: TextReplacement,
     ) -> Result<(), Error> {
         let Some(i) = self.page_for(location.start) else {
             return Ok(());
@@ -261,7 +260,7 @@ impl PdfHandler {
         let local_end = location.end - page_start;
 
         let mut content = self.pages[i].clone();
-        let value = redaction.output().replacement_value().unwrap_or_default();
+        let value = replacement.replacement_value().unwrap_or_default();
         let before_len = self.pages[i].len();
         redact::replace_range(&mut content, value, local_start, local_end, TARGET)?;
 

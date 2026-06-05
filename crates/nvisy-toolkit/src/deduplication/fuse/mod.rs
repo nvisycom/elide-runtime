@@ -13,7 +13,7 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use async_trait::async_trait;
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, TrailStep};
 use nvisy_core::modality::{Modality, Overlap};
 use nvisy_core::primitive::Confidence;
@@ -48,7 +48,7 @@ impl<M, R> Layer<M, R> for FuseLayer
 where
     M: Modality,
     M::Location: Overlap + SpanSize,
-    R: ValueAt<M> + ?Sized,
+    R: TextAt<M> + ?Sized,
 {
     async fn apply(
         &self,
@@ -78,7 +78,7 @@ where
 }
 
 /// Fuse a group of co-referent entities into one.
-async fn fuse_group<M, V: ValueAt<M> + ?Sized>(
+async fn fuse_group<M, V: TextAt<M> + ?Sized>(
     strategy: &DeduplicationStrategy,
     mut group: Vec<Entity<M>>,
     view: &V,
@@ -143,7 +143,7 @@ where
     let reason = format!("{label} of {} entities", rest.len() + 1);
     result.trail.push(TrailStep::fusion(before, after, reason));
 
-    let value = view.value_at(&result.location).await.unwrap_or_default();
+    let value = view.text_at(&result.location).await.unwrap_or_default();
     tracing::trace!(
         target: TARGET,
         entity_id = %result.id,

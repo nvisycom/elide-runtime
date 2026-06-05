@@ -10,7 +10,7 @@
 
 use std::marker::PhantomData;
 
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 
 use super::check::{Check, CheckContext, Finding};
 use crate::document::Document;
@@ -30,7 +30,7 @@ use crate::modality::DocumentModality;
 pub struct CheckPipeline<M, P>
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
 {
     checks: Vec<Box<dyn Check<M, P>>>,
     _marker: PhantomData<fn(&M, &P)>,
@@ -39,7 +39,7 @@ where
 impl<M, P> CheckPipeline<M, P>
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
 {
     /// Empty pipeline. Use [`Self::with_check`] to append checks.
     pub fn new() -> Self {
@@ -69,7 +69,7 @@ where
 impl<M, P> Default for CheckPipeline<M, P>
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
 {
     fn default() -> Self {
         Self::new()

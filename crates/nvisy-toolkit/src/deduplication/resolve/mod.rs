@@ -9,7 +9,7 @@
 mod strategy;
 
 use async_trait::async_trait;
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Modality, Overlap};
 
@@ -39,7 +39,7 @@ impl<M, R> Layer<M, R> for ResolveConflictsLayer
 where
     M: Modality,
     M::Location: Overlap + SpanSize,
-    R: ValueAt<M> + ?Sized,
+    R: TextAt<M> + ?Sized,
 {
     async fn apply(
         &self,

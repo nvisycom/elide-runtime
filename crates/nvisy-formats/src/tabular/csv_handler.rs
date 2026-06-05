@@ -11,12 +11,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
-use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle};
+use nvisy_codec::handler::{Handler, TabularHandle};
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{ModalityKind, Tabular, TabularLocation, TextData};
+use nvisy_core::redaction::TabularReplacement;
 
 use super::CsvLoader;
 use crate::text::redact;
@@ -138,10 +140,7 @@ impl IndexedHandle<Tabular> for CsvHandler {
             .map(|s| TextData::from(s.to_owned())))
     }
 
-    async fn redact(
-        &mut self,
-        redactions: Redactions<TabularLocation, TabularRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Tabular>) -> Result<(), Error> {
         // Multiple redactions can target intra-cell byte ranges within
         // the same cell; apply right-to-left over byte offsets so an
         // earlier shrink doesn't invalidate later offsets.
@@ -153,8 +152,8 @@ impl IndexedHandle<Tabular> for CsvHandler {
                 a.start_offset.unwrap_or(0),
             ))
         });
-        for (location, redaction) in items {
-            self.redact_one(&location, redaction)?;
+        for (location, replacement) in items {
+            self.redact_one(&location, replacement)?;
         }
         Ok(())
     }
@@ -280,14 +279,14 @@ impl CsvHandler {
     fn redact_one(
         &mut self,
         location: &TabularLocation,
-        redaction: TabularRedaction,
+        replacement: TabularReplacement,
     ) -> Result<(), Error> {
         let Some(cell) = self.cell_at_mut(location.row_index, location.column_index) else {
             return Ok(());
         };
         let start = location.start_offset.unwrap_or(0);
         let end = location.end_offset.unwrap_or(cell.len());
-        let value = redaction.output().replacement_value().unwrap_or_default();
+        let value = replacement.replacement_value().unwrap_or_default();
         redact::replace_range(cell, value, start, end, TARGET)
     }
 
@@ -318,7 +317,6 @@ impl CsvHandler {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
     use super::*;
@@ -414,7 +412,7 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             cell_range(1, 0, 0, 11),
-            TabularRedaction::new(TextOutput::replace("[REDACTED]")),
+            TabularReplacement::substituted("[REDACTED]"),
         );
         h.redact(rs).await?;
         assert_eq!(h.cell(0, 0), Some("[REDACTED]"));
@@ -427,7 +425,7 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             cell_range(1, 0, 0, 5),
-            TabularRedaction::new(TextOutput::replace("[NAME]")),
+            TabularReplacement::substituted("[NAME]"),
         );
         h.redact(rs).await?;
         assert_eq!(h.cell(0, 0), Some("[NAME] Smith"));
@@ -440,7 +438,7 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             cell_range(0, 0, 0, 12),
-            TabularRedaction::new(TextOutput::replace("redacted")),
+            TabularReplacement::substituted("redacted"),
         );
         h.redact(rs).await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
@@ -454,11 +452,11 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             cell_range(1, 0, 0, 5),
-            TabularRedaction::new(TextOutput::replace("[A]")),
+            TabularReplacement::substituted("[A]"),
         );
         rs.push(
             cell_range(1, 0, 6, 11),
-            TabularRedaction::new(TextOutput::replace("[B]")),
+            TabularReplacement::substituted("[B]"),
         );
         h.redact(rs).await?;
         assert_eq!(h.cell(0, 0), Some("[A] [B]"));
@@ -471,7 +469,7 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             cell_range(99, 0, 0, 1),
-            TabularRedaction::new(TextOutput::replace("X")),
+            TabularReplacement::substituted("X"),
         );
         h.redact(rs).await?;
         assert_eq!(h.cell(0, 0), Some("one"));

@@ -11,7 +11,7 @@ extraction → detection → deduplication → redaction → validation.
 ## Overview
 
 Depends on `nvisy-core` for the atoms (primitives, `Entity`,
-`Modality`, `ValueAt`, the `ModalityExtraction` enums) and on
+`Modality`, `TextAt`, the `ModalityExtraction` enums) and on
 `nvisy-toolkit` for the composable components the phases call
 into (`RecognizerRegistry`, `ExtractionEngine`, `LayerPipeline`,
 `CheckPipeline`, `Anonymizer<M>` operators + `RedactionRegistry<M>`).
@@ -37,7 +37,7 @@ registry + key provider + policy store), `RunContext` (per-run
 cancellation token + Arc to `SharedData`), `DocumentTree` /
 `NodeMut` (the per-run document carrier the orchestrator walks),
 `PolicyStore` (heterogeneous `type_map` of `Vec<Arc<Policy<M>>>`),
-and `DocumentView<'_, M>` / `SharedHandle` (the `ValueAt<M>` impl
+and `DocumentView<'_, M>` / `SharedHandle` (the `TextAt<M>` impl
 that resolves a location back to its source text via the codec
 handle).
 

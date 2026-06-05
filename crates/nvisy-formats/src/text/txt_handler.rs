@@ -9,12 +9,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
-use nvisy_codec::handler::{Handler, TextRedaction};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle};
+use nvisy_codec::handler::Handler;
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
+use nvisy_core::redaction::TextReplacement;
 
 use super::{TxtLoader, redact};
 
@@ -115,16 +117,13 @@ impl IndexedHandle<Text> for TxtHandler {
             .map(TextData::from))
     }
 
-    async fn redact(
-        &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
         // Apply right-to-left so each edit's length delta doesn't
         // invalidate earlier locations.
         let mut items = redactions.into_items();
         items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
-        for (location, redaction) in items {
-            self.redact_one(&location, redaction)?;
+        for (location, replacement) in items {
+            self.redact_one(&location, replacement)?;
         }
         Ok(())
     }
@@ -204,7 +203,7 @@ impl TxtHandler {
     fn redact_one(
         &mut self,
         location: &TextLocation,
-        redaction: TextRedaction,
+        replacement: TextReplacement,
     ) -> Result<(), Error> {
         let Some(i) = self.line_for(location.start) else {
             return Ok(());
@@ -216,7 +215,7 @@ impl TxtHandler {
         }
         let local_start = location.start - line_start;
         let local_end = location.end - line_start;
-        let value = redaction.output().replacement_value().unwrap_or_default();
+        let value = replacement.replacement_value().unwrap_or_default();
         let before_len = self.lines[i].len();
         redact::replace_range(&mut self.lines[i], value, local_start, local_end, TARGET)?;
         let after_len = self.lines[i].len();
@@ -238,7 +237,6 @@ fn compute_line_starts(lines: &[String]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
     use super::*;
@@ -309,7 +307,7 @@ mod tests {
                 end: 11,
                 ..Default::default()
             },
-            TextRedaction::new(TextOutput::replace("[REDACTED]")),
+            TextReplacement::substituted("[REDACTED]"),
         );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
@@ -326,7 +324,7 @@ mod tests {
                 end: 11,
                 ..Default::default()
             },
-            TextRedaction::new(TextOutput::replace("[X]")),
+            TextReplacement::substituted("[X]"),
         );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["hello [X]"]);
@@ -344,7 +342,7 @@ mod tests {
                 end: 5,
                 ..Default::default()
             },
-            TextRedaction::new(TextOutput::replace("[A]")),
+            TextReplacement::substituted("[A]"),
         );
         rs.push(
             TextLocation {
@@ -352,7 +350,7 @@ mod tests {
                 end: 19,
                 ..Default::default()
             },
-            TextRedaction::new(TextOutput::replace("[C]")),
+            TextReplacement::substituted("[C]"),
         );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["[A]", "bravo", "[C]"]);
@@ -369,7 +367,7 @@ mod tests {
                 end: 1000,
                 ..Default::default()
             },
-            TextRedaction::new(TextOutput::replace("nope")),
+            TextReplacement::substituted("nope"),
         );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["one line"]);
@@ -409,7 +407,7 @@ mod tests {
                 end: 5,
                 ..Default::default()
             },
-            TextRedaction::new(TextOutput::replace("[X]")),
+            TextReplacement::substituted("[X]"),
         );
         h.redact(rs).await?;
         // line 0 shrank from 5 → 3, so line 1's start shifted by -2.

@@ -7,11 +7,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
-use nvisy_codec::handler::{Handler, TextRedaction};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle};
+use nvisy_codec::handler::Handler;
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
 
 use super::DocxLoader;
@@ -88,10 +89,7 @@ impl IndexedHandle<Text> for DocxHandler {
         Ok(None)
     }
 
-    async fn redact(
-        &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
         if redactions.is_empty() {
             return Ok(());
         }

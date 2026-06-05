@@ -13,11 +13,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
-use nvisy_codec::handler::{AudioRedaction, Handler};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle};
+use nvisy_codec::handler::Handler;
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{Audio, AudioData, AudioLocation, ModalityKind};
 use nvisy_core::primitive::TimeSpan;
 
@@ -125,10 +126,7 @@ impl IndexedHandle<Audio> for Mp3Handler {
         )))
     }
 
-    async fn redact(
-        &mut self,
-        redactions: Redactions<AudioLocation, AudioRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Audio>) -> Result<(), Error> {
         if redactions.is_empty() {
             return Ok(());
         }
@@ -141,7 +139,7 @@ impl IndexedHandle<Audio> for Mp3Handler {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::handler::AudioOutput;
+    use nvisy_core::redaction::AudioReplacement;
 
     use super::*;
 
@@ -150,7 +148,7 @@ mod tests {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
         let location = AudioLocation::new(TimeSpan::new(0, 1_000));
         let mut rs = Redactions::new();
-        rs.push(location, AudioRedaction::new(AudioOutput::Silence));
+        rs.push(location, AudioReplacement::Silence);
         let err = handler.redact(rs).await.unwrap_err();
         assert!(
             err.to_string()
@@ -161,7 +159,7 @@ mod tests {
     #[tokio::test]
     async fn empty_redactions_is_noop() {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
-        let rs: Redactions<AudioLocation, AudioRedaction> = Redactions::default();
+        let rs: Redactions<Audio> = Redactions::default();
         handler.redact(rs).await.unwrap();
     }
 }

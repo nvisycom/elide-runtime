@@ -9,9 +9,11 @@ pub mod extraction;
 pub mod modality;
 pub mod primitive;
 pub mod recognition;
+pub mod redaction;
 
 pub use self::extraction::{
-    Artifacts, Extractor, ExtractorOutput, ModalityExtraction, Span, ValueAt,
+    Artifacts, DataAt, Extractor, ExtractorOutput, ModalityExtraction, RedactAt, Redactions, Span,
+    TextAt,
 };
 pub use self::modality::{AudioData, ImageData, ModalityData, TextData};
 pub use self::recognition::{EntityRecognizer, Hint, LabelMap, RecognizerInput, RecognizerOutput};

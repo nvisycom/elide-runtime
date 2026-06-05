@@ -1,11 +1,11 @@
-//! Per-modality wire types (`*Data`, `*Redaction`, `*Output`) and
-//! the base [`Handler`] / [`Loader`] traits format handlers
-//! implement.
+//! Per-modality wire types (`*Data`) and the base [`Handler`] /
+//! [`Loader`] traits format handlers implement.
 //!
 //! Per-modality trait surfaces ([`Codable`], [`Handle<M>`]) live in
 //! [`crate::core`]; each module here adds its concrete [`Codable`]
-//! impl plus the data/redaction shapes the [`Handle<M>`] methods
-//! exchange.
+//! impl. The replacement shapes the codec consumes during
+//! [`IndexedHandle::redact`] live in [`nvisy_core::redaction`] — the
+//! codec depends on core, not the reverse.
 //!
 //! Modality features control which wire types compile. The default
 //! set (`text`, `tabular`) covers the lightweight cases; opt into
@@ -21,22 +21,18 @@ use nvisy_core::content::{ContentData, ContentSource};
 use crate::core::{Codable, EmbeddedHandles, FormatId, IndexedHandle};
 
 #[cfg(feature = "audio")]
-mod audio;
+pub mod audio;
 #[cfg(feature = "image")]
-mod image;
+pub mod image;
 #[cfg(feature = "tabular")]
-mod tabular;
+pub mod tabular;
 #[cfg(feature = "text")]
-mod text;
+pub mod text;
 
 #[cfg(feature = "audio")]
-pub use self::audio::*;
-#[cfg(feature = "image")]
-pub use self::image::*;
+pub use self::audio::sort_redactions_for_audio;
 #[cfg(feature = "tabular")]
-pub use self::tabular::*;
-#[cfg(feature = "text")]
-pub use self::text::*;
+pub use self::tabular::TabularHandle;
 
 /// Base trait implemented by all format handlers.
 ///

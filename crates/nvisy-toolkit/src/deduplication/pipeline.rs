@@ -7,7 +7,7 @@
 
 use std::marker::PhantomData;
 
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Modality, Overlap};
 
@@ -29,15 +29,15 @@ const TARGET: &str = "nvisy_document::deduplication";
 ///
 /// `R` is the resolver type passed in through the [`LayerContext`] at
 /// `run` time. It's a type parameter on the pipeline (rather than a
-/// `dyn ValueAt<M>`) so each layer's `value_at` call is
+/// `dyn TextAt<M>`) so each layer's `text_at` call is
 /// monomorphised. Layers that don't touch the resolver compile
-/// against any `R: ValueAt<M>` uniformly.
-pub struct LayerPipeline<M: Modality, R: ValueAt<M> + ?Sized> {
+/// against any `R: TextAt<M>` uniformly.
+pub struct LayerPipeline<M: Modality, R: TextAt<M> + ?Sized> {
     layers: Vec<Box<dyn Layer<M, R>>>,
     _marker: PhantomData<fn(&M, &R)>,
 }
 
-impl<M: Modality, R: ValueAt<M> + ?Sized> LayerPipeline<M, R> {
+impl<M: Modality, R: TextAt<M> + ?Sized> LayerPipeline<M, R> {
     /// Empty pipeline. Use [`Self::with_layer`] to append layers.
     pub fn new() -> Self {
         Self {
@@ -90,7 +90,7 @@ impl<M, R> LayerPipeline<M, R>
 where
     M: Modality,
     M::Location: Overlap + SpanSize,
-    R: ValueAt<M> + ?Sized,
+    R: TextAt<M> + ?Sized,
 {
     /// Build the canonical four-layer dedup recipe: calibrate →
     /// filter → fuse → resolve. Each layer's config comes from
@@ -106,7 +106,7 @@ where
     }
 }
 
-impl<M: Modality, R: ValueAt<M> + ?Sized> Default for LayerPipeline<M, R> {
+impl<M: Modality, R: TextAt<M> + ?Sized> Default for LayerPipeline<M, R> {
     fn default() -> Self {
         Self::new()
     }

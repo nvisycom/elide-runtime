@@ -6,7 +6,7 @@
 //! attribute them.
 
 use async_trait::async_trait;
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::modality::Modality;
 use nvisy_core::primitive::ConfidenceThreshold;
@@ -59,7 +59,7 @@ impl FilterLayer {
 }
 
 #[async_trait]
-impl<M: Modality, R: ValueAt<M> + ?Sized> Layer<M, R> for FilterLayer {
+impl<M: Modality, R: TextAt<M> + ?Sized> Layer<M, R> for FilterLayer {
     async fn apply(
         &self,
         entities: &mut Vec<Entity<M>>,

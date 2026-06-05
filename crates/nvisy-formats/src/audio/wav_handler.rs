@@ -8,13 +8,13 @@
 //! clear error.
 //!
 //! Batched [`IndexedHandle::redact`] sorts right-to-left by
-//! `time_span.start_us` so [`AudioOutput::Remove`] operations don't
+//! `time_span.start_us` so [`AudioReplacement::Remove`] operations don't
 //! shift the indices of pending redactions.
 //!
 //! [`Handle<Audio>`]: nvisy_codec::core::Handle
 //! [`IndexedHandle<Audio>`]: nvisy_codec::core::IndexedHandle
 //! [`IndexedHandle::redact`]: nvisy_codec::core::IndexedHandle::redact
-//! [`AudioOutput::Remove`]: nvisy_codec::handler::AudioOutput::Remove
+//! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
 
 use std::io::Cursor;
 use std::sync::Arc;
@@ -22,13 +22,15 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
-use nvisy_codec::core::{Chunk, Handle, IndexedHandle, Redactions};
-use nvisy_codec::handler::{AudioRedaction, Handler, sort_redactions_for_audio};
+use nvisy_codec::core::{Chunk, Handle, IndexedHandle};
+use nvisy_codec::handler::{Handler, sort_redactions_for_audio};
 use nvisy_codec::{Format, FormatId, LoaderAdapter};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::extraction::Redactions;
 use nvisy_core::modality::{Audio, AudioData, AudioLocation, ModalityKind};
 use nvisy_core::primitive::TimeSpan;
+use nvisy_core::redaction::AudioReplacement;
 
 use super::{WavLoader, redact};
 
@@ -137,16 +139,11 @@ impl IndexedHandle<Audio> for WavHandler {
         )))
     }
 
-    /// Apply spans right-to-left so a [`AudioOutput::Remove`] doesn't
+    /// Apply spans right-to-left so a [`AudioReplacement::Remove`] doesn't
     /// invalidate earlier sample indices.
-    ///
-    /// [`AudioOutput::Remove`]: nvisy_codec::handler::AudioOutput::Remove
-    async fn redact(
-        &mut self,
-        redactions: Redactions<AudioLocation, AudioRedaction>,
-    ) -> Result<(), Error> {
-        for (location, redaction) in sort_redactions_for_audio(redactions) {
-            self.redact_one(&location, redaction)?;
+    async fn redact(&mut self, redactions: Redactions<Audio>) -> Result<(), Error> {
+        for (location, replacement) in sort_redactions_for_audio(redactions) {
+            self.redact_one(&location, replacement)?;
         }
         Ok(())
     }
@@ -156,21 +153,21 @@ impl WavHandler {
     fn redact_one(
         &mut self,
         location: &AudioLocation,
-        redaction: AudioRedaction,
+        replacement: AudioReplacement,
     ) -> Result<(), Error> {
         let spec = read_spec(&self.bytes)?;
         let new_bytes = match (spec.sample_format, spec.bits_per_sample) {
             (SampleFormat::Int, 8) => {
-                redact_typed::<i8>(&self.bytes, spec, location.time_span, &redaction)?
+                redact_typed::<i8>(&self.bytes, spec, location.time_span, &replacement)?
             }
             (SampleFormat::Int, 16) => {
-                redact_typed::<i16>(&self.bytes, spec, location.time_span, &redaction)?
+                redact_typed::<i16>(&self.bytes, spec, location.time_span, &replacement)?
             }
             (SampleFormat::Int, 24 | 32) => {
-                redact_typed::<i32>(&self.bytes, spec, location.time_span, &redaction)?
+                redact_typed::<i32>(&self.bytes, spec, location.time_span, &replacement)?
             }
             (SampleFormat::Float, 32) => {
-                redact_typed::<f32>(&self.bytes, spec, location.time_span, &redaction)?
+                redact_typed::<f32>(&self.bytes, spec, location.time_span, &replacement)?
             }
             _ => {
                 return Err(Error::validation(
@@ -197,7 +194,7 @@ fn redact_typed<S>(
     bytes: &Bytes,
     spec: WavSpec,
     time_span: TimeSpan,
-    redaction: &AudioRedaction,
+    replacement: &AudioReplacement,
 ) -> Result<Vec<u8>, Error>
 where
     S: Sample + Default + Clone,
@@ -212,7 +209,7 @@ where
     redact::apply(
         &mut samples,
         time_span,
-        redaction,
+        replacement,
         spec.sample_rate,
         spec.channels,
     );
@@ -236,7 +233,7 @@ where
 #[cfg(test)]
 mod tests {
     use hound::SampleFormat;
-    use nvisy_codec::handler::AudioOutput;
+    use nvisy_core::redaction::AudioReplacement;
 
     use super::*;
 
@@ -270,7 +267,7 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             AudioLocation::new(TimeSpan::new(3_000, 6_000)),
-            AudioRedaction::new(AudioOutput::Silence),
+            AudioReplacement::Silence,
         );
         handler.redact(rs).await.unwrap();
         let samples = decode_wav_mono_i16(handler.bytes());
@@ -284,7 +281,7 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             AudioLocation::new(TimeSpan::new(3_000, 6_000)),
-            AudioRedaction::new(AudioOutput::Remove),
+            AudioReplacement::Remove,
         );
         handler.redact(rs).await.unwrap();
         let samples = decode_wav_mono_i16(handler.bytes());
@@ -298,11 +295,11 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             AudioLocation::new(TimeSpan::new(1_000, 3_000)),
-            AudioRedaction::new(AudioOutput::Remove),
+            AudioReplacement::Remove,
         );
         rs.push(
             AudioLocation::new(TimeSpan::new(6_000, 8_000)),
-            AudioRedaction::new(AudioOutput::Remove),
+            AudioReplacement::Remove,
         );
         handler.redact(rs).await.unwrap();
         let samples = decode_wav_mono_i16(handler.bytes());
@@ -314,7 +311,7 @@ mod tests {
         let bytes = encode_wav_mono_i16(&[1, 2, 3]);
         let original = bytes.clone();
         let mut handler = WavHandler::new(bytes);
-        let rs: Redactions<AudioLocation, AudioRedaction> = Redactions::default();
+        let rs: Redactions<Audio> = Redactions::default();
         handler.redact(rs).await.unwrap();
         assert_eq!(handler.bytes(), &original);
     }
@@ -325,7 +322,7 @@ mod tests {
         let mut rs = Redactions::new();
         rs.push(
             AudioLocation::new(TimeSpan::new(0, 1_000)),
-            AudioRedaction::new(AudioOutput::Silence),
+            AudioReplacement::Silence,
         );
         let err = handler.redact(rs).await.unwrap_err();
         assert!(err.to_string().contains("invalid WAV"));

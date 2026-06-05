@@ -65,7 +65,7 @@ impl Instantiate<Text> for TextRedaction {
             }
             Self::Redact => Ok(Arc::new(Redact)),
             Self::Keep => Ok(Arc::new(Keep)),
-            Self::Custom { id } => registry.get(id).cloned().ok_or_else(|| {
+            Self::Custom { id } => registry.resolve_id(id).cloned().ok_or_else(|| {
                 Error::validation(
                     format!("custom text anonymizer `{id}` is not registered"),
                     TARGET,
@@ -81,7 +81,7 @@ impl Instantiate<Image> for ImageRedaction {
         registry: &RedactionRegistry<Image>,
     ) -> Result<Arc<dyn Anonymizer<Image>>> {
         match self {
-            Self::Custom { id } => registry.get(id).cloned().ok_or_else(|| {
+            Self::Custom { id } => registry.resolve_id(id).cloned().ok_or_else(|| {
                 Error::validation(
                     format!("custom image anonymizer `{id}` is not registered"),
                     TARGET,
@@ -97,7 +97,7 @@ impl Instantiate<Audio> for AudioRedaction {
         registry: &RedactionRegistry<Audio>,
     ) -> Result<Arc<dyn Anonymizer<Audio>>> {
         match self {
-            Self::Custom { id } => registry.get(id).cloned().ok_or_else(|| {
+            Self::Custom { id } => registry.resolve_id(id).cloned().ok_or_else(|| {
                 Error::validation(
                     format!("custom audio anonymizer `{id}` is not registered"),
                     TARGET,

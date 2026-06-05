@@ -16,14 +16,18 @@
 //!   adapting per-modality [`Loader<M>`] impls.
 //! - [`WrapUntyped`] — modality-specific erase into
 //!   [`UntypedDocumentHandle`].
-//! - [`Redactions<S, R>`] — `(location, redaction)` pair list handed
-//!   from the engine to a codec.
+//!
+//! The `(location, replacement)` pair list passed to
+//! [`IndexedHandle::redact`] is
+//! [`nvisy_core::extraction::Redactions<M>`]; the per-modality
+//! replacement enum is [`nvisy_core::redaction`] — codec depends on
+//! core, not the reverse.
 //!
 //! Base traits ([`Handler`], [`Loader<M>`]) live in
 //! [`crate::handler`], next to the concrete per-modality wire types
 //! implementing them. Concrete per-modality wire types (`TextData`,
-//! `TextRedaction`, `ImageData`, …) live in [`crate::handler`];
-//! concrete format handlers live in `nvisy-formats`.
+//! `ImageData`, …) live in [`crate::handler`]; concrete format
+//! handlers live in `nvisy-formats`.
 //!
 //! [`Handler`]: crate::handler::Handler
 //! [`Loader<M>`]: crate::handler::Loader
@@ -31,10 +35,8 @@
 
 mod format;
 mod handle;
-mod redactions;
 mod registry;
 
 pub use self::format::FormatId;
 pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId, IndexedHandle};
-pub use self::redactions::Redactions;
 pub use self::registry::{CodecRegistry, ErasedLoader, Format, LoaderAdapter, WrapUntyped};

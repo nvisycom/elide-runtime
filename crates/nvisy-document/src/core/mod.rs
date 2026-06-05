@@ -13,12 +13,12 @@
 //! - [`DocumentTree<M>`] — the typed per-document carrier phases mutate.
 //! - [`AnyTree`] — the modality-erased tree at the import boundary;
 //!   the orchestrator matches once and dispatches into typed pipelines.
-//! - [`ValueAt`] / [`SourceAt`] — implemented on [`DocumentTree<M>`]
+//! - [`TextAt`] / [`DataAt`] — implemented on [`DocumentTree<M>`]
 //!   so phases that need to resolve a location pass `&tree` directly.
 //! - [`Plan`] — the per-request bundle of per-phase configs phases
 //!   read from `input.plan.X`.
 //!
-//! [`SourceAt`]: nvisy_core::extraction::SourceAt
+//! [`DataAt`]: nvisy_core::extraction::DataAt
 
 mod context;
 mod plan;
@@ -27,7 +27,7 @@ mod shared;
 mod target;
 mod tree;
 
-pub use nvisy_core::ValueAt;
+pub use nvisy_core::TextAt;
 
 pub use self::context::RunContext;
 pub(crate) use self::context::RunEngines;

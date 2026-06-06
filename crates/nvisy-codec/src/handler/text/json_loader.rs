@@ -9,10 +9,10 @@ use std::num::NonZeroU32;
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 use nvisy_core::modality::Text;
 
 use super::{JsonData, JsonHandler, JsonIndent};
+use crate::content::{ContentData, ContentSource, TextEncoding};
 use crate::core::Loader;
 
 /// Loader for JSON files. Produces one [`JsonHandler`] per input.

@@ -274,11 +274,11 @@ impl MemoryBuffer<Audio> {
     /// Wrap encoded audio bytes alongside the source filename
     /// (informational; some STT backends pass it through).
     pub fn from_bytes(bytes: impl Into<Bytes>, filename: impl Into<HipStr<'static>>) -> Self {
-        Self(AudioData::new(bytes, filename))
+        Self(AudioData::new(bytes).with_filename(filename))
     }
 
     /// Read an audio file into a buffer. The file name is recorded
-    /// from the path's file component.
+    /// from the path's file component when present.
     ///
     /// # Errors
     ///
@@ -288,11 +288,11 @@ impl MemoryBuffer<Audio> {
         let bytes = std::fs::read(path).map_err(|err| {
             Error::validation(format!("read audio file {}: {err}", path.display()), TARGET)
         })?;
-        let filename = path
-            .file_name()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        Ok(Self::from_bytes(bytes, filename))
+        let mut data = AudioData::new(bytes);
+        if let Some(filename) = path.file_name().map(|s| s.to_string_lossy().into_owned()) {
+            data = data.with_filename(filename);
+        }
+        Ok(Self(data))
     }
 
     /// Borrow the encoded bytes.
@@ -401,6 +401,6 @@ mod tests {
     fn audio_from_bytes_records_filename() {
         let buf = MemoryBuffer::<Audio>::from_bytes(vec![0u8; 4], "sample.wav");
         assert_eq!(buf.bytes().len(), 4);
-        assert_eq!(buf.0.filename.as_str(), "sample.wav");
+        assert_eq!(buf.0.filename.as_deref(), Some("sample.wav"));
     }
 }

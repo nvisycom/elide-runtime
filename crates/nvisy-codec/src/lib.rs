@@ -15,6 +15,7 @@ compile_error!(
      — or the umbrella `text`/`tabular`/`image`/`audio`/`rich`"
 );
 
+pub mod content;
 pub mod core;
 pub mod document;
 pub mod handler;

@@ -3,10 +3,10 @@
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::modality::Image;
 
 use super::JpegHandler;
+use crate::content::{ContentData, ContentSource};
 use crate::core::Loader;
 
 /// Loader for JPEG files. Produces one [`JpegHandler`] per input.

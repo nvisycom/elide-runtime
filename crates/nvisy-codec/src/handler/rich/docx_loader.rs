@@ -5,10 +5,10 @@
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::modality::Text;
 
 use super::DocxHandler;
+use crate::content::{ContentData, ContentSource};
 use crate::core::Loader;
 
 /// Loader that wraps raw DOCX bytes.

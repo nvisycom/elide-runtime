@@ -15,9 +15,9 @@
 //! [`CodecRegistry`]: super::CodecRegistry
 
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
 
 use super::{Codable, EmbeddedHandles, FormatId, IndexedHandle};
+use crate::content::{ContentData, ContentSource};
 
 /// Base trait implemented by all format handlers.
 ///

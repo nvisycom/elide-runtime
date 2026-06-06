@@ -3,7 +3,7 @@
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
-use nvisy_core::content::ContentData;
+use nvisy_codec::content::ContentData;
 use nvisy_core::{Error, ErrorKind, Result};
 use rand::RngExt;
 
@@ -137,7 +137,7 @@ impl CryptoService {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::content::{ContentData, ContentSource};
+    use nvisy_codec::content::{ContentData, ContentSource};
 
     use super::*;
     use crate::phases::ingestion::encryption::{SharedKeyProvider, StaticKeyProvider};

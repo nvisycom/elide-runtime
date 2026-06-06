@@ -1,8 +1,7 @@
 //! JPEG handler: see [`super::png_handler`] for the shared shape.
 
-use nvisy_core::content::ContentSource;
-
 use super::JpegLoader;
+use crate::content::ContentSource;
 
 #[derive(Debug)]
 pub struct JpegHandler {

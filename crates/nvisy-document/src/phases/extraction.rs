@@ -14,8 +14,8 @@
 
 use std::collections::BTreeMap;
 
+use nvisy_codec::content::ContentMetadata;
 use nvisy_core::Result;
-use nvisy_core::content::ContentMetadata;
 #[cfg(any(feature = "image", feature = "audio"))]
 use nvisy_core::extraction::Span as ExtractionSpan;
 use nvisy_core::modality::{

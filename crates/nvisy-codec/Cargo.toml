@@ -103,6 +103,11 @@ serde_json = { workspace = true, features = [] }
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["as_ref", "deref"] }
+hex = { workspace = true, features = [] }
+infer = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
+sha2 = { workspace = true, features = [] }
 
 # Image processing — pulled in unconditionally because the image
 # handler structs reference `image::DynamicImage` directly. The

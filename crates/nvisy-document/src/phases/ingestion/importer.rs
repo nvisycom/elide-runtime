@@ -25,9 +25,9 @@
 use std::mem;
 use std::sync::Arc;
 
+use nvisy_codec::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
-use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata, ContentSource};
-use nvisy_core::entity::{Annotation, LabelAnnotation};
+use nvisy_core::entity::{Annotation, AnyAnnotations, LabelAnnotation};
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
 

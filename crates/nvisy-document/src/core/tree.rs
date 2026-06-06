@@ -13,7 +13,7 @@
 //! root pipeline finishes.
 
 use nvisy_codec::DocumentHandle;
-use nvisy_core::content::ContentMetadata;
+use nvisy_codec::content::ContentMetadata;
 use nvisy_core::modality::{Audio, Image, ModalityKind, Tabular, Text};
 
 use crate::document::Document;

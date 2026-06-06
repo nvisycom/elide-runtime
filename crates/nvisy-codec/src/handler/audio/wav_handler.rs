@@ -23,12 +23,12 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::modality::{Audio, AudioData, AudioLocation, ModalityKind};
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use super::{WavLoader, redact};
+use crate::content::{ContentData, ContentSource};
 use crate::core::{Chunk, Handle, Handler, IndexedHandle};
 use crate::handler::audio::sort_redactions_for_audio;
 use crate::{Format, FormatId, LoaderAdapter};
@@ -119,7 +119,7 @@ impl Handle<Audio> for WavHandler {
             return Ok(None);
         }
         let location = AudioLocation::new(TimeSpan::new(0, 0));
-        let data = AudioData::new(self.bytes.clone(), self.filename.clone());
+        let data = AudioData::new(self.bytes.clone()).with_filename(self.filename.clone());
         self.yielded = true;
         Ok(Some(Chunk {
             location,
@@ -132,10 +132,9 @@ impl Handle<Audio> for WavHandler {
 #[async_trait]
 impl IndexedHandle<Audio> for WavHandler {
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {
-        Ok(Some(AudioData::new(
-            self.bytes.clone(),
-            self.filename.clone(),
-        )))
+        Ok(Some(
+            AudioData::new(self.bytes.clone()).with_filename(self.filename.clone()),
+        ))
     }
 
     /// Apply spans right-to-left so a [`AudioReplacement::Remove`] doesn't

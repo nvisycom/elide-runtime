@@ -4,10 +4,10 @@
 use std::path::Path;
 
 use derive_more::{AsRef, Deref};
+use nvisy_core::Result;
 use serde::{Deserialize, Serialize};
 
 use super::{ContentData, ContentMetadata, ContentSource};
-use crate::error::Result;
 
 /// Complete content representation: raw bytes plus optional
 /// metadata.

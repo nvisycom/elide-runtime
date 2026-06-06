@@ -14,12 +14,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::modality::{Audio, AudioData, AudioLocation, ModalityKind};
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::Redactions;
 
 use super::Mp3Loader;
+use crate::content::{ContentData, ContentSource};
 use crate::core::{Chunk, Handle, Handler, IndexedHandle};
 use crate::{Format, FormatId, LoaderAdapter};
 
@@ -106,7 +106,7 @@ impl Handle<Audio> for Mp3Handler {
             return Ok(None);
         }
         let location = AudioLocation::new(TimeSpan::new(0, 0));
-        let data = AudioData::new(self.bytes.clone(), self.filename.clone());
+        let data = AudioData::new(self.bytes.clone()).with_filename(self.filename.clone());
         self.yielded = true;
         Ok(Some(Chunk {
             location,
@@ -119,10 +119,9 @@ impl Handle<Audio> for Mp3Handler {
 #[async_trait]
 impl IndexedHandle<Audio> for Mp3Handler {
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {
-        Ok(Some(AudioData::new(
-            self.bytes.clone(),
-            self.filename.clone(),
-        )))
+        Ok(Some(
+            AudioData::new(self.bytes.clone()).with_filename(self.filename.clone()),
+        ))
     }
 
     async fn redact(&mut self, redactions: Redactions<Audio>) -> Result<(), Error> {

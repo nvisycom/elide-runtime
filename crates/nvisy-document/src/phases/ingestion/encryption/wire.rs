@@ -19,7 +19,7 @@
 use std::str;
 
 use bytes::Bytes;
-use nvisy_core::content::ContentSource;
+use nvisy_codec::content::ContentSource;
 use nvisy_core::{Error, Result};
 
 use crate::phases::ingestion::EncryptionAlgorithm;

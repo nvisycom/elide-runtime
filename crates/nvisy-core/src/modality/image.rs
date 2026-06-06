@@ -1,8 +1,9 @@
 //! [`Image`] modality marker, [`ImageLocation`] coordinate type,
-//! [`ImageData`] per-call payload, and [`ImageExtraction`]
-//! provenance enum.
+//! [`ImageData`] per-call payload, and [`ImageExtraction`] provenance
+//! enum.
 
 use bytes::Bytes;
+use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -70,20 +71,43 @@ impl ImageLocation {
 /// them to pixel coordinates using `dims`.
 #[derive(Debug, Clone)]
 pub struct ImageData {
-    /// Encoded image bytes (typically PNG/JPEG).
+    /// Encoded image bytes.
     pub bytes: Bytes,
     /// Pixel dimensions of the encoded image.
     pub dims: Dimensions,
+    /// Original filename, when known. Useful for diagnostics and for
+    /// downstream consumers that want to infer the encoding from the
+    /// extension.
+    pub filename: Option<HipStr<'static>>,
 }
 
 impl ImageData {
-    /// Construct with both the encoded bytes and their pixel
-    /// dimensions.
+    /// Construct with the encoded bytes and pixel dimensions; filename
+    /// is initially unset.
     pub fn new(bytes: impl Into<Bytes>, dims: Dimensions) -> Self {
         Self {
             bytes: bytes.into(),
             dims,
+            filename: None,
         }
+    }
+
+    /// Attach an original filename hint.
+    pub fn with_filename(mut self, filename: impl Into<HipStr<'static>>) -> Self {
+        self.filename = Some(filename.into());
+        self
+    }
+
+    /// Extension derived from [`filename`], or `"png"` when no
+    /// filename is set or the filename has no extension.
+    ///
+    /// [`filename`]: Self::filename
+    pub fn extension(&self) -> &str {
+        self.filename
+            .as_deref()
+            .and_then(|name| name.rsplit_once('.'))
+            .map(|(_, ext)| ext)
+            .unwrap_or("png")
     }
 }
 

@@ -3,37 +3,25 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
-use nvisy_core::content::ImageFormat;
 
 /// Image payload passed to [`Backend::run`].
 ///
-/// Wraps raw image bytes together with format metadata. OCR is a
-/// pure data-in / data-out concern at this layer — caller-side
-/// provenance (e.g. [`ContentSource`]) is tracked outside the
-/// backend, alongside the call site that issued the request.
+/// Wraps raw image bytes. OCR is a pure data-in / data-out concern
+/// at this layer — caller-side provenance (e.g. `ContentSource` in
+/// `nvisy-codec`) is tracked outside the backend, alongside the
+/// call site that issued the request.
 ///
 /// [`Backend::run`]: super::Backend::run
-/// [`ContentSource`]: nvisy_core::content::ContentSource
 #[derive(Debug, Clone)]
 pub struct ImageInput {
     /// Raw image bytes.
     pub data: Bytes,
-    /// Wire format of the image bytes.
-    pub format: ImageFormat,
 }
 
 impl ImageInput {
-    /// Create a new image input.
-    pub fn new(data: impl Into<Bytes>, format: ImageFormat) -> Self {
-        Self {
-            data: data.into(),
-            format,
-        }
-    }
-
-    /// MIME type string for this image.
-    pub fn mime_type(&self) -> &'static str {
-        self.format.mime_type()
+    /// Create a new image input from raw bytes.
+    pub fn new(data: impl Into<Bytes>) -> Self {
+        Self { data: data.into() }
     }
 
     /// Size of the raw image data in bytes.

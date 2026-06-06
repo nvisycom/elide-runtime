@@ -5,9 +5,8 @@
 //! [`Handle<Image>`]: crate::core::Handle
 //! [`IndexedHandle<Image>`]: crate::core::IndexedHandle
 
-use nvisy_core::content::ContentSource;
-
 use super::PngLoader;
+use crate::content::ContentSource;
 
 /// Handler for loaded PNG content. Stores the decoded
 /// [`DynamicImage`] directly; raw PNG bytes are produced on

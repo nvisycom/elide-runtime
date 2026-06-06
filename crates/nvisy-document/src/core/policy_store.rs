@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use nvisy_core::content::ContentMetadata;
+use nvisy_codec::content::ContentMetadata;
 use nvisy_core::entity::Entity;
 use type_map::concurrent::TypeMap;
 use uuid::Uuid;

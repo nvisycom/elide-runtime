@@ -13,11 +13,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
 use nvisy_core::redaction::{Redactions, TextReplacement};
 
 use super::{HtmlLoader, redact};
+use crate::content::{ContentData, ContentSource};
 use crate::core::{Chunk, Handle, Handler, IndexedHandle};
 use crate::{Format, FormatId, LoaderAdapter};
 

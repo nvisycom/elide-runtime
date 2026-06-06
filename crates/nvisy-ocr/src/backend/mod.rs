@@ -33,12 +33,12 @@ pub use self::noop_backend::NoopBackend;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{Backend, Context, ImageFormat, ImageInput};
+    use crate::core::{Backend, Context, ImageInput};
 
     #[tokio::test]
     async fn noop_returns_empty() {
         let backend = NoopBackend::new();
-        let image = ImageInput::new(vec![0u8; 8], ImageFormat::Png);
+        let image = ImageInput::new(vec![0u8; 8]);
         let out = backend.run(&image, Context::default()).await.unwrap();
         assert_eq!(out.len(), 0);
     }

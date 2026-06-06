@@ -6,10 +6,10 @@
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::modality::Text;
 
 use super::PdfHandler;
+use crate::content::{ContentData, ContentSource};
 use crate::core::Loader;
 
 /// Loader for PDF files. Produces one [`PdfHandler`] per input.
@@ -37,9 +37,9 @@ impl Loader<Text> for PdfLoader {
 mod tests {
     use bytes::Bytes;
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
-    use nvisy_core::content::ContentSource;
 
     use super::*;
+    use crate::content::ContentSource;
     use crate::core::{Handle, Handler};
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {

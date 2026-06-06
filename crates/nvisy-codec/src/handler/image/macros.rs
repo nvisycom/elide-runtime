@@ -61,20 +61,20 @@ macro_rules! impl_image_handler {
                 FORMAT_ID.clone()
             }
 
-            fn source(&self) -> &::nvisy_core::content::ContentSource {
+            fn source(&self) -> &$crate::content::ContentSource {
                 &self.source
             }
 
             #[::tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
             fn encode(
                 &self,
-            ) -> ::std::result::Result<::nvisy_core::content::ContentData, ::nvisy_core::Error>
+            ) -> ::std::result::Result<$crate::content::ContentData, ::nvisy_core::Error>
             {
                 let out = $crate::handler::image::macros::encode_image(&self.image, $img_fmt, $origin)?;
                 ::tracing::Span::current().record("output_bytes", out.len());
-                let source = ::nvisy_core::content::ContentSource::new()
+                let source = $crate::content::ContentSource::new()
                     .with_parent(&self.source);
-                Ok(::nvisy_core::content::ContentData::new(source, out.into()))
+                Ok($crate::content::ContentData::new(source, out.into()))
             }
         }
 
@@ -173,7 +173,7 @@ macro_rules! impl_image_handler {
             /// Create a handler from an already-decoded image.
             pub fn new(image: ::image::DynamicImage) -> Self {
                 Self {
-                    source: ::nvisy_core::content::ContentSource::new(),
+                    source: $crate::content::ContentSource::new(),
                     image,
                     yielded: false,
                 }
@@ -182,7 +182,7 @@ macro_rules! impl_image_handler {
             /// Attach a content source for lineage tracking.
             pub fn with_source(
                 mut self,
-                source: ::nvisy_core::content::ContentSource,
+                source: $crate::content::ContentSource,
             ) -> Self {
                 self.source = source;
                 self

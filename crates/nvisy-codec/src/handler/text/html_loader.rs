@@ -7,11 +7,11 @@
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 use nvisy_core::modality::Text;
 use scraper::Html;
 
 use super::{HtmlData, HtmlHandler};
+use crate::content::{ContentData, ContentSource, TextEncoding};
 use crate::core::Loader;
 
 /// Loader for HTML files. Produces one [`HtmlHandler`] per input.

@@ -10,11 +10,11 @@
 use std::{fmt, str};
 
 use bytes::Bytes;
+use nvisy_core::{Error, ErrorKind, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::ContentSource;
-use crate::error::{Error, ErrorKind, Result};
 
 /// Raw content bytes with source identity.
 ///

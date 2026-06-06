@@ -12,7 +12,7 @@ use nvisy_core::modality::{Image, ImageExtraction};
 use nvisy_core::{Error, Extractor as CoreExtractor, Result};
 use tracing::instrument;
 
-use crate::core::{Backend, Context, ImageFormat, ImageInput, OcrOutput};
+use crate::core::{Backend, Context, ImageInput, OcrOutput};
 
 const TARGET: &str = "nvisy_ocr::engine";
 
@@ -52,10 +52,7 @@ impl Extractor {
     }
 
     /// Run OCR on a single image.
-    #[instrument(skip_all, fields(
-        image_bytes = image.len(),
-        format = ?image.format,
-    ))]
+    #[instrument(skip_all, fields(image_bytes = image.len()))]
     pub async fn extract(
         &self,
         image: &ImageInput,
@@ -93,16 +90,12 @@ impl Extractor {
 /// [`nvisy_core::Extractor<Image>`] surface. The extractor's output
 /// is the backend-shaped `Vec<OcrOutput>`; consumers translate that
 /// into per-document `Block<Image>` values.
-///
-/// The bridge assumes the input bytes are PNG-encoded. Callers that
-/// hold images in other formats should re-encode before constructing
-/// the [`nvisy_core::ImageData`] payload.
 #[async_trait]
 impl CoreExtractor<Image> for Extractor {
     type Output = Vec<OcrOutput>;
 
     async fn extract(&self, span: &Span<Image>) -> Result<ExtractorOutput<Image, Self::Output>> {
-        let image_input = ImageInput::new(span.data.bytes.clone(), ImageFormat::Png);
+        let image_input = ImageInput::new(span.data.bytes.clone());
         let mut ocr_ctx = Context::default();
         if let Some(ref lang) = span.language {
             ocr_ctx = ocr_ctx.with_language(lang);

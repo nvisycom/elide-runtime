@@ -53,9 +53,6 @@ jiff = { workspace = true, features = [] }
 oxilangtag = { workspace = true, features = [] }
 type-map = { workspace = true, features = [] }
 
-# File type detection
-infer = { workspace = true, features = [] }
-
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
 derive_builder = { workspace = true, features = [] }
@@ -64,10 +61,6 @@ strum = { workspace = true, features = [] }
 
 # Async trait sugar (object-safe async methods)
 async-trait = { workspace = true, features = [] }
-
-# Encoding and hashing
-sha2 = { workspace = true, features = [] }
-hex = { workspace = true, features = [] }
 
 # HTTP client (optional; enabled by the `http` feature)
 reqwest-middleware = { workspace = true, features = [], optional = true }

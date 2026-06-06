@@ -9,5 +9,5 @@ pub mod engine;
 pub use self::backend::NoopBackend;
 #[cfg(feature = "bento")]
 pub use self::backend::{BentoBackend, BentoParams};
-pub use self::core::{Backend, Context, ImageFormat, ImageInput};
+pub use self::core::{Backend, Context, ImageInput};
 pub use self::engine::Extractor;

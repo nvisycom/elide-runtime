@@ -4,10 +4,10 @@
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 use nvisy_core::modality::Tabular;
 
 use super::{CsvData, CsvHandler};
+use crate::content::{ContentData, ContentSource, TextEncoding};
 use crate::core::Loader;
 
 const TARGET: &str = "crate::core::csv";
@@ -118,9 +118,9 @@ fn detect_delimiter(text: &str) -> u8 {
 mod tests {
     use bytes::Bytes;
     use nvisy_core::Error;
-    use nvisy_core::content::ContentSource;
 
     use super::*;
+    use crate::content::ContentSource;
     use crate::core::Handler;
 
     fn content_from_str(s: &str) -> ContentData {

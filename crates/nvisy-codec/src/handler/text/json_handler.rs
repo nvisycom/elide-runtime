@@ -19,12 +19,12 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
 use nvisy_core::redaction::Redactions;
 use serde::{Deserialize, Serialize};
 
 use super::{JsonLoader, redact};
+use crate::content::{ContentData, ContentSource};
 use crate::core::{Chunk, Handle, Handler, IndexedHandle};
 use crate::{Format, FormatId, LoaderAdapter};
 

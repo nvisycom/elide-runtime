@@ -13,7 +13,7 @@
 //! [`LlmRecognizerBuilder::with_prompt`]: super::LlmRecognizerBuilder::with_prompt
 
 use nvisy_core::entity::Entity;
-use nvisy_core::{ModalityData, RecognizerInput};
+use nvisy_core::{Modality, RecognizerInput};
 
 use crate::backend::LlmResponse;
 
@@ -27,7 +27,7 @@ use crate::backend::LlmResponse;
 /// indices, etc.) by construction.
 pub trait Prompt<M>: Send + Sync + 'static
 where
-    M: ModalityData,
+    M: Modality,
 {
     /// Render the user prompt for `input`. Fold in source data,
     /// hints, labels, and any base64-encoded binary payloads

@@ -17,14 +17,14 @@
 //! [`TextAt`]: crate::extraction::TextAt
 
 use crate::Result;
-use crate::modality::ModalityData;
-use crate::redaction::{Redactable, Redactions};
+use crate::modality::Modality;
+use crate::redaction::Redactions;
 
 /// Apply a batch of `(location, replacement)` pairs to a per-modality
 /// source. Producer guarantees non-overlapping locations; the
 /// implementation reorders the batch as needed.
 #[async_trait::async_trait]
-pub trait RedactAt<M: Redactable + ModalityData>: Send + Sync {
+pub trait RedactAt<M: Modality>: Send + Sync {
     /// Apply the batch in whatever order is correct for this
     /// implementation. The first error aborts the batch.
     async fn redact_at(&mut self, redactions: Redactions<M>) -> Result<()>;

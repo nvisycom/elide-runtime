@@ -5,7 +5,7 @@
 //! Tabular handlers address content by cell coordinate
 //! ([`Tabular`] = row + column, optionally with intra-cell byte
 //! offsets) and return [`TextData`] from `read` — the cell's string
-//! value — so [`ModalityData::Data`] aliases [`TextData`] for the
+//! value — so [`Modality::Data`] aliases [`TextData`] for the
 //! [`Tabular`] modality. Replacements written during
 //! [`IndexedHandle::redact`] use
 //! [`nvisy_core::redaction::TabularReplacement`]; cells are strings,
@@ -14,7 +14,7 @@
 //! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`TextData`]: nvisy_core::modality::TextData
-//! [`ModalityData::Data`]: nvisy_core::modality::ModalityData::Data
+//! [`Modality::Data`]: nvisy_core::modality::Modality::Data
 
 use nvisy_core::modality::{ModalityKind, Tabular};
 

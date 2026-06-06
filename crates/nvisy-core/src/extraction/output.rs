@@ -9,12 +9,12 @@
 //!
 //! [`Extractor<M>`]: crate::extraction::Extractor
 
-use super::ModalityExtraction;
+use crate::modality::Modality;
 
 /// Combined extractor return shape: a per-call `value` and the
 /// modality-keyed `extraction` provenance produced alongside it.
 #[derive(Debug, Clone)]
-pub struct ExtractorOutput<M: ModalityExtraction, T> {
+pub struct ExtractorOutput<M: Modality, T> {
     /// Backend-shaped extractor output (e.g. `Vec<OcrOutput>` for an
     /// image extractor, `SttOutput` for an audio extractor).
     pub value: T,
@@ -25,7 +25,7 @@ pub struct ExtractorOutput<M: ModalityExtraction, T> {
     pub extraction: M::Extraction,
 }
 
-impl<M: ModalityExtraction, T> ExtractorOutput<M, T> {
+impl<M: Modality, T> ExtractorOutput<M, T> {
     /// Construct an output from its two parts.
     pub fn new(value: T, extraction: M::Extraction) -> Self {
         Self { value, extraction }

@@ -18,7 +18,10 @@ use crate::primitive::TimeSpan;
 pub struct Audio;
 
 impl Modality for Audio {
+    type Data = AudioData;
+    type Extraction = AudioExtraction;
     type Location = AudioLocation;
+    type Replacement = crate::redaction::AudioReplacement;
 }
 
 /// A time interval within audio content.

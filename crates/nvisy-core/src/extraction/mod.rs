@@ -11,7 +11,7 @@
 //! - [`Artifacts`] — heterogeneous typed-map newtype attached to a
 //!   [`Span`] so extractors carry out-of-band enrichments alongside
 //!   the payload.
-//! - [`ModalityExtraction`] — extension trait naming
+//! - [`Modality`] — extension trait naming
 //!   `M::Extraction`.
 //! - [`TextAt`] — trait every extraction-aware consumer (dedup
 //!   layer, validation check) bounds on to read source *text* at a
@@ -20,24 +20,22 @@
 //!   [`M::Data`] payload an `Anonymizer<M>` operates on; bounded
 //!   by the redaction phase.
 //!
-//! [`M::Data`]: crate::modality::ModalityData::Data
+//! [`M::Data`]: crate::modality::Modality::Data
 //! [`EntityRecognizer`]: crate::EntityRecognizer
 
 mod artifacts;
 mod data_at;
-mod modality;
 mod output;
 mod span;
 mod text_at;
 
 pub use self::artifacts::Artifacts;
 pub use self::data_at::DataAt;
-pub use self::modality::ModalityExtraction;
 pub use self::output::ExtractorOutput;
 pub use self::span::Span;
 pub use self::text_at::TextAt;
 use crate::Result;
-use crate::modality::ModalityData;
+use crate::modality::Modality;
 
 /// Per-modality extractor: convert a per-call [`Span<M>`] into a
 /// backend-shaped `value` plus the modality-keyed provenance the
@@ -48,7 +46,7 @@ use crate::modality::ModalityData;
 #[async_trait::async_trait]
 pub trait Extractor<M>: Send + Sync
 where
-    M: ModalityData + ModalityExtraction,
+    M: Modality,
 {
     /// The extractor's modality-specific return shape. Pick whatever
     /// the underlying backend naturally produces; consumer glue

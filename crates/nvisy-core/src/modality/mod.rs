@@ -12,15 +12,20 @@
 //! image location adding polygon variants) without touching the
 //! marker.
 //!
-//! [`Modality`] is intentionally minimal: marker + location.
-//! Extension traits ([`crate::ModalityData`] for the recognizer-side
-//! payload type, [`crate::extraction::ModalityExtraction`] for the
-//! per-modality provenance enum) live next to the layer that needs
-//! them. The document-shape side (`Block`, `Metadata`) lives in
-//! `nvisy-document`; the redaction-shape side (`Strategy`,
-//! `Replacement`) lives in `nvisy-toolkit`. Each layer adds its own
-//! extension trait (`DocumentModality`, `Redactable`) atop this
-//! marker — toolkit and document don't pollute core.
+//! [`Modality`] bundles the four per-modality associated types every
+//! consumer reaches for: [`Location`] (coordinate), [`Data`] (per-call
+//! payload the recognizer/extractor scans), [`Replacement`] (redaction
+//! record), and [`Extraction`] (per-modality provenance enum stamped
+//! onto a document at extractor time). The document-shape side
+//! (`Block`, `Metadata`) lives in `nvisy-document`; the codec-side
+//! tag (`Codable`) lives in `nvisy-codec`. Each layer adds its own
+//! extension trait (`DocumentModality`, `Codable`) atop this marker
+//! — toolkit and document don't pollute core.
+//!
+//! [`Location`]: Modality::Location
+//! [`Data`]: Modality::Data
+//! [`Replacement`]: Modality::Replacement
+//! [`Extraction`]: Modality::Extraction
 //!
 //! [`Entity<M>`]: crate::entity::Entity
 
@@ -31,6 +36,7 @@ mod text;
 
 use std::fmt::Debug;
 
+use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -54,40 +60,32 @@ pub enum ModalityKind {
     Audio,
 }
 
-/// Extension of [`Modality`] that adds the per-call payload type
-/// recognizers and extractors consume.
-pub trait ModalityData: Modality {
-    /// Per-call modality-specific payload: the bytes / text /
-    /// dimensions a recognizer or extractor actually scans.
-    type Data: Debug + Send + Sync;
-}
-
-impl ModalityData for Text {
-    type Data = TextData;
-}
-
-impl ModalityData for Image {
-    type Data = ImageData;
-}
-
-impl ModalityData for Audio {
-    type Data = AudioData;
-}
-
-impl ModalityData for Tabular {
-    type Data = TextData;
-}
-
 /// Marker trait implemented by every per-modality marker type
 /// ([`Text`], [`Image`], [`Audio`], [`Tabular`]).
 ///
-/// The associated [`Location`] type names the actual coordinate
-/// value carried by generic containers parameterised on `M` —
-/// `Entity<M>::location` is `M::Location`, etc. The marker type
-/// itself is zero-sized; the data lives behind the associated
-/// type.
+/// Bundles the per-modality associated types every consumer reaches
+/// for:
+///
+/// - [`Location`] — coordinate value carried by generic containers
+///   parameterised on `M` (`Entity<M>::location` is `M::Location`,
+///   etc.). Always present.
+/// - [`Data`] — per-call payload (the bytes / text / dimensions a
+///   recognizer or extractor actually scans). Tabular shares
+///   [`TextData`] with Text since tabular cells are text-shaped at
+///   the per-call level.
+/// - [`Replacement`] — redaction record an anonymizer emits and any
+///   write-back path lands at the entity's location.
+/// - [`Extraction`] — per-modality provenance enum stamped onto a
+///   `Document<M>`'s metadata at extractor time
+///   (`TextExtraction`, `ImageExtraction`, etc.).
+///
+/// The marker type itself is zero-sized; everything else lives
+/// behind the associated types.
 ///
 /// [`Location`]: Self::Location
+/// [`Data`]: Self::Data
+/// [`Replacement`]: Self::Replacement
+/// [`Extraction`]: Self::Extraction
 pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'static {
     /// Coordinate value carried by generic containers parameterised
     /// on this modality.
@@ -98,8 +96,32 @@ pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'sta
         + Sync
         + Serialize
         + DeserializeOwned
-        + schemars::JsonSchema
+        + JsonSchema
         + 'static;
+
+    /// Per-call modality-specific payload: the bytes / text /
+    /// dimensions a recognizer or extractor actually scans.
+    type Data: Debug + Send + Sync;
+
+    /// What an anonymizer writes at the entity's location. Embedded
+    /// in audit records, so it carries the full serde + schemars
+    /// bundle to derive its codecs transparently.
+    type Replacement: Clone
+        + Debug
+        + PartialEq
+        + Send
+        + Sync
+        + Serialize
+        + DeserializeOwned
+        + JsonSchema
+        + 'static;
+
+    /// Per-modality provenance enum recording how a [`Document<M>`]'s
+    /// primary content was produced (e.g. native text-layer parse vs
+    /// OCR'd image-backed page).
+    ///
+    /// [`Document<M>`]: # "carrier owned by nvisy-document"
+    type Extraction: Clone + Debug + PartialEq + Send + Sync + 'static;
 }
 
 /// Check whether two coordinates of the same modality overlap.

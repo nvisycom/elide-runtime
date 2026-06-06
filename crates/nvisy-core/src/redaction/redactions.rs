@@ -25,19 +25,18 @@
 
 use std::fmt;
 
-use crate::modality::ModalityData;
-use crate::redaction::Redactable;
+use crate::modality::Modality;
 
 /// A list of `(location, replacement)` pairs handed to a
 /// [`RedactAt<M>`] implementation. Producer guarantees non-overlapping
 /// locations; the implementation is free to reorder for efficiency.
 ///
 /// [`RedactAt<M>`]: super::RedactAt
-pub struct Redactions<M: Redactable + ModalityData> {
+pub struct Redactions<M: Modality> {
     pub(crate) items: Vec<(M::Location, M::Replacement)>,
 }
 
-impl<M: Redactable + ModalityData> Redactions<M> {
+impl<M: Modality> Redactions<M> {
     /// Create an empty collection.
     pub fn new() -> Self {
         Self { items: Vec::new() }
@@ -78,13 +77,13 @@ impl<M: Redactable + ModalityData> Redactions<M> {
     }
 }
 
-impl<M: Redactable + ModalityData> Default for Redactions<M> {
+impl<M: Modality> Default for Redactions<M> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<M: Redactable + ModalityData> fmt::Debug for Redactions<M> {
+impl<M: Modality> fmt::Debug for Redactions<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Redactions")
             .field("len", &self.len())

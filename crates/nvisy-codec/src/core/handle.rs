@@ -37,20 +37,20 @@
 use std::fmt;
 
 use nvisy_core::Error;
-use nvisy_core::modality::{ModalityData, ModalityKind};
-use nvisy_core::redaction::{Redactable, Redactions};
+use nvisy_core::modality::{Modality, ModalityKind};
+use nvisy_core::redaction::Redactions;
 use uuid::Uuid;
 
 use crate::core::Handler;
 
-/// Codec-side extension of [`ModalityData`]: adds the per-location
+/// Codec-side extension of [`Modality`]: adds the per-location
 /// redaction instruction the codec applies, and the runtime tag the
 /// registry uses to erase typed handles.
 ///
 /// The per-location data payload yielded inside [`Chunk::data`] and
-/// returned by [`IndexedHandle::read`] is [`ModalityData::Data`] —
+/// returned by [`IndexedHandle::read`] is [`Modality::Data`] —
 /// the codec doesn't redefine it.
-pub trait Codable: ModalityData + Redactable {
+pub trait Codable: Modality {
     /// Runtime tag for this modality. Used by the codec registry to
     /// erase a typed [`crate::DocumentHandle`] into an
     /// [`UntypedDocumentHandle`] variant.

@@ -37,7 +37,7 @@ mod registries;
 use nvisy_core::content::ContentMetadata;
 use nvisy_core::entity::is_excluded;
 use nvisy_core::extraction::DataAt;
-use nvisy_core::modality::{ModalityData, Overlap};
+use nvisy_core::modality::Overlap;
 use nvisy_core::primitive::ConfidenceThreshold;
 use nvisy_core::redaction::{RedactAt, Redactions};
 use nvisy_core::{Result, TextAt};
@@ -63,7 +63,7 @@ pub(crate) async fn run_redaction<M>(
     registry: &RedactionRegistry<M>,
 ) -> Result<()>
 where
-    M: DocumentModality + ModalityData,
+    M: DocumentModality,
     M::Location: Overlap,
     M::Redaction: Instantiate<M>,
     DocumentTree<M>: TextAt<M> + DataAt<M> + RedactAt<M>,

@@ -4,7 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Modality, Overlap};
+use super::{Modality, Overlap, TextData};
 use crate::entity::ModelProvenance;
 
 /// Tabular modality marker (zero-sized).
@@ -13,7 +13,10 @@ use crate::entity::ModelProvenance;
 pub struct Tabular;
 
 impl Modality for Tabular {
+    type Data = TextData;
+    type Extraction = TabularExtraction;
     type Location = TabularLocation;
+    type Replacement = crate::redaction::TabularReplacement;
 }
 
 /// A cell (or sub-cell range) within tabular content.

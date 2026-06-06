@@ -16,17 +16,17 @@
 //!
 //! [`TextAt`]: super::TextAt
 //! [`Anonymizer<M>`]: # "lives in nvisy-toolkit"
-//! [`M::Data`]: crate::modality::ModalityData::Data
+//! [`M::Data`]: crate::modality::Modality::Data
 
-use crate::modality::ModalityData;
+use crate::modality::Modality;
 
 /// Resolve a modality-typed location to its full [`M::Data`]
 /// payload. Generic per-phase code bounds over `&impl DataAt<M>`
 /// and dispatches uniformly across modalities.
 ///
-/// [`M::Data`]: ModalityData::Data
+/// [`M::Data`]: Modality::Data
 #[async_trait::async_trait]
-pub trait DataAt<M: ModalityData>: Sync {
+pub trait DataAt<M: Modality>: Sync {
     /// Resolve a location to its typed source payload, or `None`
     /// when no payload exists at the location (out-of-bounds, the
     /// handle doesn't expose that modality, …).

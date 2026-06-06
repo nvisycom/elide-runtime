@@ -10,6 +10,7 @@ use uuid::Uuid;
 use super::{Modality, Overlap};
 use crate::entity::ModelProvenance;
 use crate::primitive::{BoundingBox, Dimensions, Polygon};
+use crate::redaction::ImageReplacement;
 
 /// Image modality marker (zero-sized).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -17,7 +18,10 @@ use crate::primitive::{BoundingBox, Dimensions, Polygon};
 pub struct Image;
 
 impl Modality for Image {
+    type Data = ImageData;
+    type Extraction = ImageExtraction;
     type Location = ImageLocation;
+    type Replacement = ImageReplacement;
 }
 
 /// A region within image content.

@@ -1,4 +1,4 @@
-//! Per-modality [`Redactable::Replacement`] types — the rich,
+//! Per-modality [`Modality::Replacement`] types — the rich,
 //! byte-level instruction an anonymizer produces and the codec
 //! consumes.
 //!
@@ -7,7 +7,7 @@
 //! record stores the same value, so an audit replay reproduces the
 //! redaction exactly.
 //!
-//! [`Redactable::Replacement`]: super::Redactable::Replacement
+//! [`Modality::Replacement`]: super::Modality::Replacement
 
 use bytes::Bytes;
 use schemars::JsonSchema;

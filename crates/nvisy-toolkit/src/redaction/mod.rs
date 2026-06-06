@@ -40,8 +40,9 @@ mod registry;
 
 pub mod builtin;
 
+pub use nvisy_core::modality::Modality;
 pub use nvisy_core::redaction::{
-    AudioReplacement, ImageReplacement, Redactable, TabularReplacement, TextReplacement,
+    AudioReplacement, ImageReplacement, TabularReplacement, TextReplacement,
 };
 
 pub use self::anonymizer::Anonymizer;

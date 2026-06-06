@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use super::Hint;
 use crate::extraction::Artifacts;
-use crate::modality::ModalityData;
+use crate::modality::Modality;
 use crate::primitive::LanguageTag;
 
 /// Per-call input for an [`EntityRecognizer<M>`].
@@ -32,7 +32,7 @@ use crate::primitive::LanguageTag;
 /// [`EntityRecognizer<M>`]: super::EntityRecognizer
 /// [`Span<M>`]: crate::extraction::Span
 #[derive(Debug)]
-pub struct RecognizerInput<M: ModalityData> {
+pub struct RecognizerInput<M: Modality> {
     /// Modality-specific payload (text bytes, image bytes + dims,
     /// …).
     pub data: M::Data,
@@ -64,7 +64,7 @@ pub struct RecognizerInput<M: ModalityData> {
     pub correlation_id: Option<Uuid>,
 }
 
-impl<M: ModalityData> RecognizerInput<M> {
+impl<M: Modality> RecognizerInput<M> {
     /// Construct an input with only the modality payload set;
     /// every other field defaults to empty.
     pub fn new(data: M::Data) -> Self {

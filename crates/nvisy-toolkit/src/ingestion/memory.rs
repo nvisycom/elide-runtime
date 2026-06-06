@@ -15,15 +15,15 @@
 //!   (`MemoryBuffer::<Text>::from_text`,
 //!   `MemoryBuffer::<Image>::from_bytes`, …) so users discover
 //!   construction through one type instead of three.
-//! - Excludes [`Tabular`] honestly via the [`ModalityData`] bound —
+//! - Excludes [`Tabular`] honestly via the [`Modality`] bound —
 //!   there's no tabular in-memory loader to ship, no tabular
 //!   anonymizer, and no `M::Data` to wrap.
 //!
-//! [`M::Data`]: ModalityData::Data
+//! [`M::Data`]: Modality::Data
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
-//! [`ModalityData`]: nvisy_core::ModalityData
+//! [`Modality`]: nvisy_core::Modality
 
 use std::path::Path;
 
@@ -31,7 +31,7 @@ use bytes::Bytes;
 use hipstr::HipStr;
 use nvisy_core::extraction::{DataAt, TextAt};
 use nvisy_core::modality::{
-    Audio, AudioData, AudioLocation, Image, ImageData, ImageLocation, ModalityData, Text, TextData,
+    Audio, AudioData, AudioLocation, Image, ImageData, ImageLocation, Modality, Text, TextData,
     TextLocation,
 };
 use nvisy_core::primitive::Dimensions;
@@ -46,11 +46,11 @@ const TARGET: &str = "nvisy_toolkit::ingestion::memory";
 /// so callers have one type that loads, reads, and (for text)
 /// rewrites.
 ///
-/// [`M::Data`]: ModalityData::Data
+/// [`M::Data`]: Modality::Data
 #[derive(Debug, Clone)]
-pub struct MemoryBuffer<M: ModalityData>(pub M::Data);
+pub struct MemoryBuffer<M: Modality>(pub M::Data);
 
-impl<M: ModalityData> MemoryBuffer<M> {
+impl<M: Modality> MemoryBuffer<M> {
     /// Wrap an existing `M::Data` payload.
     pub fn new(data: M::Data) -> Self {
         Self(data)

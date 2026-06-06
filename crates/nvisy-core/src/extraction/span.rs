@@ -14,7 +14,7 @@
 use uuid::Uuid;
 
 use super::Artifacts;
-use crate::modality::{Modality, ModalityData};
+use crate::modality::Modality;
 use crate::primitive::LanguageTag;
 
 /// Per-call extraction input: the payload, where it lives in the
@@ -22,10 +22,10 @@ use crate::primitive::LanguageTag;
 /// typed bundle of [`Artifacts`].
 ///
 /// Modalities that recognizers care about (today: every recognizer
-/// modality) implement [`ModalityData`]; extractors reuse the same
+/// modality) implement [`Modality`]; extractors reuse the same
 /// `M::Data` shape rather than defining a parallel payload type.
 #[derive(Debug)]
-pub struct Span<M: Modality + ModalityData> {
+pub struct Span<M: Modality> {
     /// Modality-specific payload the extractor will process.
     pub data: M::Data,
     /// Where this payload lives in the source (whole-image for OCR,
@@ -43,7 +43,7 @@ pub struct Span<M: Modality + ModalityData> {
     pub artifacts: Artifacts,
 }
 
-impl<M: Modality + ModalityData> Span<M> {
+impl<M: Modality> Span<M> {
     /// Construct a span with the payload and location set;
     /// language, correlation id, and artifacts default to empty.
     pub fn new(data: M::Data, location: M::Location) -> Self {

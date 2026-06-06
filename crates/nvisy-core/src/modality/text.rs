@@ -20,7 +20,10 @@ use crate::entity::ModelProvenance;
 pub struct Text;
 
 impl Modality for Text {
+    type Data = TextData;
+    type Extraction = TextExtraction;
     type Location = TextLocation;
+    type Replacement = crate::redaction::TextReplacement;
 }
 
 /// Half-open `[start, end)` byte range around a [`TextLocation`],

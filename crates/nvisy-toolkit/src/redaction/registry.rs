@@ -41,23 +41,23 @@ use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_core::entity::{Entity, EntityKind};
-use nvisy_core::modality::ModalityData;
+use nvisy_core::modality::Modality;
 use nvisy_core::redaction::Redactions;
 
-use super::{Anonymizer, AnonymizerId, Redactable};
+use super::{Anonymizer, AnonymizerId};
 
 /// Per-modality registry of [`Anonymizer<M>`] instances, indexed by
 /// both [`EntityKind`] (toolkit-side per-kind dispatch) and
 /// [`AnonymizerId<M>`] (policy-side custom-operator resolution).
 ///
 /// [`Anonymizer<M>`]: super::Anonymizer
-pub struct RedactionRegistry<M: Redactable + ModalityData> {
+pub struct RedactionRegistry<M: Modality> {
     by_kind: HashMap<EntityKind, Arc<dyn Anonymizer<M>>>,
     by_id: HashMap<AnonymizerId<M>, Arc<dyn Anonymizer<M>>>,
     fallback: Option<Arc<dyn Anonymizer<M>>>,
 }
 
-impl<M: Redactable + ModalityData> RedactionRegistry<M> {
+impl<M: Modality> RedactionRegistry<M> {
     /// Build an empty registry. Use [`insert_kind`], [`insert_id`],
     /// or [`with_fallback`] to populate it.
     ///
@@ -173,13 +173,13 @@ impl<M: Redactable + ModalityData> RedactionRegistry<M> {
     }
 }
 
-impl<M: Redactable + ModalityData> Default for RedactionRegistry<M> {
+impl<M: Modality> Default for RedactionRegistry<M> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<M: Redactable + ModalityData> Clone for RedactionRegistry<M> {
+impl<M: Modality> Clone for RedactionRegistry<M> {
     fn clone(&self) -> Self {
         Self {
             by_kind: self.by_kind.clone(),
@@ -189,7 +189,7 @@ impl<M: Redactable + ModalityData> Clone for RedactionRegistry<M> {
     }
 }
 
-impl<M: Redactable + ModalityData> std::fmt::Debug for RedactionRegistry<M> {
+impl<M: Modality> std::fmt::Debug for RedactionRegistry<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RedactionRegistry")
             .field("kinds", &self.by_kind.len())

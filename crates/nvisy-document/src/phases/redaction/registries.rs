@@ -3,7 +3,7 @@
 //! at engine startup and the redaction phase consults at apply time.
 //!
 //! Text / Image / Audio each get a slot. Tabular is omitted: it has
-//! no `ModalityData` impl in `nvisy-core`, so `Anonymizer<Tabular>`
+//! no `Modality` impl in `nvisy-core`, so `Anonymizer<Tabular>`
 //! is not implementable today.
 //!
 //! [`RedactionRegistry<M>`]: nvisy_toolkit::redaction::RedactionRegistry

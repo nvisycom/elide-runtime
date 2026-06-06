@@ -1,10 +1,9 @@
 //! Redaction-side primitives shared across the runtime.
 //!
-//! - [`Redactable`] — extension trait on [`Modality`] naming the
-//!   per-modality replacement value.
 //! - [`TextReplacement`], [`ImageReplacement`], [`AudioReplacement`],
 //!   [`TabularReplacement`] — what an anonymizer emits at the
-//!   entity's location.
+//!   entity's location. Each modality binds one of these via
+//!   [`Modality::Replacement`].
 //! - [`Redactions<M>`] — typed batch of `(M::Location, M::Replacement)`
 //!   pairs handed from the producer side (anonymizer / registry) to
 //!   the write-back side.
@@ -15,15 +14,13 @@
 //! `nvisy-toolkit`; the read-side siblings [`crate::extraction::TextAt`]
 //! / [`crate::extraction::DataAt`] live in [`crate::extraction`].
 //!
-//! [`Modality`]: crate::modality::Modality
+//! [`Modality::Replacement`]: crate::modality::Modality::Replacement
 
 mod redact_at;
-mod redactable;
 mod redactions;
 mod replacement;
 
 pub use self::redact_at::RedactAt;
-pub use self::redactable::Redactable;
 pub use self::redactions::Redactions;
 pub use self::replacement::{
     AudioReplacement, ImageReplacement, TabularReplacement, TextReplacement,

@@ -1,12 +1,10 @@
 //! Shared HTTP client factory (reqwest + retry + tracing middleware).
 //!
-//! Available behind the `http` feature.
-//!
 //! [`build_http_client`] builds a [`ClientWithMiddleware`] from an
 //! [`HttpConfig`] with exponential-backoff retry and OpenTelemetry
 //! tracing layers pre-installed. Callers hand the returned client to
-//! whatever HTTP-aware library they're driving (rig provider, bento
-//! client, raw `reqwest_middleware` requests). [`HttpConfig`]
+//! whatever HTTP-aware library they're driving (rig provider, STT
+//! provider, raw `reqwest_middleware` requests). [`HttpConfig`]
 //! deserialises durations via [`humantime_serde`] so config files
 //! accept `"120s"`, `"2min"`, etc.
 //!
@@ -16,13 +14,13 @@
 mod config;
 mod middleware;
 
+use nvisy_core::{Error, Result};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 
 pub use self::config::HttpConfig;
 use self::middleware::{backoff_policy, retry_layer, tracing_layer};
-use crate::{Error, Result};
 
-const TARGET: &str = "nvisy_core::http";
+const TARGET: &str = "nvisy_agent::http";
 
 /// Build a [`ClientWithMiddleware`] from the given configuration.
 ///

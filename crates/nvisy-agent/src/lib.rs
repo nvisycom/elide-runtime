@@ -5,6 +5,7 @@
 pub mod audio;
 pub mod backend;
 pub(crate) mod error;
+pub mod http;
 pub mod provider;
 mod recognition;
 

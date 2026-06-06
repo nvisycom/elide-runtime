@@ -147,9 +147,15 @@ impl Extractor<Audio> for SttService {
     type Output = SttOutput;
 
     async fn extract(&self, span: &Span<Audio>) -> Result<ExtractorOutput<Audio, Self::Output>> {
-        let value = self
-            .transcribe(span.data.bytes.as_ref(), span.data.filename.as_str())
-            .await?;
+        let synthesized;
+        let filename = match span.data.filename.as_deref() {
+            Some(name) => name,
+            None => {
+                synthesized = format!("audio.{}", span.data.extension());
+                synthesized.as_str()
+            }
+        };
+        let value = self.transcribe(span.data.bytes.as_ref(), filename).await?;
         Ok(ExtractorOutput::new(
             value,
             AudioExtraction::Transcription(self.provenance()),

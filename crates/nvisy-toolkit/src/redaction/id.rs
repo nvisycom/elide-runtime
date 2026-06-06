@@ -31,7 +31,7 @@ use std::marker::PhantomData;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::Redactable;
+use super::Modality;
 
 /// Lookup handle for a custom [`Anonymizer<M>`] in the
 /// [`RedactionRegistry<M>`]. Phantom-typed over `M` so the compiler
@@ -45,14 +45,14 @@ use super::Redactable;
 /// [`RedactionRegistry<M>`]: super::RedactionRegistry
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
-pub struct AnonymizerId<M: Redactable> {
+pub struct AnonymizerId<M: Modality> {
     name: Cow<'static, str>,
     #[serde(skip)]
     #[schemars(skip)]
     _modality: PhantomData<fn() -> M>,
 }
 
-impl<M: Redactable> AnonymizerId<M> {
+impl<M: Modality> AnonymizerId<M> {
     /// Build an id from a `&'static str` without allocating.
     #[must_use]
     pub const fn from_static(name: &'static str) -> Self {
@@ -77,7 +77,7 @@ impl<M: Redactable> AnonymizerId<M> {
     }
 }
 
-impl<M: Redactable> Clone for AnonymizerId<M> {
+impl<M: Modality> Clone for AnonymizerId<M> {
     fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
@@ -86,39 +86,39 @@ impl<M: Redactable> Clone for AnonymizerId<M> {
     }
 }
 
-impl<M: Redactable> Debug for AnonymizerId<M> {
+impl<M: Modality> Debug for AnonymizerId<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("AnonymizerId").field(&self.name).finish()
     }
 }
 
-impl<M: Redactable> Display for AnonymizerId<M> {
+impl<M: Modality> Display for AnonymizerId<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.name, f)
     }
 }
 
-impl<M: Redactable> PartialEq for AnonymizerId<M> {
+impl<M: Modality> PartialEq for AnonymizerId<M> {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
     }
 }
 
-impl<M: Redactable> Eq for AnonymizerId<M> {}
+impl<M: Modality> Eq for AnonymizerId<M> {}
 
-impl<M: Redactable> Hash for AnonymizerId<M> {
+impl<M: Modality> Hash for AnonymizerId<M> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
     }
 }
 
-impl<M: Redactable> From<&'static str> for AnonymizerId<M> {
+impl<M: Modality> From<&'static str> for AnonymizerId<M> {
     fn from(name: &'static str) -> Self {
         Self::from_static(name)
     }
 }
 
-impl<M: Redactable> From<String> for AnonymizerId<M> {
+impl<M: Modality> From<String> for AnonymizerId<M> {
     fn from(name: String) -> Self {
         Self::new(name)
     }

@@ -11,7 +11,6 @@ mod input;
 mod output;
 
 use nvisy_core::Error;
-pub use nvisy_core::content::ImageFormat;
 use nvisy_core::entity::ModelProvenance;
 
 pub use self::context::Context;

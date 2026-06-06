@@ -17,7 +17,7 @@
 //!    construct a fresh operator from the rule's params, `Custom`
 //!    arms look up the user-registered operator in the
 //!    [`RedactionRegistry<M>`]. The phase pulls the per-entity
-//!    source payload through [`SourceAt`] and calls
+//!    source payload through [`DataAt`] and calls
 //!    [`Anonymizer::apply`]; the produced `M::Replacement` is
 //!    written back as [`Execution::Applied { replacement }`].
 //!    Operator construction errors and `apply` errors both fail the
@@ -29,17 +29,18 @@
 //!
 //! [`Anonymizer::apply`]: nvisy_toolkit::redaction::Anonymizer::apply
 //! [`RedactionRegistry<M>`]: nvisy_toolkit::redaction::RedactionRegistry
-//! [`SourceAt`]: nvisy_core::extraction::SourceAt
+//! [`DataAt`]: nvisy_core::extraction::DataAt
 
 pub mod phase;
 mod registries;
 
-use nvisy_core::content::ContentMetadata;
+use nvisy_codec::content::ContentMetadata;
 use nvisy_core::entity::is_excluded;
-use nvisy_core::extraction::SourceAt;
-use nvisy_core::modality::{ModalityData, Overlap};
+use nvisy_core::extraction::DataAt;
+use nvisy_core::modality::Overlap;
 use nvisy_core::primitive::ConfidenceThreshold;
-use nvisy_core::{Result, ValueAt};
+use nvisy_core::redaction::{RedactAt, Redactions};
+use nvisy_core::{Result, TextAt};
 use nvisy_toolkit::redaction::RedactionRegistry;
 
 pub use self::registries::RedactionRegistries;
@@ -62,10 +63,10 @@ pub(crate) async fn run_redaction<M>(
     registry: &RedactionRegistry<M>,
 ) -> Result<()>
 where
-    M: DocumentModality + ModalityData,
+    M: DocumentModality,
     M::Location: Overlap,
     M::Redaction: Instantiate<M>,
-    DocumentTree<M>: ValueAt<M> + SourceAt<M>,
+    DocumentTree<M>: TextAt<M> + DataAt<M> + RedactAt<M>,
 {
     if tree.root.audit.records.is_empty() {
         return Ok(());
@@ -133,14 +134,10 @@ where
 
     // Apply step: walk the records that landed `Pending`, instantiate
     // the rule's operator spec, pull the per-entity source payload
-    // through `SourceAt` on the tree, run the operator, write the
+    // through `DataAt` on the tree, run the operator, write the
     // produced replacement back as `Execution::Applied`. Operator
     // construction errors and `apply` errors flip the record to
     // `Execution::Failed`.
-    //
-    // TODO(redaction-rewrite): collect the produced `M::Replacement`s
-    // into a codec batch and flush them through `handle.redact()` so
-    // the on-disk payload reflects the audit decisions.
     let mut apply_outcomes: Vec<(usize, Execution<M>)> = Vec::new();
 
     for (idx, record) in tree.root.audit.records.iter().enumerate() {
@@ -157,7 +154,7 @@ where
             Err(err) => Execution::Failed {
                 reason: err.to_string(),
             },
-            Ok(anonymizer) => match tree.source_at(&record.entity.location).await {
+            Ok(anonymizer) => match tree.data_at(&record.entity.location).await {
                 None => Execution::Failed {
                     reason: "source payload unavailable at entity location".into(),
                 },
@@ -172,10 +169,31 @@ where
         apply_outcomes.push((idx, outcome));
     }
 
+    // Collect the produced replacements into a Redactions batch and
+    // flush through `RedactAt` so the codec handle rewrites the
+    // underlying bytes. The batch mirrors the audit; if write-back
+    // fails, the audit still reflects what the operators produced.
+    let mut redactions = Redactions::<M>::new();
     for (idx, outcome) in apply_outcomes {
+        if let Execution::Applied { replacement } = &outcome {
+            redactions.push(
+                tree.root.audit.records[idx].entity.location.clone(),
+                replacement.clone(),
+            );
+        }
         if let Some(audit) = tree.root.audit.records[idx].audit.as_mut() {
             audit.execution = outcome;
         }
+    }
+
+    if !redactions.is_empty() {
+        let count = redactions.len();
+        tree.redact_at(redactions).await?;
+        tracing::debug!(
+            target: TARGET,
+            count,
+            "flushed redaction batch through codec handle",
+        );
     }
 
     tracing::debug!(

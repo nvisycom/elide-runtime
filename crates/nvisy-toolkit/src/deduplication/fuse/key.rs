@@ -1,6 +1,6 @@
 //! Hash key for the first grouping phase of deduplication.
 
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::modality::Modality;
 
@@ -22,7 +22,7 @@ pub(super) struct GroupKey {
 }
 
 impl GroupKey {
-    pub(super) async fn new<M: Modality, V: ValueAt<M> + ?Sized>(
+    pub(super) async fn new<M: Modality, V: TextAt<M> + ?Sized>(
         entity: &Entity<M>,
         criteria: GroupingCriteria,
         view: &V,
@@ -30,7 +30,7 @@ impl GroupKey {
         // Entities without a text value (e.g. image bounding boxes)
         // get a unique sentinel so they don't all bucket together.
         // They will still be grouped by location overlap in phase 2.
-        let value = match view.value_at(&entity.location).await {
+        let value = match view.text_at(&entity.location).await {
             Some(v) => criteria.bucket_value(&v),
             None => entity.id.to_string(),
         };

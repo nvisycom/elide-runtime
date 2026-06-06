@@ -9,7 +9,7 @@
 //!
 //! # Layering
 //!
-//! - [`crate::ModalityData`] extends [`crate::modality::Modality`]
+//! - [`crate::Modality`] extends [`crate::modality::Modality`]
 //!   with an associated `Data` type — the modality-specific payload
 //!   (text bytes, image bytes + dims, …) recognizers actually scan.
 //! - [`RecognizerInput<M>`] carries the payload plus the per-call
@@ -36,7 +36,7 @@ pub use self::input::RecognizerInput;
 pub use self::label_map::LabelMap;
 pub use self::output::RecognizerOutput;
 use crate::Result;
-use crate::modality::ModalityData;
+use crate::modality::Modality;
 
 /// Recognizer for a single [`Modality`] `M`.
 ///
@@ -55,7 +55,7 @@ use crate::modality::ModalityData;
 /// [`Modality`]: crate::modality::Modality
 /// [`reset`]: Self::reset
 #[async_trait::async_trait]
-pub trait EntityRecognizer<M: ModalityData>: Send + Sync {
+pub trait EntityRecognizer<M: Modality>: Send + Sync {
     /// Detect entities in `input` and return them in modality-local
     /// coordinates. Downstream callers rebase text offsets into
     /// document coordinates when stitching results back into a

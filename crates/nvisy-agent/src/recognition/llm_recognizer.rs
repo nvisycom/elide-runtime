@@ -1,6 +1,6 @@
 //! [`LlmRecognizer`]: LLM-driven recognizer.
 //!
-//! Generic over [`ModalityData`] so one type drives text and image
+//! Generic over [`Modality`] so one type drives text and image
 //! detection through the same surface. Holds an
 //! `Arc<dyn LlmBackend>` for the swappable LLM plumbing plus an
 //! `Arc<dyn Prompt<M>>` for the swappable modality-specific
@@ -11,9 +11,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
-use nvisy_core::{
-    EntityRecognizer, Error, ModalityData, RecognizerInput, RecognizerOutput, Result,
-};
+use nvisy_core::{EntityRecognizer, Error, Modality, RecognizerInput, RecognizerOutput, Result};
 
 use super::prompt::Prompt;
 use crate::backend::{LlmBackend, LlmRequest};
@@ -26,7 +24,7 @@ use crate::backend::{LlmBackend, LlmRequest};
     setter(into, prefix = "with"),
     build_fn(error = "Error", name = "try_build", private)
 )]
-pub struct LlmRecognizer<M: ModalityData> {
+pub struct LlmRecognizer<M: Modality> {
     /// Recognizer name. Surfaced in trail provenance and used as the
     /// registry key.
     name: String,
@@ -47,7 +45,7 @@ pub struct LlmRecognizer<M: ModalityData> {
     prompt: Arc<dyn Prompt<M>>,
 }
 
-impl<M: ModalityData> LlmRecognizer<M> {
+impl<M: Modality> LlmRecognizer<M> {
     /// Start the chainable builder. `name`, `backend`, and `prompt`
     /// are required — calling [`build`] without them returns a
     /// validation error.
@@ -77,7 +75,7 @@ impl<M: ModalityData> LlmRecognizer<M> {
     }
 }
 
-impl<M: ModalityData> LlmRecognizerBuilder<M> {
+impl<M: Modality> LlmRecognizerBuilder<M> {
     /// Set the [`LlmBackend`] that powers this recognizer. Accepts
     /// any concrete impl by value and wraps it in `Arc`. Required —
     /// `build` errors when this hasn't been called.
@@ -104,7 +102,7 @@ impl<M: ModalityData> LlmRecognizerBuilder<M> {
 }
 
 #[async_trait]
-impl<M: ModalityData> EntityRecognizer<M> for LlmRecognizer<M> {
+impl<M: Modality> EntityRecognizer<M> for LlmRecognizer<M> {
     async fn recognize(&self, input: &RecognizerInput<M>) -> Result<RecognizerOutput<M>> {
         let prompt = self.prompt.build(input);
         let request = LlmRequest {

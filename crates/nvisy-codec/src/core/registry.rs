@@ -15,12 +15,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::content::ContentData;
 use nvisy_core::modality::ModalityKind;
 
-use crate::core::{Codable, FormatId, IndexedHandle};
+use crate::content::ContentData;
+use crate::core::{Codable, FormatId, Handler, IndexedHandle, Loader};
 use crate::document::{DocumentHandle, UntypedDocumentHandle};
-use crate::handler::{Handler, Loader};
 
 /// Descriptor for one registered codec format.
 #[derive(Clone)]
@@ -111,28 +110,28 @@ pub trait WrapUntyped: Codable {
     fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle;
 }
 
-#[cfg(feature = "text")]
+#[cfg(feature = "internal_text")]
 impl WrapUntyped for nvisy_core::modality::Text {
     fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle {
         UntypedDocumentHandle::Text(handle)
     }
 }
 
-#[cfg(feature = "tabular")]
+#[cfg(feature = "internal_tabular")]
 impl WrapUntyped for nvisy_core::modality::Tabular {
     fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle {
         UntypedDocumentHandle::Tabular(handle)
     }
 }
 
-#[cfg(feature = "image")]
+#[cfg(feature = "internal_image")]
 impl WrapUntyped for nvisy_core::modality::Image {
     fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle {
         UntypedDocumentHandle::Image(handle)
     }
 }
 
-#[cfg(feature = "audio")]
+#[cfg(feature = "internal_audio")]
 impl WrapUntyped for nvisy_core::modality::Audio {
     fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle {
         UntypedDocumentHandle::Audio(handle)
@@ -150,25 +149,101 @@ pub struct CodecRegistry {
 }
 
 impl CodecRegistry {
-    /// Empty registry. Use [`register`] to populate it, or call a
-    /// crate-level boot helper that registers every built-in format.
+    /// Empty registry. Use [`register`] to add custom formats, or
+    /// [`with_builtin`] to start from a pre-populated set of every
+    /// built-in format the active feature set enables.
     ///
     /// [`register`]: Self::register
+    /// [`with_builtin`]: Self::with_builtin
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Pre-populated registry containing every built-in format the
+    /// active feature set enables (TXT, JSON, HTML, CSV, PNG, JPEG,
+    /// WAV, PDF, …). Equivalent to [`new`] followed by registering
+    /// each built-in format.
+    ///
+    /// Add custom formats afterward with [`register`]; they take
+    /// precedence on extension / content-type collisions
+    /// (last registration wins).
+    ///
+    /// [`new`]: Self::new
+    /// [`register`]: Self::register
+    pub fn with_builtin() -> Self {
+        let registry = Self::new();
+        #[allow(unused_mut)]
+        let mut registry = registry;
+        #[cfg(feature = "txt")]
+        {
+            registry = registry.register(crate::handler::text::txt_format());
+        }
+        #[cfg(feature = "json")]
+        {
+            registry = registry.register(crate::handler::text::json_format());
+        }
+        #[cfg(feature = "markdown")]
+        {
+            registry = registry.register(crate::handler::text::markdown_format());
+        }
+        #[cfg(feature = "html")]
+        {
+            registry = registry.register(crate::handler::text::html_format());
+        }
+        #[cfg(feature = "csv")]
+        {
+            registry = registry.register(crate::handler::tabular::csv_format());
+        }
+        #[cfg(feature = "xlsx")]
+        {
+            registry = registry.register(crate::handler::tabular::xlsx_format());
+        }
+        #[cfg(feature = "png")]
+        {
+            registry = registry.register(crate::handler::image::png_format());
+        }
+        #[cfg(feature = "jpeg")]
+        {
+            registry = registry.register(crate::handler::image::jpeg_format());
+        }
+        #[cfg(feature = "tiff")]
+        {
+            registry = registry.register(crate::handler::image::tiff_format());
+        }
+        #[cfg(feature = "wav")]
+        {
+            registry = registry.register(crate::handler::audio::wav_format());
+        }
+        #[cfg(feature = "mp3")]
+        {
+            registry = registry.register(crate::handler::audio::mp3_format());
+        }
+        #[cfg(feature = "pdf")]
+        {
+            registry = registry.register(crate::handler::rich::pdf_format());
+        }
+        #[cfg(feature = "docx")]
+        {
+            registry = registry.register(crate::handler::rich::docx_format());
+        }
+        registry
+    }
+
     /// Register a [`Format`]. The format's id, extensions, and
-    /// content types are indexed for lookup.
+    /// content types are indexed for lookup. Returns `self` so calls
+    /// chain.
     ///
     /// # Panics
     ///
     /// Panics if the format's id is already registered. Extensions
     /// and content types that conflict with an existing format are
     /// overwritten (last registration wins) — register custom
-    /// formats *after* the built-in set if you want them to take
+    /// formats *after* [`with_builtin`] if you want them to take
     /// precedence.
-    pub fn register(&mut self, format: Format) {
+    ///
+    /// [`with_builtin`]: Self::with_builtin
+    #[must_use]
+    pub fn register(mut self, format: Format) -> Self {
         assert!(
             !self.by_id.contains_key(&format.id),
             "format id already registered: {}",
@@ -183,6 +258,7 @@ impl CodecRegistry {
         }
         self.by_id.insert(format.id.clone(), index);
         self.formats.push(format);
+        self
     }
 
     /// Look up a registered format by id.

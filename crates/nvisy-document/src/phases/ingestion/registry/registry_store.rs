@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use fjall::{Database, Keyspace};
+use nvisy_codec::content::{Content, ContentMetadata, ContentSource};
 use nvisy_core::Result;
-use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_core::modality::Text;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -375,8 +375,8 @@ impl Registry {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_codec::content::{Content, ContentData};
     use nvisy_core::ErrorKind;
-    use nvisy_core::content::{Content, ContentData};
 
     use super::*;
 

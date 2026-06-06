@@ -8,9 +8,9 @@
 
 use std::sync::Arc;
 
+use nvisy_codec::content::{Content, ContentData, ContentSource};
 use nvisy_codec::core::Codable;
 use nvisy_core::Result;
-use nvisy_core::content::{Content, ContentData, ContentSource};
 use uuid::Uuid;
 
 use crate::core::{AnyTree, DocumentTree, SharedData};

@@ -32,22 +32,15 @@ serde = { workspace = true, features = [] }
 toml = { workspace = true, features = ["parse"] }
 schemars = { workspace = true, features = [] }
 
-# Derive macros and error handling
+# Derive macros
 derive_builder = { workspace = true, features = [] }
-thiserror = { workspace = true, features = [] }
 
 # Pattern matching
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
 
-# Identifiers
-uuid = { workspace = true, features = [] }
-
 # Async trait sugar
 async-trait = { workspace = true, features = [] }
-
-# Observability
-tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

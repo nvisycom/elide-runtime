@@ -1,6 +1,6 @@
 //! [`Audio`] modality marker, [`AudioLocation`] coordinate type,
-//! [`AudioData`] per-call payload, and [`AudioExtraction`]
-//! provenance enum.
+//! [`AudioData`] per-call payload, and [`AudioExtraction`] provenance
+//! enum.
 
 use bytes::Bytes;
 use hipstr::HipStr;
@@ -18,7 +18,10 @@ use crate::primitive::TimeSpan;
 pub struct Audio;
 
 impl Modality for Audio {
+    type Data = AudioData;
+    type Extraction = AudioExtraction;
     type Location = AudioLocation;
+    type Replacement = crate::redaction::AudioReplacement;
 }
 
 /// A time interval within audio content.
@@ -50,27 +53,45 @@ impl AudioLocation {
 
 /// Per-call payload for [`Audio`] extractors.
 ///
-/// Audio backends (STT, diarization) take encoded bytes plus a
-/// filename hint that some providers use to detect the wire format.
-/// No dimensions or sample-rate metadata is carried at this layer —
-/// providers parse the container themselves.
+/// Audio backends (STT, diarization) take encoded bytes plus an
+/// optional original filename. No dimensions or sample-rate metadata
+/// is carried at this layer — providers parse the container
+/// themselves.
 #[derive(Debug, Clone)]
 pub struct AudioData {
-    /// Encoded audio bytes (WAV / MP3 / FLAC / …).
+    /// Encoded audio bytes.
     pub bytes: Bytes,
-    /// Filename hint passed to providers that key on the extension
-    /// to pick a decoder. Falls back to a generic name when the
-    /// caller has none.
-    pub filename: HipStr<'static>,
+    /// Original filename, when known. Threaded through to providers
+    /// like OpenAI Whisper that key on the source filename's
+    /// extension to pick a decoder.
+    pub filename: Option<HipStr<'static>>,
 }
 
 impl AudioData {
-    /// Construct with the encoded bytes and a filename hint.
-    pub fn new(bytes: impl Into<Bytes>, filename: impl Into<HipStr<'static>>) -> Self {
+    /// Construct with the encoded bytes; filename is initially unset.
+    pub fn new(bytes: impl Into<Bytes>) -> Self {
         Self {
             bytes: bytes.into(),
-            filename: filename.into(),
+            filename: None,
         }
+    }
+
+    /// Attach an original filename hint.
+    pub fn with_filename(mut self, filename: impl Into<HipStr<'static>>) -> Self {
+        self.filename = Some(filename.into());
+        self
+    }
+
+    /// Extension derived from [`filename`], or `"mp3"` when no
+    /// filename is set or the filename has no extension.
+    ///
+    /// [`filename`]: Self::filename
+    pub fn extension(&self) -> &str {
+        self.filename
+            .as_deref()
+            .and_then(|name| name.rsplit_once('.'))
+            .map(|(_, ext)| ext)
+            .unwrap_or("mp3")
     }
 
     /// View the encoded bytes.

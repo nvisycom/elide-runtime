@@ -8,23 +8,21 @@
 //! `Deanonymizer` impl by construction.
 //!
 //! [`LeakProfile`]: super::LeakProfile
-//! [`M::Data`]: nvisy_core::modality::ModalityData::Data
-//! [`M::Replacement`]: super::Redactable::Replacement
+//! [`M::Data`]: nvisy_core::modality::Modality::Data
+//! [`M::Replacement`]: super::Modality::Replacement
 //! [`Recoverable`]: super::LeakProfile::Recoverable
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_core::modality::ModalityData;
-
-use super::Redactable;
+use nvisy_core::modality::Modality;
 
 /// Inverse of [`Anonymizer<M>`] — given an emitted
 /// [`M::Replacement`], recover the original payload.
 ///
 /// [`Anonymizer<M>`]: super::Anonymizer
-/// [`M::Replacement`]: super::Redactable::Replacement
+/// [`M::Replacement`]: super::Modality::Replacement
 #[async_trait]
-pub trait Deanonymizer<M: Redactable + ModalityData>: Send + Sync {
+pub trait Deanonymizer<M: Modality>: Send + Sync {
     /// Recover the original payload from `replacement`.
     async fn revert(&self, replacement: &M::Replacement) -> Result<M::Data>;
 }

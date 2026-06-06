@@ -12,9 +12,9 @@
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
-use nvisy_core::modality::ModalityData;
+use nvisy_core::modality::Modality;
 
-use super::{LeakProfile, Redactable};
+use super::LeakProfile;
 
 /// Per-modality redaction operator.
 ///
@@ -23,15 +23,15 @@ use super::{LeakProfile, Redactable};
 /// on the operator instance — operators are constructed once and
 /// shared across runs.
 ///
-/// The [`ModalityData`] bound on `M` lets `apply` borrow the source
+/// The [`Modality`] bound on `M` lets `apply` borrow the source
 /// payload the recognizer scanned. Modalities without a payload type
-/// (e.g. `Tabular` today) can still implement [`Redactable`] for use
+/// (e.g. `Tabular` today) can still implement [`Modality`] for use
 /// in policy / audit type signatures; they just can't have an
 /// `Anonymizer` impl yet.
 ///
-/// [`M::Replacement`]: Redactable::Replacement
+/// [`M::Replacement`]: Modality::Replacement
 #[async_trait]
-pub trait Anonymizer<M: Redactable + ModalityData>: Send + Sync {
+pub trait Anonymizer<M: Modality>: Send + Sync {
     /// What the operator's output leaks about the original. Used by
     /// policy-authoring tools and audit reporting; not consulted in
     /// the hot path.

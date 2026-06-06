@@ -44,9 +44,6 @@ tokio = { workspace = true, features = ["rt"] }
 # BentoML inference client (feature-gated)
 bentoml = { workspace = true, optional = true }
 
-# (De)serialization
-serde = { workspace = true, features = [] }
-
 # Primitive datatypes (UUIDv7 for per-call request IDs from the
 # Bento backend; behind the `bento` feature gate at use sites).
 uuid = { workspace = true, features = ["v4", "v7"] }

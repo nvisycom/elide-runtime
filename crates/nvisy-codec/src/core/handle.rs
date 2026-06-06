@@ -25,11 +25,11 @@
 //! source identity and cursor — the rich handler does **not**
 //! implement multiple `Handle<M>` traits itself.
 //!
-//! [`TextData`]: crate::handler::TextData
-//! [`ImageData`]: crate::handler::ImageData
-//! [`AudioData`]: crate::handler::AudioData
-//! [`TextRedaction`]: crate::handler::TextRedaction
-//! [`ImageRedaction`]: crate::handler::ImageRedaction
+//! [`TextData`]: crate::core::TextData
+//! [`ImageData`]: crate::core::ImageData
+//! [`AudioData`]: crate::core::AudioData
+//! [`TextRedaction`]: crate::core::TextRedaction
+//! [`ImageRedaction`]: crate::core::ImageRedaction
 //! [`next_chunk`]: Handle::next_chunk
 //! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
 //! [`Modality`]: nvisy_core::modality::Modality
@@ -37,34 +37,26 @@
 use std::fmt;
 
 use nvisy_core::Error;
-use nvisy_core::modality::{ModalityData, ModalityKind};
+use nvisy_core::modality::{Modality, ModalityKind};
+use nvisy_core::redaction::Redactions;
 use uuid::Uuid;
 
-use super::Redactions;
-use crate::handler::Handler;
+use crate::core::Handler;
 
-/// Codec-side extension of [`ModalityData`]: adds the per-location
+/// Codec-side extension of [`Modality`]: adds the per-location
 /// redaction instruction the codec applies, and the runtime tag the
 /// registry uses to erase typed handles.
 ///
 /// The per-location data payload yielded inside [`Chunk::data`] and
-/// returned by [`IndexedHandle::read`] is [`ModalityData::Data`] —
+/// returned by [`IndexedHandle::read`] is [`Modality::Data`] —
 /// the codec doesn't redefine it.
-pub trait Codable: ModalityData {
+pub trait Codable: Modality {
     /// Runtime tag for this modality. Used by the codec registry to
     /// erase a typed [`crate::DocumentHandle`] into an
     /// [`UntypedDocumentHandle`] variant.
     ///
     /// [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
     const KIND: ModalityKind;
-
-    /// Per-location byte-write instruction the codec applies during
-    /// [`IndexedHandle::redact`]. Distinct from the document-side
-    /// policy `DocumentModality::Redaction` enum (in `nvisy-document`)
-    /// that names *what* the user wants redacted: this type is the
-    /// *result* of running the resolved anonymizer, ready for the
-    /// codec to write into the underlying bytes.
-    type Instruction: Send + Sync + 'static;
 }
 
 /// Stable identifier for an embedded child handle inside a rich
@@ -146,26 +138,23 @@ pub trait Handle<M: Codable>: Handler {
 #[async_trait::async_trait]
 pub trait IndexedHandle<M: Codable>: Handle<M> {
     /// Read the wire payload at the given location. Used by
-    /// [`ValueAt`] resolvers to fetch bytes for a coordinate already
+    /// [`TextAt`] resolvers to fetch bytes for a coordinate already
     /// known from somewhere else (an entity audit record, an
     /// annotation). Extraction itself does not call this — it drives
     /// [`Handle::next_chunk`] which returns `(location, data)`
     /// together.
     ///
-    /// [`ValueAt`]: nvisy_core::ValueAt
+    /// [`TextAt`]: nvisy_core::TextAt
     async fn read(&self, location: &M::Location) -> Result<Option<M::Data>, Error>;
 
-    /// Apply a batch of `(location, redaction)` pairs in whatever
+    /// Apply a batch of `(location, replacement)` pairs in whatever
     /// order is correct for this format. Engine guarantees no two
     /// locations overlap; handler decides ordering (right-to-left
     /// for text/audio so deletions don't shift later indices, batch
     /// per page for PDF, …). The first error aborts the batch.
     ///
-    /// Use [`Redactions::single`] when only one redaction is needed.
-    async fn redact(
-        &mut self,
-        redactions: Redactions<M::Location, M::Instruction>,
-    ) -> Result<(), Error>;
+    /// Use [`Redactions::single`] when only one replacement is needed.
+    async fn redact(&mut self, redactions: Redactions<M>) -> Result<(), Error>;
 }
 
 /// Capability trait for rich-format handlers (PDF, DOCX, …) whose

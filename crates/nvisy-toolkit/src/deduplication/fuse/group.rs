@@ -14,7 +14,7 @@
 use std::collections::{HashMap, HashSet};
 use std::mem;
 
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::modality::{Modality, Overlap};
 use schemars::JsonSchema;
@@ -81,7 +81,7 @@ pub(super) trait GroupEntities<M: Modality> {
     /// Each returned `Vec<Entity>` contains entities that share the same
     /// kind/value (per the criteria) and overlap in location (unless the
     /// criteria ignores location).
-    fn group<V: ValueAt<M> + ?Sized>(
+    fn group<V: TextAt<M> + ?Sized>(
         self,
         criteria: GroupingCriteria,
         view: &V,
@@ -93,7 +93,7 @@ where
     M: Modality,
     M::Location: Overlap,
 {
-    async fn group<V: ValueAt<M> + ?Sized>(
+    async fn group<V: TextAt<M> + ?Sized>(
         self,
         criteria: GroupingCriteria,
         view: &V,
@@ -163,8 +163,8 @@ where
                         let mut any_value_match = false;
                         for a in &groups[indices[i]] {
                             for b in &groups[indices[j]] {
-                                let va = view.value_at(&a.location).await;
-                                let vb = view.value_at(&b.location).await;
+                                let va = view.text_at(&a.location).await;
+                                let vb = view.text_at(&b.location).await;
                                 if let (Some(va), Some(vb)) = (va.as_deref(), vb.as_deref())
                                     && criteria.values_match(va, vb)
                                 {

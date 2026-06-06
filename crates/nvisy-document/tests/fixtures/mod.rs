@@ -4,7 +4,7 @@
 //! may appear unused from any given test file's perspective.
 #![allow(dead_code)]
 
-use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
+use nvisy_codec::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_document::phases::ingestion::{ExportFile, ImportFile};
 use nvisy_document::pipeline::{Engine, EngineInput};
 use uuid::Uuid;

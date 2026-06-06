@@ -22,7 +22,7 @@
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
-use nvisy_core::ValueAt;
+use nvisy_core::TextAt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -41,7 +41,7 @@ use crate::modality::DocumentModality;
 /// ```
 ///
 /// `P` is the resolver type, mirroring the dedup [`LayerContext`].
-/// Generic so the resolver call (`ctx.resolver.value_at(...)`) is
+/// Generic so the resolver call (`ctx.resolver.text_at(...)`) is
 /// monomorphised. Object safety on [`Check<M, P>`] still holds —
 /// `P` is a type parameter, not a generic method.
 ///
@@ -49,7 +49,7 @@ use crate::modality::DocumentModality;
 pub struct CheckContext<'a, M, P>
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
 {
     /// Resolver for "what value sits at this location?" Backed by
     /// `DocumentTree<M>` in production, mockable in tests.
@@ -76,7 +76,7 @@ where
 impl<'a, M, P> CheckContext<'a, M, P>
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
 {
     /// Build a context from the resolver alone. Checks that need the
     /// post-redaction text attach it via [`with_redacted_output`].
@@ -177,7 +177,7 @@ pub struct Finding {
 pub trait Check<M, P>: Send + Sync
 where
     M: DocumentModality,
-    P: ValueAt<M> + ?Sized,
+    P: TextAt<M> + ?Sized,
 {
     /// Inspect `doc` and emit a list of findings.
     async fn check(&self, doc: &Document<M>, ctx: &CheckContext<'_, M, P>) -> Vec<Finding>;

@@ -2,42 +2,25 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Foundational crate for the Nvisy runtime — domain types, error
-types, and the cross-cutting traits that every other crate builds
-on.
+Foundational primitives, the `Modality` marker trait, and the shared
+`Error`/`Result` type that every other crate in the Nvisy runtime
+builds on.
 
 ## Overview
 
-`error::*` defines the structured error hierarchy used across the
-workspace (pipeline, codec, detection, provider failures). `Error`
-carries a sealed kind/message/component/retryable/source tuple,
-reachable only through accessors and the
-`with_component`/`with_retryable`/`with_source` builders; the
-`ErrorKind` variants each have a matching `Error::*` shorthand
-(`validation`, `policy`, `not_found`, `connection`, `timeout`,
-`cancellation`, `internal`, `runtime`, `serialization`). `Error`
-provides a `From<nvisy_ontology::Error>` impl that preserves the
-original in the cause chain. The crate ships a `Result<T>` alias
-keyed on this error type so every downstream crate can
-`use nvisy_core::Result;` and get consistent error semantics.
+Defines the per-modality marker types (`Text`, `Image`, `Audio`,
+`Tabular`) and the `Modality` trait that bundles their associated
+location / data / replacement / extraction types. Generic containers
+(`Entity<M>`, `Span<M>`, `Annotation<M>`, `Redactions<M>`) live here
+and are parameterised on `M: Modality`, which lets every downstream
+crate share one shape across modalities.
 
-`content::*` carries the raw-bytes-plus-metadata bundle that every
-import flows through: `Content` (the bundle), `ContentData` (the
-bytes + SHA-256 + MIME helpers), `ContentMetadata` (filename,
-content type, annotations, free-form extras), `ContentSource`
-(re-exported from `nvisy-ontology::entity`), and `TextEncoding` (the
-encoding flag threaded through text loaders).
-
-`media::*` declares the closed set of recognised document shapes:
-`DocumentType` (the top-level kind enum) and the per-category format
-enums (`TextFormat`, `ImageFormat`, `AudioFormat`,
-`SpreadsheetFormat`, `WordFormat`, `PresentationFormat`) with MIME
-and extension dispatch.
-
-`http::*` (behind the `http` feature) ships `build_http_client` — a
-free function that returns a `reqwest_middleware::ClientWithMiddleware`
-configured with retry and tracing middleware according to a
-`HttpConfig`.
+Also ships the cross-cutting traits the recognizer/extractor
+ecosystem reaches for — `EntityRecognizer<M>`, `Extractor<M>`,
+`DataAt<M>` / `TextAt<M>`, `RedactAt<M>` — plus the structured
+`Error`/`ErrorKind`/`Result` types. The `http` feature exposes a
+shared `reqwest_middleware`-based client for crates that talk to
+remote services. Depends on no other workspace crate.
 
 ## Documentation
 

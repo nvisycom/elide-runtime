@@ -2,39 +2,40 @@
 //! per-modality loader namespace and (where applicable) in-place
 //! redaction.
 //!
-//! The pipeline-side traits ([`ValueAt`], [`SourceAt`]) need a
+//! The pipeline-side traits ([`TextAt`], [`DataAt`]) need a
 //! resolver to call into; every consumer that doesn't already have
 //! a codec-backed implementation had to invent its own adapter.
 //! `MemoryBuffer<M>` is the shipped adapter:
 //!
 //! - Owns its bytes via the underlying [`M::Data`] payload, so
-//!   it can be both read from (`ValueAt`, `SourceAt`) and written
+//!   it can be both read from (`TextAt`, `DataAt`) and written
 //!   to (per-modality `redact` methods) without borrow-checker
 //!   gymnastics.
 //! - Hosts the per-modality loader namespace
 //!   (`MemoryBuffer::<Text>::from_text`,
 //!   `MemoryBuffer::<Image>::from_bytes`, …) so users discover
 //!   construction through one type instead of three.
-//! - Excludes [`Tabular`] honestly via the [`ModalityData`] bound —
+//! - Excludes [`Tabular`] honestly via the [`Modality`] bound —
 //!   there's no tabular in-memory loader to ship, no tabular
 //!   anonymizer, and no `M::Data` to wrap.
 //!
-//! [`M::Data`]: ModalityData::Data
+//! [`M::Data`]: Modality::Data
 //! [`Tabular`]: nvisy_core::modality::Tabular
-//! [`ValueAt`]: nvisy_core::extraction::ValueAt
-//! [`SourceAt`]: nvisy_core::extraction::SourceAt
-//! [`ModalityData`]: nvisy_core::ModalityData
+//! [`TextAt`]: nvisy_core::extraction::TextAt
+//! [`DataAt`]: nvisy_core::extraction::DataAt
+//! [`Modality`]: nvisy_core::Modality
 
 use std::path::Path;
 
 use bytes::Bytes;
 use hipstr::HipStr;
-use nvisy_core::extraction::{SourceAt, ValueAt};
+use nvisy_core::extraction::{DataAt, TextAt};
 use nvisy_core::modality::{
-    Audio, AudioData, AudioLocation, Image, ImageData, ImageLocation, ModalityData, Text, TextData,
+    Audio, AudioData, AudioLocation, Image, ImageData, ImageLocation, Modality, Text, TextData,
     TextLocation,
 };
 use nvisy_core::primitive::Dimensions;
+use nvisy_core::redaction::{RedactAt, Redactions, TextReplacement};
 use nvisy_core::{Error, Result};
 
 const TARGET: &str = "nvisy_toolkit::ingestion::memory";
@@ -45,11 +46,11 @@ const TARGET: &str = "nvisy_toolkit::ingestion::memory";
 /// so callers have one type that loads, reads, and (for text)
 /// rewrites.
 ///
-/// [`M::Data`]: ModalityData::Data
+/// [`M::Data`]: Modality::Data
 #[derive(Debug, Clone)]
-pub struct MemoryBuffer<M: ModalityData>(pub M::Data);
+pub struct MemoryBuffer<M: Modality>(pub M::Data);
 
-impl<M: ModalityData> MemoryBuffer<M> {
+impl<M: Modality> MemoryBuffer<M> {
     /// Wrap an existing `M::Data` payload.
     pub fn new(data: M::Data) -> Self {
         Self(data)
@@ -184,8 +185,8 @@ impl MemoryBuffer<Text> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Text> for MemoryBuffer<Text> {
-    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+impl TextAt<Text> for MemoryBuffer<Text> {
+    async fn text_at(&self, location: &TextLocation) -> Option<String> {
         self.as_str()
             .get(location.start..location.end)
             .map(str::to_owned)
@@ -193,11 +194,32 @@ impl ValueAt<Text> for MemoryBuffer<Text> {
 }
 
 #[async_trait::async_trait]
-impl SourceAt<Text> for MemoryBuffer<Text> {
-    async fn source_at(&self, location: &TextLocation) -> Option<TextData> {
+impl DataAt<Text> for MemoryBuffer<Text> {
+    async fn data_at(&self, location: &TextLocation) -> Option<TextData> {
         self.as_str()
             .get(location.start..location.end)
             .map(|s| TextData::new(s.to_owned()))
+    }
+}
+
+#[async_trait::async_trait]
+impl RedactAt<Text> for MemoryBuffer<Text> {
+    /// Apply a batch of [`TextReplacement`] values back into the
+    /// buffer. Flattens each replacement into the
+    /// `(location, Option<String>)` shape the inherent [`redact`]
+    /// method already accepts: `Substituted { value }` → `Some(value)`,
+    /// `Removed` → `None`.
+    ///
+    /// [`redact`]: Self::redact
+    async fn redact_at(&mut self, redactions: Redactions<Text>) -> Result<()> {
+        let edits = redactions.into_items().into_iter().map(|(loc, repl)| {
+            let replacement = match repl {
+                TextReplacement::Substituted { value } => Some(value),
+                TextReplacement::Removed => None,
+            };
+            (loc, replacement)
+        });
+        self.redact(edits)
     }
 }
 
@@ -237,8 +259,8 @@ impl MemoryBuffer<Image> {
 }
 
 #[async_trait::async_trait]
-impl SourceAt<Image> for MemoryBuffer<Image> {
-    async fn source_at(&self, _location: &ImageLocation) -> Option<ImageData> {
+impl DataAt<Image> for MemoryBuffer<Image> {
+    async fn data_at(&self, _location: &ImageLocation) -> Option<ImageData> {
         // The whole image is the only payload — image locations
         // index into pixel space, not byte ranges, so there's no
         // cheap sub-slice.
@@ -252,11 +274,11 @@ impl MemoryBuffer<Audio> {
     /// Wrap encoded audio bytes alongside the source filename
     /// (informational; some STT backends pass it through).
     pub fn from_bytes(bytes: impl Into<Bytes>, filename: impl Into<HipStr<'static>>) -> Self {
-        Self(AudioData::new(bytes, filename))
+        Self(AudioData::new(bytes).with_filename(filename))
     }
 
     /// Read an audio file into a buffer. The file name is recorded
-    /// from the path's file component.
+    /// from the path's file component when present.
     ///
     /// # Errors
     ///
@@ -266,11 +288,11 @@ impl MemoryBuffer<Audio> {
         let bytes = std::fs::read(path).map_err(|err| {
             Error::validation(format!("read audio file {}: {err}", path.display()), TARGET)
         })?;
-        let filename = path
-            .file_name()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        Ok(Self::from_bytes(bytes, filename))
+        let mut data = AudioData::new(bytes);
+        if let Some(filename) = path.file_name().map(|s| s.to_string_lossy().into_owned()) {
+            data = data.with_filename(filename);
+        }
+        Ok(Self(data))
     }
 
     /// Borrow the encoded bytes.
@@ -280,8 +302,8 @@ impl MemoryBuffer<Audio> {
 }
 
 #[async_trait::async_trait]
-impl SourceAt<Audio> for MemoryBuffer<Audio> {
-    async fn source_at(&self, _location: &AudioLocation) -> Option<AudioData> {
+impl DataAt<Audio> for MemoryBuffer<Audio> {
+    async fn data_at(&self, _location: &AudioLocation) -> Option<AudioData> {
         // Audio locations are time spans; the full buffer is what
         // an anonymizer receives. Backends slice by time internally.
         Some(self.0.clone())
@@ -349,6 +371,25 @@ mod tests {
         assert!(format!("{err}").contains("overlaps"));
     }
 
+    #[tokio::test]
+    async fn text_redact_at_trait_applies_substituted_and_removed() {
+        let mut buf = MemoryBuffer::<Text>::from_text(
+            "alice@example.test and <drop me> and 4111111111111111",
+        );
+        let mut rs = Redactions::<Text>::new();
+        rs.push(
+            TextLocation::new(0, 18),
+            TextReplacement::substituted("[EMAIL]"),
+        );
+        rs.push(TextLocation::new(23, 32), TextReplacement::Removed);
+        rs.push(
+            TextLocation::new(37, 53),
+            TextReplacement::substituted("[CARD]"),
+        );
+        buf.redact_at(rs).await.unwrap();
+        assert_eq!(buf.as_str(), "[EMAIL] and  and [CARD]");
+    }
+
     #[test]
     fn image_from_bytes_records_dims() {
         let buf = MemoryBuffer::<Image>::from_bytes(vec![0u8; 10], Dimensions::new(8, 8));
@@ -360,6 +401,6 @@ mod tests {
     fn audio_from_bytes_records_filename() {
         let buf = MemoryBuffer::<Audio>::from_bytes(vec![0u8; 4], "sample.wav");
         assert_eq!(buf.bytes().len(), 4);
-        assert_eq!(buf.0.filename.as_str(), "sample.wav");
+        assert_eq!(buf.0.filename.as_deref(), Some("sample.wav"));
     }
 }

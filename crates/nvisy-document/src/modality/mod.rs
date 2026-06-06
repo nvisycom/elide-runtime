@@ -31,7 +31,6 @@ pub use nvisy_core::modality::{
     Audio, AudioExtraction, Image, ImageExtraction, Modality, Tabular, TabularExtraction, Text,
     TextExtraction,
 };
-pub use nvisy_toolkit::redaction::Redactable;
 use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -62,7 +61,7 @@ pub trait ModalityBlock {
     fn scan_text(&self) -> Option<&str>;
 }
 
-/// Document-shape extension of [`Modality`] + [`Redactable`].
+/// Document-shape extension of [`Modality`] + [`Codable`].
 ///
 /// Adds the document-level shape (block payload, document metadata,
 /// policy redaction enum) the document carrier and its phases need.
@@ -71,11 +70,11 @@ pub trait ModalityBlock {
 /// needs any document-level associated type bounds on
 /// `DocumentModality`.
 ///
-/// The [`Redactable`] super-trait carries `M::Replacement` (what an
-/// `Anonymizer<M>` writes at the entity's location). Folding it into
-/// `DocumentModality` lets every downstream site spell its bound as
-/// `M: DocumentModality` and inherit both axes automatically.
-pub trait DocumentModality: Modality + Redactable + Codable {
+/// The [`Codable`] super-trait carries the codec-side tag the
+/// pipeline needs to drive read/write through a handler. Folding it
+/// into `DocumentModality` lets every downstream site spell its bound
+/// as `M: DocumentModality` and inherit both axes automatically.
+pub trait DocumentModality: Modality + Codable {
     /// The modality's block payload. See [`TextBlock`], [`ImageBlock`],
     /// [`AudioBlock`], [`TabularBlock`].
     type Block: ModalityBlock + Clone + Debug + Send + Sync + 'static;

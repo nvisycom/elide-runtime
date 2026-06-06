@@ -20,8 +20,8 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_core::content::{Content, ContentData, ContentMetadata};
 use nvisy_document::phases::ingestion::registry::Registry;
+use nvisy_document::{Content, ContentData, ContentMetadata};
 
 use super::error::Result;
 use super::request::{ContentPath, NewFile, Pagination};

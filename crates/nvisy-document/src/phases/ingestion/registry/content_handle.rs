@@ -4,8 +4,8 @@ use std::fmt;
 
 use bytes::Bytes;
 use fjall::Keyspace;
+use nvisy_codec::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_core::Result;
-use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use uuid::Uuid;
 
 use super::composite_key::CompositeKey;

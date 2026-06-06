@@ -13,10 +13,10 @@
 
 use std::sync::Arc;
 
-use nvisy_core::modality::{Audio, Image, ModalityData, Text};
+use nvisy_core::modality::{Audio, Image, Modality, Text};
 use nvisy_core::{Error, Result};
 use nvisy_toolkit::redaction::builtin::{Hash, Keep, Mask, Redact, Replace};
-use nvisy_toolkit::redaction::{Anonymizer, Redactable, RedactionRegistry};
+use nvisy_toolkit::redaction::{Anonymizer, RedactionRegistry};
 
 use super::audio::AudioRedaction;
 use super::image::ImageRedaction;
@@ -29,7 +29,7 @@ const TARGET: &str = "nvisy_document::policy::redaction";
 /// enums in this module.
 ///
 /// [`Anonymizer<M>`]: nvisy_toolkit::redaction::Anonymizer
-pub trait Instantiate<M: Redactable + ModalityData> {
+pub trait Instantiate<M: Modality> {
     /// Resolve `self` to a runnable operator. Built-in arms
     /// construct a fresh instance; `Custom(id)` arms look up the
     /// operator in `registry`.
@@ -65,7 +65,7 @@ impl Instantiate<Text> for TextRedaction {
             }
             Self::Redact => Ok(Arc::new(Redact)),
             Self::Keep => Ok(Arc::new(Keep)),
-            Self::Custom { id } => registry.get(id).cloned().ok_or_else(|| {
+            Self::Custom { id } => registry.resolve_id(id).cloned().ok_or_else(|| {
                 Error::validation(
                     format!("custom text anonymizer `{id}` is not registered"),
                     TARGET,
@@ -81,7 +81,7 @@ impl Instantiate<Image> for ImageRedaction {
         registry: &RedactionRegistry<Image>,
     ) -> Result<Arc<dyn Anonymizer<Image>>> {
         match self {
-            Self::Custom { id } => registry.get(id).cloned().ok_or_else(|| {
+            Self::Custom { id } => registry.resolve_id(id).cloned().ok_or_else(|| {
                 Error::validation(
                     format!("custom image anonymizer `{id}` is not registered"),
                     TARGET,
@@ -97,7 +97,7 @@ impl Instantiate<Audio> for AudioRedaction {
         registry: &RedactionRegistry<Audio>,
     ) -> Result<Arc<dyn Anonymizer<Audio>>> {
         match self {
-            Self::Custom { id } => registry.get(id).cloned().ok_or_else(|| {
+            Self::Custom { id } => registry.resolve_id(id).cloned().ok_or_else(|| {
                 Error::validation(
                     format!("custom audio anonymizer `{id}` is not registered"),
                     TARGET,

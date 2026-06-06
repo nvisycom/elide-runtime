@@ -13,7 +13,6 @@ use std::fmt;
 use std::sync::Arc;
 
 use nvisy_codec::CodecRegistry;
-use nvisy_formats::CodecRegistryExt;
 use uuid::Uuid;
 
 use super::PolicyStore;
@@ -37,7 +36,7 @@ pub struct SharedData {
     /// to decode raw bytes into a typed [`DocumentHandle<M>`].
     ///
     /// Built once at engine construction with
-    /// [`CodecRegistry::builtins`] so every importer in the run
+    /// [`CodecRegistry::with_builtin`] so every importer in the run
     /// shares the same set of registered formats.
     ///
     /// [`DocumentHandle<M>`]: nvisy_codec::DocumentHandle
@@ -56,7 +55,7 @@ impl SharedData {
             actor_id,
             policies: PolicyStore::new(),
             registry,
-            codec_registry: CodecRegistry::builtins(),
+            codec_registry: CodecRegistry::with_builtin(),
             key_provider: SharedKeyProvider::default(),
         })
     }

@@ -9,16 +9,15 @@
 
 use std::collections::HashMap;
 
+use nvisy_codec::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
-use nvisy_core::ValueAt;
-use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
+use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep, TrailStepKind};
 use nvisy_core::modality::Text;
 use nvisy_core::primitive::{Confidence, ConfidenceThreshold};
 use nvisy_document::core::DocumentTree;
 use nvisy_document::document::Document;
 use nvisy_document::modality::{TextExtraction, TextMetadata};
-use nvisy_formats::CodecRegistryExt;
 use nvisy_toolkit::deduplication::{
     DeduplicationParams, DeduplicationStrategy, FilterParams, FuseLayer, GroupingCriteria, Layer,
     LayerContext, LayerPipeline,
@@ -41,7 +40,7 @@ fn ner_step(confidence: Confidence) -> TrailStep {
 const TEXT: &str = "John Smith";
 
 async fn tree_from(text: &str) -> DocumentTree<Text> {
-    let registry = CodecRegistry::builtins();
+    let registry = CodecRegistry::with_builtin();
     let format = registry.by_extension("txt").expect("txt codec registered");
     let data = ContentData::new(ContentSource::new(), text.as_bytes().to_vec().into());
     let untyped = format.loader.decode(data).await.expect("decode");
@@ -91,7 +90,7 @@ async fn confidence_threshold_filters() {
     let ctx = LayerContext::new(&tree).with_correlation_id(Uuid::nil());
     let result = pipeline.run(entities, &ctx).await;
     assert_eq!(result.len(), 1);
-    let value = tree.value_at(&result[0].location).await;
+    let value = tree.text_at(&result[0].location).await;
     assert_eq!(value.as_deref(), Some("John"));
 }
 
@@ -162,7 +161,7 @@ async fn narrowing_groups_substring_with_overlap() {
     )
     .await;
     assert_eq!(entities.len(), 1);
-    let value = tree.value_at(&entities[0].location).await;
+    let value = tree.text_at(&entities[0].location).await;
     assert_eq!(value.as_deref(), Some("John Smith"));
 }
 

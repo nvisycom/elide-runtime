@@ -2,8 +2,8 @@
 
 [package]
 name = "nvisy-codec"
-description = "Modality-keyed traits and infrastructure for document handlers in the Nvisy multimodal redaction platform"
-keywords = ["nvisy", "codec", "traits", "redaction"]
+description = "Codec traits + format implementations (TXT, JSON, HTML, CSV, XLSX, PNG, JPEG, TIFF, WAV, MP3, PDF, DOCX) for the Nvisy multimodal redaction platform"
+keywords = ["nvisy", "codec", "loader", "pdf", "redaction"]
 categories = ["parser-implementations", "encoding"]
 readme = "README.md"
 
@@ -21,16 +21,68 @@ documentation = { workspace = true }
 [features]
 default = ["text", "tabular"]
 
-## Text modality wire types: TextData, TextOutput, TextRedaction.
-text = []
-## Tabular modality wire types: TabularRedaction.
-## Pulls in text infra for TextData (cell values are textual).
-tabular = ["text"]
-## Image modality wire types: ImageData, ImageOutput, ImageRedaction.
-## Pulls the `image` crate for `DynamicImage`.
-image = ["dep:image"]
-## Audio modality wire types: AudioData, AudioOutput, AudioRedaction.
-audio = []
+## Plain-text (`.txt`, `.log`) loader and handler.
+txt = ["internal_text"]
+## JSON loader and handler.
+json = ["internal_text"]
+## Markdown loader.
+markdown = ["internal_text"]
+## HTML loader and handler via `scraper`.
+html = ["internal_text", "dep:scraper"]
+## CSV loader and handler via the `csv` crate. Tabular cells reuse the
+## text redact helper, so this pulls `internal_text`.
+csv = ["internal_tabular", "internal_text", "dep:csv"]
+## Excel (`.xlsx`) loader and handler. Pulls `internal_text` for the
+## same reason as `csv`. The handler is a stub today (decode returns
+## empty); a parser dep will be wired back in when real extraction
+## lands.
+xlsx = ["internal_tabular", "internal_text"]
+## PNG loader and handler.
+png = ["internal_image"]
+## JPEG loader and handler.
+jpeg = ["internal_image"]
+## TIFF loader and handler.
+tiff = ["internal_image"]
+## WAV audio loader and handler via `hound` (read + write).
+wav = ["internal_audio", "dep:hound"]
+## MP3 audio loader and handler (read-only — no pure-Rust encoder).
+mp3 = ["internal_audio"]
+## PDF loader, handler, and page-to-image rendering via `lopdf` +
+## `pdfium-render`. Pulls `internal_text` (page-text redact) +
+## `internal_image` (PngHandler for rendered pages + extracted
+## figures) + `png` (the concrete image format wrapping rendered
+## pages).
+pdf = ["internal_rich", "internal_text", "internal_image", "png", "dep:lopdf", "dep:pdfium-render", "dep:rayon"]
+## DOCX loader. Pulls `internal_text` only — DOCX text extraction is
+## stubbed today, no image rendering needed. Parser deps (`zip` +
+## `quick-xml`) will be wired back in when real extraction lands.
+docx = ["internal_rich", "internal_text"]
+
+## All text formats: `txt` + `json` + `markdown` + `html`.
+text = ["txt", "json", "markdown", "html"]
+## All tabular formats: `csv` + `xlsx`.
+tabular = ["csv", "xlsx"]
+## All image formats: `png` + `jpeg` + `tiff`.
+image = ["png", "jpeg", "tiff"]
+## All audio formats: `wav` + `mp3`.
+audio = ["wav", "mp3"]
+## All rich-document formats: `pdf` + `docx`.
+rich = ["pdf", "docx"]
+
+## In-memory decode helpers for tests in this and downstream crates.
+## Re-exported as `nvisy_codec::test_utils`.
+test-utils = []
+
+# Internal helpers — set automatically by any format feature above.
+# Library code uses `#[cfg(feature = "internal_text")]` to mean
+# "any text format is enabled", the right gate for shared
+# infrastructure like the modality's `impl Codable` block and
+# top-level `crate::text` module.
+internal_text = []
+internal_tabular = []
+internal_image = []
+internal_audio = []
+internal_rich = []
 
 [package.metadata.docs.rs]
 all-features = true
@@ -40,28 +92,41 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Async runtime and parallelism
+# Async runtime
 async-trait = { workspace = true, features = [] }
-futures = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["sync"] }
 
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
-schemars = { workspace = true, features = [] }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
-hipstr = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["as_ref", "deref"] }
+hex = { workspace = true, features = [] }
+infer = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
+sha2 = { workspace = true, features = [] }
 
-# Derive macros and error handling
-derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "into", "into_iterator"] }
-thiserror = { workspace = true, features = [] }
+# Image processing — pulled in unconditionally because the image
+# handler structs reference `image::DynamicImage` directly. The
+# workspace dep already enables png/jpeg/tiff decoders. `imageproc`
+# powers the per-region gaussian blur in `image::redact`.
+image = { workspace = true, features = [] }
+imageproc = { workspace = true, features = [] }
 
-# Image processing (feature-gated) — `DynamicImage` is referenced by
-# the image handler's wire types; the per-region pixel ops live in
-# `nvisy-formats` and pull `imageproc` themselves.
-image = { workspace = true, optional = true, features = [] }
+# Audio processing (feature-gated)
+hound = { workspace = true, optional = true, features = [] }
+
+# PDF processing (feature-gated)
+lopdf = { workspace = true, optional = true, features = [] }
+pdfium-render = { workspace = true, optional = true, features = [] }
+rayon = { workspace = true, optional = true, features = [] }
+
+# Document parsing (feature-gated)
+csv = { workspace = true, optional = true, features = [] }
+scraper = { workspace = true, optional = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

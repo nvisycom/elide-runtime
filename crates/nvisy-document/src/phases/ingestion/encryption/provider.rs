@@ -5,9 +5,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
 use nvisy_core::{Error, Result};
-
 /// Abstraction for resolving encryption keys by identifier.
 pub trait KeyProvider: Send + Sync {
     /// Returns the raw key bytes for the given `key_id`, or an error if unknown.
@@ -82,14 +82,12 @@ impl StaticKeyProvider {
                     "StaticKeyProvider::from_json",
                 )
             })?;
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(encoded)
-                .map_err(|e| {
-                    Error::validation(
-                        format!("key \"{id}\" is not valid base64: {e}"),
-                        "StaticKeyProvider::from_json",
-                    )
-                })?;
+            let bytes = BASE64.decode(encoded).map_err(|e| {
+                Error::validation(
+                    format!("key \"{id}\" is not valid base64: {e}"),
+                    "StaticKeyProvider::from_json",
+                )
+            })?;
             keys.insert(id.clone(), Bytes::from(bytes));
         }
 

@@ -21,7 +21,7 @@
 //! [`Check`]: super::Check
 //! [`CheckPipeline`]: super::CheckPipeline
 
-use nvisy_core::TextAt;
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Tabular, Text};
 use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;

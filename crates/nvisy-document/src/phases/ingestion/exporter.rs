@@ -19,7 +19,7 @@ use crate::phases::ingestion::compression::CompressionService;
 use crate::phases::ingestion::encryption::CryptoService;
 use crate::phases::ingestion::{CompressionAlgorithm, EncryptionConfig};
 
-const TARGET: &str = "nvisy_engine::op::export_file";
+const TARGET: &str = "nvisy_document::op::export_file";
 
 /// Exports processed content, optionally applying encryption and
 /// compression afterward.

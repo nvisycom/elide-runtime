@@ -2,10 +2,10 @@
 //!
 //! Toolkit owns the registry side of detection — typed lists of
 //! `Arc<dyn EntityRecognizer<M>>` per modality. The trait the registry
-//! holds ([`nvisy_core::EntityRecognizer`]) lives in `nvisy-core` so
-//! backend crates can implement it without depending on toolkit. Each
-//! backend crate is re-exported here under its own submodule so a
-//! consumer that wants the shipped recognizers only needs to depend on
+//! holds ([`EntityRecognizer`]) lives in `nvisy-core` so backend crates
+//! can implement it without depending on toolkit. Each backend crate
+//! is re-exported here under its own submodule so a consumer that
+//! wants the shipped recognizers only needs to depend on
 //! `nvisy-toolkit`.
 //!
 //! Three backend submodules ship today:
@@ -20,12 +20,14 @@
 //! `pipeline::config::detection` — they're the glue that turns config
 //! into concrete `Arc<dyn EntityRecognizer<M>>` instances that get
 //! inserted into [`RecognizerRegistry`].
+//!
+//! [`EntityRecognizer`]: nvisy_core::recognition::EntityRecognizer
 
 pub mod agent;
 pub mod ner;
 pub mod pattern;
 mod registry;
 
-pub use nvisy_core::EntityRecognizer;
+pub use nvisy_core::recognition::EntityRecognizer;
 
 pub use self::registry::RecognizerRegistry;

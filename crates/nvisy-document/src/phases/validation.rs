@@ -20,7 +20,7 @@ use crate::core::{DocumentTree, RunContext};
 use crate::pipeline::EngineInput;
 use crate::validation::{CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity};
 
-const TARGET: &str = "nvisy_engine::validation";
+const TARGET: &str = "nvisy_document::validation";
 
 /// Validation phase orchestrator.
 pub struct ValidationPhase;

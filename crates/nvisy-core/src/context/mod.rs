@@ -26,7 +26,7 @@
 //! contexts for NER (`NerRecognizer.default_context` in
 //! `nvisy-ner`) plug into the same registry.
 //!
-//! [`EntityRecognizer<Text>`]: crate::EntityRecognizer
+//! [`EntityRecognizer<Text>`]: crate::recognition::EntityRecognizer
 
 mod declaration;
 mod enhancer;

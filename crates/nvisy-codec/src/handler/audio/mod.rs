@@ -6,11 +6,11 @@
 //! [`sort_redactions_for_audio`] so spans are applied right-to-left
 //! (an [`AudioReplacement::Remove`] shrinks the buffer and shifts
 //! every later sample index; right-to-left order keeps earlier
-//! indices valid). Replacements use
-//! [`nvisy_core::redaction::AudioReplacement`].
+//! indices valid). Replacements use [`AudioReplacement`].
 //!
-//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+//! [`AudioReplacement`]: nvisy_core::redaction::AudioReplacement
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
+//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
 
 use std::cmp::Reverse;
 

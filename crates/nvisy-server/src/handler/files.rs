@@ -16,7 +16,7 @@
 use std::path::PathBuf;
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::{get_with, post_with};
+use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
@@ -217,10 +217,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             post_with(upload_file, upload_file_docs)
                 .delete_with(delete_all_files, delete_all_files_docs),
         )
-        .api_route(
-            "/files/{id}",
-            aide::axum::routing::delete_with(delete_file, delete_file_docs),
-        )
+        .api_route("/files/{id}", delete_with(delete_file, delete_file_docs))
         .with_timeout(DEFAULT_WRITE_TIMEOUT);
 
     read_routes.merge(write_routes)

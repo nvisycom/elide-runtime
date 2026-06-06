@@ -102,7 +102,7 @@ impl Token {
 /// The owning token sequence carried by a
 /// [`RecognizerInput::artifacts`] bundle.
 ///
-/// [`RecognizerInput::artifacts`]: crate::RecognizerInput::artifacts
+/// [`RecognizerInput::artifacts`]: crate::recognition::RecognizerInput::artifacts
 ///
 /// Tokens are sorted by `offset.start` (producers should emit them
 /// in order; consumer-side code assumes this). The collection

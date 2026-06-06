@@ -1,13 +1,13 @@
 //! Provider dispatch for speech-to-text models.
 
-#[cfg(feature = "openai-whisper")]
-use nvisy_core::http::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-whisper")]
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
+#[cfg(feature = "openai-whisper")]
+use crate::http::{HttpConfig, build_http_client};
 #[cfg(feature = "openai-whisper")]
 use crate::provider::AuthenticatedProvider;
 use crate::provider::UnauthenticatedProvider;

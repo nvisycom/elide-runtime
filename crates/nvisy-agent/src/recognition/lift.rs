@@ -14,7 +14,7 @@
 use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Image, ImageLocation, Text, TextLocation};
 use nvisy_core::primitive::Confidence;
-use nvisy_core::{LabelMap, RecognizerInput};
+use nvisy_core::recognition::{LabelMap, RecognizerInput};
 
 use super::candidates::{TextCandidate, VlmCandidate};
 use super::localize::{UnresolvedCandidatePolicy, localize_all};

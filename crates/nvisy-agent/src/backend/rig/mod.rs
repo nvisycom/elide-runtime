@@ -14,7 +14,6 @@ mod usage;
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use nvisy_core::http::{HttpConfig, build_http_client};
 use nvisy_core::{Error as CoreError, Result};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
@@ -28,6 +27,7 @@ use self::inner::{RigInner, dispatch};
 pub use self::usage::{UsageStats, UsageTracker};
 use super::{LlmBackend, LlmRequest, LlmResponse};
 use crate::error::Error;
+use crate::http::{HttpConfig, build_http_client};
 use crate::provider::LlmProvider;
 
 const TARGET: &str = "nvisy_agent::backend::rig";

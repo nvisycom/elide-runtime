@@ -14,7 +14,9 @@
 //! [`with_source`], [`with_component`], [`with_retryable`]. Read
 //! state back via the accessors ([`kind`], [`message`], [`component`],
 //! [`is_retryable`]); the underlying cause is reachable through the
-//! standard [`std::error::Error::source`] method.
+//! standard [`Error::source`] method.
+//!
+//! [`Error::source`]: std::error::Error::source
 //!
 //! [`with_source`]: Error::with_source
 //! [`with_component`]: Error::with_component
@@ -76,7 +78,7 @@ pub enum ErrorKind {
 /// Carries a [`kind`], a human-readable [`message`], an optional
 /// [`component`] tag identifying the producer (e.g. `"detection"`,
 /// `"registry"`), an [`is_retryable`] flag, and an optional wrapped
-/// source error reachable through [`std::error::Error::source`].
+/// source error reachable through [`Error::source`].
 ///
 /// Fields are private; construct with [`Error::new`] or a per-kind
 /// shorthand, then layer context via [`with_source`], [`with_component`],
@@ -89,6 +91,7 @@ pub enum ErrorKind {
 /// [`with_source`]: Self::with_source
 /// [`with_component`]: Self::with_component
 /// [`with_retryable`]: Self::with_retryable
+/// [`Error::source`]: std::error::Error::source
 #[derive(Debug, thiserror::Error)]
 #[error("{kind}: {message}")]
 pub struct Error {
@@ -117,7 +120,9 @@ impl Error {
     }
 
     /// Attach an underlying cause to this error. Reachable downstream
-    /// via [`std::error::Error::source`].
+    /// via [`Error::source`].
+    ///
+    /// [`Error::source`]: std::error::Error::source
     pub fn with_source(mut self, source: impl error::Error + Send + Sync + 'static) -> Self {
         self.source = Some(Box::new(source));
         self

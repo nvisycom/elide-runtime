@@ -4,11 +4,12 @@
 //! widening the call surface for new entry types.
 //!
 //! Keyed by Rust type, so each entry is a distinct typed slot.
-//! Backed by [`type_map::concurrent::TypeMap`] today; the newtype
-//! exists so consumer code never names the underlying crate and we
-//! can swap representations later without churn.
+//! Backed by [`TypeMap`] today; the newtype exists so consumer code
+//! never names the underlying crate and we can swap representations
+//! later without churn.
 //!
 //! [`Span<M>`]: crate::extraction::Span
+//! [`TypeMap`]: type_map::concurrent::TypeMap
 
 use std::fmt;
 

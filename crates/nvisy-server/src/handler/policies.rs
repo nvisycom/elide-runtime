@@ -14,7 +14,7 @@
 //! by the version module.
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::{get_with, post_with};
+use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
@@ -170,7 +170,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
         )
         .api_route(
             "/policies/{id}",
-            aide::axum::routing::delete_with(delete_policy, delete_policy_docs),
+            delete_with(delete_policy, delete_policy_docs),
         )
         .with_timeout(DEFAULT_WRITE_TIMEOUT);
 

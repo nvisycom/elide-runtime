@@ -10,10 +10,11 @@
 //! service.
 //!
 //! Once the wire types are pinned, this file mirrors
-//! [`crate::backend::bento_types`] the same way `nvisy-ner`'s
-//! `BentoBackend` mirrors `nvisy_core.ner.v1`.
+//! [`bento_types`] the same way `nvisy-ner`'s `BentoBackend`
+//! mirrors `nvisy_core.ner.v1`.
 //!
 //! [`Backend`]: crate::core::Backend
+//! [`bento_types`]: crate::backend::bento_types
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 //! [#128]: https://github.com/nvisycom/runtime/issues/128
 

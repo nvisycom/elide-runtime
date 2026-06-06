@@ -9,9 +9,9 @@
 //!
 //! # Layering
 //!
-//! - [`crate::Modality`] extends [`crate::modality::Modality`]
-//!   with an associated `Data` type — the modality-specific payload
-//!   (text bytes, image bytes + dims, …) recognizers actually scan.
+//! - [`Modality`] extends [`Modality`] with an associated `Data`
+//!   type — the modality-specific payload (text bytes, image bytes +
+//!   dims, …) recognizers actually scan.
 //! - [`RecognizerInput<M>`] carries the payload plus the per-call
 //!   concerns recognizers use ([`Artifacts`], language hints,
 //!   candidate-language whitelist, uploader-supplied [`Hint<M>`]
@@ -24,6 +24,7 @@
 //!
 //! [`Artifacts`]: crate::extraction::Artifacts
 //! [`Entity<M>`]: crate::entity::Entity
+//! [`Modality`]: crate::modality::Modality
 //! [`Span<M>`]: crate::extraction::Span
 
 mod hint;

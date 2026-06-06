@@ -6,8 +6,8 @@
 //! attribute them.
 
 use async_trait::async_trait;
-use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
 use nvisy_core::primitive::ConfidenceThreshold;
 

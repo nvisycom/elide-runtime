@@ -9,7 +9,7 @@
 //! [`EntityRecognizer<M>`] directly.
 //!
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
-//! [`EntityRecognizer<M>`]: nvisy_core::EntityRecognizer
+//! [`EntityRecognizer<M>`]: nvisy_core::recognition::EntityRecognizer
 
 mod ner;
 mod pattern;

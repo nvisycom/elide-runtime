@@ -20,7 +20,7 @@
 //! [`Detection::entity_kinds`]: crate::detection::Detection::entity_kinds
 //! [`add_text_recognizer`]: RecognizerRegistry::add_text_recognizer
 //! [`add_image_recognizer`]: RecognizerRegistry::add_image_recognizer
-//! [`RecognizerInput`]: nvisy_core::RecognizerInput
+//! [`RecognizerInput`]: nvisy_core::recognition::RecognizerInput
 //! [`Document`]: nvisy_document::document::Document
 //! [`DetectionConfig`]: crate::detection::DetectionConfig
 
@@ -29,7 +29,8 @@ use std::sync::Arc;
 
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Image, Modality, Text};
-use nvisy_core::{EntityRecognizer, Error, RecognizerInput, RecognizerOutput, Result};
+use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
+use nvisy_core::{Error, Result};
 use tokio::task::JoinSet;
 use tracing::Instrument;
 

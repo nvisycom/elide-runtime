@@ -19,7 +19,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Image, Text};
-use nvisy_core::{LabelMap, RecognizerInput};
+use nvisy_core::recognition::{LabelMap, RecognizerInput};
 use schemars::Schema;
 
 use super::candidates::{TextCandidates, VlmCandidates};

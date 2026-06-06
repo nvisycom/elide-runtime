@@ -13,7 +13,8 @@
 //! [`LlmRecognizerBuilder::with_prompt`]: super::LlmRecognizerBuilder::with_prompt
 
 use nvisy_core::entity::Entity;
-use nvisy_core::{Modality, RecognizerInput};
+use nvisy_core::modality::Modality;
+use nvisy_core::recognition::RecognizerInput;
 
 use crate::backend::LlmResponse;
 
@@ -46,6 +47,6 @@ where
     /// Parse the response text into entities. The recognizer wraps
     /// these into a [`RecognizerOutput`].
     ///
-    /// [`RecognizerOutput`]: nvisy_core::RecognizerOutput
+    /// [`RecognizerOutput`]: nvisy_core::recognition::RecognizerOutput
     fn lift(&self, response: &LlmResponse, input: &RecognizerInput<M>) -> Vec<Entity<M>>;
 }

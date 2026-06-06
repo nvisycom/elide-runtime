@@ -7,9 +7,9 @@
 mod provider;
 
 use nvisy_core::entity::ModelProvenance;
-use nvisy_core::extraction::{ExtractorOutput, Span};
+use nvisy_core::extraction::{Extractor, ExtractorOutput, Span};
 use nvisy_core::modality::{Audio, AudioExtraction};
-use nvisy_core::{Error, Extractor, Result};
+use nvisy_core::{Error, Result};
 #[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
 use schemars::JsonSchema;

@@ -1,7 +1,7 @@
 //! Hash key for the first grouping phase of deduplication.
 
-use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
 
 use super::group::GroupingCriteria;

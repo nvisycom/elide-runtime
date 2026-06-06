@@ -35,12 +35,12 @@ pub mod phase;
 mod registries;
 
 use nvisy_codec::content::ContentMetadata;
+use nvisy_core::Result;
 use nvisy_core::entity::is_excluded;
-use nvisy_core::extraction::DataAt;
+use nvisy_core::extraction::{DataAt, TextAt};
 use nvisy_core::modality::Overlap;
 use nvisy_core::primitive::ConfidenceThreshold;
 use nvisy_core::redaction::{RedactAt, Redactions};
-use nvisy_core::{Result, TextAt};
 use nvisy_toolkit::redaction::RedactionRegistry;
 
 pub use self::registries::RedactionRegistries;
@@ -50,7 +50,7 @@ use crate::policy::Action;
 use crate::policy::redaction::Instantiate;
 use crate::provenance::{AuditEntry, Decision as AuditDecision, EntryMetadata, Execution};
 
-pub(crate) const TARGET: &str = "nvisy_engine::redaction";
+pub(crate) const TARGET: &str = "nvisy_document::redaction";
 
 /// Body of the redaction phase, parameterised on the resolved
 /// `default_threshold`. Crate-visible so both the phase orchestrator

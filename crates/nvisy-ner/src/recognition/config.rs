@@ -15,9 +15,9 @@
 use std::collections::HashSet;
 
 use derive_builder::Builder;
-use nvisy_core::LabelMap;
 use nvisy_core::entity::EntityKind;
 use nvisy_core::primitive::Confidence;
+use nvisy_core::recognition::LabelMap;
 
 use super::aggregation::{AggregationStrategy, AlignmentMode};
 

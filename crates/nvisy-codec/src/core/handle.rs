@@ -144,7 +144,7 @@ pub trait IndexedHandle<M: Codable>: Handle<M> {
     /// [`Handle::next_chunk`] which returns `(location, data)`
     /// together.
     ///
-    /// [`TextAt`]: nvisy_core::TextAt
+    /// [`TextAt`]: nvisy_core::extraction::TextAt
     async fn read(&self, location: &M::Location) -> Result<Option<M::Data>, Error>;
 
     /// Apply a batch of `(location, replacement)` pairs in whatever

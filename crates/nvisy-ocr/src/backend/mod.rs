@@ -13,9 +13,10 @@
 //! concern — `nvisy-ocr` itself doesn't enumerate "all backends" in a
 //! closed enum. The pipeline layer (`nvisy-document`) hosts the
 //! TOML-deserialisable selector and hands the chosen [`Backend`] to
-//! [`crate::Extractor::new`].
+//! [`Extractor::new`].
 //!
 //! [`Backend`]: crate::core::Backend
+//! [`Extractor::new`]: crate::Extractor::new
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 //! [#128]: https://github.com/nvisycom/runtime/issues/128
 

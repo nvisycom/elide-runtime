@@ -8,14 +8,14 @@
 //! recognizer uses.
 //!
 //! [`NerBackend`]: crate::backend::NerBackend
-//! [`EntityRecognizer<Text>`]: nvisy_core::EntityRecognizer
+//! [`EntityRecognizer<Text>`]: nvisy_core::recognition::EntityRecognizer
 //! [`Text`]: nvisy_core::modality::Text
 
 mod aggregation;
 mod config;
 mod recognizer;
 
-pub use nvisy_core::LabelMap;
+pub use nvisy_core::recognition::LabelMap;
 
 pub use self::config::{NerModel, NerModelBuilder};
 pub use self::recognizer::{NerRecognizer, NerRecognizerBuilder};

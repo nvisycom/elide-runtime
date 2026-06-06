@@ -14,8 +14,7 @@ use nvisy_agent::{FilePrompt, Prompt};
 use nvisy_core::entity::EntityKind;
 use nvisy_core::modality::{ImageData, ImageLocation, TextData, TextLocation};
 use nvisy_core::primitive::{BoundingBox, Dimensions};
-use nvisy_core::{Hint, RecognizerInput};
-
+use nvisy_core::recognition::{Hint, RecognizerInput};
 const NER_TOML: &str = include_str!("../testdata/prompts/ner.toml");
 const VLM_TOML: &str = include_str!("../testdata/prompts/vlm.toml");
 

@@ -46,9 +46,10 @@ pub use self::resolve::{ConflictResolution, ResolveConflictsLayer};
 pub use self::span_size::SpanSize;
 
 #[cfg(test)]
-pub(crate) fn test_resolver<M: nvisy_core::modality::Modality>() -> Box<dyn nvisy_core::TextAt<M>> {
+pub(crate) fn test_resolver<M: nvisy_core::modality::Modality>()
+-> Box<dyn nvisy_core::extraction::TextAt<M>> {
     use async_trait::async_trait;
-    use nvisy_core::TextAt;
+    use nvisy_core::extraction::TextAt;
     use nvisy_core::modality::Modality;
 
     struct Noop<M>(std::marker::PhantomData<M>);

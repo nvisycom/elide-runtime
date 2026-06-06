@@ -19,7 +19,7 @@ use crate::phases::redaction::registries::RedactionRegistries;
 use crate::phases::redaction::run_redaction;
 use crate::pipeline::{EngineInput, RedactionConfig};
 
-const TARGET: &str = "nvisy_engine::redaction";
+const TARGET: &str = "nvisy_document::redaction";
 
 /// Redaction phase orchestrator. Holds a [`RedactionConfig`] for the
 /// deployment-wide defaults and one [`RedactionRegistry<M>`] per

@@ -2,8 +2,9 @@
 //! format implementations (PNG, JPEG, TIFF) and pixel-decode helpers.
 //!
 //! Replacements written during [`IndexedHandle::redact`] use
-//! [`nvisy_core::redaction::ImageReplacement`].
+//! [`ImageReplacement`].
 //!
+//! [`ImageReplacement`]: nvisy_core::redaction::ImageReplacement
 //! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
 
 use nvisy_core::modality::{Image, ModalityKind};

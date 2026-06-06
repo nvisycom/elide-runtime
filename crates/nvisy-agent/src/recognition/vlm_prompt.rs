@@ -4,8 +4,8 @@
 //! [`DefaultPrompt`]: super::DefaultPrompt
 //! [`Prompt<Image>`]: super::Prompt
 
-use nvisy_core::Hint;
 use nvisy_core::modality::Image;
+use nvisy_core::recognition::Hint;
 
 /// Builds user prompts for the VLM detect pass.
 pub(super) struct VlmPromptBuilder<'a> {

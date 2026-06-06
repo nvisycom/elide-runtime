@@ -13,9 +13,10 @@ use nvisy_toolkit::redaction::RedactionRegistry;
 
 /// Per-modality bundle of [`RedactionRegistry<M>`] instances. Built
 /// once at engine startup (deployment code registers custom
-/// operators) and shared with each [`super::phase::RedactionPhase`].
+/// operators) and shared with each [`RedactionPhase`].
 ///
 /// [`RedactionRegistry<M>`]: nvisy_toolkit::redaction::RedactionRegistry
+/// [`RedactionPhase`]: super::phase::RedactionPhase
 #[derive(Clone, Default, Debug)]
 pub struct RedactionRegistries {
     /// Custom text-modality operators.

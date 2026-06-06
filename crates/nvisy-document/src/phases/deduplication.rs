@@ -9,9 +9,10 @@
 
 use std::mem;
 
+use nvisy_core::Result;
 use nvisy_core::entity::Entity;
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Audio, Image, Overlap, Tabular, Text};
-use nvisy_core::{Result, TextAt};
 use nvisy_toolkit::deduplication::{FilterParams, LayerContext, LayerPipeline, SpanSize};
 use tracing::Instrument;
 use uuid::Uuid;
@@ -21,7 +22,7 @@ use crate::modality::DocumentModality;
 use crate::pipeline::{DeduplicationParams, Detection, EngineInput};
 use crate::provenance::EntityRecord;
 
-const TARGET: &str = "nvisy_engine::deduplication";
+const TARGET: &str = "nvisy_document::deduplication";
 
 /// Deduplication phase orchestrator.
 ///

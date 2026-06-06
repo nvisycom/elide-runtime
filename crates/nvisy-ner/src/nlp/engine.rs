@@ -10,9 +10,9 @@
 //!
 //! [`LanguageDetections`]: nvisy_core::primitive::LanguageDetections
 //! [`Tokens`]: nvisy_core::context::Tokens
-//! [`Artifacts`]: nvisy_core::Artifacts
-//! [`RecognizerInput`]: nvisy_core::RecognizerInput
-//! [`RecognizerInput::with_artifacts`]: nvisy_core::RecognizerInput::with_artifacts
+//! [`Artifacts`]: nvisy_core::extraction::Artifacts
+//! [`RecognizerInput`]: nvisy_core::recognition::RecognizerInput
+//! [`RecognizerInput::with_artifacts`]: nvisy_core::recognition::RecognizerInput::with_artifacts
 //!
 //! Pluggable so different deployment shapes (pure language
 //! detection, hosted full-NLP service, future in-process model) can

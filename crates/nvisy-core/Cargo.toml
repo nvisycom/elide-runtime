@@ -28,22 +28,11 @@ default = []
 ## Test utilities (Entity::new_test, fixture helpers, …).
 test-utils = []
 
-# Shared HTTP client (reqwest + retry + tracing middleware), exposed
-# under `nvisy_core::http`. Enabled by any crate that makes outbound
-# HTTP calls (LLM agents, OCR providers, ...).
-http = [
-    "dep:reqwest-middleware",
-    "dep:reqwest-retry",
-    "dep:reqwest-tracing",
-    "dep:humantime-serde",
-]
-
 [dependencies]
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
-humantime-serde = { workspace = true, features = [], optional = true }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
@@ -62,13 +51,5 @@ strum = { workspace = true, features = [] }
 # Async trait sugar (object-safe async methods)
 async-trait = { workspace = true, features = [] }
 
-# HTTP client (optional; enabled by the `http` feature)
-reqwest-middleware = { workspace = true, features = [], optional = true }
-reqwest-retry = { workspace = true, features = [], optional = true }
-reqwest-tracing = { workspace = true, features = [], optional = true }
-
 # Observability
 tracing = { workspace = true, features = [] }
-
-[package.metadata.cargo-machete]
-ignored = ["humantime-serde"]

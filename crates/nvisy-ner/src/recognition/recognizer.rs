@@ -22,7 +22,8 @@ use derive_builder::Builder;
 use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::Confidence;
-use nvisy_core::{EntityRecognizer, Error, RecognizerInput, RecognizerOutput, Result};
+use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
+use nvisy_core::{Error, Result};
 
 use super::config::NerModel;
 use crate::backend::{NerBackend, NerRequest, RawNerSpan};
@@ -163,7 +164,7 @@ impl EntityRecognizer<Text> for NerRecognizer {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::TextData;
+    use nvisy_core::modality::TextData;
 
     use super::*;
     use crate::backend::NoopBackend;

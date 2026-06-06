@@ -11,10 +11,13 @@
 //!   (toolkit's `MemoryBuffer`, document's `DocumentTree`).
 //!
 //! The producer-side anonymizer trait (and its built-ins) lives in
-//! `nvisy-toolkit`; the read-side siblings [`crate::extraction::TextAt`]
-//! / [`crate::extraction::DataAt`] live in [`crate::extraction`].
+//! `nvisy-toolkit`; the read-side siblings [`TextAt`] / [`DataAt`]
+//! live in [`extraction`].
 //!
+//! [`DataAt`]: crate::extraction::DataAt
+//! [`extraction`]: crate::extraction
 //! [`Modality::Replacement`]: crate::modality::Modality::Replacement
+//! [`TextAt`]: crate::extraction::TextAt
 
 mod redact_at;
 mod redactions;

@@ -88,7 +88,8 @@ impl ExtractionConfig {
 
         #[cfg(feature = "audio")]
         if let Some(stt_cfg) = self.stt.as_ref().filter(|c| c.enabled) {
-            use nvisy_stt::{NoopBackend, SttExtractor};
+            use nvisy_stt::SttExtractor;
+            use nvisy_stt::backend::NoopBackend;
             reg = match &stt_cfg.backend {
                 SttBackend::Noop => reg.with_audio_extractor(SttExtractor::new(NoopBackend)),
             };

@@ -3,9 +3,6 @@
 #![doc = include_str!("../README.md")]
 
 pub mod backend;
-pub mod extraction;
+mod extraction;
 
-pub use self::backend::{
-    NoopBackend, SttBackend, SttRequest, SttResponse, TranscribedSegment, TranscribedWord,
-};
 pub use self::extraction::{SttExtractor, Transcription};

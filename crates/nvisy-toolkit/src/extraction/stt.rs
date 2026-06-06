@@ -3,7 +3,8 @@
 //!
 //! A consumer that wants the shipped STT backends only needs the
 //! `nvisy-toolkit` dep — `nvisy_toolkit::extraction::stt::SttExtractor`,
-//! `nvisy_toolkit::extraction::stt::NoopBackend`, etc. are all
-//! reachable here.
+//! `nvisy_toolkit::extraction::stt::backend::NoopBackend`, etc. are
+//! all reachable here.
 
 pub use nvisy_stt::*;
+pub use nvisy_stt::backend;

@@ -27,7 +27,7 @@ pub struct SttExtractorConfig {
 /// future hosted backends (Whisper, Deepgram, AssemblyAI) plug in here
 /// as additional variants.
 ///
-/// [`Backend`]: nvisy_stt::SttBackend
+/// [`Backend`]: nvisy_stt::backend::SttBackend
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum SttBackend {

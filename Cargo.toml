@@ -8,10 +8,12 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-document",
+    "./crates/nvisy-llm",
     "./crates/nvisy-ner",
     "./crates/nvisy-ocr",
     "./crates/nvisy-pattern",
     "./crates/nvisy-server",
+    "./crates/nvisy-stt",
     "./crates/nvisy-toolkit",
 ]
 
@@ -38,6 +40,8 @@ nvisy-agent = { path = "./crates/nvisy-agent", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-document = { path = "./crates/nvisy-document", version = "0.1.0" }
+nvisy-llm = { path = "./crates/nvisy-llm", version = "0.1.0" }
+nvisy-stt = { path = "./crates/nvisy-stt", version = "0.1.0" }
 nvisy-toolkit = { path = "./crates/nvisy-toolkit", version = "0.1.0" }
 nvisy-ner = { path = "./crates/nvisy-ner", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }

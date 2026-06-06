@@ -3036,6 +3036,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-llm"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "derive_builder",
+ "derive_more",
+ "humantime-serde",
+ "minijinja",
+ "nvisy-core",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
+ "rig",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
+ "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-ner"
 version = "0.1.0"
 dependencies = [
@@ -3102,6 +3128,17 @@ dependencies = [
  "tokio",
  "tower",
  "tower-http",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "nvisy-stt"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "nvisy-core",
+ "tokio",
  "tracing",
  "uuid",
 ]

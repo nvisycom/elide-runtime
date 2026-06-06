@@ -1,6 +1,6 @@
 //! [`SttExtractorConfig`] + the closed [`SttBackend`] selector enum.
 //!
-//! `[extractor.stt]` is the TOML section the engine reads at startup;
+//! `[extraction.stt]` is the TOML section the engine reads at startup;
 //! it picks one of the backends [`nvisy_stt`] ships. The build path
 //! lives in the parent [`ExtractionConfig::build`].
 //!
@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// `[extractor.stt]` config bundle.
+/// `[extraction.stt]` config bundle.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SttExtractorConfig {
     /// Enable this extractor. When `false`, the extractor is neither

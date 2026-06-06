@@ -6,45 +6,13 @@ CLI entry point for the nvisy API server. Parses CLI flags +
 `Nvisy.toml`, initialises tracing, and starts the HTTP server
 provided by [`nvisy-server`](../nvisy-server).
 
-## Feature Flags
+## Overview
 
-Modality + provider features are forwarded to `nvisy-server` and on
-through to `nvisy-document`. All bundled here are on by default;
-pare them down with `--no-default-features` and an explicit
-`--features` list.
-
-| Feature | Default | Description |
-|---------|---------|-------------|
-| `tabular` | yes | CSV + XLSX support |
-| `image` | yes | PNG, JPEG, TIFF + OCR + VLM detection |
-| `audio` | yes | WAV, MP3 + STT extraction |
-| `rich` | yes | PDF + DOCX |
-| `openai` | yes | OpenAI providers (GPT, Whisper STT) |
-| `anthropic` | yes | Anthropic Claude completion provider |
-| `google` | yes | Google Gemini completion provider |
-| `bento` | yes | Externalised inference backends (NER + OCR) |
-
-## Usage
-
-```sh
-# Run with the default feature set
-cargo run -p nvisy-cli
-
-# Run with only OpenAI and Anthropic, drop image/audio/rich
-cargo run -p nvisy-cli --no-default-features \
-    --features tabular,openai,anthropic
-
-# Show all options
-nvisy --help
-```
-
-## Configuration
-
-CLI flags override the corresponding TOML fields; TOML overrides
-built-in defaults. The TOML file path defaults to `./Nvisy.toml`
-and can be overridden with `--config` or `NVISY_CONFIG`. See
-[`Nvisy.example.toml`](../../Nvisy.example.toml) for the full
-schema.
+The binary is a thin wrapper: feature flags forward to `nvisy-server`
+and on through to `nvisy-document`, and runtime behaviour is driven
+by `Nvisy.toml` (see [`Nvisy.example.toml`](../../Nvisy.example.toml)
+for the full schema). CLI flags override the corresponding TOML
+fields.
 
 | Flag | Env | Default | Description |
 |------|-----|---------|-------------|

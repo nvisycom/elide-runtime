@@ -16,7 +16,7 @@ use crate::modality::Modality;
 #[derive(Debug, Clone)]
 pub struct ExtractorOutput<M: Modality, T> {
     /// Backend-shaped extractor output (e.g. `Vec<OcrOutput>` for an
-    /// image extractor, `SttOutput` for an audio extractor).
+    /// image extractor, `Transcription` for an audio extractor).
     pub value: T,
     /// Per-modality provenance value the document's metadata records
     /// at extraction time. Same value for every call from a given

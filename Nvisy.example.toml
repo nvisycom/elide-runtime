@@ -54,18 +54,12 @@ enabled = true
 kind = "bento"
 base_url = "http://localhost:3001"
 
-# Extraction: SST (speech-to-text, audio only).
+# Extraction: STT (speech-to-text, audio only).
 [extraction.stt]
 enabled = true
 
-[extraction.stt.provider]
-kind = "open-ai"
-api_key = "sk-example-replace-me"
-model = "whisper-1"
-
-[extraction.stt.agent]
-model = "whisper-1"
-max_retries = 3
+[extraction.stt.backend]
+kind = "noop"
 
 # Detection: pattern-based (regex + dictionary + checksum).
 # Optional section — pattern detection runs by default. Include this

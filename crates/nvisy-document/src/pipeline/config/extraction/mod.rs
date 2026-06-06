@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 pub use self::ocr::{OcrBackend, OcrExtractorConfig};
 pub use self::plan::{AudioPlan, Extraction, ImagePlan, TabularPlan, TextPlan};
 #[cfg(feature = "audio")]
-pub use self::stt::SttExtractorConfig;
+pub use self::stt::{SttBackend, SttExtractorConfig};
 
 /// Deployment-time configuration for the extractor registry.
 ///
@@ -88,9 +88,10 @@ impl ExtractionConfig {
 
         #[cfg(feature = "audio")]
         if let Some(stt_cfg) = self.stt.as_ref().filter(|c| c.enabled) {
-            use nvisy_agent::audio::stt::SttService;
-            let service = SttService::new(&stt_cfg.provider, stt_cfg.agent.clone())?;
-            reg = reg.with_audio_extractor(service);
+            use nvisy_stt::{NoopBackend, SttExtractor};
+            reg = match &stt_cfg.backend {
+                SttBackend::Noop => reg.with_audio_extractor(SttExtractor::new(NoopBackend)),
+            };
         }
 
         Ok(reg)

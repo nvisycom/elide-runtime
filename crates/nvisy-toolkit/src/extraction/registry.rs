@@ -5,7 +5,7 @@
 //! for [`Audio`]). The output shape is pinned per modality so the
 //! document-side glue knows how to map the extractor's `Output` into
 //! `Block<M>` values — OCR backends produce `Vec<OcrOutput>`, STT
-//! backends produce `SttOutput`. Custom backends slot in by
+//! backends produce `Transcription`. Custom backends slot in by
 //! implementing the matching [`Extractor`] trait shape.
 //!
 //! Toolkit holds no `from_config` builder — config-driven construction
@@ -17,11 +17,11 @@
 
 use std::sync::Arc;
 
-#[cfg(feature = "audio")]
-use nvisy_agent::audio::stt::SttOutput;
 use nvisy_core::extraction::Extractor;
 use nvisy_core::modality::{Audio, Image};
 use nvisy_ocr::core::OcrOutput;
+#[cfg(feature = "audio")]
+use nvisy_stt::Transcription;
 
 /// Output shape produced by every image-modality extractor.
 ///
@@ -34,7 +34,7 @@ pub type ImageExtractorOutput = Vec<OcrOutput>;
 
 /// Output shape produced by every audio-modality extractor.
 #[cfg(feature = "audio")]
-pub type AudioExtractorOutput = SttOutput;
+pub type AudioExtractorOutput = Transcription;
 
 /// Per-modality container of pre-built extractors.
 ///

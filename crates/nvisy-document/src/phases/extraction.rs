@@ -324,21 +324,23 @@ async fn populate_audio_doc(
     }
 
     while let Some(chunk) = handle.next_chunk().await? {
-        let time_span = chunk.location.time_span;
-        let span = ExtractionSpan::new(chunk.data, AudioLocation::new(time_span));
+        let chunk_span = chunk.location.time_span;
+        let span = ExtractionSpan::new(chunk.data, AudioLocation::new(chunk_span));
         let output = stt_arc.extract(&span).await?;
         doc.meta.extraction = output.extraction;
-        let stt_out = output.value;
+        let transcription = output.value;
 
-        if stt_out.text.is_empty() {
-            tracing::debug!(target: TARGET, "transcription returned empty text");
+        if transcription.segments.is_empty() {
+            tracing::debug!(target: TARGET, "transcription returned no segments");
             continue;
         }
-        doc.blocks.push(Block::new(AudioBlock::Speech {
-            time_span,
-            text: stt_out.text.clone(),
-            speaker_id: None,
-        }));
+        for seg in transcription.segments {
+            doc.blocks.push(Block::new(AudioBlock::Speech {
+                time_span: seg.time_span,
+                text: seg.text,
+                speaker_id: seg.speaker_id,
+            }));
+        }
     }
 
     tracing::debug!(target: TARGET, "audio extraction complete");

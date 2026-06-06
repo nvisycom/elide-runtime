@@ -3,7 +3,6 @@
 [workspace]
 resolver = "3"
 members = [
-    "./crates/nvisy-agent",
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
@@ -36,7 +35,6 @@ documentation = "https://docs.rs/nvisy-runtime"
 # See for more details: https://github.com/rust-lang/cargo/issues/11329
 
 # Internal crates
-nvisy-agent = { path = "./crates/nvisy-agent", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-document = { path = "./crates/nvisy-document", version = "0.1.0" }

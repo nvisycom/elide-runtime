@@ -17,7 +17,7 @@ out-of-process — see [`nvisycom/inference`].
 `LabelMap` projects raw backend labels onto the canonical
 `EntityKind` set so consumers reason about one fixed taxonomy
 regardless of the upstream model. LLM-mediated NER lives in
-`nvisy-agent`.
+`nvisy-llm`.
 
 [`nvisycom/inference`]: https://github.com/nvisycom/inference
 

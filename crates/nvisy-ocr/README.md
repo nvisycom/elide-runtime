@@ -17,7 +17,7 @@ Bento in [`nvisycom/inference`] (scaffolding only; tracked under
 
 VLM-mediated entity verification (the LLM-side counterpart that
 checks image-side entity proposals against the source image) lives
-in `nvisy-agent`, not here.
+in `nvisy-llm`, not here.
 
 [`nvisycom/inference`]: https://github.com/nvisycom/inference
 [#128]: https://github.com/nvisycom/runtime/issues/128

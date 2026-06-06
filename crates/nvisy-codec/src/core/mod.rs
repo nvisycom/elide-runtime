@@ -19,15 +19,16 @@
 //! - [`Loader<M>`] — per-modality decoder the registry composes.
 //!
 //! The `(location, replacement)` pair list passed to
-//! [`IndexedHandle::redact`] is
-//! [`nvisy_core::redaction::Redactions<M>`]; the per-modality
-//! replacement enum is [`nvisy_core::redaction`] — codec depends on
-//! core, not the reverse.
+//! [`IndexedHandle::redact`] is [`Redactions<M>`]; the per-modality
+//! replacement enum is in [`redaction`] — codec depends on core, not
+//! the reverse.
 //!
 //! Concrete format implementations and their `impl Codable for X`
 //! blocks live in the per-modality top-level modules (`crate::text`,
 //! `crate::image`, `crate::audio`, `crate::tabular`, `crate::rich`).
 //!
+//! [`Redactions<M>`]: nvisy_core::redaction::Redactions
+//! [`redaction`]: nvisy_core::redaction
 //! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
 
 mod format;

@@ -50,7 +50,7 @@ use crate::policy::Action;
 use crate::policy::redaction::Instantiate;
 use crate::provenance::{AuditEntry, Decision as AuditDecision, EntryMetadata, Execution};
 
-pub(crate) const TARGET: &str = "nvisy_engine::redaction";
+pub(crate) const TARGET: &str = "nvisy_document::redaction";
 
 /// Body of the redaction phase, parameterised on the resolved
 /// `default_threshold`. Crate-visible so both the phase orchestrator

@@ -6,7 +6,7 @@
 //! audit records.
 //!
 //! Concrete check implementations live in submodules (today only
-//! [`crate::validation::leak`]; future checks slot in as siblings).
+//! [`leak`]; future checks slot in as siblings).
 //! Each domain typically defines its *own* trait
 //! (e.g. [`CheckLeaks`]) carrying the domain-meaningful method, plus
 //! a bridge `impl Check for ConcreteCheck` that wraps the domain
@@ -18,6 +18,7 @@
 //! [`CheckLeaks`]: crate::validation::CheckLeaks
 //! [`CheckPipeline`]: super::CheckPipeline
 //! [`Document<M>`]: crate::document::Document
+//! [`leak`]: crate::validation::leak
 
 use std::marker::PhantomData;
 

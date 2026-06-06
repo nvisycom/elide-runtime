@@ -18,7 +18,7 @@ use super::engine::EngineInput;
 use crate::core::{AnyTree, RunContext};
 use crate::phases::ingestion::{Exporter, ImportFile as ImportFileConfig, Importer};
 
-const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
+const TARGET: &str = "nvisy_document::pipeline::orchestrator";
 
 /// Result of processing a single document through the pipeline.
 pub(crate) struct DocumentResult {

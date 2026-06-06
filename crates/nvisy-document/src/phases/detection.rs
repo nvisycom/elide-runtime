@@ -24,7 +24,7 @@ use crate::document::{Document, Span};
 use crate::modality::{DocumentModality, ModalityBlock};
 use crate::pipeline::{Detection, EngineInput};
 
-const TARGET: &str = "nvisy_engine::detection";
+const TARGET: &str = "nvisy_document::detection";
 
 /// Detection phase: runs every registered recognizer over each
 /// document's blocks and writes [`EntityRecord`]s to `doc.audit`.

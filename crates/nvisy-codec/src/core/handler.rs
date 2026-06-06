@@ -7,12 +7,12 @@
 //!   handler; rich formats expose embedded children via
 //!   [`EmbeddedHandles`] instead of stacking impls).
 //! - [`Loader<M>`] decodes raw [`ContentData`] into a handler. The
-//!   [`CodecRegistry`] stores erased loaders via
-//!   [`crate::core::LoaderAdapter`].
+//!   [`CodecRegistry`] stores erased loaders via [`LoaderAdapter`].
 //!
 //! [`Handle<M>`]: super::Handle
 //! [`EmbeddedHandles`]: super::EmbeddedHandles
 //! [`CodecRegistry`]: super::CodecRegistry
+//! [`LoaderAdapter`]: crate::core::LoaderAdapter
 
 use nvisy_core::Error;
 

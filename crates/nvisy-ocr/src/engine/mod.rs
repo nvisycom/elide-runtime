@@ -87,9 +87,11 @@ impl Extractor {
 }
 
 /// Bridge `nvisy_ocr::Extractor` into the toolkit-side
-/// [`nvisy_core::extraction::Extractor<Image>`] surface. The extractor's output
-/// is the backend-shaped `Vec<OcrOutput>`; consumers translate that
-/// into per-document `Block<Image>` values.
+/// [`Extractor<Image>`] surface. The extractor's output is the
+/// backend-shaped `Vec<OcrOutput>`; consumers translate that into
+/// per-document `Block<Image>` values.
+///
+/// [`Extractor<Image>`]: nvisy_core::extraction::Extractor
 #[async_trait]
 impl CoreExtractor<Image> for Extractor {
     type Output = Vec<OcrOutput>;

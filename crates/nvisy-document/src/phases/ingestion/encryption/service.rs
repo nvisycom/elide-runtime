@@ -11,7 +11,7 @@ use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, NONCE_SIZE, WireEnvelope};
 use crate::phases::ingestion::EncryptionAlgorithm;
 
-const TARGET: &str = "nvisy_engine::op::encryption";
+const TARGET: &str = "nvisy_document::op::encryption";
 
 /// AES-256-GCM encryption and decryption service.
 pub struct CryptoService {

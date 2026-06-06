@@ -33,7 +33,7 @@ use crate::document::{Block, Document, Span};
 use crate::modality::{ImageBlock, TabularBlock, TextBlock, TextContent};
 use crate::pipeline::{EngineInput, Extraction};
 
-const TARGET: &str = "nvisy_engine::extraction";
+const TARGET: &str = "nvisy_document::extraction";
 
 /// Cell separator used by [`populate_tabular_blocks`] to concatenate
 /// per-row text. Tab is chosen because cell values rarely contain it,

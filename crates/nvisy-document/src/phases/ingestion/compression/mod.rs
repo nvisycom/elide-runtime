@@ -11,7 +11,7 @@ use nvisy_core::{Error, Result};
 
 use crate::phases::ingestion::CompressionAlgorithm;
 
-const TARGET: &str = "nvisy_engine::op::compression";
+const TARGET: &str = "nvisy_document::op::compression";
 
 /// Compression and decompression service.
 ///

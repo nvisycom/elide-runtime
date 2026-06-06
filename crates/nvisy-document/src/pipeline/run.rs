@@ -31,7 +31,7 @@ use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::policy::{Policy, Retention, RetentionPolicy, RetentionScope};
 
-const TARGET: &str = "nvisy_engine::pipeline::run";
+const TARGET: &str = "nvisy_document::pipeline::run";
 
 /// A single pipeline run lifecycle.
 ///

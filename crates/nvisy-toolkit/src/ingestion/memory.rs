@@ -82,9 +82,10 @@ impl MemoryBuffer<Text> {
     /// the input is `&'static str`.
     ///
     /// Named `from_text` rather than `from_str` to avoid shadowing
-    /// the [`std::str::FromStr`] trait method, which would force
-    /// callers into `let buf: MemoryBuffer<Text> = "...".parse()?`
-    /// awkwardness.
+    /// the [`FromStr`] trait method, which would force callers into
+    /// `let buf: MemoryBuffer<Text> = "...".parse()?` awkwardness.
+    ///
+    /// [`FromStr`]: std::str::FromStr
     pub fn from_text(text: impl Into<HipStr<'static>>) -> Self {
         Self(TextData::new(text))
     }

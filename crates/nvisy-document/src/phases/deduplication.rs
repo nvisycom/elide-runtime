@@ -22,7 +22,7 @@ use crate::modality::DocumentModality;
 use crate::pipeline::{DeduplicationParams, Detection, EngineInput};
 use crate::provenance::EntityRecord;
 
-const TARGET: &str = "nvisy_engine::deduplication";
+const TARGET: &str = "nvisy_document::deduplication";
 
 /// Deduplication phase orchestrator.
 ///

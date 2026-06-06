@@ -41,7 +41,7 @@ use crate::phases::ingestion::compression::CompressionService;
 use crate::phases::ingestion::encryption::{CryptoService, EncryptedContent};
 use crate::phases::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
-const TARGET: &str = "nvisy_engine::op::import_file";
+const TARGET: &str = "nvisy_document::op::import_file";
 
 /// Decodes raw content into one [`AnyTree`], optionally applying
 /// decompression and decryption beforehand.

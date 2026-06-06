@@ -18,7 +18,7 @@ use super::resource_cache::ResourceCache;
 use crate::policy::Policy;
 use crate::provenance::AnyAudit;
 
-const TARGET: &str = "nvisy_engine::ingestion::registry";
+const TARGET: &str = "nvisy_document::ingestion::registry";
 
 /// Actor-scoped content and policy store backed by fjall.
 ///

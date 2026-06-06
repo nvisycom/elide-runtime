@@ -2,11 +2,11 @@
 //! implementations that produce text handles (TXT, JSON, Markdown,
 //! HTML). The per-modality capability surface lives on the generic
 //! [`Handle<Text>`] trait in [`crate::core`]; replacements written
-//! during [`IndexedHandle::redact`] use
-//! [`nvisy_core::redaction::TextReplacement`].
+//! during [`IndexedHandle::redact`] use [`TextReplacement`].
 //!
 //! [`Handle<Text>`]: crate::core::Handle
 //! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+//! [`TextReplacement`]: nvisy_core::redaction::TextReplacement
 
 use nvisy_core::modality::{ModalityKind, Text};
 

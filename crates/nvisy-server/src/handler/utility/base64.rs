@@ -1,6 +1,7 @@
 //! Base64-encoded string wrapper.
 
 use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +19,7 @@ pub struct Base64(String);
 impl Base64 {
     /// Encodes raw bytes into a `Base64` wrapper.
     pub fn encode(bytes: &[u8]) -> Self {
-        Self(base64::engine::general_purpose::STANDARD.encode(bytes))
+        Self(BASE64.encode(bytes))
     }
 
     /// Returns the raw base64 string.
@@ -32,7 +33,7 @@ impl Base64 {
     ///
     /// Returns [`ErrorKind::BadRequest`] if the string is not valid base64.
     pub fn decode(&self) -> Result<Vec<u8>> {
-        base64::engine::general_purpose::STANDARD
+        BASE64
             .decode(&self.0)
             .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid base64: {e}")))
     }

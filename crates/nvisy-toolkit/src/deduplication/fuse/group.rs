@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use super::key::GroupKey;
 
-const TARGET: &str = "nvisy_document::op::deduplication::group_entities";
+const TARGET: &str = "nvisy_toolkit::deduplication::fuse::group";
 
 /// How entity values and locations are matched when grouping.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

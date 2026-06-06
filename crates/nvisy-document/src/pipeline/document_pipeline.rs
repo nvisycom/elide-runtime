@@ -21,7 +21,7 @@ use crate::phases::extraction::ExtractionPhase;
 use crate::phases::redaction::phase::RedactionPhase;
 use crate::phases::validation::ValidationPhase;
 
-const TARGET: &str = "nvisy_engine::pipeline::document_pipeline";
+const TARGET: &str = "nvisy_document::pipeline::document_pipeline";
 
 /// Per-document phase sequence: extraction → detection → dedup →
 /// (redaction → validation)?. Each field is the concrete phase

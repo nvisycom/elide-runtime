@@ -12,7 +12,7 @@
 //!
 //! - [`pattern`] — `nvisy_pattern`: regex + dictionary rules.
 //! - [`ner`] — `nvisy_ner`: zero-shot and adapter NER recognizers.
-//! - [`agent`] — `nvisy_agent`: LLM-driven recognizers.
+//! - [`llm`] — `nvisy_llm`: LLM-driven recognizers.
 //!
 //! TOML-deserialisable backend selectors and config bundles
 //! (`NerBackend`, `NerDetection`, `PatternDetection`,
@@ -23,7 +23,7 @@
 //!
 //! [`EntityRecognizer`]: nvisy_core::recognition::EntityRecognizer
 
-pub mod agent;
+pub mod llm;
 pub mod ner;
 pub mod pattern;
 mod registry;

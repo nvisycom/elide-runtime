@@ -1,9 +1,7 @@
 //! Unified error type covering LLM provider, serialization, and tool failures.
 
 use nvisy_core::{Error as CoreError, ErrorKind as CoreErrorKind};
-use rig::audio_generation::AudioGenerationError;
 use rig::completion::{CompletionError, PromptError, StructuredOutputError};
-use rig::transcription::TranscriptionError;
 
 /// Internal error type for LLM provider interactions.
 ///
@@ -80,31 +78,6 @@ impl From<StructuredOutputError> for Error {
             StructuredOutputError::EmptyResponse => {
                 Self::Response("model returned no content".to_string())
             }
-        }
-    }
-}
-
-impl From<TranscriptionError> for Error {
-    fn from(err: TranscriptionError) -> Self {
-        match err {
-            TranscriptionError::HttpError(e) => Self::Http(e),
-            TranscriptionError::JsonError(e) => Self::Json(e),
-            TranscriptionError::ProviderError(msg) => Self::Provider(msg),
-            TranscriptionError::ResponseError(msg) => Self::Response(msg),
-            TranscriptionError::RequestError(e) => Self::Request(e.to_string()),
-            _ => Self::Runtime(err.to_string()),
-        }
-    }
-}
-
-impl From<AudioGenerationError> for Error {
-    fn from(err: AudioGenerationError) -> Self {
-        match err {
-            AudioGenerationError::HttpError(e) => Self::Http(e),
-            AudioGenerationError::JsonError(e) => Self::Json(e),
-            AudioGenerationError::ProviderError(msg) => Self::Provider(msg),
-            AudioGenerationError::ResponseError(msg) => Self::Response(msg),
-            AudioGenerationError::RequestError(e) => Self::Request(e.to_string()),
         }
     }
 }

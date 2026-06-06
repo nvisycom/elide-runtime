@@ -1,9 +1,9 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "nvisy-agent"
-description = "LLM agents (NER, VLM, STT, OCR-verifier) over the rig framework for the Nvisy runtime"
-keywords = ["nvisy", "rig", "llm", "ner", "agent"]
+name = "nvisy-llm"
+description = "LLM-mediated entity recognizer (text NER + image VLM) for the Nvisy runtime"
+keywords = ["nvisy", "rig", "llm", "ner"]
 categories = ["text-processing", "api-bindings"]
 readme = "README.md"
 
@@ -23,8 +23,6 @@ default = []
 
 ## Enable OpenAI GPT completion provider.
 openai-gpt = []
-## Enable OpenAI Whisper speech-to-text provider.
-openai-whisper = []
 ## Enable Anthropic Claude completion provider.
 anthropic-claude = []
 ## Enable Google Gemini completion provider.
@@ -39,7 +37,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 
 # LLM framework
-rig = { workspace = true, features = ["derive", "reqwest-middleware", "audio"] }
+rig = { workspace = true, features = ["derive", "reqwest-middleware"] }
 
 # Async runtime
 async-trait = { workspace = true, features = [] }

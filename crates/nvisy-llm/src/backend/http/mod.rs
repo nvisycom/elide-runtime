@@ -20,7 +20,7 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 pub use self::config::HttpConfig;
 use self::middleware::{backoff_policy, retry_layer, tracing_layer};
 
-const TARGET: &str = "nvisy_agent::http";
+const TARGET: &str = "nvisy_llm::http";
 
 /// Build a [`ClientWithMiddleware`] from the given configuration.
 ///

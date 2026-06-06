@@ -1,10 +1,9 @@
-# nvisy-agent
+# nvisy-llm
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-LLM-mediated recognition and speech-to-text providers for the Nvisy
-runtime, built on the [`rig`](https://github.com/0xPlaygrounds/rig)
-framework.
+LLM-mediated entity recognition for the Nvisy runtime, built on the
+[`rig`](https://github.com/0xPlaygrounds/rig) framework.
 
 ## Overview
 
@@ -15,11 +14,13 @@ into a `RecognizerRegistry`. The crate doesn't impose a fixed agent
 shape — the prompt + provider combination decides what the LLM is
 asked to do (NER, VLM, verification).
 
-`audio::stt::SttService` wraps Whisper-family STT behind its own
-`SttProvider` enum and implements `Extractor<Audio>`. Provider
-features (`openai-gpt`, `openai-whisper`, `anthropic-claude`,
-`google-gemini`) are independently selectable; none are on by
-default — the CLI/server entry points opt in.
+Provider features (`openai-gpt`, `anthropic-claude`, `google-gemini`)
+are independently selectable; none are on by default — the CLI/server
+entry points opt in.
+
+Speech-to-text lives in [`nvisy-stt`](../nvisy-stt) — it ships with
+its own backend trait and segment-shaped output type, decoupled from
+the LLM family entirely.
 
 ## Documentation
 

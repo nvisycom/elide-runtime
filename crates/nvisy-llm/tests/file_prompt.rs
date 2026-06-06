@@ -9,8 +9,8 @@
 //! rendering for text, bbox access for image), plus the
 //! `label_map` / `labels_to_ignore` policy on the lift side.
 
-use nvisy_agent::backend::LlmResponse;
-use nvisy_agent::{FilePrompt, Prompt};
+use nvisy_llm::backend::LlmResponse;
+use nvisy_llm::{FilePrompt, Prompt};
 use nvisy_core::entity::EntityKind;
 use nvisy_core::modality::{ImageData, ImageLocation, TextData, TextLocation};
 use nvisy_core::primitive::{BoundingBox, Dimensions};

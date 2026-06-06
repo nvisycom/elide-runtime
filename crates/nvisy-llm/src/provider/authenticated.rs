@@ -4,7 +4,6 @@ use std::fmt;
 
 #[cfg(any(
     feature = "openai-gpt",
-    feature = "openai-whisper",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
@@ -13,14 +12,13 @@ use reqwest_middleware::ClientWithMiddleware;
 use rig::providers::anthropic;
 #[cfg(feature = "google-gemini")]
 use rig::providers::gemini;
-#[cfg(any(feature = "openai-gpt", feature = "openai-whisper"))]
+#[cfg(feature = "openai-gpt")]
 use rig::providers::openai;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[cfg(any(
     feature = "openai-gpt",
-    feature = "openai-whisper",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
@@ -28,15 +26,13 @@ use crate::error::Error;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
 ///
-/// Shared between the LLM-completion path (`backend::rig`) and the
-/// speech-to-text path (`audio::stt`). The connection parameters are
-/// the same shape — only the rig-side product (`completion::Client` vs
-/// `transcription::Client`) differs at use-site.
+/// Connection parameters used by the completion-side
+/// [`crate::backend::rig`] path.
 #[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct AuthenticatedProvider {
     /// API key for the provider.
     pub api_key: String,
-    /// Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`, `whisper-1`).
+    /// Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`).
     pub model: String,
     /// Optional base URL override. `None` uses the provider's default.
     pub base_url: Option<String>,
@@ -53,14 +49,9 @@ impl fmt::Debug for AuthenticatedProvider {
 }
 
 impl AuthenticatedProvider {
-    /// Build an OpenAI rig-core client. Used by both the LLM
-    /// completion path (`openai-gpt`) and the STT path
-    /// (`openai-whisper`).
-    #[cfg(any(feature = "openai-gpt", feature = "openai-whisper"))]
-    #[cfg_attr(
-        docsrs,
-        doc(cfg(any(feature = "openai-gpt", feature = "openai-whisper")))
-    )]
+    /// Build an OpenAI rig-core client.
+    #[cfg(feature = "openai-gpt")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openai-gpt")))]
     pub(crate) fn openai_client(
         &self,
         http: ClientWithMiddleware,

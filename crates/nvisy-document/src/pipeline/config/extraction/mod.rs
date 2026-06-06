@@ -1,7 +1,7 @@
-//! Per-deployment `[extractor.*]` configuration plus the per-request
+//! Per-deployment `[extraction.*]` configuration plus the per-request
 //! [`Extraction`] plan.
 //!
-//! [`ExtractionConfig::build`] turns each opted-in `[extractor.*]`
+//! [`ExtractionConfig::build`] turns each opted-in `[extraction.*]`
 //! section into a concrete extractor and inserts it into the toolkit-
 //! side [`ExtractorRegistry`]. Per-technique sub-configs
 //! ([`OcrExtractorConfig`], [`SttExtractorConfig`]) live in their own
@@ -28,11 +28,11 @@ use serde::{Deserialize, Serialize};
 pub use self::ocr::{OcrBackend, OcrExtractorConfig};
 pub use self::plan::{AudioPlan, Extraction, ImagePlan, TabularPlan, TextPlan};
 #[cfg(feature = "audio")]
-pub use self::stt::SttExtractorConfig;
+pub use self::stt::{SttBackend, SttExtractorConfig};
 
 /// Deployment-time configuration for the extractor registry.
 ///
-/// Each field maps to a `[extractor.*]` section in `Nvisy.toml`. A
+/// Each field maps to a `[extraction.*]` section in `Nvisy.toml`. A
 /// `None` opts the technique out entirely; an opted-in section is
 /// built once at engine startup and inserted into the toolkit-side
 /// [`ExtractorRegistry`].
@@ -40,11 +40,11 @@ pub use self::stt::SttExtractorConfig;
 /// [`ExtractorRegistry`]: nvisy_toolkit::extraction::ExtractorRegistry
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExtractionConfig {
-    /// `[extractor.ocr]` — OCR text extraction from images.
+    /// `[extraction.ocr]` — OCR text extraction from images.
     #[cfg(feature = "image")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ocr: Option<OcrExtractorConfig>,
-    /// `[extractor.stt]` — speech-to-text transcription.
+    /// `[extraction.stt]` — speech-to-text transcription.
     #[cfg(feature = "audio")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stt: Option<SttExtractorConfig>,
@@ -88,9 +88,11 @@ impl ExtractionConfig {
 
         #[cfg(feature = "audio")]
         if let Some(stt_cfg) = self.stt.as_ref().filter(|c| c.enabled) {
-            use nvisy_agent::audio::stt::SttService;
-            let service = SttService::new(&stt_cfg.provider, stt_cfg.agent.clone())?;
-            reg = reg.with_audio_extractor(service);
+            use nvisy_stt::SttExtractor;
+            use nvisy_stt::backend::NoopBackend;
+            reg = match &stt_cfg.backend {
+                SttBackend::Noop => reg.with_audio_extractor(SttExtractor::new(NoopBackend)),
+            };
         }
 
         Ok(reg)

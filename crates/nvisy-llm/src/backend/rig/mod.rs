@@ -25,12 +25,12 @@ pub use self::config::LlmConfig;
 pub use self::context::ContextWindow;
 use self::inner::{RigInner, dispatch};
 pub use self::usage::{UsageStats, UsageTracker};
+use super::http::{HttpConfig, build_http_client};
 use super::{LlmBackend, LlmRequest, LlmResponse};
 use crate::error::Error;
-use crate::http::{HttpConfig, build_http_client};
 use crate::provider::LlmProvider;
 
-const TARGET: &str = "nvisy_agent::backend::rig";
+const TARGET: &str = "nvisy_llm::backend::rig";
 
 /// Rig-backed LLM backend.
 ///

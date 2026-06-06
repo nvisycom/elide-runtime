@@ -20,7 +20,7 @@ by default; the CLI entry point opts them in.
 | `image` | yes | PNG, JPEG, TIFF + OCR + VLM detection |
 | `audio` | yes | WAV, MP3 + STT |
 | `rich` | yes | PDF, DOCX |
-| `openai` | no | OpenAI providers (GPT, Whisper STT) |
+| `openai` | no | OpenAI GPT completion provider |
 | `anthropic` | no | Anthropic Claude completion provider |
 | `google` | no | Google Gemini completion provider |
 | `bento` | no | Externalised inference backends (BentoML NER + OCR) |

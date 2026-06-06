@@ -1,11 +1,10 @@
-//! Re-export the [`stt`] backend surface as
+//! Re-export the [`nvisy_stt`] surface as
 //! `nvisy_toolkit::extraction::stt`.
 //!
 //! A consumer that wants the shipped STT backends only needs the
-//! `nvisy-toolkit` dep — `nvisy_toolkit::extraction::stt::SttService`,
-//! `nvisy_toolkit::extraction::stt::SttProvider`, etc. are all
-//! reachable here.
-//!
-//! [`stt`]: nvisy_agent::audio::stt
+//! `nvisy-toolkit` dep — `nvisy_toolkit::extraction::stt::SttExtractor`,
+//! `nvisy_toolkit::extraction::stt::backend::NoopBackend`, etc. are
+//! all reachable here.
 
-pub use nvisy_agent::audio::stt::*;
+pub use nvisy_stt::*;
+pub use nvisy_stt::backend;

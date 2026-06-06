@@ -2906,32 +2906,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-agent"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64",
- "derive_builder",
- "derive_more",
- "humantime-serde",
- "minijinja",
- "nvisy-core",
- "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
- "rig",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "toml",
- "tracing",
- "unicode-normalization",
- "uuid",
-]
-
-[[package]]
 name = "nvisy-cli"
 version = "0.1.0"
 dependencies = [
@@ -3010,13 +2984,14 @@ dependencies = [
  "fjall",
  "humantime-serde",
  "jiff",
- "nvisy-agent",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-document",
+ "nvisy-llm",
  "nvisy-ner",
  "nvisy-ocr",
  "nvisy-pattern",
+ "nvisy-stt",
  "nvisy-toolkit",
  "rand 0.10.1",
  "schemars",
@@ -3033,6 +3008,32 @@ dependencies = [
  "unicode-normalization",
  "uuid",
  "validator",
+]
+
+[[package]]
+name = "nvisy-llm"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "derive_builder",
+ "derive_more",
+ "humantime-serde",
+ "minijinja",
+ "nvisy-core",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
+ "rig",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
+ "unicode-normalization",
+ "uuid",
 ]
 
 [[package]]
@@ -3107,6 +3108,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-stt"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "nvisy-core",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-toolkit"
 version = "0.1.0"
 dependencies = [
@@ -3115,11 +3127,12 @@ dependencies = [
  "base64",
  "bytes",
  "hipstr",
- "nvisy-agent",
  "nvisy-core",
+ "nvisy-llm",
  "nvisy-ner",
  "nvisy-ocr",
  "nvisy-pattern",
+ "nvisy-stt",
  "schemars",
  "serde",
  "sha2 0.11.0",

@@ -27,9 +27,9 @@ image = ["nvisy-codec/image"]
 audio = ["nvisy-codec/audio"]
 rich = ["image", "nvisy-codec/rich"]
 
-openai = ["nvisy-agent/openai-gpt", "nvisy-agent/openai-whisper"]
-anthropic = ["nvisy-agent/anthropic-claude"]
-google = ["nvisy-agent/google-gemini"]
+openai = ["nvisy-llm/openai-gpt"]
+anthropic = ["nvisy-llm/anthropic-claude"]
+google = ["nvisy-llm/google-gemini"]
 
 bento = ["nvisy-toolkit/bento", "nvisy-ner/bento", "nvisy-ocr/bento"]
 
@@ -47,7 +47,8 @@ nvisy-codec = { workspace = true, features = ["text"] }
 nvisy-ner = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
-nvisy-agent = { workspace = true, features = [] }
+nvisy-llm = { workspace = true, features = [] }
+nvisy-stt = { workspace = true, features = [] }
 
 # Storage
 fjall = { workspace = true, features = [] }

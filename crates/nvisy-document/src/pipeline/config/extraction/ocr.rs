@@ -1,6 +1,6 @@
 //! [`OcrExtractorConfig`] + the closed [`OcrBackend`] selector enum.
 //!
-//! `[extractor.ocr]` is the TOML section the engine reads at startup;
+//! `[extraction.ocr]` is the TOML section the engine reads at startup;
 //! it picks one of the backends [`nvisy_ocr`] ships. The build path
 //! lives in the parent [`ExtractionConfig::build`].
 //!
@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// `[extractor.ocr]` config bundle.
+/// `[extraction.ocr]` config bundle.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OcrExtractorConfig {
     /// Enable this extractor. When `false`, the extractor is neither

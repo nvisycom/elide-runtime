@@ -22,9 +22,9 @@
 
 use std::env;
 
-use nvisy_agent::backend::rig::RigBackend;
-use nvisy_agent::provider::LlmProvider;
-use nvisy_agent::{DefaultPrompt, LlmRecognizer};
+use nvisy_llm::backend::rig::RigBackend;
+use nvisy_llm::provider::LlmProvider;
+use nvisy_llm::{DefaultPrompt, LlmRecognizer};
 use nvisy_core::entity::EntityKind;
 use nvisy_core::modality::TextData;
 use nvisy_core::recognition::RecognizerInput;

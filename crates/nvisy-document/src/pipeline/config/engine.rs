@@ -3,7 +3,7 @@
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
-use nvisy_agent::http::HttpConfig;
+use nvisy_llm::backend::http::HttpConfig;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 

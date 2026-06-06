@@ -7,6 +7,7 @@
 //! provider dispatch, structured-output, retries, and usage
 //! tracking.
 
+pub mod http;
 mod request;
 mod response;
 pub mod rig;

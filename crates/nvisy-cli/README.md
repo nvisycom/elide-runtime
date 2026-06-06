@@ -8,9 +8,10 @@ provided by [`nvisy-server`](../nvisy-server).
 
 ## Feature Flags
 
-Modality + provider features are forwarded to `nvisy-server` and
-`nvisy-engine`. All bundled here are on by default; pare them down
-with `--no-default-features` and an explicit `--features` list.
+Modality + provider features are forwarded to `nvisy-server` and on
+through to `nvisy-document`. All bundled here are on by default;
+pare them down with `--no-default-features` and an explicit
+`--features` list.
 
 | Feature | Default | Description |
 |---------|---------|-------------|

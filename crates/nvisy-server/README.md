@@ -2,8 +2,8 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-HTTP server exposing the nvisy `Engine` over a REST API with
-auto-generated OpenAPI documentation.
+HTTP server exposing the nvisy document pipeline over a REST API
+with auto-generated OpenAPI documentation.
 
 Built on [Axum](https://docs.rs/axum) with [Aide](https://docs.rs/aide)
 for OpenAPI spec generation and
@@ -11,8 +11,8 @@ for OpenAPI spec generation and
 
 ## Feature Flags
 
-Forwarded from [`nvisy-engine`](../nvisy-engine). All are off by
-default; the CLI entry point opts them in.
+Forwarded from [`nvisy-document`](../nvisy-document). All are off
+by default; the CLI entry point opts them in.
 
 | Feature | Default | Description |
 |---------|---------|-------------|

@@ -2,24 +2,22 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-NER recognizer and pluggable inference backends for the Nvisy runtime.
+NER recognizer + pluggable inference `Backend` trait for the Nvisy
+runtime.
 
 ## Overview
 
-A trait-driven NER recognizer that turns model-produced spans into typed
-entities. One `NerRecognizer` drives any `NerBackend`; shipped backends
-are `NoopBackend` (test stub) and the feature-gated `BentoBackend`
-(HTTP into the externalised `inference-gliner` service).
+`NerRecognizer` turns model-produced spans into typed `Entity<Text>`
+values via any implementation of the crate's `Backend` trait.
+Shipped backends: `NoopBackend` (test stub) and the feature-gated
+`BentoBackend`, an HTTP client into the externalised
+`inference-gliner` Bento. Model-bearing inference is intentionally
+out-of-process — see [`nvisycom/inference`].
 
-Model-bearing backends do **not** run in-process here — inference is
-externalised (see [`nvisycom/inference`]). LLM-mediated NER lives in
+`LabelMap` projects raw backend labels onto the canonical
+`EntityKind` set so consumers reason about one fixed taxonomy
+regardless of the upstream model. LLM-mediated NER lives in
 `nvisy-agent`.
-
-The shared NLP-enrichment side (language detection, tokens, stopwords)
-lives in `nvisy_core::nlp` as typed entries on a `TypeMap`; this crate
-hosts the producer-side `NlpEngine` trait + a `LinguaNlpEngine`
-language-only impl that any downstream consumer reads via the same
-type-map.
 
 [`nvisycom/inference`]: https://github.com/nvisycom/inference
 

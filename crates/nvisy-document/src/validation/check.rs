@@ -22,7 +22,7 @@
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
-use nvisy_core::TextAt;
+use nvisy_core::extraction::TextAt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

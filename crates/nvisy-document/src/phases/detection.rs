@@ -9,12 +9,13 @@
 //! [`Document<M>`]: crate::document::Document
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
 
+use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{
-    Audio, AudioLocation, Image, ImageLocation, Overlap, Tabular, TabularLocation, Text,
+    Audio, AudioLocation, Image, ImageLocation, Overlap, Tabular, TabularLocation, Text, TextData,
     TextLocation,
 };
-use nvisy_core::{RecognizerInput, Result, TextData};
+use nvisy_core::recognition::RecognizerInput;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use tracing::Instrument;
 

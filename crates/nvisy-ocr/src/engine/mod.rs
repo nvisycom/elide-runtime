@@ -7,9 +7,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::entity::ModelProvenance;
-use nvisy_core::extraction::{ExtractorOutput, Span};
+use nvisy_core::extraction::{Extractor as CoreExtractor, ExtractorOutput, Span};
 use nvisy_core::modality::{Image, ImageExtraction};
-use nvisy_core::{Error, Extractor as CoreExtractor, Result};
+use nvisy_core::{Error, Result};
 use tracing::instrument;
 
 use crate::core::{Backend, Context, ImageInput, OcrOutput};
@@ -87,7 +87,7 @@ impl Extractor {
 }
 
 /// Bridge `nvisy_ocr::Extractor` into the toolkit-side
-/// [`nvisy_core::Extractor<Image>`] surface. The extractor's output
+/// [`nvisy_core::extraction::Extractor<Image>`] surface. The extractor's output
 /// is the backend-shaped `Vec<OcrOutput>`; consumers translate that
 /// into per-document `Block<Image>` values.
 #[async_trait]

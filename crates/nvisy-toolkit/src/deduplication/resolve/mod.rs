@@ -9,8 +9,8 @@
 mod strategy;
 
 use async_trait::async_trait;
-use nvisy_core::TextAt;
 use nvisy_core::entity::Entity;
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Modality, Overlap};
 
 pub use self::strategy::ConflictResolution;

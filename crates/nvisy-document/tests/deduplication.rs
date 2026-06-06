@@ -11,8 +11,8 @@ use std::collections::HashMap;
 
 use nvisy_codec::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
-use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep, TrailStepKind};
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Text;
 use nvisy_core::primitive::{Confidence, ConfidenceThreshold};
 use nvisy_document::core::DocumentTree;

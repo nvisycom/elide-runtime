@@ -13,13 +13,13 @@
 //! deserialises the `[extractor.*]` sections and inserts the chosen
 //! [`Arc<dyn Extractor<M>>`] into the registry.
 //!
-//! [`Extractor`]: nvisy_core::Extractor
+//! [`Extractor`]: nvisy_core::extraction::Extractor
 
 use std::sync::Arc;
 
 #[cfg(feature = "audio")]
 use nvisy_agent::audio::stt::SttOutput;
-use nvisy_core::Extractor;
+use nvisy_core::extraction::Extractor;
 use nvisy_core::modality::{Audio, Image};
 use nvisy_ocr::core::OcrOutput;
 

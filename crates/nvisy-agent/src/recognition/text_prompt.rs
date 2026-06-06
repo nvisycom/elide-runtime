@@ -4,8 +4,8 @@
 //! [`DefaultPrompt`]: super::DefaultPrompt
 //! [`Prompt<Text>`]: super::Prompt
 
-use nvisy_core::Hint;
 use nvisy_core::modality::Text;
+use nvisy_core::recognition::Hint;
 
 /// Snippet window (in bytes) emitted on each side of a hint's
 /// range so the LLM has surrounding context for judgement.

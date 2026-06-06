@@ -29,8 +29,8 @@
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
-use nvisy_core::TextAt;
 use nvisy_core::entity::Entity;
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
 use uuid::Uuid;
 
@@ -48,7 +48,7 @@ use uuid::Uuid;
 /// pipeline.run(entities, &ctx).await;
 /// ```
 ///
-/// [`RecognizerInput::correlation_id`]: nvisy_core::RecognizerInput::correlation_id
+/// [`RecognizerInput::correlation_id`]: nvisy_core::recognition::RecognizerInput::correlation_id
 pub struct LayerContext<'a, M: Modality, R: TextAt<M> + ?Sized> {
     /// Resolver for "what value sits at this location?". Layers that
     /// only inspect entity metadata can ignore this field.

@@ -17,8 +17,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, TrailStep};
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
 use nvisy_core::primitive::Confidence;
 use schemars::JsonSchema;

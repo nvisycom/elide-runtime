@@ -10,7 +10,7 @@
 
 use std::marker::PhantomData;
 
-use nvisy_core::TextAt;
+use nvisy_core::extraction::TextAt;
 
 use super::check::{Check, CheckContext, Finding};
 use crate::document::Document;

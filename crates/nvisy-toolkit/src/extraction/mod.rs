@@ -2,7 +2,7 @@
 //!
 //! Toolkit owns the registry side of extraction — typed slots for one
 //! per-modality extractor each. The trait the registry holds
-//! ([`nvisy_core::Extractor`]) lives in `nvisy-core` so backend crates
+//! ([`nvisy_core::extraction::Extractor`]) lives in `nvisy-core` so backend crates
 //! can implement it without depending on toolkit. Each backend crate
 //! is re-exported here under its own submodule ([`ocr`] and [`stt`])
 //! so a consumer that wants the shipped backends only needs to depend
@@ -20,7 +20,7 @@ pub mod registry;
 #[cfg(feature = "audio")]
 pub mod stt;
 
-pub use nvisy_core::Extractor;
+pub use nvisy_core::extraction::Extractor;
 
 #[cfg(feature = "audio")]
 pub use self::registry::AudioExtractorOutput;

@@ -6,7 +6,8 @@
 //! entities.
 
 use nvisy_core::entity::EntityKind;
-use nvisy_core::{EntityRecognizer, RecognizerInput, TextData};
+use nvisy_core::modality::TextData;
+use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
 use nvisy_pattern::{Dictionary, PatternRecognizer, PatternRegistry, Regex, Terms};
 
 #[tokio::test]

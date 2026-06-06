@@ -7,7 +7,7 @@
 //! into the shared [`RecognizerRegistry`] like any other recognizer.
 //!
 //! [`LlmRecognizer<M>`]: nvisy_agent::LlmRecognizer
-//! [`EntityRecognizer<M>`]: nvisy_core::EntityRecognizer
+//! [`EntityRecognizer<M>`]: nvisy_core::recognition::EntityRecognizer
 //! [`RecognizerRegistry`]: super::RecognizerRegistry
 
 pub use nvisy_agent::*;

@@ -8,8 +8,8 @@
 //! brittle byte-position churn.
 
 use nvisy_core::entity::{Entity, EntityKind};
-use nvisy_core::modality::Text;
-use nvisy_core::{EntityRecognizer, RecognizerInput, TextData};
+use nvisy_core::modality::{Text, TextData};
+use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};
 
 fn shipped_recognizer() -> PatternRecognizer {

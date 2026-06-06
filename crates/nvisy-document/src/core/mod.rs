@@ -27,7 +27,7 @@ mod shared;
 mod target;
 mod tree;
 
-pub use nvisy_core::TextAt;
+pub use nvisy_core::extraction::TextAt;
 
 pub use self::context::RunContext;
 pub(crate) use self::context::RunEngines;

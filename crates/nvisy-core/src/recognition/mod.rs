@@ -9,7 +9,7 @@
 //!
 //! # Layering
 //!
-//! - [`crate::Modality`] extends [`crate::modality::Modality`]
+//! - [`crate::modality::Modality`] extends [`crate::modality::Modality`]
 //!   with an associated `Data` type — the modality-specific payload
 //!   (text bytes, image bytes + dims, …) recognizers actually scan.
 //! - [`RecognizerInput<M>`] carries the payload plus the per-call

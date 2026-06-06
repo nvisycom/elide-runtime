@@ -10,10 +10,5 @@ pub mod primitive;
 pub mod recognition;
 pub mod redaction;
 
-pub use self::extraction::{Artifacts, DataAt, Extractor, ExtractorOutput, Span, TextAt};
-pub use self::modality::{AudioData, ImageData, Modality, TextData};
-pub use self::recognition::{EntityRecognizer, Hint, LabelMap, RecognizerInput, RecognizerOutput};
-pub use self::redaction::{RedactAt, Redactions};
-
 mod error;
 pub use self::error::{Error, ErrorKind, Result};

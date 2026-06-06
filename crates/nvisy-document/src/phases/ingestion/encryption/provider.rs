@@ -7,7 +7,6 @@ use std::sync::Arc;
 use base64::Engine;
 use bytes::Bytes;
 use nvisy_core::{Error, Result};
-
 /// Abstraction for resolving encryption keys by identifier.
 pub trait KeyProvider: Send + Sync {
     /// Returns the raw key bytes for the given `key_id`, or an error if unknown.

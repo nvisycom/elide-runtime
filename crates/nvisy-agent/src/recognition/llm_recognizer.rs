@@ -11,7 +11,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
-use nvisy_core::{EntityRecognizer, Error, Modality, RecognizerInput, RecognizerOutput, Result};
+use nvisy_core::modality::Modality;
+use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
+use nvisy_core::{Error, Result};
 
 use super::prompt::Prompt;
 use crate::backend::{LlmBackend, LlmRequest};

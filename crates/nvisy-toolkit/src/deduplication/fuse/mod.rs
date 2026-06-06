@@ -13,8 +13,8 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use async_trait::async_trait;
-use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, TrailStep};
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Modality, Overlap};
 use nvisy_core::primitive::Confidence;
 

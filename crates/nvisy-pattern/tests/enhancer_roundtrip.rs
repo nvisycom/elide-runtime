@@ -8,8 +8,9 @@
 
 use nvisy_core::context::{Context, ContextEnhancer};
 use nvisy_core::entity::{EntityKind, PatternProvenance, TrailProvenance, TrailStepKind};
+use nvisy_core::modality::TextData;
 use nvisy_core::primitive::Confidence;
-use nvisy_core::{EntityRecognizer, RecognizerInput, TextData};
+use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
 use nvisy_pattern::{PatternRecognizer, PatternRegistry, Regex};
 
 #[tokio::test]

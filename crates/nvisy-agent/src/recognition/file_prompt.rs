@@ -50,7 +50,8 @@ use base64::engine::general_purpose::STANDARD;
 use minijinja::{Environment, context};
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::modality::{Image, Text};
-use nvisy_core::{Error, LabelMap, RecognizerInput, Result};
+use nvisy_core::recognition::{LabelMap, RecognizerInput};
+use nvisy_core::{Error, Result};
 use schemars::Schema;
 use serde::Deserialize;
 

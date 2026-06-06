@@ -21,7 +21,7 @@
 //!   by the redaction phase.
 //!
 //! [`M::Data`]: crate::modality::Modality::Data
-//! [`EntityRecognizer`]: crate::EntityRecognizer
+//! [`EntityRecognizer`]: crate::recognition::EntityRecognizer
 
 mod artifacts;
 mod data_at;

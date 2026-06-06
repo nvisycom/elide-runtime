@@ -14,8 +14,8 @@
 use std::collections::{HashMap, HashSet};
 use std::mem;
 
-use nvisy_core::TextAt;
 use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Modality, Overlap};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

@@ -23,7 +23,7 @@
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
-//! [`Modality`]: nvisy_core::Modality
+//! [`Modality`]: nvisy_core::modality::Modality
 
 use std::path::Path;
 
@@ -37,7 +37,6 @@ use nvisy_core::modality::{
 use nvisy_core::primitive::Dimensions;
 use nvisy_core::redaction::{RedactAt, Redactions, TextReplacement};
 use nvisy_core::{Error, Result};
-
 const TARGET: &str = "nvisy_toolkit::ingestion::memory";
 
 /// Owned in-memory source buffer for modality `M`.

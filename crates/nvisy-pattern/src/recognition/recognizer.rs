@@ -15,7 +15,8 @@ use async_trait::async_trait;
 use nvisy_core::entity::{Entity, EntityKind, PatternProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::{Confidence, LanguageTag};
-use nvisy_core::{EntityRecognizer, Error, RecognizerInput, RecognizerOutput, Result};
+use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
+use nvisy_core::{Error, Result};
 use regex::{Regex, RegexSet};
 
 use super::registry::PatternRegistry;

@@ -7,8 +7,8 @@
 
 use std::marker::PhantomData;
 
-use nvisy_core::TextAt;
 use nvisy_core::entity::Entity;
+use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Modality, Overlap};
 
 use super::calibrate::CalibrateLayer;

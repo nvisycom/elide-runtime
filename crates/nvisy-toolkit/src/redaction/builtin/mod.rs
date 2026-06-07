@@ -16,7 +16,6 @@ mod keep;
 mod mask;
 mod redact;
 mod replace;
-mod text_value;
 
 #[cfg(feature = "encrypt")]
 #[cfg_attr(docsrs, doc(cfg(feature = "encrypt")))]

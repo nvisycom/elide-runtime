@@ -1,9 +1,15 @@
 //! Locale-aware bank-account number widths.
 //!
-//! Lengths approximate common domestic account-number widths, not
-//! routing/clearing codes. Output is digits only — locale-specific
-//! separators are not added here; format-preserving mode applies any
-//! separators the caller wants.
+//! Output is digits only — locale-specific separators are not
+//! applied here; format-preserving mode adds them from the original
+//! span when requested.
+//!
+//! The width table below is a rough placeholder, not a faithful
+//! mapping of any country's clearing-house standard. Account-number
+//! widths in the real world vary by bank within each country (US
+//! ABA accounts are 4-17 digits; SEPA domestic numbers cluster
+//! 10-12 but have outliers; etc.). The values are picked to look
+//! plausible for the locale, not to validate against any system.
 
 use fake::rand::RngExt;
 
@@ -16,11 +22,8 @@ pub(super) fn bank_account<R: RngExt + ?Sized>(locale: Locale, rng: &mut R) -> S
 
 fn width(locale: Locale) -> usize {
     match locale {
-        // US ABA account numbers vary 4-17; pick a common 10.
         Locale::En => 10,
-        // UK domestic account number is 8 digits.
         Locale::CyGb => 8,
-        // SEPA-area domestic numbers cluster around 10-12.
         Locale::FrFr | Locale::ItIt | Locale::PtBr | Locale::PtPt | Locale::NlNl => 11,
         Locale::DeDe => 10,
         Locale::JaJp => 7,
@@ -39,7 +42,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn uk_account_is_eight_digits() {
+    fn uk_account_matches_table_width() {
         let mut rng = SmallRng::seed_from_u64(1);
         let s = bank_account(Locale::CyGb, &mut rng);
         assert_eq!(s.len(), 8);
@@ -47,7 +50,7 @@ mod tests {
     }
 
     #[test]
-    fn cn_account_is_sixteen_digits() {
+    fn cn_account_matches_table_width() {
         let mut rng = SmallRng::seed_from_u64(1);
         let s = bank_account(Locale::ZhCn, &mut rng);
         assert_eq!(s.len(), 16);

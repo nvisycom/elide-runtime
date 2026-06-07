@@ -18,7 +18,6 @@ use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
 use nvisy_core::{Error, Result};
 
-use super::text_value::read_value;
 use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
 
 /// Nonce length in bytes (AES-GCM standard).
@@ -61,8 +60,8 @@ impl Anonymizer<Text> for Encrypt {
         LeakProfile::Recoverable
     }
 
-    async fn apply(&self, entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
-        let value = read_value(entity, source);
+    async fn apply(&self, _entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
+        let value = source.text.as_str();
         let cipher = Aes256Gcm::new(&self.key);
 
         let mut nonce_bytes = [0u8; NONCE_LEN];

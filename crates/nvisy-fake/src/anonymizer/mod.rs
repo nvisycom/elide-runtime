@@ -2,14 +2,16 @@
 //! entities for plausible fake values.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::str::FromStr;
+use std::sync::Arc;
 
 use fake::rand::SeedableRng;
 use fake::rand::rngs::SmallRng;
 use nvisy_core::Result;
 use nvisy_core::entity::{Entity, EntityKind};
-use nvisy_core::modality::{Text, TextData};
+use nvisy_core::modality::{Modality, Tabular, Text, TextData};
 use nvisy_core::primitive::LanguageTag;
-use nvisy_core::redaction::{Anonymizer, LeakProfile, TextReplacement};
+use nvisy_core::redaction::{Anonymizer, LeakProfile, TabularReplacement, TextReplacement};
 
 use crate::generator;
 use crate::locale::Locale;
@@ -17,34 +19,63 @@ use crate::locale::Locale;
 /// Text-modality fake-data anonymizer.
 ///
 /// Picks a locale from the entity's BCP-47 `language` field, falling
-/// back to the `default_language` passed at construction when the
-/// entity carries no tag. RNG state is derived per-call from the
-/// entity's coreference id (or its UUID when there is none), so
-/// coreferent mentions of the same real-world entity collapse to the
-/// same fake value within a run. Pass a `seed` to add a
-/// workspace-wide salt.
-#[derive(Debug, Clone)]
+/// back to the `default_language` (English unless overridden) when
+/// the entity carries no tag. RNG state is derived per-call from
+/// the entity's coreference id (or its UUID when there is none),
+/// so coreferent mentions of the same real-world entity collapse to
+/// the same fake value within a run.
+///
+/// Entity kinds outside the core PII catalogue delegate to the
+/// `fallback` anonymizer passed at construction. There is no
+/// implicit default: the caller must say what should happen for
+/// unsupported kinds.
+#[derive(Clone)]
 pub struct Fake {
+    fallback: Arc<dyn Anonymizer<Text>>,
     default_language: LanguageTag,
     seed: u64,
     length_preserving: bool,
     format_preserving: bool,
 }
 
+impl std::fmt::Debug for Fake {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Fake")
+            .field("default_language", &self.default_language)
+            .field("seed", &self.seed)
+            .field("length_preserving", &self.length_preserving)
+            .field("format_preserving", &self.format_preserving)
+            .field("fallback", &"Arc<dyn Anonymizer<Text>>")
+            .finish()
+    }
+}
+
 impl Fake {
-    /// Build a `Fake` operator that uses `default_language` for
-    /// entities with no language tag.
-    pub fn new(default_language: LanguageTag) -> Self {
+    /// Build a `Fake` operator with `fallback` as the anonymizer
+    /// used for entity kinds outside the core PII catalogue.
+    pub fn new<A>(fallback: A) -> Self
+    where
+        A: Anonymizer<Text> + 'static,
+    {
         Self {
-            default_language,
+            fallback: Arc::new(fallback),
+            default_language: LanguageTag::from_str("en").expect("en is BCP-47"),
             seed: 0,
             length_preserving: false,
             format_preserving: false,
         }
     }
 
-    /// Salt the per-call RNG with `seed`. Two operators with the same
-    /// seed produce the same fake value for the same entity id.
+    /// Override the default language used when the entity carries
+    /// no `language` tag. Initial value is `"en"`.
+    #[must_use]
+    pub fn with_default_language(mut self, language: LanguageTag) -> Self {
+        self.default_language = language;
+        self
+    }
+
+    /// Salt the per-call RNG with `seed`. Two operators with the
+    /// same seed produce the same fake value for the same entity.
     #[must_use]
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;
@@ -52,10 +83,9 @@ impl Fake {
     }
 
     /// Clip / right-pad the fake value to match the original entity
-    /// span length. Only applies to fixed-width kinds
-    /// ([`EntityKind::PaymentCard`], [`EntityKind::Iban`],
-    /// [`EntityKind::PostalCode`]); free-form kinds (names,
-    /// addresses) ignore the flag.
+    /// span length. Only honored for ASCII-digit kinds
+    /// (`PaymentCard`, `Iban`, `PostalCode`); free-form kinds
+    /// (names, addresses) ignore the flag.
     #[must_use]
     pub fn length_preserving(mut self) -> Self {
         self.length_preserving = true;
@@ -64,131 +94,224 @@ impl Fake {
 
     /// Preserve non-digit separators (spaces, dashes, dots) found in
     /// the original span when emitting fakes for digit-shaped kinds
-    /// like [`EntityKind::PhoneNumber`] and
-    /// [`EntityKind::PostalCode`]. Free-form kinds ignore the flag.
+    /// (`PhoneNumber`, `PostalCode`). Free-form kinds ignore the
+    /// flag.
     #[must_use]
     pub fn format_preserving(mut self) -> Self {
         self.format_preserving = true;
         self
     }
 
-    pub(crate) fn locale_for(&self, entity: &Entity<Text>) -> Locale {
-        let tag = entity.language.as_ref().unwrap_or(&self.default_language);
-        Locale::from_tag(tag)
+    fn locale_for(&self, language: Option<&LanguageTag>) -> Locale {
+        Locale::from_tag(language.unwrap_or(&self.default_language))
     }
 
-    pub(crate) fn rng_for(&self, entity: &Entity<Text>) -> SmallRng {
-        SmallRng::seed_from_u64(self.entity_seed(entity))
-    }
-
-    /// Stable per-entity seed combining the workspace salt and a
-    /// coreference-aware identity: prefer `entity_id` (shared by
-    /// coreferent mentions) and fall back to the entity's UUID.
-    fn entity_seed(&self, entity: &Entity<Text>) -> u64 {
+    fn rng_for(&self, identity: Identity<'_>) -> SmallRng {
         let mut hasher = DefaultHasher::new();
         self.seed.hash(&mut hasher);
-        match entity.entity_id.as_deref() {
-            Some(id) => id.hash(&mut hasher),
-            None => entity.id.as_bytes().hash(&mut hasher),
-        }
-        hasher.finish()
+        identity.hash(&mut hasher);
+        SmallRng::seed_from_u64(hasher.finish())
     }
-}
 
-impl Default for Fake {
-    /// English (`"en"`) as the default language, with no RNG salt.
-    fn default() -> Self {
-        Self::new("en".parse().expect("\"en\" is a valid BCP-47 tag"))
+    /// Try the generator for `kind`; return `None` if it has no
+    /// entry, so the caller can delegate to the fallback.
+    fn try_generate(
+        &self,
+        locale: Locale,
+        kind: EntityKind,
+        identity: Identity<'_>,
+        source: &str,
+    ) -> Option<String> {
+        let mut rng = self.rng_for(identity);
+        generator::Context::new(
+            locale,
+            kind,
+            self.length_preserving,
+            self.format_preserving,
+            source,
+        )
+        .generate(&mut rng)
     }
 }
 
 #[async_trait::async_trait]
 impl Anonymizer<Text> for Fake {
     fn leak_profile(&self) -> LeakProfile {
-        // The original value is gone; only the entity's position and
-        // approximate shape (length differs from the original) leak.
+        // The original value is gone; only the entity's position
+        // and approximate shape (length differs from the original)
+        // leak.
         LeakProfile::Partial
     }
 
     async fn apply(&self, entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
-        let locale = self.locale_for(entity);
-        let mut rng = self.rng_for(entity);
-        let original = read_span(entity, source);
-        let value = generator::generate(
-            generator::Context {
-                locale,
-                kind: entity.entity_kind,
-                length_preserving: self.length_preserving,
-                format_preserving: self.format_preserving,
-                original,
-            },
-            &mut rng,
-        )
-        .unwrap_or_else(|| format!("[{}]", entity.entity_kind));
-        Ok(TextReplacement::substituted(value))
+        let locale = self.locale_for(entity.language.as_ref());
+        match self.try_generate(
+            locale,
+            entity.entity_kind,
+            Identity::from(entity),
+            source.text.as_str(),
+        ) {
+            Some(value) => Ok(TextReplacement::substituted(value)),
+            None => self.fallback.apply(entity, source).await,
+        }
     }
 }
 
-/// Borrow the substring at `entity.location` from `source`. Returns
-/// `""` for empty / out-of-bounds / mid-char ranges.
-fn read_span<'a>(entity: &Entity<Text>, source: &'a TextData) -> &'a str {
-    let text = source.text.as_str();
-    let start = entity.location.start.min(text.len());
-    let end = entity.location.end.min(text.len());
-    if start >= end || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
-        return "";
+#[async_trait::async_trait]
+impl Anonymizer<Tabular> for Fake {
+    fn leak_profile(&self) -> LeakProfile {
+        LeakProfile::Partial
     }
-    &text[start..end]
+
+    async fn apply(
+        &self,
+        entity: &Entity<Tabular>,
+        source: &TextData,
+    ) -> Result<TabularReplacement> {
+        let locale = self.locale_for(entity.language.as_ref());
+        if let Some(value) = self.try_generate(
+            locale,
+            entity.entity_kind,
+            Identity::from(entity),
+            source.text.as_str(),
+        ) {
+            return Ok(TabularReplacement::substituted(value));
+        }
+        // No Tabular fallback — borrow the Text fallback by
+        // adapting the synthetic Text entity. The replacement
+        // values are both string-typed, so the adaptation is just
+        // a variant rewrap.
+        let text_entity = adapt_to_text(entity);
+        match self.fallback.apply(&text_entity, source).await? {
+            TextReplacement::Substituted { value } => Ok(TabularReplacement::substituted(value)),
+            TextReplacement::Removed => Ok(TabularReplacement::ColumnDropped),
+        }
+    }
 }
 
-/// Marker for kinds that honor [`Fake::length_preserving`].
-pub(crate) fn is_fixed_width(kind: EntityKind) -> bool {
-    matches!(
-        kind,
-        EntityKind::PaymentCard | EntityKind::Iban | EntityKind::PostalCode
-    )
+/// Adapt a `Entity<Tabular>` into an `Entity<Text>` for delegating
+/// to a Text-shaped fallback. Only the identity-relevant fields
+/// (id, entity_id, entity_kind, language) need to round-trip; the
+/// location is a synthetic full-span TextLocation since the
+/// fallback's `apply` body reads source directly.
+fn adapt_to_text(entity: &Entity<Tabular>) -> Entity<Text> {
+    use nvisy_core::modality::TextLocation;
+
+    let mut builder = Entity::<Text>::builder()
+        .with_id(entity.id)
+        .with_entity_kind(entity.entity_kind)
+        .with_location(TextLocation::new(0, 0))
+        .with_confidence(entity.confidence)
+        .with_trail(entity.trail.clone());
+    if let Some(id) = entity.entity_id.clone() {
+        builder = builder.with_entity_id(id);
+    }
+    if let Some(lang) = entity.language.clone() {
+        builder = builder.with_language(lang);
+    }
+    builder.build().expect("text entity adaptation")
 }
 
-/// Marker for kinds that honor [`Fake::format_preserving`].
-pub(crate) fn honors_format(kind: EntityKind) -> bool {
-    matches!(kind, EntityKind::PhoneNumber | EntityKind::PostalCode)
+/// Identity key used to seed the rng. Prefers the coreference id
+/// (shared across mentions of the same real-world entity) and falls
+/// back to the entity's UUID bytes.
+enum Identity<'a> {
+    Coref(&'a str),
+    Uuid([u8; 16]),
+}
+
+impl<'a, M> From<&'a Entity<M>> for Identity<'a>
+where
+    M: Modality,
+{
+    fn from(entity: &'a Entity<M>) -> Self {
+        match entity.entity_id.as_deref() {
+            Some(id) => Identity::Coref(id),
+            None => Identity::Uuid(*entity.id.as_bytes()),
+        }
+    }
+}
+
+impl Hash for Identity<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Identity::Coref(s) => {
+                0u8.hash(state);
+                s.hash(state);
+            }
+            Identity::Uuid(bytes) => {
+                1u8.hash(state);
+                bytes.hash(state);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
+    use nvisy_core::entity::EntityKind;
+    use nvisy_core::redaction::Anonymizer as _;
+    use nvisy_toolkit::redaction::builtin::{Mask, Replace};
+
     use super::*;
 
-    fn text_entity(kind: EntityKind) -> Entity<Text> {
-        Entity::test_builder(0, 4)
+    fn fake() -> Fake {
+        Fake::new(Mask::stars())
+    }
+
+    /// Build an entity whose location spans the entire `source`
+    /// string. Tests don't care about offsets — making them match
+    /// the source makes them self-documenting.
+    fn entity_over(kind: EntityKind, source: &str) -> Entity<Text> {
+        Entity::test_builder(0, source.len())
             .with_entity_kind(kind)
             .test_build()
     }
 
+    fn coref_entity(kind: EntityKind, source: &str, coref_id: &str) -> Entity<Text> {
+        Entity::test_builder(0, source.len())
+            .with_entity_kind(kind)
+            .with_entity_id(coref_id.to_string())
+            .test_build()
+    }
+
     #[tokio::test]
-    async fn falls_back_to_placeholder_for_unsupported_kind() {
-        let op = Fake::default();
-        let entity = text_entity(EntityKind::IpAddress);
-        let out = op.apply(&entity, &TextData::new("1234")).await.unwrap();
-        assert_eq!(out, TextReplacement::substituted("[ip_address]"));
+    async fn unsupported_kind_delegates_to_fallback() {
+        let op = Fake::new(Replace::new("[redacted]"));
+        let source = TextData::new("1.2.3.4");
+        let entity = entity_over(EntityKind::IpAddress, source.text.as_str());
+        let out = op.apply(&entity, &source).await.unwrap();
+        assert_eq!(out, TextReplacement::substituted("[redacted]"));
+    }
+
+    #[tokio::test]
+    async fn fallback_can_be_mask() {
+        let op = Fake::new(Mask::stars());
+        let source = TextData::new("1.2.3.4");
+        let entity = entity_over(EntityKind::IpAddress, source.text.as_str());
+        let out = op.apply(&entity, &source).await.unwrap();
+        assert_eq!(out, TextReplacement::substituted("*******"));
     }
 
     #[tokio::test]
     async fn same_seed_and_entity_id_produces_same_output() {
-        let op = Fake::default().with_seed(42);
-        let entity = text_entity(EntityKind::PersonName);
-        let a = op.apply(&entity, &TextData::new("alice")).await.unwrap();
-        let b = op.apply(&entity, &TextData::new("alice")).await.unwrap();
+        let op = fake().with_seed(42);
+        let source = TextData::new("alice");
+        let entity = entity_over(EntityKind::PersonName, source.text.as_str());
+        let a = op.apply(&entity, &source).await.unwrap();
+        let b = op.apply(&entity, &source).await.unwrap();
         assert_eq!(a, b);
     }
 
     #[tokio::test]
     async fn entity_language_overrides_default() {
-        let op = Fake::default();
-        let mut entity = text_entity(EntityKind::PersonName);
+        let op = fake();
+        let source = TextData::new("名前");
+        let mut entity = entity_over(EntityKind::PersonName, source.text.as_str());
         entity.language = Some("ja".parse().unwrap());
-        let out = op.apply(&entity, &TextData::new("name")).await.unwrap();
+        let out = op.apply(&entity, &source).await.unwrap();
         let TextReplacement::Substituted { value } = out else {
             panic!("expected Substituted variant");
         };
@@ -197,9 +320,10 @@ mod tests {
 
     #[tokio::test]
     async fn default_language_applies_when_entity_unlanguaged() {
-        let op = Fake::new("ja".parse().unwrap());
-        let entity = text_entity(EntityKind::PersonName);
-        let out = op.apply(&entity, &TextData::new("name")).await.unwrap();
+        let op = fake().with_default_language("ja".parse().unwrap());
+        let source = TextData::new("name");
+        let entity = entity_over(EntityKind::PersonName, source.text.as_str());
+        let out = op.apply(&entity, &source).await.unwrap();
         let TextReplacement::Substituted { value } = out else {
             panic!("expected Substituted variant");
         };
@@ -208,36 +332,61 @@ mod tests {
 
     #[tokio::test]
     async fn coreferent_entities_collapse_to_same_fake() {
-        let op = Fake::default();
-        let a = Entity::test_builder(0, 4)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_entity_id("ENTITY_42".to_string())
-            .test_build();
-        let b = Entity::test_builder(10, 14)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_entity_id("ENTITY_42".to_string())
-            .test_build();
-        let out_a = op.apply(&a, &TextData::new("aliceb")).await.unwrap();
-        let out_b = op.apply(&b, &TextData::new("aliceb")).await.unwrap();
+        let op = fake();
+        let source = TextData::new("alice");
+        let a = coref_entity(EntityKind::PersonName, source.text.as_str(), "ENTITY_42");
+        let b = coref_entity(EntityKind::PersonName, source.text.as_str(), "ENTITY_42");
+        let out_a = op.apply(&a, &source).await.unwrap();
+        let out_b = op.apply(&b, &source).await.unwrap();
         assert_eq!(out_a, out_b);
+        let c = coref_entity(EntityKind::PersonName, source.text.as_str(), "ENTITY_99");
+        let out_c = op.apply(&c, &source).await.unwrap();
+        assert_ne!(
+            out_a, out_c,
+            "different coref id should yield different fake"
+        );
     }
 
     #[tokio::test]
     async fn distinct_entities_get_distinct_fakes() {
-        let op = Fake::default();
+        let op = fake();
+        let source = TextData::new("seed");
         let mut outputs: HashSet<String> = HashSet::new();
         for _ in 0..32 {
-            let entity = text_entity(EntityKind::PersonName);
-            let out = op.apply(&entity, &TextData::new("seed")).await.unwrap();
+            let entity = entity_over(EntityKind::PersonName, source.text.as_str());
+            let out = op.apply(&entity, &source).await.unwrap();
             let TextReplacement::Substituted { value } = out else {
                 panic!("expected Substituted");
             };
             outputs.insert(value);
         }
-        assert!(
-            outputs.len() >= 30,
-            "expected >=30 distinct fakes across 32 fresh entity ids, got {}",
+        assert_eq!(
             outputs.len(),
+            32,
+            "expected 32 distinct fakes across 32 fresh entity ids"
         );
+    }
+
+    #[tokio::test]
+    async fn tabular_impl_emits_substituted() {
+        let op = fake();
+        let entity = Entity::<Tabular>::builder()
+            .with_entity_kind(EntityKind::PersonName)
+            .with_location(nvisy_core::modality::TabularLocation {
+                row_index: 0u32,
+                column_index: 0u32,
+                start_offset: None,
+                end_offset: None,
+                column_name: None,
+                sheet_name: None,
+            })
+            .with_confidence(nvisy_core::primitive::Confidence::clamped(1.0))
+            .build()
+            .unwrap();
+        let out = op.apply(&entity, &TextData::new("alice")).await.unwrap();
+        let TabularReplacement::Substituted { value } = out else {
+            panic!("expected Substituted");
+        };
+        assert!(!value.is_empty());
     }
 }

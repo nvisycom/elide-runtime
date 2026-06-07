@@ -4,34 +4,38 @@
 //! body of the country's standard length, and computes the check
 //! digits per the ISO 13616 / MOD-97-10 scheme so the resulting IBAN
 //! validates against any standard checker.
+//!
+//! Returns `None` for locales whose country has no national IBAN
+//! scheme (United States, Japan, China, Iran) — the caller falls
+//! through to the `[{entity_kind}]` placeholder rather than minting
+//! a misleading foreign IBAN.
 
 use fake::rand::RngExt;
 
 use super::digits;
 use crate::locale::Locale;
 
-pub(super) fn iban<R: RngExt + ?Sized>(locale: Locale, rng: &mut R) -> String {
-    let (country, total_len) = country_for(locale);
+pub(super) fn iban<R: RngExt + ?Sized>(locale: Locale, rng: &mut R) -> Option<String> {
+    let (country, total_len) = country_for(locale)?;
     let body = digits(total_len - 4, rng);
     let check = mod97_check(country, &body);
-    format!("{country}{check:02}{body}")
+    Some(format!("{country}{check:02}{body}"))
 }
 
 /// Map a locale to a representative IBAN country code and total
-/// length. Lengths sourced from the ISO 13616 registry.
-fn country_for(locale: Locale) -> (&'static str, usize) {
+/// length, or `None` for countries without a national IBAN scheme.
+/// Lengths sourced from the ISO 13616 registry.
+fn country_for(locale: Locale) -> Option<(&'static str, usize)> {
     match locale {
-        Locale::FrFr => ("FR", 27),
-        Locale::DeDe => ("DE", 22),
-        Locale::ItIt => ("IT", 27),
-        Locale::PtPt | Locale::PtBr => ("PT", 25),
-        Locale::NlNl => ("NL", 18),
-        Locale::TrTr => ("TR", 26),
-        Locale::ArSa => ("SA", 24),
-        Locale::CyGb => ("GB", 22),
-        // Locales without a national IBAN scheme reuse GB's shape;
-        // the value still passes MOD-97 validation.
-        Locale::En | Locale::JaJp | Locale::ZhCn | Locale::ZhTw | Locale::FaIr => ("GB", 22),
+        Locale::FrFr => Some(("FR", 27)),
+        Locale::DeDe => Some(("DE", 22)),
+        Locale::ItIt => Some(("IT", 27)),
+        Locale::PtPt | Locale::PtBr => Some(("PT", 25)),
+        Locale::NlNl => Some(("NL", 18)),
+        Locale::TrTr => Some(("TR", 26)),
+        Locale::ArSa => Some(("SA", 24)),
+        Locale::CyGb => Some(("GB", 22)),
+        Locale::En | Locale::JaJp | Locale::ZhCn | Locale::ZhTw | Locale::FaIr => None,
     }
 }
 
@@ -60,7 +64,8 @@ fn mod97_check(country: &str, body: &str) -> u8 {
             remainder = (remainder * 10 + u64::from(value)) % 97;
         }
     }
-    98 - remainder as u8
+    let check = 98u64 - remainder;
+    u8::try_from(check).expect("MOD-97 check is in 1..=97")
 }
 
 #[cfg(test)]
@@ -100,7 +105,6 @@ mod tests {
     #[test]
     fn iban_validates_mod97() {
         for locale in [
-            Locale::En,
             Locale::FrFr,
             Locale::DeDe,
             Locale::ItIt,
@@ -110,7 +114,7 @@ mod tests {
             Locale::CyGb,
         ] {
             let mut rng = SmallRng::seed_from_u64(99);
-            let value = iban(locale, &mut rng);
+            let value = iban(locale, &mut rng).expect("iban locale");
             assert!(validate(&value), "MOD-97 failed for {locale:?}: {value}");
         }
     }
@@ -118,8 +122,25 @@ mod tests {
     #[test]
     fn iban_total_length_matches_country() {
         let mut rng = SmallRng::seed_from_u64(99);
-        assert_eq!(iban(Locale::FrFr, &mut rng).len(), 27);
-        assert_eq!(iban(Locale::DeDe, &mut rng).len(), 22);
-        assert_eq!(iban(Locale::NlNl, &mut rng).len(), 18);
+        assert_eq!(iban(Locale::FrFr, &mut rng).expect("FR").len(), 27);
+        assert_eq!(iban(Locale::DeDe, &mut rng).expect("DE").len(), 22);
+        assert_eq!(iban(Locale::NlNl, &mut rng).expect("NL").len(), 18);
+    }
+
+    #[test]
+    fn non_iban_locales_return_none() {
+        let mut rng = SmallRng::seed_from_u64(99);
+        for locale in [
+            Locale::En,
+            Locale::JaJp,
+            Locale::ZhCn,
+            Locale::ZhTw,
+            Locale::FaIr,
+        ] {
+            assert!(
+                iban(locale, &mut rng).is_none(),
+                "{locale:?} should be None"
+            );
+        }
     }
 }

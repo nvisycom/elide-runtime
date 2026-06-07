@@ -3034,8 +3034,8 @@ dependencies = [
  "async-trait",
  "fake",
  "nvisy-core",
+ "nvisy-toolkit",
  "tokio",
- "tracing",
 ]
 
 [[package]]

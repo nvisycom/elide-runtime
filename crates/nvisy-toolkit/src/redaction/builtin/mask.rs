@@ -18,7 +18,6 @@ use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
 
-use super::text_value::read_value;
 use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
 
 /// Character-replacement masking operator.
@@ -69,8 +68,8 @@ impl Anonymizer<Text> for Mask {
         LeakProfile::Partial
     }
 
-    async fn apply(&self, entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
-        let value = read_value(entity, source);
+    async fn apply(&self, _entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
+        let value = source.text.as_str();
         Ok(TextReplacement::substituted(mask(
             value,
             self.mask_char,
@@ -121,8 +120,8 @@ mod tests {
     #[tokio::test]
     async fn mask_all_with_stars() {
         let op = Mask::stars();
-        let source = TextData::new("card 4111111111111111 here");
-        let entity = entity(5, 21);
+        let source = TextData::new("4111111111111111");
+        let entity = entity(0, source.text.len());
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(out, TextReplacement::substituted("****************"));
     }
@@ -130,8 +129,8 @@ mod tests {
     #[tokio::test]
     async fn mask_first_n_keeps_tail() {
         let op = Mask::new('#', Some(12));
-        let source = TextData::new("card 4111111111111111 here");
-        let entity = entity(5, 21);
+        let source = TextData::new("4111111111111111");
+        let entity = entity(0, source.text.len());
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(out, TextReplacement::substituted("############1111"));
     }
@@ -139,8 +138,8 @@ mod tests {
     #[tokio::test]
     async fn mask_from_end_keeps_prefix() {
         let op = Mask::new('#', Some(12)).from_end();
-        let source = TextData::new("card 4111111111111111 here");
-        let entity = entity(5, 21);
+        let source = TextData::new("4111111111111111");
+        let entity = entity(0, source.text.len());
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(out, TextReplacement::substituted("4111############"));
     }
@@ -149,7 +148,7 @@ mod tests {
     async fn chars_to_mask_capped_at_value_length() {
         let op = Mask::new('*', Some(999));
         let source = TextData::new("hi");
-        let entity = entity(0, 2);
+        let entity = entity(0, source.text.len());
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(out, TextReplacement::substituted("**"));
     }

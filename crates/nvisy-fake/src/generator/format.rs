@@ -27,9 +27,15 @@ pub(crate) fn reshape_to_original(value: &str, original: &str) -> String {
     out
 }
 
-/// Trim `value` to `target` characters, padding with `0` if shorter.
-/// Acts on Unicode scalars, not bytes — safe for multibyte input
-/// such as a Japanese kanji-formatted DOB.
+/// Trim `value` to `target` characters, padding with ASCII `'0'` if
+/// shorter. Acts on Unicode scalars, not bytes — safe for multibyte
+/// truncation.
+///
+/// The `'0'` pad character is correct only for ASCII-digit kinds
+/// (payment card, IBAN, postal code). Callers gate length-preserving
+/// on those via the `is_fixed_width` predicate in
+/// [`super::is_fixed_width`]; extending the gate to non-digit kinds
+/// would require revisiting the pad character.
 pub(crate) fn clip_or_pad(value: &str, target: usize) -> String {
     let mut chars: Vec<char> = value.chars().collect();
     if chars.len() == target {
@@ -57,7 +63,7 @@ mod tests {
     }
 
     #[test]
-    fn reshape_drops_extra_digits_when_value_too_long() {
+    fn reshape_truncates_value_when_original_is_shorter() {
         assert_eq!(reshape_to_original("999999999", "12-34"), "99-99");
     }
 

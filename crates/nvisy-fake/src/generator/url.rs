@@ -3,12 +3,12 @@
 use fake::faker::internet::raw as internet;
 use fake::rand::RngExt;
 
-use super::dispatch::dispatch;
+use super::dispatch::fan_locale;
 use crate::locale::Locale;
 
 pub(super) fn url<R: RngExt + ?Sized>(locale: Locale, rng: &mut R) -> String {
-    let user: String = dispatch!(locale, rng, internet::Username);
-    let domain: String = dispatch!(locale, rng, internet::DomainSuffix);
+    let user: String = fan_locale!(locale, rng, internet::Username);
+    let domain: String = fan_locale!(locale, rng, internet::DomainSuffix);
     let host = sanitise_hostname_label(&user);
     let host = if host.is_empty() {
         "site"

@@ -6,17 +6,22 @@ Locale-aware fake-data anonymizer for the Nvisy runtime.
 
 ## Overview
 
-`FakeText` is a text-modality `Anonymizer` that swaps a detected entity
+`Fake` is a text-modality `Anonymizer` that swaps a detected entity
 for a plausible fake value drawn from the [`fake`](https://docs.rs/fake)
-crate's locale tables. The locale is selected per-entity from the
-entity's BCP-47 `language` field; entities without a language tag
-fall back to the operator's configured default.
+crate's locale tables. The locale is picked per-entity from the
+entity's BCP-47 `language` field, falling back to the
+`default_language` passed at construction when no tag is present.
 
-RNG state is derived per-call from the entity UUID (optionally salted
-with a workspace seed), so repeat runs over the same document produce
-the same fake values. Entity kinds outside the core PII set
-(person name, contact info, address, payment card, IBAN, currency,
-date of birth, age) fall through to a `[{entity_kind}]` placeholder.
+Construct with `Fake::new(language_tag)`; tune behaviour with
+`.with_seed(u64)`, `.length_preserving()`, and `.format_preserving()`.
+RNG state is derived from `entity_id` (or the UUID when no
+coreference id is present) so coreferent mentions collapse to the
+same fake value within a run.
+
+Entity kinds outside the core PII set (`PersonName`, `EmailAddress`,
+`PhoneNumber`, `Address`, `PostalCode`, `Url`, `DateOfBirth`, `Age`,
+`PaymentCard`, `Iban`, `BankAccount`, `Currency`) fall through to a
+`[{entity_kind}]` placeholder.
 
 ## Documentation
 

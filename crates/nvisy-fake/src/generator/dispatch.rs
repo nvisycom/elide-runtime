@@ -3,17 +3,20 @@
 //! Each `fake` locale (`EN`, `FR_FR`, …) implements a different set
 //! of `*GenFn` trait gates per faker, so a generic function bounded
 //! on [`fake::locales::Data`] can't reach every faker. The
-//! [`dispatch!`] macro fans a single faker constructor across all
+//! [`fan_locale!`] macro fans a single faker constructor across all
 //! 14 [`Locale`] variants at the call site.
+//!
+//! The macro is self-contained — it imports `fake::Fake` and every
+//! locale constant it needs into the expansion's scope, so callers
+//! don't have to.
 //!
 //! [`Locale`]: crate::locale::Locale
 
 /// Invoke `$faker(locale)` for each [`Locale`] variant and call
-/// `.fake_with_rng($rng)`. Locale constants and the [`fake::Fake`]
-/// trait must be in scope at the call site.
+/// `.fake_with_rng($rng)`.
 ///
 /// [`Locale`]: crate::locale::Locale
-macro_rules! dispatch {
+macro_rules! fan_locale {
     ($locale:expr, $rng:expr, $faker:expr) => {{
         use ::fake::Fake as _;
         use ::fake::locales::{
@@ -39,4 +42,4 @@ macro_rules! dispatch {
     }};
 }
 
-pub(crate) use dispatch;
+pub(crate) use fan_locale;

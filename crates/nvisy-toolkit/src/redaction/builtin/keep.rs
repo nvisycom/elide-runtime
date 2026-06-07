@@ -10,7 +10,6 @@ use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
 
-use super::text_value::read_value;
 use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
 
 /// Pass the matched span through unchanged.
@@ -26,8 +25,8 @@ impl Anonymizer<Text> for Keep {
         LeakProfile::Recoverable
     }
 
-    async fn apply(&self, entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
-        let value = read_value(entity, source);
+    async fn apply(&self, _entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
+        let value = source.text.as_str();
         Ok(TextReplacement::substituted(value))
     }
 }

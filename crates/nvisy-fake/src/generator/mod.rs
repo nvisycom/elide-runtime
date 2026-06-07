@@ -5,22 +5,23 @@
 //! layer doesn't support — the caller delegates to its fallback
 //! anonymizer in that case.
 //!
-//! Generators are grouped by domain:
-//! - [`identity`] — names, organisations, jobs, categorical labels
-//! - [`finance`] — payment, banking, IBAN, currency, amounts
-//! - [`contact`] — addresses, phones, emails, URLs, coordinates,
-//!   licence plates
-//! - [`device`] — IP/MAC, passwords, API tokens, device UUIDs
-//! - [`temporal`] — date of birth, datetime, age
-//! - [`case_id`] — opaque numeric identifiers
+//! Two paths:
+//!
+//! - **Structured kinds** (IBAN, payment cards, dates, IPs, …)
+//!   pattern-preserve the original string: same length, same
+//!   character-class layout, randomised digits and letters.
+//!   See [`pattern::pattern_preserve`].
+//! - **Free-form kinds** (names, addresses, organisations, …)
+//!   emit a fresh locale-aware fake whose length doesn't need to
+//!   match. These go through per-domain submodules.
 
 mod case_id;
 mod contact;
 mod device;
 mod dispatch;
 mod finance;
-mod format;
 mod identity;
+mod pattern;
 mod temporal;
 
 use fake::Fake;
@@ -35,25 +36,15 @@ use crate::locale::Locale;
 pub(crate) struct Context<'a> {
     locale: Locale,
     kind: EntityKind,
-    length_preserving: bool,
-    format_preserving: bool,
     original: &'a str,
 }
 
 impl<'a> Context<'a> {
     /// Build a generation request.
-    pub(crate) fn new(
-        locale: Locale,
-        kind: EntityKind,
-        length_preserving: bool,
-        format_preserving: bool,
-        original: &'a str,
-    ) -> Self {
+    pub(crate) fn new(locale: Locale, kind: EntityKind, original: &'a str) -> Self {
         Self {
             locale,
             kind,
-            length_preserving,
-            format_preserving,
             original,
         }
     }
@@ -62,11 +53,19 @@ impl<'a> Context<'a> {
     /// `rng` as the entropy source. Returns `None` when the entity
     /// kind isn't covered.
     pub(crate) fn generate<R: RngExt + ?Sized>(self, rng: &mut R) -> Option<String> {
-        let raw = self.produce(rng)?;
-        Some(self.post_process(raw))
+        // Structured kinds: scramble the original in place. Skip
+        // when source is empty — there's no pattern to copy from.
+        if self.kind.is_structured() {
+            if self.original.is_empty() {
+                return None;
+            }
+            return Some(pattern::pattern_preserve(self.original, rng));
+        }
+        // Free-form kinds: locale-aware generator.
+        self.produce_free_form(rng)
     }
 
-    fn produce<R: RngExt + ?Sized>(&self, rng: &mut R) -> Option<String> {
+    fn produce_free_form<R: RngExt + ?Sized>(&self, rng: &mut R) -> Option<String> {
         let l = self.locale;
         let value = match self.kind {
             // identity
@@ -79,39 +78,24 @@ impl<'a> Context<'a> {
             EntityKind::Nationality => identity::nationality(l, rng),
             EntityKind::Citizenship => identity::citizenship(l, rng),
 
-            // contact
-            EntityKind::EmailAddress => contact::email(l, rng),
-            EntityKind::PhoneNumber => contact::phone(l, rng),
+            // contact (free-form subset)
             EntityKind::Address => contact::street_address(l, rng),
-            EntityKind::PostalCode => contact::postal_code(l, rng),
             EntityKind::Url => contact::url(l, rng),
-            EntityKind::Coordinates => contact::coordinates(l, rng),
-            EntityKind::LicensePlate => contact::license_plate(l, rng),
 
-            // device
-            EntityKind::IpAddress => device::ip_address(l, rng),
-            EntityKind::MacAddress => device::mac_address(l, rng),
+            // temporal (only Age is free-form; DateOfBirth/DateTime
+            // are structured and pattern-preserved above).
+            EntityKind::Age => temporal::age(rng),
+
+            // finance (free-form subset)
+            EntityKind::Currency => finance::currency_code(l, rng),
+            EntityKind::Amount => finance::amount(l, rng),
+            EntityKind::Quantity => finance::quantity(rng),
+
+            // device (free-form subset: random tokens)
             EntityKind::Password => device::password(l, rng),
             EntityKind::ApiKey => device::api_key(rng),
             EntityKind::AuthToken => device::auth_token(rng),
             EntityKind::DeviceId => device::device_id(rng),
-
-            // temporal
-            EntityKind::DateOfBirth => temporal::date_of_birth(l, rng),
-            EntityKind::DateTime => temporal::date_time(l, rng),
-            EntityKind::Age => temporal::age(rng),
-
-            // finance
-            EntityKind::PaymentCard => finance::payment_card(l, rng),
-            EntityKind::CardSecurityCode => finance::card_security_code(rng),
-            EntityKind::CardExpiry => finance::card_expiry(l, rng),
-            EntityKind::Iban => finance::iban(l, rng)?,
-            EntityKind::BankAccount => finance::bank_account(l, rng),
-            EntityKind::BankRouting => finance::bank_routing(rng),
-            EntityKind::SwiftCode => finance::swift_code(l, rng),
-            EntityKind::Currency => finance::currency_code(l, rng),
-            EntityKind::Amount => finance::amount(l, rng),
-            EntityKind::Quantity => finance::quantity(rng),
 
             // case ids
             EntityKind::InternalId | EntityKind::CaseNumber => case_id::internal_id(rng),
@@ -120,47 +104,13 @@ impl<'a> Context<'a> {
         };
         Some(value)
     }
-
-    fn post_process(&self, mut value: String) -> String {
-        if self.format_preserving && honors_format(self.kind) && !self.original.is_empty() {
-            value = format::reshape_to_original(&value, self.original);
-        }
-        if self.length_preserving && is_fixed_width(self.kind) && !self.original.is_empty() {
-            value = format::clip_or_pad(&value, self.original.chars().count());
-        }
-        value
-    }
 }
 
-/// Shared helper for kinds that synthesise digit groups outside the
-/// fake-rs locale tables (IBAN, bank account, IDs).
+/// Shared helper for kinds that synthesise digit groups outside
+/// the fake-rs locale tables (bank account, IDs).
 pub(crate) fn digits<R: RngExt + ?Sized>(len: usize, rng: &mut R) -> String {
     let fmt = "#".repeat(len);
     number::NumberWithFormat(EN, fmt.as_str()).fake_with_rng(rng)
-}
-
-/// Kinds that honor the length-preserving toggle. All are
-/// fixed-width ASCII digit strings, which is what makes
-/// `clip_or_pad`'s `'0'`-padding safe — padding into multibyte
-/// scripts would not be.
-fn is_fixed_width(kind: EntityKind) -> bool {
-    matches!(
-        kind,
-        EntityKind::PaymentCard
-            | EntityKind::Iban
-            | EntityKind::PostalCode
-            | EntityKind::CardSecurityCode
-            | EntityKind::BankRouting
-    )
-}
-
-/// Kinds that honor the format-preserving toggle. All reshape into
-/// a digit-shape with separators borrowed from the original span.
-fn honors_format(kind: EntityKind) -> bool {
-    matches!(
-        kind,
-        EntityKind::PhoneNumber | EntityKind::PostalCode | EntityKind::CardExpiry
-    )
 }
 
 #[cfg(test)]
@@ -175,7 +125,7 @@ mod tests {
     }
 
     fn ctx<'a>(locale: Locale, kind: EntityKind, original: &'a str) -> Context<'a> {
-        Context::new(locale, kind, false, false, original)
+        Context::new(locale, kind, original)
     }
 
     #[test]
@@ -195,9 +145,42 @@ mod tests {
     }
 
     #[test]
-    fn supported_kinds_return_non_empty() {
+    fn structured_kind_with_empty_source_returns_none() {
+        let mut rng = rng();
+        // No pattern to copy → can't pattern-preserve.
+        assert!(
+            ctx(Locale::En, EntityKind::Iban, "")
+                .generate(&mut rng)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn structured_kinds_preserve_original_shape() {
+        let cases: &[(EntityKind, &str)] = &[
+            (EntityKind::Iban, "GB82WEST12345698765432"),
+            (EntityKind::PaymentCard, "4111-1111-1111-1111"),
+            (EntityKind::PhoneNumber, "+1-555-123-4567"),
+            (EntityKind::DateOfBirth, "1985-03-12"),
+            (EntityKind::IpAddress, "192.168.1.1"),
+            (EntityKind::PostalCode, "SW1A 1AA"),
+        ];
+        for &(kind, original) in cases {
+            let mut rng = rng();
+            let out = ctx(Locale::En, kind, original).generate(&mut rng).unwrap();
+            assert_eq!(out.len(), original.len(), "{kind:?}: length mismatch");
+            // Separator positions match.
+            for (i, (a, b)) in out.chars().zip(original.chars()).enumerate() {
+                if !a.is_ascii_alphanumeric() {
+                    assert_eq!(a, b, "{kind:?}: separator mismatch at {i} ({a:?} vs {b:?})");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn free_form_kinds_return_non_empty() {
         let kinds = [
-            // identity
             EntityKind::PersonName,
             EntityKind::OrganizationName,
             EntityKind::Occupation,
@@ -206,37 +189,16 @@ mod tests {
             EntityKind::Language,
             EntityKind::Nationality,
             EntityKind::Citizenship,
-            // contact
-            EntityKind::EmailAddress,
-            EntityKind::PhoneNumber,
             EntityKind::Address,
-            EntityKind::PostalCode,
             EntityKind::Url,
-            EntityKind::Coordinates,
-            EntityKind::LicensePlate,
-            // device
-            EntityKind::IpAddress,
-            EntityKind::MacAddress,
+            EntityKind::Age,
+            EntityKind::Currency,
+            EntityKind::Amount,
+            EntityKind::Quantity,
             EntityKind::Password,
             EntityKind::ApiKey,
             EntityKind::AuthToken,
             EntityKind::DeviceId,
-            // temporal
-            EntityKind::DateOfBirth,
-            EntityKind::DateTime,
-            EntityKind::Age,
-            // finance
-            EntityKind::PaymentCard,
-            EntityKind::CardSecurityCode,
-            EntityKind::CardExpiry,
-            EntityKind::Iban,
-            EntityKind::BankAccount,
-            EntityKind::BankRouting,
-            EntityKind::SwiftCode,
-            EntityKind::Currency,
-            EntityKind::Amount,
-            EntityKind::Quantity,
-            // case ids
             EntityKind::InternalId,
             EntityKind::CaseNumber,
         ];
@@ -247,20 +209,5 @@ mod tests {
                 .unwrap_or_else(|| panic!("no value for {kind:?}"));
             assert!(!out.is_empty(), "empty for {kind:?}");
         }
-    }
-
-    #[test]
-    fn iban_falls_through_for_non_iban_locales() {
-        let mut rng = rng();
-        assert!(
-            ctx(Locale::JaJp, EntityKind::Iban, "")
-                .generate(&mut rng)
-                .is_none()
-        );
-        assert!(
-            ctx(Locale::En, EntityKind::Iban, "")
-                .generate(&mut rng)
-                .is_none()
-        );
     }
 }

@@ -29,13 +29,18 @@ use crate::locale::Locale;
 /// `fallback` anonymizer passed at construction. There is no
 /// implicit default: the caller must say what should happen for
 /// unsupported kinds.
+///
+/// Structured kinds (IBAN, payment card, postal code, phone,
+/// date-of-birth, etc.) always pattern-preserve the original — the
+/// output's length and character-class layout matches the input,
+/// only the digits and letters are randomised. Free-form kinds
+/// (names, addresses, organisations) emit a fresh locale-aware
+/// fake whose length doesn't need to match.
 #[derive(Clone)]
 pub struct Fake {
     fallback: Arc<dyn Anonymizer<Text>>,
     default_language: LanguageTag,
     seed: u64,
-    length_preserving: bool,
-    format_preserving: bool,
 }
 
 impl std::fmt::Debug for Fake {
@@ -43,8 +48,6 @@ impl std::fmt::Debug for Fake {
         f.debug_struct("Fake")
             .field("default_language", &self.default_language)
             .field("seed", &self.seed)
-            .field("length_preserving", &self.length_preserving)
-            .field("format_preserving", &self.format_preserving)
             .field("fallback", &"Arc<dyn Anonymizer<Text>>")
             .finish()
     }
@@ -61,8 +64,6 @@ impl Fake {
             fallback: Arc::new(fallback),
             default_language: LanguageTag::from_str("en").expect("en is BCP-47"),
             seed: 0,
-            length_preserving: false,
-            format_preserving: false,
         }
     }
 
@@ -79,26 +80,6 @@ impl Fake {
     #[must_use]
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;
-        self
-    }
-
-    /// Clip / right-pad the fake value to match the original entity
-    /// span length. Only honored for ASCII-digit kinds
-    /// (`PaymentCard`, `Iban`, `PostalCode`); free-form kinds
-    /// (names, addresses) ignore the flag.
-    #[must_use]
-    pub fn length_preserving(mut self) -> Self {
-        self.length_preserving = true;
-        self
-    }
-
-    /// Preserve non-digit separators (spaces, dashes, dots) found in
-    /// the original span when emitting fakes for digit-shaped kinds
-    /// (`PhoneNumber`, `PostalCode`). Free-form kinds ignore the
-    /// flag.
-    #[must_use]
-    pub fn format_preserving(mut self) -> Self {
-        self.format_preserving = true;
         self
     }
 
@@ -123,14 +104,7 @@ impl Fake {
         source: &str,
     ) -> Option<String> {
         let mut rng = self.rng_for(identity);
-        generator::Context::new(
-            locale,
-            kind,
-            self.length_preserving,
-            self.format_preserving,
-            source,
-        )
-        .generate(&mut rng)
+        generator::Context::new(locale, kind, source).generate(&mut rng)
     }
 }
 

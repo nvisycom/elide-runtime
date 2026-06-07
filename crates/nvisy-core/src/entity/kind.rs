@@ -383,6 +383,39 @@ impl EntityKind {
     pub fn is_general_purpose(&self) -> bool {
         self.category() == EntityCategory::GeneralPurpose
     }
+
+    /// Convenience predicate: this kind has a recognisable
+    /// structural shape — fixed character-class layout, separators
+    /// at meaningful positions, fixed length — that anonymizers
+    /// and validators may want to preserve verbatim.
+    ///
+    /// True for: IBAN, payment cards (number / CVV / expiry),
+    /// bank accounts and routing, SWIFT/BIC, postal codes, phone
+    /// numbers, email addresses, dates and date-times, IP and MAC
+    /// addresses, license plates, coordinates. False for free-form
+    /// names, addresses, occupations, tokens, etc.
+    #[must_use]
+    pub fn is_structured(&self) -> bool {
+        matches!(
+            self,
+            Self::PaymentCard
+                | Self::CardSecurityCode
+                | Self::CardExpiry
+                | Self::Iban
+                | Self::BankAccount
+                | Self::BankRouting
+                | Self::SwiftCode
+                | Self::PostalCode
+                | Self::PhoneNumber
+                | Self::EmailAddress
+                | Self::DateOfBirth
+                | Self::DateTime
+                | Self::IpAddress
+                | Self::MacAddress
+                | Self::LicensePlate
+                | Self::Coordinates
+        )
+    }
 }
 
 #[cfg(test)]

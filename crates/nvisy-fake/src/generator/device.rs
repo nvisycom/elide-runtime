@@ -1,8 +1,7 @@
-//! Tech identifiers: IP/MAC, passwords, API tokens, device UUIDs.
-//!
-//! These are mostly locale-invariant (an IP address is an IP
-//! address in any locale). Password and Username are locale-aware
-//! where the fake-rs faker provides locale data.
+//! Free-form device/credential generators: passwords, API tokens,
+//! device UUIDs. Structured kinds (IpAddress, MacAddress)
+//! pattern-preserve their original and don't go through this
+//! module.
 
 use fake::Fake;
 use fake::faker::internet::raw as internet;
@@ -12,16 +11,7 @@ use fake::locales::{
 use fake::rand::RngExt;
 use uuid::Uuid;
 
-use super::dispatch::fan_locale;
 use crate::locale::Locale;
-
-pub(super) fn ip_address<R: RngExt + ?Sized>(locale: Locale, rng: &mut R) -> String {
-    fan_locale!(locale, rng, internet::IP)
-}
-
-pub(super) fn mac_address<R: RngExt + ?Sized>(locale: Locale, rng: &mut R) -> String {
-    fan_locale!(locale, rng, internet::MACAddress)
-}
 
 /// `internet::Password` takes both a locale and a length range, so
 /// it can't go through the `fan_locale!` macro (which assumes a

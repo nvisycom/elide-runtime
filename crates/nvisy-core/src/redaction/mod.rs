@@ -14,6 +14,14 @@
 //!   the write-back side.
 //! - [`RedactAt<M>`] — the write-back trait every sink implements
 //!   (toolkit's `MemoryBuffer`, document's `DocumentTree`).
+//! - [`Deanonymizer`] — audit-keyed inverse of `Anonymizer`.
+//!   Implemented by recoverable wrappers that persist the original
+//!   at apply-time keyed on `entity.id`.
+//! - [`Store`] — pluggable token vault keyed on opaque strings.
+//!   Backends (in-memory, key-value) ship in `nvisy-toolkit`.
+//! - [`Memoized`] — wraps any inner `Anonymizer` and caches its
+//!   output so the same payload always gets the same replacement.
+//!   No recovery; preserves the inner's `LeakProfile`.
 //!
 //! The read-side siblings [`TextAt`] / [`DataAt`] live in
 //! [`extraction`].
@@ -26,15 +34,19 @@
 mod anonymizer;
 mod deanonymizer;
 mod leak_profile;
+mod memoized;
 mod redact_at;
 mod redactions;
 mod replacement;
+mod store;
 
 pub use self::anonymizer::Anonymizer;
 pub use self::deanonymizer::Deanonymizer;
 pub use self::leak_profile::LeakProfile;
+pub use self::memoized::Memoized;
 pub use self::redact_at::RedactAt;
 pub use self::redactions::Redactions;
 pub use self::replacement::{
     AudioReplacement, ImageReplacement, TabularReplacement, TextReplacement,
 };
+pub use self::store::Store;

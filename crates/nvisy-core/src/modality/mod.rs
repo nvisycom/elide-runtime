@@ -35,6 +35,7 @@ mod tabular;
 mod text;
 
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -101,7 +102,7 @@ pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'sta
 
     /// Per-call modality-specific payload: the bytes / text /
     /// dimensions a recognizer or extractor actually scans.
-    type Data: Debug + Send + Sync;
+    type Data: Clone + Hash + Debug + Send + Sync;
 
     /// What an anonymizer writes at the entity's location. Embedded
     /// in audit records, so it carries the full serde + schemars

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{Modality, Overlap, TextData};
 use crate::entity::ModelProvenance;
+use crate::redaction::TabularReplacement;
 
 /// Tabular modality marker (zero-sized).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -16,7 +17,7 @@ impl Modality for Tabular {
     type Data = TextData;
     type Extraction = TabularExtraction;
     type Location = TabularLocation;
-    type Replacement = crate::redaction::TabularReplacement;
+    type Replacement = TabularReplacement;
 }
 
 /// A cell (or sub-cell range) within tabular content.

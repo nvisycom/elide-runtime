@@ -11,6 +11,7 @@ use uuid::Uuid;
 use super::{Modality, Overlap};
 use crate::entity::ModelProvenance;
 use crate::primitive::TimeSpan;
+use crate::redaction::AudioReplacement;
 
 /// Audio modality marker (zero-sized).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -21,7 +22,7 @@ impl Modality for Audio {
     type Data = AudioData;
     type Extraction = AudioExtraction;
     type Location = AudioLocation;
-    type Replacement = crate::redaction::AudioReplacement;
+    type Replacement = AudioReplacement;
 }
 
 /// A time interval within audio content.
@@ -57,7 +58,7 @@ impl AudioLocation {
 /// optional original filename. No dimensions or sample-rate metadata
 /// is carried at this layer — providers parse the container
 /// themselves.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AudioData {
     /// Encoded audio bytes.
     pub bytes: Bytes,

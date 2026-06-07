@@ -34,14 +34,16 @@
 
 mod id;
 mod registry;
+mod store;
 
 pub mod builtin;
 
 pub use nvisy_core::modality::Modality;
 pub use nvisy_core::redaction::{
-    Anonymizer, AudioReplacement, Deanonymizer, ImageReplacement, LeakProfile, TabularReplacement,
-    TextReplacement,
+    Anonymizer, AudioReplacement, Deanonymizer, ImageReplacement, LeakProfile, Memoized, Store,
+    TabularReplacement, TextReplacement,
 };
 
 pub use self::id::AnonymizerId;
 pub use self::registry::RedactionRegistry;
+pub use self::store::MemoryStore;

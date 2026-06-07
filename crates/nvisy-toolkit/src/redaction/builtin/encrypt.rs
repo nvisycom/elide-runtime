@@ -19,7 +19,7 @@ use nvisy_core::modality::{Text, TextData};
 use nvisy_core::{Error, Result};
 
 use super::text_value::read_value;
-use crate::redaction::{Anonymizer, Deanonymizer, LeakProfile, TextReplacement};
+use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
 
 /// Nonce length in bytes (AES-GCM standard).
 const NONCE_LEN: usize = 12;
@@ -81,14 +81,15 @@ impl Anonymizer<Text> for Encrypt {
     }
 }
 
-#[async_trait]
-impl Deanonymizer<Text> for Decrypt {
-    async fn revert(&self, replacement: &TextReplacement) -> Result<TextData> {
+impl Decrypt {
+    /// Decode a [`TextReplacement`] back to its plaintext.
+    ///
+    /// Returns `Ok(None)` for [`TextReplacement::Removed`] (nothing
+    /// to decrypt), `Err` for malformed ciphertext or authentication
+    /// failure.
+    pub async fn decode(&self, replacement: &TextReplacement) -> Result<Option<TextData>> {
         let TextReplacement::Substituted { value } = replacement else {
-            return Err(Error::validation(
-                "cannot decrypt: replacement is Removed (no ciphertext)",
-                TARGET,
-            ));
+            return Ok(None);
         };
 
         let blob = STANDARD
@@ -117,7 +118,7 @@ impl Deanonymizer<Text> for Decrypt {
             Error::validation(format!("decrypted bytes are not valid UTF-8: {e}"), TARGET)
         })?;
 
-        Ok(TextData::new(text))
+        Ok(Some(TextData::new(text)))
     }
 }
 
@@ -153,8 +154,11 @@ mod tests {
         let entity = entity(0, 18);
 
         let ciphertext = enc.apply(&entity, &source).await.unwrap();
-        let recovered = dec.revert(&ciphertext).await.unwrap();
-        assert_eq!(recovered.text.as_str(), "alice@example.test");
+        let recovered = dec.decode(&ciphertext).await.unwrap();
+        assert_eq!(
+            recovered.expect("decrypts cleanly").text.as_str(),
+            "alice@example.test"
+        );
     }
 
     #[tokio::test]
@@ -177,14 +181,14 @@ mod tests {
         let entity = entity(0, 18);
 
         let ciphertext = enc.apply(&entity, &source).await.unwrap();
-        let err = dec.revert(&ciphertext).await.unwrap_err();
+        let err = dec.decode(&ciphertext).await.unwrap_err();
         assert!(err.to_string().contains("decryption failed"));
     }
 
     #[tokio::test]
-    async fn removed_replacement_cannot_be_decrypted() {
+    async fn removed_replacement_yields_none() {
         let dec = Decrypt::from_key(KEY);
-        let err = dec.revert(&TextReplacement::Removed).await.unwrap_err();
-        assert!(err.to_string().contains("Removed"));
+        let out = dec.decode(&TextReplacement::Removed).await.unwrap();
+        assert!(out.is_none());
     }
 }

@@ -201,7 +201,7 @@ impl<M: Modality> std::fmt::Debug for RedactionRegistry<M> {
 
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
+
     use nvisy_core::entity::Entity;
     use nvisy_core::modality::{Text, TextData, TextLocation};
     use nvisy_core::primitive::Confidence;
@@ -211,7 +211,7 @@ mod tests {
 
     struct StubAnonymizer(&'static str);
 
-    #[async_trait]
+    #[async_trait::async_trait]
     impl Anonymizer<Text> for StubAnonymizer {
         fn leak_profile(&self) -> LeakProfile {
             LeakProfile::Irrecoverable

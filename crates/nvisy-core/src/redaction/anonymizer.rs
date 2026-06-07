@@ -1,7 +1,5 @@
 //! [`Anonymizer<M>`]: the per-modality redaction operator trait.
 
-use async_trait::async_trait;
-
 use super::LeakProfile;
 use crate::Result;
 use crate::entity::Entity;
@@ -19,7 +17,7 @@ use crate::modality::Modality;
 /// `Arc<dyn Anonymizer<M>>`.
 ///
 /// [`Modality::Replacement`]: crate::modality::Modality::Replacement
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Anonymizer<M: Modality>: Send + Sync {
     /// What the operator's output leaks about the original. Used by
     /// policy-authoring tools and audit reporting; not consulted in

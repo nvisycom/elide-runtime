@@ -127,8 +127,7 @@ fn date_of_birth<R: RngExt + ?Sized>(rng: &mut R) -> String {
 /// 22 digits. Looks IBAN-like without claiming any real check-digit
 /// scheme.
 fn iban<R: RngExt + ?Sized>(rng: &mut R) -> String {
-    let body: String =
-        number::NumberWithFormat(EN, "######################").fake_with_rng(rng);
+    let body: String = number::NumberWithFormat(EN, "######################").fake_with_rng(rng);
     format!("XX{body}")
 }
 

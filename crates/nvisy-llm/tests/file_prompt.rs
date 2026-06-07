@@ -9,12 +9,12 @@
 //! rendering for text, bbox access for image), plus the
 //! `label_map` / `labels_to_ignore` policy on the lift side.
 
-use nvisy_llm::backend::LlmResponse;
-use nvisy_llm::{FilePrompt, Prompt};
 use nvisy_core::entity::EntityKind;
 use nvisy_core::modality::{ImageData, ImageLocation, TextData, TextLocation};
 use nvisy_core::primitive::{BoundingBox, Dimensions};
 use nvisy_core::recognition::{Hint, RecognizerInput};
+use nvisy_llm::backend::LlmResponse;
+use nvisy_llm::{FilePrompt, Prompt};
 const NER_TOML: &str = include_str!("../testdata/prompts/ner.toml");
 const VLM_TOML: &str = include_str!("../testdata/prompts/vlm.toml");
 

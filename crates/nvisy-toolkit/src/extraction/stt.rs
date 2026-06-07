@@ -6,5 +6,4 @@
 //! `nvisy_toolkit::extraction::stt::backend::NoopBackend`, etc. are
 //! all reachable here.
 
-pub use nvisy_stt::*;
-pub use nvisy_stt::backend;
+pub use nvisy_stt::{backend, *};

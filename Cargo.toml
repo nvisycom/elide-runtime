@@ -7,6 +7,7 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-document",
+    "./crates/nvisy-fake",
     "./crates/nvisy-llm",
     "./crates/nvisy-ner",
     "./crates/nvisy-ocr",
@@ -38,6 +39,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-document = { path = "./crates/nvisy-document", version = "0.1.0" }
+nvisy-fake = { path = "./crates/nvisy-fake", version = "0.1.0" }
 nvisy-llm = { path = "./crates/nvisy-llm", version = "0.1.0" }
 nvisy-stt = { path = "./crates/nvisy-stt", version = "0.1.0" }
 nvisy-toolkit = { path = "./crates/nvisy-toolkit", version = "0.1.0" }
@@ -149,3 +151,6 @@ infer = { version = "0.19", features = [] }
 validator = { version = "0.20", features = ["derive"] }
 rand = { version = "0.10", features = [] }
 tempfile = { version = "3.27", features = [] }
+
+# Fake data generation
+fake = { version = "5.1", features = [] }

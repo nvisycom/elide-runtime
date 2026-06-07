@@ -32,21 +32,16 @@
 //! [`Keep`]: builtin::Keep
 //! [`Encrypt`]: builtin::Encrypt
 
-mod anonymizer;
-mod deanonymizer;
 mod id;
-mod leak_profile;
 mod registry;
 
 pub mod builtin;
 
 pub use nvisy_core::modality::Modality;
 pub use nvisy_core::redaction::{
-    AudioReplacement, ImageReplacement, TabularReplacement, TextReplacement,
+    Anonymizer, AudioReplacement, Deanonymizer, ImageReplacement, LeakProfile, TabularReplacement,
+    TextReplacement,
 };
 
-pub use self::anonymizer::Anonymizer;
-pub use self::deanonymizer::Deanonymizer;
 pub use self::id::AnonymizerId;
-pub use self::leak_profile::LeakProfile;
 pub use self::registry::RedactionRegistry;

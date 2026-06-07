@@ -1,5 +1,10 @@
 //! Redaction-side primitives shared across the runtime.
 //!
+//! - [`Anonymizer<M>`] + [`LeakProfile`] — the per-modality
+//!   redaction operator trait, plus the leak-profile enum operators
+//!   self-report. Built-in implementations (mask, hash, encrypt,
+//!   keep, redact, replace) ship in `nvisy-toolkit`; the fake-data
+//!   generator ships in `nvisy-fake`.
 //! - [`TextReplacement`], [`ImageReplacement`], [`AudioReplacement`],
 //!   [`TabularReplacement`] — what an anonymizer emits at the
 //!   entity's location. Each modality binds one of these via
@@ -10,19 +15,24 @@
 //! - [`RedactAt<M>`] — the write-back trait every sink implements
 //!   (toolkit's `MemoryBuffer`, document's `DocumentTree`).
 //!
-//! The producer-side anonymizer trait (and its built-ins) lives in
-//! `nvisy-toolkit`; the read-side siblings [`TextAt`] / [`DataAt`]
-//! live in [`extraction`].
+//! The read-side siblings [`TextAt`] / [`DataAt`] live in
+//! [`extraction`].
 //!
 //! [`DataAt`]: crate::extraction::DataAt
 //! [`extraction`]: crate::extraction
 //! [`Modality::Replacement`]: crate::modality::Modality::Replacement
 //! [`TextAt`]: crate::extraction::TextAt
 
+mod anonymizer;
+mod deanonymizer;
+mod leak_profile;
 mod redact_at;
 mod redactions;
 mod replacement;
 
+pub use self::anonymizer::Anonymizer;
+pub use self::deanonymizer::Deanonymizer;
+pub use self::leak_profile::LeakProfile;
 pub use self::redact_at::RedactAt;
 pub use self::redactions::Redactions;
 pub use self::replacement::{

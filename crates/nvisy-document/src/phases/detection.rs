@@ -173,6 +173,7 @@ where
                 location,
                 confidence: entity.confidence,
                 trail: entity.trail,
+                language: entity.language,
             });
         }
     }

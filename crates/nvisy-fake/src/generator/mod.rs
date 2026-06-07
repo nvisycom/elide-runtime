@@ -1,31 +1,34 @@
 //! Per-[`EntityKind`] fake-value generation, dispatched by [`Locale`].
 //!
-//! [`generate`] returns `Some(string)` for every entity kind covered
-//! by the core PII set, or `None` for kinds the fake-data layer
-//! doesn't support — the caller substitutes a `[{entity_kind}]`
-//! placeholder in that case.
+//! [`Context::generate`] returns `Some(string)` for every entity
+//! kind the catalogue covers, or `None` for kinds the fake-data
+//! layer doesn't support — the caller delegates to its fallback
+//! anonymizer in that case.
+//!
+//! Generators are grouped by domain:
+//! - [`identity`] — names, organisations, jobs, categorical labels
+//! - [`finance`] — payment, banking, IBAN, currency, amounts
+//! - [`contact`] — addresses, phones, emails, URLs, coordinates,
+//!   licence plates
+//! - [`device`] — IP/MAC, passwords, API tokens, device UUIDs
+//! - [`temporal`] — date of birth, datetime, age
+//! - [`case_id`] — opaque numeric identifiers
 
-mod address;
-mod bank;
+mod case_id;
+mod contact;
+mod device;
 mod dispatch;
-mod dob;
+mod finance;
 mod format;
-mod iban;
-mod url;
+mod identity;
+mod temporal;
 
 use fake::Fake;
-use fake::faker::address::raw as address_raw;
-use fake::faker::creditcard::raw as creditcard;
-use fake::faker::currency::raw as currency;
-use fake::faker::internet::raw as internet;
-use fake::faker::name::raw as name;
 use fake::faker::number::raw as number;
-use fake::faker::phone_number::raw as phone_number;
 use fake::locales::EN;
 use fake::rand::RngExt;
 use nvisy_core::entity::EntityKind;
 
-use self::dispatch::fan_locale;
 use crate::locale::Locale;
 
 /// Per-call options threaded through to each kind generator.
@@ -57,29 +60,62 @@ impl<'a> Context<'a> {
 
     /// Generate a fake replacement string for this context, using
     /// `rng` as the entropy source. Returns `None` when the entity
-    /// kind isn't covered by the locale catalogue.
+    /// kind isn't covered.
     pub(crate) fn generate<R: RngExt + ?Sized>(self, rng: &mut R) -> Option<String> {
         let raw = self.produce(rng)?;
         Some(self.post_process(raw))
     }
 
     fn produce<R: RngExt + ?Sized>(&self, rng: &mut R) -> Option<String> {
+        let l = self.locale;
         let value = match self.kind {
-            EntityKind::PersonName => fan_locale!(self.locale, rng, name::Name),
-            EntityKind::EmailAddress => fan_locale!(self.locale, rng, internet::SafeEmail),
-            EntityKind::PhoneNumber => fan_locale!(self.locale, rng, phone_number::PhoneNumber),
-            EntityKind::Address => address::street_address(self.locale, rng),
-            EntityKind::PostalCode => fan_locale!(self.locale, rng, address_raw::PostCode),
-            EntityKind::Url => url::url(self.locale, rng),
-            EntityKind::DateOfBirth => dob::date_of_birth(self.locale, rng),
-            EntityKind::Age => {
-                let years: u8 = (1..=99u8).fake_with_rng(rng);
-                years.to_string()
-            }
-            EntityKind::PaymentCard => fan_locale!(self.locale, rng, creditcard::CreditCardNumber),
-            EntityKind::Iban => iban::iban(self.locale, rng)?,
-            EntityKind::BankAccount => bank::bank_account(self.locale, rng),
-            EntityKind::Currency => fan_locale!(self.locale, rng, currency::CurrencyCode),
+            // identity
+            EntityKind::PersonName => identity::person_name(l, rng),
+            EntityKind::OrganizationName => identity::organization_name(l, rng),
+            EntityKind::Occupation => identity::occupation(l, rng),
+            EntityKind::Username => identity::username(l, rng),
+            EntityKind::Gender => identity::gender(l, rng),
+            EntityKind::Language => identity::language(rng),
+            EntityKind::Nationality => identity::nationality(l, rng),
+            EntityKind::Citizenship => identity::citizenship(l, rng),
+
+            // contact
+            EntityKind::EmailAddress => contact::email(l, rng),
+            EntityKind::PhoneNumber => contact::phone(l, rng),
+            EntityKind::Address => contact::street_address(l, rng),
+            EntityKind::PostalCode => contact::postal_code(l, rng),
+            EntityKind::Url => contact::url(l, rng),
+            EntityKind::Coordinates => contact::coordinates(l, rng),
+            EntityKind::LicensePlate => contact::license_plate(l, rng),
+
+            // device
+            EntityKind::IpAddress => device::ip_address(l, rng),
+            EntityKind::MacAddress => device::mac_address(l, rng),
+            EntityKind::Password => device::password(l, rng),
+            EntityKind::ApiKey => device::api_key(rng),
+            EntityKind::AuthToken => device::auth_token(rng),
+            EntityKind::DeviceId => device::device_id(rng),
+
+            // temporal
+            EntityKind::DateOfBirth => temporal::date_of_birth(l, rng),
+            EntityKind::DateTime => temporal::date_time(l, rng),
+            EntityKind::Age => temporal::age(rng),
+
+            // finance
+            EntityKind::PaymentCard => finance::payment_card(l, rng),
+            EntityKind::CardSecurityCode => finance::card_security_code(rng),
+            EntityKind::CardExpiry => finance::card_expiry(l, rng),
+            EntityKind::Iban => finance::iban(l, rng)?,
+            EntityKind::BankAccount => finance::bank_account(l, rng),
+            EntityKind::BankRouting => finance::bank_routing(rng),
+            EntityKind::SwiftCode => finance::swift_code(l, rng),
+            EntityKind::Currency => finance::currency_code(l, rng),
+            EntityKind::Amount => finance::amount(l, rng),
+            EntityKind::Quantity => finance::quantity(rng),
+
+            // case ids
+            EntityKind::InternalId | EntityKind::CaseNumber => case_id::internal_id(rng),
+
             _ => return None,
         };
         Some(value)
@@ -97,7 +133,7 @@ impl<'a> Context<'a> {
 }
 
 /// Shared helper for kinds that synthesise digit groups outside the
-/// fake-rs locale tables (IBAN, bank account, DOB).
+/// fake-rs locale tables (IBAN, bank account, IDs).
 pub(crate) fn digits<R: RngExt + ?Sized>(len: usize, rng: &mut R) -> String {
     let fmt = "#".repeat(len);
     number::NumberWithFormat(EN, fmt.as_str()).fake_with_rng(rng)
@@ -110,14 +146,21 @@ pub(crate) fn digits<R: RngExt + ?Sized>(len: usize, rng: &mut R) -> String {
 fn is_fixed_width(kind: EntityKind) -> bool {
     matches!(
         kind,
-        EntityKind::PaymentCard | EntityKind::Iban | EntityKind::PostalCode
+        EntityKind::PaymentCard
+            | EntityKind::Iban
+            | EntityKind::PostalCode
+            | EntityKind::CardSecurityCode
+            | EntityKind::BankRouting
     )
 }
 
-/// Kinds that honor the format-preserving toggle. Both reshape into
+/// Kinds that honor the format-preserving toggle. All reshape into
 /// a digit-shape with separators borrowed from the original span.
 fn honors_format(kind: EntityKind) -> bool {
-    matches!(kind, EntityKind::PhoneNumber | EntityKind::PostalCode)
+    matches!(
+        kind,
+        EntityKind::PhoneNumber | EntityKind::PostalCode | EntityKind::CardExpiry
+    )
 }
 
 #[cfg(test)]
@@ -136,33 +179,66 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_kind_returns_none() {
+    fn unsupported_kinds_return_none() {
         let mut rng = rng();
-        assert!(
-            ctx(Locale::En, EntityKind::IpAddress, "")
-                .generate(&mut rng)
-                .is_none()
-        );
+        for kind in [
+            EntityKind::Fingerprint,
+            EntityKind::Face,
+            EntityKind::Religion,
+            EntityKind::Diagnosis,
+        ] {
+            assert!(
+                ctx(Locale::En, kind, "").generate(&mut rng).is_none(),
+                "{kind:?} should be None"
+            );
+        }
     }
 
     #[test]
     fn supported_kinds_return_non_empty() {
-        // Use a locale with a national IBAN scheme so `Iban`
-        // doesn't fall through to None (En, JaJp, ZhCn/Tw, FaIr
-        // intentionally lack one).
         let kinds = [
+            // identity
             EntityKind::PersonName,
+            EntityKind::OrganizationName,
+            EntityKind::Occupation,
+            EntityKind::Username,
+            EntityKind::Gender,
+            EntityKind::Language,
+            EntityKind::Nationality,
+            EntityKind::Citizenship,
+            // contact
             EntityKind::EmailAddress,
             EntityKind::PhoneNumber,
             EntityKind::Address,
             EntityKind::PostalCode,
             EntityKind::Url,
+            EntityKind::Coordinates,
+            EntityKind::LicensePlate,
+            // device
+            EntityKind::IpAddress,
+            EntityKind::MacAddress,
+            EntityKind::Password,
+            EntityKind::ApiKey,
+            EntityKind::AuthToken,
+            EntityKind::DeviceId,
+            // temporal
             EntityKind::DateOfBirth,
+            EntityKind::DateTime,
             EntityKind::Age,
+            // finance
             EntityKind::PaymentCard,
+            EntityKind::CardSecurityCode,
+            EntityKind::CardExpiry,
             EntityKind::Iban,
             EntityKind::BankAccount,
+            EntityKind::BankRouting,
+            EntityKind::SwiftCode,
             EntityKind::Currency,
+            EntityKind::Amount,
+            EntityKind::Quantity,
+            // case ids
+            EntityKind::InternalId,
+            EntityKind::CaseNumber,
         ];
         for kind in kinds {
             let mut rng = rng();

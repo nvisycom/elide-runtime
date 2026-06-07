@@ -279,9 +279,12 @@ mod tests {
 
     #[tokio::test]
     async fn unsupported_kind_delegates_to_fallback() {
+        // Diagnosis isn't faked — sensitive clinical kinds are
+        // intentionally excluded — so it falls through to the
+        // fallback anonymizer.
         let op = Fake::new(Replace::new("[redacted]"));
-        let source = TextData::new("1.2.3.4");
-        let entity = entity_over(EntityKind::IpAddress, source.text.as_str());
+        let source = TextData::new("hypertension");
+        let entity = entity_over(EntityKind::Diagnosis, source.text.as_str());
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(out, TextReplacement::substituted("[redacted]"));
     }
@@ -289,10 +292,10 @@ mod tests {
     #[tokio::test]
     async fn fallback_can_be_mask() {
         let op = Fake::new(Mask::stars());
-        let source = TextData::new("1.2.3.4");
-        let entity = entity_over(EntityKind::IpAddress, source.text.as_str());
+        let source = TextData::new("hypertension");
+        let entity = entity_over(EntityKind::Diagnosis, source.text.as_str());
         let out = op.apply(&entity, &source).await.unwrap();
-        assert_eq!(out, TextReplacement::substituted("*******"));
+        assert_eq!(out, TextReplacement::substituted("************"));
     }
 
     #[tokio::test]

@@ -32,6 +32,9 @@ fake = { workspace = true, features = [] }
 # Async runtime
 async-trait = { workspace = true, features = [] }
 
+# UUIDs for fake DeviceId
+uuid = { workspace = true, features = ["v4"] }
+
 [dev-dependencies]
 nvisy-core = { workspace = true, features = ["test-utils"] }
 nvisy-toolkit = { workspace = true, features = [] }

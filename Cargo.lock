@@ -3036,6 +3036,7 @@ dependencies = [
  "nvisy-core",
  "nvisy-toolkit",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

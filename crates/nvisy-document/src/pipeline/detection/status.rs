@@ -4,11 +4,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Lifecycle states for a single detection pass.
-///
-/// Detection has a simpler state machine than the old unified run
-/// (no per-document partial-failure split — every document either
-/// makes it into the audit or the whole pass fails) but otherwise
-/// follows the same shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

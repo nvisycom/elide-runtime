@@ -16,8 +16,7 @@ use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
 use tracing::Instrument;
 
-use crate::core::{DocumentTree, RunContext};
-use crate::pipeline::EngineInput;
+use crate::core::{DocumentTree, Plan, RunContext};
 use crate::validation::{CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity};
 
 const TARGET: &str = "nvisy_document::validation";
@@ -34,12 +33,12 @@ impl ValidationPhase {
     pub(crate) async fn apply_text(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "validation.text");
         let run_id = ctx.shared().run_id;
-        let cfg = input.plan.validation.clone();
+        let cfg = plan.validation.clone();
         async move {
             let redacted = stream_text(tree.handle.handler_mut()).await?;
             let pipeline: CheckPipeline<Text, DocumentTree<Text>> =
@@ -58,12 +57,12 @@ impl ValidationPhase {
     pub(crate) async fn apply_tabular(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Tabular>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "validation.tabular");
         let run_id = ctx.shared().run_id;
-        let cfg = input.plan.validation.clone();
+        let cfg = plan.validation.clone();
         async move {
             let redacted = stream_tabular(tree.handle.handler_mut()).await?;
             let pipeline: CheckPipeline<Tabular, DocumentTree<Tabular>> =
@@ -85,7 +84,7 @@ impl ValidationPhase {
     pub(crate) async fn apply_image(
         &self,
         _ctx: &RunContext,
-        _input: &EngineInput,
+        _plan: &Plan,
         _tree: &mut DocumentTree<Image>,
     ) -> Result<()> {
         Ok(())
@@ -94,7 +93,7 @@ impl ValidationPhase {
     pub(crate) async fn apply_audio(
         &self,
         _ctx: &RunContext,
-        _input: &EngineInput,
+        _plan: &Plan,
         _tree: &mut DocumentTree<Audio>,
     ) -> Result<()> {
         Ok(())

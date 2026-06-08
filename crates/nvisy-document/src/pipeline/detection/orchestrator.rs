@@ -1,10 +1,5 @@
 //! Detection orchestrator: imports content, fans out per-document
 //! detection tasks, collects audits.
-//!
-//! Mirrors the layout of the legacy unified orchestrator
-//! (`pipeline/orchestrator.rs`) but runs only the
-//! detection-suffix phases. The legacy orchestrator stays in
-//! place until `Engine::run` is deleted (task #462).
 
 use std::sync::Arc;
 
@@ -13,32 +8,22 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
 use super::document::DetectionDocumentPipeline;
-use crate::core::{AnyTree, RunContext};
+use crate::core::{AnyTree, Plan, RunContext};
 use crate::phases::ingestion::{ImportFile, Importer};
-use crate::pipeline::engine::EngineInput;
 use crate::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_document::pipeline::detection::orchestrator";
 
-/// Per-document outcome of one detection task.
 pub(super) struct DetectionDocumentResult {
-    /// The processed tree, when the document completed
-    /// successfully.
     pub tree: Option<AnyTree>,
-    /// Error message when the document failed, `None` on success.
     pub error: Option<String>,
 }
 
-/// Aggregate outcome of a detection orchestrator run.
 pub(super) struct DetectionOutput {
     pub results: Vec<DetectionDocumentResult>,
 }
 
 impl DetectionOutput {
-    /// Project the per-document results into the audit shape the
-    /// `DetectionState` wants. Documents without a tree (failed)
-    /// are excluded from the audit; their error message stays on
-    /// `DetectionDocumentResult` for the caller to record.
     pub(super) fn into_audits(self) -> (Vec<AnyAudit>, u64, bool, bool) {
         let mut audits = Vec::new();
         let mut entities = 0u64;
@@ -60,7 +45,6 @@ impl DetectionOutput {
     }
 }
 
-/// Top-level orchestrator for one detection pass.
 pub(super) struct DetectionOrchestrator {
     ctx: Arc<RunContext>,
     semaphore: Option<Arc<Semaphore>>,
@@ -75,27 +59,22 @@ impl DetectionOrchestrator {
         }
     }
 
-    /// Run detection against every imported document.
-    ///
-    /// `input` is the legacy `EngineInput` shape — see the
-    /// architecture doc for why; the orchestrator only reads
-    /// `imports` and `plan` from it. Exports / dry_run flags are
-    /// ignored.
     pub(super) async fn run(
         &self,
-        input: &EngineInput,
+        imports: &[ImportFile],
+        plan: &Plan,
     ) -> Result<DetectionOutput, Error> {
-        let trees = self.run_imports(&input.imports).await?;
+        let trees = self.run_imports(imports).await?;
 
         let pipeline = Arc::new(DetectionDocumentPipeline::from_context(&self.ctx));
-        let input = Arc::new(input.clone());
+        let plan = Arc::new(plan.clone());
         let mut join_set: JoinSet<DetectionDocumentResult> = JoinSet::new();
         for tree in trees {
             let ctx = Arc::clone(&self.ctx);
             let sem = self.semaphore.clone();
-            let input = Arc::clone(&input);
+            let plan = Arc::clone(&plan);
             let pipeline = Arc::clone(&pipeline);
-            join_set.spawn(run_one(pipeline, tree, ctx, sem, input));
+            join_set.spawn(run_one(pipeline, tree, ctx, sem, plan));
         }
 
         let mut results: Vec<DetectionDocumentResult> = Vec::new();
@@ -134,8 +113,6 @@ impl DetectionOrchestrator {
         Ok(DetectionOutput { results })
     }
 
-    /// Import content into typed `AnyTree`s. Cancellation aborts
-    /// before per-document tasks fan out.
     async fn run_imports(&self, imports: &[ImportFile]) -> Result<Vec<AnyTree>, Error> {
         let mut trees = Vec::new();
         for cfg in imports {
@@ -166,7 +143,7 @@ async fn run_one(
     tree: AnyTree,
     ctx: Arc<RunContext>,
     sem: Option<Arc<Semaphore>>,
-    input: Arc<EngineInput>,
+    plan: Arc<Plan>,
 ) -> DetectionDocumentResult {
     let _permit = match sem {
         Some(s) => match Arc::clone(&s).acquire_owned().await {
@@ -183,10 +160,10 @@ async fn run_one(
 
     let mut tree = tree;
     let result = match &mut tree {
-        AnyTree::Text(t) => pipeline.run_text(&ctx, &input, t).await,
-        AnyTree::Tabular(t) => pipeline.run_tabular(&ctx, &input, t).await,
-        AnyTree::Image(t) => pipeline.run_image(&ctx, &input, t).await,
-        AnyTree::Audio(t) => pipeline.run_audio(&ctx, &input, t).await,
+        AnyTree::Text(t) => pipeline.run_text(&ctx, &plan, t).await,
+        AnyTree::Tabular(t) => pipeline.run_tabular(&ctx, &plan, t).await,
+        AnyTree::Image(t) => pipeline.run_image(&ctx, &plan, t).await,
+        AnyTree::Audio(t) => pipeline.run_audio(&ctx, &plan, t).await,
     };
     if let Err(e) = result {
         return DetectionDocumentResult {

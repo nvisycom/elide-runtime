@@ -14,10 +14,11 @@
 pub mod error;
 pub mod utility;
 
+mod detections;
 mod files;
 mod infra;
 mod policies;
-mod runs;
+mod redactions;
 
 mod request;
 mod response;
@@ -32,13 +33,14 @@ use crate::service::ServiceState;
 /// # Route structure
 ///
 /// ```text
-/// /health                      (unversioned)
+/// /health                                  (unversioned)
 /// /api/v1/analytics
 /// /api/v1/files[/{id}]
 /// /api/v1/policies[/{id}]
-/// /api/v1/runs[/{id}[/cancel]]
-/// /api/v1/openapi.json         (added by OpenAPI middleware)
-/// /docs                        (added by OpenAPI middleware)
+/// /api/v1/detections[/{id}[/cancel]]
+/// /api/v1/redactions[/{id}[/cancel]]
+/// /api/v1/openapi.json                     (added by OpenAPI middleware)
+/// /docs                                    (added by OpenAPI middleware)
 /// ```
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
@@ -56,7 +58,8 @@ fn v1_routes() -> ApiRouter<ServiceState> {
         .merge(infra::routes_v1())
         .merge(files::routes_v1())
         .merge(policies::routes_v1())
-        .merge(runs::routes_v1())
+        .merge(detections::routes_v1())
+        .merge(redactions::routes_v1())
 }
 
 /// Catch-all for unmatched paths.

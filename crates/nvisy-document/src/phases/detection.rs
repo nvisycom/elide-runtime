@@ -22,7 +22,8 @@ use tracing::Instrument;
 use crate::core::{DocumentTree, RunContext};
 use crate::document::{Document, Span};
 use crate::modality::{DocumentModality, ModalityBlock};
-use crate::pipeline::{Detection, EngineInput};
+use crate::core::Plan;
+use crate::pipeline::Detection;
 
 const TARGET: &str = "nvisy_document::detection";
 
@@ -48,39 +49,39 @@ impl DetectionPhase {
     pub(crate) async fn apply_text(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
-        self.run_text_only(ctx, input, &mut tree.root).await
+        self.run_text_only(ctx, plan, &mut tree.root).await
     }
 
     pub(crate) async fn apply_tabular(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Tabular>,
     ) -> Result<()> {
-        self.run_text_only(ctx, input, &mut tree.root).await
+        self.run_text_only(ctx, plan, &mut tree.root).await
     }
 
     pub(crate) async fn apply_audio(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Audio>,
     ) -> Result<()> {
-        self.run_text_only(ctx, input, &mut tree.root).await
+        self.run_text_only(ctx, plan, &mut tree.root).await
     }
 
     pub(crate) async fn apply_image(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Image>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "detection.image");
         let run_id = ctx.shared().run_id;
-        let cfg = &input.plan.detection;
+        let cfg = &plan.detection;
         async move {
             detect_text_blocks(&self.registry, &mut tree.root, cfg, run_id).await?;
             detect_image_chunks(
@@ -101,7 +102,7 @@ impl DetectionPhase {
     async fn run_text_only<M>(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         doc: &mut Document<M>,
     ) -> Result<()>
     where
@@ -111,7 +112,7 @@ impl DetectionPhase {
         let span = tracing::info_span!(target: TARGET, "phase", name = "detection.text_only");
         let run_id = ctx.shared().run_id;
         async move {
-            detect_text_blocks(&self.registry, doc, &input.plan.detection, run_id).await?;
+            detect_text_blocks(&self.registry, doc, &plan.detection, run_id).await?;
             self.registry.reset().await;
             Ok(())
         }

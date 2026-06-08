@@ -57,8 +57,6 @@ pub struct RunContext {
     pub(crate) redaction_registries: RedactionRegistries,
     /// Optional limit on how many documents may process concurrently.
     pub(crate) concurrency: Option<NonZeroUsize>,
-    /// When `true`, skip redaction, validation, and export phases.
-    pub(crate) dry_run: bool,
 }
 
 /// Bundle of the four toolkit-shaped engine resources a
@@ -73,14 +71,13 @@ pub(crate) struct RunEngines {
 }
 
 impl RunContext {
-    /// Construct a [`RunContext`] from its parts. Called once per run
-    /// by the orchestrator.
+    /// Construct a [`RunContext`] from its parts. Called once per
+    /// pass by a per-subsystem orchestrator.
     pub(crate) fn new(
         cancel: CancellationToken,
         shared: Arc<SharedData>,
         engines: RunEngines,
         concurrency: Option<NonZeroUsize>,
-        dry_run: bool,
     ) -> Self {
         let RunEngines {
             extraction_engine,
@@ -96,7 +93,6 @@ impl RunContext {
             redaction_config,
             redaction_registries,
             concurrency,
-            dry_run,
         }
     }
 
@@ -142,10 +138,5 @@ impl RunContext {
     /// Optional document-concurrency cap from `[engine.limits]`.
     pub(crate) fn concurrency(&self) -> Option<NonZeroUsize> {
         self.concurrency
-    }
-
-    /// True when this run skips redaction, validation, and export.
-    pub(crate) fn dry_run(&self) -> bool {
-        self.dry_run
     }
 }

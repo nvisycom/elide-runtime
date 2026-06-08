@@ -1,11 +1,8 @@
-//! [`Plan`]: the per-request bundle of per-phase configs that the
-//! pipeline executes against each imported document.
-//!
-//! Split out from [`EngineInput`] so the request envelope (identity,
-//! imports, exports, contexts, dry-run flag) stays cleanly separated
-//! from the pipeline behaviour knobs each phase reads.
-//!
-//! [`EngineInput`]: super::EngineInput
+//! Per-request bundle of per-phase configs the pipeline executes
+//! against each imported document.
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::pipeline::{DeduplicationParams, Detection, Extraction, Redaction};
 use crate::validation::Validation;
@@ -17,6 +14,8 @@ use crate::validation::Validation;
 /// (extraction → detection → dedup → redaction → validation); fields
 /// here are configuration only, not sequencing.
 #[derive(Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Plan {
     /// Extraction settings per modality.
     pub extraction: Extraction,

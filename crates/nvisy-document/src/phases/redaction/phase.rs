@@ -17,7 +17,8 @@ use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use crate::core::{DocumentTree, RunContext};
 use crate::phases::redaction::registries::RedactionRegistries;
 use crate::phases::redaction::run_redaction;
-use crate::pipeline::{EngineInput, RedactionConfig};
+use crate::core::Plan;
+use crate::pipeline::RedactionConfig;
 
 const TARGET: &str = "nvisy_document::redaction";
 
@@ -39,11 +40,10 @@ impl RedactionPhase {
     pub(crate) async fn apply_text(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
-        let threshold = input
-            .plan
+        let threshold = plan
             .redaction
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
@@ -55,11 +55,10 @@ impl RedactionPhase {
     pub(crate) async fn apply_image(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Image>,
     ) -> Result<()> {
-        let threshold = input
-            .plan
+        let threshold = plan
             .redaction
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
@@ -71,11 +70,10 @@ impl RedactionPhase {
     pub(crate) async fn apply_audio(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Audio>,
     ) -> Result<()> {
-        let threshold = input
-            .plan
+        let threshold = plan
             .redaction
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
@@ -90,7 +88,7 @@ impl RedactionPhase {
     pub(crate) async fn apply_tabular(
         &self,
         _ctx: &RunContext,
-        _input: &EngineInput,
+        _plan: &Plan,
         tree: &mut DocumentTree<Tabular>,
     ) -> Result<()> {
         let pending = tree.root.audit.records.len();

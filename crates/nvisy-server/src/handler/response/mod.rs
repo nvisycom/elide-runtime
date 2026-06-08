@@ -8,13 +8,15 @@
 //! [`JsonSchema`]: schemars::JsonSchema
 
 mod check;
+mod detections;
 mod error;
 mod files;
 mod policies;
-mod runs;
+mod redactions;
 
 pub use self::check::{ComponentCheck, Health, ServiceStatus};
+pub use self::detections::{DetectionId, DetectionList};
 pub use self::error::ErrorResponse;
 pub use self::files::{File, FileEntry, FileId, FileList};
 pub use self::policies::{PolicyEntry, PolicyId, PolicyList};
-pub use self::runs::{RunId, RunList};
+pub use self::redactions::{RedactionId, RedactionList};

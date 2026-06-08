@@ -15,6 +15,7 @@ The guiding principle is: **extract everything, understand context, redact preci
 | [Ingestion & Transformation](INGESTION.md) | Content model, format detection, multimodal extraction, and post-redaction output |
 | [Detection](DETECTION.md) | Sensitive data detection across modalities and pipeline state |
 | [Redaction & Review](REDACTION.md) | Context-aware redaction and human-in-the-loop workflows |
+| [Pipeline](PIPELINE.md) | Implementation contract for the detection ↔ redaction code split |
 | [Compliance & Audit](COMPLIANCE.md) | Policy engine, explainability, and audit trails |
 | [Infrastructure](INFRASTRUCTURE.md) | Deployment, storage, performance, and security |
 | [Developer Experience](DEVELOPER.md) | APIs, SDKs, configuration, and advanced capabilities |

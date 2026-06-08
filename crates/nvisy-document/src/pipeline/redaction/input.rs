@@ -5,6 +5,7 @@
 use uuid::Uuid;
 
 use super::override_::RedactionOverride;
+use crate::core::Plan;
 use crate::phases::ingestion::ExportFile;
 
 /// Input required to execute a redaction pass.
@@ -27,6 +28,9 @@ pub struct RedactionInput {
     /// recognisers missed. Empty means "apply the detection
     /// verbatim."
     pub overrides: Vec<RedactionOverride>,
+    /// Per-phase behaviour knobs for the redaction / validation
+    /// phases (validation thresholds, severity filters, etc.).
+    pub plan: Plan,
     /// Sinks to write redacted content to.
     pub exports: Vec<ExportFile>,
 }

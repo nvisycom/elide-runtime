@@ -3,7 +3,7 @@
 //! Runs the canonical dedup pipeline (calibrate → filter → fuse →
 //! resolve) via [`LayerPipeline::from_params`] against each
 //! [`DocumentTree<M>`]'s audit records. Stateless; per-run config
-//! comes from `input.plan` each call.
+//! comes from `plan` each call.
 //!
 //! [`LayerPipeline::from_params`]: nvisy_toolkit::deduplication::LayerPipeline::from_params
 
@@ -19,7 +19,8 @@ use uuid::Uuid;
 
 use crate::core::{DocumentTree, RunContext};
 use crate::modality::DocumentModality;
-use crate::pipeline::{DeduplicationParams, Detection, EngineInput};
+use crate::core::Plan;
+use crate::pipeline::{DeduplicationParams, Detection};
 use crate::provenance::EntityRecord;
 
 const TARGET: &str = "nvisy_document::deduplication";
@@ -28,7 +29,7 @@ const TARGET: &str = "nvisy_document::deduplication";
 ///
 /// Stateless. Per-run config ([`DeduplicationParams`] for
 /// calibration/threshold/grouping, [`Detection`] for the
-/// allowed-kinds list) comes from `input.plan` each call.
+/// allowed-kinds list) comes from `plan` each call.
 pub struct DeduplicationPhase;
 
 impl DeduplicationPhase {
@@ -39,43 +40,43 @@ impl DeduplicationPhase {
     pub(crate) async fn apply_text(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
-        self.run(ctx, input, tree).await
+        self.run(ctx, plan, tree).await
     }
 
     pub(crate) async fn apply_tabular(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Tabular>,
     ) -> Result<()> {
-        self.run(ctx, input, tree).await
+        self.run(ctx, plan, tree).await
     }
 
     pub(crate) async fn apply_image(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Image>,
     ) -> Result<()> {
-        self.run(ctx, input, tree).await
+        self.run(ctx, plan, tree).await
     }
 
     pub(crate) async fn apply_audio(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Audio>,
     ) -> Result<()> {
-        self.run(ctx, input, tree).await
+        self.run(ctx, plan, tree).await
     }
 
     async fn run<M>(
         &self,
         ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<M>,
     ) -> Result<()>
     where
@@ -88,8 +89,8 @@ impl DeduplicationPhase {
         async move {
             dedup_one(
                 tree,
-                &input.plan.deduplication,
-                &input.plan.detection,
+                &plan.deduplication,
+                &plan.detection,
                 run_id,
             )
             .await

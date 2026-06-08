@@ -1,9 +1,10 @@
 //! Per-pass detection pipeline lifecycle.
 //!
-//! [`DetectionPipeline`] is created per `Engine::detect` call.
+//! [`DetectionPipeline`] is created per [`Engine::detect`] call.
 //! Owns the pass id, registry handle, run context, and
-//! `DetectionState` accessors. Mirrors the legacy
-//! `pipeline/run.rs::Pipeline` shape.
+//! [`DetectionState`] accessors.
+//!
+//! [`Engine::detect`]: crate::pipeline::Engine::detect
 
 use std::sync::Arc;
 
@@ -18,6 +19,7 @@ use uuid::Uuid;
 
 use super::input::DetectionInput;
 use super::orchestrator::DetectionOrchestrator;
+use super::result::DetectionResult;
 use super::state::{DetectionRecord, DetectionState};
 use super::status::DetectionStatus;
 use crate::core::{PolicyStore, RunContext, RunEngines, SharedData};
@@ -26,14 +28,13 @@ use crate::phases::ingestion::registry::Registry;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
-use crate::pipeline::engine::EngineInput;
 use crate::policy::Policy;
+use crate::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_document::pipeline::detection::pipeline";
 
 /// Pre-built engine resources the detection pipeline borrows for
-/// the duration of one pass. Bundled so [`DetectionPipeline::new`]
-/// stays narrow.
+/// the duration of one pass.
 pub(crate) struct DetectionEngineState {
     pub extraction_engine: Arc<ExtractorRegistry>,
     pub recognizer_registry: Arc<RecognizerRegistry>,
@@ -42,10 +43,6 @@ pub(crate) struct DetectionEngineState {
 }
 
 /// A single detection-pass lifecycle.
-///
-/// Created per pass, not reusable. Owns the pass id and the
-/// state-mutator handles needed to drive the pass through
-/// registration → execution → finalization.
 pub(crate) struct DetectionPipeline {
     detection_id: Uuid,
     registry: Registry,
@@ -73,13 +70,10 @@ impl DetectionPipeline {
         }
     }
 
-    /// The unique id assigned to this detection pass.
     pub(crate) fn id(&self) -> Uuid {
         self.detection_id
     }
 
-    /// Insert the initial `Pending` record so callers can
-    /// observe the pass before it starts executing.
     pub(crate) async fn register_pending(&self, input: &DetectionInput) {
         self.detections
             .insert(
@@ -102,20 +96,13 @@ impl DetectionPipeline {
     }
 
     /// Run the detection pass to completion.
-    ///
-    /// Loads policies, builds the per-pass context, fans documents
-    /// out to the [`DetectionOrchestrator`], collects audits, and
-    /// updates the `DetectionState` to the appropriate terminal
-    /// status. Returns the persisted audits on success.
     pub(crate) async fn execute(
         &self,
         input: DetectionInput,
-    ) -> Result<(Vec<crate::provenance::AnyAudit>, u64, DetectionStatus), Error> {
+    ) -> Result<(Vec<AnyAudit>, u64, DetectionStatus), Error> {
         let actor_id = input.actor_id;
         let policy_ids = input.policies.clone();
 
-        // Acquire policies into the registry cache; guard keeps
-        // them alive for the duration of the pass.
         let _policy_guard = self.acquire_policies(actor_id, &policy_ids).await;
         let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
         let text_policies: Vec<Arc<Policy<Text>>> = cached_policies;
@@ -135,43 +122,20 @@ impl DetectionPipeline {
             shared_data.key_provider = kp.clone();
         }
 
-        let recognizer_registry = (*self.state.recognizer_registry).clone();
         let cancel = CancellationToken::new();
         let engines = RunEngines {
             extraction_engine: (*self.state.extraction_engine).clone(),
-            recognizer_registry,
+            recognizer_registry: (*self.state.recognizer_registry).clone(),
             redaction_config: (*self.state.redaction_config).clone(),
             redaction_registries: (*self.state.redaction_registries).clone(),
         };
         let concurrency = self.base_config.effective_concurrency();
-        // Detection never touches the redaction phase, so the
-        // `dry_run` flag's semantics ("skip redaction / validation
-        // / export") match what we want. This coupling goes away
-        // when `EngineInput` is deleted (task #462).
-        let ctx = RunContext::new(
-            cancel,
-            Arc::new(shared_data),
-            engines,
-            concurrency,
-            true,
-        );
-
-        // Build the legacy-shaped EngineInput from the typed
-        // DetectionInput. Empty exports, dry_run=true. The
-        // orchestrator only reads `imports` and `plan`.
-        let engine_input = EngineInput {
-            actor_id,
-            policies: input.policies.clone(),
-            dry_run: true,
-            imports: input.imports.clone(),
-            plan: input.plan,
-            exports: Vec::new(),
-        };
+        let ctx = RunContext::new(cancel, Arc::new(shared_data), engines, concurrency);
 
         self.detections.set_started_at(self.detection_id).await;
 
         let orchestrator = DetectionOrchestrator::new(ctx);
-        let output = match orchestrator.run(&engine_input).await {
+        let output = match orchestrator.run(&input.imports, &input.plan).await {
             Ok(out) => out,
             Err(e) => {
                 self.detections
@@ -190,20 +154,11 @@ impl DetectionPipeline {
             DetectionStatus::Failed
         };
 
-        // Persist before flipping in-memory state to terminal —
-        // a crash mid-write leaves the in-memory record at
-        // `Running` (which a restart will rebuild from disk
-        // showing the persisted state or absence thereof).
-        // Failure to persist is logged but doesn't fail the
-        // pass; the in-memory state still reflects what was
-        // computed. This is acceptable because the in-memory
-        // record is volatile by design — persistence is the
-        // durability boundary.
         if matches!(
             status,
             DetectionStatus::Succeeded | DetectionStatus::PartialFailure
         ) {
-            let result = crate::pipeline::detection::DetectionResult {
+            let result = DetectionResult {
                 id: self.detection_id,
                 actor_id,
                 policies: input.policies.clone(),
@@ -240,7 +195,6 @@ impl DetectionPipeline {
         Ok((audits, entities_detected, status))
     }
 
-    /// Acquire policies into the registry's read cache.
     async fn acquire_policies(
         &self,
         actor_id: Uuid,

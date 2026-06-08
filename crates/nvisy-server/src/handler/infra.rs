@@ -1,24 +1,18 @@
-//! Health and analytics handlers.
-//!
-//! # Endpoints
+//! Health handler.
 //!
 //! | Method | Path          | Description                          |
 //! |--------|---------------|--------------------------------------|
 //! | `GET`  | `/health`     | Liveness probe (unversioned)         |
-//! | `GET`  | `/analytics`  | Aggregate pipeline metrics           |
-//!
-//! `/health` is served at the root (unversioned). `/analytics` is
-//! relative and nested under the version prefix by the version module.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_document::pipeline::{AnalyticsSnapshot, Engine};
+use nvisy_document::pipeline::Engine;
 
 use super::response::{ComponentCheck, Health, ServiceStatus};
 use crate::extract::Json;
-use crate::middleware::{DEFAULT_HEALTH_TIMEOUT, DEFAULT_READ_TIMEOUT, RouterTimeoutExt};
+use crate::middleware::{DEFAULT_HEALTH_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::infra";
@@ -79,19 +73,6 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// `GET /analytics`
-#[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn get_analytics(State(engine): State<Engine>) -> Json<AnalyticsSnapshot> {
-    Json(engine.snapshot().await)
-}
-
-fn analytics_docs(op: TransformOperation) -> TransformOperation {
-    op.id("getAnalytics")
-        .tag("infra")
-        .summary("Retrieve aggregate pipeline analytics")
-        .description("Returns aggregate metrics across all pipeline runs.")
-}
-
 /// Health route (unversioned, served at `/health`).
 pub fn health_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
@@ -99,9 +80,7 @@ pub fn health_routes() -> ApiRouter<ServiceState> {
         .with_timeout(DEFAULT_HEALTH_TIMEOUT)
 }
 
-/// Analytics route for API v1 (relative path).
+/// v1 routes contributed by this module.
 pub fn routes_v1() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .api_route("/analytics", get_with(get_analytics, analytics_docs))
-        .with_timeout(DEFAULT_READ_TIMEOUT)
 }

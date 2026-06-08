@@ -31,7 +31,8 @@ use tracing::Instrument;
 use crate::core::{DocumentTree, RunContext};
 use crate::document::{Block, Document, Span};
 use crate::modality::{ImageBlock, TabularBlock, TextBlock, TextContent};
-use crate::pipeline::{EngineInput, Extraction};
+use crate::core::Plan;
+use crate::pipeline::Extraction;
 
 const TARGET: &str = "nvisy_document::extraction";
 
@@ -67,7 +68,7 @@ impl ExtractionPhase {
     pub(crate) async fn apply_text(
         &self,
         _ctx: &RunContext,
-        _input: &EngineInput,
+        _plan: &Plan,
         tree: &mut DocumentTree<Text>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.text");
@@ -82,7 +83,7 @@ impl ExtractionPhase {
     pub(crate) async fn apply_tabular(
         &self,
         _ctx: &RunContext,
-        _input: &EngineInput,
+        _plan: &Plan,
         tree: &mut DocumentTree<Tabular>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.tabular");
@@ -97,7 +98,7 @@ impl ExtractionPhase {
     pub(crate) async fn apply_image(
         &self,
         _ctx: &RunContext,
-        _input: &EngineInput,
+        _plan: &Plan,
         tree: &mut DocumentTree<Image>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.image");
@@ -111,7 +112,7 @@ impl ExtractionPhase {
     pub(crate) async fn apply_audio(
         &self,
         _ctx: &RunContext,
-        input: &EngineInput,
+        plan: &Plan,
         tree: &mut DocumentTree<Audio>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.audio");
@@ -122,7 +123,7 @@ impl ExtractionPhase {
                 &mut tree.root,
                 tree.handle.handler_mut(),
                 &metadata,
-                &input.plan.extraction,
+                &plan.extraction,
             )
             .await
         }

@@ -1,19 +1,19 @@
-# Pipeline architecture: detection ↔ redaction split
+# Pipeline: detection ↔ redaction split
 
-This document is the contract for the two-subsystem split. The
-types in `detection/` and `redaction/` are designed against it;
-the engine implementation lands against it in subsequent
-commits. Anyone changing those files reads this first.
+Contract for the two-subsystem pipeline implemented by
+`nvisy-document`. Detection produces an immutable artifact;
+redaction consumes that artifact, applies overrides, and writes
+output. The two are separate `Engine` methods and separate REST
+resources.
 
 ## Why two subsystems
 
 Redaction without human review is a compliance liability in the
-domains that matter most (healthcare, legal, finance). The old
-unified `Engine::run` ran detection and apply as one atomic
-operation: a recogniser false-positive deleted real content with
-no opportunity to intervene. Splitting the pipeline lets a
-reviewer inspect the policy chain's decisions before any bytes
-move.
+domains the platform targets (healthcare, legal, finance).
+Running detection and apply as one atomic operation means a
+recogniser false-positive deletes real content with no
+opportunity to intervene. Splitting the pipeline lets a reviewer
+inspect the policy chain's decisions before any bytes move.
 
 The split is also useful without a human: one detection can feed
 multiple redaction passes (preview with `Mask`, commit with
@@ -29,20 +29,18 @@ Engine::redact(input: RedactionInput) -> Result<Uuid, Error>
 ```
 
 ```
-POST /detections                returns detection_id
-GET  /detections                lists actor's detections
-GET  /detections/{id}           returns DetectionSnapshot
-DELETE /detections/{id}         removes from store
-POST /detections/{id}/cancel    cooperative cancel
+POST   /detections                returns detection_id
+GET    /detections                lists actor's detections
+GET    /detections/{id}           returns DetectionSnapshot
+DELETE /detections/{id}           removes from store
+POST   /detections/{id}/cancel    cooperative cancel
 
-POST /redactions                body references detection_id
-GET  /redactions                lists actor's redactions
-GET  /redactions/{id}           returns RedactionSnapshot
-DELETE /redactions/{id}         removes from store
-POST /redactions/{id}/cancel    cooperative cancel
+POST   /redactions                body references detection_id
+GET    /redactions                lists actor's redactions
+GET    /redactions/{id}           returns RedactionSnapshot
+DELETE /redactions/{id}           removes from store
+POST   /redactions/{id}/cancel    cooperative cancel
 ```
-
-The old `Engine::run` and `/runs` resource are removed wholesale.
 
 ## Detection (immutable artifact)
 
@@ -183,10 +181,8 @@ mismatch to avoid leaking existence to unauthorised callers.
 
 ## Test obligations
 
-Before any of this ships to a user-facing endpoint, the test
-matrix below must be green. The integration tests live in
-`tests/` and exercise the engine + registry + (mocked) recogniser
-end-to-end.
+The integration tests in `crates/nvisy-document/tests/` exercise
+the engine + registry + (mocked) recogniser end-to-end.
 
 **Detection:**
 
@@ -242,7 +238,7 @@ end-to-end.
   ordered: overrides are applied serially per document so the
   audit is deterministic.
 
-## Out of scope (this PR)
+## Out of scope
 
 - Multi-detection redaction (one redaction targeting two
   detections at once). Not a real use case yet.

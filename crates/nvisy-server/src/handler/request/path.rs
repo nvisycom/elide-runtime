@@ -17,5 +17,8 @@ pub type ContentPath = ResourcePath;
 /// Path parameter for policy endpoints.
 pub type PolicyPath = ResourcePath;
 
-/// Path parameter for run endpoints.
-pub type RunPath = ResourcePath;
+/// Path parameter for detection endpoints.
+pub type DetectionPath = ResourcePath;
+
+/// Path parameter for redaction endpoints.
+pub type RedactionPath = ResourcePath;

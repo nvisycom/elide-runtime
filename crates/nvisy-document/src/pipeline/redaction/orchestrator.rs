@@ -8,7 +8,7 @@
 //! applied to that audit by [`apply_overrides`] before this
 //! orchestrator sees it.
 //!
-//! [`apply_overrides`]: super::apply_overrides
+//! [`apply_overrides`]: super::applicator::apply_overrides
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -17,10 +17,10 @@ use nvisy_core::Error;
 use nvisy_core::entity::ContentSource;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
+
 use super::document::RedactionDocumentPipeline;
-use crate::core::{AnyTree, RunContext};
-use crate::phases::ingestion::{Exporter, ImportFile, Importer};
-use crate::pipeline::engine::EngineInput;
+use crate::core::{AnyTree, Plan, RunContext};
+use crate::phases::ingestion::{ExportFile, Exporter, ImportFile, Importer};
 use crate::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_document::pipeline::redaction::orchestrator";
@@ -35,8 +35,6 @@ pub(super) struct RedactionOutput {
 }
 
 impl RedactionOutput {
-    /// Aggregate the per-document audits and counters and return
-    /// the right terminal status for the pass.
     pub(super) fn into_audits(self) -> (Vec<AnyAudit>, u64, bool, bool) {
         let mut audits = Vec::new();
         let mut applied = 0u64;
@@ -74,31 +72,31 @@ impl RedactionOrchestrator {
 
     /// Run the redaction pass.
     ///
-    /// `engine_input` carries the original imports (re-opened here
-    /// from the registry) plus the exports the caller wants
-    /// written. `prepared_audits` is the detection's audit with
-    /// overrides already applied.
+    /// `imports` are re-opened from the registry; `exports` are
+    /// the sinks the caller wants written; `plan` carries the
+    /// per-phase knobs; `prepared_audits` is the detection's
+    /// audit with overrides already applied.
     pub(super) async fn run(
         &self,
-        engine_input: &EngineInput,
+        imports: &[ImportFile],
+        exports: &[ExportFile],
+        plan: &Plan,
         prepared_audits: Vec<AnyAudit>,
     ) -> Result<RedactionOutput, Error> {
-        // Step 1: re-import the same content.
-        let trees = self.run_imports(&engine_input.imports).await?;
-
-        // Step 2: match audits to trees by source and replay them.
+        let trees = self.run_imports(imports).await?;
         let trees = replay_audits_into_trees(trees, prepared_audits)?;
 
-        // Step 3: fan out per-document redaction.
         let pipeline = Arc::new(RedactionDocumentPipeline::from_context(&self.ctx));
-        let engine_input = Arc::new(engine_input.clone());
+        let plan = Arc::new(plan.clone());
+        let exports = Arc::new(exports.to_vec());
         let mut join_set: JoinSet<RedactionDocumentResult> = JoinSet::new();
         for tree in trees {
             let ctx = Arc::clone(&self.ctx);
             let sem = self.semaphore.clone();
-            let input = Arc::clone(&engine_input);
+            let plan = Arc::clone(&plan);
+            let exports = Arc::clone(&exports);
             let pipeline = Arc::clone(&pipeline);
-            join_set.spawn(run_one(pipeline, tree, ctx, sem, input));
+            join_set.spawn(run_one(pipeline, tree, ctx, sem, plan, exports));
         }
 
         let mut results = Vec::new();
@@ -158,24 +156,20 @@ impl RedactionOrchestrator {
 }
 
 /// Replay a list of `AnyAudit` onto a list of `AnyTree`, matching
-/// each audit to a tree of matching modality and source. Returns
-/// the trees with their root audits replaced.
+/// each audit to a tree of matching modality and source.
 ///
 /// # Errors
 ///
-/// - [`ErrorKind::Validation`] when an audit's source has no
-///   matching tree (the detection saw an envelope the redaction
-///   re-import didn't produce — content drifted or import
-///   semantics changed).
-/// - [`ErrorKind::Validation`] when audit modality doesn't match
-///   any tree's modality at that source.
+/// [`ErrorKind::Validation`] when an audit's source has no
+/// matching tree (the detection saw an envelope the redaction
+/// re-import didn't produce — content drifted or import
+/// semantics changed).
 ///
 /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
 fn replay_audits_into_trees(
     trees: Vec<AnyTree>,
     audits: Vec<AnyAudit>,
 ) -> Result<Vec<AnyTree>, Error> {
-    // Index trees by (source, modality) for matching.
     let mut by_key: HashMap<(ContentSource, &'static str), usize> = HashMap::new();
     for (idx, tree) in trees.iter().enumerate() {
         let source = match tree {
@@ -219,7 +213,8 @@ async fn run_one(
     tree: AnyTree,
     ctx: Arc<RunContext>,
     sem: Option<Arc<Semaphore>>,
-    input: Arc<EngineInput>,
+    plan: Arc<Plan>,
+    exports: Arc<Vec<ExportFile>>,
 ) -> RedactionDocumentResult {
     let _permit = match sem {
         Some(s) => match Arc::clone(&s).acquire_owned().await {
@@ -236,10 +231,10 @@ async fn run_one(
 
     let mut tree = tree;
     let phase_result = match &mut tree {
-        AnyTree::Text(t) => pipeline.run_text(&ctx, &input, t).await,
-        AnyTree::Tabular(t) => pipeline.run_tabular(&ctx, &input, t).await,
-        AnyTree::Image(t) => pipeline.run_image(&ctx, &input, t).await,
-        AnyTree::Audio(t) => pipeline.run_audio(&ctx, &input, t).await,
+        AnyTree::Text(t) => pipeline.run_text(&ctx, &plan, t).await,
+        AnyTree::Tabular(t) => pipeline.run_tabular(&ctx, &plan, t).await,
+        AnyTree::Image(t) => pipeline.run_image(&ctx, &plan, t).await,
+        AnyTree::Audio(t) => pipeline.run_audio(&ctx, &plan, t).await,
     };
     if let Err(e) = phase_result {
         return RedactionDocumentResult {
@@ -248,8 +243,7 @@ async fn run_one(
         };
     }
 
-    // Export.
-    for cfg in &input.exports {
+    for cfg in exports.iter() {
         if ctx.is_cancelled() {
             return RedactionDocumentResult {
                 tree: None,

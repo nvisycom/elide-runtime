@@ -138,9 +138,6 @@ where
     for record in &mut audit.records {
         let id = record.entity.id;
         let Some(ov) = overrides.get(&id) else {
-            // No override — provenance stays None (legacy /
-            // PolicyChain path; the redaction phase will resolve
-            // it).
             continue;
         };
         consumed.insert(id, ());
@@ -150,9 +147,6 @@ where
             }
             RedactionOverride::Reject { .. } => {
                 let entry = record.audit.take().unwrap_or_else(|| AuditEntry {
-                    // No prior decision — synthesise a Suppress
-                    // entry with empty rank so the audit still
-                    // records "human rejected this."
                     decision: Decision {
                         policy_id: None,
                         rank: None,
@@ -162,10 +156,6 @@ where
                     metadata: EntryMetadata::now()
                         .with_override(RedactionDecision::OverrideReject),
                 });
-                // Whatever the entry was, force it to
-                // Suppressed; preserve the original decision
-                // record so reviewers see "policy said X, human
-                // rejected."
                 let mut entry = entry;
                 entry.execution = Execution::Suppressed;
                 entry.metadata = entry
@@ -332,13 +322,11 @@ where
     if let Some(entry) = record.audit.as_mut() {
         entry.metadata = entry.metadata.clone().with_override(tag);
     } else {
-        // Pre-stamp empty metadata so the redaction phase
-        // preserves the tag when it fills the entry.
         record.audit = Some(AuditEntry {
             decision: Decision {
                 policy_id: None,
                 rank: None,
-                action: Action::Suppress, // placeholder, overwritten by policy resolve
+                action: Action::Suppress,
             },
             execution: Execution::Pending,
             metadata: EntryMetadata::now().with_override(tag),

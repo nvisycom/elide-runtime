@@ -1,14 +1,12 @@
 //! Engine construction and basic lifecycle tests.
 
-mod fixtures;
-
 use std::time::Duration;
 
 use nvisy_document::pipeline::{Engine, EngineConfig, ResourceLimits, RuntimeConfig};
 
 #[tokio::test]
 async fn temp_engine_points_to_temp_dir() {
-    let (engine, dir) = fixtures::engine().await;
+    let (engine, dir) = Engine::temp().await;
     assert_eq!(engine.data_dir(), dir.path());
 }
 

@@ -1,7 +1,5 @@
 //! Configuration parsing, validation, and example TOML tests.
 
-mod fixtures;
-
 use nvisy_document::pipeline::{EngineConfig, RuntimeConfig};
 use validator::Validate;
 

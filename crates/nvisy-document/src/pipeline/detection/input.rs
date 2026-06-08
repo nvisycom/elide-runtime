@@ -10,13 +10,11 @@ use crate::phases::ingestion::ImportFile;
 /// Input required to execute a detection pass.
 ///
 /// A detection pass runs imports → extraction → recognition →
-/// deduplication → policy evaluation. It stops before applying any
-/// redaction — the [`DetectionResult`] holds the audits with their
-/// `Execution::Pending` decisions for the caller to review.
+/// deduplication → policy evaluation. It stops before applying
+/// any redaction — the [`DetectionResult`] holds the audits with
+/// their `Execution::Pending` decisions for the caller to review.
 ///
-/// The shape is intentionally the policy-and-imports half of the
-/// old `EngineInput`. Export sinks live on the matching
-/// [`RedactionInput`] instead.
+/// Export sinks live on the matching [`RedactionInput`] instead.
 ///
 /// [`DetectionResult`]: super::DetectionResult
 /// [`RedactionInput`]: super::super::redaction::RedactionInput

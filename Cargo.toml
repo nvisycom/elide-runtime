@@ -123,7 +123,7 @@ quick-xml = { version = "0.40", features = [] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
-imageproc = { version = "0.26", features = [] }
+imageproc = { version = "0.27", features = [] }
 
 # Audio processing
 hound = { version = "3.5", features = [] }

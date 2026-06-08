@@ -15,6 +15,7 @@
 //!
 //! [`Anonymizer<M>`]: nvisy_toolkit::redaction::Anonymizer
 
+mod any;
 mod audio;
 mod image;
 mod instantiate;
@@ -23,6 +24,7 @@ mod text;
 
 pub use nvisy_toolkit::redaction::builtin::HashAlgorithm;
 
+pub use self::any::AnyRedaction;
 pub use self::audio::AudioRedaction;
 pub use self::image::ImageRedaction;
 pub use self::instantiate::Instantiate;

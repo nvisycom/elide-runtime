@@ -17,6 +17,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::override_decision::RedactionDecision;
 use crate::modality::DocumentModality;
 use crate::policy::{Action, RuleRank};
 
@@ -124,6 +125,16 @@ pub struct EntryMetadata {
     /// Correlation identifier for tracing across services.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<Uuid>,
+    /// Provenance of the decision on this entry. `None` means
+    /// the decision came from the policy chain with no override
+    /// involvement (legacy unified runs). [`Engine::redact`]
+    /// stamps every entry with an explicit tag — `PolicyChain`
+    /// when no override touched the entity, or the matching
+    /// `Override*` variant when one did.
+    ///
+    /// [`Engine::redact`]: crate::pipeline::Engine::redact
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub override_decision: Option<RedactionDecision>,
 }
 
 impl EntryMetadata {
@@ -132,6 +143,15 @@ impl EntryMetadata {
         Self {
             timestamp: Some(Timestamp::now()),
             correlation_id: None,
+            override_decision: None,
         }
+    }
+
+    /// Stamp the metadata with an override-provenance tag.
+    /// Returns `self` for chained construction.
+    #[must_use]
+    pub fn with_override(mut self, decision: RedactionDecision) -> Self {
+        self.override_decision = Some(decision);
+        self
     }
 }

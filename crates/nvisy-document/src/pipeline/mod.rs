@@ -15,9 +15,11 @@
 //! - `runs`: in-memory run lifecycle tracking.
 
 mod config;
+pub mod detection;
 mod document_pipeline;
 mod engine;
 mod orchestrator;
+pub mod redaction;
 mod run;
 mod runs;
 
@@ -30,7 +32,15 @@ pub use self::config::{
     ExtractionConfig, ImagePlan, NerBackend, NerDetection, PatternDetection, Redaction,
     RedactionConfig, ResourceLimits, RuntimeConfig, TabularPlan, TextPlan,
 };
+pub use self::detection::{
+    DetectionEntry, DetectionFilter, DetectionInput, DetectionResult, DetectionSnapshot,
+    DetectionStatus,
+};
 pub use self::engine::{Engine, EngineInput, EngineOutput};
+pub use self::redaction::{
+    RedactionAddEntity, RedactionDecision, RedactionEntry, RedactionFilter, RedactionInput,
+    RedactionOverride, RedactionResult, RedactionSnapshot, RedactionStatus, validate_overrides,
+};
 pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
     RunStatus,

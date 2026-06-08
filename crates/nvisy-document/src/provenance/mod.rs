@@ -18,6 +18,7 @@
 //! [`Entity<M>`]: nvisy_core::entity::Entity
 
 mod entry;
+mod override_decision;
 mod record;
 
 use derive_more::{From, IsVariant};
@@ -29,6 +30,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::entry::{AuditEntry, AuditEntryBuilder, Decision, EntryMetadata, Execution};
+pub use self::override_decision::RedactionDecision;
 pub use self::record::EntityRecord;
 use crate::modality::{Audio, DocumentModality, Image, Tabular, Text};
 

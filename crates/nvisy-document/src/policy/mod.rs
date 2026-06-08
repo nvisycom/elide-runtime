@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::condition::Condition;
+pub use self::redaction::AnyRedaction;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::rule::{Action, PolicyRule};
 pub use self::selector::EntitySelector;

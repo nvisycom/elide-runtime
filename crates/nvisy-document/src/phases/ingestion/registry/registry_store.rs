@@ -35,6 +35,18 @@ struct RegistryInner {
     content_meta_ks: Keyspace,
     policies_ks: Keyspace,
     audits_ks: Keyspace,
+    /// Persisted [`DetectionResult`]s, keyed by
+    /// `(actor_id, detection_id)`. JSON-encoded; one entry per
+    /// terminal-state detection pass.
+    ///
+    /// [`DetectionResult`]: crate::pipeline::detection::DetectionResult
+    detections_ks: Keyspace,
+    /// Persisted [`RedactionResult`]s, keyed by
+    /// `(actor_id, redaction_id)`. JSON-encoded; one entry per
+    /// terminal-state redaction pass.
+    ///
+    /// [`RedactionResult`]: crate::pipeline::redaction::RedactionResult
+    redactions_ks: Keyspace,
     policy_cache: ResourceCache<Policy<Text>>,
 }
 
@@ -56,6 +68,8 @@ impl Registry {
         let content_meta_ks = db.open_keyspace("content_meta")?;
         let policies_ks = db.open_keyspace("policies")?;
         let audits_ks = db.open_keyspace("run_outputs")?;
+        let detections_ks = db.open_keyspace("detections")?;
+        let redactions_ks = db.open_keyspace("redactions")?;
 
         tracing::debug!(target: TARGET, "registry opened");
         Ok(Self {
@@ -66,6 +80,8 @@ impl Registry {
                 content_meta_ks,
                 policies_ks,
                 audits_ks,
+                detections_ks,
+                redactions_ks,
                 policy_cache: ResourceCache::new("policy"),
             }),
         })
@@ -369,6 +385,99 @@ impl Registry {
     pub async fn unregister_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<()> {
         let key = CompositeKey::new(actor_id, run_id);
         self.remove_entry(&self.inner.audits_ks, key, "audits")
+            .await
+    }
+
+    /// Persist a completed [`DetectionResult`].
+    ///
+    /// The write is atomic per-key (fjall blob-store semantics);
+    /// a crash mid-write leaves either the prior value or no
+    /// value, never a partial one. Callers must finalize the
+    /// in-memory state only after the persisted write completes
+    /// so a restart can resume from disk.
+    ///
+    /// [`DetectionResult`]: crate::pipeline::detection::DetectionResult
+    #[tracing::instrument(target = TARGET, name = "registry.store_detection", skip(self, detection), fields(%actor_id, %detection_id))]
+    pub async fn store_detection(
+        &self,
+        actor_id: Uuid,
+        detection_id: Uuid,
+        detection: &crate::pipeline::detection::DetectionResult,
+    ) -> Result<()> {
+        let key = CompositeKey::new(actor_id, detection_id);
+        self.store_json(&self.inner.detections_ks, key, detection).await?;
+        tracing::trace!(target: TARGET, "detection stored");
+        Ok(())
+    }
+
+    /// Load a persisted [`DetectionResult`].
+    ///
+    /// Returns the typed error from `load_json` — `NotFound`
+    /// for an absent key, `Serialization` for a corrupted blob.
+    ///
+    /// [`DetectionResult`]: crate::pipeline::detection::DetectionResult
+    #[tracing::instrument(target = TARGET, name = "registry.load_detection", skip(self), fields(%actor_id, %detection_id))]
+    pub async fn load_detection(
+        &self,
+        actor_id: Uuid,
+        detection_id: Uuid,
+    ) -> Result<crate::pipeline::detection::DetectionResult> {
+        let key = CompositeKey::new(actor_id, detection_id);
+        self.load_json(&self.inner.detections_ks, key, "detection")
+            .await
+    }
+
+    /// Remove a persisted detection.
+    #[tracing::instrument(target = TARGET, name = "registry.unregister_detection", skip(self), fields(%actor_id, %detection_id))]
+    pub async fn unregister_detection(
+        &self,
+        actor_id: Uuid,
+        detection_id: Uuid,
+    ) -> Result<()> {
+        let key = CompositeKey::new(actor_id, detection_id);
+        self.remove_entry(&self.inner.detections_ks, key, "detection")
+            .await
+    }
+
+    /// Persist a completed [`RedactionResult`].
+    ///
+    /// [`RedactionResult`]: crate::pipeline::redaction::RedactionResult
+    #[tracing::instrument(target = TARGET, name = "registry.store_redaction", skip(self, redaction), fields(%actor_id, %redaction_id))]
+    pub async fn store_redaction(
+        &self,
+        actor_id: Uuid,
+        redaction_id: Uuid,
+        redaction: &crate::pipeline::redaction::RedactionResult,
+    ) -> Result<()> {
+        let key = CompositeKey::new(actor_id, redaction_id);
+        self.store_json(&self.inner.redactions_ks, key, redaction).await?;
+        tracing::trace!(target: TARGET, "redaction stored");
+        Ok(())
+    }
+
+    /// Load a persisted [`RedactionResult`].
+    ///
+    /// [`RedactionResult`]: crate::pipeline::redaction::RedactionResult
+    #[tracing::instrument(target = TARGET, name = "registry.load_redaction", skip(self), fields(%actor_id, %redaction_id))]
+    pub async fn load_redaction(
+        &self,
+        actor_id: Uuid,
+        redaction_id: Uuid,
+    ) -> Result<crate::pipeline::redaction::RedactionResult> {
+        let key = CompositeKey::new(actor_id, redaction_id);
+        self.load_json(&self.inner.redactions_ks, key, "redaction")
+            .await
+    }
+
+    /// Remove a persisted redaction.
+    #[tracing::instrument(target = TARGET, name = "registry.unregister_redaction", skip(self), fields(%actor_id, %redaction_id))]
+    pub async fn unregister_redaction(
+        &self,
+        actor_id: Uuid,
+        redaction_id: Uuid,
+    ) -> Result<()> {
+        let key = CompositeKey::new(actor_id, redaction_id);
+        self.remove_entry(&self.inner.redactions_ks, key, "redaction")
             .await
     }
 }

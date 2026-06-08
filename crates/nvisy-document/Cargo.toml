@@ -97,6 +97,7 @@ tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 nvisy-document = { path = ".", features = ["test-utils"] }
+nvisy-core = { workspace = true, features = ["test-utils"] }
 nvisy-codec = { workspace = true, features = ["txt", "csv", "test-utils"] }
 tempfile = { workspace = true, features = [] }
 

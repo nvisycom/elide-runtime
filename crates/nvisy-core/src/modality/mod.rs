@@ -38,8 +38,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use schemars::JsonSchema;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 pub use self::audio::{Audio, AudioData, AudioExtraction, AudioLocation};
 pub use self::image::{Image, ImageData, ImageExtraction, ImageLocation};
@@ -50,6 +50,8 @@ pub use self::text::{ContextWindow, Text, TextData, TextExtraction, TextLocation
 /// carries. Use for runtime dispatch where the marker type is erased
 /// (typically at the codec / pipeline boundary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ModalityKind {
     /// [`Text`] modality.
     Text,
@@ -59,6 +61,40 @@ pub enum ModalityKind {
     Image,
     /// [`Audio`] modality.
     Audio,
+}
+
+/// Type-erased [`Modality::Location`] carrying both the modality
+/// tag and the typed coordinate value. Used by the redaction
+/// override surface where the caller hasn't yet pinned a
+/// `M: Modality` type at the API boundary.
+///
+/// Wire shape matches the [`ModalityKind`] tag plus a flattened
+/// location object:
+///
+/// ```json
+/// { "modality": "text", "start": 0, "end": 10 }
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "modality", rename_all = "snake_case")]
+pub enum AnyLocation {
+    Text(TextLocation),
+    Tabular(TabularLocation),
+    Image(ImageLocation),
+    Audio(AudioLocation),
+}
+
+impl AnyLocation {
+    /// The modality this location belongs to.
+    #[must_use]
+    pub fn kind(&self) -> ModalityKind {
+        match self {
+            Self::Text(_) => ModalityKind::Text,
+            Self::Tabular(_) => ModalityKind::Tabular,
+            Self::Image(_) => ModalityKind::Image,
+            Self::Audio(_) => ModalityKind::Audio,
+        }
+    }
 }
 
 /// Marker trait implemented by every per-modality marker type

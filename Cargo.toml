@@ -112,7 +112,7 @@ unicode-segmentation = { version = "1.13", features = [] }
 unicode-normalization = { version = "0.1", features = [] }
 
 # PDF processing (parsing, text extraction, page-to-image rendering)
-lopdf = { version = "0.40", features = [] }
+lopdf = { version = "0.41", features = [] }
 pdfium-render = { version = "0.9", features = [] }
 
 # Document parsing

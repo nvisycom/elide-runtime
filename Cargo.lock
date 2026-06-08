@@ -3961,9 +3961,9 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 
 [[package]]
 name = "rig"
-version = "0.37.1"
+version = "0.38.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e84d8f295832a953bf958f6b6ebfc8c0fea3f38f63fb17e662acb062ec88dc2"
+checksum = "f5510d91a645a97d37ea03ddfd9c1c7f55d5eafbc7661b71bb210eba078b6966"
 dependencies = [
  "rig-core",
 ]

@@ -1,0 +1,41 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-fake"
+description = "Locale-aware fake-data Anonymizer for Nvisy entities"
+keywords = ["nvisy", "fake", "anonymizer", "pii"]
+categories = ["text-processing"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = true
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Internal crates
+nvisy-core = { workspace = true, features = [] }
+
+# Fake data generation
+fake = { workspace = true, features = [] }
+
+# Async runtime
+async-trait = { workspace = true, features = [] }
+
+# UUIDs for fake DeviceId
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+nvisy-core = { workspace = true, features = ["test-utils"] }
+nvisy-toolkit = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["rt", "macros"] }

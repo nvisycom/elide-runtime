@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{Modality, Overlap};
 use crate::entity::ModelProvenance;
+use crate::redaction::TextReplacement;
 
 /// Text modality marker (zero-sized).
 ///
@@ -23,7 +24,7 @@ impl Modality for Text {
     type Data = TextData;
     type Extraction = TextExtraction;
     type Location = TextLocation;
-    type Replacement = crate::redaction::TextReplacement;
+    type Replacement = TextReplacement;
 }
 
 /// Half-open `[start, end)` byte range around a [`TextLocation`],

@@ -69,6 +69,8 @@ tracing = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = ["test-utils"] }
 # Pattern recognizer used by the end-to-end example.
 nvisy-pattern = { workspace = true }
+# Fake-data anonymizer wrapped through Vault in the integration test.
+nvisy-fake = { workspace = true }
 # Async-trait + tokio runtime for the example.
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

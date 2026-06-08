@@ -16,7 +16,6 @@ use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
 use sha2::{Digest, Sha256, Sha512};
 
-use super::text_value::read_value;
 use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
 
 /// Which SHA-2 variant to use.
@@ -75,17 +74,16 @@ impl Anonymizer<Text> for Hash {
         LeakProfile::Recoverable
     }
 
-    async fn apply(&self, entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
-        let value = read_value(entity, source);
+    async fn apply(&self, _entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
         let digest = match self.algorithm {
             HashAlgorithm::Sha256 => hex(Sha256::new()
                 .chain_update(&self.salt)
-                .chain_update(value)
+                .chain_update(source.text.as_str())
                 .finalize()
                 .as_slice()),
             HashAlgorithm::Sha512 => hex(Sha512::new()
                 .chain_update(&self.salt)
-                .chain_update(value)
+                .chain_update(source.text.as_str())
                 .finalize()
                 .as_slice()),
         };

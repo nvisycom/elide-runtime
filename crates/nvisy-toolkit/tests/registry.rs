@@ -22,12 +22,12 @@
 
 use std::env;
 
-use nvisy_llm::backend::rig::RigBackend;
-use nvisy_llm::provider::LlmProvider;
-use nvisy_llm::{DefaultPrompt, LlmRecognizer};
 use nvisy_core::entity::EntityKind;
 use nvisy_core::modality::TextData;
 use nvisy_core::recognition::RecognizerInput;
+use nvisy_llm::backend::rig::RigBackend;
+use nvisy_llm::provider::LlmProvider;
+use nvisy_llm::{DefaultPrompt, LlmRecognizer};
 use nvisy_ner::NerRecognizer;
 use nvisy_ner::backend::{BentoBackend, BentoParams};
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};

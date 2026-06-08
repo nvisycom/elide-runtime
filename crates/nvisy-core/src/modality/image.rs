@@ -69,7 +69,7 @@ impl ImageLocation {
 /// The pixel dimensions are needed alongside the encoded bytes
 /// because recognizers that emit normalised bounding boxes scale
 /// them to pixel coordinates using `dims`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImageData {
     /// Encoded image bytes.
     pub bytes: Bytes,

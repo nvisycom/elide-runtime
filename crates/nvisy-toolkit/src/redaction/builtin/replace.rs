@@ -15,7 +15,6 @@ use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
 
-use super::text_value::read_value;
 use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
 
 /// Substitute the matched span with a template string.
@@ -52,7 +51,7 @@ impl Anonymizer<Text> for Replace {
     }
 
     async fn apply(&self, entity: &Entity<Text>, source: &TextData) -> Result<TextReplacement> {
-        let value = read_value(entity, source);
+        let value = source.text.as_str();
         let kind = entity.entity_kind.to_string();
         let rendered = render(&self.template, &kind, value);
         Ok(TextReplacement::substituted(rendered))
@@ -95,8 +94,8 @@ mod tests {
     #[tokio::test]
     async fn template_with_value_placeholder() {
         let op = Replace::new("<<{value}::{entity_kind}>>");
-        let source = TextData::new("alice@example.test");
-        let entity = entity(EntityKind::EmailAddress, 0, 5);
+        let source = TextData::new("alice");
+        let entity = entity(EntityKind::EmailAddress, 0, source.text.len());
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(
             out,
@@ -105,10 +104,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn out_of_bounds_location_yields_empty_value() {
+    async fn empty_source_yields_empty_value_placeholder() {
         let op = Replace::new("[{value}]");
-        let source = TextData::new("hi");
-        let entity = entity(EntityKind::PersonName, 100, 200);
+        let source = TextData::new("");
+        let entity = entity(EntityKind::PersonName, 0, 0);
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(out, TextReplacement::substituted("[]"));
     }

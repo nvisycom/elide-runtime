@@ -40,7 +40,7 @@ pub use self::source::ContentSource;
 use crate::modality::Modality;
 #[cfg(any(test, feature = "test-utils"))]
 use crate::modality::{Text, TextLocation};
-use crate::primitive::Confidence;
+use crate::primitive::{Confidence, LanguageTag};
 
 /// A detected sensitive data occurrence within a document.
 ///
@@ -83,6 +83,15 @@ pub struct Entity<M: Modality> {
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trail: Vec<TrailStep>,
+    /// BCP-47 language tag for the span the entity covers, when the
+    /// recognizer has one to assign. Locale-aware anonymizers (the
+    /// fake-data generator in `nvisy-fake`, format-preserving
+    /// templates) read this to pick a locale. `None` falls back to
+    /// the document-level language metadata.
+    #[builder(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub language: Option<LanguageTag>,
 }
 
 impl<M: Modality> Entity<M> {

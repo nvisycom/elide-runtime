@@ -1,23 +1,24 @@
 //! [`Layer`]: one stage of an entity-processing pipeline.
 //!
-//! A layer takes a mutable entity collection and a read-only
+//! A layer takes a mutable entity collection plus a read-only
 //! [`LayerContext`], mutates the entities in place, and returns
-//! whatever entities it dropped so the pipeline can roll up
-//! drop-reason telemetry into a single log line. Layers that only
-//! *add* to or *reshape* the collection return an empty `Vec`.
+//! whichever entities it dropped so the pipeline can attribute
+//! them in its drop-reason roll-up. Layers that only *add* to or
+//! *reshape* the collection return an empty `Vec`.
 //!
 //! The four built-in layers ([`CalibrateLayer`], [`FilterLayer`],
-//! [`FuseLayer`], [`ResolveConflictsLayer`]) cover the
-//! canonical dedup recipe. Operators compose them — or their own
-//! custom layers — through [`LayerPipeline`].
+//! [`FuseLayer`], [`ResolveConflictsLayer`]) cover the canonical
+//! recipe. Operators compose them — or their own custom layers —
+//! through [`LayerPipeline`].
 //!
-//! # Generic over the resolver type
+//! # Generic over the resolver
 //!
-//! Both `Layer<M, R>` and [`LayerContext<'_, M, R>`] are parameterised
-//! by `R: TextAt<M>` so the value-resolver call ([`fuse`]
-//! is the only built-in caller) is monomorphised. Object safety still
-//! holds — `LayerPipeline` stores `Box<dyn Layer<M, R>>` for a
-//! specific `R` chosen at pipeline construction.
+//! Both `Layer<M, R>` and [`LayerContext<'_, M, R>`] are
+//! parameterised by `R: TextAt<M>` so the value-resolver call
+//! (only [`FuseLayer`](super::fuse::FuseLayer) needs it among
+//! the built-ins) is monomorphised. Object safety still holds:
+//! [`LayerPipeline`] stores `Box<dyn Layer<M, R>>` for a specific
+//! `R` chosen at construction.
 //!
 //! [`CalibrateLayer`]: super::calibrate::CalibrateLayer
 //! [`FilterLayer`]: super::filter::FilterLayer

@@ -1,17 +1,16 @@
-//! Per-recognizer confidence calibration.
+//! [`CalibrateLayer`]: scale entity confidences by per-recognizer
+//! multipliers.
 //!
-//! Scales entity confidence scores using per-recognizer multipliers
-//! before deduplication. This compensates for score distribution
-//! differences between detectors: regex always returns 1.0 while NER
-//! returns 0.3–0.9, so a multiplier of 0.8 on `pattern` brings them
-//! into alignment.
+//! Compensates for score-distribution differences between
+//! detectors — regex always returns `1.0` while NER returns
+//! `0.3–0.9`, so a multiplier of `0.8` on `"pattern"` brings them
+//! into the same range before deduplication runs.
 //!
-//! Keys are the recognizer source names stamped onto the entity's
-//! [`TrailStep::recognition`]
-//! step — typically the names registered with the detection engine
-//! (e.g. `"pattern"`, `"ner"`, `"llm-ner"`).
+//! Keys in [`CalibrationMap`] are recognizer source names from the
+//! entity's [`Recognition`] trail step (typically `"pattern"`,
+//! `"ner"`, `"llm-ner"`).
 //!
-//! [`TrailStep::recognition`]: nvisy_core::entity::TrailStep::recognition
+//! [`Recognition`]: nvisy_core::entity::TrailStepKind::Recognition
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -28,16 +27,13 @@ use super::layer::{Layer, LayerContext};
 
 const TARGET: &str = "nvisy_toolkit::deduplication::calibrate";
 
-/// Per-recognizer confidence multipliers applied before deduplication.
+/// Per-recognizer confidence multipliers applied before
+/// deduplication.
 ///
 /// Maps a recognizer source name to a scaling factor. Recognizers
-/// not present in the map are left unchanged (implicit multiplier of
-/// `1.0`).
-///
-/// Keys use [`Cow<'static, str>`]: the canonical recognizer names are
-/// `'static` string literals (`"pattern"`, `"ner"`) so they go in as
-/// borrowed; custom user-supplied names from runtime config still go
-/// in as owned.
+/// not present in the map are left unchanged (implicit multiplier
+/// `1.0`). Both built-in recognizer names (`"pattern"`, `"ner"`)
+/// and runtime-configured custom names are accepted as keys.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct CalibrationMap(HashMap<Cow<'static, str>, f64>);

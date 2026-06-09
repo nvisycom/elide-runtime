@@ -12,12 +12,12 @@ use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Modality, Overlap};
 
 use super::calibrate::CalibrateLayer;
-use super::filter::{FilterLayer, FilterParams};
+use super::filter::FilterLayer;
 use super::fuse::FuseLayer;
 use super::layer::{Layer, LayerContext};
+use super::params::LayerParams;
 use super::resolve::ResolveConflictsLayer;
 use super::span_size::SpanSize;
-use crate::deduplication::DeduplicationParams;
 
 const TARGET: &str = "nvisy_toolkit::deduplication";
 
@@ -92,15 +92,15 @@ where
     M::Location: Overlap + SpanSize,
     R: TextAt<M> + ?Sized,
 {
-    /// Build the canonical four-layer dedup recipe: calibrate →
-    /// filter → fuse → resolve. Each layer's config comes from
-    /// `params`, except for the per-call [`FilterParams`] which
-    /// carries the allowlist + threshold that aren't part of
-    /// [`DeduplicationParams`] yet.
-    pub fn from_params(params: &DeduplicationParams, filter: FilterParams) -> Self {
+    /// Build the canonical four-layer recipe: calibrate → filter →
+    /// fuse → resolve. Every layer's config is read from `params`.
+    pub fn from_params(params: &LayerParams) -> Self {
+        let filter = FilterLayer::new()
+            .with_allowed_kinds(params.allowed_kinds.clone())
+            .with_confidence_threshold(params.confidence_threshold);
         Self::new()
             .with_layer(CalibrateLayer::new(params.calibration.clone()))
-            .with_layer(FilterLayer::new(filter))
+            .with_layer(filter)
             .with_layer(FuseLayer::new(params.strategy.clone(), params.grouping))
             .with_layer(ResolveConflictsLayer::new(params.conflict_resolution))
     }

@@ -1,7 +1,10 @@
-//! Span size comparison for deduplication.
+//! [`SpanSize`]: compare the spatial / temporal extent of two
+//! same-modality locations.
 //!
-//! Compares the spatial/temporal extent of two same-modality locations
-//! to select the most representative span when merging entities.
+//! Used by [`FuseLayer`](super::fuse::FuseLayer) and
+//! [`ResolveConflictsLayer`](super::resolve::ResolveConflictsLayer)
+//! to pick the most representative span when merging or breaking
+//! ties between entities.
 
 use std::cmp::Ordering;
 

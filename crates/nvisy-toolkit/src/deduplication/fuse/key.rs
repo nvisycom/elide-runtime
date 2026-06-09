@@ -1,4 +1,4 @@
-//! Hash key for the first grouping phase of deduplication.
+//! [`GroupKey`]: hash key for the first grouping phase.
 
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::extraction::TextAt;
@@ -8,8 +8,9 @@ use super::group::GroupingCriteria;
 
 /// Hash key for the first grouping phase.
 ///
-/// For [`Strict`] and [`Narrowing`]/[`Widening`] this stores the exact
-/// value; for [`Normalized`] it stores the lowercased, trimmed form.
+/// For [`Strict`], [`Narrowing`], and [`Widening`] this stores the
+/// exact value; for [`Normalized`] it stores the lowercased,
+/// trimmed form.
 ///
 /// [`Strict`]: GroupingCriteria::Strict
 /// [`Narrowing`]: GroupingCriteria::Narrowing

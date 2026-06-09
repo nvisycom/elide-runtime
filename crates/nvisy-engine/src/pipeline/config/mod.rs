@@ -25,7 +25,7 @@ mod validation;
 use std::num::NonZeroUsize;
 
 use nvisy_core::Error;
-pub use nvisy_toolkit::deduplication::DeduplicationParams;
+pub use nvisy_toolkit::deduplication::LayerParams as DeduplicationParams;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 

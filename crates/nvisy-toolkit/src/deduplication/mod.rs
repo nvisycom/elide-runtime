@@ -18,14 +18,14 @@
 //!   plus its per-call context.
 //! - [`LayerPipeline`] — the orchestrator that runs a stack of
 //!   layers in order.
-//! - [`DeduplicationParams`] — the per-call knob bag callers set.
+//! - [`LayerParams`] — the per-call knob bag callers set.
 //! - [`SpanSize`] — helper for span-length tiebreaks (used by
 //!   `fuse` and `resolve` internally; exposed for custom layers).
 //!
 //! # Canonical recipe
 //!
 //! [`LayerPipeline::from_params`] assembles the canonical four-step
-//! recipe from a [`DeduplicationParams`]:
+//! recipe from a [`LayerParams`]:
 //!
 //! 1. **Calibrate** raw confidence scores per-recognizer.
 //! 2. **Filter** by allowed kinds + confidence floor.
@@ -47,7 +47,7 @@ mod pipeline;
 mod span_size;
 
 pub use self::layer::{Layer, LayerContext};
-pub use self::params::DeduplicationParams;
+pub use self::params::LayerParams;
 pub use self::pipeline::LayerPipeline;
 pub use self::span_size::SpanSize;
 

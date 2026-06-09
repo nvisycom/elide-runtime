@@ -1,12 +1,74 @@
 //! [`DeduplicationStrategy`]: how to combine confidence scores when
 //! fusing a group of co-referent entities.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::Modality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+/// Per-recognizer evidence weights used by [`DeduplicationStrategy`]
+/// when combining confidences across a fused group.
+///
+/// Maps a recognizer source name to a weight. Recognizers not
+/// present in the map contribute the neutral weight `1.0`. Both
+/// built-in recognizer names (`"pattern"`, `"ner"`) and
+/// runtime-configured custom names are accepted as keys.
+///
+/// Semantics differ per strategy:
+///
+/// - In [`DeduplicationStrategy::WeightedAverage`], a weight `w`
+///   means "this detector counts `w` times more than an unweighted
+///   one" in the average.
+/// - In [`DeduplicationStrategy::NoisyOr`], a weight `w` means
+///   "this detector contributes `w` units of evidence" — fractional
+///   weights dampen correlated detectors.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct FusionWeights(HashMap<Cow<'static, str>, f64>);
+
+impl FusionWeights {
+    /// Empty weight map.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Insert a weight for a recognizer name.
+    pub fn insert(&mut self, recognizer: impl Into<Cow<'static, str>>, weight: f64) {
+        self.0.insert(recognizer.into(), weight);
+    }
+
+    /// Look up the weight for a recognizer name, or `None`.
+    pub fn get(&self, recognizer: &str) -> Option<f64> {
+        self.0.get(recognizer).copied()
+    }
+
+    /// True when no weights are registered.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Number of registered weights.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<K, V> FromIterator<(K, V)> for FusionWeights
+where
+    K: Into<Cow<'static, str>>,
+    V: Into<f64>,
+{
+    fn from_iter<I: IntoIterator<Item = (K, V)>>(iter: I) -> Self {
+        Self(
+            iter.into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
+        )
+    }
+}
 
 /// Strategy for combining confidence scores from multiple detectors.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -25,8 +87,8 @@ pub enum DeduplicationStrategy {
     /// step(s) but hasn't been merged with siblings yet, so the
     /// first one is unambiguously what produced this entity.) If
     /// that recognizer isn't in `weights`, the per-entity weight
-    /// defaults to `1.0`. `WeightedAverage { weights: {} }` reduces
-    /// to a plain unweighted average.
+    /// defaults to `1.0`. `WeightedAverage { weights: empty }`
+    /// reduces to a plain unweighted average.
     ///
     /// # Non-monotonicity
     ///
@@ -41,16 +103,13 @@ pub enum DeduplicationStrategy {
     /// [`MaxConfidence`]: Self::MaxConfidence
     /// [`NoisyOr`]: Self::NoisyOr
     WeightedAverage {
-        /// Per-recognizer weight (keyed by the source name on the
-        /// originating [`Recognition`] trail step). Recognizers
-        /// missing from the map default to weight `1.0`.
-        ///
-        /// [`Recognition`]: nvisy_core::entity::TrailStepKind::Recognition
-        weights: HashMap<String, f64>,
+        /// Per-recognizer weight.
+        #[serde(default)]
+        weights: FusionWeights,
     },
     /// Weighted noisy-OR: `P = 1 − ∏(1 − pᵢ)^wᵢ`.
     ///
-    /// Unweighted (`weights: {}`) reduces to standard noisy-OR
+    /// Unweighted (`weights: empty`) reduces to standard noisy-OR
     /// `P = 1 − ∏(1 − pᵢ)`, which treats each detector as an
     /// independent witness — each contributes its own evidence and
     /// the joint probability that *all* are wrong is `∏(1 − pᵢ)`.
@@ -72,10 +131,9 @@ pub enum DeduplicationStrategy {
     ///
     /// [`WeightedAverage`]: Self::WeightedAverage
     NoisyOr {
-        /// Per-recognizer evidence weight. Recognizers missing from
-        /// the map contribute the unit weight `1.0`.
+        /// Per-recognizer evidence weight.
         #[serde(default)]
-        weights: HashMap<String, f64>,
+        weights: FusionWeights,
     },
 }
 
@@ -117,11 +175,10 @@ impl DeduplicationStrategy {
 /// source of its first `Recognition` trail step). Missing-from-map
 /// and missing-trail-step both fall through to the neutral weight
 /// `1.0`.
-fn entity_weight<M: Modality>(entity: &Entity<M>, weights: &HashMap<String, f64>) -> f64 {
+fn entity_weight<M: Modality>(entity: &Entity<M>, weights: &FusionWeights) -> f64 {
     entity
         .recognizers()
         .next()
         .and_then(|name| weights.get(name))
-        .copied()
         .unwrap_or(1.0)
 }

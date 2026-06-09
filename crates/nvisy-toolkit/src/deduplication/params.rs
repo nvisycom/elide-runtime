@@ -1,21 +1,20 @@
-//! Deduplication plan node.
+//! [`LayerParams`]: the per-call knob bag that drives the
+//! canonical deduplication recipe.
 //!
-//! [`DeduplicationParams`] runs at **phase 2**, after detection.
-//! Aggregates the per-layer configuration types
-//! ([`CalibrationMap`], [`DeduplicationStrategy`],
-//! [`GroupingCriteria`], [`ConflictResolution`]) into the shape the
-//! plan ingests as a single JSON section.
-//!
-//! The per-layer types themselves live in
-//! [`crate::deduplication`] — they're the dedup algorithm's domain
-//! types and aren't pure config. Only the plan-level bundle lives
-//! here.
+//! Bundles every per-layer setting the four-step recipe needs
+//! ([`CalibrationMap`], filtering thresholds + allowed kinds,
+//! [`DeduplicationStrategy`], [`GroupingCriteria`],
+//! [`ConflictResolution`]) into a single deserialisable shape
+//! callers set once per request.
+//! [`LayerPipeline::from_params`](super::pipeline::LayerPipeline::from_params)
+//! reads it and assembles the four-step pipeline.
 //!
 //! [`CalibrationMap`]: super::calibrate::CalibrationMap
 //! [`DeduplicationStrategy`]: super::fuse::DeduplicationStrategy
 //! [`GroupingCriteria`]: super::fuse::GroupingCriteria
 //! [`ConflictResolution`]: super::resolve::ConflictResolution
 
+use nvisy_core::entity::EntityKind;
 use nvisy_core::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,10 +23,7 @@ use super::calibrate::CalibrationMap;
 use super::fuse::{DeduplicationStrategy, GroupingCriteria};
 use super::resolve::ConflictResolution;
 
-/// Configuration for the deduplication phase.
-///
-/// Merges and scores entity candidates from multiple detection
-/// sources into a deduplicated, confidence-scored entity list.
+/// Configuration for the deduplication pipeline's four-step recipe.
 ///
 /// Owns the sole confidence threshold in the pipeline: detection
 /// layers and recognizers do not filter on confidence themselves —
@@ -39,22 +35,28 @@ use super::resolve::ConflictResolution;
 /// [`confidence_threshold`]: Self::confidence_threshold
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct DeduplicationParams {
-    /// How to match entity values and locations when grouping.
-    #[serde(default)]
-    pub grouping: GroupingCriteria,
-    /// Strategy for combining confidence scores.
-    #[serde(default)]
-    pub strategy: DeduplicationStrategy,
-    /// Per-method confidence scaling applied before filtering.
+pub struct LayerParams {
+    /// Per-recognizer confidence scaling applied first.
     #[serde(default, skip_serializing_if = "CalibrationMap::is_empty")]
     pub calibration: CalibrationMap,
-    /// Minimum (calibrated) confidence an entity must clear to
-    /// survive deduplication. `None` keeps every candidate.
+    /// Drop entities whose `entity_kind` is outside this set. `None`
+    /// keeps every kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allowed_kinds: Option<Vec<EntityKind>>,
+    /// Minimum calibrated confidence an entity must clear to survive
+    /// the filter step. `None` keeps every confidence level.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence_threshold: Option<ConfidenceThreshold>,
+    /// How to match entity values and locations when grouping for
+    /// fusion.
+    #[serde(default)]
+    pub grouping: GroupingCriteria,
+    /// Strategy for combining confidence scores within a fused
+    /// group.
+    #[serde(default)]
+    pub strategy: DeduplicationStrategy,
     /// How to resolve conflicts when different entity kinds overlap
-    /// the same text span.
+    /// the same span.
     #[serde(default)]
     pub conflict_resolution: ConflictResolution,
 }

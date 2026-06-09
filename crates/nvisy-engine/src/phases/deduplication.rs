@@ -13,23 +13,20 @@ use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Audio, Image, Overlap, Tabular, Text};
-use nvisy_toolkit::deduplication::filter::FilterParams;
 use nvisy_toolkit::deduplication::{LayerContext, LayerPipeline, SpanSize};
 use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::core::{DocumentTree, RunContext};
 use crate::modality::DocumentModality;
-use crate::pipeline::{DeduplicationParams, Detection, Plan};
+use crate::pipeline::{DeduplicationParams, Plan};
 use crate::provenance::EntityRecord;
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
 /// Deduplication phase orchestrator.
 ///
-/// Stateless. Per-run config ([`DeduplicationParams`] for
-/// calibration/threshold/grouping, [`Detection`] for the
-/// allowed-kinds list) comes from `plan` each call.
+/// Stateless. Reads [`DeduplicationParams`] from `plan` each call.
 pub struct DeduplicationPhase;
 
 impl DeduplicationPhase {
@@ -81,7 +78,7 @@ impl DeduplicationPhase {
     {
         let span = tracing::info_span!(target: TARGET, "phase", name = "deduplication");
         let run_id = ctx.shared().run_id;
-        async move { dedup_one(tree, &plan.deduplication, &plan.detection, run_id).await }
+        async move { dedup_one(tree, &plan.deduplication, run_id).await }
             .instrument(span)
             .await
     }
@@ -96,7 +93,6 @@ impl Default for DeduplicationPhase {
 async fn dedup_one<M>(
     tree: &mut DocumentTree<M>,
     dedup: &DeduplicationParams,
-    detection: &Detection,
     run_id: Uuid,
 ) -> Result<()>
 where
@@ -107,10 +103,6 @@ where
     if tree.root.audit.records.is_empty() {
         return Ok(());
     }
-    let filter = FilterParams {
-        allowed_kinds: (!detection.entity_kinds.is_empty()).then(|| detection.entity_kinds.clone()),
-        confidence_threshold: dedup.confidence_threshold,
-    };
     tracing::debug!(
         target: TARGET,
         entities = tree.root.audit.records.len(),
@@ -121,7 +113,7 @@ where
     // rewrap without losing audit state.
     let records = mem::take(&mut tree.root.audit.records);
     let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
-    let pipeline: LayerPipeline<M, _> = LayerPipeline::from_params(dedup, filter);
+    let pipeline: LayerPipeline<M, _> = LayerPipeline::from_params(dedup);
     let ctx = LayerContext::new(&*tree).with_correlation_id(run_id);
     let deduped = pipeline.run(entities, &ctx).await;
     tree.root.audit.records = deduped.into_iter().map(EntityRecord::new).collect();

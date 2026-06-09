@@ -1,9 +1,8 @@
-//! Group + fuse co-referent entities into a single detection.
+//! [`FuseLayer`]: collapse co-referent entities into one.
 //!
-//! Implements the actual confidence-combination algorithms and entity
-//! field merging. The strategy determines *how* confidences are
-//! combined; the grouping module determines *which* entities are
-//! candidates.
+//! [`GroupingCriteria`] decides *which* entities are candidates
+//! for fusion; [`DeduplicationStrategy`] decides *how* their
+//! confidences combine into the survivor's score.
 
 mod group;
 mod key;
@@ -20,7 +19,7 @@ use nvisy_core::primitive::Confidence;
 
 use self::group::GroupEntities;
 pub use self::group::GroupingCriteria;
-pub use self::strategy::DeduplicationStrategy;
+pub use self::strategy::{DeduplicationStrategy, FusionWeights};
 use super::layer::{Layer, LayerContext};
 use super::span_size::SpanSize;
 

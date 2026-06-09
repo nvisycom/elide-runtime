@@ -1,9 +1,9 @@
-//! [`ResolveConflictsLayer`]: drop the loser of each cross-kind span
-//! overlap.
+//! [`ResolveConflictsLayer`]: drop the loser when different kinds
+//! overlap the same span.
 //!
-//! When entities of different kinds overlap the same text span (e.g.
-//! "555-1234" matches both `PhoneNumber` and `EmailAddress`), this
-//! layer keeps only the winner per the configured
+//! When entities of different kinds claim the same text (e.g.
+//! `"555-1234"` matches both `PhoneNumber` and `EmailAddress`),
+//! this layer keeps only the winner per the configured
 //! [`ConflictResolution`] strategy.
 
 mod strategy;

@@ -7,8 +7,6 @@
 //! boundary (they need `DocumentTree`, `TextMetadata`, and a real
 //! decoded codec handle).
 
-use std::collections::HashMap;
-
 use nvisy_codec::content::{ContentData, ContentDescriptor, ContentSource};
 use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
 use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep, TrailStepKind};
@@ -18,9 +16,10 @@ use nvisy_core::primitive::{Confidence, ConfidenceThreshold};
 use nvisy_engine::core::DocumentTree;
 use nvisy_engine::document::Document;
 use nvisy_engine::modality::{TextExtraction, TextMetadata};
-use nvisy_toolkit::deduplication::filter::FilterParams;
-use nvisy_toolkit::deduplication::fuse::{DeduplicationStrategy, FuseLayer, GroupingCriteria};
-use nvisy_toolkit::deduplication::{DeduplicationParams, Layer, LayerContext, LayerPipeline};
+use nvisy_toolkit::deduplication::fuse::{
+    DeduplicationStrategy, FuseLayer, FusionWeights, GroupingCriteria,
+};
+use nvisy_toolkit::deduplication::{Layer, LayerContext, LayerParams, LayerPipeline};
 use uuid::Uuid;
 
 fn conf(v: f64) -> Confidence {
@@ -74,7 +73,7 @@ async fn fuse_with(
 #[tokio::test]
 async fn confidence_threshold_filters() {
     let tree = tree_from("John......Jane").await;
-    let filter = FilterParams {
+    let params = LayerParams {
         confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
         ..Default::default()
     };
@@ -84,8 +83,7 @@ async fn confidence_threshold_filters() {
             .with_confidence(conf(0.5))
             .test_build(),
     ];
-    let pipeline: LayerPipeline<Text, _> =
-        LayerPipeline::from_params(&DeduplicationParams::default(), filter);
+    let pipeline: LayerPipeline<Text, _> = LayerPipeline::from_params(&params);
     let ctx = LayerContext::new(&tree).with_correlation_id(Uuid::nil());
     let result = pipeline.run(entities, &ctx).await;
     assert_eq!(result.len(), 1);
@@ -113,8 +111,7 @@ async fn full_pipeline() {
             .with_confidence(conf(0.85))
             .test_build(),
     ];
-    let pipeline: LayerPipeline<Text, _> =
-        LayerPipeline::from_params(&DeduplicationParams::default(), FilterParams::default());
+    let pipeline: LayerPipeline<Text, _> = LayerPipeline::from_params(&LayerParams::default());
     let ctx = LayerContext::new(&tree).with_correlation_id(Uuid::nil());
     let result = pipeline.run(entities, &ctx).await;
     assert_eq!(result.len(), 1);
@@ -213,9 +210,9 @@ async fn noisy_or_strategy() {
 #[tokio::test]
 async fn weighted_average_strategy() {
     let tree = tree_from(TEXT).await;
-    let mut weights = HashMap::new();
-    weights.insert("pattern".to_string(), 1.0);
-    weights.insert("ner".to_string(), 2.0);
+    let mut weights = FusionWeights::new();
+    weights.insert("pattern", 1.0);
+    weights.insert("ner", 2.0);
 
     let mut entities: Vec<_> = vec![
         Entity::test_builder(0, 4)

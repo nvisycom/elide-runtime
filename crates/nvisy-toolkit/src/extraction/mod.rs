@@ -17,14 +17,15 @@
 
 #[cfg(feature = "image")]
 pub mod ocr;
-pub mod registry;
 #[cfg(feature = "audio")]
 pub mod stt;
 
+mod registry;
+
 pub use nvisy_core::extraction::Extractor;
 
-#[cfg(feature = "audio")]
-pub use self::registry::AudioExtractorOutput;
-pub use self::registry::ExtractorRegistry;
 #[cfg(feature = "image")]
-pub use self::registry::ImageExtractorOutput;
+pub use self::ocr::ImageExtractorOutput;
+pub use self::registry::ExtractorRegistry;
+#[cfg(feature = "audio")]
+pub use self::stt::AudioExtractorOutput;

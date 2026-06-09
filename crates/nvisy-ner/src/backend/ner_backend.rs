@@ -16,7 +16,7 @@
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::{EntityKind, ModelProvenance};
 use nvisy_core::primitive::LanguageTag;
 use uuid::Uuid;
 
@@ -72,25 +72,36 @@ impl NerResponse {
 /// per call.
 #[async_trait]
 pub trait NerBackend: Send + Sync + 'static {
-    /// Predict spans for `request`. Returns raw (pre-normalization)
-    /// spans; the recognizer applies label-map + ignore-set +
-    /// low-score demotion on the way out.
+    /// Backend identity (model / service name + provenance kind).
+    ///
+    /// Distinct from the recognizer's configured name: the
+    /// recognizer-level name (e.g. `"company-ner"`) labels the
+    /// configured slot, while [`provenance`] identifies the actual
+    /// model the backend wraps (e.g. `"noop-ner"`,
+    /// `"bento-ner"`).
+    ///
+    /// [`provenance`]: Self::provenance
+    fn provenance(&self) -> ModelProvenance;
+
+    /// Recognise spans for `request`. Returns raw
+    /// (pre-normalization) spans; the recognizer applies
+    /// label-map + ignore-set + low-score demotion on the way out.
     ///
     /// # Errors
     ///
     /// Returns the underlying transport / parse / inference error.
-    async fn predict(&self, request: NerRequest<'_>) -> Result<NerResponse>;
+    async fn recognize(&self, request: NerRequest<'_>) -> Result<NerResponse>;
 
-    /// Batched predict. Defaults to a sequential fan-out; backends
-    /// with native batching should override.
+    /// Batched recognise. Defaults to a sequential fan-out;
+    /// backends with native batching should override.
     ///
     /// # Errors
     ///
     /// Returns the first error encountered.
-    async fn predict_batch(&self, requests: &[NerRequest<'_>]) -> Result<Vec<NerResponse>> {
+    async fn recognize_batch(&self, requests: &[NerRequest<'_>]) -> Result<Vec<NerResponse>> {
         let mut out = Vec::with_capacity(requests.len());
         for req in requests {
-            out.push(self.predict(req.clone()).await?);
+            out.push(self.recognize(req.clone()).await?);
         }
         Ok(out)
     }

@@ -3,11 +3,7 @@
 #![doc = include_str!("../README.md")]
 
 pub mod backend;
-pub mod core;
-pub mod engine;
+mod extraction;
+pub mod types;
 
-pub use self::backend::NoopBackend;
-#[cfg(feature = "bento")]
-pub use self::backend::{BentoBackend, BentoParams};
-pub use self::core::{Backend, Context, ImageInput};
-pub use self::engine::Extractor;
+pub use self::extraction::OcrExtractor;

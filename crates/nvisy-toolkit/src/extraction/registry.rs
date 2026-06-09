@@ -19,22 +19,11 @@ use std::sync::Arc;
 
 use nvisy_core::extraction::Extractor;
 use nvisy_core::modality::{Audio, Image};
-use nvisy_ocr::core::OcrOutput;
-#[cfg(feature = "audio")]
-use nvisy_stt::Transcription;
 
-/// Output shape produced by every image-modality extractor.
-///
-/// Pinned to [`Vec<OcrOutput>`] today; widening the type later (to
-/// accommodate scene-text / layout-detection backends with different
-/// shapes) is a breaking change worth taking deliberately rather than
-/// hiding behind generics.
 #[cfg(feature = "image")]
-pub type ImageExtractorOutput = Vec<OcrOutput>;
-
-/// Output shape produced by every audio-modality extractor.
+use super::ocr::ImageExtractorOutput;
 #[cfg(feature = "audio")]
-pub type AudioExtractorOutput = Transcription;
+use super::stt::AudioExtractorOutput;
 
 /// Per-modality container of pre-built extractors.
 ///

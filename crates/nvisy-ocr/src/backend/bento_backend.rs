@@ -3,9 +3,9 @@
 //!
 //! **Scaffolding only.** The wire contract has not been finalised
 //! upstream (tracked under [#128]). The struct, parameters, and
-//! [`Backend`] impl exist so config wiring and feature gates can
+//! [`OcrBackend`] impl exist so config wiring and feature gates can
 //! land now and the externalised path becomes a one-file change
-//! when the contract is ready. Until then [`Backend::run`] returns
+//! when the contract is ready. Until then [`OcrBackend::run`] returns
 //! a clear runtime error rather than pretending to call the
 //! service.
 //!
@@ -13,8 +13,8 @@
 //! [`bento_types`] the same way `nvisy-ner`'s `BentoBackend`
 //! mirrors `nvisy_core.ner.v1`.
 //!
-//! [`Backend`]: crate::core::Backend
-//! [`bento_types`]: crate::backend::bento_types
+//! [`OcrBackend`]: super::ocr_backend::OcrBackend
+//! [`bento_types`]: super::bento_types
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 //! [#128]: https://github.com/nvisycom/runtime/issues/128
 
@@ -22,7 +22,7 @@ use bentoml::prelude::*;
 use nvisy_core::Error;
 use nvisy_core::entity::ModelProvenance;
 
-use crate::core::{Backend, Context, ImageInput, OcrOutput};
+use super::ocr_backend::{OcrBackend, OcrRequest, OcrResponse};
 
 /// Parameters for [`BentoBackend`].
 #[derive(Debug, Clone)]
@@ -40,18 +40,16 @@ impl BentoParams {
     }
 }
 
-/// [`Backend`] that will call an externalised OCR Bento over HTTP.
+/// [`OcrBackend`] that will call an externalised OCR Bento over HTTP.
 ///
-/// **Not yet functional.** Both [`Backend::run`] and
-/// [`Backend::run_batch`] return a clear runtime error until the
-/// inference repo finalises the OCR wire contract — see [#128].
+/// **Not yet functional.** Both [`OcrBackend::extract`] and
+/// [`OcrBackend::extract_batch`] return a clear runtime error until
+/// the inference repo finalises the OCR wire contract — see [#128].
 ///
 /// Constructing one still validates the configured `base_url`
 /// (via the underlying [`Client`] builder) so config errors
 /// surface at startup rather than at the first request, even
 /// though the request path itself is stubbed out.
-///
-/// [`Backend`]: crate::core::Backend
 #[derive(Debug)]
 pub struct BentoBackend;
 
@@ -76,12 +74,12 @@ impl BentoBackend {
 }
 
 #[async_trait::async_trait]
-impl Backend for BentoBackend {
+impl OcrBackend for BentoBackend {
     fn provenance(&self) -> ModelProvenance {
         ModelProvenance::new("bento-ocr")
     }
 
-    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Vec<OcrOutput>, Error> {
+    async fn extract(&self, _request: OcrRequest<'_>) -> Result<OcrResponse, Error> {
         Err(Error::runtime(
             "BentoBackend is scaffolded; the inference-ocr wire \
              contract has not been finalised yet — see \

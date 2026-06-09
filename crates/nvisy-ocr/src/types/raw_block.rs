@@ -1,27 +1,24 @@
-//! [`OcrOutput`]: backend-shaped recognition output.
+//! [`RawOcrBlock`]: pre-normalization OCR backend output.
 //!
-//! The OCR `Backend` trait returns these instead of
-//! `nvisy_engine::document::Block<Image>` to keep `nvisy-ocr` free
-//! of any `nvisy-engine` dependency (the orchestrator dep
-//! direction is core ← toolkit ← document, with detection backends
-//! (this crate) ← document — and the trait outputs must follow that
-//! direction).
+//! Emitted by an [`OcrBackend`]: one block per recognized text
+//! region, with the per-modality kind, the per-word [`OcrSpan`]s,
+//! and a block-level confidence. Consumers wrap each block into the
+//! per-document block shape they need.
 //!
-//! The document-side OCR extraction phase wraps each `OcrOutput` into
-//! a [`Block<Image>`] (filling in the span list and confidence). The
-//! lossless 1:1 mapping is documented at the phase site.
+//! [`OcrBackend`]: crate::backend::OcrBackend
 
 use nvisy_core::modality::ImageLocation;
 use nvisy_core::primitive::Confidence;
 
-/// Backend-shaped recognition output. One per recognized text region.
+/// One raw OCR block predicted by a backend.
 ///
-/// Mirrors the data a document-side `Block<Image>` carries minus the
-/// wrapping container: the per-modality block payload (text + region)
-/// plus the per-word spans the recognizer emitted.
+/// Pre-normalization: spans + confidence come straight from the
+/// model; consumers translate the variant into their own per-block
+/// shape and decide how to use the confidence.
 #[derive(Debug, Clone)]
-pub struct OcrOutput {
-    /// The image-modality block payload — recognized text + bounding region.
+pub struct RawOcrBlock {
+    /// The image-modality block payload — recognized text +
+    /// bounding region.
     pub kind: OcrBlockKind,
     /// Per-word source spans in the recognized text.
     pub spans: Vec<OcrSpan>,
@@ -32,8 +29,8 @@ pub struct OcrOutput {
 /// Subset of `ImageBlock` variants OCR backends emit.
 ///
 /// OCR doesn't produce `Figure`/`Separator`/`Background`/`Logo` —
-/// those are layout-analysis outputs. Only text-bearing variants land
-/// here.
+/// those are layout-analysis outputs. Only text-bearing variants
+/// land here.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum OcrBlockKind {

@@ -144,7 +144,7 @@ impl EntityRecognizer<Text> for NerRecognizer {
             language: input.language.as_ref(),
             correlation_id: input.correlation_id,
         };
-        let response = self.engine.predict(request).await?;
+        let response = self.engine.recognize(request).await?;
 
         let entities: Vec<Entity<Text>> = response
             .spans

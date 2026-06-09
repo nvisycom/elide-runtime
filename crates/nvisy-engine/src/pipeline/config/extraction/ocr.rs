@@ -1,4 +1,4 @@
-//! [`OcrExtractorConfig`] + the closed [`OcrBackend`] selector enum.
+//! [`OcrExtractorConfig`] + the [`OcrBackend`] selector enum.
 //!
 //! `[extraction.ocr]` is the TOML section the engine reads at startup;
 //! it picks one of the backends [`nvisy_ocr`] ships. The build path
@@ -21,15 +21,13 @@ pub struct OcrExtractorConfig {
     pub backend: OcrBackend,
 }
 
-/// Config-side selection of which OCR [`Backend`] to construct.
+/// Config-side selection of which OCR backend to construct.
 ///
 /// The enum is always parseable regardless of compiled features —
 /// selecting [`OcrBackend::Bento`] on a build without the `bento`
 /// feature surfaces as a clear runtime error at construction instead
 /// of a deserialisation failure, so config files stay portable across
 /// deployments.
-///
-/// [`Backend`]: nvisy_ocr::Backend
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum OcrBackend {
@@ -38,11 +36,9 @@ pub enum OcrBackend {
     #[default]
     Noop,
 
-    /// Externalised [`BentoBackend`] — calls the `inference-ocr`
+    /// Externalised Bento backend — calls the `inference-ocr`
     /// Bento over HTTP. Requires the runtime to be built with the
     /// `bento` feature.
-    ///
-    /// [`BentoBackend`]: nvisy_ocr::BentoBackend
     Bento {
         /// Base URL of the `inference-ocr` Bento.
         base_url: String,

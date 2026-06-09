@@ -23,9 +23,8 @@ use nvisy_core::modality::{
 };
 #[cfg(feature = "image")]
 use nvisy_core::primitive::BoundingBox;
-use nvisy_ocr::core::OcrOutput;
-use nvisy_toolkit::extraction::registry::ImageExtractorOutput;
-use nvisy_toolkit::extraction::{Extractor, ExtractorRegistry};
+use nvisy_ocr::types::RawOcrBlock;
+use nvisy_toolkit::extraction::{Extractor, ExtractorRegistry, ImageExtractorOutput};
 use tracing::Instrument;
 
 use crate::core::{DocumentTree, RunContext};
@@ -261,8 +260,8 @@ async fn run_ocr_into(
         let span = ExtractionSpan::new(chunk.data, location);
         let output = ocr.extract(&span).await?;
         doc.meta.extraction = output.extraction;
-        for block in output.value {
-            doc.blocks.push(ocr_output_to_block(block));
+        for block in output.value.blocks {
+            doc.blocks.push(ocr_block_to_block(block));
         }
     }
     if doc.blocks.is_empty() && matches!(doc.meta.extraction, ImageExtraction::Pending) {
@@ -273,18 +272,18 @@ async fn run_ocr_into(
     Ok(())
 }
 
-/// Convert a backend-shaped [`OcrOutput`] to a document-shaped
+/// Convert a backend-shaped [`RawOcrBlock`] to a document-shaped
 /// [`Block<Image>`].
 #[cfg(feature = "image")]
-fn ocr_output_to_block(output: OcrOutput) -> Block<Image> {
-    use nvisy_ocr::core::OcrBlockKind;
-    let kind = match output.kind {
+fn ocr_block_to_block(raw: RawOcrBlock) -> Block<Image> {
+    use nvisy_ocr::types::OcrBlockKind;
+    let kind = match raw.kind {
         OcrBlockKind::Text { region, text } => ImageBlock::Text { region, text },
         OcrBlockKind::Heading { region, text } => ImageBlock::Heading { region, text },
         OcrBlockKind::Table { region, text } => ImageBlock::Table { region, text },
         _ => unreachable!("OcrBlockKind has no further variants"),
     };
-    let spans: Vec<Span<Image>> = output
+    let spans: Vec<Span<Image>> = raw
         .spans
         .into_iter()
         .map(|s| Span {
@@ -297,7 +296,7 @@ fn ocr_output_to_block(output: OcrOutput) -> Block<Image> {
     Block {
         kind,
         spans,
-        confidence: Some(output.confidence),
+        confidence: Some(raw.confidence),
     }
 }
 

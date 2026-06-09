@@ -18,7 +18,7 @@
 //! [`LabelMap`]: crate::LabelMap
 
 use bentoml::prelude::*;
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::{EntityKind, ModelProvenance};
 use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
@@ -72,8 +72,12 @@ impl BentoBackend {
 
 #[async_trait::async_trait]
 impl NerBackend for BentoBackend {
+    fn provenance(&self) -> ModelProvenance {
+        ModelProvenance::new("bento-ner")
+    }
+
     #[tracing::instrument(skip_all)]
-    async fn predict(&self, request: NerRequest<'_>) -> Result<NerResponse> {
+    async fn recognize(&self, request: NerRequest<'_>) -> Result<NerResponse> {
         let Some(kinds) = request.kinds else {
             return Err(Error::validation(
                 "BentoBackend requires per-call kinds (the inference-gliner service is zero-shot)",

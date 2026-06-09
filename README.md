@@ -10,6 +10,12 @@ and whole-audit LLM verification into auditable, policy-driven pipelines
 built for regulated industries such as healthcare, legal, government, and
 financial services.
 
+> [!WARNING]
+> **Active development: API not stable.** This project is under active
+> development. Public APIs, configuration shapes, on-disk formats, and
+> wire protocols may change without notice between releases. Pin a
+> specific commit if you depend on this in production.
+
 ## Features
 
 - **Multimodal codecs**: read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text through a unified span-based content model

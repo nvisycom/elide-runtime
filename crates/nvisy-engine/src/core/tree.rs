@@ -18,8 +18,8 @@ use nvisy_codec::core::ModalityKind;
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 
 use crate::document::Document;
+use crate::document::provenance::AnyAudit;
 use crate::modality::DocumentModality;
-use crate::provenance::AnyAudit;
 
 /// Typed per-modality tree. One per imported file (or per embedded
 /// child of a rich import).

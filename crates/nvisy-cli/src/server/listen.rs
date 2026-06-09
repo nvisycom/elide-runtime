@@ -6,7 +6,7 @@ use std::path::Path;
 use tokio::net::TcpListener;
 
 use super::shutdown;
-use crate::config::ResolvedServer;
+use crate::config::ServerConfig;
 
 const TARGET: &str = "nvisy_cli::server";
 
@@ -14,7 +14,7 @@ const TARGET: &str = "nvisy_cli::server";
 ///
 /// Blocks until a shutdown signal (SIGINT or SIGTERM) is received. After the
 /// server stops, it removes the data directory if one was created.
-pub async fn run(server: &ResolvedServer, app: axum::Router) -> anyhow::Result<()> {
+pub async fn run(server: &ServerConfig, app: axum::Router) -> anyhow::Result<()> {
     let addr = server.socket_addr();
     let listener = TcpListener::bind(addr).await?;
 

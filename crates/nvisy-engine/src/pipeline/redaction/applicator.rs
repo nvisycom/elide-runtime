@@ -19,10 +19,10 @@
 //!    record arrives with a pre-resolved [`AuditEntry`] and the
 //!    redaction phase honours it directly.
 //!
-//! [`AnyAudit`]: crate::provenance::AnyAudit
-//! [`AuditEntry`]: crate::provenance::AuditEntry
-//! [`EntityRecord<M>`]: crate::provenance::EntityRecord
-//! [`EntryMetadata::override_decision`]: crate::provenance::EntryMetadata::override_decision
+//! [`AnyAudit`]: crate::document::provenance::AnyAudit
+//! [`AuditEntry`]: crate::document::provenance::AuditEntry
+//! [`EntityRecord<M>`]: crate::document::provenance::EntityRecord
+//! [`EntryMetadata::override_decision`]: crate::document::provenance::EntryMetadata::override_decision
 
 use std::collections::{HashMap, HashSet};
 
@@ -34,12 +34,12 @@ use nvisy_core::primitive::Confidence;
 use uuid::Uuid;
 
 use super::override_::{RedactionAddEntity, RedactionOverride};
-use crate::modality::DocumentModality;
-use crate::policy::{Action, AnyRedaction};
-use crate::provenance::{
+use crate::document::provenance::{
     AnyAudit, Audit, AuditEntry, Decision, EntityRecord, EntryMetadata, Execution,
     RedactionDecision,
 };
+use crate::modality::DocumentModality;
+use crate::policy::{Action, AnyRedaction};
 
 const TARGET: &str = "nvisy_engine::pipeline::redaction::applicator";
 

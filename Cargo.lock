@@ -2815,6 +2815,7 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
+ "humantime",
  "humantime-serde",
  "nvisy-engine",
  "nvisy-server",

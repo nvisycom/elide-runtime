@@ -1,61 +1,70 @@
-//! Middleware resolution from TOML `[server.middleware]`.
-//!
-//! Translates the optional [`MiddlewareSection`] from the TOML file into
-//! concrete middleware configs consumed by `nvisy-server`. When a TOML
-//! field is absent, the corresponding `nvisy-server` default is used.
+//! HTTP middleware configuration and resolution into the
+//! `nvisy-server` middleware config types.
 
 use std::time::Duration;
 
 use nvisy_server::middleware::{
-    DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_REQUEST_TIMEOUT, OpenApiConfig,
-    RecoveryConfig, SecurityConfig,
+    DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_REQUEST_TIMEOUT, RecoveryConfig,
+    SecurityConfig,
 };
-
-use super::file::MiddlewareSection;
+use serde::Deserialize;
 
 const MB: usize = 1024 * 1024;
 
-/// Builds a [`SecurityConfig`] from the TOML middleware section.
-///
-/// Resolves body limits, CORS origins, and CORS max-age. Falls back to
-/// `nvisy-server` defaults for any omitted field.
-pub fn security_config(toml: &Option<MiddlewareSection>) -> SecurityConfig {
-    let toml = toml.as_ref();
+/// `[server.middleware]` — body limits, request timeout, and CORS.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MiddlewareConfig {
+    /// Maximum request body size in MiB for axum extractors. Default: 4.
+    pub body_limit_mb: Option<usize>,
+    /// Per-request timeout. Parses human-readable durations
+    /// (`"5m"`, `"300s"`). Default: 5m.
+    #[serde(default, with = "humantime_serde")]
+    pub request_timeout: Option<Duration>,
+    /// CORS policy. Omit for permissive defaults.
+    pub cors: Option<CorsConfig>,
+}
 
-    let body_limit_bytes = toml
-        .and_then(|m| m.body_limit_mb)
-        .map(|mb| mb * MB)
-        .unwrap_or(DEFAULT_MAX_BODY_SIZE);
+/// `[server.middleware.cors]` — CORS policy.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CorsConfig {
+    /// Origins allowed to make cross-origin requests.
+    /// An empty list (or omitted) means permissive (all origins).
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
+    /// `Access-Control-Max-Age` for preflight responses. Parses
+    /// human-readable durations (`"1h"`, `"3600s"`).
+    #[serde(default, with = "humantime_serde")]
+    pub max_age: Option<Duration>,
+}
 
-    let cors_allowed_origins = toml
-        .and_then(|m| m.cors.as_ref())
-        .map(|c| c.allowed_origins.clone())
-        .unwrap_or_default();
-
-    let cors_max_age = toml.and_then(|m| m.cors.as_ref()).and_then(|c| c.max_age);
-
-    SecurityConfig {
-        body_limit_bytes,
-        file_body_limit_bytes: DEFAULT_MAX_FILE_BODY_SIZE,
-        cors_allowed_origins,
-        cors_max_age,
+impl MiddlewareConfig {
+    /// Build a [`SecurityConfig`] from this section.
+    #[must_use]
+    pub fn security(&self) -> SecurityConfig {
+        let body_limit_bytes = self
+            .body_limit_mb
+            .map(|mb| mb * MB)
+            .unwrap_or(DEFAULT_MAX_BODY_SIZE);
+        let cors_allowed_origins = self
+            .cors
+            .as_ref()
+            .map(|c| c.allowed_origins.clone())
+            .unwrap_or_default();
+        let cors_max_age = self.cors.as_ref().and_then(|c| c.max_age);
+        SecurityConfig {
+            body_limit_bytes,
+            file_body_limit_bytes: DEFAULT_MAX_FILE_BODY_SIZE,
+            cors_allowed_origins,
+            cors_max_age,
+        }
     }
-}
 
-/// Builds a [`RecoveryConfig`] from the TOML middleware section.
-///
-/// Uses the configured `request_timeout` or falls back to the
-/// `nvisy-server` default (5 min).
-pub fn recovery_config(toml: &Option<MiddlewareSection>) -> RecoveryConfig {
-    let request_timeout: Duration = toml
-        .as_ref()
-        .and_then(|m| m.request_timeout)
-        .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
-
-    RecoveryConfig { request_timeout }
-}
-
-/// Returns the default [`OpenApiConfig`].
-pub fn open_api_config() -> OpenApiConfig {
-    OpenApiConfig::default()
+    /// Build a [`RecoveryConfig`] from this section.
+    #[must_use]
+    pub fn recovery(&self) -> RecoveryConfig {
+        let request_timeout = self.request_timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+        RecoveryConfig { request_timeout }
+    }
 }

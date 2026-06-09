@@ -196,4 +196,4 @@ pub fn validate_overrides(overrides: &[RedactionOverride]) -> Result<(), nvisy_c
 // because it's a property of the audit entry, not a property of
 // the request shape. Re-exported from this module for ergonomic
 // access:
-pub use crate::provenance::RedactionDecision;
+pub use crate::document::provenance::RedactionDecision;

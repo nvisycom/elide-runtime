@@ -33,7 +33,7 @@ const TARGET: &str = "nvisy_engine::detection";
 /// recognizer lists keep the underlying recognizers shared via `Arc`
 /// inside, without an outer wrap.
 ///
-/// [`EntityRecord`]: crate::provenance::EntityRecord
+/// [`EntityRecord`]: crate::document::provenance::EntityRecord
 pub struct DetectionPhase {
     registry: RecognizerRegistry,
 }

@@ -18,9 +18,9 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::core::{DocumentTree, RunContext};
+use crate::document::provenance::EntityRecord;
 use crate::modality::DocumentModality;
 use crate::pipeline::{DeduplicationParams, Plan};
-use crate::provenance::EntityRecord;
 
 const TARGET: &str = "nvisy_engine::deduplication";
 

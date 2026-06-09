@@ -96,7 +96,7 @@ impl<M: DocumentModality> Policy<M> {
 /// through to codec redactions so merge conflicts at overlap time
 /// can be broken by "which rule fired this redaction."
 ///
-/// [`AuditEntry`]: crate::provenance::AuditEntry
+/// [`AuditEntry`]: crate::document::provenance::AuditEntry
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

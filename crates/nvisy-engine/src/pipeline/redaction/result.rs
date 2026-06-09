@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::status::RedactionStatus;
-use crate::provenance::AnyAudit;
+use crate::document::provenance::AnyAudit;
 
 /// Artifact produced by one redaction pass.
 ///

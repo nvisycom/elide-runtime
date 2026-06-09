@@ -69,15 +69,15 @@ where
     S: Clone + Send + Sync + 'static,
 {
     fn with_security(self, config: &SecurityConfig) -> Self {
-        let cors = if config.cors_allowed_origins.is_empty() {
-            CorsLayer::permissive()
+        let origins = &config.cors_allowed_origins;
+        let cors = if origins.is_empty() || origins.iter().any(|o| o == "*") {
+            // Empty list = no policy = permissive; explicit "*" means
+            // allow any origin. tower_http rejects "*" inside
+            // `AllowOrigin::list`, so route it through `any()` here.
+            CorsLayer::new().allow_origin(AllowOrigin::any())
         } else {
-            let origins: Vec<HeaderValue> = config
-                .cors_allowed_origins
-                .iter()
-                .filter_map(|o| o.parse().ok())
-                .collect();
-            CorsLayer::new().allow_origin(AllowOrigin::list(origins))
+            let parsed: Vec<HeaderValue> = origins.iter().filter_map(|o| o.parse().ok()).collect();
+            CorsLayer::new().allow_origin(AllowOrigin::list(parsed))
         };
 
         let cors = if let Some(max_age) = config.cors_max_age {

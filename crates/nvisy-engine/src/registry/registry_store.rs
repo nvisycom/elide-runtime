@@ -22,8 +22,8 @@ use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
 use super::paged::PagedResult;
 use super::resource_cache::ResourceCache;
 use crate::document::AnyAnnotations;
+use crate::document::provenance::AnyAudit;
 use crate::policy::Policy;
-use crate::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_engine::ingestion::registry";
 

@@ -23,12 +23,12 @@ use super::result::DetectionResult;
 use super::state::{DetectionRecord, DetectionState};
 use super::status::DetectionStatus;
 use crate::core::{PolicyStore, RunContext, RunEngines, SharedData};
+use crate::document::provenance::AnyAudit;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
 use crate::policy::Policy;
-use crate::provenance::AnyAudit;
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::detection::pipeline";

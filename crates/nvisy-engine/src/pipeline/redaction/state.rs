@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use super::result::{RedactionEntry, RedactionFilter, RedactionResult, RedactionSnapshot};
 use super::status::RedactionStatus;
-use crate::provenance::AnyAudit;
+use crate::document::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_engine::redaction::state";
 

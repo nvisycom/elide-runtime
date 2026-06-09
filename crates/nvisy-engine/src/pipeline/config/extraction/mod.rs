@@ -64,16 +64,17 @@ impl ExtractionConfig {
 
         #[cfg(feature = "image")]
         if let Some(ocr_cfg) = self.ocr.as_ref().filter(|c| c.enabled) {
+            use nvisy_ocr::OcrExtractor;
+            use nvisy_ocr::backend::NoopBackend;
             #[cfg(feature = "bento")]
-            use nvisy_ocr::{BentoBackend, BentoParams};
-            use nvisy_ocr::{Extractor as OcrEngine, NoopBackend};
+            use nvisy_ocr::backend::{BentoBackend, BentoParams};
             reg = match &ocr_cfg.backend {
-                OcrBackend::Noop => reg.with_image_extractor(OcrEngine::new(NoopBackend)),
+                OcrBackend::Noop => reg.with_image_extractor(OcrExtractor::new(NoopBackend)),
 
                 #[cfg(feature = "bento")]
                 OcrBackend::Bento { base_url } => {
                     let backend = BentoBackend::new(BentoParams::new(base_url.clone()))?;
-                    reg.with_image_extractor(OcrEngine::new(backend))
+                    reg.with_image_extractor(OcrExtractor::new(backend))
                 }
 
                 #[cfg(not(feature = "bento"))]

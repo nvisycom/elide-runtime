@@ -20,9 +20,10 @@ use nvisy_toolkit::validation::{
 };
 use tracing::Instrument;
 
-use crate::core::{DocumentTree, Plan, RunContext};
+use crate::core::{DocumentTree, RunContext};
 use crate::document::Document;
 use crate::modality::DocumentModality;
+use crate::pipeline::Plan;
 
 const TARGET: &str = "nvisy_engine::validation";
 

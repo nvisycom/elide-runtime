@@ -4,8 +4,8 @@
 
 use uuid::Uuid;
 
-use crate::core::Plan;
 use crate::phases::ingestion::ImportFile;
+use crate::pipeline::Plan;
 
 /// Input required to execute a detection pass.
 ///

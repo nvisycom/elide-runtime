@@ -1,5 +1,6 @@
 //! File response types.
 
+use nvisy_engine::{ContentDescriptor, ContentDigest};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
@@ -7,29 +8,25 @@ use uuid::Uuid;
 use super::page::Page;
 
 /// Response body for `GET /files`.
-pub type FileList = Page<FileEntry>;
+pub type FileList = Page<FileMetadata>;
 
-/// Metadata for a stored file. Returned both inline by
-/// `GET /files/{id}` and as list entries by `GET /files`.
+/// Metadata for a stored file. Returned by `GET /files/{id}` and
+/// per-item by `GET /files`.
 ///
-/// File bytes themselves are served separately by
-/// `GET /files/{id}/content` (octet-stream) so the JSON metadata
-/// shape stays small regardless of file size.
+/// Annotations live at the separate `GET /files/{id}/annotations`
+/// subresource and are not embedded here — bundling them would
+/// couple the cacheability of the immutable descriptor/digest to
+/// every annotation edit.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct FileEntry {
+pub struct FileMetadata {
     /// Identifier of the file.
     pub id: Uuid,
-    /// Original filename, if provided at upload.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub filename: Option<String>,
-    /// MIME type (supplied or detected).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_type: Option<String>,
-    /// Content size in bytes. Backfilled at registration time.
-    pub size: u64,
-    /// SHA-256 hex digest. Backfilled at registration time.
-    pub sha256: String,
+    /// Caller-supplied descriptor (filename, MIME hint, policy
+    /// metadata).
+    pub descriptor: ContentDescriptor,
+    /// Byte-derived digest (size, sha256, sniffed MIME).
+    pub digest: ContentDigest,
 }
 
 /// Response body for `POST /files`.

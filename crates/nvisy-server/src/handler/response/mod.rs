@@ -15,10 +15,10 @@ mod page;
 mod policies;
 mod redactions;
 
-pub use self::check::{ComponentCheck, Health, ServiceStatus};
+pub use self::check::Health;
 pub use self::detections::{DetectionId, DetectionList};
 pub use self::error::ErrorResponse;
-pub use self::files::{FileEntry, FileId, FileList};
+pub use self::files::{FileId, FileList, FileMetadata};
 pub use self::page::Page;
 pub use self::policies::{PolicyEntry, PolicyId, PolicyList};
 pub use self::redactions::{RedactionId, RedactionList};

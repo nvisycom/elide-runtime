@@ -24,17 +24,17 @@
 //! [`EntityRecord<M>`]: crate::provenance::EntityRecord
 //! [`EntryMetadata::override_decision`]: crate::provenance::EntryMetadata::override_decision
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use jiff::Timestamp;
+use nvisy_codec::core::ModalityKind;
 use nvisy_core::Error;
 use nvisy_core::entity::{Entity, EntityKind};
-use nvisy_core::modality::{Audio, Image, Modality, Tabular, Text};
 use nvisy_core::primitive::Confidence;
 use uuid::Uuid;
 
 use super::override_::{RedactionAddEntity, RedactionOverride};
-use crate::modality::{AnyLocation, DocumentModality};
+use crate::modality::DocumentModality;
 use crate::policy::{Action, AnyRedaction};
 use crate::provenance::{
     AnyAudit, Audit, AuditEntry, Decision, EntityRecord, EntryMetadata, Execution,
@@ -92,20 +92,26 @@ pub(crate) fn apply_overrides(
 
     // Apply per-audit. Track which targeted overrides were
     // consumed so unresolved ones surface as errors.
-    let mut consumed: HashMap<Uuid, ()> = HashMap::new();
+    let mut consumed: HashSet<Uuid> = HashSet::new();
     for any in audits.iter_mut() {
         match any {
-            AnyAudit::Text(a) => apply_to::<Text>(a, &by_target, &mut consumed)?,
-            AnyAudit::Tabular(a) => apply_to::<Tabular>(a, &by_target, &mut consumed)?,
-            AnyAudit::Image(a) => apply_to::<Image>(a, &by_target, &mut consumed)?,
-            AnyAudit::Audio(a) => apply_to::<Audio>(a, &by_target, &mut consumed)?,
+            AnyAudit::Text(a) => apply_to(a, &by_target, &mut consumed, AnyRedaction::try_as_text)?,
+            AnyAudit::Tabular(a) => {
+                apply_to(a, &by_target, &mut consumed, AnyRedaction::try_as_tabular)?
+            }
+            AnyAudit::Image(a) => {
+                apply_to(a, &by_target, &mut consumed, AnyRedaction::try_as_image)?
+            }
+            AnyAudit::Audio(a) => {
+                apply_to(a, &by_target, &mut consumed, AnyRedaction::try_as_audio)?
+            }
         }
     }
 
     // Any targeted override that wasn't consumed is a typo or
     // stale id — fail loudly rather than silently drop.
     for target in by_target.keys() {
-        if !consumed.contains_key(target) {
+        if !consumed.contains(target) {
             return Err(Error::validation(
                 format!("override targets entity {target} not present in detection"),
                 TARGET,
@@ -126,21 +132,27 @@ pub(crate) fn apply_overrides(
 
 /// Apply Accept/Reject/Replace overrides to one typed audit.
 /// Records consumed override targets in `consumed`.
-fn apply_to<M>(
+///
+/// `project_operator` is the per-modality `AnyRedaction::try_as_*`
+/// the caller supplies based on `M`; keeps the helper generic
+/// without a `TryFrom<AnyRedaction>` trait bound on
+/// `M::Redaction`.
+fn apply_to<M, F>(
     audit: &mut Audit<M>,
     overrides: &HashMap<Uuid, RedactionOverride>,
-    consumed: &mut HashMap<Uuid, ()>,
+    consumed: &mut HashSet<Uuid>,
+    project_operator: F,
 ) -> Result<(), Error>
 where
     M: DocumentModality,
-    M::Redaction: TryFromAnyRedaction,
+    F: Fn(AnyRedaction) -> Option<M::Redaction>,
 {
     for record in &mut audit.records {
         let id = record.entity.id;
         let Some(ov) = overrides.get(&id) else {
             continue;
         };
-        consumed.insert(id, ());
+        consumed.insert(id);
         match ov {
             RedactionOverride::Accept { .. } => {
                 stamp_provenance(record, RedactionDecision::OverrideAccept);
@@ -166,12 +178,12 @@ where
                 entity_id: _,
                 operator,
             } => {
-                let typed = M::Redaction::try_from_any(operator.clone()).ok_or_else(|| {
+                let typed = project_operator(operator.clone()).ok_or_else(|| {
                     Error::validation(
                         format!(
                             "override Replace for entity {id} carries operator of modality {:?} but entity is modality {:?}",
                             operator.modality(),
-                            modality_of::<M>(),
+                            ModalityKind::of::<M>(),
                         ),
                         TARGET,
                     )
@@ -222,19 +234,10 @@ fn append_add(audits: &mut [AnyAudit], add: RedactionAddEntity) -> Result<(), Er
     let target = audits.iter_mut().find(|a| {
         matches!(
             (a, kind),
-            (AnyAudit::Text(_), nvisy_core::modality::ModalityKind::Text)
-                | (
-                    AnyAudit::Tabular(_),
-                    nvisy_core::modality::ModalityKind::Tabular
-                )
-                | (
-                    AnyAudit::Image(_),
-                    nvisy_core::modality::ModalityKind::Image
-                )
-                | (
-                    AnyAudit::Audio(_),
-                    nvisy_core::modality::ModalityKind::Audio
-                )
+            (AnyAudit::Text(_), ModalityKind::Text)
+                | (AnyAudit::Tabular(_), ModalityKind::Tabular)
+                | (AnyAudit::Image(_), ModalityKind::Image)
+                | (AnyAudit::Audio(_), ModalityKind::Audio)
         )
     });
     let Some(target) = target else {
@@ -251,72 +254,82 @@ fn append_add(audits: &mut [AnyAudit], add: RedactionAddEntity) -> Result<(), Er
     let operator = add.operator;
     let location = add.location;
     match target {
-        AnyAudit::Text(a) => append_typed::<Text>(a, entity_kind, location, operator)?,
-        AnyAudit::Tabular(a) => append_typed::<Tabular>(a, entity_kind, location, operator)?,
-        AnyAudit::Image(a) => append_typed::<Image>(a, entity_kind, location, operator)?,
-        AnyAudit::Audio(a) => append_typed::<Audio>(a, entity_kind, location, operator)?,
+        AnyAudit::Text(a) => {
+            let loc = location.try_as_text().ok_or_else(modality_mismatch)?;
+            let op = operator
+                .map(|o| o.try_as_text().ok_or_else(modality_mismatch))
+                .transpose()?;
+            append_typed(a, entity_kind, loc, op);
+        }
+        AnyAudit::Tabular(a) => {
+            let loc = location.try_as_tabular().ok_or_else(modality_mismatch)?;
+            let op = operator
+                .map(|o| o.try_as_tabular().ok_or_else(modality_mismatch))
+                .transpose()?;
+            append_typed(a, entity_kind, loc, op);
+        }
+        AnyAudit::Image(a) => {
+            let loc = location.try_as_image().ok_or_else(modality_mismatch)?;
+            let op = operator
+                .map(|o| o.try_as_image().ok_or_else(modality_mismatch))
+                .transpose()?;
+            append_typed(a, entity_kind, loc, op);
+        }
+        AnyAudit::Audio(a) => {
+            let loc = location.try_as_audio().ok_or_else(modality_mismatch)?;
+            let op = operator
+                .map(|o| o.try_as_audio().ok_or_else(modality_mismatch))
+                .transpose()?;
+            append_typed(a, entity_kind, loc, op);
+        }
     }
     Ok(())
+}
+
+fn modality_mismatch() -> Error {
+    // Caught earlier by `validate_overrides` and the kind-match
+    // above; double-checked here as defence-in-depth.
+    Error::validation(
+        "internal: append_typed called with mismatched modality",
+        TARGET,
+    )
 }
 
 /// Append a synthesised entity to a typed audit.
 fn append_typed<M>(
     audit: &mut Audit<M>,
     entity_kind: EntityKind,
-    location: AnyLocation,
-    operator: Option<AnyRedaction>,
-) -> Result<(), Error>
-where
-    M: DocumentModality + ExtractLocation,
-    M::Redaction: TryFromAnyRedaction,
+    location: M::Location,
+    operator: Option<M::Redaction>,
+) where
+    M: DocumentModality,
 {
-    let typed_loc = M::extract_location(location).ok_or_else(|| {
-        // We checked modality above; this should be unreachable
-        // but stays a typed error so future refactors don't
-        // silently corrupt audits.
-        Error::validation(
-            "internal: append_typed called with mismatched modality",
-            TARGET,
-        )
-    })?;
     let entity = Entity {
         id: Uuid::now_v7(),
         entity_id: None,
         entity_kind,
-        location: typed_loc,
+        location,
         confidence: Confidence::clamped(1.0),
         trail: Vec::new(),
         language: None,
     };
-    let prebuilt = match operator {
-        Some(op) => {
-            let typed = M::Redaction::try_from_any(op).ok_or_else(|| {
-                Error::validation(
-                    "internal: append_typed operator modality mismatch (should be caught earlier)",
-                    TARGET,
-                )
-            })?;
-            Some(AuditEntry {
-                decision: Decision {
-                    policy_id: None,
-                    rank: None,
-                    action: Action::Redact { operator: typed },
-                },
-                execution: Execution::Pending,
-                metadata: EntryMetadata {
-                    timestamp: Some(Timestamp::now()),
-                    correlation_id: None,
-                    override_decision: Some(RedactionDecision::OverrideAdd),
-                },
-            })
-        }
-        None => None,
-    };
+    let prebuilt = operator.map(|op| AuditEntry {
+        decision: Decision {
+            policy_id: None,
+            rank: None,
+            action: Action::Redact { operator: op },
+        },
+        execution: Execution::Pending,
+        metadata: EntryMetadata {
+            timestamp: Some(Timestamp::now()),
+            correlation_id: None,
+            override_decision: Some(RedactionDecision::OverrideAdd),
+        },
+    });
     audit.records.push(EntityRecord {
         entity,
         audit: prebuilt,
     });
-    Ok(())
 }
 
 /// Stamp `record.audit.metadata.override_decision` with `tag`.
@@ -339,106 +352,5 @@ where
             execution: Execution::Pending,
             metadata: EntryMetadata::now().with_override(tag),
         });
-    }
-}
-
-/// Modality-aware projection from `AnyLocation` into `M::Location`.
-trait ExtractLocation: Modality {
-    fn extract_location(loc: AnyLocation) -> Option<Self::Location>;
-}
-
-impl ExtractLocation for Text {
-    fn extract_location(loc: AnyLocation) -> Option<Self::Location> {
-        match loc {
-            AnyLocation::Text(l) => Some(l),
-            _ => None,
-        }
-    }
-}
-
-impl ExtractLocation for Tabular {
-    fn extract_location(loc: AnyLocation) -> Option<Self::Location> {
-        match loc {
-            AnyLocation::Tabular(l) => Some(l),
-            _ => None,
-        }
-    }
-}
-
-impl ExtractLocation for Image {
-    fn extract_location(loc: AnyLocation) -> Option<Self::Location> {
-        match loc {
-            AnyLocation::Image(l) => Some(l),
-            _ => None,
-        }
-    }
-}
-
-impl ExtractLocation for Audio {
-    fn extract_location(loc: AnyLocation) -> Option<Self::Location> {
-        match loc {
-            AnyLocation::Audio(l) => Some(l),
-            _ => None,
-        }
-    }
-}
-
-/// Modality-aware projection from `AnyRedaction` into
-/// `M::Redaction`.
-trait TryFromAnyRedaction: Sized {
-    fn try_from_any(any: AnyRedaction) -> Option<Self>;
-}
-
-impl TryFromAnyRedaction for crate::policy::redaction::TextRedaction {
-    fn try_from_any(any: AnyRedaction) -> Option<Self> {
-        match any {
-            AnyRedaction::Text(r) => Some(r),
-            _ => None,
-        }
-    }
-}
-
-impl TryFromAnyRedaction for crate::policy::redaction::TabularRedaction {
-    fn try_from_any(any: AnyRedaction) -> Option<Self> {
-        match any {
-            AnyRedaction::Tabular(r) => Some(r),
-            _ => None,
-        }
-    }
-}
-
-impl TryFromAnyRedaction for crate::policy::redaction::ImageRedaction {
-    fn try_from_any(any: AnyRedaction) -> Option<Self> {
-        match any {
-            AnyRedaction::Image(r) => Some(r),
-            _ => None,
-        }
-    }
-}
-
-impl TryFromAnyRedaction for crate::policy::redaction::AudioRedaction {
-    fn try_from_any(any: AnyRedaction) -> Option<Self> {
-        match any {
-            AnyRedaction::Audio(r) => Some(r),
-            _ => None,
-        }
-    }
-}
-
-/// Return the modality tag for a typed `M`.
-fn modality_of<M: Modality>() -> nvisy_core::modality::ModalityKind {
-    use nvisy_core::modality::ModalityKind;
-    // We can't pattern-match on a type param; check via TypeId.
-    let id = std::any::TypeId::of::<M>();
-    if id == std::any::TypeId::of::<Text>() {
-        ModalityKind::Text
-    } else if id == std::any::TypeId::of::<Tabular>() {
-        ModalityKind::Tabular
-    } else if id == std::any::TypeId::of::<Image>() {
-        ModalityKind::Image
-    } else if id == std::any::TypeId::of::<Audio>() {
-        ModalityKind::Audio
-    } else {
-        unreachable!("Modality must be one of Text/Tabular/Image/Audio");
     }
 }

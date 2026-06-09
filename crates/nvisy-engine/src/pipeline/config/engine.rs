@@ -9,10 +9,11 @@ use validator::Validate;
 
 /// Hard limits on pipeline resource consumption.
 ///
-/// Deployment-side caps read once during [`Engine::run`] and not
-/// adjustable per-request.
+/// Deployment-side caps applied to every [`Engine::detect`] /
+/// [`Engine::redact`] pass — not adjustable per-request.
 ///
-/// [`Engine::run`]: super::super::Engine::run
+/// [`Engine::detect`]: super::super::Engine::detect
+/// [`Engine::redact`]: super::super::Engine::redact
 #[derive(Debug, Clone, Copy, Default, Validate, Serialize, Deserialize)]
 pub struct ResourceLimits {
     /// Maximum number of documents processed in parallel via a

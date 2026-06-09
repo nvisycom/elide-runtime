@@ -65,6 +65,7 @@ humantime-serde = { workspace = true, features = [] }
 
 # Async runtime
 async-trait = { workspace = true, features = [] }
+futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 tokio-util = { workspace = true, features = [] }
 

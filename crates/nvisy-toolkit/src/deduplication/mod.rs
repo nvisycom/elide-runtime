@@ -1,20 +1,31 @@
 //! Entity deduplication: composable layers run through a
 //! [`LayerPipeline`].
 //!
-//! Public surface is the [`Layer`] trait, the four built-in layer
-//! types ([`CalibrateLayer`], [`FilterLayer`], [`FuseLayer`],
-//! [`ResolveConflictsLayer`]), the [`LayerPipeline`] orchestrator,
-//! and the per-layer config types ([`CalibrationMap`], [`FilterParams`],
-//! [`DeduplicationStrategy`], [`GroupingCriteria`],
-//! [`ConflictResolution`], [`SpanSize`]).
+//! # Layer submodules
 //!
-//! The phase orchestrator that drives this per `DocumentTree` node
-//! lives in `nvisy_engine::phases::deduplication::DeduplicationPhase`.
-//! It calls [`LayerPipeline::from_params`] to assemble the canonical
-//! four-step recipe, then runs the pipeline against each node's
-//! entities.
+//! Each of the four canonical step kinds is its own public
+//! submodule, named for what it does to the entity set:
+//!
+//! - [`calibrate`] — per-recognizer confidence scaling.
+//! - [`filter`] — drop entities outside the allowed kinds or below
+//!   a confidence floor.
+//! - [`fuse`] — group + combine co-referent entities.
+//! - [`resolve`] — break cross-kind span overlaps.
+//!
+//! # Plumbing (re-exported at the root)
+//!
+//! - [`Layer`] / [`LayerContext`] — the trait every step implements
+//!   plus its per-call context.
+//! - [`LayerPipeline`] — the orchestrator that runs a stack of
+//!   layers in order.
+//! - [`LayerParams`] — the per-call knob bag callers set.
+//! - [`SpanSize`] — helper for span-length tiebreaks (used by
+//!   `fuse` and `resolve` internally; exposed for custom layers).
 //!
 //! # Canonical recipe
+//!
+//! [`LayerPipeline::from_params`] assembles the canonical four-step
+//! recipe from a [`LayerParams`]:
 //!
 //! 1. **Calibrate** raw confidence scores per-recognizer.
 //! 2. **Filter** by allowed kinds + confidence floor.
@@ -24,25 +35,20 @@
 //! Operators can swap steps, drop steps, or insert their own custom
 //! [`Layer`] impls by building the pipeline manually with
 //! [`LayerPipeline::new`] + [`LayerPipeline::with_layer`].
-//!
-//! `DocumentTree` and `DeduplicationPhase` live in `nvisy-engine`.
 
-mod calibrate;
-pub mod config;
-mod filter;
-mod fuse;
+pub mod calibrate;
+pub mod filter;
+pub mod fuse;
+pub mod resolve;
+
 mod layer;
+mod params;
 mod pipeline;
-mod resolve;
 mod span_size;
 
-pub use self::calibrate::{CalibrateLayer, CalibrationMap};
-pub use self::config::DeduplicationParams;
-pub use self::filter::{FilterLayer, FilterParams};
-pub use self::fuse::{DeduplicationStrategy, FuseLayer, GroupingCriteria};
 pub use self::layer::{Layer, LayerContext};
+pub use self::params::LayerParams;
 pub use self::pipeline::LayerPipeline;
-pub use self::resolve::{ConflictResolution, ResolveConflictsLayer};
 pub use self::span_size::SpanSize;
 
 #[cfg(test)]

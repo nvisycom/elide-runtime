@@ -2,6 +2,7 @@
 //! `NerBackend::Noop` config variant in `nvisy-engine`.
 
 use nvisy_core::Result;
+use nvisy_core::entity::ModelProvenance;
 
 use super::ner_backend::{NerBackend, NerRequest, NerResponse};
 
@@ -15,7 +16,11 @@ pub struct NoopBackend;
 
 #[async_trait::async_trait]
 impl NerBackend for NoopBackend {
-    async fn predict(&self, _request: NerRequest<'_>) -> Result<NerResponse> {
+    fn provenance(&self) -> ModelProvenance {
+        ModelProvenance::new("noop-ner")
+    }
+
+    async fn recognize(&self, _request: NerRequest<'_>) -> Result<NerResponse> {
         Ok(NerResponse::default())
     }
 }

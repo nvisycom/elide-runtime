@@ -22,6 +22,7 @@
 mod config;
 pub mod detection;
 mod engine;
+mod plan;
 pub mod redaction;
 
 #[cfg(feature = "image")]
@@ -38,11 +39,11 @@ pub use self::detection::{
     DetectionStatus,
 };
 pub use self::engine::Engine;
+pub use self::plan::Plan;
 pub use self::redaction::{
     RedactionAddEntity, RedactionDecision, RedactionEntry, RedactionFilter, RedactionInput,
     RedactionOverride, RedactionResult, RedactionSnapshot, RedactionStatus, validate_overrides,
 };
-pub use crate::core::Plan;
 pub use crate::phases::deduplication::DeduplicationPhase;
 pub use crate::phases::detection::DetectionPhase;
 pub use crate::phases::extraction::ExtractionPhase;

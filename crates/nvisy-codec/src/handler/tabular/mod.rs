@@ -17,9 +17,9 @@
 //! [`TextData`]: nvisy_core::modality::TextData
 //! [`Modality::Data`]: nvisy_core::modality::Modality::Data
 
-use nvisy_core::modality::{ModalityKind, Tabular};
+use nvisy_core::modality::Tabular;
 
-use crate::core::{Codable, Handle};
+use crate::core::{Codable, Handle, ModalityKind};
 
 impl Codable for Tabular {
     const KIND: ModalityKind = ModalityKind::Tabular;

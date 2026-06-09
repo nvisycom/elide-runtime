@@ -26,14 +26,13 @@ mod decoded_buffer;
 use nvisy_core::modality::Audio;
 #[cfg(feature = "image")]
 use nvisy_core::modality::Image;
-use nvisy_core::modality::ModalityKind;
 #[cfg(feature = "tabular")]
 use nvisy_core::modality::Tabular;
 #[cfg(feature = "text")]
 use nvisy_core::modality::Text;
 
 pub use self::decoded_buffer::DecodedBuffer;
-use crate::core::{Codable, FormatId, IndexedHandle};
+use crate::core::{Codable, FormatId, IndexedHandle, ModalityKind};
 
 /// Runtime-tagged handle returned by the codec registry, carrying the
 /// underlying [`Handle<M>`] for some `M` along with the

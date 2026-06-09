@@ -18,9 +18,7 @@ use nvisy_core::modality::Text;
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_core::redaction::RedactAt;
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};
-use nvisy_toolkit::deduplication::{
-    DeduplicationParams, FilterParams, LayerContext, LayerPipeline,
-};
+use nvisy_toolkit::deduplication::{LayerContext, LayerParams, LayerPipeline};
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::ingestion::MemoryBuffer;
 use nvisy_toolkit::redaction::RedactionRegistry;
@@ -70,10 +68,7 @@ async fn main() -> Result<()> {
     // resolve. Drops overlapping / low-confidence detections so the
     // redaction phase sees a conflict-free entity set.
     let ctx = LayerContext::<Text, MemoryBuffer<_>>::new(&source);
-    let dedup = LayerPipeline::<Text, MemoryBuffer<Text>>::from_params(
-        &DeduplicationParams::default(),
-        FilterParams::default(),
-    );
+    let dedup = LayerPipeline::<Text, MemoryBuffer<Text>>::from_params(&LayerParams::default());
 
     let before = entities.len();
     let entities = dedup.run(entities, &ctx).await;

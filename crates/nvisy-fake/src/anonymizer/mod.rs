@@ -9,7 +9,7 @@ use fake::rand::SeedableRng;
 use fake::rand::rngs::SmallRng;
 use nvisy_core::Result;
 use nvisy_core::entity::{Entity, EntityKind};
-use nvisy_core::modality::{Modality, Tabular, Text, TextData};
+use nvisy_core::modality::{Modality, Tabular, Text, TextData, TextLocation};
 use nvisy_core::primitive::LanguageTag;
 use nvisy_core::redaction::{Anonymizer, LeakProfile, TabularReplacement, TextReplacement};
 
@@ -169,8 +169,6 @@ impl Anonymizer<Tabular> for Fake {
 /// location is a synthetic full-span TextLocation since the
 /// fallback's `apply` body reads source directly.
 fn adapt_to_text(entity: &Entity<Tabular>) -> Entity<Text> {
-    use nvisy_core::modality::TextLocation;
-
     let mut builder = Entity::<Text>::builder()
         .with_id(entity.id)
         .with_entity_kind(entity.entity_kind)

@@ -7,3 +7,6 @@
 //! all reachable here.
 
 pub use nvisy_stt::{backend, *};
+
+/// Output shape produced by every audio-modality extractor.
+pub type AudioExtractorOutput = nvisy_stt::Transcription;

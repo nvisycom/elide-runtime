@@ -4,7 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::pipeline::{DeduplicationParams, Detection, Extraction, Redaction, Validation};
+use super::{DeduplicationParams, Detection, Extraction, Redaction, Validation};
 
 /// Per-request bundle of per-phase configs.
 ///

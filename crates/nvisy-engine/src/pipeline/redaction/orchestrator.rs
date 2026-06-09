@@ -19,8 +19,9 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
 use super::document::RedactionDocumentPipeline;
-use crate::core::{AnyTree, Plan, RunContext};
+use crate::core::{AnyTree, RunContext};
 use crate::phases::ingestion::{ExportFile, Exporter, ImportFile, Importer};
+use crate::pipeline::Plan;
 use crate::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_engine::pipeline::redaction::orchestrator";

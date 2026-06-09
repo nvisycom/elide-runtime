@@ -14,7 +14,8 @@
 
 use nvisy_codec::DocumentHandle;
 use nvisy_codec::content::ContentDescriptor;
-use nvisy_core::modality::{Audio, Image, ModalityKind, Tabular, Text};
+use nvisy_codec::core::ModalityKind;
+use nvisy_core::modality::{Audio, Image, Tabular, Text};
 
 use crate::document::Document;
 use crate::modality::DocumentModality;
@@ -33,10 +34,11 @@ pub struct DocumentTree<M: DocumentModality> {
     /// [`IndexedHandle::read`]: nvisy_codec::core::IndexedHandle::read
     /// [`IndexedHandle::redact`]: nvisy_codec::core::IndexedHandle::redact
     pub handle: DocumentHandle<M>,
-    /// Caller-supplied descriptor (filename, MIME hint, extras) from
-    /// the original upload. Policy evaluation matches rules against
-    /// fields here (e.g. `Condition::Metadata { key, value }` reads
-    /// `descriptor.get_extra(key)`).
+    /// Caller-supplied descriptor (filename, MIME hint, policy
+    /// metadata) from the original upload. Policy evaluation
+    /// matches rules against fields here (e.g.
+    /// `Condition::Metadata { key, value }` reads
+    /// `descriptor.get_policy_metadata(key)`).
     pub descriptor: ContentDescriptor,
     /// Nested embedded children. Populated for rich text sources
     /// (PDF, DOCX) by the importer, who pulls embedded image

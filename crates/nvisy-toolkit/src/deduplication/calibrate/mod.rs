@@ -1,17 +1,16 @@
-//! Per-recognizer confidence calibration.
+//! [`CalibrateLayer`]: scale entity confidences by per-recognizer
+//! multipliers.
 //!
-//! Scales entity confidence scores using per-recognizer multipliers
-//! before deduplication. This compensates for score distribution
-//! differences between detectors: regex always returns 1.0 while NER
-//! returns 0.3–0.9, so a multiplier of 0.8 on `pattern` brings them
-//! into alignment.
+//! Compensates for score-distribution differences between
+//! detectors — regex always returns `1.0` while NER returns
+//! `0.3–0.9`, so a multiplier of `0.8` on `"pattern"` brings them
+//! into the same range before deduplication runs.
 //!
-//! Keys are the recognizer source names stamped onto the entity's
-//! [`TrailStep::recognition`]
-//! step — typically the names registered with the detection engine
-//! (e.g. `"pattern"`, `"ner"`, `"llm-ner"`).
+//! Keys in [`CalibrationMap`] are recognizer source names from the
+//! entity's [`Recognition`] trail step (typically `"pattern"`,
+//! `"ner"`, `"llm-ner"`).
 //!
-//! [`TrailStep::recognition`]: nvisy_core::entity::TrailStep::recognition
+//! [`Recognition`]: nvisy_core::entity::TrailStepKind::Recognition
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -26,18 +25,15 @@ use serde::{Deserialize, Serialize};
 
 use super::layer::{Layer, LayerContext};
 
-const TARGET: &str = "nvisy_engine::deduplication::calibrate";
+const TARGET: &str = "nvisy_toolkit::deduplication::calibrate";
 
-/// Per-recognizer confidence multipliers applied before deduplication.
+/// Per-recognizer confidence multipliers applied before
+/// deduplication.
 ///
 /// Maps a recognizer source name to a scaling factor. Recognizers
-/// not present in the map are left unchanged (implicit multiplier of
-/// `1.0`).
-///
-/// Keys use [`Cow<'static, str>`]: the canonical recognizer names are
-/// `'static` string literals (`"pattern"`, `"ner"`) so they go in as
-/// borrowed; custom user-supplied names from runtime config still go
-/// in as owned.
+/// not present in the map are left unchanged (implicit multiplier
+/// `1.0`). Both built-in recognizer names (`"pattern"`, `"ner"`)
+/// and runtime-configured custom names are accepted as keys.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct CalibrationMap(HashMap<Cow<'static, str>, f64>);
@@ -86,12 +82,17 @@ where
 /// [`Layer`] that scales per-entity confidence by per-recognizer
 /// calibration multipliers in place.
 ///
-/// For each entity, finds the maximum multiplier across its
-/// recognition trail step sources and scales the confidence. Entities
-/// whose recognizers are absent from the map are left unchanged.
-/// Results are clamped to `[0.0, 1.0]`. Adjusted entities receive a
-/// [`Calibration`]
-/// step on their trail.
+/// For each entity, looks up the multiplier for the *originating*
+/// recognizer (the first `Recognition` trail step) and scales the
+/// confidence. Refinement / fusion sources appended later in the
+/// trail don't override the originating recognizer's calibration —
+/// calibration is a per-detector statement about score shape, and
+/// the score belongs to whichever detector produced it.
+///
+/// Entities whose originating recognizer is absent from the map
+/// are left unchanged (implicit multiplier `1.0`). Results are
+/// clamped to `[0.0, 1.0]`. Adjusted entities receive a
+/// [`Calibration`] step on their trail.
 ///
 /// Drops nothing — returns an empty vec from [`Layer::apply`].
 ///
@@ -123,8 +124,8 @@ impl<M: Modality, R: TextAt<M> + ?Sized> Layer<M, R> for CalibrateLayer {
         for entity in entities.iter_mut() {
             let multiplier = entity
                 .recognizers()
-                .filter_map(|name| self.calibration.get(name))
-                .reduce(f64::max);
+                .next()
+                .and_then(|name| self.calibration.get(name));
 
             if let Some(m) = multiplier {
                 let before = entity.confidence;
@@ -226,7 +227,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn picks_max_multiplier_across_recognizers() {
+    async fn picks_originating_recognizer_multiplier() {
         let mut calibration = CalibrationMap::new();
         calibration.insert("pattern", 0.5);
         calibration.insert("ner", 0.8);
@@ -240,7 +241,7 @@ mod tests {
                 .test_build(),
         ];
         apply(&layer, &mut entities).await;
-        // max(0.5, 0.8) = 0.8; 1.0 * 0.8 = 0.8
-        assert!((entities[0].confidence.get() - 0.8).abs() < f64::EPSILON);
+        // First recognition step is "pattern" -> multiplier 0.5.
+        assert!((entities[0].confidence.get() - 0.5).abs() < f64::EPSILON);
     }
 }

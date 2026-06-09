@@ -37,10 +37,11 @@
 use std::fmt;
 
 use nvisy_core::Error;
-use nvisy_core::modality::{Modality, ModalityKind};
+use nvisy_core::modality::Modality;
 use nvisy_core::redaction::Redactions;
 use uuid::Uuid;
 
+use super::ModalityKind;
 use crate::core::Handler;
 
 /// Codec-side extension of [`Modality`]: adds the per-location

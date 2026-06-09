@@ -11,6 +11,7 @@
 
 use std::path::{Path, PathBuf};
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Caller-supplied descriptive metadata for an upload.
@@ -19,10 +20,12 @@ use serde::{Deserialize, Serialize};
 /// every field is optional — the caller knows whatever they know.
 /// The registry's `register_content` consumes this alongside the
 /// bytes to produce a [`ContentRecord`].
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ContentDescriptor {
     /// Optional path to the source file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
     pub source_path: Option<PathBuf>,
     /// MIME type supplied by the caller (e.g. `"text/plain"` from
     /// an HTTP `Content-Type` header or an explicit API call).
@@ -31,12 +34,12 @@ pub struct ContentDescriptor {
     /// Original filename, if known. Used by `CodecRegistry` for
     /// extension-based format resolution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
     pub filename: Option<PathBuf>,
-    /// Arbitrary key-value pairs the caller wants associated with
-    /// this content. Read by policy conditions
-    /// (`Condition::Metadata { key, value }`).
+    /// Caller-supplied key-value pairs that policy conditions
+    /// (`Condition::Metadata { key, value }`) match against.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub extra: Option<serde_json::Map<String, serde_json::Value>>,
+    pub policy_metadata: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl ContentDescriptor {
@@ -83,24 +86,24 @@ impl ContentDescriptor {
         self.source_path.as_deref()
     }
 
-    /// Get a single value from the extra metadata map.
+    /// Get a single value from the policy metadata map.
     #[must_use]
-    pub fn get_extra(&self, key: &str) -> Option<&serde_json::Value> {
-        self.extra.as_ref().and_then(|m| m.get(key))
+    pub fn get_policy_metadata(&self, key: &str) -> Option<&serde_json::Value> {
+        self.policy_metadata.as_ref().and_then(|m| m.get(key))
     }
 
-    /// Insert a key-value pair into the extra metadata map,
+    /// Insert a key-value pair into the policy metadata map,
     /// creating the map if it doesn't exist yet.
-    pub fn set_extra(&mut self, key: impl Into<String>, value: serde_json::Value) {
-        self.extra
+    pub fn set_policy_metadata(&mut self, key: impl Into<String>, value: serde_json::Value) {
+        self.policy_metadata
             .get_or_insert_with(serde_json::Map::new)
             .insert(key.into(), value);
     }
 
-    /// Remove a key from the extra metadata map. Returns the removed
-    /// value if the key existed.
-    pub fn remove_extra(&mut self, key: &str) -> Option<serde_json::Value> {
-        self.extra.as_mut().and_then(|m| m.remove(key))
+    /// Remove a key from the policy metadata map. Returns the
+    /// removed value if the key existed.
+    pub fn remove_policy_metadata(&mut self, key: &str) -> Option<serde_json::Value> {
+        self.policy_metadata.as_mut().and_then(|m| m.remove(key))
     }
 }
 
@@ -110,7 +113,8 @@ impl ContentDescriptor {
 /// hand. Required fields (`size`, `sha256`) are unconditional;
 /// `detected_content_type` is `Option` because magic-byte sniffing
 /// may legitimately fail (e.g. plain text).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ContentDigest {
     /// Size in bytes.
     pub size: u64,
@@ -128,9 +132,10 @@ pub struct ContentDigest {
 /// `read_content`). The [`ContentDescriptor`] half is whatever the
 /// caller supplied at upload; the [`ContentDigest`] half is what
 /// the registry computed.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ContentRecord {
-    /// Caller-supplied descriptor (filename, MIME hint, extras).
+    /// Caller-supplied descriptor (filename, MIME hint, policy metadata).
     pub descriptor: ContentDescriptor,
     /// Registry-computed digest (size, sha256, detected MIME).
     pub digest: ContentDigest,

@@ -9,11 +9,11 @@
 use nvisy_core::Error;
 use nvisy_core::entity::ModelProvenance;
 
-use crate::core::{Backend, Context, ImageInput, OcrOutput};
+use super::ocr_backend::{OcrBackend, OcrRequest, OcrResponse};
 
-/// A [`Backend`] that produces no OCR results.
+/// An [`OcrBackend`] that produces no OCR results.
 ///
-/// Every call returns an empty block list.
+/// Every call returns an empty response.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NoopBackend;
 
@@ -25,12 +25,12 @@ impl NoopBackend {
 }
 
 #[async_trait::async_trait]
-impl Backend for NoopBackend {
+impl OcrBackend for NoopBackend {
     fn provenance(&self) -> ModelProvenance {
         ModelProvenance::new("noop-ocr")
     }
 
-    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Vec<OcrOutput>, Error> {
-        Ok(Vec::new())
+    async fn extract(&self, _request: OcrRequest<'_>) -> Result<OcrResponse, Error> {
+        Ok(OcrResponse::default())
     }
 }

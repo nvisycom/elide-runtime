@@ -21,7 +21,6 @@
 //! [`add_text_recognizer`]: RecognizerRegistry::add_text_recognizer
 //! [`add_image_recognizer`]: RecognizerRegistry::add_image_recognizer
 //! [`RecognizerInput`]: nvisy_core::recognition::RecognizerInput
-//! [`Document`]: nvisy_engine::document::Document
 //! [`DetectionConfig`]: crate::detection::DetectionConfig
 
 use std::fmt;
@@ -34,15 +33,14 @@ use nvisy_core::{Error, Result};
 use tokio::task::JoinSet;
 use tracing::Instrument;
 
-const TARGET: &str = "nvisy_engine::detection";
+const TARGET: &str = "nvisy_toolkit::detection";
 
 /// Per-modality recognizer container.
 ///
 /// Each modality keeps an ordered `Vec<Arc<dyn EntityRecognizer<M>>>`;
-/// iteration order matches registration order. Built once at startup
-/// from `DetectionConfig::build` (which builds each opted-in
-/// `[detection.*]` section), then optionally extended by the operator
-/// with [`add_text_recognizer`] / [`add_image_recognizer`].
+/// iteration order matches registration order. Populate via
+/// [`add_text_recognizer`] / [`add_image_recognizer`] after
+/// constructing each backend.
 ///
 /// [`add_text_recognizer`]: Self::add_text_recognizer
 /// [`add_image_recognizer`]: Self::add_image_recognizer
@@ -57,9 +55,7 @@ pub struct RecognizerRegistry {
 impl RecognizerRegistry {
     /// Build an empty registry. Consumers populate it with
     /// [`add_text_recognizer`] / [`add_image_recognizer`] after
-    /// constructing each backend they want to install. Config-driven
-    /// construction (TOML → concrete backends) lives in the pipeline
-    /// layer of `nvisy-engine`, not here.
+    /// constructing each backend they want to install.
     ///
     /// [`add_text_recognizer`]: Self::add_text_recognizer
     /// [`add_image_recognizer`]: Self::add_image_recognizer

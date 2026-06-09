@@ -18,12 +18,12 @@ use super::ContentSource;
 
 /// Raw content bytes with source identity.
 ///
-/// This is the data-only half of the content model — it does not carry
-/// MIME type, filename, or other descriptive metadata. Pair with
-/// [`ContentMetadata`] via
-/// [`Content`] for a complete representation.
+/// This is the data-only half of the content model — it does not
+/// carry MIME type, filename, or other descriptive metadata.
+/// Pair with [`ContentDescriptor`] via [`Content`] for a complete
+/// representation.
 ///
-/// [`ContentMetadata`]: super::ContentMetadata
+/// [`ContentDescriptor`]: super::ContentDescriptor
 /// [`Content`]: super::Content
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentData {

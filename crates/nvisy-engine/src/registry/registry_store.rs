@@ -1,14 +1,17 @@
 //! [`Registry`]: actor-scoped content and policy store.
 
+use std::borrow::Cow;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use fjall::{Database, Keyspace};
 use nvisy_codec::content::{
     Content, ContentDescriptor, ContentDigest, ContentRecord, ContentSource,
 };
 use nvisy_core::Result;
+use nvisy_core::health::{Healthcheck, ServiceStatus};
 use nvisy_core::modality::Text;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -242,16 +245,6 @@ impl Registry {
     pub async fn list_content(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
         let ks = self.inner.content_ks.clone();
         blocking(move || ks.resource_ids(actor_id)).await
-    }
-
-    /// Cheap probe that confirms the underlying fjall database is
-    /// open and responding. Performs an empty-prefix key listing
-    /// against the content keyspace — touches the database without
-    /// returning any data.
-    #[tracing::instrument(target = TARGET, name = "registry.healthcheck", skip(self))]
-    pub async fn healthcheck(&self) -> Result<()> {
-        let ks = self.inner.content_ks.clone();
-        blocking(move || ks.prefix_keys(&[]).map(|_| ())).await
     }
 
     /// Lists a window of stored records for the given actor.
@@ -594,6 +587,25 @@ impl Registry {
         let key = CompositeKey::new(actor_id, redaction_id);
         self.remove_entry(&self.inner.redactions_ks, key, "redaction")
             .await
+    }
+}
+
+#[async_trait]
+impl Healthcheck for Registry {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("registry")
+    }
+
+    /// Probes the underlying fjall database by listing the
+    /// content keyspace prefix (cheap — keys only, no value
+    /// reads). Failure to read maps to [`ServiceStatus::Unhealthy`].
+    #[tracing::instrument(target = TARGET, name = "registry.healthcheck", skip(self))]
+    async fn healthcheck(&self) -> ServiceStatus {
+        let ks = self.inner.content_ks.clone();
+        match blocking(move || ks.prefix_keys(&[]).map(|_| ())).await {
+            Ok(()) => ServiceStatus::Healthy,
+            Err(_) => ServiceStatus::Unhealthy,
+        }
     }
 }
 

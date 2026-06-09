@@ -47,7 +47,7 @@ macro_rules! impl_image_handler {
         pub fn format() -> $crate::core::Format {
             $crate::core::Format {
                 id: FORMAT_ID.clone(),
-                modality: ::nvisy_core::modality::ModalityKind::Image,
+                modality: $crate::core::ModalityKind::Image,
                 extensions: vec![$($ext.into()),+],
                 content_types: vec![$($mime.into()),+],
                 loader: ::std::sync::Arc::new(

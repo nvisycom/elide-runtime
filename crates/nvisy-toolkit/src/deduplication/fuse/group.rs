@@ -1,8 +1,7 @@
-//! Two-phase entity grouping for deduplication.
+//! [`GroupingCriteria`]: how entity values and locations are
+//! matched when fusing co-referent detections.
 //!
-//! Groups entities that refer to the same real-world value so they
-//! can be fused into a single detection. The algorithm runs in two
-//! phases:
+//! Grouping runs in two phases:
 //!
 //! 1. **Hash phase**: bucket entities by `(kind, value)` into a
 //!    [`HashMap`] for O(n) partitioning.

@@ -8,9 +8,9 @@
 //! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
 //! [`TextReplacement`]: nvisy_core::redaction::TextReplacement
 
-use nvisy_core::modality::{ModalityKind, Text};
+use nvisy_core::modality::Text;
 
-use crate::core::Codable;
+use crate::core::{Codable, ModalityKind};
 
 impl Codable for Text {
     const KIND: ModalityKind = ModalityKind::Text;

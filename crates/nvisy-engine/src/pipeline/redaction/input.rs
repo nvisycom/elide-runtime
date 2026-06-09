@@ -5,8 +5,8 @@
 use uuid::Uuid;
 
 use super::override_::RedactionOverride;
-use crate::core::Plan;
 use crate::phases::ingestion::ExportFile;
+use crate::pipeline::Plan;
 
 /// Input required to execute a redaction pass.
 ///

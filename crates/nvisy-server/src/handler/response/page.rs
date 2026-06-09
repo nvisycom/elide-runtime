@@ -28,14 +28,15 @@ pub struct Page<T: Serialize + JsonSchema> {
 
 impl<T: Serialize + JsonSchema> Page<T> {
     /// Apply pagination from a request-side [`Pagination`] query to
-    /// a flat collection. `limit` is clamped to
-    /// [`MAX_PAGE_LIMIT`](crate::handler::request::MAX_PAGE_LIMIT)
+    /// a flat collection. `limit` is clamped to [`MAX_PAGE_LIMIT`]
     /// to bound memory use.
     ///
     /// Use [`Self::from_paged`] when the storage layer already did
     /// the windowing; this method is for in-memory collections that
     /// must be materialised in full (typically because they require
     /// sorting before slicing).
+    ///
+    /// [`MAX_PAGE_LIMIT`]: crate::handler::request::MAX_PAGE_LIMIT
     pub fn paginate(items: Vec<T>, pagination: &Pagination) -> Self {
         let limit = pagination
             .limit

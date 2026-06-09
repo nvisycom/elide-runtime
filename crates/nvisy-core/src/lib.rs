@@ -5,6 +5,7 @@
 pub mod context;
 pub mod entity;
 pub mod extraction;
+pub mod health;
 pub mod modality;
 pub mod primitive;
 pub mod recognition;

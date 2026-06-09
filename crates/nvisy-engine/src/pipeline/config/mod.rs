@@ -25,9 +25,10 @@ mod validation;
 use std::num::NonZeroUsize;
 
 use nvisy_core::Error;
-pub use nvisy_toolkit::deduplication::DeduplicationParams;
+pub use nvisy_toolkit::deduplication::LayerParams as DeduplicationParams;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 pub use self::detection::{Detection, DetectionConfig, NerBackend, NerDetection, PatternDetection};
 pub use self::engine::{EngineConfig, ResourceLimits};
@@ -116,7 +117,6 @@ impl RuntimeConfig {
     ///
     /// Returns a validation error listing all constraint violations.
     pub fn validate(&self) -> Result<(), Error> {
-        use validator::Validate;
         if let Some(ref engine) = self.engine {
             engine
                 .validate()

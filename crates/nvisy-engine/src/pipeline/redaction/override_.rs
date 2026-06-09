@@ -40,8 +40,10 @@
 //! [`Engine::redact`]: super::super::Engine::redact
 //! [`Entity<M>`]: nvisy_core::entity::Entity
 
+use std::collections::HashSet;
+
+use nvisy_codec::core::ModalityKind;
 use nvisy_core::entity::EntityKind;
-use nvisy_core::modality::ModalityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -161,8 +163,6 @@ impl RedactionAddEntity {
 ///
 /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
 pub fn validate_overrides(overrides: &[RedactionOverride]) -> Result<(), nvisy_core::Error> {
-    use std::collections::HashSet;
-
     const COMPONENT: &str = "nvisy_engine::pipeline::redaction::override";
 
     let mut seen: HashSet<Uuid> = HashSet::with_capacity(overrides.len());

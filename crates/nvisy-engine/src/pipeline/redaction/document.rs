@@ -4,9 +4,10 @@
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
 
-use crate::core::{DocumentTree, Plan, RunContext};
+use crate::core::{DocumentTree, RunContext};
 use crate::phases::redaction::phase::RedactionPhase;
 use crate::phases::validation::ValidationPhase;
+use crate::pipeline::Plan;
 
 const TARGET: &str = "nvisy_engine::pipeline::redaction::document";
 

@@ -8,58 +8,51 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
+use nvisy_core::health::{ComponentCheck, Healthcheck, ServiceStatus};
+use nvisy_engine::core::probe_all;
 use nvisy_engine::pipeline::Engine;
 
-use super::response::{ComponentCheck, Health, ServiceStatus};
+use super::response::Health;
 use crate::extract::Json;
 use crate::middleware::{DEFAULT_HEALTH_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::infra";
 
-/// `GET /health`
 #[tracing::instrument(target = TARGET, skip_all)]
 async fn health_check(State(engine): State<Engine>) -> Json<Health> {
-    let mut checks = vec![];
-
-    let fs_ok = engine.data_dir().is_dir();
-    checks.push(ComponentCheck {
-        name: "filesystem".into(),
-        status: if fs_ok {
-            ServiceStatus::Healthy
-        } else {
-            ServiceStatus::Unhealthy
-        },
-    });
-
-    let registry_ok = engine.registry().healthcheck().await.is_ok();
-    checks.push(ComponentCheck {
-        name: "registry".into(),
-        status: if registry_ok {
-            ServiceStatus::Healthy
-        } else {
-            ServiceStatus::Degraded
-        },
-    });
-
-    let overall = if checks.iter().all(|c| c.status == ServiceStatus::Healthy) {
+    let fs_status = if engine.data_dir().is_dir() {
         ServiceStatus::Healthy
-    } else if checks.iter().any(|c| c.status == ServiceStatus::Unhealthy) {
-        ServiceStatus::Unhealthy
     } else {
-        ServiceStatus::Degraded
+        ServiceStatus::Unhealthy
     };
 
+    let mut checks = vec![ComponentCheck::new("filesystem", fs_status)];
+    checks.extend(probe_all([engine.registry() as &dyn Healthcheck]).await);
+
+    let overall = roll_up(&checks);
     if overall != ServiceStatus::Healthy {
         tracing::warn!(target: TARGET, ?overall, "health check degraded or unhealthy");
     }
-
     tracing::debug!(target: TARGET, ?overall, "health check");
+
     Json(Health {
         status: overall,
         checks,
         timestamp: jiff::Timestamp::now(),
     })
+}
+
+/// Worst-case roll-up: any `Unhealthy` wins; otherwise any
+/// `Degraded` wins; otherwise `Healthy`.
+fn roll_up(checks: &[ComponentCheck]) -> ServiceStatus {
+    if checks.iter().any(|c| c.status == ServiceStatus::Unhealthy) {
+        ServiceStatus::Unhealthy
+    } else if checks.iter().any(|c| c.status == ServiceStatus::Degraded) {
+        ServiceStatus::Degraded
+    } else {
+        ServiceStatus::Healthy
+    }
 }
 
 fn health_docs(op: TransformOperation) -> TransformOperation {

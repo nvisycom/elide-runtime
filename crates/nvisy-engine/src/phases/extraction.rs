@@ -28,10 +28,10 @@ use nvisy_toolkit::extraction::registry::ImageExtractorOutput;
 use nvisy_toolkit::extraction::{Extractor, ExtractorRegistry};
 use tracing::Instrument;
 
-use crate::core::{DocumentTree, Plan, RunContext};
+use crate::core::{DocumentTree, RunContext};
 use crate::document::{Block, Document, Span};
 use crate::modality::{ImageBlock, TabularBlock, TextBlock, TextContent};
-use crate::pipeline::Extraction;
+use crate::pipeline::{Extraction, Plan};
 
 const TARGET: &str = "nvisy_engine::extraction";
 

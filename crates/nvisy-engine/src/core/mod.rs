@@ -21,7 +21,7 @@
 //! [`DataAt`]: nvisy_core::extraction::DataAt
 
 mod context;
-mod plan;
+mod health;
 mod policy_store;
 mod shared;
 mod target;
@@ -31,7 +31,7 @@ pub use nvisy_core::extraction::TextAt;
 
 pub use self::context::RunContext;
 pub(crate) use self::context::RunEngines;
-pub use self::plan::Plan;
+pub use self::health::probe_all;
 pub(crate) use self::policy_store::Decision;
 pub use self::policy_store::PolicyStore;
 pub use self::shared::SharedData;

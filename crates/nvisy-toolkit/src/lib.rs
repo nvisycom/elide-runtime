@@ -7,3 +7,4 @@ pub mod detection;
 pub mod extraction;
 pub mod ingestion;
 pub mod redaction;
+pub mod validation;

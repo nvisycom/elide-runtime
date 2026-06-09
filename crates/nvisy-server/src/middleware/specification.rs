@@ -29,12 +29,15 @@ use serde::{Deserialize, Serialize};
 pub struct OpenApiConfig {
     /// API title shown in the OpenAPI spec.
     pub title: String,
-    /// API version shown in the OpenAPI spec.
+    /// Crate version shown in the OpenAPI spec (`info.version`).
     pub version: String,
+    /// API version segment used to build [`spec_path`]
+    /// (`/api/v{api_version}/openapi.json`). Defaults to `1`.
+    ///
+    /// [`spec_path`]: Self::spec_path
+    pub api_version: u16,
     /// API description shown in the OpenAPI spec.
     pub description: Option<String>,
-    /// Path that exposes the OpenAPI JSON specification.
-    pub spec_path: String,
     /// Path that exposes the Scalar API reference UI.
     pub ui_path: String,
 }
@@ -44,10 +47,22 @@ impl Default for OpenApiConfig {
         Self {
             title: "nvisy API".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
+            api_version: 1,
             description: Some("REST API for the nvisy redaction engine.".to_owned()),
-            spec_path: "/api/v1/openapi.json".to_owned(),
             ui_path: "/docs".to_owned(),
         }
+    }
+}
+
+impl OpenApiConfig {
+    /// Path the OpenAPI JSON spec is served at, derived from
+    /// [`api_version`]. Use this instead of constructing the path
+    /// manually so the mount point and the spec endpoint stay in
+    /// sync as new API versions land.
+    ///
+    /// [`api_version`]: Self::api_version
+    pub fn spec_path(&self) -> String {
+        format!("/api/v{}/openapi.json", self.api_version)
     }
 }
 
@@ -67,10 +82,11 @@ where
 {
     fn with_open_api(self, config: &OpenApiConfig) -> Router<S> {
         let mut api = OpenApi::default();
+        let spec_path = config.spec_path();
 
         let router = self
-            .route(&config.spec_path, get(serve_spec))
-            .route(&config.ui_path, Scalar::new(&config.spec_path).axum_route());
+            .route(&spec_path, get(serve_spec))
+            .route(&config.ui_path, Scalar::new(&spec_path).axum_route());
 
         let info = config.clone();
         router
@@ -98,12 +114,7 @@ fn api_docs(mut api: TransformOpenApi<'_>, config: OpenApiConfig) -> TransformOp
 
     api.tag(Tag {
         name: "infra".into(),
-        description: Some("Health checks and analytics".into()),
-        ..Default::default()
-    })
-    .tag(Tag {
-        name: "runs".into(),
-        description: Some("Pipeline execution, inspection, and cancellation".into()),
+        description: Some("Health checks".into()),
         ..Default::default()
     })
     .tag(Tag {
@@ -112,8 +123,22 @@ fn api_docs(mut api: TransformOpenApi<'_>, config: OpenApiConfig) -> TransformOp
         ..Default::default()
     })
     .tag(Tag {
-        name: "contexts".into(),
-        description: Some("Reference-data context upload and management".into()),
+        name: "policies".into(),
+        description: Some("Redaction policy upload and management".into()),
+        ..Default::default()
+    })
+    .tag(Tag {
+        name: "detections".into(),
+        description: Some(
+            "Detection passes: recognise + evaluate without applying redaction".into(),
+        ),
+        ..Default::default()
+    })
+    .tag(Tag {
+        name: "redactions".into(),
+        description: Some(
+            "Redaction passes: apply detection results with optional human overrides".into(),
+        ),
         ..Default::default()
     })
 }

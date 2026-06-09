@@ -19,7 +19,7 @@
 //! at this location" for image means OCR text and for audio means
 //! transcript text — both produced by the extraction phase
 //! (`nvisy-toolkit::extraction`) and stamped onto document blocks
-//! (`nvisy-document`). The codec layer has no visibility into either.
+//! (`nvisy-engine`). The codec layer has no visibility into either.
 //!
 //! [`DocumentHandle<M>`]: crate::document::DocumentHandle
 //! [`MemoryBuffer<M>`]: # "lives in nvisy-toolkit::ingestion"

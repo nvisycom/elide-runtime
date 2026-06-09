@@ -7,9 +7,15 @@
 //! [`ErrorResponse`]: crate::handler::response::ErrorResponse
 
 use aide::OperationInput;
+use aide::generate::GenContext;
+use aide::openapi::{
+    HeaderStyle, Operation, Parameter, ParameterData, ParameterSchemaOrContent, SchemaObject,
+};
+use aide::operation::add_parameters;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use derive_more::{Deref, Display};
+use schemars::JsonSchema;
 use uuid::Uuid;
 
 use crate::handler::error::{Error, ErrorKind};
@@ -26,7 +32,35 @@ pub const ACTOR_ID_HEADER: &str = "x-actor-id";
 #[derive(Debug, Clone, Copy, Deref, Display)]
 pub struct ActorId(pub Uuid);
 
-impl OperationInput for ActorId {}
+impl OperationInput for ActorId {
+    fn operation_input(ctx: &mut GenContext, operation: &mut Operation) {
+        let schema = Uuid::json_schema(&mut ctx.schema);
+        add_parameters(
+            ctx,
+            operation,
+            [Parameter::Header {
+                parameter_data: ParameterData {
+                    name: ACTOR_ID_HEADER.to_owned(),
+                    description: Some(
+                        "UUID identifying the calling actor. Required on every actor-scoped endpoint.".to_owned(),
+                    ),
+                    required: true,
+                    deprecated: None,
+                    format: ParameterSchemaOrContent::Schema(SchemaObject {
+                        json_schema: schema,
+                        example: None,
+                        external_docs: None,
+                    }),
+                    example: None,
+                    examples: Default::default(),
+                    explode: None,
+                    extensions: Default::default(),
+                },
+                style: HeaderStyle::Simple,
+            }],
+        );
+    }
+}
 
 impl<S: Send + Sync> FromRequestParts<S> for ActorId {
     type Rejection = Error<'static>;

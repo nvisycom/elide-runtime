@@ -10,7 +10,7 @@
 //!
 //! TOML-deserialisable backend selectors and config bundles
 //! (`OcrBackend`, `OcrExtractorConfig`, `SttExtractorConfig`) live in
-//! `nvisy-document`'s `pipeline::config::extraction` — they're the
+//! `nvisy-engine`'s `pipeline::config::extraction` — they're the
 //! glue that turns config into concrete `Arc<dyn Extractor<M>>`
 //! instances that get inserted into [`ExtractorRegistry`].
 //!

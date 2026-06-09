@@ -11,7 +11,7 @@
 //! the operator was written against.
 //!
 //! Concrete implementations live where the underlying resolver
-//! lives: `nvisy-document` ships impls on `DocumentTree<M>` that
+//! lives: `nvisy-engine` ships impls on `DocumentTree<M>` that
 //! consult the codec handle's `read` method.
 //!
 //! [`TextAt`]: super::TextAt

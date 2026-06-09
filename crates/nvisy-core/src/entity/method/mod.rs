@@ -8,8 +8,8 @@
 //! [`TabularExtraction`]) — that axis is a property of the
 //! [`Document<M>`], not of the entities inside it.
 //!
-//! [`Document<M>`]: https://docs.rs/nvisy-document/latest/nvisy_document/document/struct.Document.html
-//! [`Document<M>::meta`]: https://docs.rs/nvisy-document/latest/nvisy_document/document/struct.Document.html#structfield.meta
+//! [`Document<M>`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/document/struct.Document.html
+//! [`Document<M>::meta`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/document/struct.Document.html#structfield.meta
 //! [`TextExtraction`]: crate::modality::TextExtraction
 //! [`ImageExtraction`]: crate::modality::ImageExtraction
 //! [`AudioExtraction`]: crate::modality::AudioExtraction

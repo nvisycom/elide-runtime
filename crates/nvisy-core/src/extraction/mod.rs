@@ -52,7 +52,7 @@ where
     /// the underlying backend naturally produces; consumer glue
     /// translates it into per-document [`Block<M>`] values.
     ///
-    /// [`Block<M>`]: # "carrier owned by nvisy-document"
+    /// [`Block<M>`]: # "carrier owned by nvisy-engine"
     type Output: Send;
 
     /// Extract from `span`, returning the modality-specific output

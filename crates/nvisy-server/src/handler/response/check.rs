@@ -4,11 +4,10 @@ use std::borrow::Cow;
 
 use jiff::Timestamp;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 /// Represents the operational status of a service.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ServiceStatus {
     /// Service is operating normally.

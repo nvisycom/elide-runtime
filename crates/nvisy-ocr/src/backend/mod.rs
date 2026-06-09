@@ -11,7 +11,7 @@
 //!
 //! Selecting which backend to use at deployment time is the consumer's
 //! concern — `nvisy-ocr` itself doesn't enumerate "all backends" in a
-//! closed enum. The pipeline layer (`nvisy-document`) hosts the
+//! closed enum. The pipeline layer (`nvisy-engine`) hosts the
 //! TOML-deserialisable selector and hands the chosen [`Backend`] to
 //! [`Extractor::new`].
 //!

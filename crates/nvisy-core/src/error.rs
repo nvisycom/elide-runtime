@@ -42,8 +42,9 @@ pub type ErrorSource = Box<dyn error::Error + Send + Sync>;
 /// how to handle a failure (e.g. retry on `Timeout`, surface to user
 /// on `Validation`). Grouped by failure domain:
 ///
-/// - **Domain failures** — `Validation`, `Policy`, `NotFound`.
-///   The operation was well-formed but rejected by domain logic.
+/// - **Domain failures** — `Validation`, `Policy`, `NotFound`,
+///   `Conflict`. The operation was well-formed but rejected by domain
+///   logic.
 /// - **Transport failures** — `Connection`, `Timeout`, `Cancellation`.
 ///   The operation never completed because the channel failed; often
 ///   retryable.
@@ -59,6 +60,11 @@ pub enum ErrorKind {
     Policy,
     /// The requested resource was not found.
     NotFound,
+    /// The operation conflicts with the resource's current state
+    /// (e.g. "already in terminal state", "cannot delete while
+    /// running"). Maps to HTTP 409. Non-retryable: the caller has
+    /// to inspect the resource and pick a different operation.
+    Conflict,
     /// Could not connect to an external service.
     Connection,
     /// An operation exceeded its time limit.
@@ -180,6 +186,12 @@ impl Error {
     /// Resource not found. Non-retryable.
     pub fn not_found(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
         Self::new(ErrorKind::NotFound, message).with_component(component)
+    }
+
+    /// Resource-state conflict (e.g. operation requires a different
+    /// status). Non-retryable. Maps to HTTP 409.
+    pub fn conflict(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::Conflict, message).with_component(component)
     }
 
     /// Connection failure to an external service. `retryable` is

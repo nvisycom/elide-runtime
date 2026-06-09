@@ -17,7 +17,7 @@
 //! blocks.
 //!
 //! Concrete implementations live where the underlying resolver lives:
-//! `nvisy-document` ships impls on `DocumentTree<M>` that consult the
+//! `nvisy-engine` ships impls on `DocumentTree<M>` that consult the
 //! codec handle for text/tabular and the document blocks for
 //! image/audio.
 //!

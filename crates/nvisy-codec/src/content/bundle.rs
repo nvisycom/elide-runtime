@@ -1,5 +1,5 @@
-//! [`Content`]: data bytes optionally paired with descriptive
-//! metadata.
+//! [`Content`]: data bytes optionally paired with a caller-supplied
+//! [`ContentDescriptor`].
 
 use std::path::Path;
 
@@ -7,16 +7,20 @@ use derive_more::{AsRef, Deref};
 use nvisy_core::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{ContentData, ContentMetadata, ContentSource};
+use super::{ContentData, ContentDescriptor, ContentSource};
 
-/// Complete content representation: raw bytes plus optional
+/// Upload-shape carrier: raw bytes plus the caller's descriptive
 /// metadata.
 ///
 /// [`ContentData`] holds the bytes and source identity.
-/// [`ContentMetadata`] holds MIME type, filename, and arbitrary
-/// key-value pairs when present. Metadata is optional because some
+/// [`ContentDescriptor`] holds filename, MIME hint, and extras when
+/// the caller has them. The descriptor is optional because some
 /// import paths (raw byte uploads, generated content) have nothing
-/// useful to attach.
+/// to attach.
+///
+/// After `Registry::register_content` consumes a `Content`, the
+/// stored shape is a `ContentRecord` (descriptor + byte-derived
+/// digest), which is what registry reads return.
 #[derive(Debug, Clone, PartialEq)]
 #[derive(AsRef, Deref, Serialize, Deserialize)]
 pub struct Content {
@@ -24,8 +28,8 @@ pub struct Content {
     #[deref]
     #[as_ref]
     data: ContentData,
-    /// Descriptive metadata (MIME type, filename, etc.).
-    metadata: Option<ContentMetadata>,
+    /// Caller-supplied descriptive metadata.
+    descriptor: Option<ContentDescriptor>,
 }
 
 impl From<ContentData> for Content {
@@ -35,19 +39,19 @@ impl From<ContentData> for Content {
 }
 
 impl Content {
-    /// Create content from data without metadata.
+    /// Create content from data without a descriptor.
     pub fn new(data: ContentData) -> Self {
         Self {
             data,
-            metadata: None,
+            descriptor: None,
         }
     }
 
-    /// Create content with metadata.
-    pub fn with_metadata(data: ContentData, metadata: ContentMetadata) -> Self {
+    /// Create content with a caller-supplied descriptor.
+    pub fn with_descriptor(data: ContentData, descriptor: ContentDescriptor) -> Self {
         Self {
             data,
-            metadata: Some(metadata),
+            descriptor: Some(descriptor),
         }
     }
 
@@ -56,9 +60,9 @@ impl Content {
         &self.data
     }
 
-    /// Returns the metadata, if present.
-    pub fn metadata(&self) -> Option<&ContentMetadata> {
-        self.metadata.as_ref()
+    /// Returns the caller-supplied descriptor, if present.
+    pub fn descriptor(&self) -> Option<&ContentDescriptor> {
+        self.descriptor.as_ref()
     }
 
     /// Returns the content source identifier.
@@ -85,23 +89,26 @@ impl Content {
         self.data.as_str()
     }
 
-    /// Best-available MIME type from metadata.
+    /// Caller-supplied MIME type, if any. Detected MIME isn't
+    /// available pre-registration (the registry computes it).
     pub fn content_type(&self) -> Option<&str> {
-        self.metadata.as_ref().and_then(|m| m.content_type())
+        self.descriptor
+            .as_ref()
+            .and_then(|d| d.content_type.as_deref())
     }
 
-    /// Original filename from metadata.
+    /// Original filename from the descriptor.
     pub fn filename(&self) -> Option<&Path> {
-        self.metadata.as_ref().and_then(|m| m.filename.as_deref())
+        self.descriptor.as_ref().and_then(|d| d.filename.as_deref())
     }
 
-    /// File extension from the source path in metadata.
+    /// File extension from the descriptor's source path.
     pub fn file_extension(&self) -> Option<&str> {
-        self.metadata.as_ref().and_then(|m| m.file_extension())
+        self.descriptor.as_ref().and_then(|d| d.file_extension())
     }
 
-    /// Consume and return both data and metadata.
-    pub fn into_parts(self) -> (ContentData, Option<ContentMetadata>) {
-        (self.data, self.metadata)
+    /// Consume and return both data and descriptor.
+    pub fn into_parts(self) -> (ContentData, Option<ContentDescriptor>) {
+        (self.data, self.descriptor)
     }
 }

@@ -1,30 +1,24 @@
-//! Health and analytics handlers.
-//!
-//! # Endpoints
+//! Health handler.
 //!
 //! | Method | Path          | Description                          |
 //! |--------|---------------|--------------------------------------|
 //! | `GET`  | `/health`     | Liveness probe (unversioned)         |
-//! | `GET`  | `/analytics`  | Aggregate pipeline metrics           |
-//!
-//! `/health` is served at the root (unversioned). `/analytics` is
-//! relative and nested under the version prefix by the version module.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_document::pipeline::{AnalyticsSnapshot, Engine};
+use nvisy_engine::pipeline::Engine;
 
 use super::response::{ComponentCheck, Health, ServiceStatus};
 use crate::extract::Json;
-use crate::middleware::{DEFAULT_HEALTH_TIMEOUT, DEFAULT_READ_TIMEOUT, RouterTimeoutExt};
+use crate::middleware::{DEFAULT_HEALTH_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::infra";
 
 /// `GET /health`
-#[tracing::instrument(target = "nvisy_server::infra", skip_all)]
+#[tracing::instrument(target = TARGET, skip_all)]
 async fn health_check(State(engine): State<Engine>) -> Json<Health> {
     let mut checks = vec![];
 
@@ -38,7 +32,7 @@ async fn health_check(State(engine): State<Engine>) -> Json<Health> {
         },
     });
 
-    let registry_ok = engine.data_dir().is_dir();
+    let registry_ok = engine.registry().healthcheck().await.is_ok();
     checks.push(ComponentCheck {
         name: "registry".into(),
         status: if registry_ok {
@@ -79,29 +73,9 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// `GET /analytics`
-#[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn get_analytics(State(engine): State<Engine>) -> Json<AnalyticsSnapshot> {
-    Json(engine.snapshot().await)
-}
-
-fn analytics_docs(op: TransformOperation) -> TransformOperation {
-    op.id("getAnalytics")
-        .tag("infra")
-        .summary("Retrieve aggregate pipeline analytics")
-        .description("Returns aggregate metrics across all pipeline runs.")
-}
-
 /// Health route (unversioned, served at `/health`).
 pub fn health_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route("/health", get_with(health_check, health_docs))
         .with_timeout(DEFAULT_HEALTH_TIMEOUT)
-}
-
-/// Analytics route for API v1 (relative path).
-pub fn routes_v1() -> ApiRouter<ServiceState> {
-    ApiRouter::new()
-        .api_route("/analytics", get_with(get_analytics, analytics_docs))
-        .with_timeout(DEFAULT_READ_TIMEOUT)
 }

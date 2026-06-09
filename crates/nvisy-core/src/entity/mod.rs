@@ -12,9 +12,9 @@
 //! the score before and after each. This single trail replaces the
 //! prior parallel pair of recognition + refinement method lists.
 //!
-//! [`Audit<M>`]: https://docs.rs/nvisy-document/latest/nvisy_document/provenance/struct.Audit.html
-//! [`EntityRecord<M>`]: https://docs.rs/nvisy-document/latest/nvisy_document/provenance/struct.EntityRecord.html
-//! [`AuditEntry<M>`]: https://docs.rs/nvisy-document/latest/nvisy_document/provenance/struct.AuditEntry.html
+//! [`Audit<M>`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/provenance/struct.Audit.html
+//! [`EntityRecord<M>`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/provenance/struct.EntityRecord.html
+//! [`AuditEntry<M>`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/provenance/struct.AuditEntry.html
 
 mod annotation;
 mod category;
@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::annotation::{
-    Annotation, AnnotationKind, AnnotationStrength, AnyAnnotations, LabelAnnotation, is_excluded,
+    Annotation, AnnotationKind, AnnotationStrength, LabelAnnotation, is_excluded,
 };
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;

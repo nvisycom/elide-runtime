@@ -6,7 +6,7 @@ members = [
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
-    "./crates/nvisy-document",
+    "./crates/nvisy-engine",
     "./crates/nvisy-fake",
     "./crates/nvisy-llm",
     "./crates/nvisy-ner",
@@ -38,7 +38,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 # Internal crates
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
-nvisy-document = { path = "./crates/nvisy-document", version = "0.1.0" }
+nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-fake = { path = "./crates/nvisy-fake", version = "0.1.0" }
 nvisy-llm = { path = "./crates/nvisy-llm", version = "0.1.0" }
 nvisy-stt = { path = "./crates/nvisy-stt", version = "0.1.0" }

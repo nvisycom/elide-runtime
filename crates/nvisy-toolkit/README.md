@@ -18,7 +18,7 @@ custom anonymizers.
 Also ships the `MemoryBuffer<M>` ingestion helper that wraps bytes
 in a `DataAt<M>` (and `RedactAt<Text>`) buffer suitable for direct
 consumption by recognizers. Sits between `nvisy-core` (the atoms)
-and `nvisy-document` (the whole-document orchestrator); toolkit owns
+and `nvisy-engine` (the whole-document orchestrator); toolkit owns
 the pieces, document owns the orchestration.
 
 ## Documentation

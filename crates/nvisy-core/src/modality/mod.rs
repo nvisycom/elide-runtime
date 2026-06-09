@@ -17,7 +17,7 @@
 //! payload the recognizer/extractor scans), [`Replacement`] (redaction
 //! record), and [`Extraction`] (per-modality provenance enum stamped
 //! onto a document at extractor time). The document-shape side
-//! (`Block`, `Metadata`) lives in `nvisy-document`; the codec-side
+//! (`Block`, `Metadata`) lives in `nvisy-engine`; the codec-side
 //! tag (`Codable`) lives in `nvisy-codec`. Each layer adds its own
 //! extension trait (`DocumentModality`, `Codable`) atop this marker
 //! — toolkit and document don't pollute core.
@@ -38,8 +38,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use schemars::JsonSchema;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 pub use self::audio::{Audio, AudioData, AudioExtraction, AudioLocation};
 pub use self::image::{Image, ImageData, ImageExtraction, ImageLocation};
@@ -50,6 +50,8 @@ pub use self::text::{ContextWindow, Text, TextData, TextExtraction, TextLocation
 /// carries. Use for runtime dispatch where the marker type is erased
 /// (typically at the codec / pipeline boundary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ModalityKind {
     /// [`Text`] modality.
     Text,
@@ -121,7 +123,7 @@ pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'sta
     /// primary content was produced (e.g. native text-layer parse vs
     /// OCR'd image-backed page).
     ///
-    /// [`Document<M>`]: # "carrier owned by nvisy-document"
+    /// [`Document<M>`]: # "carrier owned by nvisy-engine"
     type Extraction: Clone + Debug + PartialEq + Send + Sync + 'static;
 }
 

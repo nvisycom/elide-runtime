@@ -31,8 +31,6 @@ pub enum ErrorKind {
     NotFound,
     /// 409 Conflict: conflicting resource state.
     Conflict,
-    /// 429 Too Many Requests: rate limit exceeded.
-    TooManyRequests,
     /// 500 Internal Server Error: unexpected server error.
     #[default]
     InternalServerError,
@@ -41,12 +39,6 @@ pub enum ErrorKind {
 }
 
 impl ErrorKind {
-    /// Converts this error kind into a full [`Error`].
-    #[inline]
-    pub fn into_error(self) -> Error<'static> {
-        Error::new(self)
-    }
-
     /// Creates an [`Error`] with the specified context.
     #[inline]
     pub fn with_context<'a>(self, context: impl Into<Cow<'a, str>>) -> Error<'a> {
@@ -89,7 +81,6 @@ impl ErrorKind {
             Self::Forbidden => ErrorResponse::FORBIDDEN,
             Self::NotFound => ErrorResponse::NOT_FOUND,
             Self::Conflict => ErrorResponse::CONFLICT,
-            Self::TooManyRequests => ErrorResponse::TOO_MANY_REQUESTS,
             Self::InternalServerError => ErrorResponse::INTERNAL_SERVER_ERROR,
             Self::NotImplemented => ErrorResponse::NOT_IMPLEMENTED,
         }

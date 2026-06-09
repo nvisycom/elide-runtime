@@ -11,7 +11,6 @@ mod export;
 mod exporter;
 mod import;
 mod importer;
-pub mod registry;
 
 use nvisy_core::Error;
 use schemars::JsonSchema;

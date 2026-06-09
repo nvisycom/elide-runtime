@@ -16,6 +16,7 @@ use uuid::Uuid;
 use super::composite_key::CompositeKey;
 use super::content_handle::ContentHandle;
 use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
+use super::paged::PagedResult;
 use super::resource_cache::ResourceCache;
 use crate::document::AnyAnnotations;
 use crate::policy::Policy;
@@ -253,20 +254,28 @@ impl Registry {
         blocking(move || ks.prefix_keys(&[]).map(|_| ())).await
     }
 
-    /// Lists all content IDs with their stored records for the given
-    /// actor. Returns `(content_id, record)` pairs.
-    #[tracing::instrument(target = TARGET, name = "registry.list_content_with_record", skip(self), fields(%actor_id))]
+    /// Lists a window of stored records for the given actor.
+    ///
+    /// Iterates the content keyspace prefix to count total items
+    /// (cheap — keys only, no value reads), then deserialises only
+    /// the `[offset, offset + limit)` slice. Returns the windowed
+    /// records plus the total count via [`PagedResult`].
+    #[tracing::instrument(target = TARGET, name = "registry.list_content_with_record", skip(self), fields(%actor_id, offset, limit))]
     pub async fn list_content_with_record(
         &self,
         actor_id: Uuid,
-    ) -> Result<Vec<(Uuid, ContentRecord)>> {
+        offset: usize,
+        limit: usize,
+    ) -> Result<PagedResult<(Uuid, ContentRecord)>> {
         let content_ks = self.inner.content_ks.clone();
         let meta_ks = self.inner.content_meta_ks.clone();
 
         blocking(move || {
             let ids = content_ks.resource_ids(actor_id)?;
-            let mut result = Vec::with_capacity(ids.len());
-            for id in ids {
+            let total = ids.len();
+            let window: Vec<Uuid> = ids.into_iter().skip(offset).take(limit).collect();
+            let mut items = Vec::with_capacity(window.len());
+            for id in window {
                 let key = CompositeKey::new(actor_id, id);
                 let record = match meta_ks.get_bytes(key)? {
                     Some(bytes) => serde_json::from_slice(&bytes)?,
@@ -279,9 +288,9 @@ impl Registry {
                         },
                     },
                 };
-                result.push((id, record));
+                items.push((id, record));
             }
-            Ok(result)
+            Ok(PagedResult { items, total })
         })
         .await
     }
@@ -435,6 +444,39 @@ impl Registry {
     pub async fn list_policies(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
         self.list_resource_ids(&self.inner.policies_ks, actor_id)
             .await
+    }
+
+    /// Lists a window of stored policies for the given actor.
+    ///
+    /// Same pagination shape as
+    /// [`Registry::list_content_with_record`]: counts keys cheaply,
+    /// deserialises only the windowed slice. Use this instead of
+    /// `list_policies` + per-id `read_policy` for listing endpoints.
+    #[tracing::instrument(target = TARGET, name = "registry.list_policies_with_summary", skip(self), fields(%actor_id, offset, limit))]
+    pub async fn list_policies_with_summary(
+        &self,
+        actor_id: Uuid,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PagedResult<(Uuid, Policy<Text>)>> {
+        let policies_ks = self.inner.policies_ks.clone();
+
+        blocking(move || {
+            let ids = policies_ks.resource_ids(actor_id)?;
+            let total = ids.len();
+            let window: Vec<Uuid> = ids.into_iter().skip(offset).take(limit).collect();
+            let mut items = Vec::with_capacity(window.len());
+            for id in window {
+                let key = CompositeKey::new(actor_id, id);
+                let bytes = policies_ks
+                    .get_bytes(key)?
+                    .ok_or_else(|| not_found("policy", actor_id, id))?;
+                let policy: Policy<Text> = serde_json::from_slice(&bytes)?;
+                items.push((id, policy));
+            }
+            Ok(PagedResult { items, total })
+        })
+        .await
     }
 
     /// Persist audit trails for a completed pipeline run.

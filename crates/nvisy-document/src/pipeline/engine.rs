@@ -30,9 +30,9 @@ use super::redaction::{
     RedactionSnapshot, RedactionState,
 };
 use crate::phases::ingestion::encryption::SharedKeyProvider;
-use crate::phases::ingestion::registry::Registry;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
+use crate::registry::Registry;
 
 /// Shared inner state for the engine, held behind an `Arc`.
 pub(super) struct EngineInner {

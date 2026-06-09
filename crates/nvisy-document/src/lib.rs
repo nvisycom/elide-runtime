@@ -9,7 +9,7 @@ pub mod phases;
 pub mod pipeline;
 pub mod policy;
 pub mod provenance;
-pub mod validation;
+pub mod registry;
 
 pub use nvisy_codec::content::{
     Content, ContentData, ContentDescriptor, ContentDigest, ContentRecord, ContentSource,

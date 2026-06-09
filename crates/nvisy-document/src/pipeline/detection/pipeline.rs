@@ -24,12 +24,12 @@ use super::state::{DetectionRecord, DetectionState};
 use super::status::DetectionStatus;
 use crate::core::{PolicyStore, RunContext, RunEngines, SharedData};
 use crate::phases::ingestion::encryption::SharedKeyProvider;
-use crate::phases::ingestion::registry::Registry;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
 use crate::policy::Policy;
 use crate::provenance::AnyAudit;
+use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_document::pipeline::detection::pipeline";
 
@@ -197,7 +197,7 @@ impl DetectionPipeline {
         &self,
         actor_id: Uuid,
         policy_ids: &[Uuid],
-    ) -> crate::phases::ingestion::registry::ResourceGuard<Policy<Text>> {
+    ) -> crate::registry::ResourceGuard<Policy<Text>> {
         self.registry
             .policy_cache()
             .acquire(policy_ids, |id| async move {

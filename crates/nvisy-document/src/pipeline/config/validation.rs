@@ -1,4 +1,4 @@
-//! Validation phase configuration.
+//! Per-plan validation phase configuration.
 
 use nvisy_toolkit::validation::Severity;
 use schemars::JsonSchema;

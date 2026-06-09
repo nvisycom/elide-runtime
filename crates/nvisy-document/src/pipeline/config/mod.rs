@@ -20,6 +20,7 @@ mod detection;
 mod engine;
 mod extraction;
 mod redaction;
+mod validation;
 
 use std::num::NonZeroUsize;
 
@@ -38,6 +39,7 @@ pub use self::extraction::{
     AudioPlan, Extraction, ExtractionConfig, ImagePlan, TabularPlan, TextPlan,
 };
 pub use self::redaction::{Redaction, RedactionConfig};
+pub use self::validation::Validation;
 
 fn default_config_version() -> Version {
     Version::new(0, 1, 0)

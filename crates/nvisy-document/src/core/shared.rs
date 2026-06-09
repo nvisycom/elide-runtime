@@ -18,8 +18,8 @@ use uuid::Uuid;
 use super::PolicyStore;
 use crate::modality::DocumentModality;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
-use crate::phases::ingestion::registry::Registry;
 use crate::policy::Policy;
+use crate::registry::Registry;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.
 pub struct SharedData {

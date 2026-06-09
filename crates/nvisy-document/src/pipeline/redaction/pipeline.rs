@@ -19,13 +19,13 @@ use super::state::{RedactionRecord, RedactionState};
 use super::status::RedactionStatus;
 use crate::core::{PolicyStore, RunContext, RunEngines, SharedData};
 use crate::phases::ingestion::encryption::SharedKeyProvider;
-use crate::phases::ingestion::registry::Registry;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
 use crate::pipeline::detection::DetectionState;
 use crate::policy::Policy;
 use crate::provenance::AnyAudit;
+use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_document::pipeline::redaction::pipeline";
 
@@ -211,7 +211,7 @@ impl RedactionPipeline {
         &self,
         actor_id: Uuid,
         policy_ids: &[Uuid],
-    ) -> crate::phases::ingestion::registry::ResourceGuard<Policy<Text>> {
+    ) -> crate::registry::ResourceGuard<Policy<Text>> {
         self.registry
             .policy_cache()
             .acquire(policy_ids, |id| async move {

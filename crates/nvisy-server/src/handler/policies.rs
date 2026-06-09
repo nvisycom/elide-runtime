@@ -19,11 +19,11 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_core::modality::Text;
-use nvisy_document::phases::ingestion::registry::Registry;
 use nvisy_document::policy::Policy;
+use nvisy_document::registry::Registry;
 
 use super::error::Result;
-use super::request::{NewPolicy, Pagination, PolicyPath};
+use super::request::{MAX_PAGE_LIMIT, NewPolicy, Pagination, PolicyPath};
 use super::response::{Page, PolicyEntry, PolicyId, PolicyList};
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
@@ -65,13 +65,13 @@ async fn list_policies(
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<PolicyList>> {
-    let ids = registry.list_policies(actor_id).await?;
-    let mut entries = Vec::with_capacity(ids.len());
-    for id in ids {
-        let policy = registry.read_policy(actor_id, id).await?;
-        entries.push(PolicyEntry::from(policy));
-    }
-    let page = Page::paginate(entries, &pagination);
+    let limit = pagination.limit.min(MAX_PAGE_LIMIT);
+    let paged = registry
+        .list_policies_with_summary(actor_id, pagination.offset, limit)
+        .await?;
+    let page = Page::from_paged(paged, &pagination, |(_id, policy)| {
+        PolicyEntry::from(policy)
+    });
     tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "policies listed");
     Ok(Json(page))
 }

@@ -9,7 +9,7 @@
 //! [`CheckPipeline`]: nvisy_toolkit::validation::CheckPipeline
 //! [`LeakCheck`]: nvisy_toolkit::validation::LeakCheck
 //! [`Severity`]: nvisy_toolkit::validation::Severity
-//! [`Validation`]: crate::validation::Validation
+//! [`Validation`]: crate::pipeline::Validation
 
 use nvisy_codec::core::IndexedHandle;
 use nvisy_core::entity::Entity;

@@ -21,11 +21,11 @@ use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use nvisy_document::phases::ingestion::registry::Registry;
+use nvisy_document::registry::Registry;
 use nvisy_document::{Content, ContentData, ContentDescriptor};
 
 use super::error::Result;
-use super::request::{ContentPath, NewFile, Pagination};
+use super::request::{ContentPath, MAX_PAGE_LIMIT, NewFile, Pagination};
 use super::response::{FileEntry, FileId, FileList, Page};
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
@@ -176,18 +176,17 @@ async fn list_files(
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<FileList>> {
-    let entries = registry.list_content_with_record(actor_id).await?;
-    let summaries: Vec<FileEntry> = entries
-        .into_iter()
-        .map(|(id, record)| FileEntry {
-            id,
-            content_type: record.content_type().map(String::from),
-            filename: record.filename_lossy(),
-            size: record.digest.size,
-            sha256: record.digest.sha256,
-        })
-        .collect();
-    let page = Page::paginate(summaries, &pagination);
+    let limit = pagination.limit.min(MAX_PAGE_LIMIT);
+    let paged = registry
+        .list_content_with_record(actor_id, pagination.offset, limit)
+        .await?;
+    let page = Page::from_paged(paged, &pagination, |(id, record)| FileEntry {
+        id,
+        content_type: record.content_type().map(String::from),
+        filename: record.filename_lossy(),
+        size: record.digest.size,
+        sha256: record.digest.sha256,
+    });
     tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "files listed");
     Ok(Json(page))
 }

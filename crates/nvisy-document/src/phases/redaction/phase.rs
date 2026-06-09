@@ -14,10 +14,10 @@
 use nvisy_core::Result;
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 
+use crate::core::Plan;
 use crate::core::{DocumentTree, RunContext};
 use crate::phases::redaction::registries::RedactionRegistries;
 use crate::phases::redaction::run_redaction;
-use crate::core::Plan;
 use crate::pipeline::RedactionConfig;
 
 const TARGET: &str = "nvisy_document::redaction";

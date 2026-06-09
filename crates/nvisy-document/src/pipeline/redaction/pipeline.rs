@@ -94,32 +94,22 @@ impl RedactionPipeline {
     pub(crate) async fn execute(&self, input: RedactionInput) -> Result<(), Error> {
         let actor_id = input.actor_id;
 
-        let detection = match self
-            .detections
-            .result(actor_id, input.detection_id)
-            .await
-        {
+        let detection = match self.detections.result(actor_id, input.detection_id).await {
             Ok(d) => d,
             Err(e) => {
-                self.redactions
-                    .fail(self.redaction_id, e.to_string())
-                    .await;
+                self.redactions.fail(self.redaction_id, e.to_string()).await;
                 return Err(e);
             }
         };
 
         if let Err(e) = super::validate_overrides(&input.overrides) {
-            self.redactions
-                .fail(self.redaction_id, e.to_string())
-                .await;
+            self.redactions.fail(self.redaction_id, e.to_string()).await;
             return Err(e);
         }
 
         let mut audits: Vec<AnyAudit> = detection.audits.clone();
         if let Err(e) = apply_overrides(&mut audits, input.overrides.clone()) {
-            self.redactions
-                .fail(self.redaction_id, e.to_string())
-                .await;
+            self.redactions.fail(self.redaction_id, e.to_string()).await;
             return Err(e);
         }
 
@@ -162,9 +152,7 @@ impl RedactionPipeline {
         {
             Ok(out) => out,
             Err(e) => {
-                self.redactions
-                    .fail(self.redaction_id, e.to_string())
-                    .await;
+                self.redactions.fail(self.redaction_id, e.to_string()).await;
                 return Err(e);
             }
         };
@@ -204,12 +192,7 @@ impl RedactionPipeline {
         }
 
         self.redactions
-            .finalize(
-                self.redaction_id,
-                status,
-                final_audits,
-                redactions_applied,
-            )
+            .finalize(self.redaction_id, status, final_audits, redactions_applied)
             .await;
 
         tracing::info!(

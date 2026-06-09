@@ -1,6 +1,6 @@
 //! File request types.
 
-use nvisy_core::entity::AnyAnnotations;
+use nvisy_document::document::AnyAnnotations;
 use schemars::JsonSchema;
 use serde::Deserialize;
 

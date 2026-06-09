@@ -138,9 +138,7 @@ impl DetectionPipeline {
         let output = match orchestrator.run(&input.imports, &input.plan).await {
             Ok(out) => out,
             Err(e) => {
-                self.detections
-                    .fail(self.detection_id, e.to_string())
-                    .await;
+                self.detections.fail(self.detection_id, e.to_string()).await;
                 return Err(e);
             }
         };

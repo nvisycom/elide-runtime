@@ -1,41 +1,19 @@
-//! Post-redaction validation: composable check pipeline.
+//! Document-side validation glue: per-plan [`Validation`] config
+//! plus convenient re-exports of the toolkit-side check API the
+//! phase orchestrator and downstream callers use.
 //!
-//! Public surface:
-//!
-//! - [`Check`] / [`CheckContext`] / [`Finding`] / [`FindingKind`] /
-//!   [`Severity`] — the abstract check abstraction shared by every
-//!   validation pass.
-//! - [`CheckPipeline`] — ordered stack of checks, built with
-//!   `new().with_check(...).run(...)`.
-//! - [`CheckLeaks`] / [`LeakCheck`] / [`LeakFinding`] — the canonical
-//!   leak-detection implementation, scoped under the [`leak`]
-//!   submodule. [`LeakCheck`] implements both [`CheckLeaks`] (for
-//!   direct domain callers) and [`Check`] (so it slots into a
-//!   pipeline).
-//!
-//! The phase orchestrator at [`ValidationPhase`] builds the
-//! canonical pipeline from [`Validation`] for each
-//! per-modality node and aggregates findings; any
-//! [`Severity::Fail`] finding fails the run.
-//!
-//! [`Check`]: check::Check
-//! [`CheckContext`]: check::CheckContext
-//! [`Finding`]: check::Finding
-//! [`FindingKind`]: check::FindingKind
-//! [`Severity`]: check::Severity
-//! [`CheckPipeline`]: pipeline::CheckPipeline
-//! [`CheckLeaks`]: leak::CheckLeaks
-//! [`LeakCheck`]: leak::LeakCheck
-//! [`LeakFinding`]: leak::LeakFinding
-//! [`ValidationPhase`]: crate::phases::validation::ValidationPhase
-//! [`leak`]: self::leak
+//! The composable check abstraction (`Check`, `CheckPipeline`,
+//! `CheckLeaks`, `LeakCheck`, …) lives in
+//! [`nvisy_toolkit::validation`] — callers can craft their own
+//! check pipelines without depending on `nvisy-document`. This
+//! module re-exports those types for convenience and keeps the
+//! per-plan [`Validation`] knob the document pipeline reads.
 
-mod check;
-pub mod leak;
-mod pipeline;
 mod plan;
 
-pub use self::check::{Check, CheckContext, Finding, FindingKind, Severity};
-pub use self::leak::{CheckLeaks, LeakCheck, LeakFinding};
-pub use self::pipeline::CheckPipeline;
+pub use nvisy_toolkit::validation::{
+    Check, CheckContext, CheckLeaks, CheckPipeline, Finding, FindingKind, LeakCheck, LeakFinding,
+    Severity,
+};
+
 pub use self::plan::Validation;

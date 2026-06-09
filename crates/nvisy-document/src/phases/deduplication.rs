@@ -17,9 +17,9 @@ use nvisy_toolkit::deduplication::{FilterParams, LayerContext, LayerPipeline, Sp
 use tracing::Instrument;
 use uuid::Uuid;
 
+use crate::core::Plan;
 use crate::core::{DocumentTree, RunContext};
 use crate::modality::DocumentModality;
-use crate::core::Plan;
 use crate::pipeline::{DeduplicationParams, Detection};
 use crate::provenance::EntityRecord;
 
@@ -73,12 +73,7 @@ impl DeduplicationPhase {
         self.run(ctx, plan, tree).await
     }
 
-    async fn run<M>(
-        &self,
-        ctx: &RunContext,
-        plan: &Plan,
-        tree: &mut DocumentTree<M>,
-    ) -> Result<()>
+    async fn run<M>(&self, ctx: &RunContext, plan: &Plan, tree: &mut DocumentTree<M>) -> Result<()>
     where
         M: DocumentModality,
         M::Location: Overlap + SpanSize,
@@ -86,17 +81,9 @@ impl DeduplicationPhase {
     {
         let span = tracing::info_span!(target: TARGET, "phase", name = "deduplication");
         let run_id = ctx.shared().run_id;
-        async move {
-            dedup_one(
-                tree,
-                &plan.deduplication,
-                &plan.detection,
-                run_id,
-            )
+        async move { dedup_one(tree, &plan.deduplication, &plan.detection, run_id).await }
+            .instrument(span)
             .await
-        }
-        .instrument(span)
-        .await
     }
 }
 

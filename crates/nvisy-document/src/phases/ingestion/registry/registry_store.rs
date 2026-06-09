@@ -15,6 +15,7 @@ use super::composite_key::CompositeKey;
 use super::content_handle::ContentHandle;
 use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
 use super::resource_cache::ResourceCache;
+use crate::document::AnyAnnotations;
 use crate::policy::Policy;
 use crate::provenance::AnyAudit;
 
@@ -33,6 +34,7 @@ struct RegistryInner {
     db: Database,
     content_ks: Keyspace,
     content_meta_ks: Keyspace,
+    annotations_ks: Keyspace,
     policies_ks: Keyspace,
     audits_ks: Keyspace,
     /// Persisted [`DetectionResult`]s, keyed by
@@ -66,6 +68,7 @@ impl Registry {
         let db = Database::open_at(&base_dir)?;
         let content_ks = db.open_blob_keyspace("content")?;
         let content_meta_ks = db.open_keyspace("content_meta")?;
+        let annotations_ks = db.open_keyspace("annotations")?;
         let policies_ks = db.open_keyspace("policies")?;
         let audits_ks = db.open_keyspace("run_outputs")?;
         let detections_ks = db.open_keyspace("detections")?;
@@ -78,6 +81,7 @@ impl Registry {
                 db,
                 content_ks,
                 content_meta_ks,
+                annotations_ks,
                 policies_ks,
                 audits_ks,
                 detections_ks,
@@ -175,6 +179,7 @@ impl Registry {
         let key = CompositeKey::new(actor_id, content_id);
         let content_ks = self.inner.content_ks.clone();
         let meta_ks = self.inner.content_meta_ks.clone();
+        let annotations_ks = self.inner.annotations_ks.clone();
         let db = self.inner.db.clone();
 
         blocking(move || {
@@ -183,6 +188,7 @@ impl Registry {
             }
             content_ks.delete(key)?;
             meta_ks.delete(key)?;
+            annotations_ks.delete(key)?;
             db.sync()
         })
         .await
@@ -193,6 +199,7 @@ impl Registry {
     pub async fn unregister_all_content(&self, actor_id: Uuid) -> Result<usize> {
         let content_ks = self.inner.content_ks.clone();
         let meta_ks = self.inner.content_meta_ks.clone();
+        let annotations_ks = self.inner.annotations_ks.clone();
         let db = self.inner.db.clone();
 
         blocking(move || {
@@ -201,6 +208,7 @@ impl Registry {
             for key in &keys {
                 content_ks.delete(*key)?;
                 meta_ks.delete(*key)?;
+                annotations_ks.delete(*key)?;
             }
             if count > 0 {
                 db.sync()?;
@@ -323,6 +331,41 @@ impl Registry {
         blocking(move || ks.resource_ids(actor_id)).await
     }
 
+    /// Persist user-supplied annotations for a piece of content.
+    ///
+    /// Annotations live per-`ContentSource`, written at upload time
+    /// and read at import time. Calling this overwrites any prior
+    /// annotations for the same content.
+    #[tracing::instrument(target = TARGET, name = "registry.store_annotations", skip(self, annotations), fields(%actor_id, %content_id))]
+    pub async fn store_annotations(
+        &self,
+        actor_id: Uuid,
+        content_id: Uuid,
+        annotations: &AnyAnnotations,
+    ) -> Result<()> {
+        let key = CompositeKey::new(actor_id, content_id);
+        self.store_json(&self.inner.annotations_ks, key, annotations)
+            .await
+    }
+
+    /// Load annotations for a piece of content. Returns
+    /// [`AnyAnnotations::default`] when none were stored — annotation
+    /// absence is the common case, not an error.
+    #[tracing::instrument(target = TARGET, name = "registry.load_annotations", skip(self), fields(%actor_id, %content_id))]
+    pub async fn load_annotations(
+        &self,
+        actor_id: Uuid,
+        content_id: Uuid,
+    ) -> Result<AnyAnnotations> {
+        let key = CompositeKey::new(actor_id, content_id);
+        let ks = self.inner.annotations_ks.clone();
+        blocking(move || match ks.get_bytes(key)? {
+            Some(bytes) => Ok(serde_json::from_slice(&bytes)?),
+            None => Ok(AnyAnnotations::default()),
+        })
+        .await
+    }
+
     #[tracing::instrument(target = TARGET, name = "registry.register_policy", skip(self, policy), fields(%actor_id))]
     pub async fn register_policy(&self, actor_id: Uuid, policy: Policy<Text>) -> Result<Uuid> {
         let id = policy.id;
@@ -405,7 +448,8 @@ impl Registry {
         detection: &crate::pipeline::detection::DetectionResult,
     ) -> Result<()> {
         let key = CompositeKey::new(actor_id, detection_id);
-        self.store_json(&self.inner.detections_ks, key, detection).await?;
+        self.store_json(&self.inner.detections_ks, key, detection)
+            .await?;
         tracing::trace!(target: TARGET, "detection stored");
         Ok(())
     }
@@ -429,11 +473,7 @@ impl Registry {
 
     /// Remove a persisted detection.
     #[tracing::instrument(target = TARGET, name = "registry.unregister_detection", skip(self), fields(%actor_id, %detection_id))]
-    pub async fn unregister_detection(
-        &self,
-        actor_id: Uuid,
-        detection_id: Uuid,
-    ) -> Result<()> {
+    pub async fn unregister_detection(&self, actor_id: Uuid, detection_id: Uuid) -> Result<()> {
         let key = CompositeKey::new(actor_id, detection_id);
         self.remove_entry(&self.inner.detections_ks, key, "detection")
             .await
@@ -450,7 +490,8 @@ impl Registry {
         redaction: &crate::pipeline::redaction::RedactionResult,
     ) -> Result<()> {
         let key = CompositeKey::new(actor_id, redaction_id);
-        self.store_json(&self.inner.redactions_ks, key, redaction).await?;
+        self.store_json(&self.inner.redactions_ks, key, redaction)
+            .await?;
         tracing::trace!(target: TARGET, "redaction stored");
         Ok(())
     }
@@ -471,11 +512,7 @@ impl Registry {
 
     /// Remove a persisted redaction.
     #[tracing::instrument(target = TARGET, name = "registry.unregister_redaction", skip(self), fields(%actor_id, %redaction_id))]
-    pub async fn unregister_redaction(
-        &self,
-        actor_id: Uuid,
-        redaction_id: Uuid,
-    ) -> Result<()> {
+    pub async fn unregister_redaction(&self, actor_id: Uuid, redaction_id: Uuid) -> Result<()> {
         let key = CompositeKey::new(actor_id, redaction_id);
         self.remove_entry(&self.inner.redactions_ks, key, "redaction")
             .await

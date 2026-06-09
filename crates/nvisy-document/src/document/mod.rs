@@ -27,11 +27,13 @@
 //! [`AnyAudit`]: crate::provenance::AnyAudit
 //! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
 
+mod annotations;
 mod block;
 mod span;
 
 use nvisy_core::entity::{Annotation, ContentSource, Entity, LabelAnnotation};
 
+pub use self::annotations::AnyAnnotations;
 pub use self::block::Block;
 pub use self::span::Span;
 use crate::modality::DocumentModality;

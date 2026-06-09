@@ -19,6 +19,7 @@
 //!
 //! [`Modality`]: nvisy_core::modality::Modality
 
+mod any;
 mod audio;
 mod image;
 mod tabular;
@@ -35,6 +36,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+pub use self::any::AnyLocation;
 pub use self::audio::{AudioBlock, AudioMetadata};
 pub use self::image::{ImageBlock, ImageMetadata, PageDimensions};
 pub use self::tabular::{ColumnHeader, TabularBlock, TabularMetadata};

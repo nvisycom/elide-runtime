@@ -11,10 +11,10 @@
 //! 4. **Dispatch** — match the untyped handle once, build the matching
 //!    typed [`DocumentTree<M>`], and wrap it in the [`AnyTree`]
 //!    variant the orchestrator dispatches on.
-//! 5. **Seed** — convert any [`Inclusion`] annotations from the
-//!    content metadata into pre-detected entities on the root
-//!    document's audit, and store the full annotation list on the
-//!    document for downstream exclusion filtering.
+//! 5. **Seed** — convert any [`Inclusion`] annotations supplied for
+//!    this content into pre-detected entities on the root document's
+//!    audit, and store the full annotation list on the document for
+//!    downstream exclusion filtering.
 //!
 //! [`AnyTree`]: crate::core::AnyTree
 //! [`DocumentTree<M>`]: crate::core::DocumentTree
@@ -27,12 +27,12 @@ use std::sync::Arc;
 
 use nvisy_codec::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
-use nvisy_core::entity::{Annotation, AnyAnnotations, LabelAnnotation};
+use nvisy_core::entity::{Annotation, LabelAnnotation};
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
 
 use crate::core::{AnyTree, DocumentTree, SharedData};
-use crate::document::Document;
+use crate::document::{AnyAnnotations, Document};
 use crate::modality::{
     AudioExtraction, AudioMetadata, DocumentModality, ImageExtraction, ImageMetadata,
     TabularExtraction, TabularMetadata, TextExtraction, TextMetadata,
@@ -66,10 +66,17 @@ impl Importer {
         self
     }
 
-    /// Decode `content` into a single-element `Vec<AnyTree>`. The
-    /// vector shape is preserved so the orchestrator's collection
-    /// loop stays uniform across import sources.
-    pub async fn import(&self, content: Content, shared: &Arc<SharedData>) -> Result<Vec<AnyTree>> {
+    /// Decode `content` into a single-element `Vec<AnyTree>`,
+    /// attaching the supplied per-modality `annotations` to the
+    /// resulting `Document<M>`. The vector shape is preserved so the
+    /// orchestrator's collection loop stays uniform across import
+    /// sources.
+    pub async fn import(
+        &self,
+        content: Content,
+        annotations: AnyAnnotations,
+        shared: &Arc<SharedData>,
+    ) -> Result<Vec<AnyTree>> {
         let mut content = content;
 
         if let Some(algorithm) = self.decompression {
@@ -101,8 +108,7 @@ impl Importer {
         );
 
         let (data, metadata) = content.into_parts();
-        let mut metadata = metadata.unwrap_or_default();
-        let annotations = mem::take(&mut metadata.annotations);
+        let metadata = metadata.unwrap_or_default();
         let source = data.content_source;
 
         let tree = build_tree(untyped, source, metadata, annotations);

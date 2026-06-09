@@ -29,7 +29,9 @@ use std::collections::HashMap;
 use jiff::Timestamp;
 use nvisy_core::Error;
 use nvisy_core::entity::{Entity, EntityKind};
-use nvisy_core::modality::{Audio, AnyLocation, Image, Modality, Tabular, Text};
+use nvisy_core::modality::{Audio, Image, Modality, Tabular, Text};
+
+use crate::modality::AnyLocation;
 use nvisy_core::primitive::Confidence;
 use uuid::Uuid;
 
@@ -153,8 +155,7 @@ where
                         action: Action::Suppress,
                     },
                     execution: Execution::Suppressed,
-                    metadata: EntryMetadata::now()
-                        .with_override(RedactionDecision::OverrideReject),
+                    metadata: EntryMetadata::now().with_override(RedactionDecision::OverrideReject),
                 });
                 let mut entry = entry;
                 entry.execution = Execution::Suppressed;
@@ -224,9 +225,18 @@ fn append_add(audits: &mut [AnyAudit], add: RedactionAddEntity) -> Result<(), Er
         matches!(
             (a, kind),
             (AnyAudit::Text(_), nvisy_core::modality::ModalityKind::Text)
-                | (AnyAudit::Tabular(_), nvisy_core::modality::ModalityKind::Tabular)
-                | (AnyAudit::Image(_), nvisy_core::modality::ModalityKind::Image)
-                | (AnyAudit::Audio(_), nvisy_core::modality::ModalityKind::Audio)
+                | (
+                    AnyAudit::Tabular(_),
+                    nvisy_core::modality::ModalityKind::Tabular
+                )
+                | (
+                    AnyAudit::Image(_),
+                    nvisy_core::modality::ModalityKind::Image
+                )
+                | (
+                    AnyAudit::Audio(_),
+                    nvisy_core::modality::ModalityKind::Audio
+                )
         )
     });
     let Some(target) = target else {

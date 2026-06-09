@@ -8,7 +8,6 @@
 
 use std::path::{Path, PathBuf};
 
-use nvisy_core::entity::AnyAnnotations;
 use serde::{Deserialize, Serialize};
 
 /// Descriptive metadata associated with content.
@@ -50,13 +49,6 @@ pub struct ContentMetadata {
     /// [`remove_extra`]: Self::remove_extra
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extra: Option<serde_json::Map<String, serde_json::Value>>,
-    /// Pre-identified regions and classification labels for this
-    /// content, bucketed per modality. The importer routes each
-    /// bucket to its matching `Document<M>` envelope; labels
-    /// (modality-agnostic) propagate to every envelope spawned from
-    /// the source.
-    #[serde(default, skip_serializing_if = "AnyAnnotations::is_empty")]
-    pub annotations: AnyAnnotations,
 }
 
 impl ContentMetadata {
@@ -76,15 +68,7 @@ impl ContentMetadata {
             size: None,
             sha256: None,
             extra: None,
-            annotations: AnyAnnotations::default(),
         }
-    }
-
-    /// Set annotations (builder pattern).
-    #[must_use]
-    pub fn with_annotations(mut self, annotations: AnyAnnotations) -> Self {
-        self.annotations = annotations;
-        self
     }
 
     /// Set the caller-supplied MIME type (builder pattern).

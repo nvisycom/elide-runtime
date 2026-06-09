@@ -12,24 +12,22 @@
 //!   `Check` impl stamps `self.severity` on every emitted leak.
 //! - [`LeakFinding`] — typed output of [`CheckLeaks::check_leaks`].
 //!
-//! Modality coverage today: [`Text`] and (with the `tabular`
-//! feature) [`Tabular`]. Image and Audio leak detection requires
-//! visual / audio inspection that the runtime can't do — see
+//! Modality coverage today: [`Text`] and [`Tabular`]. Image and
+//! audio leak detection requires visual / audio inspection that the
+//! runtime can't do — see
 //! <https://github.com/nvisycom/runtime/issues/209> (image) and
 //! <https://github.com/nvisycom/runtime/issues/210> (audio).
 //!
 //! [`Check`]: super::Check
 //! [`CheckPipeline`]: super::CheckPipeline
 
+use nvisy_core::entity::Entity;
 use nvisy_core::extraction::TextAt;
-use nvisy_core::modality::{Tabular, Text};
+use nvisy_core::modality::{Modality, Tabular, Text};
 use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 use super::check::{Check, CheckContext, Finding, FindingKind, Severity};
-use crate::document::Document;
-use crate::modality::DocumentModality;
-use crate::provenance::EntityRecord;
 
 /// A single leak detected by [`LeakCheck`].
 ///
@@ -59,23 +57,22 @@ pub struct LeakFinding {
 #[async_trait::async_trait]
 pub trait CheckLeaks<M, P>: Send + Sync
 where
-    M: DocumentModality,
+    M: Modality,
     P: TextAt<M> + ?Sized,
 {
-    /// Inspect `doc` and emit a typed list of leak findings.
+    /// Inspect `entities` and emit a typed list of leak findings.
     async fn check_leaks(
         &self,
-        doc: &Document<M>,
+        entities: &[Entity<M>],
         ctx: &CheckContext<'_, M, P>,
     ) -> Vec<LeakFinding>;
 }
 
 /// Canonical [`CheckLeaks`] implementation.
 ///
-/// Substring-scans the post-redaction codec output for each applied
-/// entity's original value. Folds via NFC + lowercase before
-/// matching to be resilient to Unicode normalization and ASCII case
-/// differences.
+/// Substring-scans the post-redaction text for each entity's original
+/// value. Folds via NFC + lowercase before matching to be resilient
+/// to Unicode normalization and ASCII case differences.
 pub struct LeakCheck {
     severity: Severity,
 }
@@ -94,10 +91,10 @@ where
 {
     async fn check_leaks(
         &self,
-        doc: &Document<Text>,
+        entities: &[Entity<Text>],
         ctx: &CheckContext<'_, Text, P>,
     ) -> Vec<LeakFinding> {
-        check_text_like::<Text, P>(doc, ctx.resolver, ctx.redacted_output).await
+        check_text_like::<Text, P>(entities, ctx.resolver, ctx.redacted_output).await
     }
 }
 
@@ -108,25 +105,22 @@ where
 {
     async fn check_leaks(
         &self,
-        doc: &Document<Tabular>,
+        entities: &[Entity<Tabular>],
         ctx: &CheckContext<'_, Tabular, P>,
     ) -> Vec<LeakFinding> {
-        check_text_like::<Tabular, P>(doc, ctx.resolver, ctx.redacted_output).await
+        check_text_like::<Tabular, P>(entities, ctx.resolver, ctx.redacted_output).await
     }
 }
 
-// Bridge: every modality where LeakCheck impls CheckLeaks also gets
-// an abstract Check impl that stamps the configured severity onto
-// each leak finding.
 #[async_trait::async_trait]
 impl<M, P> Check<M, P> for LeakCheck
 where
-    M: DocumentModality,
+    M: Modality,
     P: TextAt<M> + ?Sized,
     LeakCheck: CheckLeaks<M, P>,
 {
-    async fn check(&self, doc: &Document<M>, ctx: &CheckContext<'_, M, P>) -> Vec<Finding> {
-        let leaks = <Self as CheckLeaks<M, P>>::check_leaks(self, doc, ctx).await;
+    async fn check(&self, entities: &[Entity<M>], ctx: &CheckContext<'_, M, P>) -> Vec<Finding> {
+        let leaks = <Self as CheckLeaks<M, P>>::check_leaks(self, entities, ctx).await;
         leaks
             .into_iter()
             .map(|l| {
@@ -147,40 +141,27 @@ where
     }
 }
 
-/// Shared substring-based leak check used by both Text and Tabular.
-///
-/// For each applied record, re-reads the (post-redaction) value at
-/// its location through the modality's [`TextAt`] impl and checks
-/// whether it still contains the original. Records whose value can't
-/// be re-read are conservatively counted as passed.
 async fn check_text_like<M, P>(
-    doc: &Document<M>,
+    entities: &[Entity<M>],
     resolver: &P,
     redacted_text: Option<&str>,
 ) -> Vec<LeakFinding>
 where
-    M: DocumentModality,
+    M: Modality,
     P: TextAt<M> + ?Sized,
 {
-    let applied: Vec<&EntityRecord<M>> = doc
-        .audit
-        .records
-        .iter()
-        .filter(|r| r.audit.as_ref().is_some_and(|e| e.execution.is_applied()))
-        .collect();
-
     let Some(text) = redacted_text else {
         return Vec::new();
     };
 
     let mut leaks = Vec::new();
     let folded_text = fold_for_match(text);
-    for record in &applied {
-        if let Some(value) = resolver.text_at(&record.entity.location).await {
+    for entity in entities {
+        if let Some(value) = resolver.text_at(&entity.location).await {
             let folded_value = fold_for_match(&value);
             if !value.is_empty() && folded_text.contains(&folded_value) {
                 leaks.push(LeakFinding {
-                    entity_id: record.entity.id,
+                    entity_id: entity.id,
                     value,
                 });
             }
@@ -211,8 +192,6 @@ mod tests {
 
     #[test]
     fn nfc_normalization_collapses_combining_accents() {
-        // "café" as NFC (U+00E9) and NFD (e + U+0301) should fold
-        // to the same string.
         let nfc = "caf\u{00e9}";
         let nfd = "cafe\u{0301}";
         assert_eq!(fold_for_match(nfc), fold_for_match(nfd));
@@ -220,8 +199,6 @@ mod tests {
 
     #[test]
     fn case_fold_substring_match_works_across_normalization() {
-        // The haystack is NFD and uppercase; the needle is NFC
-        // lowercase. Folding both should let the substring match.
         let haystack = fold_for_match("HELLO CAFE\u{0301}!");
         let needle = fold_for_match("caf\u{00e9}");
         assert!(haystack.contains(&needle));

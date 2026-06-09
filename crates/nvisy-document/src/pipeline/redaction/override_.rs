@@ -41,11 +41,12 @@
 //! [`Entity<M>`]: nvisy_core::entity::Entity
 
 use nvisy_core::entity::EntityKind;
-use nvisy_core::modality::{AnyLocation, ModalityKind};
+use nvisy_core::modality::ModalityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::modality::AnyLocation;
 use crate::policy::AnyRedaction;
 
 /// A single per-entity override carried by [`RedactionInput`].

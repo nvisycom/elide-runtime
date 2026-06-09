@@ -195,7 +195,6 @@ impl Engine {
         self.inner.registry.base_dir()
     }
 
-
     /// Construct a new detection pipeline bound to this engine's
     /// shared state.
     fn detection_pipeline(&self) -> DetectionPipeline {
@@ -341,7 +340,12 @@ impl Engine {
     pub async fn delete_all_detections(&self, actor_id: Uuid) -> usize {
         let removed = self.inner.detections.delete_all(actor_id).await;
         for id in &removed {
-            if let Err(e) = self.inner.registry.unregister_detection(actor_id, *id).await {
+            if let Err(e) = self
+                .inner
+                .registry
+                .unregister_detection(actor_id, *id)
+                .await
+            {
                 tracing::warn!(
                     detection_id = %id,
                     error = %e,
@@ -487,7 +491,12 @@ impl Engine {
     pub async fn delete_all_redactions(&self, actor_id: Uuid) -> usize {
         let removed = self.inner.redactions.delete_all(actor_id).await;
         for id in &removed {
-            if let Err(e) = self.inner.registry.unregister_redaction(actor_id, *id).await {
+            if let Err(e) = self
+                .inner
+                .registry
+                .unregister_redaction(actor_id, *id)
+                .await
+            {
                 tracing::warn!(
                     redaction_id = %id,
                     error = %e,

@@ -56,6 +56,9 @@ uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 
+# Unicode-aware text folding for leak detection.
+unicode-normalization = { workspace = true, features = [] }
+
 # Cryptography for built-in redaction operators
 sha2 = { workspace = true, features = [] }
 aes-gcm = { workspace = true, features = ["aes", "alloc"], optional = true }

@@ -6,18 +6,23 @@
 //! Aggregates findings; any [`Severity::Fail`] finding fails the
 //! run with a validation error.
 //!
-//! [`CheckPipeline`]: crate::validation::CheckPipeline
-//! [`LeakCheck`]: crate::validation::LeakCheck
-//! [`Severity`]: crate::validation::Severity
+//! [`CheckPipeline`]: nvisy_toolkit::validation::CheckPipeline
+//! [`LeakCheck`]: nvisy_toolkit::validation::LeakCheck
+//! [`Severity`]: nvisy_toolkit::validation::Severity
 //! [`Validation`]: crate::validation::Validation
 
 use nvisy_codec::core::IndexedHandle;
+use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
+use nvisy_toolkit::validation::{
+    CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity,
+};
 use tracing::Instrument;
 
 use crate::core::{DocumentTree, Plan, RunContext};
-use crate::validation::{CheckContext, CheckPipeline, Finding, FindingKind, LeakCheck, Severity};
+use crate::document::Document;
+use crate::modality::DocumentModality;
 
 const TARGET: &str = "nvisy_document::validation";
 
@@ -41,13 +46,14 @@ impl ValidationPhase {
         let cfg = plan.validation.clone();
         async move {
             let redacted = stream_text(tree.handle.handler_mut()).await?;
+            let entities = applied_entities(&tree.root);
             let pipeline: CheckPipeline<Text, DocumentTree<Text>> =
                 CheckPipeline::new().with_check(LeakCheck::new(cfg.leak_severity));
             let mut check_ctx = CheckContext::new(&*tree).with_correlation_id(run_id);
             if let Some(ref text) = redacted {
                 check_ctx = check_ctx.with_redacted_output(text);
             }
-            let findings = log_findings("text", pipeline.run(&tree.root, &check_ctx).await);
+            let findings = log_findings("text", pipeline.run(&entities, &check_ctx).await);
             finalize(&findings)
         }
         .instrument(span)
@@ -65,13 +71,14 @@ impl ValidationPhase {
         let cfg = plan.validation.clone();
         async move {
             let redacted = stream_tabular(tree.handle.handler_mut()).await?;
+            let entities = applied_entities(&tree.root);
             let pipeline: CheckPipeline<Tabular, DocumentTree<Tabular>> =
                 CheckPipeline::new().with_check(LeakCheck::new(cfg.leak_severity));
             let mut check_ctx = CheckContext::new(&*tree).with_correlation_id(run_id);
             if let Some(ref text) = redacted {
                 check_ctx = check_ctx.with_redacted_output(text);
             }
-            let findings = log_findings("tabular", pipeline.run(&tree.root, &check_ctx).await);
+            let findings = log_findings("tabular", pipeline.run(&entities, &check_ctx).await);
             finalize(&findings)
         }
         .instrument(span)
@@ -104,6 +111,18 @@ impl Default for ValidationPhase {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Collect the entities whose redaction the audit reports as
+/// `Applied` — the set the leak check must verify is no longer
+/// present in the post-redaction output.
+fn applied_entities<M: DocumentModality>(doc: &Document<M>) -> Vec<Entity<M>> {
+    doc.audit
+        .records
+        .iter()
+        .filter(|r| r.audit.as_ref().is_some_and(|e| e.execution.is_applied()))
+        .map(|r| r.entity.clone())
+        .collect()
 }
 
 /// Log per-tree findings at the appropriate level and return them
@@ -160,6 +179,7 @@ fn finalize(findings: &[Finding]) -> Result<()> {
         .map(|f| match &f.kind {
             FindingKind::Leak { entity_id, value } => format!("{value}({entity_id})"),
             FindingKind::Other => f.message.clone(),
+            _ => f.message.clone(),
         })
         .collect::<Vec<_>>()
         .join(", ");

@@ -130,7 +130,11 @@ impl DetectionOrchestrator {
                     .read_content(shared.actor_id, content_id)
                     .await?;
                 let content = handle.content().await?;
-                trees.extend(importer.import(content, shared).await?);
+                let annotations = shared
+                    .registry
+                    .load_annotations(shared.actor_id, content_id)
+                    .await?;
+                trees.extend(importer.import(content, annotations, shared).await?);
             }
         }
         tracing::info!(target: TARGET, count = trees.len(), "trees imported");

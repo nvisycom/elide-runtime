@@ -1,82 +1,52 @@
-//! [`Check`]: the abstract validation pass.
-//!
-//! A [`Check`] inspects a single [`Document<M>`] post-redaction and
-//! returns a list of [`Finding`]s. Checks are read-only — they
-//! observe the document and the codec handle but never mutate the
-//! audit records.
-//!
-//! Concrete check implementations live in submodules (today only
-//! [`leak`]; future checks slot in as siblings).
-//! Each domain typically defines its *own* trait
-//! (e.g. [`CheckLeaks`]) carrying the domain-meaningful method, plus
-//! a bridge `impl Check for ConcreteCheck` that wraps the domain
-//! result into [`Finding`]s.
-//!
-//! Pipelines hold checks as `Box<dyn Check<M, P>>` and run them
-//! head-to-tail; see [`CheckPipeline`].
-//!
-//! [`CheckLeaks`]: crate::validation::CheckLeaks
-//! [`CheckPipeline`]: super::CheckPipeline
-//! [`Document<M>`]: crate::document::Document
-//! [`leak`]: crate::validation::leak
+//! Abstract [`Check`] trait + [`CheckContext`] + [`Finding`] /
+//! [`Severity`] types every concrete check produces.
 
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
+use nvisy_core::entity::Entity;
 use nvisy_core::extraction::TextAt;
+use nvisy_core::modality::Modality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::document::Document;
-use crate::modality::DocumentModality;
-
 /// Read-only context every [`Check::check`] call receives.
 ///
-/// Built once per node by the phase orchestrator and passed to each
-/// check in the pipeline:
+/// Built once per call by the caller and passed to each check in the
+/// pipeline. `P` is the resolver type, mirroring the dedup
+/// [`LayerContext`]. Generic so the resolver call
+/// (`ctx.resolver.text_at(...)`) is monomorphised. Object safety on
+/// [`Check<M, P>`] still holds — `P` is a type parameter, not a
+/// generic method.
 ///
-/// ```ignore
-/// let ctx = CheckContext::new(&view, &handle).with_correlation_id(run_id);
-/// pipeline.run(doc, &ctx).await;
-/// ```
-///
-/// `P` is the resolver type, mirroring the dedup [`LayerContext`].
-/// Generic so the resolver call (`ctx.resolver.text_at(...)`) is
-/// monomorphised. Object safety on [`Check<M, P>`] still holds —
-/// `P` is a type parameter, not a generic method.
-///
-/// [`LayerContext`]: nvisy_toolkit::deduplication::LayerContext
+/// [`LayerContext`]: crate::deduplication::LayerContext
 pub struct CheckContext<'a, M, P>
 where
-    M: DocumentModality,
+    M: Modality,
     P: TextAt<M> + ?Sized,
 {
-    /// Resolver for "what value sits at this location?" Backed by
-    /// `DocumentTree<M>` in production, mockable in tests.
+    /// Resolver for "what value sits at this location?"
     pub resolver: &'a P,
     /// Concatenated post-redaction output that checks like
-    /// [`LeakCheck`] substring-search against. The validation phase
-    /// streams the (already-redacted) handle chunks once and hands
-    /// the assembled text in — checks never touch the codec
-    /// directly.
+    /// [`LeakCheck`] substring-search against. The caller streams the
+    /// (already-redacted) handle chunks once and hands the assembled
+    /// text in — checks never touch the codec directly.
     ///
     /// `None` when the modality doesn't produce searchable text
     /// (image / audio at present).
     ///
-    /// [`LeakCheck`]: crate::validation::LeakCheck
+    /// [`LeakCheck`]: super::LeakCheck
     pub redacted_output: Option<&'a str>,
     /// Optional correlation id used to stitch tracing spans across
-    /// the run.
+    /// the call.
     pub correlation_id: Option<Uuid>,
-    /// Phantom binding `M` so the trait bound on `P` carries
-    /// through without an unused-param error.
     _marker: PhantomData<&'a M>,
 }
 
 impl<'a, M, P> CheckContext<'a, M, P>
 where
-    M: DocumentModality,
+    M: Modality,
     P: TextAt<M> + ?Sized,
 {
     /// Build a context from the resolver alone. Checks that need the
@@ -92,14 +62,13 @@ where
         }
     }
 
-    /// Attach the streamed post-redaction text the validation phase
-    /// pulled out of the codec handle.
+    /// Attach the streamed post-redaction text.
     pub fn with_redacted_output(mut self, redacted_output: &'a str) -> Self {
         self.redacted_output = Some(redacted_output);
         self
     }
 
-    /// Attach a correlation id (typically a run id).
+    /// Attach a correlation id (typically a run / detection id).
     pub fn with_correlation_id(mut self, correlation_id: Uuid) -> Self {
         self.correlation_id = Some(correlation_id);
         self
@@ -108,9 +77,8 @@ where
 
 /// Severity of a single [`Finding`].
 ///
-/// `Warn` causes the phase to log the finding and continue. `Fail`
-/// causes the phase to log the finding and return a validation
-/// error, failing the run.
+/// `Warn` causes the caller to log the finding and continue. `Fail`
+/// causes the caller to treat the result as a failure.
 #[derive(
     Debug,
     Clone,
@@ -127,7 +95,7 @@ pub enum Severity {
     /// Log + continue.
     #[default]
     Warn,
-    /// Log + fail the run.
+    /// Log + fail.
     Fail,
 }
 
@@ -142,7 +110,7 @@ pub enum FindingKind {
     /// A redacted value remained visible in the post-redaction
     /// output. Produced by [`LeakCheck`].
     ///
-    /// [`LeakCheck`]: crate::validation::LeakCheck
+    /// [`LeakCheck`]: super::LeakCheck
     Leak {
         /// The entity whose redacted value was still found in the
         /// output.
@@ -159,7 +127,7 @@ pub enum FindingKind {
 /// One observation emitted by a [`Check`].
 #[derive(Debug, Clone)]
 pub struct Finding {
-    /// Whether this finding should fail the run.
+    /// Whether this finding should fail the call.
     pub severity: Severity,
     /// What kind of issue this finding represents.
     pub kind: FindingKind,
@@ -170,16 +138,16 @@ pub struct Finding {
 
 /// One stage of a validation pipeline.
 ///
-/// Each check inspects `doc` and produces a list of findings.
+/// Each check inspects `entities` and produces a list of findings.
 /// Checks that find nothing return an empty vec; checks that don't
 /// support the modality should not be registered in the first place
 /// (the pipeline simply has no check for that modality).
 #[async_trait]
 pub trait Check<M, P>: Send + Sync
 where
-    M: DocumentModality,
+    M: Modality,
     P: TextAt<M> + ?Sized,
 {
-    /// Inspect `doc` and emit a list of findings.
-    async fn check(&self, doc: &Document<M>, ctx: &CheckContext<'_, M, P>) -> Vec<Finding>;
+    /// Inspect `entities` and emit a list of findings.
+    async fn check(&self, entities: &[Entity<M>], ctx: &CheckContext<'_, M, P>) -> Vec<Finding>;
 }

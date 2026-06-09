@@ -19,10 +19,10 @@ use nvisy_core::recognition::RecognizerInput;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use tracing::Instrument;
 
+use crate::core::Plan;
 use crate::core::{DocumentTree, RunContext};
 use crate::document::{Document, Span};
 use crate::modality::{DocumentModality, ModalityBlock};
-use crate::core::Plan;
 use crate::pipeline::Detection;
 
 const TARGET: &str = "nvisy_document::detection";

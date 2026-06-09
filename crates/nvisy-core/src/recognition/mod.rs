@@ -47,14 +47,12 @@ use crate::modality::Modality;
 /// list of recognizers; the trait does not assume a central
 /// registry.
 ///
-/// Recognizers are stateless from the caller's perspective — the
-/// default [`reset`] is a no-op. Long-lived implementations (LLM
-/// agents with cumulative usage trackers, OCR backends with batch
-/// caches) override `reset` to drop per-document state between
-/// runs.
+/// Recognizers are expected to be stateless across calls. Any
+/// per-document state a long-lived implementation needs is its
+/// own responsibility to clear (e.g. an `Arc<Mutex<…>>` reset at
+/// the top of `recognize`).
 ///
 /// [`Modality`]: crate::modality::Modality
-/// [`reset`]: Self::reset
 #[async_trait::async_trait]
 pub trait EntityRecognizer<M: Modality>: Send + Sync {
     /// Detect entities in `input` and return them in modality-local
@@ -62,9 +60,4 @@ pub trait EntityRecognizer<M: Modality>: Send + Sync {
     /// document coordinates when stitching results back into a
     /// multi-block document; image entities pass through unchanged.
     async fn recognize(&self, input: &RecognizerInput<M>) -> Result<RecognizerOutput<M>>;
-
-    /// Drop per-document state. Default no-op for stateless
-    /// recognizers; long-lived ones (usage trackers, batch caches)
-    /// override.
-    async fn reset(&self) {}
 }

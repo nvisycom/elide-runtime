@@ -45,8 +45,10 @@ pub struct RunContext {
     pub(crate) extraction_engine: ExtractorRegistry,
     /// Pre-built recognizer registry. Always present; when no
     /// recognizers are registered the per-modality dispatch
-    /// short-circuits on the empty list.
-    pub(crate) recognizer_registry: RecognizerRegistry,
+    /// short-circuits on the empty list. Shared via `Arc` so
+    /// per-document phases hold a cheap handle without cloning
+    /// the underlying recognizer lists.
+    pub(crate) recognizer_registry: Arc<RecognizerRegistry>,
     /// Server-wide redaction defaults. Per-plan `Redaction` fields
     /// fall back to these.
     pub(crate) redaction_config: RedactionConfig,
@@ -65,7 +67,7 @@ pub struct RunContext {
 /// resources land.
 pub(crate) struct RunEngines {
     pub extraction_engine: ExtractorRegistry,
-    pub recognizer_registry: RecognizerRegistry,
+    pub recognizer_registry: Arc<RecognizerRegistry>,
     pub redaction_config: RedactionConfig,
     pub redaction_registries: RedactionRegistries,
 }
@@ -111,7 +113,7 @@ impl RunContext {
     /// Pre-built recognizer registry borrowed by [`DetectionPhase`].
     ///
     /// [`DetectionPhase`]: crate::pipeline::DetectionPhase
-    pub(crate) fn recognizer_registry(&self) -> &RecognizerRegistry {
+    pub(crate) fn recognizer_registry(&self) -> &Arc<RecognizerRegistry> {
         &self.recognizer_registry
     }
 

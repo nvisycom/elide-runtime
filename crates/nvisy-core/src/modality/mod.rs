@@ -73,6 +73,13 @@ pub use self::text::{ContextWindow, Text, TextData, TextExtraction, TextLocation
 /// [`Replacement`]: Self::Replacement
 /// [`Extraction`]: Self::Extraction
 pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'static {
+    /// Stable lowercase identifier for this modality (e.g.
+    /// `"text"`, `"image"`). Used as the value of structured
+    /// telemetry fields and as a wire-friendly modality tag in
+    /// logs. Each marker advertises its own; downstream code never
+    /// pattern-matches on the closed set.
+    const NAME: &'static str;
+
     /// Coordinate value carried by generic containers parameterised
     /// on this modality.
     type Location: Clone

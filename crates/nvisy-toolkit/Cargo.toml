@@ -55,6 +55,7 @@ tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
+type-map = { workspace = true, features = [] }
 
 # Unicode-aware text folding for leak detection.
 unicode-normalization = { workspace = true, features = [] }

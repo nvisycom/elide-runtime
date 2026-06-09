@@ -3056,6 +3056,7 @@ dependencies = [
  "sha2 0.11.0",
  "tokio",
  "tracing",
+ "type-map",
  "unicode-normalization",
  "uuid",
 ]

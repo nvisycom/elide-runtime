@@ -18,6 +18,8 @@ impl Modality for Tabular {
     type Extraction = TabularExtraction;
     type Location = TabularLocation;
     type Replacement = TabularReplacement;
+
+    const NAME: &'static str = "tabular";
 }
 
 /// A cell (or sub-cell range) within tabular content.

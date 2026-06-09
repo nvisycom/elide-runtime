@@ -23,7 +23,7 @@
 use std::env;
 
 use nvisy_core::entity::EntityKind;
-use nvisy_core::modality::TextData;
+use nvisy_core::modality::{Text, TextData};
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_llm::backend::rig::RigBackend;
 use nvisy_llm::provider::LlmProvider;
@@ -74,9 +74,9 @@ fn build_registry() -> RecognizerRegistry {
         .expect("llm recognizer builds");
 
     RecognizerRegistry::new()
-        .add_text_recognizer(pattern)
-        .add_text_recognizer(ner)
-        .add_text_recognizer(llm)
+        .with_recognizer::<Text>(pattern)
+        .with_recognizer::<Text>(ner)
+        .with_recognizer::<Text>(llm)
 }
 
 fn fired(
@@ -95,7 +95,7 @@ async fn registry_dispatches_pattern_ner_and_llm_against_live_services() {
     let input = RecognizerInput::new(TextData::new(SAMPLE.to_owned()));
 
     let entities = registry
-        .run_text(input)
+        .run::<Text>(input)
         .await
         .expect("dispatch over pattern + ner + llm succeeds");
 

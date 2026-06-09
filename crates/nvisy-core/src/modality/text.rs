@@ -25,6 +25,8 @@ impl Modality for Text {
     type Extraction = TextExtraction;
     type Location = TextLocation;
     type Replacement = TextReplacement;
+
+    const NAME: &'static str = "text";
 }
 
 /// Half-open `[start, end)` byte range around a [`TextLocation`],

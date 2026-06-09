@@ -23,6 +23,8 @@ impl Modality for Audio {
     type Extraction = AudioExtraction;
     type Location = AudioLocation;
     type Replacement = AudioReplacement;
+
+    const NAME: &'static str = "audio";
 }
 
 /// A time interval within audio content.

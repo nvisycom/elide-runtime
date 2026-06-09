@@ -39,14 +39,14 @@ async fn main() -> Result<()> {
     // ── Phase 1: detection ────────────────────────────────────────
     // Pattern-only registry so the example needs no external
     // services. Add NER / LLM recognizers with extra
-    // `.add_text_recognizer(...)` calls.
+    // `.with_recognizer::<Text>(...)` calls.
     let pattern = PatternRecognizer::builder()
         .with_registry(PatternRegistry::builtin())
         .build()?;
-    let detection = RecognizerRegistry::new().add_text_recognizer(pattern);
+    let detection = RecognizerRegistry::new().with_recognizer(pattern);
 
     let input = RecognizerInput::new(source.data().clone());
-    let entities = detection.run_text(input).await?;
+    let entities = detection.run::<Text>(input).await?;
 
     println!(
         "detection: {} entit{}",
@@ -54,9 +54,11 @@ async fn main() -> Result<()> {
         plural(entities.len())
     );
     for entity in &entities {
+        let matched = &source.as_str()[entity.location.start..entity.location.end];
         println!(
-            "  - {:?} at {}..{} (confidence {:.2})",
+            "  - {:?} {:?} at {}..{} (confidence {:.2})",
             entity.entity_kind,
+            matched,
             entity.location.start,
             entity.location.end,
             entity.confidence.get(),

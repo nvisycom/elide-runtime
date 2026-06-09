@@ -136,7 +136,7 @@ impl RedactionPipeline {
         let cancel = CancellationToken::new();
         let engines = RunEngines {
             extraction_engine: (*self.state.extraction_engine).clone(),
-            recognizer_registry: (*self.state.recognizer_registry).clone(),
+            recognizer_registry: Arc::clone(&self.state.recognizer_registry),
             redaction_config: (*self.state.redaction_config).clone(),
             redaction_registries: (*self.state.redaction_registries).clone(),
         };

@@ -23,6 +23,8 @@ impl Modality for Image {
     type Extraction = ImageExtraction;
     type Location = ImageLocation;
     type Replacement = ImageReplacement;
+
+    const NAME: &'static str = "image";
 }
 
 /// A region within image content.

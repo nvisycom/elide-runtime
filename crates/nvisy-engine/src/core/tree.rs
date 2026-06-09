@@ -14,7 +14,8 @@
 
 use nvisy_codec::DocumentHandle;
 use nvisy_codec::content::ContentDescriptor;
-use nvisy_core::modality::{Audio, Image, ModalityKind, Tabular, Text};
+use nvisy_codec::core::ModalityKind;
+use nvisy_core::modality::{Audio, Image, Tabular, Text};
 
 use crate::document::Document;
 use crate::modality::DocumentModality;

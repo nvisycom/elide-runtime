@@ -9,12 +9,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::modality::{ModalityKind, Tabular, TabularLocation, TextData};
+use nvisy_core::modality::{Tabular, TabularLocation, TextData};
 use nvisy_core::redaction::Redactions;
 
 use super::XlsxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle};
+use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::handler::tabular::TabularHandle;
 use crate::{Format, FormatId, LoaderAdapter};
 

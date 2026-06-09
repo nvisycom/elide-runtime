@@ -38,30 +38,13 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use schemars::JsonSchema;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 
 pub use self::audio::{Audio, AudioData, AudioExtraction, AudioLocation};
 pub use self::image::{Image, ImageData, ImageExtraction, ImageLocation};
 pub use self::tabular::{Tabular, TabularExtraction, TabularLocation};
 pub use self::text::{ContextWindow, Text, TextData, TextExtraction, TextLocation};
-
-/// Runtime tag identifying which [`Modality`] a generic container
-/// carries. Use for runtime dispatch where the marker type is erased
-/// (typically at the codec / pipeline boundary).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ModalityKind {
-    /// [`Text`] modality.
-    Text,
-    /// [`Tabular`] modality.
-    Tabular,
-    /// [`Image`] modality.
-    Image,
-    /// [`Audio`] modality.
-    Audio,
-}
 
 /// Marker trait implemented by every per-modality marker type
 /// ([`Text`], [`Image`], [`Audio`], [`Tabular`]).

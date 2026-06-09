@@ -10,11 +10,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::modality::{ModalityKind, Text};
+use nvisy_core::modality::Text;
 
 use super::TxtHandler;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::Loader;
+use crate::core::{Loader, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
 
 /// Stable [`FormatId`] for the Markdown codec.

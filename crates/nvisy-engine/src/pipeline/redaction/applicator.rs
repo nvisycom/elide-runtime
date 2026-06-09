@@ -222,19 +222,13 @@ fn append_add(audits: &mut [AnyAudit], add: RedactionAddEntity) -> Result<(), Er
     let target = audits.iter_mut().find(|a| {
         matches!(
             (a, kind),
-            (AnyAudit::Text(_), nvisy_core::modality::ModalityKind::Text)
+            (AnyAudit::Text(_), nvisy_codec::core::ModalityKind::Text)
                 | (
                     AnyAudit::Tabular(_),
-                    nvisy_core::modality::ModalityKind::Tabular
+                    nvisy_codec::core::ModalityKind::Tabular
                 )
-                | (
-                    AnyAudit::Image(_),
-                    nvisy_core::modality::ModalityKind::Image
-                )
-                | (
-                    AnyAudit::Audio(_),
-                    nvisy_core::modality::ModalityKind::Audio
-                )
+                | (AnyAudit::Image(_), nvisy_codec::core::ModalityKind::Image)
+                | (AnyAudit::Audio(_), nvisy_codec::core::ModalityKind::Audio)
         )
     });
     let Some(target) = target else {
@@ -426,8 +420,8 @@ impl TryFromAnyRedaction for crate::policy::redaction::AudioRedaction {
 }
 
 /// Return the modality tag for a typed `M`.
-fn modality_of<M: Modality>() -> nvisy_core::modality::ModalityKind {
-    use nvisy_core::modality::ModalityKind;
+fn modality_of<M: Modality>() -> nvisy_codec::core::ModalityKind {
+    use nvisy_codec::core::ModalityKind;
     // We can't pattern-match on a type param; check via TypeId.
     let id = std::any::TypeId::of::<M>();
     if id == std::any::TypeId::of::<Text>() {

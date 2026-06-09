@@ -7,9 +7,9 @@
 //! [`ImageReplacement`]: nvisy_core::redaction::ImageReplacement
 //! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
 
-use nvisy_core::modality::{Image, ModalityKind};
+use nvisy_core::modality::Image;
 
-use crate::core::Codable;
+use crate::core::{Codable, ModalityKind};
 
 impl Codable for Image {
     const KIND: ModalityKind = ModalityKind::Image;

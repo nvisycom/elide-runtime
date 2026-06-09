@@ -19,13 +19,13 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::modality::{ModalityKind, Text, TextData, TextLocation};
+use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::Redactions;
 use serde::{Deserialize, Serialize};
 
 use super::{JsonLoader, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle};
+use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();

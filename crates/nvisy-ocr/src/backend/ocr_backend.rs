@@ -142,7 +142,10 @@ pub trait OcrBackend: Send + Sync + 'static {
     ///
     /// Returns the first error encountered.
     async fn extract_batch(&self, requests: &[OcrRequest<'_>]) -> Result<OcrResponse, Error> {
-        let pending: Vec<_> = requests.iter().map(|req| self.extract(req.clone())).collect();
+        let pending: Vec<_> = requests
+            .iter()
+            .map(|req| self.extract(req.clone()))
+            .collect();
         let results: Vec<Result<OcrResponse, Error>> = futures::future::join_all(pending).await;
         let mut merged: Vec<RawOcrBlock> = Vec::new();
         for r in results {

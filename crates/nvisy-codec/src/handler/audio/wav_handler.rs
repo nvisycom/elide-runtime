@@ -23,13 +23,13 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
 use nvisy_core::Error;
-use nvisy_core::modality::{Audio, AudioData, AudioLocation, ModalityKind};
+use nvisy_core::modality::{Audio, AudioData, AudioLocation};
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use super::{WavLoader, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle};
+use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::handler::audio::sort_redactions_for_audio;
 use crate::{Format, FormatId, LoaderAdapter};
 

@@ -15,8 +15,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_core::modality::ModalityKind;
 
+use super::ModalityKind;
 use crate::content::ContentData;
 use crate::core::{Codable, FormatId, Handler, IndexedHandle, Loader};
 use crate::document::{DocumentHandle, UntypedDocumentHandle};

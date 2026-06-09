@@ -34,9 +34,11 @@
 mod format;
 mod handle;
 mod handler;
+mod modality;
 mod registry;
 
 pub use self::format::FormatId;
 pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId, IndexedHandle};
 pub use self::handler::{Handler, Loader};
+pub use self::modality::ModalityKind;
 pub use self::registry::{CodecRegistry, ErasedLoader, Format, LoaderAdapter, WrapUntyped};

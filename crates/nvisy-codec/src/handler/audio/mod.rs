@@ -14,10 +14,10 @@
 
 use std::cmp::Reverse;
 
-use nvisy_core::modality::{Audio, AudioLocation, ModalityKind};
+use nvisy_core::modality::{Audio, AudioLocation};
 use nvisy_core::redaction::{AudioReplacement, Redactions};
 
-use crate::core::Codable;
+use crate::core::{Codable, ModalityKind};
 
 impl Codable for Audio {
     const KIND: ModalityKind = ModalityKind::Audio;

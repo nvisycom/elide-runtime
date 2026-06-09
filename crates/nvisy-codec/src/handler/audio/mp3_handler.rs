@@ -14,13 +14,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use nvisy_core::Error;
-use nvisy_core::modality::{Audio, AudioData, AudioLocation, ModalityKind};
+use nvisy_core::modality::{Audio, AudioData, AudioLocation};
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::Redactions;
 
 use super::Mp3Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle};
+use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
 
 const TARGET: &str = "mp3-handler";

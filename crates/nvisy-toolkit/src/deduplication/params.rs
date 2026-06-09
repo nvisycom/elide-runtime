@@ -11,18 +11,18 @@
 //! types and aren't pure config. Only the plan-level bundle lives
 //! here.
 //!
-//! [`CalibrationMap`]: crate::deduplication::CalibrationMap
-//! [`DeduplicationStrategy`]: crate::deduplication::DeduplicationStrategy
-//! [`GroupingCriteria`]: crate::deduplication::GroupingCriteria
-//! [`ConflictResolution`]: crate::deduplication::ConflictResolution
+//! [`CalibrationMap`]: super::calibrate::CalibrationMap
+//! [`DeduplicationStrategy`]: super::fuse::DeduplicationStrategy
+//! [`GroupingCriteria`]: super::fuse::GroupingCriteria
+//! [`ConflictResolution`]: super::resolve::ConflictResolution
 
 use nvisy_core::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::deduplication::{
-    CalibrationMap, ConflictResolution, DeduplicationStrategy, GroupingCriteria,
-};
+use super::calibrate::CalibrationMap;
+use super::fuse::{DeduplicationStrategy, GroupingCriteria};
+use super::resolve::ConflictResolution;
 
 /// Configuration for the deduplication phase.
 ///

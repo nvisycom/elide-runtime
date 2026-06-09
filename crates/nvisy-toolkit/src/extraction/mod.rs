@@ -8,11 +8,10 @@
 //! consumer that wants the shipped backends only needs to depend on
 //! `nvisy-toolkit`.
 //!
-//! TOML-deserialisable backend selectors and config bundles
-//! (`OcrBackend`, `OcrExtractorConfig`, `SttExtractorConfig`) live in
-//! `nvisy-engine`'s `pipeline::config::extraction` — they're the
-//! glue that turns config into concrete `Arc<dyn Extractor<M>>`
-//! instances that get inserted into [`ExtractorRegistry`].
+//! TOML-deserialisable backend selectors and config bundles live in
+//! a higher pipeline layer that turns config into concrete
+//! `Arc<dyn Extractor<M>>` instances inserted into
+//! [`ExtractorRegistry`].
 //!
 //! [`Extractor`]: nvisy_core::extraction::Extractor
 

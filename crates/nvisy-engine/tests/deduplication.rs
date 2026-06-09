@@ -18,10 +18,9 @@ use nvisy_core::primitive::{Confidence, ConfidenceThreshold};
 use nvisy_engine::core::DocumentTree;
 use nvisy_engine::document::Document;
 use nvisy_engine::modality::{TextExtraction, TextMetadata};
-use nvisy_toolkit::deduplication::{
-    DeduplicationParams, DeduplicationStrategy, FilterParams, FuseLayer, GroupingCriteria, Layer,
-    LayerContext, LayerPipeline,
-};
+use nvisy_toolkit::deduplication::filter::FilterParams;
+use nvisy_toolkit::deduplication::fuse::{DeduplicationStrategy, FuseLayer, GroupingCriteria};
+use nvisy_toolkit::deduplication::{DeduplicationParams, Layer, LayerContext, LayerPipeline};
 use uuid::Uuid;
 
 fn conf(v: f64) -> Confidence {
@@ -198,7 +197,9 @@ async fn noisy_or_strategy() {
             .test_build(),
     ];
     fuse_with(
-        DeduplicationStrategy::NoisyOr,
+        DeduplicationStrategy::NoisyOr {
+            weights: Default::default(),
+        },
         GroupingCriteria::default(),
         &tree,
         &mut entities,

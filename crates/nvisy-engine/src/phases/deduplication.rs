@@ -13,7 +13,8 @@ use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Audio, Image, Overlap, Tabular, Text};
-use nvisy_toolkit::deduplication::{FilterParams, LayerContext, LayerPipeline, SpanSize};
+use nvisy_toolkit::deduplication::filter::FilterParams;
+use nvisy_toolkit::deduplication::{LayerContext, LayerPipeline, SpanSize};
 use tracing::Instrument;
 use uuid::Uuid;
 

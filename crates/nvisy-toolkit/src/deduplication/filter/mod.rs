@@ -1,9 +1,9 @@
-//! [`FilterLayer`]: drop entities outside the allowed kinds or below
-//! the confidence floor.
+//! [`FilterLayer`]: drop entities outside the allowed kinds or
+//! below the confidence floor.
 //!
-//! Runs after calibration, before group/fuse. Dropped entities are
-//! returned so a forthcoming drop-reason telemetry pass (#182) can
-//! attribute them.
+//! Dropped entities are returned from [`Layer::apply`] for downstream attribution.
+//!
+//! [`Layer::apply`]: super::layer::Layer::apply
 
 use async_trait::async_trait;
 use nvisy_core::entity::{Entity, EntityKind};

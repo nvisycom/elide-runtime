@@ -17,7 +17,7 @@ pub use self::strategy::ConflictResolution;
 use super::layer::{Layer, LayerContext};
 use super::span_size::SpanSize;
 
-const TARGET: &str = "nvisy_engine::deduplication::resolve";
+const TARGET: &str = "nvisy_toolkit::deduplication::resolve";
 
 /// [`Layer`] that resolves cross-kind span overlaps in place per the
 /// given [`ConflictResolution`] strategy.

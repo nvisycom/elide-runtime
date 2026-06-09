@@ -8,8 +8,8 @@
 //! backends produce `Transcription`. Custom backends slot in by
 //! implementing the matching [`Extractor`] trait shape.
 //!
-//! Toolkit holds no `from_config` builder — config-driven construction
-//! is the consumer's concern. The pipeline layer (`nvisy-engine`)
+//! Toolkit holds no `from_config` builder — config-driven
+//! construction is the consumer's concern. A higher pipeline layer
 //! deserialises the `[extractor.*]` sections and inserts the chosen
 //! [`Arc<dyn Extractor<M>>`] into the registry.
 //!

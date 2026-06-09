@@ -18,9 +18,8 @@ use nvisy_core::modality::Text;
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_core::redaction::RedactAt;
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};
-use nvisy_toolkit::deduplication::{
-    DeduplicationParams, FilterParams, LayerContext, LayerPipeline,
-};
+use nvisy_toolkit::deduplication::filter::FilterParams;
+use nvisy_toolkit::deduplication::{DeduplicationParams, LayerContext, LayerPipeline};
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::ingestion::MemoryBuffer;
 use nvisy_toolkit::redaction::RedactionRegistry;

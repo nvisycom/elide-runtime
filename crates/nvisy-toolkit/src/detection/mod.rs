@@ -14,12 +14,10 @@
 //! - [`ner`] — `nvisy_ner`: zero-shot and adapter NER recognizers.
 //! - [`llm`] — `nvisy_llm`: LLM-driven recognizers.
 //!
-//! TOML-deserialisable backend selectors and config bundles
-//! (`NerBackend`, `NerDetection`, `PatternDetection`,
-//! `DetectionConfig`) live in `nvisy-engine`'s
-//! `pipeline::config::detection` — they're the glue that turns config
-//! into concrete `Arc<dyn EntityRecognizer<M>>` instances that get
-//! inserted into [`RecognizerRegistry`].
+//! TOML-deserialisable backend selectors and config bundles live in
+//! a higher pipeline layer that turns config into concrete
+//! `Arc<dyn EntityRecognizer<M>>` instances inserted into
+//! [`RecognizerRegistry`].
 //!
 //! [`EntityRecognizer`]: nvisy_core::recognition::EntityRecognizer
 

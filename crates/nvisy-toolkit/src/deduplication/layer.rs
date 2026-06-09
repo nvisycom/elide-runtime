@@ -19,12 +19,12 @@
 //! holds — `LayerPipeline` stores `Box<dyn Layer<M, R>>` for a
 //! specific `R` chosen at pipeline construction.
 //!
-//! [`CalibrateLayer`]: super::CalibrateLayer
-//! [`FilterLayer`]: super::FilterLayer
-//! [`FuseLayer`]: super::FuseLayer
-//! [`ResolveConflictsLayer`]: super::ResolveConflictsLayer
-//! [`LayerPipeline`]: super::LayerPipeline
-//! [`fuse`]: super::FuseLayer
+//! [`CalibrateLayer`]: super::calibrate::CalibrateLayer
+//! [`FilterLayer`]: super::filter::FilterLayer
+//! [`FuseLayer`]: super::fuse::FuseLayer
+//! [`ResolveConflictsLayer`]: super::resolve::ResolveConflictsLayer
+//! [`LayerPipeline`]: super::pipeline::LayerPipeline
+//! [`fuse`]: super::fuse::FuseLayer
 
 use std::marker::PhantomData;
 

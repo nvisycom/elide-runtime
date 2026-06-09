@@ -9,16 +9,22 @@
 //! # Contents
 //!
 //! - [`RunContext`] — per-run shared state (engines, policies,
-//!   cancellation, dry-run flag).
-//! - [`DocumentTree<M>`] — the typed per-document carrier phases mutate.
+//!   cancellation).
+//! - [`SharedData`] — `Arc`-wrapped run-wide state (registry,
+//!   codecs, policies).
+//! - [`PolicyStore`] — per-modality policy storage + matching.
+//! - [`DocumentTree<M>`] — the typed per-document carrier phases
+//!   mutate.
 //! - [`AnyTree`] — the modality-erased tree at the import boundary;
-//!   the orchestrator matches once and dispatches into typed pipelines.
+//!   the orchestrator matches once and dispatches into typed
+//!   pipelines.
 //! - [`TextAt`] / [`DataAt`] — implemented on [`DocumentTree<M>`]
-//!   so phases that need to resolve a location pass `&tree` directly.
-//! - [`Plan`] — the per-request bundle of per-phase configs phases
-//!   read from `input.plan.X`.
+//!   so phases that need to resolve a location pass `&tree`
+//!   directly.
+//! - [`probe_all`] — concurrent [`Healthcheck`] composition helper.
 //!
 //! [`DataAt`]: nvisy_core::extraction::DataAt
+//! [`Healthcheck`]: nvisy_core::health::Healthcheck
 
 mod context;
 mod health;

@@ -14,7 +14,7 @@
 
 use std::collections::BTreeMap;
 
-use nvisy_codec::content::ContentMetadata;
+use nvisy_codec::content::ContentDescriptor;
 use nvisy_core::Result;
 #[cfg(any(feature = "image", feature = "audio"))]
 use nvisy_core::extraction::Span as ExtractionSpan;
@@ -28,8 +28,7 @@ use nvisy_toolkit::extraction::registry::ImageExtractorOutput;
 use nvisy_toolkit::extraction::{Extractor, ExtractorRegistry};
 use tracing::Instrument;
 
-use crate::core::Plan;
-use crate::core::{DocumentTree, RunContext};
+use crate::core::{DocumentTree, Plan, RunContext};
 use crate::document::{Block, Document, Span};
 use crate::modality::{ImageBlock, TabularBlock, TextBlock, TextContent};
 use crate::pipeline::Extraction;
@@ -116,13 +115,13 @@ impl ExtractionPhase {
         tree: &mut DocumentTree<Audio>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "extraction.audio");
-        let metadata = tree.metadata.clone();
+        let descriptor = tree.descriptor.clone();
         async move {
             populate_audio_doc(
                 &self.engine,
                 &mut tree.root,
                 tree.handle.handler_mut(),
-                &metadata,
+                &descriptor,
                 &plan.extraction,
             )
             .await
@@ -309,7 +308,7 @@ async fn populate_audio_doc(
     engine: &ExtractorRegistry,
     doc: &mut Document<Audio>,
     handle: &mut dyn nvisy_codec::core::IndexedHandle<Audio>,
-    _metadata: &ContentMetadata,
+    _descriptor: &ContentDescriptor,
     plan: &Extraction,
 ) -> Result<()> {
     use nvisy_core::modality::AudioLocation;
@@ -353,7 +352,7 @@ async fn populate_audio_doc(
     _engine: &ExtractorRegistry,
     _doc: &mut Document<Audio>,
     _handle: &mut dyn nvisy_codec::core::IndexedHandle<Audio>,
-    _metadata: &ContentMetadata,
+    _descriptor: &ContentDescriptor,
     _plan: &Extraction,
 ) -> Result<()> {
     Ok(())

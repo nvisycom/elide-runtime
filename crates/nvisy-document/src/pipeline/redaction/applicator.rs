@@ -30,13 +30,11 @@ use jiff::Timestamp;
 use nvisy_core::Error;
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::modality::{Audio, Image, Modality, Tabular, Text};
-
-use crate::modality::AnyLocation;
 use nvisy_core::primitive::Confidence;
 use uuid::Uuid;
 
 use super::override_::{RedactionAddEntity, RedactionOverride};
-use crate::modality::DocumentModality;
+use crate::modality::{AnyLocation, DocumentModality};
 use crate::policy::{Action, AnyRedaction};
 use crate::provenance::{
     AnyAudit, Audit, AuditEntry, Decision, EntityRecord, EntryMetadata, Execution,

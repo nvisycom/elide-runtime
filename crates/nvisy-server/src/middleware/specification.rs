@@ -98,12 +98,7 @@ fn api_docs(mut api: TransformOpenApi<'_>, config: OpenApiConfig) -> TransformOp
 
     api.tag(Tag {
         name: "infra".into(),
-        description: Some("Health checks and analytics".into()),
-        ..Default::default()
-    })
-    .tag(Tag {
-        name: "runs".into(),
-        description: Some("Pipeline execution, inspection, and cancellation".into()),
+        description: Some("Health checks".into()),
         ..Default::default()
     })
     .tag(Tag {
@@ -112,8 +107,22 @@ fn api_docs(mut api: TransformOpenApi<'_>, config: OpenApiConfig) -> TransformOp
         ..Default::default()
     })
     .tag(Tag {
-        name: "contexts".into(),
-        description: Some("Reference-data context upload and management".into()),
+        name: "policies".into(),
+        description: Some("Redaction policy upload and management".into()),
+        ..Default::default()
+    })
+    .tag(Tag {
+        name: "detections".into(),
+        description: Some(
+            "Detection passes: recognise + evaluate without applying redaction".into(),
+        ),
+        ..Default::default()
+    })
+    .tag(Tag {
+        name: "redactions".into(),
+        description: Some(
+            "Redaction passes: apply detection results with optional human overrides".into(),
+        ),
         ..Default::default()
     })
 }

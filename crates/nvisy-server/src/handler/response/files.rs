@@ -22,12 +22,10 @@ pub struct FileEntry {
     /// MIME type (supplied or detected).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
-    /// Content size in bytes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub size: Option<u64>,
-    /// SHA-256 hex digest.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sha256: Option<String>,
+    /// Content size in bytes. Backfilled at registration time.
+    pub size: u64,
+    /// SHA-256 hex digest. Backfilled at registration time.
+    pub sha256: String,
 }
 
 /// Response body for `POST /files`.

@@ -13,7 +13,7 @@
 //! root pipeline finishes.
 
 use nvisy_codec::DocumentHandle;
-use nvisy_codec::content::ContentMetadata;
+use nvisy_codec::content::ContentDescriptor;
 use nvisy_core::modality::{Audio, Image, ModalityKind, Tabular, Text};
 
 use crate::document::Document;
@@ -33,9 +33,11 @@ pub struct DocumentTree<M: DocumentModality> {
     /// [`IndexedHandle::read`]: nvisy_codec::core::IndexedHandle::read
     /// [`IndexedHandle::redact`]: nvisy_codec::core::IndexedHandle::redact
     pub handle: DocumentHandle<M>,
-    /// Content metadata (MIME type, filename, …) from the original
-    /// upload. Policy evaluation matches rules against fields here.
-    pub metadata: ContentMetadata,
+    /// Caller-supplied descriptor (filename, MIME hint, extras) from
+    /// the original upload. Policy evaluation matches rules against
+    /// fields here (e.g. `Condition::Metadata { key, value }` reads
+    /// `descriptor.get_extra(key)`).
+    pub descriptor: ContentDescriptor,
     /// Nested embedded children. Populated for rich text sources
     /// (PDF, DOCX) by the importer, who pulls embedded image
     /// children out of the rich handler at import time. Empty for
@@ -46,11 +48,15 @@ pub struct DocumentTree<M: DocumentModality> {
 impl<M: DocumentModality> DocumentTree<M> {
     /// Construct a new typed tree from its parts. `embeds` starts empty;
     /// the importer is responsible for populating it for rich sources.
-    pub fn new(root: Document<M>, handle: DocumentHandle<M>, metadata: ContentMetadata) -> Self {
+    pub fn new(
+        root: Document<M>,
+        handle: DocumentHandle<M>,
+        descriptor: ContentDescriptor,
+    ) -> Self {
         Self {
             root,
             handle,
-            metadata,
+            descriptor,
             embeds: Vec::new(),
         }
     }

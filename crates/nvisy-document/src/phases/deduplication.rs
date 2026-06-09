@@ -17,8 +17,7 @@ use nvisy_toolkit::deduplication::{FilterParams, LayerContext, LayerPipeline, Sp
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::core::Plan;
-use crate::core::{DocumentTree, RunContext};
+use crate::core::{DocumentTree, Plan, RunContext};
 use crate::modality::DocumentModality;
 use crate::pipeline::{DeduplicationParams, Detection};
 use crate::provenance::EntityRecord;

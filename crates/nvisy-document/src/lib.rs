@@ -11,4 +11,6 @@ pub mod policy;
 pub mod provenance;
 pub mod validation;
 
-pub use nvisy_codec::content::{Content, ContentData, ContentMetadata, ContentSource};
+pub use nvisy_codec::content::{
+    Content, ContentData, ContentDescriptor, ContentDigest, ContentRecord, ContentSource,
+};

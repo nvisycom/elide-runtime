@@ -22,12 +22,11 @@ mod status;
 
 // `apply_overrides` is used inside `pipeline.rs` via
 // `super::applicator::apply_overrides`; no public re-export.
-pub(crate) use self::pipeline::{RedactionEngineState, RedactionPipeline};
-
 pub use self::input::RedactionInput;
 pub use self::override_::{
     RedactionAddEntity, RedactionDecision, RedactionOverride, validate_overrides,
 };
+pub(crate) use self::pipeline::{RedactionEngineState, RedactionPipeline};
 pub use self::result::{RedactionEntry, RedactionFilter, RedactionResult, RedactionSnapshot};
 pub(crate) use self::state::RedactionState;
 pub use self::status::RedactionStatus;

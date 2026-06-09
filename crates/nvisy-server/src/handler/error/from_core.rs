@@ -10,14 +10,8 @@ use super::http_kind::ErrorKind;
 impl From<CoreError> for Error<'static> {
     fn from(err: CoreError) -> Self {
         let kind = match err.kind() {
-            CoreErrorKind::Validation => {
-                if err.component() == Some("run") {
-                    ErrorKind::Conflict
-                } else {
-                    ErrorKind::BadRequest
-                }
-            }
-            CoreErrorKind::Serialization => ErrorKind::BadRequest,
+            CoreErrorKind::Validation | CoreErrorKind::Serialization => ErrorKind::BadRequest,
+            CoreErrorKind::Conflict => ErrorKind::Conflict,
             CoreErrorKind::Policy => ErrorKind::Forbidden,
             CoreErrorKind::NotFound => ErrorKind::NotFound,
             CoreErrorKind::Connection
@@ -49,9 +43,11 @@ mod tests {
     }
 
     #[test]
-    fn from_nvisy_core_validation_run_conflict() {
-        let core_err = CoreError::new(CoreErrorKind::Validation, "run has already finished")
-            .with_component("run");
+    fn from_nvisy_core_conflict() {
+        let core_err = CoreError::conflict(
+            "detection already in terminal state",
+            "nvisy_document::detection::state",
+        );
         let err = Error::from(core_err);
         assert_eq!(err.kind(), ErrorKind::Conflict);
     }

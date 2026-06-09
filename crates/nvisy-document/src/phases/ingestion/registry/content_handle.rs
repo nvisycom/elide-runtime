@@ -1,10 +1,12 @@
-//! [`ContentHandle`]: async handle to stored content data and metadata.
+//! [`ContentHandle`]: async handle to stored content data and record.
 
 use std::fmt;
 
 use bytes::Bytes;
 use fjall::Keyspace;
-use nvisy_codec::content::{Content, ContentData, ContentMetadata, ContentSource};
+use nvisy_codec::content::{
+    Content, ContentData, ContentDescriptor, ContentDigest, ContentRecord, ContentSource,
+};
 use nvisy_core::Result;
 use uuid::Uuid;
 
@@ -13,8 +15,8 @@ use super::fjall_ext::{FjallKeyspaceExt, blocking, not_found};
 
 /// Lightweight handle to a content entry stored in the registry.
 ///
-/// Holds references to the fjall keyspaces so it can read content data
-/// and metadata on demand.
+/// Holds references to the fjall keyspaces so it can read content
+/// data and its persisted [`ContentRecord`] on demand.
 #[derive(Clone)]
 pub struct ContentHandle {
     actor_id: Uuid,
@@ -68,21 +70,35 @@ impl ContentHandle {
         .await
     }
 
-    /// Reads the content metadata from the store.
-    pub async fn metadata(&self) -> Result<ContentMetadata> {
+    /// Reads the persisted [`ContentRecord`] (descriptor + digest).
+    ///
+    /// Returns a default record (empty descriptor, zero digest) when
+    /// no record was stored — historically the metadata keyspace can
+    /// hold entries written before the record format existed.
+    pub async fn record(&self) -> Result<ContentRecord> {
         let key = CompositeKey::new(self.actor_id, self.content_source.as_uuid());
         let ks = self.content_meta_ks.clone();
 
         blocking(move || match ks.get_bytes(key)? {
             Some(bytes) => Ok(serde_json::from_slice(&bytes)?),
-            None => Ok(ContentMetadata::default()),
+            None => Ok(ContentRecord {
+                descriptor: ContentDescriptor::default(),
+                digest: ContentDigest {
+                    size: 0,
+                    sha256: String::new(),
+                    detected_content_type: None,
+                },
+            }),
         })
         .await
     }
 
-    /// Reads both content data and metadata, returning a full [`Content`].
+    /// Reads bytes + descriptor, returning a [`Content`] suitable for
+    /// re-importing through the codec pipeline. The digest half of
+    /// the record is dropped — codec resolution only needs the
+    /// caller-supplied bits (extension, MIME hint).
     pub async fn content(&self) -> Result<Content> {
-        let (data, metadata) = tokio::try_join!(self.content_data(), self.metadata())?;
-        Ok(Content::with_metadata(data, metadata))
+        let (data, record) = tokio::try_join!(self.content_data(), self.record())?;
+        Ok(Content::with_descriptor(data, record.descriptor))
     }
 }

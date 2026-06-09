@@ -92,7 +92,7 @@ impl Exporter {
             let content = Content::new(data);
             shared
                 .registry
-                .register_content(shared.actor_id, content)
+                .register_content(shared.actor_id, content, None)
                 .await?;
             tracing::debug!(target: TARGET, %content_id, "wrote exported content to registry");
         }

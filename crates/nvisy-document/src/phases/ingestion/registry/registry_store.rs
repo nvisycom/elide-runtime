@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use fjall::{Database, Keyspace};
-use nvisy_codec::content::{Content, ContentMetadata, ContentSource};
+use nvisy_codec::content::{
+    Content, ContentDescriptor, ContentDigest, ContentRecord, ContentSource,
+};
 use nvisy_core::Result;
 use nvisy_core::modality::Text;
 use serde::{Deserialize, Serialize};
@@ -102,37 +104,53 @@ impl Registry {
         &self.inner.policy_cache
     }
 
-    /// Registers content (bytes + metadata).
-    #[tracing::instrument(target = TARGET, name = "registry.register_content", skip(self, content), fields(%actor_id))]
+    /// Registers content: stores the raw bytes, builds the
+    /// [`ContentRecord`] (descriptor + freshly computed digest), and
+    /// optionally attaches user-supplied annotations — all in one
+    /// durable write.
+    ///
+    /// All three keyspaces (content, content_meta, annotations) are
+    /// updated inside one `blocking` closure and committed by a
+    /// single `db.sync()`, so a crash mid-call leaves either every
+    /// write or none — never an orphan content blob with missing
+    /// metadata or annotations.
+    #[tracing::instrument(target = TARGET, name = "registry.register_content", skip(self, content, annotations), fields(%actor_id))]
     pub async fn register_content(
         &self,
         actor_id: Uuid,
         content: Content,
+        annotations: Option<&AnyAnnotations>,
     ) -> Result<ContentHandle> {
         let content_source = content.content_source();
         let key = CompositeKey::new(actor_id, content_source.as_uuid());
         let data = content.as_bytes().to_vec();
 
-        let (content_data, content_metadata) = content.into_parts();
-        let mut meta = content_metadata.unwrap_or_default();
-        if meta.detected_content_type.is_none() {
-            meta.detected_content_type = content_data.detect_mime();
-        }
-        if meta.size.is_none() {
-            meta.size = Some(content_data.size() as u64);
-        }
-        if meta.sha256.is_none() {
-            meta.sha256 = Some(content_data.sha256_hex());
-        }
+        let (content_data, descriptor) = content.into_parts();
+        let descriptor = descriptor.unwrap_or_default();
+        let digest = ContentDigest {
+            size: content_data.size() as u64,
+            sha256: content_data.sha256_hex(),
+            detected_content_type: content_data.detect_mime(),
+        };
+        let record = ContentRecord { descriptor, digest };
 
-        let meta_bytes = serde_json::to_vec(&meta)?;
+        let record_bytes = serde_json::to_vec(&record)?;
+        let annotations_bytes = match annotations {
+            Some(a) if !a.is_empty() => Some(serde_json::to_vec(a)?),
+            _ => None,
+        };
+
         let content_ks = self.inner.content_ks.clone();
         let meta_ks = self.inner.content_meta_ks.clone();
+        let annotations_ks = self.inner.annotations_ks.clone();
         let db = self.inner.db.clone();
 
         blocking(move || {
             content_ks.put(key, &data)?;
-            meta_ks.put(key, &meta_bytes)?;
+            meta_ks.put(key, &record_bytes)?;
+            if let Some(bytes) = annotations_bytes {
+                annotations_ks.put(key, &bytes)?;
+            }
             db.sync()
         })
         .await?;
@@ -225,12 +243,13 @@ impl Registry {
         blocking(move || ks.resource_ids(actor_id)).await
     }
 
-    /// Lists all content IDs with metadata for the given actor.
-    #[tracing::instrument(target = TARGET, name = "registry.list_content_with_metadata", skip(self), fields(%actor_id))]
-    pub async fn list_content_with_metadata(
+    /// Lists all content IDs with their stored records for the given
+    /// actor. Returns `(content_id, record)` pairs.
+    #[tracing::instrument(target = TARGET, name = "registry.list_content_with_record", skip(self), fields(%actor_id))]
+    pub async fn list_content_with_record(
         &self,
         actor_id: Uuid,
-    ) -> Result<Vec<(Uuid, ContentMetadata)>> {
+    ) -> Result<Vec<(Uuid, ContentRecord)>> {
         let content_ks = self.inner.content_ks.clone();
         let meta_ks = self.inner.content_meta_ks.clone();
 
@@ -239,11 +258,18 @@ impl Registry {
             let mut result = Vec::with_capacity(ids.len());
             for id in ids {
                 let key = CompositeKey::new(actor_id, id);
-                let meta = match meta_ks.get_bytes(key)? {
+                let record = match meta_ks.get_bytes(key)? {
                     Some(bytes) => serde_json::from_slice(&bytes)?,
-                    None => ContentMetadata::default(),
+                    None => ContentRecord {
+                        descriptor: ContentDescriptor::default(),
+                        digest: ContentDigest {
+                            size: 0,
+                            sha256: String::new(),
+                            detected_content_type: None,
+                        },
+                    },
                 };
-                result.push((id, meta));
+                result.push((id, record));
             }
             Ok(result)
         })
@@ -537,7 +563,11 @@ mod tests {
         let (_temp, registry) = temp_registry()?;
         let actor = Uuid::now_v7();
         let handle = registry
-            .register_content(actor, Content::new(ContentData::from("Hello, world!")))
+            .register_content(
+                actor,
+                Content::new(ContentData::from("Hello, world!")),
+                None,
+            )
             .await?;
         let data = handle.content_data().await?;
         assert_eq!(data.as_str().unwrap(), "Hello, world!");
@@ -550,7 +580,11 @@ mod tests {
         let actor_a = Uuid::now_v7();
         let actor_b = Uuid::now_v7();
         let handle = registry
-            .register_content(actor_a, Content::new(ContentData::from("actor A only")))
+            .register_content(
+                actor_a,
+                Content::new(ContentData::from("actor A only")),
+                None,
+            )
             .await?;
         let id = handle.content_source().as_uuid();
         assert_eq!(
@@ -567,13 +601,13 @@ mod tests {
         let actor_a = Uuid::now_v7();
         let actor_b = Uuid::now_v7();
         registry
-            .register_content(actor_a, Content::new(ContentData::from("a1")))
+            .register_content(actor_a, Content::new(ContentData::from("a1")), None)
             .await?;
         registry
-            .register_content(actor_a, Content::new(ContentData::from("a2")))
+            .register_content(actor_a, Content::new(ContentData::from("a2")), None)
             .await?;
         registry
-            .register_content(actor_b, Content::new(ContentData::from("b1")))
+            .register_content(actor_b, Content::new(ContentData::from("b1")), None)
             .await?;
         assert_eq!(registry.list_content(actor_a).await?.len(), 2);
         assert_eq!(registry.list_content(actor_b).await?.len(), 1);
@@ -586,7 +620,7 @@ mod tests {
         let actor = Uuid::now_v7();
         let content = Content::new(ContentData::from("delete me"));
         let id = content.content_source().as_uuid();
-        registry.register_content(actor, content).await?;
+        registry.register_content(actor, content, None).await?;
         registry.unregister_content(actor, id).await?;
         assert_eq!(
             registry.read_content(actor, id).await.unwrap_err().kind(),
@@ -600,10 +634,10 @@ mod tests {
         let (_temp, registry) = temp_registry()?;
         let actor = Uuid::now_v7();
         registry
-            .register_content(actor, Content::new(ContentData::from("first")))
+            .register_content(actor, Content::new(ContentData::from("first")), None)
             .await?;
         registry
-            .register_content(actor, Content::new(ContentData::from("second")))
+            .register_content(actor, Content::new(ContentData::from("second")), None)
             .await?;
         assert_eq!(registry.unregister_all_content(actor).await?, 2);
         assert!(registry.list_content(actor).await?.is_empty());
@@ -619,7 +653,7 @@ mod tests {
         let id = content.content_source().as_uuid();
 
         let registry = Registry::open(&path)?;
-        registry.register_content(actor, content).await?;
+        registry.register_content(actor, content, None).await?;
         drop(registry);
 
         let registry = Registry::open(&path)?;

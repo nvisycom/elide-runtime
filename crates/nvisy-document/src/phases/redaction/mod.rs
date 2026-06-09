@@ -34,7 +34,7 @@
 pub mod phase;
 mod registries;
 
-use nvisy_codec::content::ContentMetadata;
+use nvisy_codec::content::ContentDescriptor;
 use nvisy_core::Result;
 use nvisy_core::entity::is_excluded;
 use nvisy_core::extraction::{DataAt, TextAt};
@@ -58,7 +58,7 @@ pub(crate) const TARGET: &str = "nvisy_document::redaction";
 pub(crate) async fn run_redaction<M>(
     default_threshold: ConfidenceThreshold,
     tree: &mut DocumentTree<M>,
-    metadata: &ContentMetadata,
+    descriptor: &ContentDescriptor,
     policies: &PolicyStore,
     registry: &RedactionRegistry<M>,
 ) -> Result<()>
@@ -103,7 +103,7 @@ where
         if !default_threshold.admits(record.entity.confidence) {
             continue;
         }
-        let decision = policies.resolve::<M>(&record.entity, &document_labels, metadata);
+        let decision = policies.resolve::<M>(&record.entity, &document_labels, descriptor);
         let entry = match decision {
             Decision::Redact {
                 policy_id,

@@ -34,11 +34,10 @@ use crate::service::ServiceState;
 ///
 /// ```text
 /// /health                                  (unversioned)
-/// /api/v1/analytics
-/// /api/v1/files[/{id}]
-/// /api/v1/policies[/{id}]
-/// /api/v1/detections[/{id}[/cancel]]
-/// /api/v1/redactions[/{id}[/cancel]]
+/// /api/v1/files[/{id}]                     (DELETE /files removes every file)
+/// /api/v1/policies[/{id}]                  (DELETE /policies removes every policy)
+/// /api/v1/detections[/{id}[/cancel]]       (DELETE /detections removes every finished detection)
+/// /api/v1/redactions[/{id}[/cancel]]       (DELETE /redactions removes every finished redaction)
 /// /api/v1/openapi.json                     (added by OpenAPI middleware)
 /// /docs                                    (added by OpenAPI middleware)
 /// ```

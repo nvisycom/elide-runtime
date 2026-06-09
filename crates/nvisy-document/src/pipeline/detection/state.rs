@@ -129,13 +129,13 @@ impl DetectionState {
     ///   share an error kind on purpose — actor-scoping leaks
     ///   information if "exists for other actor" is
     ///   distinguishable from "does not exist."
-    /// - [`ErrorKind::Validation`] when the detection exists for
+    /// - [`ErrorKind::Conflict`] when the detection exists for
     ///   this actor but is not in a terminal succeeded /
     ///   partial-failure state. Includes the current status in
     ///   the message so the caller can poll.
     ///
     /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-    /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
+    /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
     pub async fn result(&self, actor_id: Uuid, id: Uuid) -> Result<DetectionResult, Error> {
         let guard = self.inner.read().await;
         let Some(record) = guard.get(&id) else {
@@ -154,7 +154,7 @@ impl DetectionState {
             record.status,
             DetectionStatus::Succeeded | DetectionStatus::PartialFailure
         ) {
-            return Err(Error::validation(
+            return Err(Error::conflict(
                 format!(
                     "detection {id} not ready for redaction (status: {:?})",
                     record.status
@@ -225,11 +225,11 @@ impl DetectionState {
     ///
     /// - [`ErrorKind::NotFound`] when the detection does not
     ///   exist or belongs to a different actor.
-    /// - [`ErrorKind::Validation`] when the detection is already
+    /// - [`ErrorKind::Conflict`] when the detection is already
     ///   in a terminal state.
     ///
     /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-    /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
+    /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
     pub async fn cancel(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         let mut guard = self.inner.write().await;
         let Some(record) = guard.get_mut(&id) else {
@@ -245,7 +245,7 @@ impl DetectionState {
             ));
         }
         if record.status.is_terminal() {
-            return Err(Error::validation(
+            return Err(Error::conflict(
                 format!(
                     "detection {id} already in terminal state {:?}",
                     record.status
@@ -265,11 +265,11 @@ impl DetectionState {
     ///
     /// - [`ErrorKind::NotFound`] when the detection does not
     ///   exist or belongs to a different actor.
-    /// - [`ErrorKind::Validation`] when the detection is still
+    /// - [`ErrorKind::Conflict`] when the detection is still
     ///   active.
     ///
     /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-    /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
+    /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
     pub async fn delete(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         let mut guard = self.inner.write().await;
         let Some(record) = guard.get(&id) else {
@@ -285,7 +285,7 @@ impl DetectionState {
             ));
         }
         if !record.status.is_terminal() {
-            return Err(Error::validation(
+            return Err(Error::conflict(
                 format!("detection {id} cannot be deleted while {:?}", record.status),
                 TARGET,
             ));

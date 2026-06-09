@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_codec::content::{ContentData, ContentMetadata, ContentSource};
+use nvisy_codec::content::{ContentData, ContentDescriptor, ContentSource};
 use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
 use nvisy_core::entity::{Entity, ModelProvenance, TrailProvenance, TrailStep, TrailStepKind};
 use nvisy_core::extraction::TextAt;
@@ -56,8 +56,8 @@ async fn tree_from(text: &str) -> DocumentTree<Text> {
         },
         source,
     );
-    let metadata = ContentMetadata::new().with_content_type("text/plain");
-    DocumentTree::new(doc, handle, metadata)
+    let descriptor = ContentDescriptor::new().with_content_type("text/plain");
+    DocumentTree::new(doc, handle, descriptor)
 }
 
 async fn fuse_with(

@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use nvisy_codec::content::ContentMetadata;
+use nvisy_codec::content::ContentDescriptor;
 use nvisy_core::entity::Entity;
 use type_map::concurrent::TypeMap;
 use uuid::Uuid;
@@ -100,12 +100,12 @@ impl PolicyStore {
         &self,
         entity: &Entity<M>,
         document_labels: &[&str],
-        metadata: &ContentMetadata,
+        descriptor: &ContentDescriptor,
     ) -> Decision<M> {
         for (policy_idx, policy) in self.get::<M>().iter().enumerate() {
             let policy_index = u32::try_from(policy_idx).unwrap_or(u32::MAX);
             for (rule_idx, rule) in policy.rules.iter().enumerate() {
-                if !rule_matches(rule, entity, document_labels, metadata) {
+                if !rule_matches(rule, entity, document_labels, descriptor) {
                     continue;
                 }
                 let rule_index = u32::try_from(rule_idx).unwrap_or(u32::MAX);
@@ -182,20 +182,20 @@ fn rule_matches<M: DocumentModality>(
     rule: &PolicyRule<M>,
     entity: &Entity<M>,
     document_labels: &[&str],
-    metadata: &ContentMetadata,
+    descriptor: &ContentDescriptor,
 ) -> bool {
     rule.enabled
         && rule.selector.matches(entity)
         && rule
             .conditions
             .iter()
-            .all(|c| condition_matches(c, document_labels, metadata))
+            .all(|c| condition_matches(c, document_labels, descriptor))
 }
 
 fn condition_matches(
     condition: &Condition,
     document_labels: &[&str],
-    metadata: &ContentMetadata,
+    descriptor: &ContentDescriptor,
 ) -> bool {
     match condition {
         Condition::Labels { labels } => labels.iter().all(|label| {
@@ -203,7 +203,7 @@ fn condition_matches(
                 .iter()
                 .any(|doc| doc.eq_ignore_ascii_case(label))
         }),
-        Condition::Metadata { key, value } => match metadata.get_extra(key) {
+        Condition::Metadata { key, value } => match descriptor.get_extra(key) {
             Some(actual) => match value {
                 Some(expected) => actual.as_str().is_some_and(|s| s == expected),
                 None => true,
@@ -274,9 +274,9 @@ mod tests {
     fn resolve_empty_chain_returns_fallthrough() {
         let store = PolicyStore::new();
         let entity = Entity::<Text>::test_builder(0, 4).test_build();
-        let metadata = ContentMetadata::new();
+        let descriptor = ContentDescriptor::new();
         assert!(matches!(
-            store.resolve::<Text>(&entity, &[], &metadata),
+            store.resolve::<Text>(&entity, &[], &descriptor),
             Decision::Fallthrough
         ));
     }

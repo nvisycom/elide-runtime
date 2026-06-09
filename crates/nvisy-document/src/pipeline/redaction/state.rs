@@ -160,11 +160,11 @@ impl RedactionState {
     ///
     /// - [`ErrorKind::NotFound`] when the redaction does not
     ///   exist or belongs to a different actor.
-    /// - [`ErrorKind::Validation`] when the redaction is already
+    /// - [`ErrorKind::Conflict`] when the redaction is already
     ///   in a terminal state.
     ///
     /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-    /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
+    /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
     pub async fn cancel(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         let mut guard = self.inner.write().await;
         let Some(record) = guard.get_mut(&id) else {
@@ -180,7 +180,7 @@ impl RedactionState {
             ));
         }
         if record.status.is_terminal() {
-            return Err(Error::validation(
+            return Err(Error::conflict(
                 format!(
                     "redaction {id} already in terminal state {:?}",
                     record.status
@@ -200,11 +200,11 @@ impl RedactionState {
     ///
     /// - [`ErrorKind::NotFound`] when the redaction does not
     ///   exist or belongs to a different actor.
-    /// - [`ErrorKind::Validation`] when the redaction is still
+    /// - [`ErrorKind::Conflict`] when the redaction is still
     ///   active.
     ///
     /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-    /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
+    /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
     pub async fn delete(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         let mut guard = self.inner.write().await;
         let Some(record) = guard.get(&id) else {
@@ -220,7 +220,7 @@ impl RedactionState {
             ));
         }
         if !record.status.is_terminal() {
-            return Err(Error::validation(
+            return Err(Error::conflict(
                 format!("redaction {id} cannot be deleted while {:?}", record.status),
                 TARGET,
             ));

@@ -21,7 +21,7 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_document::phases::ingestion::registry::Registry;
-use nvisy_document::{Content, ContentData, ContentMetadata};
+use nvisy_document::{Content, ContentData, ContentDescriptor};
 
 use super::error::Result;
 use super::request::{ContentPath, NewFile, Pagination};
@@ -49,29 +49,23 @@ async fn upload_file(
 
     let content_data = ContentData::from(bytes);
 
-    let mut metadata = match req.filename {
-        Some(ref name) => ContentMetadata::with_path(name),
-        None => ContentMetadata::new(),
+    let mut descriptor = match req.filename {
+        Some(ref name) => ContentDescriptor::with_path(name),
+        None => ContentDescriptor::new(),
     };
     if let Some(ref mime) = req.content_type {
-        metadata.content_type = Some(mime.clone());
+        descriptor.content_type = Some(mime.clone());
     }
     if let Some(ref name) = req.filename {
-        metadata.filename = Some(PathBuf::from(name));
+        descriptor.filename = Some(PathBuf::from(name));
     }
 
-    let content = Content::with_metadata(content_data, metadata);
+    let content = Content::with_descriptor(content_data, descriptor);
     let id = registry
-        .register_content(actor_id, content)
+        .register_content(actor_id, content, Some(&req.annotations))
         .await?
         .content_source()
         .as_uuid();
-
-    if !req.annotations.is_empty() {
-        registry
-            .store_annotations(actor_id, id, &req.annotations)
-            .await?;
-    }
 
     tracing::info!(
         target: TARGET,
@@ -107,19 +101,17 @@ async fn download_file(
 ) -> Result<Json<File>> {
     let handle = registry.read_content(actor_id, id).await?;
     let data = handle.content_data().await?;
-    let metadata = handle.metadata().await?;
-    let content = Content::with_metadata(data, metadata);
+    let record = handle.record().await?;
 
-    tracing::debug!(target: TARGET, size = content.size(), "file downloaded");
+    tracing::debug!(target: TARGET, size = data.size(), "file downloaded");
 
-    let meta = content.metadata();
     Ok(Json(File {
         id,
-        content: Base64::encode(content.as_bytes()),
-        content_type: meta.and_then(|m| m.content_type()).map(String::from),
-        filename: content.filename().map(|p| p.to_string_lossy().to_string()),
-        size: content.size() as u64,
-        sha256: content.data().sha256_hex(),
+        content: Base64::encode(data.as_bytes()),
+        content_type: record.content_type().map(String::from),
+        filename: record.filename_lossy(),
+        size: record.digest.size,
+        sha256: record.digest.sha256,
     }))
 }
 
@@ -141,15 +133,15 @@ async fn list_files(
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<FileList>> {
-    let entries = registry.list_content_with_metadata(actor_id).await?;
+    let entries = registry.list_content_with_record(actor_id).await?;
     let summaries: Vec<FileEntry> = entries
         .into_iter()
-        .map(|(id, meta)| FileEntry {
+        .map(|(id, record)| FileEntry {
             id,
-            content_type: meta.content_type().map(String::from),
-            filename: meta.filename.map(|p| p.to_string_lossy().to_string()),
-            size: meta.size,
-            sha256: meta.sha256,
+            content_type: record.content_type().map(String::from),
+            filename: record.filename_lossy(),
+            size: record.digest.size,
+            sha256: record.digest.sha256,
         })
         .collect();
     let page = pagination.paginate(summaries);

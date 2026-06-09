@@ -14,8 +14,7 @@
 use nvisy_core::Result;
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 
-use crate::core::Plan;
-use crate::core::{DocumentTree, RunContext};
+use crate::core::{DocumentTree, Plan, RunContext};
 use crate::phases::redaction::registries::RedactionRegistries;
 use crate::phases::redaction::run_redaction;
 use crate::pipeline::RedactionConfig;
@@ -48,8 +47,15 @@ impl RedactionPhase {
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
         let policies = &ctx.shared().policies;
-        let metadata = tree.metadata.clone();
-        run_redaction(threshold, tree, &metadata, policies, &self.registries.text).await
+        let descriptor = tree.descriptor.clone();
+        run_redaction(
+            threshold,
+            tree,
+            &descriptor,
+            policies,
+            &self.registries.text,
+        )
+        .await
     }
 
     pub(crate) async fn apply_image(
@@ -63,8 +69,15 @@ impl RedactionPhase {
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
         let policies = &ctx.shared().policies;
-        let metadata = tree.metadata.clone();
-        run_redaction(threshold, tree, &metadata, policies, &self.registries.image).await
+        let descriptor = tree.descriptor.clone();
+        run_redaction(
+            threshold,
+            tree,
+            &descriptor,
+            policies,
+            &self.registries.image,
+        )
+        .await
     }
 
     pub(crate) async fn apply_audio(
@@ -78,8 +91,15 @@ impl RedactionPhase {
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
         let policies = &ctx.shared().policies;
-        let metadata = tree.metadata.clone();
-        run_redaction(threshold, tree, &metadata, policies, &self.registries.audio).await
+        let descriptor = tree.descriptor.clone();
+        run_redaction(
+            threshold,
+            tree,
+            &descriptor,
+            policies,
+            &self.registries.audio,
+        )
+        .await
     }
 
     /// Tabular redaction is not implemented yet — there's no

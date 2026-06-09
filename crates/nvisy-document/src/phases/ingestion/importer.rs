@@ -25,7 +25,7 @@
 use std::mem;
 use std::sync::Arc;
 
-use nvisy_codec::content::{Content, ContentData, ContentMetadata, ContentSource};
+use nvisy_codec::content::{Content, ContentData, ContentDescriptor, ContentSource};
 use nvisy_codec::{CodecRegistry, UntypedDocumentHandle};
 use nvisy_core::entity::{Annotation, LabelAnnotation};
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
@@ -107,11 +107,11 @@ impl Importer {
             "decoded document",
         );
 
-        let (data, metadata) = content.into_parts();
-        let metadata = metadata.unwrap_or_default();
+        let (data, descriptor) = content.into_parts();
+        let descriptor = descriptor.unwrap_or_default();
         let source = data.content_source;
 
-        let tree = build_tree(untyped, source, metadata, annotations);
+        let tree = build_tree(untyped, source, descriptor, annotations);
         tracing::debug!(
             target: TARGET,
             modality = tree.modality_name(),
@@ -151,7 +151,7 @@ async fn decode(registry: &CodecRegistry, content: &Content) -> Result<UntypedDo
 fn build_tree(
     untyped: UntypedDocumentHandle,
     source: ContentSource,
-    metadata: ContentMetadata,
+    descriptor: ContentDescriptor,
     mut annotations: AnyAnnotations,
 ) -> AnyTree {
     match untyped {
@@ -162,7 +162,7 @@ fn build_tree(
                 mem::take(&mut annotations.text),
                 annotations.labels.clone(),
             );
-            AnyTree::Text(DocumentTree::new(doc, handle, metadata))
+            AnyTree::Text(DocumentTree::new(doc, handle, descriptor))
         }
         UntypedDocumentHandle::Tabular(handle) => {
             let mut doc = Document::<Tabular>::new(
@@ -174,7 +174,7 @@ fn build_tree(
                 mem::take(&mut annotations.tabular),
                 annotations.labels.clone(),
             );
-            AnyTree::Tabular(DocumentTree::new(doc, handle, metadata))
+            AnyTree::Tabular(DocumentTree::new(doc, handle, descriptor))
         }
         UntypedDocumentHandle::Image(handle) => {
             let mut doc =
@@ -184,7 +184,7 @@ fn build_tree(
                 mem::take(&mut annotations.image),
                 annotations.labels.clone(),
             );
-            AnyTree::Image(DocumentTree::new(doc, handle, metadata))
+            AnyTree::Image(DocumentTree::new(doc, handle, descriptor))
         }
         UntypedDocumentHandle::Audio(handle) => {
             let mut doc =
@@ -194,7 +194,7 @@ fn build_tree(
                 mem::take(&mut annotations.audio),
                 annotations.labels.clone(),
             );
-            AnyTree::Audio(DocumentTree::new(doc, handle, metadata))
+            AnyTree::Audio(DocumentTree::new(doc, handle, descriptor))
         }
     }
 }
@@ -243,10 +243,10 @@ fn attach_annotations<M: DocumentModality>(
     doc.labels = labels;
 }
 
-/// Replace the data payload of a [`Content`] while preserving its metadata.
+/// Replace the data payload of a [`Content`] while preserving its descriptor.
 fn replace_data(content: Content, data: ContentData) -> Content {
     match content.into_parts().1 {
-        Some(meta) => Content::with_metadata(data, meta),
+        Some(descriptor) => Content::with_descriptor(data, descriptor),
         None => Content::new(data),
     }
 }

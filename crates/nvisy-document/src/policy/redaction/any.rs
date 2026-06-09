@@ -15,10 +15,9 @@
 //! [`RedactionOverride::Replace`]: crate::pipeline::redaction::RedactionOverride::Replace
 //! [`RedactionAddEntity`]: crate::pipeline::redaction::RedactionAddEntity
 
+use nvisy_core::modality::ModalityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use nvisy_core::modality::ModalityKind;
 
 use super::audio::AudioRedaction;
 use super::image::ImageRedaction;

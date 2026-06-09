@@ -18,6 +18,7 @@
 use nvisy_codec::core::ModalityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum::EnumTryAs;
 
 use super::audio::AudioRedaction;
 use super::image::ImageRedaction;
@@ -30,7 +31,8 @@ use super::text::TextRedaction;
 /// [`AudioRedaction`] / [`TabularRedaction`] enums directly inside
 /// policy rules where the modality is known at compile time;
 /// reach for `AnyRedaction` only at the dynamic API boundary.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumTryAs)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum AnyRedaction {
     Text(TextRedaction),

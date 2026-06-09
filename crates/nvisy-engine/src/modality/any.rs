@@ -4,6 +4,7 @@ use nvisy_codec::core::ModalityKind;
 use nvisy_core::modality::{AudioLocation, ImageLocation, TabularLocation, TextLocation};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum::EnumTryAs;
 
 /// Type-erased [`Modality::Location`] carrying both the modality
 /// tag and the typed coordinate value. Used by the redaction
@@ -18,7 +19,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 ///
 /// [`Modality::Location`]: nvisy_core::modality::Modality::Location
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, EnumTryAs)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum AnyLocation {

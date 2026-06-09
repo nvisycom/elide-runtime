@@ -6,13 +6,14 @@
 //! [`DeduplicationStrategy`], [`GroupingCriteria`],
 //! [`ConflictResolution`]) into a single deserialisable shape
 //! callers set once per request.
-//! [`LayerPipeline::from_params`](super::pipeline::LayerPipeline::from_params)
-//! reads it and assembles the four-step pipeline.
+//! [`LayerPipeline::from_params`] reads it and assembles the
+//! four-step pipeline.
 //!
 //! [`CalibrationMap`]: super::calibrate::CalibrationMap
 //! [`DeduplicationStrategy`]: super::fuse::DeduplicationStrategy
 //! [`GroupingCriteria`]: super::fuse::GroupingCriteria
 //! [`ConflictResolution`]: super::resolve::ConflictResolution
+//! [`LayerPipeline::from_params`]: super::pipeline::LayerPipeline::from_params
 
 use nvisy_core::entity::EntityKind;
 use nvisy_core::primitive::ConfidenceThreshold;

@@ -1,10 +1,12 @@
 //! [`SpanSize`]: compare the spatial / temporal extent of two
 //! same-modality locations.
 //!
-//! Used by [`FuseLayer`](super::fuse::FuseLayer) and
-//! [`ResolveConflictsLayer`](super::resolve::ResolveConflictsLayer)
-//! to pick the most representative span when merging or breaking
-//! ties between entities.
+//! Used by [`FuseLayer`] and [`ResolveConflictsLayer`] to pick the
+//! most representative span when merging or breaking ties between
+//! entities.
+//!
+//! [`FuseLayer`]: super::fuse::FuseLayer
+//! [`ResolveConflictsLayer`]: super::resolve::ResolveConflictsLayer
 
 use std::cmp::Ordering;
 

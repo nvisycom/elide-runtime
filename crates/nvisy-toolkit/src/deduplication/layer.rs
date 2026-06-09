@@ -15,7 +15,7 @@
 //!
 //! Both `Layer<M, R>` and [`LayerContext<'_, M, R>`] are
 //! parameterised by `R: TextAt<M>` so the value-resolver call
-//! (only [`FuseLayer`](super::fuse::FuseLayer) needs it among
+//! (only [`FuseLayer`] needs it among
 //! the built-ins) is monomorphised. Object safety still holds:
 //! [`LayerPipeline`] stores `Box<dyn Layer<M, R>>` for a specific
 //! `R` chosen at construction.

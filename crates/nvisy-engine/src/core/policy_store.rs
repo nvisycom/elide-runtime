@@ -203,7 +203,7 @@ fn condition_matches(
                 .iter()
                 .any(|doc| doc.eq_ignore_ascii_case(label))
         }),
-        Condition::Metadata { key, value } => match descriptor.get_extra(key) {
+        Condition::Metadata { key, value } => match descriptor.get_policy_metadata(key) {
             Some(actual) => match value {
                 Some(expected) => actual.as_str().is_some_and(|s| s == expected),
                 None => true,

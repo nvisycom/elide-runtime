@@ -12,7 +12,6 @@
 //! use by middleware and extractors.
 
 pub mod error;
-pub mod utility;
 
 mod detections;
 mod files;

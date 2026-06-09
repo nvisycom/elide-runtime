@@ -14,7 +14,7 @@ use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_document::pipeline::{DetectionFilter, DetectionSnapshot, Engine};
+use nvisy_engine::pipeline::{DetectionFilter, DetectionSnapshot, Engine};
 
 use super::request::{DetectionPath, DetectionQuery, NewDetection};
 use super::response::{DetectionId, DetectionList, Page};

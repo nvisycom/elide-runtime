@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 
 use super::layer::{Layer, LayerContext};
 
-const TARGET: &str = "nvisy_document::deduplication::calibrate";
+const TARGET: &str = "nvisy_engine::deduplication::calibrate";
 
 /// Per-recognizer confidence multipliers applied before deduplication.
 ///

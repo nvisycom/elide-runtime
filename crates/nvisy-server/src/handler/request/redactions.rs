@@ -1,8 +1,8 @@
 //! Request bodies for `/redactions` endpoints.
 
-use nvisy_document::core::Plan;
-use nvisy_document::phases::ingestion::ExportFile;
-use nvisy_document::pipeline::{RedactionInput, RedactionOverride, RedactionStatus};
+use nvisy_engine::core::Plan;
+use nvisy_engine::phases::ingestion::ExportFile;
+use nvisy_engine::pipeline::{RedactionInput, RedactionOverride, RedactionStatus};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;

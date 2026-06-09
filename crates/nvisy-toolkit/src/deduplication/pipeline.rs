@@ -19,7 +19,7 @@ use super::resolve::ResolveConflictsLayer;
 use super::span_size::SpanSize;
 use crate::deduplication::DeduplicationParams;
 
-const TARGET: &str = "nvisy_document::deduplication";
+const TARGET: &str = "nvisy_engine::deduplication";
 
 /// Ordered stack of layers, run head-to-tail against an entity list.
 ///

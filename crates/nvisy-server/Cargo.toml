@@ -22,24 +22,24 @@ documentation = { workspace = true }
 default = ["tabular", "image", "audio", "rich"]
 
 ## Tabular modality — csv, xlsx.
-tabular = ["nvisy-document/tabular"]
+tabular = ["nvisy-engine/tabular"]
 ## Image modality — png, jpeg, tiff.
-image = ["nvisy-document/image"]
+image = ["nvisy-engine/image"]
 ## Audio modality — wav, mp3.
-audio = ["nvisy-document/audio"]
+audio = ["nvisy-engine/audio"]
 ## Rich-document modality — pdf, docx.
-rich = ["nvisy-document/rich"]
+rich = ["nvisy-engine/rich"]
 
 ## Enable all OpenAI providers (GPT, Whisper STT).
-openai = ["nvisy-document/openai"]
+openai = ["nvisy-engine/openai"]
 ## Enable Anthropic Claude completion provider.
-anthropic = ["nvisy-document/anthropic"]
+anthropic = ["nvisy-engine/anthropic"]
 ## Enable Google Gemini.
-google = ["nvisy-document/google"]
+google = ["nvisy-engine/google"]
 
 ## Enable the externalized BentoML backends (NER + OCR) — forwards
-## to `nvisy-document/bento`.
-bento = ["nvisy-document/bento"]
+## to `nvisy-engine/bento`.
+bento = ["nvisy-engine/bento"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -48,7 +48,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
-nvisy-document = { workspace = true, features = [] }
+nvisy-engine = { workspace = true, features = [] }
 
 # Async runtime
 futures = { workspace = true, features = [] }

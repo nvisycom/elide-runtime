@@ -16,7 +16,7 @@
 //!
 //! TOML-deserialisable backend selectors and config bundles
 //! (`NerBackend`, `NerDetection`, `PatternDetection`,
-//! `DetectionConfig`) live in `nvisy-document`'s
+//! `DetectionConfig`) live in `nvisy-engine`'s
 //! `pipeline::config::detection` — they're the glue that turns config
 //! into concrete `Arc<dyn EntityRecognizer<M>>` instances that get
 //! inserted into [`RecognizerRegistry`].

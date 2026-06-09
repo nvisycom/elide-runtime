@@ -1,8 +1,8 @@
 //! [`OcrOutput`]: backend-shaped recognition output.
 //!
 //! The OCR `Backend` trait returns these instead of
-//! `nvisy_document::document::Block<Image>` to keep `nvisy-ocr` free
-//! of any `nvisy-document` dependency (the orchestrator dep
+//! `nvisy_engine::document::Block<Image>` to keep `nvisy-ocr` free
+//! of any `nvisy-engine` dependency (the orchestrator dep
 //! direction is core ← toolkit ← document, with detection backends
 //! (this crate) ← document — and the trait outputs must follow that
 //! direction).

@@ -1,6 +1,6 @@
 //! Redaction response types.
 
-use nvisy_document::pipeline::RedactionEntry;
+use nvisy_engine::pipeline::RedactionEntry;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

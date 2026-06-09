@@ -9,7 +9,7 @@ provided by [`nvisy-server`](../nvisy-server).
 ## Overview
 
 The binary is a thin wrapper: feature flags forward to `nvisy-server`
-and on through to `nvisy-document`, and runtime behaviour is driven
+and on through to `nvisy-engine`, and runtime behaviour is driven
 by `Nvisy.toml` (see [`Nvisy.example.toml`](../../Nvisy.example.toml)
 for the full schema). CLI flags override the corresponding TOML
 fields.

@@ -92,7 +92,7 @@ impl Overlap for TabularLocation {
 
 /// How a [`Document<Tabular>`]'s structure was produced.
 ///
-/// [`Document<Tabular>`]: # "carrier owned by nvisy-document"
+/// [`Document<Tabular>`]: # "carrier owned by nvisy-engine"
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]

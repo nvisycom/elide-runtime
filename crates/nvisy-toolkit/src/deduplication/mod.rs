@@ -9,7 +9,7 @@
 //! [`ConflictResolution`], [`SpanSize`]).
 //!
 //! The phase orchestrator that drives this per `DocumentTree` node
-//! lives in `nvisy_document::phases::deduplication::DeduplicationPhase`.
+//! lives in `nvisy_engine::phases::deduplication::DeduplicationPhase`.
 //! It calls [`LayerPipeline::from_params`] to assemble the canonical
 //! four-step recipe, then runs the pipeline against each node's
 //! entities.
@@ -25,7 +25,7 @@
 //! [`Layer`] impls by building the pipeline manually with
 //! [`LayerPipeline::new`] + [`LayerPipeline::with_layer`].
 //!
-//! `DocumentTree` and `DeduplicationPhase` live in `nvisy-document`.
+//! `DocumentTree` and `DeduplicationPhase` live in `nvisy-engine`.
 
 mod calibrate;
 pub mod config;

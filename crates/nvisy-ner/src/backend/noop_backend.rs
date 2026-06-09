@@ -1,5 +1,5 @@
 //! [`NoopBackend`]: no-op [`NerBackend`] for tests + the default
-//! `NerBackend::Noop` config variant in `nvisy-document`.
+//! `NerBackend::Noop` config variant in `nvisy-engine`.
 
 use nvisy_core::Result;
 

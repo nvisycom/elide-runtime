@@ -1,6 +1,6 @@
 //! Detection response types.
 
-use nvisy_document::pipeline::DetectionEntry;
+use nvisy_engine::pipeline::DetectionEntry;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

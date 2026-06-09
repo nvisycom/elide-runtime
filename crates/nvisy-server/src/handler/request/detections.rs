@@ -1,8 +1,8 @@
 //! Request bodies for `/detections` endpoints.
 
-use nvisy_document::core::Plan;
-use nvisy_document::phases::ingestion::ImportFile;
-use nvisy_document::pipeline::{DetectionInput, DetectionStatus};
+use nvisy_engine::core::Plan;
+use nvisy_engine::phases::ingestion::ImportFile;
+use nvisy_engine::pipeline::{DetectionInput, DetectionStatus};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;

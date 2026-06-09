@@ -21,8 +21,8 @@ use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use nvisy_document::registry::Registry;
-use nvisy_document::{Content, ContentData, ContentDescriptor};
+use nvisy_engine::registry::Registry;
+use nvisy_engine::{Content, ContentData, ContentDescriptor};
 
 use super::error::Result;
 use super::request::{ContentPath, MAX_PAGE_LIMIT, NewFile, Pagination};

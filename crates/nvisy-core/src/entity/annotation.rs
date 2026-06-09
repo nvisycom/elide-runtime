@@ -168,7 +168,7 @@ impl<M: Modality> Annotation<M> {
 /// per-modality [`Document<M>`] spawned from it. Policy rules can
 /// gate on labels via conditions.
 ///
-/// [`Document<M>`]: https://docs.rs/nvisy-document/latest/nvisy_document/document/struct.Document.html
+/// [`Document<M>`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/document/struct.Document.html
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelAnnotation {

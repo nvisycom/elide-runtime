@@ -17,7 +17,7 @@
 //! payload the recognizer/extractor scans), [`Replacement`] (redaction
 //! record), and [`Extraction`] (per-modality provenance enum stamped
 //! onto a document at extractor time). The document-shape side
-//! (`Block`, `Metadata`) lives in `nvisy-document`; the codec-side
+//! (`Block`, `Metadata`) lives in `nvisy-engine`; the codec-side
 //! tag (`Codable`) lives in `nvisy-codec`. Each layer adds its own
 //! extension trait (`DocumentModality`, `Codable`) atop this marker
 //! — toolkit and document don't pollute core.
@@ -123,7 +123,7 @@ pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'sta
     /// primary content was produced (e.g. native text-layer parse vs
     /// OCR'd image-backed page).
     ///
-    /// [`Document<M>`]: # "carrier owned by nvisy-document"
+    /// [`Document<M>`]: # "carrier owned by nvisy-engine"
     type Extraction: Clone + Debug + PartialEq + Send + Sync + 'static;
 }
 

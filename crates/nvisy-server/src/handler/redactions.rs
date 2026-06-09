@@ -14,7 +14,7 @@ use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_document::pipeline::{Engine, RedactionFilter, RedactionSnapshot};
+use nvisy_engine::pipeline::{Engine, RedactionFilter, RedactionSnapshot};
 
 use super::request::{NewRedaction, RedactionPath, RedactionQuery};
 use super::response::{Page, RedactionId, RedactionList};

@@ -122,7 +122,7 @@ impl Overlap for AudioLocation {
 /// has run; the extractor stage replaces it with the concrete variant
 /// carrying the backend's [`ModelProvenance`].
 ///
-/// [`Document<Audio>`]: # "carrier owned by nvisy-document"
+/// [`Document<Audio>`]: # "carrier owned by nvisy-engine"
 /// [`Pending`]: Self::Pending
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]

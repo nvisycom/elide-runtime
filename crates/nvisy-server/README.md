@@ -11,7 +11,7 @@ for OpenAPI spec generation and
 
 ## Feature Flags
 
-Forwarded from [`nvisy-document`](../nvisy-document). All are off
+Forwarded from [`nvisy-engine`](../nvisy-engine). All are off
 by default; the CLI entry point opts them in.
 
 | Feature | Default | Description |

@@ -19,8 +19,8 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_core::modality::Text;
-use nvisy_document::policy::Policy;
-use nvisy_document::registry::Registry;
+use nvisy_engine::policy::Policy;
+use nvisy_engine::registry::Registry;
 
 use super::error::Result;
 use super::request::{MAX_PAGE_LIMIT, NewPolicy, Pagination, PolicyPath};

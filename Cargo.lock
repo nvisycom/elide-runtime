@@ -2816,7 +2816,7 @@ dependencies = [
  "axum",
  "clap",
  "humantime-serde",
- "nvisy-document",
+ "nvisy-engine",
  "nvisy-server",
  "serde",
  "tokio",
@@ -2874,7 +2874,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-document"
+name = "nvisy-engine"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
@@ -2889,7 +2889,7 @@ dependencies = [
  "jiff",
  "nvisy-codec",
  "nvisy-core",
- "nvisy-document",
+ "nvisy-engine",
  "nvisy-llm",
  "nvisy-ner",
  "nvisy-ocr",
@@ -3011,7 +3011,7 @@ dependencies = [
  "humantime-serde",
  "jiff",
  "nvisy-core",
- "nvisy-document",
+ "nvisy-engine",
  "schemars",
  "semver",
  "serde",

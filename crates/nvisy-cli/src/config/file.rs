@@ -13,7 +13,7 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use nvisy_document::pipeline::RuntimeConfig;
+use nvisy_engine::pipeline::RuntimeConfig;
 use serde::Deserialize;
 
 /// Log output format for `tracing_subscriber`.

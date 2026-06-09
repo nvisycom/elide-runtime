@@ -45,7 +45,7 @@ mod tests {
     fn from_nvisy_core_conflict() {
         let core_err = CoreError::conflict(
             "detection already in terminal state",
-            "nvisy_document::detection::state",
+            "nvisy_engine::detection::state",
         );
         let err = Error::from(core_err);
         assert_eq!(err.kind(), ErrorKind::Conflict);

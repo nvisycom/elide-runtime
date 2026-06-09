@@ -24,7 +24,7 @@ pub use self::strategy::DeduplicationStrategy;
 use super::layer::{Layer, LayerContext};
 use super::span_size::SpanSize;
 
-const TARGET: &str = "nvisy_document::deduplication::fuse";
+const TARGET: &str = "nvisy_engine::deduplication::fuse";
 
 /// [`Layer`] that groups co-referent entities and merges each group
 /// into a single entity.

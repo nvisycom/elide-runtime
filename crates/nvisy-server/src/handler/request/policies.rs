@@ -1,7 +1,7 @@
 //! `Policy<Text>` request types.
 
 use nvisy_core::modality::Text;
-use nvisy_document::policy::Policy;
+use nvisy_engine::policy::Policy;
 use schemars::JsonSchema;
 use serde::Deserialize;
 

@@ -3,7 +3,7 @@
 //!
 //! Backend implementations live in [`crate::backend`]. The
 //! TOML-deserialisable selector that picks one (`OcrBackend`) lives
-//! in the pipeline layer (`nvisy-document`'s
+//! in the pipeline layer (`nvisy-engine`'s
 //! `pipeline::config::extraction::ocr`).
 
 mod context;

@@ -1,7 +1,7 @@
 # Pipeline: detection ↔ redaction split
 
 Contract for the two-subsystem pipeline implemented by
-`nvisy-document`. Detection produces an immutable artifact;
+`nvisy-engine`. Detection produces an immutable artifact;
 redaction consumes that artifact, applies overrides, and writes
 output. The two are separate `Engine` methods and separate REST
 resources.
@@ -181,7 +181,7 @@ mismatch to avoid leaking existence to unauthorised callers.
 
 ## Test obligations
 
-The integration tests in `crates/nvisy-document/tests/` exercise
+The integration tests in `crates/nvisy-engine/tests/` exercise
 the engine + registry + (mocked) recogniser end-to-end.
 
 **Detection:**

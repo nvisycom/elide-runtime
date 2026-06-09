@@ -91,7 +91,7 @@ impl TextLocation {
 
 /// How a [`Document<Text>`]'s text content was produced.
 ///
-/// [`Document<Text>`]: # "carrier owned by nvisy-document"
+/// [`Document<Text>`]: # "carrier owned by nvisy-engine"
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]

@@ -9,7 +9,7 @@
 //! implementing the matching [`Extractor`] trait shape.
 //!
 //! Toolkit holds no `from_config` builder — config-driven construction
-//! is the consumer's concern. The pipeline layer (`nvisy-document`)
+//! is the consumer's concern. The pipeline layer (`nvisy-engine`)
 //! deserialises the `[extractor.*]` sections and inserts the chosen
 //! [`Arc<dyn Extractor<M>>`] into the registry.
 //!

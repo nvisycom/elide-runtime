@@ -1,6 +1,6 @@
 //! Paginated response wrapper.
 
-use nvisy_document::registry::PagedResult;
+use nvisy_engine::registry::PagedResult;
 use schemars::JsonSchema;
 use serde::Serialize;
 

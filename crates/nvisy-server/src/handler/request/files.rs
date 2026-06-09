@@ -25,6 +25,6 @@ pub struct NewFile {
     /// inclusions become synthetic entities at import; exclusions
     /// drop matching detections post-filter; labels propagate to
     /// every modality envelope spawned from this upload.
-    #[serde(default, skip_serializing_if = "AnyAnnotations::is_empty")]
+    #[serde(default)]
     pub annotations: AnyAnnotations,
 }

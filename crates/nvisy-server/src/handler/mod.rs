@@ -54,7 +54,6 @@ pub fn routes() -> ApiRouter<ServiceState> {
 /// function can compose a different set of handlers under `/api/v2`.
 fn v1_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .merge(infra::routes_v1())
         .merge(files::routes_v1())
         .merge(policies::routes_v1())
         .merge(detections::routes_v1())

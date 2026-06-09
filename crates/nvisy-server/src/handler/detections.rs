@@ -10,17 +10,17 @@
 //! | `DELETE` | `/detections`              | Delete all finished detections       |
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::{get_with, post_with};
+use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_document::pipeline::{DetectionFilter, DetectionSnapshot, Engine};
 
 use super::request::{DetectionPath, DetectionQuery, NewDetection};
-use super::response::{DetectionId, DetectionList};
+use super::response::{DetectionId, DetectionList, Page};
 use crate::extract::{ActorId, Json, Path};
 use crate::handler::error::Result;
-use crate::middleware::{DEFAULT_PIPELINE_TIMEOUT, DEFAULT_READ_TIMEOUT, RouterTimeoutExt};
+use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::detections";
@@ -59,7 +59,7 @@ async fn list_detections(
         status: query.status,
     };
     let entries = engine.list_detections(actor_id, filter).await;
-    let page = query.pagination.paginate(entries);
+    let page = Page::paginate(entries, &query.pagination);
     Ok(Json(page))
 }
 
@@ -144,29 +144,32 @@ fn delete_all_detections_docs(op: TransformOperation) -> TransformOperation {
 }
 
 pub fn routes_v1() -> ApiRouter<ServiceState> {
-    let submit = ApiRouter::new()
-        .api_route(
-            "/detections",
-            post_with(create_detection, create_detection_docs),
-        )
-        .with_timeout(DEFAULT_PIPELINE_TIMEOUT);
-
     let read = ApiRouter::new()
         .api_route(
             "/detections",
-            get_with(list_detections, list_detections_docs)
+            get_with(list_detections, list_detections_docs),
+        )
+        .api_route(
+            "/detections/{id}",
+            get_with(get_detection, get_detection_docs),
+        )
+        .with_timeout(DEFAULT_READ_TIMEOUT);
+
+    let write = ApiRouter::new()
+        .api_route(
+            "/detections",
+            post_with(create_detection, create_detection_docs)
                 .delete_with(delete_all_detections, delete_all_detections_docs),
         )
         .api_route(
             "/detections/{id}",
-            get_with(get_detection, get_detection_docs)
-                .delete_with(delete_detection, delete_detection_docs),
+            delete_with(delete_detection, delete_detection_docs),
         )
         .api_route(
             "/detections/{id}/cancel",
             post_with(cancel_detection, cancel_detection_docs),
         )
-        .with_timeout(DEFAULT_READ_TIMEOUT);
+        .with_timeout(DEFAULT_WRITE_TIMEOUT);
 
-    submit.merge(read)
+    read.merge(write)
 }

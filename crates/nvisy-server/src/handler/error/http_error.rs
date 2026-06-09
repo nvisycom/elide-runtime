@@ -102,17 +102,6 @@ impl<'a> Error<'a> {
     pub fn suggestion(&self) -> Option<&str> {
         self.suggestion.as_deref()
     }
-
-    /// Converts this error into a static version by cloning all borrowed data.
-    pub fn into_owned(self) -> Error<'static> {
-        Error {
-            kind: self.kind,
-            context: self.context.map(|c| Cow::Owned(c.into_owned())),
-            message: self.message.map(|m| Cow::Owned(m.into_owned())),
-            resource: self.resource.map(|r| Cow::Owned(r.into_owned())),
-            suggestion: self.suggestion.map(|s| Cow::Owned(s.into_owned())),
-        }
-    }
 }
 
 impl Default for Error<'static> {
@@ -247,7 +236,7 @@ mod tests {
             .with_context("ID: 123");
 
         let display = format!("{error}");
-        assert!(display.contains("not_found"));
+        assert!(display.contains("NOT_FOUND"));
         assert!(display.contains("404"));
         assert!(display.contains("Resource not found"));
         assert!(display.contains("ID: 123"));
@@ -265,20 +254,5 @@ mod tests {
         assert!(debug.contains("Forbidden"));
         assert!(debug.contains("Access denied"));
         assert!(debug.contains("document"));
-    }
-
-    #[test]
-    fn error_into_static() {
-        let error = ErrorKind::NotFound
-            .with_message("Test message".to_string())
-            .with_resource("test_resource".to_string())
-            .with_context("Test context".to_string())
-            .with_suggestion("Test suggestion".to_string());
-
-        let static_error = error.into_owned();
-        assert_eq!(static_error.message(), Some("Test message"));
-        assert_eq!(static_error.resource(), Some("test_resource"));
-        assert_eq!(static_error.context(), Some("Test context"));
-        assert_eq!(static_error.suggestion(), Some("Test suggestion"));
     }
 }

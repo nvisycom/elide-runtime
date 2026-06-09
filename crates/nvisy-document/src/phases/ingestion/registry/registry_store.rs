@@ -243,6 +243,16 @@ impl Registry {
         blocking(move || ks.resource_ids(actor_id)).await
     }
 
+    /// Cheap probe that confirms the underlying fjall database is
+    /// open and responding. Performs an empty-prefix key listing
+    /// against the content keyspace — touches the database without
+    /// returning any data.
+    #[tracing::instrument(target = TARGET, name = "registry.healthcheck", skip(self))]
+    pub async fn healthcheck(&self) -> Result<()> {
+        let ks = self.inner.content_ks.clone();
+        blocking(move || ks.prefix_keys(&[]).map(|_| ())).await
+    }
+
     /// Lists all content IDs with their stored records for the given
     /// actor. Returns `(content_id, record)` pairs.
     #[tracing::instrument(target = TARGET, name = "registry.list_content_with_record", skip(self), fields(%actor_id))]

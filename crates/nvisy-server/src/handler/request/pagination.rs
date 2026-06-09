@@ -1,13 +1,26 @@
-//! Pagination query parameters and generic page response.
+//! Pagination query parameters for list endpoints.
+//!
+//! The matching response wrapper lives on [`Page`] in the response
+//! module — call `Page::paginate(items, &pagination)` to apply the
+//! query to a collection.
+//!
+//! [`Page`]: crate::handler::response::Page
 
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+
+/// Hard ceiling on `limit` — caps the page size a client can request
+/// to bound memory use on large registries.
+pub const MAX_PAGE_LIMIT: usize = 500;
+/// Default page size when the caller doesn't specify `limit`.
+pub const DEFAULT_PAGE_LIMIT: usize = 50;
 
 /// Pagination parameters for list endpoints.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Pagination {
-    /// Maximum number of items to return (default: 50).
+    /// Maximum number of items to return. Clamped to
+    /// [`MAX_PAGE_LIMIT`] server-side (default: 50, max: 500).
     #[serde(default = "default_limit")]
     pub limit: usize,
     /// Number of items to skip (default: 0).
@@ -16,34 +29,5 @@ pub struct Pagination {
 }
 
 fn default_limit() -> usize {
-    50
-}
-
-impl Pagination {
-    /// Apply pagination to a vector, returning a [`Page`].
-    pub fn paginate<T: Serialize + JsonSchema>(&self, items: Vec<T>) -> Page<T> {
-        let total = items.len();
-        let items: Vec<T> = items
-            .into_iter()
-            .skip(self.offset)
-            .take(self.limit)
-            .collect();
-        Page {
-            total,
-            has_more: self.offset + items.len() < total,
-            items,
-        }
-    }
-}
-
-/// Paginated response wrapper.
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Page<T: Serialize + JsonSchema> {
-    /// Total number of items before pagination.
-    pub total: usize,
-    /// Whether more items exist beyond this page.
-    pub has_more: bool,
-    /// The items in this page.
-    pub items: Vec<T>,
+    DEFAULT_PAGE_LIMIT
 }

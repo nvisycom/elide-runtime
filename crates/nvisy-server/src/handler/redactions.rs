@@ -10,17 +10,17 @@
 //! | `DELETE` | `/redactions`              | Delete all finished redactions       |
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::{get_with, post_with};
+use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_document::pipeline::{Engine, RedactionFilter, RedactionSnapshot};
 
 use super::request::{NewRedaction, RedactionPath, RedactionQuery};
-use super::response::{RedactionId, RedactionList};
+use super::response::{Page, RedactionId, RedactionList};
 use crate::extract::{ActorId, Json, Path};
 use crate::handler::error::Result;
-use crate::middleware::{DEFAULT_PIPELINE_TIMEOUT, DEFAULT_READ_TIMEOUT, RouterTimeoutExt};
+use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::redactions";
@@ -60,7 +60,7 @@ async fn list_redactions(
         detection_id: query.detection_id,
     };
     let entries = engine.list_redactions(actor_id, filter).await;
-    let page = query.pagination.paginate(entries);
+    let page = Page::paginate(entries, &query.pagination);
     Ok(Json(page))
 }
 
@@ -148,29 +148,32 @@ fn delete_all_redactions_docs(op: TransformOperation) -> TransformOperation {
 }
 
 pub fn routes_v1() -> ApiRouter<ServiceState> {
-    let submit = ApiRouter::new()
-        .api_route(
-            "/redactions",
-            post_with(create_redaction, create_redaction_docs),
-        )
-        .with_timeout(DEFAULT_PIPELINE_TIMEOUT);
-
     let read = ApiRouter::new()
         .api_route(
             "/redactions",
-            get_with(list_redactions, list_redactions_docs)
+            get_with(list_redactions, list_redactions_docs),
+        )
+        .api_route(
+            "/redactions/{id}",
+            get_with(get_redaction, get_redaction_docs),
+        )
+        .with_timeout(DEFAULT_READ_TIMEOUT);
+
+    let write = ApiRouter::new()
+        .api_route(
+            "/redactions",
+            post_with(create_redaction, create_redaction_docs)
                 .delete_with(delete_all_redactions, delete_all_redactions_docs),
         )
         .api_route(
             "/redactions/{id}",
-            get_with(get_redaction, get_redaction_docs)
-                .delete_with(delete_redaction, delete_redaction_docs),
+            delete_with(delete_redaction, delete_redaction_docs),
         )
         .api_route(
             "/redactions/{id}/cancel",
             post_with(cancel_redaction, cancel_redaction_docs),
         )
-        .with_timeout(DEFAULT_READ_TIMEOUT);
+        .with_timeout(DEFAULT_WRITE_TIMEOUT);
 
-    submit.merge(read)
+    read.merge(write)
 }

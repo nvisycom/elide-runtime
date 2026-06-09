@@ -18,7 +18,7 @@ use crate::service::ServiceState;
 const TARGET: &str = "nvisy_server::infra";
 
 /// `GET /health`
-#[tracing::instrument(target = "nvisy_server::infra", skip_all)]
+#[tracing::instrument(target = TARGET, skip_all)]
 async fn health_check(State(engine): State<Engine>) -> Json<Health> {
     let mut checks = vec![];
 
@@ -32,7 +32,7 @@ async fn health_check(State(engine): State<Engine>) -> Json<Health> {
         },
     });
 
-    let registry_ok = engine.data_dir().is_dir();
+    let registry_ok = engine.registry().healthcheck().await.is_ok();
     checks.push(ComponentCheck {
         name: "registry".into(),
         status: if registry_ok {
@@ -78,9 +78,4 @@ pub fn health_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route("/health", get_with(health_check, health_docs))
         .with_timeout(DEFAULT_HEALTH_TIMEOUT)
-}
-
-/// v1 routes contributed by this module.
-pub fn routes_v1() -> ApiRouter<ServiceState> {
-    ApiRouter::new()
 }

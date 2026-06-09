@@ -25,8 +25,5 @@ pub const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Timeout for write operations (POST, DELETE): 60 seconds.
 pub const DEFAULT_WRITE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Timeout for pipeline runs: 5 minutes.
-pub const DEFAULT_PIPELINE_TIMEOUT: Duration = Duration::from_secs(300);
-
 /// Timeout for health checks: 5 seconds.
 pub const DEFAULT_HEALTH_TIMEOUT: Duration = Duration::from_secs(5);

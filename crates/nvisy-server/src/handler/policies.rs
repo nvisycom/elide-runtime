@@ -24,7 +24,7 @@ use nvisy_document::policy::Policy;
 
 use super::error::Result;
 use super::request::{NewPolicy, Pagination, PolicyPath};
-use super::response::{PolicyEntry, PolicyId, PolicyList};
+use super::response::{Page, PolicyEntry, PolicyId, PolicyList};
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
@@ -33,7 +33,7 @@ const TARGET: &str = "nvisy_server::policies";
 
 /// `POST /policies`
 #[tracing::instrument(
-    target = "nvisy_server::policies",
+    target = TARGET,
     skip_all,
     fields(%actor_id),
 )]
@@ -56,7 +56,7 @@ fn upload_policy_docs(op: TransformOperation) -> TransformOperation {
 
 /// `GET /policies`
 #[tracing::instrument(
-    target = "nvisy_server::policies",
+    target = TARGET,
     skip_all,
     fields(%actor_id),
 )]
@@ -68,11 +68,10 @@ async fn list_policies(
     let ids = registry.list_policies(actor_id).await?;
     let mut entries = Vec::with_capacity(ids.len());
     for id in ids {
-        if let Ok(policy) = registry.read_policy(actor_id, id).await {
-            entries.push(PolicyEntry::from(policy));
-        }
+        let policy = registry.read_policy(actor_id, id).await?;
+        entries.push(PolicyEntry::from(policy));
     }
-    let page = pagination.paginate(entries);
+    let page = Page::paginate(entries, &pagination);
     tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "policies listed");
     Ok(Json(page))
 }
@@ -86,7 +85,7 @@ fn list_policies_docs(op: TransformOperation) -> TransformOperation {
 
 /// `GET /policies/{id}`
 #[tracing::instrument(
-    target = "nvisy_server::policies",
+    target = TARGET,
     skip_all,
     fields(%id, %actor_id),
 )]
@@ -109,7 +108,7 @@ fn download_policy_docs(op: TransformOperation) -> TransformOperation {
 
 /// `DELETE /policies/{id}`
 #[tracing::instrument(
-    target = "nvisy_server::policies",
+    target = TARGET,
     skip_all,
     fields(%id, %actor_id),
 )]
@@ -132,7 +131,7 @@ fn delete_policy_docs(op: TransformOperation) -> TransformOperation {
 
 /// `DELETE /policies`
 #[tracing::instrument(
-    target = "nvisy_server::policies",
+    target = TARGET,
     skip_all,
     fields(%actor_id),
 )]

@@ -15,12 +15,18 @@ use axum::http::request::Parts;
 /// Contains `Some(n)` when the path matches `/api/v{n}/...`, or `None`
 /// for unversioned paths (e.g. `/health`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ApiVersion(pub Option<NonZeroU16>);
+pub struct ApiVersion(Option<NonZeroU16>);
 
 impl ApiVersion {
-    /// The version number, if present.
+    /// The version number as a plain integer, if present.
     pub fn version(&self) -> Option<u16> {
         self.0.map(|v| v.get())
+    }
+
+    /// The version number as `NonZeroU16`, if present. Convenient
+    /// when used as a key in maps that exclude zero.
+    pub fn nonzero(&self) -> Option<NonZeroU16> {
+        self.0
     }
 }
 
@@ -54,10 +60,13 @@ mod tests {
 
     #[test]
     fn parses_version_from_path() {
-        assert_eq!(ApiVersion::from_path("/api/v1/runs").version(), Some(1));
+        assert_eq!(
+            ApiVersion::from_path("/api/v1/detections").version(),
+            Some(1)
+        );
         assert_eq!(ApiVersion::from_path("/api/v2/files").version(), Some(2));
         assert_eq!(
-            ApiVersion::from_path("/api/v12/contexts").version(),
+            ApiVersion::from_path("/api/v12/redactions").version(),
             Some(12)
         );
         assert_eq!(ApiVersion::from_path("/api/v1").version(), Some(1));
@@ -66,12 +75,12 @@ mod tests {
     #[test]
     fn returns_none_for_non_api_paths() {
         assert_eq!(ApiVersion::from_path("/health").version(), None);
-        assert_eq!(ApiVersion::from_path("/api/runs").version(), None);
-        assert_eq!(ApiVersion::from_path("/api/vx/runs").version(), None);
+        assert_eq!(ApiVersion::from_path("/api/detections").version(), None);
+        assert_eq!(ApiVersion::from_path("/api/vx/detections").version(), None);
     }
 
     #[test]
     fn rejects_version_zero() {
-        assert_eq!(ApiVersion::from_path("/api/v0/runs").version(), None);
+        assert_eq!(ApiVersion::from_path("/api/v0/detections").version(), None);
     }
 }

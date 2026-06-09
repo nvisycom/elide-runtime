@@ -103,13 +103,13 @@ impl SunsetConfig {
 /// that don't match any deprecated version pass through unmodified.
 pub async fn sunset_headers(
     Extension(config): Extension<SunsetConfig>,
-    ApiVersion(version): ApiVersion,
+    api_version: ApiVersion,
     req: Request<Body>,
     next: Next,
 ) -> Response {
     let mut response = next.run(req).await;
 
-    if let Some(entry) = version.and_then(|v| config.versions.get(&v)) {
+    if let Some(entry) = api_version.nonzero().and_then(|v| config.versions.get(&v)) {
         let headers = response.headers_mut();
         headers.insert("sunset", entry.sunset_date.clone());
         headers.insert("deprecation", HeaderValue::from_static("true"));

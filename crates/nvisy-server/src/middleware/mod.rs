@@ -50,7 +50,7 @@ mod security;
 mod specification;
 mod sunset;
 
-pub(crate) use self::constants::{DEFAULT_HEALTH_TIMEOUT, DEFAULT_PIPELINE_TIMEOUT};
+pub(crate) use self::constants::DEFAULT_HEALTH_TIMEOUT;
 pub use self::constants::{
     DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_READ_TIMEOUT,
     DEFAULT_REQUEST_TIMEOUT, DEFAULT_WRITE_TIMEOUT,

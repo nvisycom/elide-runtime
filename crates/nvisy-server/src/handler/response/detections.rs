@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::handler::request::Page;
+use super::page::Page;
 
 /// Response body for `GET /detections`.
 pub type DetectionList = Page<DetectionEntry>;

@@ -11,12 +11,11 @@ impl From<CoreError> for Error<'static> {
     fn from(err: CoreError) -> Self {
         let kind = match err.kind() {
             CoreErrorKind::Validation | CoreErrorKind::Serialization => ErrorKind::BadRequest,
-            CoreErrorKind::Conflict => ErrorKind::Conflict,
+            CoreErrorKind::Conflict | CoreErrorKind::Cancellation => ErrorKind::Conflict,
             CoreErrorKind::Policy => ErrorKind::Forbidden,
             CoreErrorKind::NotFound => ErrorKind::NotFound,
             CoreErrorKind::Connection
             | CoreErrorKind::Timeout
-            | CoreErrorKind::Cancellation
             | CoreErrorKind::Runtime
             | CoreErrorKind::Internal => ErrorKind::InternalServerError,
         };

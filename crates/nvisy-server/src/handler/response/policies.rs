@@ -7,7 +7,7 @@ use semver::Version;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::handler::request::Page;
+use super::page::Page;
 
 /// Response body for `GET /policies`.
 pub type PolicyList = Page<PolicyEntry>;

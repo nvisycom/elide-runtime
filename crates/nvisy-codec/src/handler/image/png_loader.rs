@@ -1,7 +1,6 @@
 //! PNG loader: validates and decodes raw PNG bytes into a
 //! [`PngHandler`].
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Image;
 
@@ -13,7 +12,7 @@ use crate::core::Loader;
 #[derive(Debug, Default)]
 pub struct PngLoader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Image> for PngLoader {
     type Handler = PngHandler;
 

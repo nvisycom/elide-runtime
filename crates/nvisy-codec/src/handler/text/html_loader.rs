@@ -5,7 +5,6 @@
 //! order, and produces a handler backed by those nodes plus the raw
 //! source (used to reconstruct the HTML after edits).
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 use scraper::Html;
@@ -21,7 +20,7 @@ pub struct HtmlLoader {
     pub encoding: TextEncoding,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Text> for HtmlLoader {
     type Handler = HtmlHandler;
 

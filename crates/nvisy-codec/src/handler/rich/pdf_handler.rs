@@ -18,9 +18,9 @@
 //! [`render_pages`]: PdfHandler::render_pages
 //! [`extract_embedded_images`]: PdfHandler::extract_embedded_images
 
+use std::ops::Range;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use nvisy_core::Error;
 use nvisy_core::modality::{Image, Text, TextData, TextLocation};
@@ -32,7 +32,7 @@ use super::pdf_render::PdfRenderer;
 use crate::content::{ContentData, ContentSource};
 use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::handler::image::PngHandler;
-use crate::handler::text::redact;
+use crate::handler::text::{lift_identity, redact};
 use crate::{DocumentHandle, Format, FormatId, LoaderAdapter};
 
 const TARGET: &str = "pdf-handler";
@@ -186,7 +186,7 @@ impl Handler for PdfHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Handle<Text> for PdfHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.pages.len() {
@@ -210,8 +210,12 @@ impl Handle<Text> for PdfHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl IndexedHandle<Text> for PdfHandler {
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        lift_identity(chunk, value_range)
+    }
+
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
         let Some(i) = self.page_for(location.start) else {
             return Ok(None);

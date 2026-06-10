@@ -54,13 +54,12 @@ pub use self::span_size::SpanSize;
 #[cfg(test)]
 pub(crate) fn test_resolver<M: nvisy_core::modality::Modality>()
 -> Box<dyn nvisy_core::extraction::TextAt<M>> {
-    use async_trait::async_trait;
     use nvisy_core::extraction::TextAt;
     use nvisy_core::modality::Modality;
 
     struct Noop<M>(std::marker::PhantomData<M>);
 
-    #[async_trait]
+    #[async_trait::async_trait]
     impl<M: Modality> TextAt<M> for Noop<M> {
         async fn text_at(&self, _location: &M::Location) -> Option<String> {
             None

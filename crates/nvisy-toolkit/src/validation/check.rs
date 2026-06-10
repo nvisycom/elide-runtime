@@ -3,7 +3,6 @@
 
 use std::marker::PhantomData;
 
-use async_trait::async_trait;
 use nvisy_core::entity::Entity;
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
@@ -142,7 +141,7 @@ pub struct Finding {
 /// Checks that find nothing return an empty vec; checks that don't
 /// support the modality should not be registered in the first place
 /// (the pipeline simply has no check for that modality).
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Check<M, P>: Send + Sync
 where
     M: Modality,

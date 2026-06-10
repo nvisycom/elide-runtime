@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use derive_builder::Builder;
 use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Text, TextLocation};
@@ -130,7 +129,7 @@ impl NerRecognizerBuilder {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl EntityRecognizer<Text> for NerRecognizer {
     async fn recognize(&self, input: &RecognizerInput<Text>) -> Result<RecognizerOutput<Text>> {
         let kinds = if self.supported_kinds.is_empty() {

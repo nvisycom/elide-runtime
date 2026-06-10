@@ -19,7 +19,6 @@
 use std::io::Cursor;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
 use nvisy_core::Error;
@@ -112,7 +111,7 @@ impl Handler for WavHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Handle<Audio> for WavHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Audio>>, Error> {
         if self.yielded {
@@ -129,7 +128,7 @@ impl Handle<Audio> for WavHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl IndexedHandle<Audio> for WavHandler {
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {
         Ok(Some(

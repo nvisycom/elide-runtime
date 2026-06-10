@@ -17,18 +17,21 @@
 //! [`CodecRegistry`]: nvisy_codec::CodecRegistry
 //! [`DecodedBuffer`]: nvisy_codec::document::DecodedBuffer
 
+use std::str::from_utf8;
+
 use nvisy_codec::CodecRegistry;
 use nvisy_codec::document::DecodedBuffer;
 use nvisy_core::Result;
 use nvisy_core::entity::EntityKind;
 use nvisy_core::modality::{Text, TextData};
+use nvisy_core::primitive::ConfidenceThreshold;
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_core::redaction::RedactAt;
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};
 use nvisy_toolkit::deduplication::{LayerContext, LayerParams, LayerPipeline};
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::redaction::RedactionRegistry;
-use nvisy_toolkit::redaction::builtin::{Mask, Redact, Replace};
+use nvisy_toolkit::redaction::anonymizer::{Mask, Redact, Replace};
 
 const SAMPLE: &str = "Email alice@example.test or call +1 415 555 0100. \
                       Card 4111111111111111 expires 12/27.";
@@ -81,8 +84,17 @@ async fn main() -> Result<()> {
     // Canonical four-layer pipeline: calibrate → filter → fuse →
     // resolve. Drops overlapping / low-confidence detections so the
     // redaction phase sees a conflict-free entity set.
+    //
+    // The 0.5 threshold filters out the ISO-639 short-code matches
+    // (`or`, `am`, ...) from the languages dictionary, which load
+    // at 0.30 because they collide with common English words. See
+    // `assets/dictionaries/general/languages.toml`'s `column_scores`.
+    let params = LayerParams {
+        confidence_threshold: Some(ConfidenceThreshold::new(0.5).unwrap()),
+        ..LayerParams::default()
+    };
     let ctx = LayerContext::<Text, DecodedBuffer<Text>>::new(&source);
-    let dedup = LayerPipeline::<Text, DecodedBuffer<Text>>::from_params(&LayerParams::default());
+    let dedup = LayerPipeline::<Text, DecodedBuffer<Text>>::from_params(&params);
 
     let before = entities.len();
     let entities = dedup.run(entities, &ctx).await;
@@ -101,7 +113,7 @@ async fn main() -> Result<()> {
     let redaction = RedactionRegistry::<Text>::new()
         .insert_kind(EntityKind::EmailAddress, Replace::new("[{entity_kind}]"))
         .insert_kind(EntityKind::PhoneNumber, Replace::new("[{entity_kind}]"))
-        .insert_kind(EntityKind::PaymentCard, Mask::new('#', Some(12)))
+        .insert_kind(EntityKind::PaymentCard, Mask::stars())
         .with_fallback(Redact);
 
     // `source` is the codec-backed buffer; it satisfies `DataAt<Text>`,
@@ -111,17 +123,13 @@ async fn main() -> Result<()> {
     println!("\nredaction: produced {} replacement(s)", redactions.len());
     source.redact_at(redactions).await?;
 
-    // Dump the post-redaction buffer back to a string by walking
-    // every chunk the handler yields. (TxtHandler::read is
-    // single-line-bound, so a "full range" read would return None;
-    // chunk iteration is the canonical full-text path.)
-    let mut redacted = String::new();
-    while let Some(chunk) = source.handle_mut().handler_mut().next_chunk().await? {
-        if !redacted.is_empty() {
-            redacted.push('\n');
-        }
-        redacted.push_str(chunk.data.as_str());
-    }
+    // Serialize the post-redaction buffer back through the codec.
+    // `Handler::encode` is what the engine's export phase calls to
+    // produce output bytes; it knows the format's reassembly rules
+    // (line terminators for txt, JSON envelope for json, …) so the
+    // example doesn't have to.
+    let encoded = source.handle().handler().encode()?;
+    let redacted = from_utf8(encoded.as_bytes()).expect("txt encode produces UTF-8");
     println!("\nredacted = {redacted}");
     Ok(())
 }

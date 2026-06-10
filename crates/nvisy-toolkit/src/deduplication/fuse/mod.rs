@@ -11,7 +11,6 @@ mod strategy;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
-use async_trait::async_trait;
 use nvisy_core::entity::{Entity, TrailStep};
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Modality, Overlap};
@@ -42,7 +41,7 @@ impl FuseLayer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M, R> Layer<M, R> for FuseLayer
 where
     M: Modality,

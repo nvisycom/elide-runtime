@@ -1,7 +1,6 @@
 //! Plain-text loader: validates and parses raw text content into a
 //! [`TxtHandler`].
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
@@ -17,7 +16,7 @@ pub struct TxtLoader {
     pub encoding: TextEncoding,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Text> for TxtLoader {
     type Handler = TxtHandler;
 

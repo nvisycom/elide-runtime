@@ -6,14 +6,14 @@
 //! trailing-newline flag so the original file can be reconstructed
 //! byte-for-byte after edits.
 
+use std::ops::Range;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::{Redactions, TextReplacement};
 
-use super::{TxtLoader, redact};
+use super::{TxtLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
 use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
@@ -74,7 +74,7 @@ impl Handler for TxtHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Handle<Text> for TxtHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.lines.len() {
@@ -97,8 +97,12 @@ impl Handle<Text> for TxtHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl IndexedHandle<Text> for TxtHandler {
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        lift_identity(chunk, value_range)
+    }
+
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
         let Some(i) = self.line_for(location.start) else {
             return Ok(None);
@@ -243,6 +247,19 @@ mod tests {
         let trailing_newline = text.ends_with('\n');
         let lines = text.lines().map(String::from).collect();
         TxtHandler::new(lines, trailing_newline)
+    }
+
+    #[tokio::test]
+    async fn lift_chunk_is_identity_on_second_line() -> Result<(), Error> {
+        // line "world" starts at byte 6. A value-byte range 1..4
+        // ("orl") lifts to source bytes 7..10.
+        let mut h = handler("hello\nworld\n");
+        let _first = h.next_chunk().await?.unwrap();
+        let second = h.next_chunk().await?.unwrap();
+        let lifted = h.lift_chunk(&second, 1..4).expect("in bounds");
+        assert_eq!(lifted.start, 7);
+        assert_eq!(lifted.end, 10);
+        Ok(())
     }
 
     #[tokio::test]

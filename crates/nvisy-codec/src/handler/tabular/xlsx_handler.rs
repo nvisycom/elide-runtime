@@ -7,7 +7,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::{Tabular, TabularLocation, TextData};
 use nvisy_core::redaction::Redactions;
@@ -68,14 +67,14 @@ impl Handler for XlsxHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Handle<Tabular> for XlsxHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Tabular>>, Error> {
         Ok(None)
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl IndexedHandle<Tabular> for XlsxHandler {
     async fn read(&self, _location: &TabularLocation) -> Result<Option<TextData>, Error> {
         Ok(None)

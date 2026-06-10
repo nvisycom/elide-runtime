@@ -10,8 +10,7 @@
 
 use std::sync::Arc;
 
-use aho_corasick::AhoCorasick;
-use async_trait::async_trait;
+use aho_corasick::{AhoCorasick, MatchKind};
 use nvisy_core::entity::{Entity, EntityKind, PatternProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::{Confidence, LanguageTag};
@@ -53,10 +52,16 @@ struct CompiledDictionary {
     /// One past the last term-id for this dictionary inside the
     /// shared automaton.
     term_end: usize,
-    score: Confidence,
+    /// Per-term confidence, indexed by `term_id - term_start`.
+    /// Resolved at compile time from the dictionary's
+    /// `column_scores` override (when set) or its default `score`.
+    term_scores: Vec<Confidence>,
     /// Languages this dictionary applies to. Empty means "any
     /// language".
     languages: Vec<LanguageTag>,
+    /// Reject matches whose immediate neighbours are word
+    /// characters (alphanumeric or `_`). Mirrors regex `\b`.
+    word_boundary: bool,
 }
 
 /// Composes a [`PatternRegistry`] into a single text recognizer.
@@ -161,15 +166,27 @@ impl PatternRecognizerBuilder {
         let mut all_terms: Vec<String> = Vec::new();
         for dict in registry.dictionaries() {
             let term_start = all_terms.len();
-            all_terms.extend(dict.terms.as_slice().iter().cloned());
+            let mut term_scores = Vec::with_capacity(dict.terms.len());
+            for entry in dict.terms.entries() {
+                all_terms.push(entry.term.clone());
+                // Resolve column → score. Out-of-range columns fall
+                // back to the dictionary's default score.
+                let score = dict
+                    .column_scores
+                    .get(entry.column as usize)
+                    .copied()
+                    .unwrap_or(dict.score);
+                term_scores.push(score);
+            }
             let term_end = all_terms.len();
             compiled_dicts.push(CompiledDictionary {
                 name: dict.name.clone(),
                 entity_kind: dict.entity_kind,
                 term_start,
                 term_end,
-                score: dict.score,
+                term_scores,
                 languages: dict.languages.clone(),
+                word_boundary: dict.word_boundary,
             });
         }
 
@@ -179,6 +196,13 @@ impl PatternRecognizerBuilder {
             Some(
                 AhoCorasick::builder()
                     .ascii_case_insensitive(false)
+                    // Longest-match-at-position: when both `en` and
+                    // `English` start at the same offset, return
+                    // `English`. Without this, the short ISO code
+                    // would win and word-boundary post-filtering
+                    // would then reject it, dropping the legitimate
+                    // long-form match.
+                    .match_kind(MatchKind::LeftmostLongest)
                     .build(&all_terms)
                     .map_err(|e| {
                         Error::validation(
@@ -198,7 +222,7 @@ impl PatternRecognizerBuilder {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl EntityRecognizer<Text> for PatternRecognizer {
     async fn recognize(&self, input: &RecognizerInput<Text>) -> Result<RecognizerOutput<Text>> {
         let text = input.data.text.as_str();
@@ -230,7 +254,11 @@ impl EntityRecognizer<Text> for PatternRecognizer {
                 if !input.applies_to_language(&dict.languages) {
                     continue;
                 }
-                entities.push(build_dictionary_entity(dict, mat.start(), mat.end()));
+                if dict.word_boundary && !has_word_boundaries(text, mat.start(), mat.end()) {
+                    continue;
+                }
+                let score = dict.term_scores[term_id - dict.term_start];
+                entities.push(build_dictionary_entity(dict, score, mat.start(), mat.end()));
             }
         }
 
@@ -268,22 +296,124 @@ fn build_pattern_entity(pat: &CompiledPattern, start: usize, end: usize) -> Enti
         .expect("required fields provided")
 }
 
-fn build_dictionary_entity(dict: &CompiledDictionary, start: usize, end: usize) -> Entity<Text> {
+/// Mirror of regex `\b` for the byte range `text[start..end]`:
+/// the immediate neighbour characters (or start/end of input) must
+/// not be word characters. A word character here is Unicode
+/// alphanumeric or `_`, matching the conventional regex definition.
+///
+/// Operates on `char` boundaries, not raw bytes, so multibyte
+/// codepoints don't trigger false rejections (`é` is one char, not
+/// two).
+fn has_word_boundaries(text: &str, start: usize, end: usize) -> bool {
+    let left_is_word = text[..start].chars().next_back().is_some_and(is_word_char);
+    let right_is_word = text[end..].chars().next().is_some_and(is_word_char);
+    !left_is_word && !right_is_word
+}
+
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+fn build_dictionary_entity(
+    dict: &CompiledDictionary,
+    score: Confidence,
+    start: usize,
+    end: usize,
+) -> Entity<Text> {
     let provenance = TrailProvenance::Pattern(PatternProvenance::Dictionary {
         name: dict.name.clone(),
         contextual: false,
     });
     let step = TrailStep::recognition(
         "pattern",
-        dict.score,
+        score,
         provenance,
         format!("dictionary `{}` matched", dict.name),
     );
     Entity::builder()
         .with_entity_kind(dict.entity_kind)
         .with_trail(vec![step])
-        .with_confidence(dict.score)
+        .with_confidence(score)
         .with_location(TextLocation::new(start, end))
         .build()
         .expect("required fields provided")
+}
+
+#[cfg(test)]
+mod tests {
+    use nvisy_core::entity::EntityKind;
+    use nvisy_core::modality::TextData;
+    use nvisy_core::recognition::RecognizerInput;
+
+    use super::*;
+    use crate::Dictionary;
+    use crate::recognition::registry::PatternRegistry;
+    use crate::recognition::terms::Terms;
+
+    fn dict(name: &str, terms: &[&str], word_boundary: bool) -> Dictionary {
+        Dictionary::builder()
+            .with_name(name.to_owned())
+            .with_entity_kind(EntityKind::Language)
+            .with_terms(Terms::from(terms))
+            .with_word_boundary(word_boundary)
+            .build()
+            .expect("dictionary builds")
+    }
+
+    async fn run(recognizer: &PatternRecognizer, text: &str) -> Vec<Entity<Text>> {
+        let input = RecognizerInput::new(TextData::new(text.to_owned()));
+        recognizer
+            .recognize(&input)
+            .await
+            .expect("recognize succeeds")
+            .entities
+    }
+
+    #[tokio::test]
+    async fn word_boundary_rejects_substring_matches() {
+        let registry = PatternRegistry::new().with_dictionary(dict("langs", &["am", "or"], true));
+        let recognizer = PatternRecognizer::builder()
+            .with_registry(registry)
+            .build()
+            .expect("recognizer builds");
+
+        let entities = run(&recognizer, "the example or a candidate").await;
+        let matched: Vec<&str> = entities
+            .iter()
+            .map(|e| &"the example or a candidate"[e.location.start..e.location.end])
+            .collect();
+
+        // "am" inside "example" and "or" inside "candidate" are
+        // substring matches and must be rejected. The standalone
+        // "or" between two spaces must be kept.
+        assert_eq!(matched, vec!["or"]);
+    }
+
+    #[tokio::test]
+    async fn word_boundary_disabled_keeps_substring_matches() {
+        let registry = PatternRegistry::new().with_dictionary(dict("langs", &["am"], false));
+        let recognizer = PatternRecognizer::builder()
+            .with_registry(registry)
+            .build()
+            .expect("recognizer builds");
+
+        let entities = run(&recognizer, "example").await;
+        assert_eq!(entities.len(), 1, "substring match must be kept");
+    }
+
+    #[test]
+    fn has_word_boundaries_handles_edges_and_unicode() {
+        // Match touches both edges of the input → boundaries OK.
+        assert!(has_word_boundaries("hello", 0, 5));
+        // Match preceded by a word char → not a boundary.
+        assert!(!has_word_boundaries("example", 5, 7));
+        // Match followed by a word char → not a boundary.
+        assert!(!has_word_boundaries("amount", 0, 2));
+        // Space surround → boundaries OK.
+        assert!(has_word_boundaries(" am ", 1, 3));
+        // Unicode word char on the left → not a boundary.
+        assert!(!has_word_boundaries("café_am", 5, 7));
+        // Punctuation around → boundaries OK.
+        assert!(has_word_boundaries("(am)", 1, 3));
+    }
 }

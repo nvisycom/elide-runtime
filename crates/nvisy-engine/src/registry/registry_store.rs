@@ -5,7 +5,6 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use fjall::{Database, Keyspace};
 use nvisy_codec::content::{
     Content, ContentDescriptor, ContentDigest, ContentRecord, ContentSource,
@@ -590,7 +589,7 @@ impl Registry {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Healthcheck for Registry {
     fn name(&self) -> Cow<'static, str> {
         Cow::Borrowed("registry")

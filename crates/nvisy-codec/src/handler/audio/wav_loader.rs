@@ -1,6 +1,5 @@
 //! WAV loader: wraps raw audio bytes into a [`WavHandler`].
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Audio;
 
@@ -12,7 +11,7 @@ use crate::core::Loader;
 #[derive(Debug, Default)]
 pub struct WavLoader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Audio> for WavLoader {
     type Handler = WavHandler;
 

@@ -4,7 +4,6 @@
 use std::fmt;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_core::entity::ModelProvenance;
 use nvisy_core::extraction::{Extractor as CoreExtractor, ExtractorOutput, Span};
 use nvisy_core::modality::{Image, ImageExtraction};
@@ -80,7 +79,7 @@ impl OcrExtractor {
 /// per-document `Block<Image>` values.
 ///
 /// [`Extractor<Image>`]: nvisy_core::extraction::Extractor
-#[async_trait]
+#[async_trait::async_trait]
 impl CoreExtractor<Image> for OcrExtractor {
     type Output = OcrResponse;
 

@@ -29,7 +29,6 @@
 
 use std::marker::PhantomData;
 
-use async_trait::async_trait;
 use nvisy_core::entity::Entity;
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
@@ -89,7 +88,7 @@ impl<'a, M: Modality, R: TextAt<M> + ?Sized> LayerContext<'a, M, R> {
 /// anything (calibrate, fuse) return an empty vec; layers that filter
 /// or resolve conflicts return the discarded entities so the pipeline
 /// can roll up drop counts.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Layer<M: Modality, R: TextAt<M> + ?Sized>: Send + Sync {
     /// Run this layer against `entities`. Returns the dropped vec.
     async fn apply(

@@ -4,7 +4,6 @@
 //! disappears from the output. This is the strongest text operator —
 //! no trace of the original value or its shape remains.
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
@@ -15,7 +14,7 @@ use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Redact;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Anonymizer<Text> for Redact {
     fn leak_profile(&self) -> LeakProfile {
         LeakProfile::Irrecoverable

@@ -1,6 +1,5 @@
 //! MP3 loader: wraps raw audio bytes into a [`Mp3Handler`].
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Audio;
 
@@ -12,7 +11,7 @@ use crate::core::Loader;
 #[derive(Debug, Default)]
 pub struct Mp3Loader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Audio> for Mp3Loader {
     type Handler = Mp3Handler;
 

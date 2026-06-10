@@ -3,9 +3,9 @@
 //! Preserves the raw bytes for round-trip encoding and exposes no
 //! text chunks until per-paragraph extraction lands.
 
+use std::ops::Range;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
@@ -14,6 +14,7 @@ use nvisy_core::redaction::Redactions;
 use super::DocxLoader;
 use crate::content::{ContentData, ContentSource};
 use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::handler::text::lift_identity;
 use crate::{Format, FormatId, LoaderAdapter};
 
 const TARGET: &str = "docx-handler";
@@ -75,15 +76,19 @@ impl Handler for DocxHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Handle<Text> for DocxHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         Ok(None)
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl IndexedHandle<Text> for DocxHandler {
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        lift_identity(chunk, value_range)
+    }
+
     async fn read(&self, _location: &TextLocation) -> Result<Option<TextData>, Error> {
         Ok(None)
     }

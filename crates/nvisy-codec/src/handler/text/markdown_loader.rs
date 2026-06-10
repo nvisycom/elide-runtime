@@ -8,7 +8,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
@@ -38,7 +37,7 @@ pub struct MarkdownLoader {
     pub encoding: TextEncoding,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Text> for MarkdownLoader {
     type Handler = TxtHandler;
 

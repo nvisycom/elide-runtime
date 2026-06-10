@@ -22,14 +22,14 @@
 //! ```ignore
 //! use nvisy_core::entity::EntityKind;
 //! use nvisy_core::modality::Text;
-//! use nvisy_toolkit::redaction::builtin::{Mask, Redact, Replace};
+//! use nvisy_toolkit::redaction::anonymizer::{Mask, Redact, Replace};
 //! use nvisy_toolkit::redaction::{AnonymizerId, RedactionRegistry};
 //!
 //! const KMS_ENCRYPT: AnonymizerId<Text> = AnonymizerId::from_static("kms_encrypt");
 //!
 //! let registry = RedactionRegistry::<Text>::new()
 //!     .insert_kind(EntityKind::EmailAddress, Replace::new("[EMAIL]"))
-//!     .insert_kind(EntityKind::PaymentCard, Mask::new('#', Some(12)))
+//!     .insert_kind(EntityKind::PaymentCard, Mask::new('#').with_keep_suffix(4))
 //!     .insert_id(KMS_ENCRYPT, MyKmsOperator::new(client))
 //!     .with_fallback(Redact);
 //! ```

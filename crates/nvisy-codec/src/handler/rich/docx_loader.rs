@@ -3,7 +3,6 @@
 //! Wraps the raw bytes into a [`DocxHandler`] that preserves the
 //! input for round-trip encoding but exposes no text chunks.
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
@@ -15,7 +14,7 @@ use crate::core::Loader;
 #[derive(Debug, Default)]
 pub struct DocxLoader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Text> for DocxLoader {
     type Handler = DocxHandler;
 

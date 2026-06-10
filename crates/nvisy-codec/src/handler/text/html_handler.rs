@@ -9,14 +9,14 @@
 //!
 //! [`Html::html`]: scraper::Html::html
 
+use std::ops::Range;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::{Redactions, TextReplacement};
 
-use super::{HtmlLoader, redact};
+use super::{HtmlLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
 use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
@@ -99,7 +99,7 @@ impl Handler for HtmlHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Handle<Text> for HtmlHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.data.text_nodes.len() {
@@ -122,8 +122,12 @@ impl Handle<Text> for HtmlHandler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl IndexedHandle<Text> for HtmlHandler {
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        lift_identity(chunk, value_range)
+    }
+
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
         let Some(i) = self.node_for(location.start) else {
             return Ok(None);

@@ -1,3 +1,12 @@
 name = "languages"
 entity_kind = "language"
 score = 0.85
+# Per-CSV-column overrides:
+#   column 0 = long-form names (`English`, `Spanish`, ...) — high
+#             confidence; collisions with everyday words are rare.
+#   column 1 = ISO 639-1 codes (`en`, `es`, ...) — low confidence;
+#             two-letter codes routinely collide with English words
+#             like `or` (Odia), `it` (Italian), `am` (Amharic).
+#             Below the dedup default threshold of 0.5 so they
+#             drop unless an operator explicitly lowers the floor.
+column_scores = [0.85, 0.30]

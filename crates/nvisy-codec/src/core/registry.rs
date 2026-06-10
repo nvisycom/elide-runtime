@@ -13,7 +13,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 
 use super::ModalityKind;
@@ -51,7 +50,7 @@ impl std::fmt::Debug for Format {
 /// Object-safe loader the registry holds behind `Arc`. Adapts a
 /// per-modality [`Loader<M>`] into a uniform `decode` signature that
 /// returns an [`UntypedDocumentHandle`].
-#[async_trait]
+#[async_trait::async_trait]
 pub trait ErasedLoader: Send + Sync + 'static {
     /// Modality this loader produces.
     fn modality(&self) -> ModalityKind;
@@ -80,7 +79,7 @@ impl<M: Codable, L: Loader<M>> LoaderAdapter<M, L> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M, L> ErasedLoader for LoaderAdapter<M, L>
 where
     M: Codable + WrapUntyped,

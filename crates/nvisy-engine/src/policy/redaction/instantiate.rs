@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use nvisy_core::modality::{Audio, Image, Modality, Text};
 use nvisy_core::{Error, Result};
-use nvisy_toolkit::redaction::builtin::{Hash, Keep, Mask, Redact, Replace};
+use nvisy_toolkit::redaction::anonymizer::{Hash, Keep, Mask, Redact, Replace};
 use nvisy_toolkit::redaction::{Anonymizer, RedactionRegistry};
 
 use super::audio::AudioRedaction;
@@ -47,13 +47,12 @@ impl Instantiate<Text> for TextRedaction {
             Self::Replace { template } => Ok(Arc::new(Replace::new(template.clone()))),
             Self::Mask {
                 mask_char,
-                chars_to_mask,
-                from_end,
+                keep_prefix,
+                keep_suffix,
             } => {
-                let mut op = Mask::new(*mask_char, *chars_to_mask);
-                if *from_end {
-                    op = op.from_end();
-                }
+                let op = Mask::new(*mask_char)
+                    .with_keep_prefix(*keep_prefix)
+                    .with_keep_suffix(*keep_suffix);
                 Ok(Arc::new(op))
             }
             Self::Hash { algorithm, salt } => {

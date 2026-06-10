@@ -47,3 +47,7 @@ temp/
 .ignore*/
 .claude
 CLAUDE.md
+
+# Pipeline-test artifacts: `{stem}.redacted.{ext}` written next to
+# fixtures by the toolkit pipeline tests for human inspection.
+**/testdata/**/*.redacted.*

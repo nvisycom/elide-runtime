@@ -26,7 +26,6 @@
 //! [`DataAt`]: nvisy_core::extraction::DataAt
 //! [`RedactAt`]: nvisy_core::redaction::RedactAt
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::extraction::DataAt;
 #[cfg(any(feature = "internal_text", feature = "internal_tabular"))]
@@ -77,7 +76,7 @@ impl<M: Codable> DecodedBuffer<M> {
 // ── Text ────────────────────────────────────────────────────────────
 
 #[cfg(feature = "internal_text")]
-#[async_trait]
+#[async_trait::async_trait]
 impl TextAt<nvisy_core::modality::Text> for DecodedBuffer<nvisy_core::modality::Text> {
     async fn text_at(&self, location: &nvisy_core::modality::TextLocation) -> Option<String> {
         self.handle
@@ -91,7 +90,7 @@ impl TextAt<nvisy_core::modality::Text> for DecodedBuffer<nvisy_core::modality::
 }
 
 #[cfg(feature = "internal_text")]
-#[async_trait]
+#[async_trait::async_trait]
 impl DataAt<nvisy_core::modality::Text> for DecodedBuffer<nvisy_core::modality::Text> {
     async fn data_at(
         &self,
@@ -102,7 +101,7 @@ impl DataAt<nvisy_core::modality::Text> for DecodedBuffer<nvisy_core::modality::
 }
 
 #[cfg(feature = "internal_text")]
-#[async_trait]
+#[async_trait::async_trait]
 impl RedactAt<nvisy_core::modality::Text> for DecodedBuffer<nvisy_core::modality::Text> {
     async fn redact_at(
         &mut self,
@@ -115,7 +114,7 @@ impl RedactAt<nvisy_core::modality::Text> for DecodedBuffer<nvisy_core::modality
 // ── Tabular ─────────────────────────────────────────────────────────
 
 #[cfg(feature = "internal_tabular")]
-#[async_trait]
+#[async_trait::async_trait]
 impl TextAt<nvisy_core::modality::Tabular> for DecodedBuffer<nvisy_core::modality::Tabular> {
     async fn text_at(&self, location: &nvisy_core::modality::TabularLocation) -> Option<String> {
         self.handle
@@ -129,7 +128,7 @@ impl TextAt<nvisy_core::modality::Tabular> for DecodedBuffer<nvisy_core::modalit
 }
 
 #[cfg(feature = "internal_tabular")]
-#[async_trait]
+#[async_trait::async_trait]
 impl DataAt<nvisy_core::modality::Tabular> for DecodedBuffer<nvisy_core::modality::Tabular> {
     async fn data_at(
         &self,
@@ -140,7 +139,7 @@ impl DataAt<nvisy_core::modality::Tabular> for DecodedBuffer<nvisy_core::modalit
 }
 
 #[cfg(feature = "internal_tabular")]
-#[async_trait]
+#[async_trait::async_trait]
 impl RedactAt<nvisy_core::modality::Tabular> for DecodedBuffer<nvisy_core::modality::Tabular> {
     async fn redact_at(
         &mut self,
@@ -153,7 +152,7 @@ impl RedactAt<nvisy_core::modality::Tabular> for DecodedBuffer<nvisy_core::modal
 // ── Image ───────────────────────────────────────────────────────────
 
 #[cfg(feature = "internal_image")]
-#[async_trait]
+#[async_trait::async_trait]
 impl DataAt<nvisy_core::modality::Image> for DecodedBuffer<nvisy_core::modality::Image> {
     async fn data_at(
         &self,
@@ -164,7 +163,7 @@ impl DataAt<nvisy_core::modality::Image> for DecodedBuffer<nvisy_core::modality:
 }
 
 #[cfg(feature = "internal_image")]
-#[async_trait]
+#[async_trait::async_trait]
 impl RedactAt<nvisy_core::modality::Image> for DecodedBuffer<nvisy_core::modality::Image> {
     async fn redact_at(
         &mut self,
@@ -177,7 +176,7 @@ impl RedactAt<nvisy_core::modality::Image> for DecodedBuffer<nvisy_core::modalit
 // ── Audio ───────────────────────────────────────────────────────────
 
 #[cfg(feature = "internal_audio")]
-#[async_trait]
+#[async_trait::async_trait]
 impl DataAt<nvisy_core::modality::Audio> for DecodedBuffer<nvisy_core::modality::Audio> {
     async fn data_at(
         &self,
@@ -188,7 +187,7 @@ impl DataAt<nvisy_core::modality::Audio> for DecodedBuffer<nvisy_core::modality:
 }
 
 #[cfg(feature = "internal_audio")]
-#[async_trait]
+#[async_trait::async_trait]
 impl RedactAt<nvisy_core::modality::Audio> for DecodedBuffer<nvisy_core::modality::Audio> {
     async fn redact_at(
         &mut self,

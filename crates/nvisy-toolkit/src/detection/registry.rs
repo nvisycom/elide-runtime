@@ -112,11 +112,8 @@ impl RecognizerRegistry {
     }
 
     fn slot_mut<M: Modality>(&mut self) -> &mut Vec<Arc<dyn EntityRecognizer<M>>> {
-        &mut self
-            .slots
-            .entry::<Slot<M>>()
-            .or_insert_with(Slot::default)
-            .recognizers
+        let slot = self.slots.entry::<Slot<M>>();
+        &mut slot.or_insert_with(Slot::default).recognizers
     }
 }
 

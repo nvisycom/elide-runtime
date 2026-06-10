@@ -8,12 +8,38 @@
 //! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
 //! [`TextReplacement`]: nvisy_core::redaction::TextReplacement
 
-use nvisy_core::modality::Text;
+use std::ops::Range;
 
-use crate::core::{Codable, ModalityKind};
+use nvisy_core::modality::{Text, TextLocation};
+
+use crate::core::{Chunk, Codable, ModalityKind};
 
 impl Codable for Text {
     const KIND: ModalityKind = ModalityKind::Text;
+}
+
+/// Identity lift for handlers where `chunk.data` is byte-for-byte
+/// a slice of the source covered by `chunk.location` — no
+/// escapes, no decoding. The default implementation backing
+/// [`IndexedHandle::lift_chunk`] for TXT lines, HTML text nodes,
+/// PDF page text, and DOCX text runs.
+///
+/// Adds `value_range` to `chunk.location.start` and copies
+/// `page_number` / `context` through. Returns `None` when the
+/// range falls outside the chunk's value.
+///
+/// [`IndexedHandle::lift_chunk`]: crate::core::IndexedHandle::lift_chunk
+pub fn lift_identity(chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+    let len = chunk.location.end.checked_sub(chunk.location.start)?;
+    if value_range.start > value_range.end || value_range.end > len {
+        return None;
+    }
+    Some(TextLocation {
+        start: chunk.location.start + value_range.start,
+        end: chunk.location.start + value_range.end,
+        context: chunk.location.context,
+        page_number: chunk.location.page_number,
+    })
 }
 
 pub(crate) mod redact;
@@ -38,7 +64,7 @@ pub use self::html_handler::{HtmlData, HtmlHandler, format as html_format};
 #[cfg(feature = "html")]
 pub use self::html_loader::HtmlLoader;
 #[cfg(feature = "json")]
-pub use self::json_handler::{JsonData, JsonHandler, JsonIndent, format as json_format};
+pub use self::json_handler::{JsonHandler, format as json_format};
 #[cfg(feature = "json")]
 pub use self::json_loader::JsonLoader;
 #[cfg(feature = "markdown")]

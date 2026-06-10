@@ -11,7 +11,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use nvisy_core::Error;
 use nvisy_core::modality::{Audio, AudioData, AudioLocation};
@@ -99,7 +98,7 @@ impl Handler for Mp3Handler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Handle<Audio> for Mp3Handler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Audio>>, Error> {
         if self.yielded {
@@ -116,7 +115,7 @@ impl Handle<Audio> for Mp3Handler {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl IndexedHandle<Audio> for Mp3Handler {
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {
         Ok(Some(

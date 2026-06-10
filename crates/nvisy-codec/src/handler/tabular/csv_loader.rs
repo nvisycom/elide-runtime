@@ -2,7 +2,6 @@
 //! [`CsvHandler`]. Auto-detects the field delimiter (comma, tab,
 //! semicolon, pipe) by inspecting the first few lines.
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Tabular;
 
@@ -33,7 +32,7 @@ impl Default for CsvLoader {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Tabular> for CsvLoader {
     type Handler = CsvHandler;
 

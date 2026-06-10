@@ -4,7 +4,6 @@
 //!
 //! [`lopdf`]: https://docs.rs/lopdf
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
@@ -19,7 +18,7 @@ pub struct PdfLoader {
     pub password: Option<String>,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Text> for PdfLoader {
     type Handler = PdfHandler;
 

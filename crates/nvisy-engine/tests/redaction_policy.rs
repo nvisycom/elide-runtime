@@ -26,8 +26,8 @@ fn text_redaction_each_variant_round_trips() {
         [[arms]]
         kind = "mask"
         mask_char = "*"
-        chars_to_mask = 12
-        from_end = true
+        keep_prefix = 4
+        keep_suffix = 4
 
         [[arms]]
         kind = "hash"
@@ -59,12 +59,12 @@ fn text_redaction_each_variant_round_trips() {
     match &parsed.arms[1] {
         TextRedaction::Mask {
             mask_char,
-            chars_to_mask,
-            from_end,
+            keep_prefix,
+            keep_suffix,
         } => {
             assert_eq!(*mask_char, '*');
-            assert_eq!(*chars_to_mask, Some(12));
-            assert!(*from_end);
+            assert_eq!(*keep_prefix, 4);
+            assert_eq!(*keep_suffix, 4);
         }
         other => panic!("expected Mask, got {other:?}"),
     }
@@ -96,12 +96,12 @@ fn text_redaction_defaults_fill_in() {
     match parsed {
         TextRedaction::Mask {
             mask_char,
-            chars_to_mask,
-            from_end,
+            keep_prefix,
+            keep_suffix,
         } => {
             assert_eq!(mask_char, '*');
-            assert_eq!(chars_to_mask, None);
-            assert!(!from_end);
+            assert_eq!(keep_prefix, 0);
+            assert_eq!(keep_suffix, 0);
         }
         other => panic!("expected Mask, got {other:?}"),
     }
@@ -173,7 +173,7 @@ fn policy_with_redact_rules_round_trips_from_toml() {
 
         [[rules]]
         action = "redact"
-        operator = { kind = "mask", mask_char = "#", chars_to_mask = 12 }
+        operator = { kind = "mask", mask_char = "#", keep_suffix = 4 }
 
         [rules.selector]
         entityKinds = ["payment_card"]
@@ -196,19 +196,19 @@ fn policy_with_redact_rules_round_trips_from_toml() {
         other => panic!("expected Replace, got {other:?}"),
     }
 
-    // Second rule: card → Mask { '#', 12 }.
+    // Second rule: card → Mask { '#', keep last 4 }.
     let PolicyRule { action, .. } = &policy.rules[1];
     match action {
         Action::Redact {
             operator:
                 TextRedaction::Mask {
                     mask_char,
-                    chars_to_mask,
+                    keep_suffix,
                     ..
                 },
         } => {
             assert_eq!(*mask_char, '#');
-            assert_eq!(*chars_to_mask, Some(12));
+            assert_eq!(*keep_suffix, 4);
         }
         other => panic!("expected Mask, got {other:?}"),
     }

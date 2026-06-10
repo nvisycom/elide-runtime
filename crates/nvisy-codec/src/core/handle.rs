@@ -35,6 +35,7 @@
 //! [`Modality`]: nvisy_core::modality::Modality
 
 use std::fmt;
+use std::ops::Range;
 
 use nvisy_core::Error;
 use nvisy_core::modality::Modality;
@@ -156,6 +157,31 @@ pub trait IndexedHandle<M: Codable>: Handle<M> {
     ///
     /// Use [`Redactions::single`] when only one replacement is needed.
     async fn redact(&mut self, redactions: Redactions<M>) -> Result<(), Error>;
+
+    /// Translate a `value_range` expressed inside `chunk.data`'s
+    /// coordinate system into a source-coordinate [`M::Location`].
+    ///
+    /// Recognizers see the unescaped, decoded chunk payload and
+    /// emit offsets into that. Downstream stages — dedup, redact,
+    /// audit — need locations that address the handler's source
+    /// bytes. `lift_chunk` is the bridge.
+    ///
+    /// For text-shaped handlers where `chunk.data` is byte-for-byte
+    /// a slice of source (TXT lines, HTML text nodes, PDF page
+    /// text, CSV cells, DOCX text runs), the mapping is the
+    /// identity offset add against `chunk.location.start`. Handlers
+    /// whose chunks decode escapes or otherwise transform the
+    /// payload (JSON `\"` / `\\`, future HTML entity refs) override
+    /// to walk their per-chunk escape map.
+    ///
+    /// Returns `None` when the range has no source pre-image — out
+    /// of bounds, lands inside an escape pair, or the modality
+    /// doesn't have a meaningful `usize` value-range concept (image
+    /// bounding boxes, audio time spans, tabular cell coords).
+    /// Non-text impls leave the default `None`.
+    fn lift_chunk(&self, _chunk: &Chunk<M>, _value_range: Range<usize>) -> Option<M::Location> {
+        None
+    }
 }
 
 /// Capability trait for rich-format handlers (PDF, DOCX, …) whose

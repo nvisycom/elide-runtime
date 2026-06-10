@@ -7,7 +7,6 @@
 //! handle; image and audio reads walk the document's blocks. Write-back
 //! ([`RedactAt::redact_at`]) always goes through the codec handle.
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::extraction::{DataAt, TextAt};
 use nvisy_core::modality::{
@@ -19,7 +18,7 @@ use nvisy_core::redaction::{RedactAt, Redactions};
 use super::DocumentTree;
 use crate::modality::{AudioBlock, ImageBlock};
 
-#[async_trait]
+#[async_trait::async_trait]
 impl TextAt<Text> for DocumentTree<Text> {
     /// Resolve a [`Text`] location to its source text via the codec
     /// handle. Returns `None` when the handle has no readable bytes
@@ -35,7 +34,7 @@ impl TextAt<Text> for DocumentTree<Text> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl TextAt<Tabular> for DocumentTree<Tabular> {
     /// Resolve a [`Tabular`] location to its source cell value via the
     /// codec handle.
@@ -50,7 +49,7 @@ impl TextAt<Tabular> for DocumentTree<Tabular> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl TextAt<Image> for DocumentTree<Image> {
     /// Resolve an [`Image`] location to the OCR'd text at that region
     /// by walking the document's blocks. Exact bounding-box match
@@ -75,7 +74,7 @@ impl TextAt<Image> for DocumentTree<Image> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl TextAt<Audio> for DocumentTree<Audio> {
     /// Resolve an [`Audio`] location to the transcript at that time
     /// span by walking the document's blocks.
@@ -98,7 +97,7 @@ impl TextAt<Audio> for DocumentTree<Audio> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl DataAt<Text> for DocumentTree<Text> {
     /// Resolve a [`Text`] location to its [`TextData`] payload via
     /// the codec handle.
@@ -107,7 +106,7 @@ impl DataAt<Text> for DocumentTree<Text> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl DataAt<Image> for DocumentTree<Image> {
     /// Resolve an [`Image`] location to its [`ImageData`] payload via
     /// the codec handle.
@@ -116,7 +115,7 @@ impl DataAt<Image> for DocumentTree<Image> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl DataAt<Audio> for DocumentTree<Audio> {
     /// Resolve an [`Audio`] location to its [`AudioData`] payload via
     /// the codec handle.
@@ -125,7 +124,7 @@ impl DataAt<Audio> for DocumentTree<Audio> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl RedactAt<Text> for DocumentTree<Text> {
     /// Apply a batch of text replacements through the codec handle.
     /// The handler decides per-format ordering (right-to-left for byte
@@ -135,7 +134,7 @@ impl RedactAt<Text> for DocumentTree<Text> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl RedactAt<Image> for DocumentTree<Image> {
     /// Apply a batch of image replacements through the codec handle.
     async fn redact_at(&mut self, redactions: Redactions<Image>) -> Result<()> {
@@ -143,7 +142,7 @@ impl RedactAt<Image> for DocumentTree<Image> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl RedactAt<Audio> for DocumentTree<Audio> {
     /// Apply a batch of audio replacements through the codec handle.
     async fn redact_at(&mut self, redactions: Redactions<Audio>) -> Result<()> {

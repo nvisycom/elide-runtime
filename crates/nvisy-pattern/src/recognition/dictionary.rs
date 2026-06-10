@@ -65,6 +65,34 @@ pub struct Dictionary {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<String>")]
     pub languages: Vec<LanguageTag>,
+    /// Require word-boundary surroundings on every match. With the
+    /// default of `true`, a term `"am"` matches the word `"am"` but
+    /// not the `"am"` inside `"example"`. Word characters are
+    /// alphanumerics and `_` (Unicode-aware). Set to `false` for
+    /// dictionaries that genuinely want substring matching (e.g.
+    /// scanning for embedded credentials inside arbitrary tokens).
+    #[builder(default = "true")]
+    #[serde(default = "default_word_boundary")]
+    pub word_boundary: bool,
+    /// Per-column confidence overrides for terms loaded from a
+    /// multi-column CSV. `column_scores[i]` is the confidence
+    /// stamped on every term whose source column was `i`; terms
+    /// from a column past the end of this vec fall back to the
+    /// dictionary's default `score`. Useful when one column
+    /// carries unambiguous long-form names (`English`, `Spanish`)
+    /// and another carries short codes (`en`, `es`) that collide
+    /// with common words.
+    ///
+    /// Empty (the default) means "use `score` for every match",
+    /// preserving the historical behaviour of single-confidence
+    /// dictionaries.
+    #[builder(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub column_scores: Vec<Confidence>,
+}
+
+fn default_word_boundary() -> bool {
+    true
 }
 
 impl Dictionary {
@@ -121,6 +149,12 @@ impl Dictionary {
         if let Some(context) = metadata.context {
             builder = builder.with_context(context);
         }
+        if let Some(wb) = metadata.word_boundary {
+            builder = builder.with_word_boundary(wb);
+        }
+        if let Some(cs) = metadata.column_scores {
+            builder = builder.with_column_scores(cs);
+        }
         Ok(builder)
     }
 }
@@ -135,6 +169,10 @@ struct DictionaryMetadata {
     score: Option<Confidence>,
     #[serde(default)]
     context: Option<Context>,
+    #[serde(default)]
+    word_boundary: Option<bool>,
+    #[serde(default)]
+    column_scores: Option<Vec<Confidence>>,
 }
 
 fn context_is_default(ctx: &Context) -> bool {

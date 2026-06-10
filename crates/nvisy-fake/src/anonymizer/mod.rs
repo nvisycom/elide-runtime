@@ -225,7 +225,7 @@ mod tests {
 
     use nvisy_core::entity::EntityKind;
     use nvisy_core::redaction::Anonymizer as _;
-    use nvisy_toolkit::redaction::builtin::{Mask, Replace};
+    use nvisy_toolkit::redaction::anonymizer::{Mask, Replace};
 
     use super::*;
 

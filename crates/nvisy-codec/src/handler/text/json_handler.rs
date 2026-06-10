@@ -6,7 +6,7 @@
 //! scalar). Leaves carry both the original source bytes
 //! (`serialized`) and the unescaped UTF-8 value the recognizer
 //! sees (`value`). [`Handle::next_chunk`] yields leaves in
-//! document order; [`IndexedHandle::redact`] mutates the leaf's
+//! document order; [`Handle::redact`] mutates the leaf's
 //! value and re-renders its serialized form; [`Handler::encode`]
 //! concatenates every slot.
 //!
@@ -24,7 +24,7 @@ use nvisy_core::redaction::Redactions;
 
 use super::redact;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
 
 const TARGET: &str = "json-handler";
@@ -143,10 +143,7 @@ impl Handle<Text> for JsonHandler {
         }
         Ok(None)
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Text> for JsonHandler {
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
         let (idx, leaf) = self.find_leaf(&chunk.location)?;
         let slot_start = self.offset_of(idx);

@@ -1,9 +1,9 @@
 //! PNG handler: holds a decoded image and exposes it as a single
 //! full-image chunk via [`Handle<Image>`], with random-access region
-//! reads / pixel redactions via [`IndexedHandle<Image>`].
+//! reads / pixel redactions via [`Handle<Image>`].
 //!
 //! [`Handle<Image>`]: crate::core::Handle
-//! [`IndexedHandle<Image>`]: crate::core::IndexedHandle
+//! [`Handle<Image>`]: crate::core::Handle
 
 use super::PngLoader;
 use crate::content::ContentSource;

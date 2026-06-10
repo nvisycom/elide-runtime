@@ -3,11 +3,11 @@
 //!
 //! Redaction is **not supported**: no pure-Rust MP3 encoder exists
 //! and pulling a C dependency (libmp3lame) is out of scope here.
-//! [`IndexedHandle::redact`] returns an error. Convert audio to
+//! [`Handle::redact`] returns an error. Convert audio to
 //! WAV upstream if redaction is required.
 //!
 //! [`Handle<Audio>`]: crate::core::Handle
-//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+//! [`Handle::redact`]: crate::core::Handle::redact
 
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ use nvisy_core::redaction::Redactions;
 
 use super::Mp3Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
 
 const TARGET: &str = "mp3-handler";
@@ -113,10 +113,7 @@ impl Handle<Audio> for Mp3Handler {
             embed: None,
         }))
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Audio> for Mp3Handler {
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {
         Ok(Some(
             AudioData::new(self.bytes.clone()).with_filename(self.filename.clone()),

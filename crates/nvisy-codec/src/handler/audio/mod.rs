@@ -2,7 +2,7 @@
 //! [`sort_redactions_for_audio`] helper, plus concrete audio format
 //! implementations (WAV, MP3).
 //!
-//! Audio handlers override [`IndexedHandle::redact`] to call
+//! Audio handlers override [`Handle::redact`] to call
 //! [`sort_redactions_for_audio`] so spans are applied right-to-left
 //! (an [`AudioReplacement::Remove`] shrinks the buffer and shifts
 //! every later sample index; right-to-left order keeps earlier
@@ -10,7 +10,7 @@
 //!
 //! [`AudioReplacement`]: nvisy_core::redaction::AudioReplacement
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
-//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+//! [`Handle::redact`]: crate::core::Handle::redact
 
 use std::cmp::Reverse;
 

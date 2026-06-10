@@ -1,6 +1,6 @@
 //! HTML handler: holds parsed HTML content and streams its text
 //! nodes via [`Handle<Text>`], with random-access reads / redactions
-//! via [`IndexedHandle<Text>`].
+//! via [`Handle<Text>`].
 //!
 //! Offsets are cumulative over the **text-node sequence** in document
 //! order, not raw HTML bytes. [`Handler::encode`] reconstructs the
@@ -18,7 +18,7 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 
 use super::{HtmlLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
 
 const TARGET: &str = "html-handler";
@@ -120,10 +120,7 @@ impl Handle<Text> for HtmlHandler {
             embed: None,
         }))
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Text> for HtmlHandler {
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
         lift_identity(chunk, value_range)
     }

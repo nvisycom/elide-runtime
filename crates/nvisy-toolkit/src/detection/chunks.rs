@@ -1,7 +1,7 @@
-//! Chunk-driven detection: walk an [`IndexedHandle<M>`]'s chunks,
+//! Chunk-driven detection: walk an [`Handle<M>`]'s chunks,
 //! run the [`RecognizerRegistry`] against each, and lift every
 //! entity's offset back to source-coordinate `M::Location` via
-//! [`IndexedHandle::lift_chunk`] before returning the merged list.
+//! [`Handle::lift_chunk`] before returning the merged list.
 //!
 //! Exposed as an extension trait
 //! ([`RecognizerRegistryExt::detect`]) on [`RecognizerRegistry`]:
@@ -23,10 +23,10 @@
 //! recognition), it would skip this helper entirely and call
 //! [`RecognizerRegistry::run`] for its own modality directly.
 //!
-//! [`IndexedHandle<M>`]: nvisy_codec::core::IndexedHandle
-//! [`IndexedHandle::lift_chunk`]: nvisy_codec::core::IndexedHandle::lift_chunk
+//! [`Handle<M>`]: nvisy_codec::core::Handle
+//! [`Handle::lift_chunk`]: nvisy_codec::core::Handle::lift_chunk
 
-use nvisy_codec::core::{Codable, IndexedHandle};
+use nvisy_codec::core::{Codable, Handle};
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Modality, Tabular, TabularLocation, Text, TextData, TextLocation};
@@ -38,13 +38,13 @@ use super::RecognizerRegistry;
 /// [`RecognizerRegistry`]. Each registered `Text` recognizer runs
 /// against every chunk yielded by `handler`; matches are lifted to
 /// source-coordinate `M::Location` via
-/// [`IndexedHandle::lift_chunk`] and reshaped into `Entity<M>` via
+/// [`Handle::lift_chunk`] and reshaped into `Entity<M>` via
 /// [`LiftedFromText`].
 ///
 /// Callers `use nvisy_toolkit::detection::RecognizerRegistryExt;`
 /// to bring the method into scope.
 ///
-/// [`IndexedHandle::lift_chunk`]: nvisy_codec::core::IndexedHandle::lift_chunk
+/// [`Handle::lift_chunk`]: nvisy_codec::core::Handle::lift_chunk
 #[async_trait::async_trait]
 pub trait RecognizerRegistryExt {
     /// Walk `handler`'s chunks, run every registered `Text`
@@ -58,7 +58,7 @@ pub trait RecognizerRegistryExt {
     where
         M: Codable + LiftedFromText,
         M::Data: Into<TextData>,
-        H: IndexedHandle<M> + ?Sized;
+        H: Handle<M> + ?Sized;
 }
 
 #[async_trait::async_trait]
@@ -67,7 +67,7 @@ impl RecognizerRegistryExt for RecognizerRegistry {
     where
         M: Codable + LiftedFromText,
         M::Data: Into<TextData>,
-        H: IndexedHandle<M> + ?Sized,
+        H: Handle<M> + ?Sized,
     {
         let mut out = Vec::new();
         while let Some(chunk) = handler.next_chunk().await? {

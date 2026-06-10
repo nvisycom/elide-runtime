@@ -3,15 +3,15 @@
 //! `image::DynamicImage` + a `ContentSource`).
 //!
 //! Generates the [`Handler`], [`Handle<Image>`],
-//! [`IndexedHandle<Image>`] impls plus inherent constructors and a
+//! [`Handle<Image>`] impls plus inherent constructors and a
 //! `pub fn format() -> Format` descriptor that registers with
 //! [`crate::CodecRegistry`].
 //!
 //! [`Handler`]: crate::core::Handler
 //! [`Handle<Image>`]: crate::core::Handle
-//! [`IndexedHandle<Image>`]: crate::core::IndexedHandle
+//! [`Handle<Image>`]: crate::core::Handle
 
-/// Implement [`Handler`], [`Handle<Image>`], [`IndexedHandle<Image>`],
+/// Implement [`Handler`], [`Handle<Image>`], [`Handle<Image>`],
 /// and the shared inherent methods for an image handler struct that
 /// holds a single `DynamicImage`, a `ContentSource`, and a streaming
 /// cursor.
@@ -23,7 +23,7 @@
 ///
 /// [`Handler`]: crate::core::Handler
 /// [`Handle<Image>`]: crate::core::Handle
-/// [`IndexedHandle<Image>`]: crate::core::IndexedHandle
+/// [`Handle<Image>`]: crate::core::Handle
 /// [`LoaderAdapter`]: crate::core::LoaderAdapter
 #[macro_export]
 macro_rules! impl_image_handler {
@@ -119,10 +119,7 @@ macro_rules! impl_image_handler {
                     embed: None,
                 }))
             }
-        }
 
-        #[::async_trait::async_trait]
-        impl $crate::core::IndexedHandle<::nvisy_core::modality::Image> for $handler {
             async fn read(
                 &self,
                 location: &::nvisy_core::modality::ImageLocation,

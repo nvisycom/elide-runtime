@@ -8,7 +8,7 @@
 //! produces — that's a property of the format descriptor, resolved
 //! at decode time. [`UntypedDocumentHandle`] is the registry-level
 //! return: an enum with one variant per modality, each carrying an
-//! `Arc<dyn Handle<M>>` + the [`FormatId`].
+//! `Box<dyn Handle<M>>` + the [`FormatId`].
 //!
 //! Consumers downstream of decode commit to a modality via the
 //! consuming accessors ([`into_text`], [`into_image`], …),
@@ -32,7 +32,7 @@ use nvisy_core::modality::Tabular;
 use nvisy_core::modality::Text;
 
 pub use self::decoded_buffer::DecodedBuffer;
-use crate::core::{Codable, FormatId, IndexedHandle, ModalityKind};
+use crate::core::{Codable, FormatId, Handle, ModalityKind};
 
 /// Runtime-tagged handle returned by the codec registry, carrying the
 /// underlying [`Handle<M>`] for some `M` along with the
@@ -166,7 +166,7 @@ impl UntypedDocumentHandle {
 /// run, so reference counting buys nothing.
 pub struct DocumentHandle<M: Codable> {
     format_id: FormatId,
-    handler: Box<dyn IndexedHandle<M>>,
+    handler: Box<dyn Handle<M>>,
 }
 
 impl<M: Codable> DocumentHandle<M> {
@@ -174,7 +174,7 @@ impl<M: Codable> DocumentHandle<M> {
     /// codec loaders to produce the typed handle, which is then
     /// erased into an [`UntypedDocumentHandle`] variant for registry
     /// return.
-    pub fn new(format_id: FormatId, handler: Box<dyn IndexedHandle<M>>) -> Self {
+    pub fn new(format_id: FormatId, handler: Box<dyn Handle<M>>) -> Self {
         Self { format_id, handler }
     }
 
@@ -184,25 +184,25 @@ impl<M: Codable> DocumentHandle<M> {
     }
 
     /// Borrow the inner handler. Use this for read-only capability
-    /// methods ([`IndexedHandle::read`]).
+    /// methods ([`Handle::read`]).
     ///
-    /// [`IndexedHandle::read`]: crate::core::IndexedHandle::read
-    pub fn handler(&self) -> &dyn IndexedHandle<M> {
+    /// [`Handle::read`]: crate::core::Handle::read
+    pub fn handler(&self) -> &dyn Handle<M> {
         &*self.handler
     }
 
     /// Mutably borrow the inner handler. Use this for cursor-advancing
     /// methods ([`Handle::next_chunk`]) and the redaction batch
-    /// applicator ([`IndexedHandle::redact`]).
+    /// applicator ([`Handle::redact`]).
     ///
     /// [`Handle::next_chunk`]: crate::core::Handle::next_chunk
-    /// [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
-    pub fn handler_mut(&mut self) -> &mut dyn IndexedHandle<M> {
+    /// [`Handle::redact`]: crate::core::Handle::redact
+    pub fn handler_mut(&mut self) -> &mut dyn Handle<M> {
         &mut *self.handler
     }
 
     /// Consume self, returning the inner handler.
-    pub fn into_handler(self) -> Box<dyn IndexedHandle<M>> {
+    pub fn into_handler(self) -> Box<dyn Handle<M>> {
         self.handler
     }
 }

@@ -13,7 +13,7 @@ use nvisy_core::redaction::Redactions;
 
 use super::XlsxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::handler::tabular::TabularHandle;
 use crate::{Format, FormatId, LoaderAdapter};
 
@@ -72,10 +72,7 @@ impl Handle<Tabular> for XlsxHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Tabular>>, Error> {
         Ok(None)
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Tabular> for XlsxHandler {
     async fn read(&self, _location: &TabularLocation) -> Result<Option<TextData>, Error> {
         Ok(None)
     }

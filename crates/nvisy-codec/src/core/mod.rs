@@ -2,8 +2,8 @@
 //! and the registry that composes them.
 //!
 //! - [`Codable`] — per-modality wire-type associated types.
-//! - [`Handle<M>`] — streaming-default per-modality capability trait.
-//! - [`IndexedHandle<M>`] — random-access super-trait.
+//! - [`Handle<M>`] — per-modality capability trait (streaming +
+//!   random-access reads + redactions + offset lifting).
 //! - [`EmbeddedHandles`] — rich-format embedded-child lookup.
 //! - [`Chunk<M>`] — one unit yielded by [`Handle::next_chunk`].
 //! - [`HandleId`] — stable identifier for embedded child handles.
@@ -19,7 +19,7 @@
 //! - [`Loader<M>`] — per-modality decoder the registry composes.
 //!
 //! The `(location, replacement)` pair list passed to
-//! [`IndexedHandle::redact`] is [`Redactions<M>`]; the per-modality
+//! [`Handle::redact`] is [`Redactions<M>`]; the per-modality
 //! replacement enum is in [`redaction`] — codec depends on core, not
 //! the reverse.
 //!
@@ -38,7 +38,7 @@ mod modality;
 mod registry;
 
 pub use self::format::FormatId;
-pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId, IndexedHandle};
+pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId};
 pub use self::handler::{Handler, Loader};
 pub use self::modality::ModalityKind;
 pub use self::registry::{CodecRegistry, ErasedLoader, Format, LoaderAdapter, WrapUntyped};

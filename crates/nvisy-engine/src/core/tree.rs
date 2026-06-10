@@ -28,11 +28,11 @@ pub struct DocumentTree<M: DocumentModality> {
     pub root: Document<M>,
     /// Codec handle backing the underlying bytes. Phases borrow this
     /// directly via the typed [`DocumentHandle<M>`] for reads
-    /// (via [`IndexedHandle::read`]) and redactions
-    /// (via [`IndexedHandle::redact`]).
+    /// (via [`Handle::read`]) and redactions
+    /// (via [`Handle::redact`]).
     ///
-    /// [`IndexedHandle::read`]: nvisy_codec::core::IndexedHandle::read
-    /// [`IndexedHandle::redact`]: nvisy_codec::core::IndexedHandle::redact
+    /// [`Handle::read`]: nvisy_codec::core::Handle::read
+    /// [`Handle::redact`]: nvisy_codec::core::Handle::redact
     pub handle: DocumentHandle<M>,
     /// Caller-supplied descriptor (filename, MIME hint, policy
     /// metadata) from the original upload. Policy evaluation

@@ -1,7 +1,7 @@
 //! End-to-end: decode a JSON fixture through the codec registry,
 //! detect entities via `RecognizerRegistryExt::detect` (which
 //! lifts each match from chunk-local value coordinates to JSON
-//! source-byte coordinates via `IndexedHandle::lift_chunk`),
+//! source-byte coordinates via `Handle::lift_chunk`),
 //! dedup, redact through the shipped redaction registry, encode
 //! back to bytes, and assert on the result.
 //!

@@ -1,5 +1,5 @@
 //! Per-modality codec contracts: [`Codable`], [`Handle<M>`],
-//! [`IndexedHandle<M>`], [`EmbeddedHandles`], [`Chunk<M>`], [`HandleId`].
+//! [`EmbeddedHandles`], [`Chunk<M>`], [`HandleId`].
 //!
 //! [`Codable`] extends [`Modality`] with the wire types the codec
 //! exchanges for that modality — the per-location `Data` payload
@@ -7,16 +7,10 @@
 //! per-location `Redaction` instruction
 //! ([`TextRedaction`] / [`ImageRedaction`] / …).
 //!
-//! [`Handle<M>`] is the **streaming-default** per-modality capability
-//! trait every format handler implements. It exposes a single
-//! [`next_chunk`] method: handlers yield decoded
-//! `(location, data, [embed])` chunks as they advance through the
-//! underlying bytes. The handler owns the cursor.
-//!
-//! [`IndexedHandle<M>`] is the **random-access** super-trait formats
-//! implement when they can address locations directly (text, image,
-//! audio, tabular). Streaming-only formats (encrypted streams,
-//! append-only logs) implement only [`Handle<M>`].
+//! [`Handle<M>`] is the per-modality capability trait every format
+//! handler implements: streaming ([`next_chunk`]), random-access
+//! reads and redaction ([`read`], [`redact`]), and offset lifting
+//! ([`lift_chunk`]).
 //!
 //! [`EmbeddedHandles`] is the **rich-format capability**: a text
 //! handler whose chunks reference embedded image (or other modality)
@@ -31,6 +25,9 @@
 //! [`TextRedaction`]: crate::core::TextRedaction
 //! [`ImageRedaction`]: crate::core::ImageRedaction
 //! [`next_chunk`]: Handle::next_chunk
+//! [`read`]: Handle::read
+//! [`redact`]: Handle::redact
+//! [`lift_chunk`]: Handle::lift_chunk
 //! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
 //! [`Modality`]: nvisy_core::modality::Modality
 
@@ -44,14 +41,15 @@ use uuid::Uuid;
 
 use super::ModalityKind;
 use crate::core::Handler;
+use crate::document::UntypedDocumentHandle;
 
 /// Codec-side extension of [`Modality`]: adds the per-location
 /// redaction instruction the codec applies, and the runtime tag the
 /// registry uses to erase typed handles.
 ///
 /// The per-location data payload yielded inside [`Chunk::data`] and
-/// returned by [`IndexedHandle::read`] is [`Modality::Data`] —
-/// the codec doesn't redefine it.
+/// returned by [`Handle::read`] is [`Modality::Data`] — the codec
+/// doesn't redefine it.
 pub trait Codable: Modality {
     /// Runtime tag for this modality. Used by the codec registry to
     /// erase a typed [`crate::DocumentHandle`] into an
@@ -101,8 +99,8 @@ impl fmt::Display for HandleId {
 /// One decoded unit yielded by [`Handle::next_chunk`].
 ///
 /// `data` is the per-modality wire payload; `location` is the
-/// coordinate the handler will accept in [`IndexedHandle::read`] /
-/// [`IndexedHandle::redact`] to address the same chunk again.
+/// coordinate the handler will accept in [`Handle::read`] /
+/// [`Handle::redact`] to address the same chunk again.
 ///
 /// `embed` is `Some(id)` only for text chunks that reference an
 /// embedded child handle (e.g. an image figure in a PDF); resolve it
@@ -118,34 +116,31 @@ pub struct Chunk<M: Codable> {
     pub embed: Option<HandleId>,
 }
 
-/// Per-modality streaming capability trait. Every format handler that
-/// exposes modality `M` implements this.
+/// Per-modality capability trait every format handler implements:
+/// streaming chunks ([`next_chunk`]), random-access reads and
+/// redactions ([`read`], [`redact`]), and offset lifting back to
+/// source coordinates ([`lift_chunk`]).
 ///
-/// `next_chunk` advances the handler's internal cursor and returns
-/// the next decoded chunk, or `None` at end-of-stream. The handler
-/// owns the cursor — concurrent iteration of the same handle is not
-/// supported (there is only one `&mut self`).
+/// The handler owns the streaming cursor — concurrent iteration of
+/// the same handle is not supported (only one `&mut self`).
+///
+/// [`next_chunk`]: Handle::next_chunk
+/// [`read`]: Handle::read
+/// [`redact`]: Handle::redact
+/// [`lift_chunk`]: Handle::lift_chunk
 #[async_trait::async_trait]
 pub trait Handle<M: Codable>: Handler {
     /// Advance the cursor and yield the next chunk, or `None` at
     /// end-of-stream.
     async fn next_chunk(&mut self) -> Result<Option<Chunk<M>>, Error>;
-}
 
-/// Random-access capability trait for formats that can address
-/// locations directly (the common case: text, image, audio, tabular).
-///
-/// Streaming-only formats omit this impl; consumers fall back to
-/// driving [`Handle::next_chunk`] and buffering as needed.
-#[async_trait::async_trait]
-pub trait IndexedHandle<M: Codable>: Handle<M> {
     /// Read the wire payload at the given location. Used by
     /// [`TextAt`] resolvers to fetch bytes for a coordinate already
     /// known from somewhere else (an entity audit record, an
     /// annotation). Extraction itself does not call this — it drives
-    /// [`Handle::next_chunk`] which returns `(location, data)`
-    /// together.
+    /// [`next_chunk`] which returns `(location, data)` together.
     ///
+    /// [`next_chunk`]: Handle::next_chunk
     /// [`TextAt`]: nvisy_core::extraction::TextAt
     async fn read(&self, location: &M::Location) -> Result<Option<M::Data>, Error>;
 
@@ -202,5 +197,5 @@ pub trait EmbeddedHandles: Send + Sync {
     /// Resolve an embedded child handle. Returns `None` if the id was
     /// never issued by this handler or the child can no longer be
     /// produced.
-    fn get(&self, id: HandleId) -> Option<crate::document::UntypedDocumentHandle>;
+    fn get(&self, id: HandleId) -> Option<UntypedDocumentHandle>;
 }

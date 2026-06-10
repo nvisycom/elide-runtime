@@ -1,6 +1,6 @@
 //! CSV handler: holds parsed CSV content and streams cell coordinates
 //! via [`Handle<Tabular>`], with random-access reads / redactions via
-//! [`IndexedHandle<Tabular>`].
+//! [`Handle<Tabular>`].
 //!
 //! Cell coordinates are `(row, col)`. Row 0 is the header row (if
 //! present); row 1 is the first data row when headers exist, else row
@@ -17,7 +17,7 @@ use nvisy_core::redaction::{Redactions, TabularReplacement};
 
 use super::CsvLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::handler::tabular::TabularHandle;
 use crate::handler::text::redact;
 use crate::{Format, FormatId, LoaderAdapter};
@@ -129,10 +129,7 @@ impl Handle<Tabular> for CsvHandler {
             embed: None,
         }))
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Tabular> for CsvHandler {
     fn lift_chunk(
         &self,
         chunk: &Chunk<Tabular>,
@@ -216,7 +213,7 @@ impl CsvHandler {
 
     /// A specific cell by `(data_row, col)`. `data_row` is 0-based
     /// against the data rows; the header is *not* data row 0. Use
-    /// [`IndexedHandle::read`] with [`TabularLocation`] if you need
+    /// [`Handle::read`] with [`TabularLocation`] if you need
     /// to address the header.
     pub fn cell(&self, data_row: usize, col: usize) -> Option<&str> {
         self.data

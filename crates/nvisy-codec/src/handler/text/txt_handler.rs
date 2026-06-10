@@ -1,6 +1,6 @@
 //! Plain-text handler: holds loaded text content and streams it
 //! line-by-line via [`Handle<Text>`], with random-access reads /
-//! redactions via [`IndexedHandle<Text>`].
+//! redactions via [`Handle<Text>`].
 //!
 //! The handler stores the text as a vector of lines together with a
 //! trailing-newline flag so the original file can be reconstructed
@@ -15,7 +15,7 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 
 use super::{TxtLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::{Format, FormatId, LoaderAdapter};
 
 const TARGET: &str = "txt-handler";
@@ -40,8 +40,8 @@ pub fn format() -> Format {
 /// `line_starts` is a cumulative-offset index maintained alongside
 /// `lines`: `line_starts[i]` is the byte position of line `i` in the
 /// serialized output, and `line_starts[lines.len()]` is the total
-/// length sentinel. Random-access [`IndexedHandle::read`] and
-/// [`IndexedHandle::redact`] resolve a byte offset to a line in
+/// length sentinel. Random-access [`Handle::read`] and
+/// [`Handle::redact`] resolve a byte offset to a line in
 /// `O(log N)` instead of rebuilding the table on every call.
 #[derive(Debug)]
 pub struct TxtHandler {
@@ -95,10 +95,7 @@ impl Handle<Text> for TxtHandler {
             embed: None,
         }))
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Text> for TxtHandler {
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
         lift_identity(chunk, value_range)
     }

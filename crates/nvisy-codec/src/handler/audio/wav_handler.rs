@@ -1,19 +1,17 @@
 //! WAV handler: holds raw WAV audio bytes and exposes them as a
-//! single-track audio handle via [`Handle<Audio>`], with random-access
-//! reads / sample-level redactions via [`IndexedHandle<Audio>`].
+//! single-track audio handle via [`Handle<Audio>`].
 //!
 //! Redaction decodes the WAV via [`hound`], applies sample-level
 //! mutations, and re-encodes back to bytes. Supported formats: `i8` /
 //! `i16` / `i32` PCM and `f32` IEEE float; other bit depths surface a
 //! clear error.
 //!
-//! Batched [`IndexedHandle::redact`] sorts right-to-left by
+//! Batched [`Handle::redact`] sorts right-to-left by
 //! `time_span.start_us` so [`AudioReplacement::Remove`] operations don't
 //! shift the indices of pending redactions.
 //!
 //! [`Handle<Audio>`]: crate::core::Handle
-//! [`IndexedHandle<Audio>`]: crate::core::IndexedHandle
-//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+//! [`Handle::redact`]: crate::core::Handle::redact
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
 
 use std::io::Cursor;
@@ -28,7 +26,7 @@ use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use super::{WavLoader, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::handler::audio::sort_redactions_for_audio;
 use crate::{Format, FormatId, LoaderAdapter};
 
@@ -49,9 +47,9 @@ pub fn format() -> Format {
 }
 
 /// Handler for loaded WAV content. Stores the encoded bytes; decode
-/// happens on demand inside [`IndexedHandle::redact`].
+/// happens on demand inside [`Handle::redact`].
 ///
-/// [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+/// [`Handle::redact`]: crate::core::Handle::redact
 #[derive(Debug)]
 pub struct WavHandler {
     source: ContentSource,
@@ -126,10 +124,7 @@ impl Handle<Audio> for WavHandler {
             embed: None,
         }))
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Audio> for WavHandler {
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {
         Ok(Some(
             AudioData::new(self.bytes.clone()).with_filename(self.filename.clone()),

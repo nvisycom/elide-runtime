@@ -13,7 +13,7 @@ use nvisy_core::redaction::Redactions;
 
 use super::DocxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::handler::text::lift_identity;
 use crate::{Format, FormatId, LoaderAdapter};
 
@@ -81,10 +81,7 @@ impl Handle<Text> for DocxHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         Ok(None)
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Text> for DocxHandler {
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
         lift_identity(chunk, value_range)
     }

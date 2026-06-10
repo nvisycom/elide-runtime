@@ -7,11 +7,11 @@
 //! offsets) and return [`TextData`] from `read` — the cell's string
 //! value — so [`Modality::Data`] aliases [`TextData`] for the
 //! [`Tabular`] modality. Replacements written during
-//! [`IndexedHandle::redact`] use [`TabularReplacement`]; cells are
+//! [`Handle::redact`] use [`TabularReplacement`]; cells are
 //! strings, so the per-format handlers share the text crate's redact
 //! helper.
 //!
-//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+//! [`Handle::redact`]: crate::core::Handle::redact
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`TabularReplacement`]: nvisy_core::redaction::TabularReplacement
 //! [`TextData`]: nvisy_core::modality::TextData

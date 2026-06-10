@@ -1,11 +1,11 @@
 //! Image modality: `impl Codable for Image` plus concrete image
 //! format implementations (PNG, JPEG, TIFF) and pixel-decode helpers.
 //!
-//! Replacements written during [`IndexedHandle::redact`] use
+//! Replacements written during [`Handle::redact`] use
 //! [`ImageReplacement`].
 //!
 //! [`ImageReplacement`]: nvisy_core::redaction::ImageReplacement
-//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+//! [`Handle::redact`]: crate::core::Handle::redact
 
 use nvisy_core::modality::Image;
 

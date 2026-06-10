@@ -17,7 +17,7 @@ use nvisy_core::Error;
 
 use super::ModalityKind;
 use crate::content::ContentData;
-use crate::core::{Codable, FormatId, Handler, IndexedHandle, Loader};
+use crate::core::{Codable, FormatId, Handle, Handler, Loader};
 use crate::document::{DocumentHandle, UntypedDocumentHandle};
 
 /// Descriptor for one registered codec format.
@@ -92,7 +92,7 @@ where
     async fn decode(&self, content: ContentData) -> Result<UntypedDocumentHandle, Error> {
         let handler = self.loader.decode(content).await?;
         let format = handler.format();
-        let handle: Box<dyn IndexedHandle<M>> = Box::new(handler);
+        let handle: Box<dyn Handle<M>> = Box::new(handler);
         let typed = DocumentHandle::new(format, handle);
         Ok(M::wrap(typed))
     }

@@ -1,6 +1,5 @@
 //! PDF handler: holds per-page extracted text and raw document bytes,
-//! streaming pages via [`Handle<Text>`] with random-access reads and
-//! page-text redaction via [`IndexedHandle<Text>`].
+//! exposing per-page chunks via [`Handle<Text>`].
 //!
 //! Text offsets are cumulative over the per-page text sequence in
 //! document order. Each chunk carries the page number on its
@@ -14,7 +13,6 @@
 //! pipeline.
 //!
 //! [`Handle<Text>`]: crate::core::Handle
-//! [`IndexedHandle<Text>`]: crate::core::IndexedHandle
 //! [`render_pages`]: PdfHandler::render_pages
 //! [`extract_embedded_images`]: PdfHandler::extract_embedded_images
 
@@ -30,7 +28,7 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 use super::PdfLoader;
 use super::pdf_render::PdfRenderer;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
+use crate::core::{Chunk, Handle, Handler, ModalityKind};
 use crate::handler::image::PngHandler;
 use crate::handler::text::{lift_identity, redact};
 use crate::{DocumentHandle, Format, FormatId, LoaderAdapter};
@@ -208,10 +206,7 @@ impl Handle<Text> for PdfHandler {
             embed: None,
         }))
     }
-}
 
-#[async_trait::async_trait]
-impl IndexedHandle<Text> for PdfHandler {
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
         lift_identity(chunk, value_range)
     }

@@ -29,6 +29,7 @@ json = ["internal_text"]
 markdown = ["internal_text"]
 ## HTML loader and handler via `scraper`.
 html = ["internal_text", "dep:scraper"]
+
 ## CSV loader and handler via the `csv` crate. Tabular cells reuse the
 ## text redact helper, so this pulls `internal_text`.
 csv = ["internal_tabular", "internal_text", "dep:csv"]
@@ -37,16 +38,19 @@ csv = ["internal_tabular", "internal_text", "dep:csv"]
 ## empty); a parser dep will be wired back in when real extraction
 ## lands.
 xlsx = ["internal_tabular", "internal_text"]
+
 ## PNG loader and handler.
 png = ["internal_image"]
 ## JPEG loader and handler.
 jpeg = ["internal_image"]
 ## TIFF loader and handler.
 tiff = ["internal_image"]
+
 ## WAV audio loader and handler via `hound` (read + write).
 wav = ["internal_audio", "dep:hound"]
 ## MP3 audio loader and handler (read-only — no pure-Rust encoder).
 mp3 = ["internal_audio"]
+
 ## PDF loader, handler, and page-to-image rendering via `lopdf` +
 ## `pdfium-render`. Pulls `internal_text` (page-text redact) +
 ## `internal_image` (PngHandler for rendered pages + extracted

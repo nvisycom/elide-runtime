@@ -149,11 +149,13 @@ pub struct CodecRegistry {
 }
 
 impl CodecRegistry {
-    /// Empty registry. Use [`register`] to add custom formats, or
-    /// [`with_builtin`] to start from a pre-populated set of every
-    /// built-in format the active feature set enables.
+    /// Empty registry. Use [`with_format`] / [`add_format`] to add
+    /// custom formats, or [`with_builtin`] to start from a pre-
+    /// populated set of every built-in format the active feature set
+    /// enables.
     ///
-    /// [`register`]: Self::register
+    /// [`with_format`]: Self::with_format
+    /// [`add_format`]: Self::add_format
     /// [`with_builtin`]: Self::with_builtin
     pub fn new() -> Self {
         Self::default()
@@ -164,74 +166,46 @@ impl CodecRegistry {
     /// WAV, PDF, …). Equivalent to [`new`] followed by registering
     /// each built-in format.
     ///
-    /// Add custom formats afterward with [`register`]; they take
-    /// precedence on extension / content-type collisions
-    /// (last registration wins).
+    /// Add custom formats afterward with [`with_format`] (chainable)
+    /// or [`add_format`] (in-place); they take precedence on
+    /// extension / content-type collisions (last registration wins).
     ///
     /// [`new`]: Self::new
-    /// [`register`]: Self::register
+    /// [`with_format`]: Self::with_format
+    /// [`add_format`]: Self::add_format
     pub fn with_builtin() -> Self {
-        let registry = Self::new();
-        #[allow(unused_mut)]
-        let mut registry = registry;
+        let mut registry = Self::new();
         #[cfg(feature = "txt")]
-        {
-            registry = registry.register(crate::handler::text::txt_format());
-        }
+        registry.add_format(crate::handler::text::txt_format());
         #[cfg(feature = "json")]
-        {
-            registry = registry.register(crate::handler::text::json_format());
-        }
+        registry.add_format(crate::handler::text::json_format());
         #[cfg(feature = "markdown")]
-        {
-            registry = registry.register(crate::handler::text::markdown_format());
-        }
+        registry.add_format(crate::handler::text::markdown_format());
         #[cfg(feature = "html")]
-        {
-            registry = registry.register(crate::handler::text::html_format());
-        }
+        registry.add_format(crate::handler::text::html_format());
         #[cfg(feature = "csv")]
-        {
-            registry = registry.register(crate::handler::tabular::csv_format());
-        }
+        registry.add_format(crate::handler::tabular::csv_format());
         #[cfg(feature = "xlsx")]
-        {
-            registry = registry.register(crate::handler::tabular::xlsx_format());
-        }
+        registry.add_format(crate::handler::tabular::xlsx_format());
         #[cfg(feature = "png")]
-        {
-            registry = registry.register(crate::handler::image::png_format());
-        }
+        registry.add_format(crate::handler::image::png_format());
         #[cfg(feature = "jpeg")]
-        {
-            registry = registry.register(crate::handler::image::jpeg_format());
-        }
+        registry.add_format(crate::handler::image::jpeg_format());
         #[cfg(feature = "tiff")]
-        {
-            registry = registry.register(crate::handler::image::tiff_format());
-        }
+        registry.add_format(crate::handler::image::tiff_format());
         #[cfg(feature = "wav")]
-        {
-            registry = registry.register(crate::handler::audio::wav_format());
-        }
+        registry.add_format(crate::handler::audio::wav_format());
         #[cfg(feature = "mp3")]
-        {
-            registry = registry.register(crate::handler::audio::mp3_format());
-        }
+        registry.add_format(crate::handler::audio::mp3_format());
         #[cfg(feature = "pdf")]
-        {
-            registry = registry.register(crate::handler::rich::pdf_format());
-        }
+        registry.add_format(crate::handler::rich::pdf_format());
         #[cfg(feature = "docx")]
-        {
-            registry = registry.register(crate::handler::rich::docx_format());
-        }
+        registry.add_format(crate::handler::rich::docx_format());
         registry
     }
 
-    /// Register a [`Format`]. The format's id, extensions, and
-    /// content types are indexed for lookup. Returns `self` so calls
-    /// chain.
+    /// Register a [`Format`] and return `self` for chained builder
+    /// calls. Delegates to [`add_format`] for the indexing body.
     ///
     /// # Panics
     ///
@@ -242,8 +216,25 @@ impl CodecRegistry {
     /// precedence.
     ///
     /// [`with_builtin`]: Self::with_builtin
+    /// [`add_format`]: Self::add_format
     #[must_use]
-    pub fn register(mut self, format: Format) -> Self {
+    pub fn with_format(mut self, format: Format) -> Self {
+        self.add_format(format);
+        self
+    }
+
+    /// In-place equivalent of [`with_format`]. Useful with an
+    /// already-mut binding (e.g. inside a cfg-stanza in
+    /// [`with_builtin`]) where the `let registry = registry.with_format(...)`
+    /// dance is just noise.
+    ///
+    /// # Panics
+    ///
+    /// Same conditions as [`with_format`].
+    ///
+    /// [`with_format`]: Self::with_format
+    /// [`with_builtin`]: Self::with_builtin
+    pub fn add_format(&mut self, format: Format) -> &mut Self {
         assert!(
             !self.by_id.contains_key(&format.id),
             "format id already registered: {}",

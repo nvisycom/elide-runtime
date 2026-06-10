@@ -38,7 +38,7 @@ mod tests {
             .await
             .expect("txt decoded");
         let typed = handle.into_text().expect("text variant");
-        assert_eq!(typed.format().as_str(), "nvisy.text.txt");
+        assert_eq!(typed.format_id().as_str(), "nvisy.text.txt");
     }
 
     #[cfg(feature = "csv")]
@@ -50,7 +50,7 @@ mod tests {
             .await
             .expect("csv decoded");
         let typed = handle.into_tabular().expect("tabular variant");
-        assert_eq!(typed.format().as_str(), "nvisy.tabular.csv");
+        assert_eq!(typed.format_id().as_str(), "nvisy.tabular.csv");
     }
 
     #[cfg(all(feature = "txt", feature = "csv"))]

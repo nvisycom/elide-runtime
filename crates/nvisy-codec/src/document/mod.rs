@@ -22,13 +22,13 @@
 
 mod decoded_buffer;
 
-#[cfg(feature = "audio")]
+#[cfg(feature = "internal_audio")]
 use nvisy_core::modality::Audio;
-#[cfg(feature = "image")]
+#[cfg(feature = "internal_image")]
 use nvisy_core::modality::Image;
-#[cfg(feature = "tabular")]
+#[cfg(feature = "internal_tabular")]
 use nvisy_core::modality::Tabular;
-#[cfg(feature = "text")]
+#[cfg(feature = "internal_text")]
 use nvisy_core::modality::Text;
 
 pub use self::decoded_buffer::DecodedBuffer;
@@ -50,106 +50,106 @@ use crate::core::{Codable, FormatId, IndexedHandle, ModalityKind};
 /// [`into_tabular`]: Self::into_tabular
 #[derive(Debug)]
 pub enum UntypedDocumentHandle {
-    #[cfg(feature = "text")]
+    #[cfg(feature = "internal_text")]
     /// Text-modality handle.
     Text(DocumentHandle<Text>),
-    #[cfg(feature = "tabular")]
+    #[cfg(feature = "internal_tabular")]
     /// Tabular-modality handle.
     Tabular(DocumentHandle<Tabular>),
-    #[cfg(feature = "image")]
+    #[cfg(feature = "internal_image")]
     /// Image-modality handle.
     Image(DocumentHandle<Image>),
-    #[cfg(feature = "audio")]
+    #[cfg(feature = "internal_audio")]
     /// Audio-modality handle.
     Audio(DocumentHandle<Audio>),
 }
 
 impl UntypedDocumentHandle {
     /// The [`FormatId`] of the loader that produced this handle.
-    pub fn format(&self) -> &FormatId {
+    pub fn format_id(&self) -> &FormatId {
         match self {
-            #[cfg(feature = "text")]
-            Self::Text(h) => h.format(),
-            #[cfg(feature = "tabular")]
-            Self::Tabular(h) => h.format(),
-            #[cfg(feature = "image")]
-            Self::Image(h) => h.format(),
-            #[cfg(feature = "audio")]
-            Self::Audio(h) => h.format(),
+            #[cfg(feature = "internal_text")]
+            Self::Text(h) => h.format_id(),
+            #[cfg(feature = "internal_tabular")]
+            Self::Tabular(h) => h.format_id(),
+            #[cfg(feature = "internal_image")]
+            Self::Image(h) => h.format_id(),
+            #[cfg(feature = "internal_audio")]
+            Self::Audio(h) => h.format_id(),
         }
     }
 
     /// Runtime modality tag — cheaper than matching variants directly
     /// when the caller only needs the modality, not the handle.
-    pub fn modality(&self) -> ModalityKind {
+    pub fn modality_kind(&self) -> ModalityKind {
         match self {
-            #[cfg(feature = "text")]
+            #[cfg(feature = "internal_text")]
             Self::Text(_) => ModalityKind::Text,
-            #[cfg(feature = "tabular")]
+            #[cfg(feature = "internal_tabular")]
             Self::Tabular(_) => ModalityKind::Tabular,
-            #[cfg(feature = "image")]
+            #[cfg(feature = "internal_image")]
             Self::Image(_) => ModalityKind::Image,
-            #[cfg(feature = "audio")]
+            #[cfg(feature = "internal_audio")]
             Self::Audio(_) => ModalityKind::Audio,
         }
     }
 
     /// Consume self, returning the inner [`DocumentHandle<Text>`] if
     /// this handle carries text modality.
-    #[cfg(feature = "text")]
+    #[cfg(feature = "internal_text")]
     pub fn into_text(self) -> Option<DocumentHandle<Text>> {
         match self {
             Self::Text(h) => Some(h),
-            #[cfg(feature = "tabular")]
+            #[cfg(feature = "internal_tabular")]
             Self::Tabular(_) => None,
-            #[cfg(feature = "image")]
+            #[cfg(feature = "internal_image")]
             Self::Image(_) => None,
-            #[cfg(feature = "audio")]
+            #[cfg(feature = "internal_audio")]
             Self::Audio(_) => None,
         }
     }
 
     /// Consume self, returning the inner [`DocumentHandle<Tabular>`]
     /// if this handle carries tabular modality.
-    #[cfg(feature = "tabular")]
+    #[cfg(feature = "internal_tabular")]
     pub fn into_tabular(self) -> Option<DocumentHandle<Tabular>> {
         match self {
             Self::Tabular(h) => Some(h),
-            #[cfg(feature = "text")]
+            #[cfg(feature = "internal_text")]
             Self::Text(_) => None,
-            #[cfg(feature = "image")]
+            #[cfg(feature = "internal_image")]
             Self::Image(_) => None,
-            #[cfg(feature = "audio")]
+            #[cfg(feature = "internal_audio")]
             Self::Audio(_) => None,
         }
     }
 
     /// Consume self, returning the inner [`DocumentHandle<Image>`] if
     /// this handle carries image modality.
-    #[cfg(feature = "image")]
+    #[cfg(feature = "internal_image")]
     pub fn into_image(self) -> Option<DocumentHandle<Image>> {
         match self {
             Self::Image(h) => Some(h),
-            #[cfg(feature = "text")]
+            #[cfg(feature = "internal_text")]
             Self::Text(_) => None,
-            #[cfg(feature = "tabular")]
+            #[cfg(feature = "internal_tabular")]
             Self::Tabular(_) => None,
-            #[cfg(feature = "audio")]
+            #[cfg(feature = "internal_audio")]
             Self::Audio(_) => None,
         }
     }
 
     /// Consume self, returning the inner [`DocumentHandle<Audio>`] if
     /// this handle carries audio modality.
-    #[cfg(feature = "audio")]
+    #[cfg(feature = "internal_audio")]
     pub fn into_audio(self) -> Option<DocumentHandle<Audio>> {
         match self {
             Self::Audio(h) => Some(h),
-            #[cfg(feature = "text")]
+            #[cfg(feature = "internal_text")]
             Self::Text(_) => None,
-            #[cfg(feature = "tabular")]
+            #[cfg(feature = "internal_tabular")]
             Self::Tabular(_) => None,
-            #[cfg(feature = "image")]
+            #[cfg(feature = "internal_image")]
             Self::Image(_) => None,
         }
     }
@@ -165,7 +165,7 @@ impl UntypedDocumentHandle {
 /// is no concurrent access to the handle within a single document's
 /// run, so reference counting buys nothing.
 pub struct DocumentHandle<M: Codable> {
-    format: FormatId,
+    format_id: FormatId,
     handler: Box<dyn IndexedHandle<M>>,
 }
 
@@ -174,13 +174,13 @@ impl<M: Codable> DocumentHandle<M> {
     /// codec loaders to produce the typed handle, which is then
     /// erased into an [`UntypedDocumentHandle`] variant for registry
     /// return.
-    pub fn new(format: FormatId, handler: Box<dyn IndexedHandle<M>>) -> Self {
-        Self { format, handler }
+    pub fn new(format_id: FormatId, handler: Box<dyn IndexedHandle<M>>) -> Self {
+        Self { format_id, handler }
     }
 
     /// The [`FormatId`] of the producing loader.
-    pub fn format(&self) -> &FormatId {
-        &self.format
+    pub fn format_id(&self) -> &FormatId {
+        &self.format_id
     }
 
     /// Borrow the inner handler. Use this for read-only capability
@@ -210,7 +210,7 @@ impl<M: Codable> DocumentHandle<M> {
 impl<M: Codable> std::fmt::Debug for DocumentHandle<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DocumentHandle")
-            .field("format", &self.format)
+            .field("format_id", &self.format_id)
             .field("modality", &std::any::type_name::<M>())
             .finish()
     }

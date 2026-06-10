@@ -41,6 +41,7 @@ use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::extraction::DataAt;
 use nvisy_core::modality::Modality;
 use nvisy_core::redaction::Redactions;
 
@@ -140,26 +141,42 @@ impl<M: Modality> RedactionRegistry<M> {
     /// collect the produced replacements into a [`Redactions<M>`] batch
     /// ready to hand to a [`RedactAt<M>`] implementation.
     ///
+    /// `source` is a [`DataAt<M>`] resolver: for each entity, the
+    /// substring/segment **at the entity's location** is pulled from
+    /// the resolver and handed to the anonymizer — the anonymizer
+    /// never sees the whole document. Entities whose location can't
+    /// be resolved by the source are skipped.
+    ///
     /// Entities whose kind has no per-kind operator and where no
     /// fallback was registered are skipped (counted as a debug-level
     /// tracing event); the rest are applied in iteration order.
     ///
     /// [`resolve`]: Self::resolve
     /// [`Anonymizer::apply`]: super::Anonymizer::apply
+    /// [`DataAt<M>`]: nvisy_core::extraction::DataAt
     /// [`RedactAt<M>`]: nvisy_core::redaction::RedactAt
-    pub async fn apply_all<'a, I>(&self, entities: I, source: &M::Data) -> Result<Redactions<M>>
+    pub async fn apply_all<'a, I>(
+        &self,
+        entities: I,
+        source: &(impl DataAt<M> + ?Sized),
+    ) -> Result<Redactions<M>>
     where
         I: IntoIterator<Item = &'a Entity<M>>,
         M: 'a,
     {
         let mut out = Redactions::<M>::new();
         let mut skipped = 0usize;
+        let mut unresolved = 0usize;
         for entity in entities {
             let Some(op) = self.resolve(entity.entity_kind) else {
                 skipped += 1;
                 continue;
             };
-            let replacement = op.apply(entity, source).await?;
+            let Some(data) = source.data_at(&entity.location).await else {
+                unresolved += 1;
+                continue;
+            };
+            let replacement = op.apply(entity, &data).await?;
             out.push(entity.location.clone(), replacement);
         }
         if skipped > 0 {
@@ -167,6 +184,13 @@ impl<M: Modality> RedactionRegistry<M> {
                 target: "nvisy_toolkit::redaction::registry",
                 skipped,
                 "RedactionRegistry::apply_all skipped entities with no per-kind operator and no fallback",
+            );
+        }
+        if unresolved > 0 {
+            tracing::debug!(
+                target: "nvisy_toolkit::redaction::registry",
+                unresolved,
+                "RedactionRegistry::apply_all skipped entities whose location resolved no source payload",
             );
         }
         Ok(out)
@@ -223,6 +247,19 @@ mod tests {
             _source: &TextData,
         ) -> Result<TextReplacement> {
             Ok(TextReplacement::substituted(self.0))
+        }
+    }
+
+    /// Minimal in-memory `DataAt<Text>` for tests: slices the source
+    /// string at the entity's byte range, like the codec does.
+    struct StubSource(String);
+
+    #[async_trait::async_trait]
+    impl DataAt<Text> for StubSource {
+        async fn data_at(&self, location: &TextLocation) -> Option<TextData> {
+            self.0
+                .get(location.start..location.end)
+                .map(|s| TextData::new(s.to_owned()))
         }
     }
 
@@ -285,7 +322,7 @@ mod tests {
             entity(EntityKind::EmailAddress, 0, 5),
             entity(EntityKind::PaymentCard, 6, 10),
         ];
-        let source = TextData::new("abcdefghij");
+        let source = StubSource("abcdefghij".to_owned());
         let rs = r.apply_all(entities.iter(), &source).await.unwrap();
         let items = rs.into_items();
         assert_eq!(items.len(), 2);
@@ -301,7 +338,7 @@ mod tests {
             entity(EntityKind::EmailAddress, 0, 5),
             entity(EntityKind::PaymentCard, 6, 10),
         ];
-        let source = TextData::new("abcdefghij");
+        let source = StubSource("abcdefghij".to_owned());
         let rs = r.apply_all(entities.iter(), &source).await.unwrap();
         assert_eq!(rs.len(), 1);
     }

@@ -1,17 +1,33 @@
 //! Ingestion: the read-side edge of a toolkit pipeline.
 //!
-//! Owns the shipped adapters that load per-modality source bytes
-//! into memory and satisfy the resolver traits
-//! ([`TextAt`], [`DataAt`]) the detection / deduplication
-//! / redaction phases bound on.
+//! Re-exports the codec front door so a toolkit-only consumer reaches
+//! the canonical "load bytes → typed handle → buffer" pipeline
+//! without pulling `nvisy-codec` into its own dep list:
 //!
-//! Today: one type — [`MemoryBuffer<M>`] — covers the in-memory
-//! case. Future I/O adapters (HTTP fetch, S3 reader, mmap) plug in
-//! as siblings without changing the consumer-side trait surface.
+//! - [`CodecRegistry`] is the entry point — call
+//!   [`CodecRegistry::with_builtin`] to get every shipped format the
+//!   active features compile in, then [`decode_from_memory`] to
+//!   commit bytes to a typed handle.
+//! - [`DecodedBuffer<M>`] wraps the resulting typed
+//!   [`DocumentHandle<M>`] and implements the resolver traits
+//!   ([`TextAt`], [`DataAt`]) plus [`RedactAt`] the detection /
+//!   deduplication / redaction phases bound on.
 //!
+//! The per-modality `DecodedBuffer<M>` impls in `nvisy-codec` are
+//! cfg-gated on `internal_text` / `internal_tabular` / `internal_image`
+//! / `internal_audio`. Each toolkit feature
+//! (`text` / `tabular` / `image` / `audio` / `rich`) forwards to the
+//! matching codec umbrella, which in turn activates the right
+//! `internal_*` flags.
+//!
+//! [`CodecRegistry`]: nvisy_codec::CodecRegistry
+//! [`CodecRegistry::with_builtin`]: nvisy_codec::CodecRegistry::with_builtin
+//! [`decode_from_memory`]: nvisy_codec::CodecRegistry::decode_from_memory
+//! [`DecodedBuffer<M>`]: nvisy_codec::document::DecodedBuffer
+//! [`DocumentHandle<M>`]: nvisy_codec::document::DocumentHandle
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
+//! [`RedactAt`]: nvisy_core::redaction::RedactAt
 
-mod memory;
-
-pub use self::memory::MemoryBuffer;
+pub use nvisy_codec::CodecRegistry;
+pub use nvisy_codec::document::DecodedBuffer;

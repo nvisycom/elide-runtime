@@ -102,8 +102,8 @@ impl Importer {
         let untyped = decode(&shared.codec_registry, &content).await?;
         tracing::debug!(
             target: TARGET,
-            format = %untyped.format(),
-            modality = ?untyped.modality(),
+            format = %untyped.format_id(),
+            modality = ?untyped.modality_kind(),
             "decoded document",
         );
 

@@ -3044,6 +3044,7 @@ dependencies = [
  "base64",
  "bytes",
  "hipstr",
+ "nvisy-codec",
  "nvisy-core",
  "nvisy-fake",
  "nvisy-llm",

@@ -2,9 +2,9 @@
 //! that implements the core read/write trait surface
 //! ([`TextAt`]/[`DataAt`]/[`RedactAt`]).
 //!
-//! The wrapper exists so toolkit-only code can treat codec-backed
-//! sources uniformly with [`MemoryBuffer<M>`] — both satisfy the same
-//! `*At` traits, so pipeline components stay codec-agnostic.
+//! The wrapper exists so any pipeline component can read from /
+//! write to a codec-backed source through the same `*At` traits the
+//! engine bounds on, without naming a concrete handler shape.
 //!
 //! Modality coverage:
 //!
@@ -22,14 +22,15 @@
 //! (`nvisy-engine`). The codec layer has no visibility into either.
 //!
 //! [`DocumentHandle<M>`]: crate::document::DocumentHandle
-//! [`MemoryBuffer<M>`]: # "lives in nvisy-toolkit::ingestion"
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
 //! [`RedactAt`]: nvisy_core::redaction::RedactAt
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_core::extraction::{DataAt, TextAt};
+use nvisy_core::extraction::DataAt;
+#[cfg(any(feature = "internal_text", feature = "internal_tabular"))]
+use nvisy_core::extraction::TextAt;
 use nvisy_core::redaction::{RedactAt, Redactions};
 
 use crate::core::Codable;

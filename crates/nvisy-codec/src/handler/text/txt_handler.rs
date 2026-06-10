@@ -413,4 +413,29 @@ mod tests {
         assert_eq!(h.lines(), &["[X]", "world"]);
         Ok(())
     }
+
+    #[tokio::test]
+    async fn redact_mixes_substituted_and_removed() -> Result<(), Error> {
+        let mut h = handler("alice@example.test and bob@example.test");
+        let mut rs = Redactions::new();
+        rs.push(
+            TextLocation {
+                start: 0,
+                end: 18,
+                ..Default::default()
+            },
+            TextReplacement::substituted("[EMAIL]"),
+        );
+        rs.push(
+            TextLocation {
+                start: 23,
+                end: 39,
+                ..Default::default()
+            },
+            TextReplacement::Removed,
+        );
+        h.redact(rs).await?;
+        assert_eq!(h.lines(), &["[EMAIL] and "]);
+        Ok(())
+    }
 }

@@ -1,6 +1,6 @@
 //! End-to-end toolkit pipeline against a synthetic text input,
 //! using the real codec read/write surface
-//! ([`CodecRegistry`] → [`DecodedBuffer`]): **detection →
+//! ([`CodecRegistry`] → [`DocumentHandle`]): **detection →
 //! deduplication → redaction**, all in one process, no external
 //! services required.
 //!
@@ -15,12 +15,12 @@
 //! ```
 //!
 //! [`CodecRegistry`]: nvisy_codec::CodecRegistry
-//! [`DecodedBuffer`]: nvisy_codec::document::DecodedBuffer
+//! [`DocumentHandle`]: nvisy_codec::document::DocumentHandle
 
 use std::str::from_utf8;
 
 use nvisy_codec::CodecRegistry;
-use nvisy_codec::document::DecodedBuffer;
+use nvisy_codec::document::DocumentHandle;
 use nvisy_core::Result;
 use nvisy_core::entity::EntityKind;
 use nvisy_core::modality::{Text, TextData};
@@ -42,13 +42,12 @@ async fn main() -> Result<()> {
     // Decode the sample through the codec registry — the same front
     // door the engine uses — by resolving the `.txt` extension to a
     // loader and pulling the resulting handle back into a typed
-    // text DecodedBuffer.
+    // text DocumentHandle.
     let registry = CodecRegistry::with_builtin();
     let untyped = registry.decode_from_memory(SAMPLE, "txt").await?;
-    let handle = untyped
+    let mut source = untyped
         .into_text()
         .expect("txt extension resolves to text modality");
-    let mut source = DecodedBuffer::new(handle);
     println!("source = {SAMPLE}\n");
 
     // ── Phase 1: detection ────────────────────────────────────────
@@ -93,8 +92,8 @@ async fn main() -> Result<()> {
         confidence_threshold: Some(ConfidenceThreshold::new(0.5).unwrap()),
         ..LayerParams::default()
     };
-    let ctx = LayerContext::<Text, DecodedBuffer<Text>>::new(&source);
-    let dedup = LayerPipeline::<Text, DecodedBuffer<Text>>::from_params(&params);
+    let ctx = LayerContext::<Text, DocumentHandle<Text>>::new(&source);
+    let dedup = LayerPipeline::<Text, DocumentHandle<Text>>::from_params(&params);
 
     let before = entities.len();
     let entities = dedup.run(entities, &ctx).await;
@@ -116,19 +115,19 @@ async fn main() -> Result<()> {
         .insert_kind(EntityKind::PaymentCard, Mask::stars())
         .with_fallback(Redact);
 
-    // `source` is the codec-backed buffer; it satisfies `DataAt<Text>`,
+    // `source` is the codec-backed handle; it satisfies `DataAt<Text>`,
     // so apply_all pulls only the per-entity byte range and hands
     // *that* (not the whole document) to each anonymizer.
     let redactions = redaction.apply_all(&entities, &source).await?;
     println!("\nredaction: produced {} replacement(s)", redactions.len());
     source.redact_at(redactions).await?;
 
-    // Serialize the post-redaction buffer back through the codec.
+    // Serialize the post-redaction handler back through the codec.
     // `Handler::encode` is what the engine's export phase calls to
     // produce output bytes; it knows the format's reassembly rules
     // (line terminators for txt, JSON envelope for json, …) so the
     // example doesn't have to.
-    let encoded = source.handle().handler().encode()?;
+    let encoded = source.handler().encode()?;
     let redacted = from_utf8(encoded.as_bytes()).expect("txt encode produces UTF-8");
     println!("\nredacted = {redacted}");
     Ok(())

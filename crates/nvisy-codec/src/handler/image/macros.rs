@@ -61,8 +61,8 @@ macro_rules! impl_image_handler {
                 FORMAT_ID.clone()
             }
 
-            fn source(&self) -> &$crate::content::ContentSource {
-                &self.source
+            fn source(&self) -> $crate::content::ContentSource {
+                self.source
             }
 
             #[::tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]

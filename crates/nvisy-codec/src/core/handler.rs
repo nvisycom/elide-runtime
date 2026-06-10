@@ -39,7 +39,7 @@ pub trait Handler: Send + Sync + 'static {
     fn format(&self) -> FormatId;
 
     /// Content source identity and lineage for this handler.
-    fn source(&self) -> &ContentSource;
+    fn source(&self) -> ContentSource;
 
     /// Serialize the current handler content back to [`ContentData`].
     fn encode(&self) -> Result<ContentData, Error>;
@@ -61,12 +61,10 @@ pub trait Handler: Send + Sync + 'static {
 /// Per-modality format loader.
 ///
 /// A loader validates and parses raw content for modality `M`,
-/// producing a handler that implements [`Handle<M>`] (which
-/// in turn implies [`Handle<M>`]). Loaders are the leaves the
-/// [`CodecRegistry`] composes — registering a format means
-/// registering its loader.
+/// producing a handler that implements [`Handle<M>`]. Loaders are
+/// the leaves the [`CodecRegistry`] composes — registering a
+/// format means registering its loader.
 ///
-/// [`Handle<M>`]: super::Handle
 /// [`Handle<M>`]: super::Handle
 /// [`CodecRegistry`]: super::CodecRegistry
 #[async_trait::async_trait]

@@ -107,7 +107,7 @@ serde_json = { workspace = true, features = [] }
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["as_ref", "deref"] }
+derive_more = { workspace = true, features = ["as_ref", "deref", "from"] }
 hex = { workspace = true, features = [] }
 infer = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }

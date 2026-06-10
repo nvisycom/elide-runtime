@@ -172,8 +172,8 @@ impl Handler for PdfHandler {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "pdf.encode", skip_all, fields(output_bytes))]

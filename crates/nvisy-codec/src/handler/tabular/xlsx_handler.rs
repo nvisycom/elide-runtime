@@ -54,8 +54,8 @@ impl Handler for XlsxHandler {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "xlsx.encode", skip_all)]

@@ -13,7 +13,7 @@
 use std::str::from_utf8;
 
 use nvisy_codec::CodecRegistry;
-use nvisy_codec::document::DecodedBuffer;
+use nvisy_codec::document::DocumentHandle;
 use nvisy_core::Result;
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::extraction::DataAt;
@@ -70,30 +70,28 @@ pub fn dedup_params() -> LayerParams {
 }
 
 /// Decode `bytes` through the codec registry by extension, returning
-/// a typed text [`DecodedBuffer`].
+/// a typed text [`DocumentHandle`].
 pub async fn decode_text_buffer(
     bytes: impl Into<bytes::Bytes>,
     extension: &str,
-) -> Result<DecodedBuffer<Text>> {
+) -> Result<DocumentHandle<Text>> {
     let registry = CodecRegistry::with_builtin();
     let untyped = registry.decode_from_memory(bytes.into(), extension).await?;
-    let handle = untyped
+    Ok(untyped
         .into_text()
-        .expect("text-modality extension resolves to text handle");
-    Ok(DecodedBuffer::new(handle))
+        .expect("text-modality extension resolves to text handle"))
 }
 
 /// Tabular sibling of [`decode_text_buffer`].
 pub async fn decode_tabular_buffer(
     bytes: impl Into<bytes::Bytes>,
     extension: &str,
-) -> Result<DecodedBuffer<Tabular>> {
+) -> Result<DocumentHandle<Tabular>> {
     let registry = CodecRegistry::with_builtin();
     let untyped = registry.decode_from_memory(bytes.into(), extension).await?;
-    let handle = untyped
+    Ok(untyped
         .into_tabular()
-        .expect("tabular-modality extension resolves to tabular handle");
-    Ok(DecodedBuffer::new(handle))
+        .expect("tabular-modality extension resolves to tabular handle"))
 }
 
 /// Drive detection across every chunk the handler yields and
@@ -103,10 +101,10 @@ pub async fn decode_tabular_buffer(
 /// [`RecognizerRegistryExt::detect`].
 pub async fn detect_per_chunk(
     recognizer: PatternRecognizer,
-    buffer: &mut DecodedBuffer<Text>,
+    buffer: &mut DocumentHandle<Text>,
 ) -> Result<Vec<Entity<Text>>> {
     let registry = RecognizerRegistry::new().with_recognizer(recognizer);
-    registry.detect(buffer.handle_mut().handler_mut()).await
+    registry.detect(buffer.handler_mut()).await
 }
 
 /// Run dedup over the entity list using the standard threshold.
@@ -123,14 +121,14 @@ where
 /// `RedactAt`, encode the handler back to bytes, and return the
 /// UTF-8 string.
 pub async fn redact_and_encode(
-    buffer: &mut DecodedBuffer<Text>,
+    buffer: &mut DocumentHandle<Text>,
     entities: &[Entity<Text>],
 ) -> Result<String> {
     let redactions: Redactions<Text> = redaction_registry()
         .apply_all(entities.iter(), buffer)
         .await?;
     buffer.redact_at(redactions).await?;
-    let encoded = buffer.handle().handler().encode()?;
+    let encoded = buffer.handler().encode()?;
     Ok(from_utf8(encoded.as_bytes())
         .expect("text codec encode produces UTF-8")
         .to_owned())
@@ -143,10 +141,10 @@ pub async fn redact_and_encode(
 /// modality picks the [`Tabular`] reshape.
 pub async fn detect_per_cell(
     recognizer: PatternRecognizer,
-    buffer: &mut DecodedBuffer<Tabular>,
+    buffer: &mut DocumentHandle<Tabular>,
 ) -> Result<Vec<Entity<Tabular>>> {
     let registry = RecognizerRegistry::new().with_recognizer(recognizer);
-    registry.detect(buffer.handle_mut().handler_mut()).await
+    registry.detect(buffer.handler_mut()).await
 }
 
 /// Tabular sibling of [`dedup`].
@@ -161,14 +159,14 @@ where
 
 /// Tabular sibling of [`redact_and_encode`].
 pub async fn redact_and_encode_tabular(
-    buffer: &mut DecodedBuffer<Tabular>,
+    buffer: &mut DocumentHandle<Tabular>,
     entities: &[Entity<Tabular>],
 ) -> Result<String> {
     let redactions: Redactions<Tabular> = tabular_redaction_registry()
         .apply_all(entities.iter(), buffer)
         .await?;
     buffer.redact_at(redactions).await?;
-    let encoded = buffer.handle().handler().encode()?;
+    let encoded = buffer.handler().encode()?;
     Ok(from_utf8(encoded.as_bytes())
         .expect("tabular codec encode produces UTF-8")
         .to_owned())

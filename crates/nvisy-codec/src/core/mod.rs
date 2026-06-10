@@ -12,9 +12,9 @@
 //!   decode dispatch.
 //! - [`Format`] — descriptor a [`CodecRegistry`] indexes.
 //! - [`ErasedLoader`] + [`LoaderAdapter`] — object-safe loader surface
-//!   adapting per-modality [`Loader<M>`] impls.
-//! - [`WrapUntyped`] — modality-specific erase into
-//!   [`UntypedDocumentHandle`].
+//!   adapting per-modality [`Loader<M>`] impls. The adapter erases
+//!   `M` into [`UntypedDocumentHandle`] via the auto-derived
+//!   `From<DocumentHandle<M>>` impls on the enum.
 //! - [`Handler`] — base trait every format handler implements.
 //! - [`Loader<M>`] — per-modality decoder the registry composes.
 //!
@@ -41,4 +41,4 @@ pub use self::format::FormatId;
 pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId};
 pub use self::handler::{Handler, Loader};
 pub use self::modality::ModalityKind;
-pub use self::registry::{CodecRegistry, ErasedLoader, Format, LoaderAdapter, WrapUntyped};
+pub use self::registry::{CodecRegistry, ErasedLoader, Format, LoaderAdapter};

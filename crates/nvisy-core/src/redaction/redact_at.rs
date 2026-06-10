@@ -5,9 +5,9 @@
 //! per-modality replacements back into the underlying source.
 //!
 //! Implementations include the codec layer's typed
-//! `DocumentHandle<M>` / `DecodedBuffer<M>` (writes into the
-//! format-specific bytes) and the engine's `DocumentTree<M>` (forwards
-//! through the codec handle).
+//! `DocumentHandle<M>` (writes into the format-specific bytes) and
+//! the engine's `DocumentTree<M>` (forwards through the codec
+//! handle).
 //!
 //! The trait takes a batched [`Redactions<M>`] because most
 //! implementations need ordering control (right-to-left for text /

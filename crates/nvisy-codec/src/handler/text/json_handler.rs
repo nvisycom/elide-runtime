@@ -103,8 +103,8 @@ impl Handler for JsonHandler {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]

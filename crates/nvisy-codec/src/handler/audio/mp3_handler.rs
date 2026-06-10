@@ -86,8 +86,8 @@ impl Handler for Mp3Handler {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "mp3.encode", skip_all, fields(output_bytes))]

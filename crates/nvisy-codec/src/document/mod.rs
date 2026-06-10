@@ -20,8 +20,16 @@
 //! [`into_text`]: UntypedDocumentHandle::into_text
 //! [`into_image`]: UntypedDocumentHandle::into_image
 
-mod decoded_buffer;
+#[cfg(feature = "internal_audio")]
+mod audio;
+#[cfg(feature = "internal_image")]
+mod image;
+#[cfg(feature = "internal_tabular")]
+mod tabular;
+#[cfg(feature = "internal_text")]
+mod text;
 
+use derive_more::From;
 #[cfg(feature = "internal_audio")]
 use nvisy_core::modality::Audio;
 #[cfg(feature = "internal_image")]
@@ -31,7 +39,6 @@ use nvisy_core::modality::Tabular;
 #[cfg(feature = "internal_text")]
 use nvisy_core::modality::Text;
 
-pub use self::decoded_buffer::DecodedBuffer;
 use crate::core::{Codable, FormatId, Handle, ModalityKind};
 
 /// Runtime-tagged handle returned by the codec registry, carrying the
@@ -48,7 +55,7 @@ use crate::core::{Codable, FormatId, Handle, ModalityKind};
 /// [`into_image`]: Self::into_image
 /// [`into_audio`]: Self::into_audio
 /// [`into_tabular`]: Self::into_tabular
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum UntypedDocumentHandle {
     #[cfg(feature = "internal_text")]
     /// Text-modality handle.
@@ -164,6 +171,32 @@ impl UntypedDocumentHandle {
 /// because the pipeline runs phases sequentially per document — there
 /// is no concurrent access to the handle within a single document's
 /// run, so reference counting buys nothing.
+///
+/// Implements the core `*At` trait surface
+/// ([`TextAt`] / [`DataAt`] / [`RedactAt`]) directly so any
+/// pipeline component can read from / write to a codec-backed
+/// source through the same traits the engine bounds on. The
+/// per-modality impls live in the `text` / `tabular` / `image` /
+/// `audio` sibling modules.
+///
+/// Modality coverage:
+///
+/// | Modality   | TextAt | DataAt | RedactAt |
+/// |------------|--------|--------|----------|
+/// | Text       |   ✓    |   ✓    |    ✓     |
+/// | Tabular    |   ✓    |   ✓    |    ✓     |
+/// | Image      |        |   ✓    |    ✓     |
+/// | Audio      |        |   ✓    |    ✓     |
+///
+/// Image and audio don't implement [`TextAt`] — "text at this
+/// location" for image means OCR text, for audio means transcript
+/// text, and both come from the extraction phase in
+/// `nvisy-toolkit::extraction`. The codec layer has no visibility
+/// into either.
+///
+/// [`TextAt`]: nvisy_core::extraction::TextAt
+/// [`DataAt`]: nvisy_core::extraction::DataAt
+/// [`RedactAt`]: nvisy_core::redaction::RedactAt
 pub struct DocumentHandle<M: Codable> {
     format_id: FormatId,
     handler: Box<dyn Handle<M>>,

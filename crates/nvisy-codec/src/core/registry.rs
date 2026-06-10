@@ -82,8 +82,9 @@ impl<M: Codable, L: Loader<M>> LoaderAdapter<M, L> {
 #[async_trait::async_trait]
 impl<M, L> ErasedLoader for LoaderAdapter<M, L>
 where
-    M: Codable + WrapUntyped,
+    M: Codable,
     L: Loader<M>,
+    DocumentHandle<M>: Into<UntypedDocumentHandle>,
 {
     fn modality(&self) -> ModalityKind {
         M::KIND
@@ -93,47 +94,7 @@ where
         let handler = self.loader.decode(content).await?;
         let format = handler.format();
         let handle: Box<dyn Handle<M>> = Box::new(handler);
-        let typed = DocumentHandle::new(format, handle);
-        Ok(M::wrap(typed))
-    }
-}
-
-/// Wrap a typed [`DocumentHandle<M>`] into the matching
-/// [`UntypedDocumentHandle`] variant.
-///
-/// Implemented per modality so the [`ErasedLoader`] adapter can erase
-/// `M` at the registry boundary while still constructing the right
-/// variant on the way out.
-pub trait WrapUntyped: Codable {
-    /// Erase the typed handle into the runtime-tagged variant.
-    fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle;
-}
-
-#[cfg(feature = "internal_text")]
-impl WrapUntyped for nvisy_core::modality::Text {
-    fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle {
-        UntypedDocumentHandle::Text(handle)
-    }
-}
-
-#[cfg(feature = "internal_tabular")]
-impl WrapUntyped for nvisy_core::modality::Tabular {
-    fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle {
-        UntypedDocumentHandle::Tabular(handle)
-    }
-}
-
-#[cfg(feature = "internal_image")]
-impl WrapUntyped for nvisy_core::modality::Image {
-    fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle {
-        UntypedDocumentHandle::Image(handle)
-    }
-}
-
-#[cfg(feature = "internal_audio")]
-impl WrapUntyped for nvisy_core::modality::Audio {
-    fn wrap(handle: DocumentHandle<Self>) -> UntypedDocumentHandle {
-        UntypedDocumentHandle::Audio(handle)
+        Ok(DocumentHandle::new(format, handle).into())
     }
 }
 

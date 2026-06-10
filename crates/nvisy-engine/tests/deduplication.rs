@@ -46,7 +46,7 @@ async fn tree_from(text: &str) -> DocumentTree<Text> {
         UntypedDocumentHandle::Text(h) => h,
         _ => panic!("txt loader must produce Text"),
     };
-    let source = *handle.handler().source();
+    let source = handle.handler().source();
     let doc = Document::<Text>::new(
         TextMetadata {
             extraction: TextExtraction::Native,

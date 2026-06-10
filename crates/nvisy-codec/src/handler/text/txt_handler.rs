@@ -57,8 +57,8 @@ impl Handler for TxtHandler {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "txt.encode", skip_all, fields(output_bytes))]

@@ -21,9 +21,9 @@ pub mod document;
 pub mod handler;
 
 pub use self::core::{
-    CodecRegistry, ErasedLoader, Format, FormatId, Handler, Loader, LoaderAdapter, WrapUntyped,
+    CodecRegistry, ErasedLoader, Format, FormatId, Handler, Loader, LoaderAdapter,
 };
-pub use self::document::{DecodedBuffer, DocumentHandle, UntypedDocumentHandle};
+pub use self::document::{DocumentHandle, UntypedDocumentHandle};
 
 #[cfg(test)]
 mod tests {

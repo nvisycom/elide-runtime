@@ -16,7 +16,6 @@
 //! translation to a single per-leaf walk of its escape table.
 
 use std::ops::Range;
-use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
@@ -24,8 +23,8 @@ use nvisy_core::redaction::Redactions;
 
 use super::redact;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, ModalityKind};
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::core::{Chunk, Handle, Handler};
+use crate::{Format, FormatId};
 
 const TARGET: &str = "json-handler";
 
@@ -34,13 +33,12 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.json");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["json".into()],
-        content_types: vec!["application/json".into()],
-        loader: Arc::new(LoaderAdapter::new(super::JsonLoader::default())),
-    }
+    Format::new::<Text, _>(
+        FORMAT_ID.clone(),
+        vec!["json".into()],
+        vec!["application/json".into()],
+        super::JsonLoader::default(),
+    )
 }
 
 /// One element of the parsed source.

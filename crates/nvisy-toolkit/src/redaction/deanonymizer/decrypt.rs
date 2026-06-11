@@ -9,7 +9,7 @@
 //! Wire shape matches what [`Encrypt`] produces:
 //! `base64(nonce || ciphertext || auth_tag)` with a 12-byte nonce.
 //!
-//! [`Encrypt`]: super::Encrypt
+//! [`Encrypt`]: crate::redaction::anonymizer::Encrypt
 //! [`Deanonymizer`]: nvisy_core::redaction::Deanonymizer
 //! [`Deanonymizer<M>`]: nvisy_core::redaction::Deanonymizer
 
@@ -28,7 +28,7 @@ const TARGET: &str = "nvisy_toolkit::redaction::decrypt";
 
 /// AES-256-GCM decrypt operator. Inverse of [`Encrypt`].
 ///
-/// [`Encrypt`]: super::Encrypt
+/// [`Encrypt`]: crate::redaction::anonymizer::Encrypt
 #[derive(Clone)]
 pub struct Decrypt {
     key: Key<Aes256Gcm>,
@@ -37,7 +37,7 @@ pub struct Decrypt {
 impl Decrypt {
     /// Construct from the same 32-byte key passed to [`Encrypt`].
     ///
-    /// [`Encrypt`]: super::Encrypt
+    /// [`Encrypt`]: crate::redaction::anonymizer::Encrypt
     pub fn from_key(key: [u8; 32]) -> Self {
         Self { key: key.into() }
     }

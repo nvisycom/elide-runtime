@@ -10,7 +10,7 @@
 //!
 //! Inverse lives in [`Decrypt`] (sibling module).
 //!
-//! [`Decrypt`]: super::Decrypt
+//! [`Decrypt`]: crate::redaction::deanonymizer::Decrypt
 
 use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::aead::{Aead, KeyInit, OsRng};
@@ -35,7 +35,7 @@ const TARGET: &str = "nvisy_toolkit::redaction::encrypt";
 /// Holds a 32-byte key. Use [`Decrypt`] with the same key to recover
 /// the originals from an audit trail.
 ///
-/// [`Decrypt`]: super::Decrypt
+/// [`Decrypt`]: crate::redaction::deanonymizer::Decrypt
 #[derive(Clone)]
 pub struct Encrypt {
     key: Key<Aes256Gcm>,

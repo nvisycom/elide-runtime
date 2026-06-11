@@ -1,102 +1,17 @@
 //! [`CodecRegistry`]: resolves an extension or content type to a
 //! registered [`Format`] and decodes content through its loader.
 //!
-//! Each [`Format`] bundles a [`FormatId`], its [`ModalityKind`], the
-//! extensions and content types that resolve to it, and an
-//! [`ErasedLoader`] that decodes bytes into an
-//! [`UntypedDocumentHandle`].
-//!
 //! Downstream crates register their own formats by calling
-//! [`CodecRegistry::register`] — there is no central enum to extend.
+//! [`CodecRegistry::add_format`] — there is no central enum to
+//! extend.
 
-use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use nvisy_core::Error;
 
-use super::ModalityKind;
+use super::{Format, FormatId};
 use crate::content::ContentData;
-use crate::core::{Codable, FormatId, Handle, Handler, Loader};
-use crate::document::{DocumentHandle, UntypedDocumentHandle};
-
-/// Descriptor for one registered codec format.
-#[derive(Clone)]
-pub struct Format {
-    /// Stable identifier (e.g. `"nvisy.text.txt"`).
-    pub id: FormatId,
-    /// Modality this format produces.
-    pub modality: ModalityKind,
-    /// File extensions (lowercased, no leading dot) that resolve to
-    /// this format.
-    pub extensions: Vec<Cow<'static, str>>,
-    /// MIME content types (lowercased) that resolve to this format.
-    pub content_types: Vec<Cow<'static, str>>,
-    /// Loader that decodes raw content into the typed handle.
-    pub loader: Arc<dyn ErasedLoader>,
-}
-
-impl std::fmt::Debug for Format {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Format")
-            .field("id", &self.id)
-            .field("modality", &self.modality)
-            .field("extensions", &self.extensions)
-            .field("content_types", &self.content_types)
-            .finish_non_exhaustive()
-    }
-}
-
-/// Object-safe loader the registry holds behind `Arc`. Adapts a
-/// per-modality [`Loader<M>`] into a uniform `decode` signature that
-/// returns an [`UntypedDocumentHandle`].
-#[async_trait::async_trait]
-pub trait ErasedLoader: Send + Sync + 'static {
-    /// Modality this loader produces.
-    fn modality(&self) -> ModalityKind;
-
-    /// Decode raw content into an [`UntypedDocumentHandle`].
-    async fn decode(&self, content: ContentData) -> Result<UntypedDocumentHandle, Error>;
-}
-
-/// Adapter that wraps a per-modality [`Loader<M>`] into an
-/// [`ErasedLoader`] the registry can store. The produced handler's
-/// own [`Handler::format`] supplies the [`FormatId`] for the typed
-/// [`DocumentHandle<M>`].
-pub struct LoaderAdapter<M: Codable, L: Loader<M>> {
-    loader: L,
-    _phantom: std::marker::PhantomData<fn() -> M>,
-}
-
-impl<M: Codable, L: Loader<M>> LoaderAdapter<M, L> {
-    /// Wrap a typed loader so the registry can dispatch into it
-    /// uniformly.
-    pub fn new(loader: L) -> Self {
-        Self {
-            loader,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl<M, L> ErasedLoader for LoaderAdapter<M, L>
-where
-    M: Codable,
-    L: Loader<M>,
-    DocumentHandle<M>: Into<UntypedDocumentHandle>,
-{
-    fn modality(&self) -> ModalityKind {
-        M::KIND
-    }
-
-    async fn decode(&self, content: ContentData) -> Result<UntypedDocumentHandle, Error> {
-        let handler = self.loader.decode(content).await?;
-        let format = handler.format();
-        let handle: Box<dyn Handle<M>> = Box::new(handler);
-        Ok(DocumentHandle::new(format, handle).into())
-    }
-}
+use crate::document::UntypedDocumentHandle;
 
 /// Codec registry — owns the set of registered [`Format`]s and
 /// resolves them by extension, content type, or id.
@@ -111,8 +26,8 @@ pub struct CodecRegistry {
 impl CodecRegistry {
     /// Empty registry. Use [`with_format`] / [`add_format`] to add
     /// custom formats, or [`with_builtin`] to start from a pre-
-    /// populated set of every built-in format the active feature set
-    /// enables.
+    /// populated set of every built-in format the active feature
+    /// set enables.
     ///
     /// [`with_format`]: Self::with_format
     /// [`add_format`]: Self::add_format
@@ -217,15 +132,16 @@ impl CodecRegistry {
         self.by_id.get(id).map(|&i| &self.formats[i])
     }
 
-    /// Look up a registered format by file extension (case-insensitive,
-    /// no leading dot).
+    /// Look up a registered format by file extension
+    /// (case-insensitive, no leading dot).
     pub fn by_extension(&self, ext: &str) -> Option<&Format> {
         self.by_extension
             .get(&ext.to_ascii_lowercase())
             .map(|&i| &self.formats[i])
     }
 
-    /// Look up a registered format by MIME content type (case-insensitive).
+    /// Look up a registered format by MIME content type
+    /// (case-insensitive).
     pub fn by_content_type(&self, mime: &str) -> Option<&Format> {
         self.by_content_type
             .get(&mime.to_ascii_lowercase())

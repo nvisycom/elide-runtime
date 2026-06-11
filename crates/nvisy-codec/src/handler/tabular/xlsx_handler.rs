@@ -5,32 +5,27 @@
 //! downstream code can resolve XLSX without a runtime panic, while
 //! signalling that meaningful tabular access isn't implemented yet.
 
-use std::sync::Arc;
-
 use nvisy_core::Error;
 use nvisy_core::modality::{Tabular, TabularLocation, TextData};
 use nvisy_core::redaction::Redactions;
 
 use super::XlsxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, ModalityKind};
+use crate::core::{Chunk, Handle, Handler};
 use crate::handler::tabular::TabularHandle;
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Format, FormatId};
 
 /// Stable [`FormatId`] for the XLSX codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.xlsx");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Tabular,
-        extensions: vec!["xlsx".into()],
-        content_types: vec![
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".into(),
-        ],
-        loader: Arc::new(LoaderAdapter::new(XlsxLoader)),
-    }
+    Format::new::<Tabular, _>(
+        FORMAT_ID.clone(),
+        vec!["xlsx".into()],
+        vec!["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".into()],
+        XlsxLoader,
+    )
 }
 
 #[derive(Debug, Default)]

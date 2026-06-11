@@ -18,13 +18,12 @@
 ///
 /// Each invocation also emits:
 /// - a `pub const FORMAT_ID: FormatId` for the handler's stable id
-/// - a `pub fn format() -> Format` descriptor wiring the matching
-///   loader through [`LoaderAdapter`] into the registry
+/// - a `pub fn format() -> Format` descriptor that wires the
+///   matching loader through [`Format::new`] into the registry
 ///
 /// [`Handler`]: crate::core::Handler
 /// [`Handle<Image>`]: crate::core::Handle
-/// [`Handle<Image>`]: crate::core::Handle
-/// [`LoaderAdapter`]: crate::core::LoaderAdapter
+/// [`Format::new`]: crate::core::Format::new
 #[macro_export]
 macro_rules! impl_image_handler {
     (
@@ -45,15 +44,12 @@ macro_rules! impl_image_handler {
         ///
         /// [`Format`]: $crate::core::Format
         pub fn format() -> $crate::core::Format {
-            $crate::core::Format {
-                id: FORMAT_ID.clone(),
-                modality: $crate::core::ModalityKind::Image,
-                extensions: vec![$($ext.into()),+],
-                content_types: vec![$($mime.into()),+],
-                loader: ::std::sync::Arc::new(
-                    $crate::core::LoaderAdapter::new($loader::default()),
-                ),
-            }
+            $crate::core::Format::new::<::nvisy_core::modality::Image, _>(
+                FORMAT_ID.clone(),
+                vec![$($ext.into()),+],
+                vec![$($mime.into()),+],
+                $loader::default(),
+            )
         }
 
         impl $crate::core::Handler for $handler {

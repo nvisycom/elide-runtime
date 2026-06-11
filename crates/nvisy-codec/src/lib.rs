@@ -20,9 +20,7 @@ pub mod core;
 pub mod document;
 pub mod handler;
 
-pub use self::core::{
-    CodecRegistry, ErasedLoader, Format, FormatId, Handler, Loader, LoaderAdapter,
-};
+pub use self::core::{CodecRegistry, ErasedLoader, Format, FormatId, Handler, Loader};
 pub use self::document::{DocumentHandle, UntypedDocumentHandle};
 
 #[cfg(test)]

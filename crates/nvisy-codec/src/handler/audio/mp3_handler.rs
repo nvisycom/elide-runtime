@@ -9,8 +9,6 @@
 //! [`Handle<Audio>`]: crate::core::Handle
 //! [`Handle::redact`]: crate::core::Handle::redact
 
-use std::sync::Arc;
-
 use bytes::Bytes;
 use nvisy_core::Error;
 use nvisy_core::modality::{Audio, AudioData, AudioLocation};
@@ -19,8 +17,8 @@ use nvisy_core::redaction::Redactions;
 
 use super::Mp3Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, ModalityKind};
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::core::{Chunk, Handle, Handler};
+use crate::{Format, FormatId};
 
 const TARGET: &str = "mp3-handler";
 
@@ -29,13 +27,12 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.audio.mp3");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Audio,
-        extensions: vec!["mp3".into()],
-        content_types: vec!["audio/mpeg".into()],
-        loader: Arc::new(LoaderAdapter::new(Mp3Loader)),
-    }
+    Format::new::<Audio, _>(
+        FORMAT_ID.clone(),
+        vec!["mp3".into()],
+        vec!["audio/mpeg".into()],
+        Mp3Loader,
+    )
 }
 
 /// Handler for loaded MP3 content.

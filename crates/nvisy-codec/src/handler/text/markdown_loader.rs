@@ -6,28 +6,25 @@
 //! is carried by [`FORMAT_ID`] on the [`Format`] descriptor so
 //! downstream code can apply Markdown-aware processing when needed.
 
-use std::sync::Arc;
-
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
 use super::TxtHandler;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::{Loader, ModalityKind};
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::core::Loader;
+use crate::{Format, FormatId};
 
 /// Stable [`FormatId`] for the Markdown codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.markdown");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["md".into(), "markdown".into()],
-        content_types: vec!["text/markdown".into()],
-        loader: Arc::new(LoaderAdapter::new(MarkdownLoader::default())),
-    }
+    Format::new::<Text, _>(
+        FORMAT_ID.clone(),
+        vec!["md".into(), "markdown".into()],
+        vec!["text/markdown".into()],
+        MarkdownLoader::default(),
+    )
 }
 
 /// Loader for Markdown files. Produces a [`TxtHandler`] per input.

@@ -9,7 +9,6 @@
 //! omitting them redacts the whole cell.
 
 use std::ops::Range;
-use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::modality::{Tabular, TabularLocation, TextData};
@@ -17,10 +16,10 @@ use nvisy_core::redaction::{Redactions, TabularReplacement};
 
 use super::CsvLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, ModalityKind};
+use crate::core::{Chunk, Handle, Handler};
 use crate::handler::tabular::TabularHandle;
 use crate::handler::text::redact;
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Format, FormatId};
 
 const TARGET: &str = "csv-handler";
 
@@ -29,13 +28,12 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.csv");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Tabular,
-        extensions: vec!["csv".into()],
-        content_types: vec!["text/csv".into()],
-        loader: Arc::new(LoaderAdapter::new(CsvLoader::default())),
-    }
+    Format::new::<Tabular, _>(
+        FORMAT_ID.clone(),
+        vec!["csv".into()],
+        vec!["text/csv".into()],
+        CsvLoader::default(),
+    )
 }
 
 /// Parsed CSV content.

@@ -15,7 +15,6 @@
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
 
 use std::io::Cursor;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
@@ -26,9 +25,9 @@ use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use super::{WavLoader, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, ModalityKind};
+use crate::core::{Chunk, Handle, Handler};
 use crate::handler::audio::sort_redactions_for_audio;
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Format, FormatId};
 
 const TARGET: &str = "wav-handler";
 
@@ -37,13 +36,12 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.audio.wav");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Audio,
-        extensions: vec!["wav".into()],
-        content_types: vec!["audio/wav".into(), "audio/x-wav".into()],
-        loader: Arc::new(LoaderAdapter::new(WavLoader)),
-    }
+    Format::new::<Audio, _>(
+        FORMAT_ID.clone(),
+        vec!["wav".into()],
+        vec!["audio/wav".into(), "audio/x-wav".into()],
+        WavLoader,
+    )
 }
 
 /// Handler for loaded WAV content. Stores the encoded bytes; decode

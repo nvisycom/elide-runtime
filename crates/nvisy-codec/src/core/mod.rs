@@ -1,44 +1,31 @@
-//! Codec core contracts: per-modality trait surfaces, format identity,
-//! and the registry that composes them.
+//! Codec core contracts, grouped by concern:
 //!
-//! - [`Codable`] — per-modality wire-type associated types.
-//! - [`Handle<M>`] — per-modality capability trait (streaming +
-//!   random-access reads + redactions + offset lifting).
-//! - [`EmbeddedHandles`] — rich-format embedded-child lookup.
-//! - [`Chunk<M>`] — one unit yielded by [`Handle::next_chunk`].
-//! - [`HandleId`] — stable identifier for embedded child handles.
-//! - [`FormatId`] — stable identifier for a registered format.
-//! - [`CodecRegistry`] — extension/content-type → [`Format`] lookup +
-//!   decode dispatch.
-//! - [`Format`] — descriptor a [`CodecRegistry`] indexes.
-//! - [`ErasedLoader`] + [`LoaderAdapter`] — object-safe loader surface
-//!   adapting per-modality [`Loader<M>`] impls. The adapter erases
-//!   `M` into [`UntypedDocumentHandle`] via the auto-derived
-//!   `From<DocumentHandle<M>>` impls on the enum.
-//! - [`Handler`] — base trait every format handler implements.
-//! - [`Loader<M>`] — per-modality decoder the registry composes.
+//! - `format` — *what kind of thing a codec is*. [`FormatId`],
+//!   [`Format`] descriptor, [`ModalityKind`] tag.
+//! - `handle` — *what a handle exposes*. [`Handler`] (base
+//!   trait), [`Codable`] (modality marker → [`ModalityKind`] bridge),
+//!   [`Handle<M>`] (per-modality capability surface), [`Chunk<M>`]
+//!   payload, [`HandleId`] for embeds, [`EmbeddedHandles`] for
+//!   rich-format children.
+//! - `loader` — *how raw bytes become a handle*. [`Loader<M>`]
+//!   (per-modality decoder), [`ErasedLoader`] (object-safe surface
+//!   the registry stores), and a crate-internal `erase` helper that
+//!   bridges typed loaders into [`Format::new`].
+//! - `registry` — *the lookup engine*. [`CodecRegistry`] indexes
+//!   [`Format`]s by id, extension, and content type, and decodes
+//!   bytes through the matching loader.
 //!
-//! The `(location, replacement)` pair list passed to
-//! [`Handle::redact`] is [`Redactions<M>`]; the per-modality
-//! replacement enum is in [`redaction`] — codec depends on core, not
-//! the reverse.
-//!
-//! Concrete format implementations and their `impl Codable for X`
-//! blocks live in the per-modality top-level modules (`crate::text`,
-//! `crate::image`, `crate::audio`, `crate::tabular`, `crate::rich`).
-//!
-//! [`Redactions<M>`]: nvisy_core::redaction::Redactions
-//! [`redaction`]: nvisy_core::redaction
-//! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
+//! Concrete format implementations live in `crate::handler::*`;
+//! their `impl Codable for X` blocks live next to the per-modality
+//! markers they specialise.
 
 mod format;
 mod handle;
-mod handler;
-mod modality;
+mod loader;
 mod registry;
 
-pub use self::format::FormatId;
-pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId};
-pub use self::handler::{Handler, Loader};
-pub use self::modality::ModalityKind;
-pub use self::registry::{CodecRegistry, ErasedLoader, Format, LoaderAdapter};
+pub use self::format::{Format, FormatId, ModalityKind};
+pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId, Handler};
+pub(crate) use self::loader::erase;
+pub use self::loader::{ErasedLoader, Loader};
+pub use self::registry::CodecRegistry;

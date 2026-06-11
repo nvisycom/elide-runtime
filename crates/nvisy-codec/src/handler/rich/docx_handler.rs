@@ -4,7 +4,6 @@
 //! text chunks until per-paragraph extraction lands.
 
 use std::ops::Range;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use nvisy_core::Error;
@@ -13,9 +12,9 @@ use nvisy_core::redaction::Redactions;
 
 use super::DocxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, ModalityKind};
+use crate::core::{Chunk, Handle, Handler};
 use crate::handler::text::lift_identity;
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Format, FormatId};
 
 const TARGET: &str = "docx-handler";
 
@@ -24,15 +23,12 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.rich.docx");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["docx".into()],
-        content_types: vec![
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document".into(),
-        ],
-        loader: Arc::new(LoaderAdapter::new(DocxLoader)),
-    }
+    Format::new::<Text, _>(
+        FORMAT_ID.clone(),
+        vec!["docx".into()],
+        vec!["application/vnd.openxmlformats-officedocument.wordprocessingml.document".into()],
+        DocxLoader,
+    )
 }
 
 #[derive(Debug)]

@@ -17,7 +17,6 @@
 //! [`extract_embedded_images`]: PdfHandler::extract_embedded_images
 
 use std::ops::Range;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use nvisy_core::Error;
@@ -28,10 +27,10 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 use super::PdfLoader;
 use super::pdf_render::PdfRenderer;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, ModalityKind};
+use crate::core::{Chunk, Handle, Handler};
 use crate::handler::image::PngHandler;
 use crate::handler::text::{lift_identity, redact};
-use crate::{DocumentHandle, Format, FormatId, LoaderAdapter};
+use crate::{DocumentHandle, Format, FormatId};
 
 const TARGET: &str = "pdf-handler";
 
@@ -40,13 +39,12 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.rich.pdf");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["pdf".into()],
-        content_types: vec!["application/pdf".into()],
-        loader: Arc::new(LoaderAdapter::new(PdfLoader::default())),
-    }
+    Format::new::<Text, _>(
+        FORMAT_ID.clone(),
+        vec!["pdf".into()],
+        vec!["application/pdf".into()],
+        PdfLoader::default(),
+    )
 }
 
 /// Handler for loaded PDF content.

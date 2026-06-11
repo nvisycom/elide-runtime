@@ -142,7 +142,7 @@ async fn decode(registry: &CodecRegistry, content: &Content) -> Result<UntypedDo
                 TARGET,
             )
         })?;
-    format.loader.decode(content.data().clone()).await
+    format.loader().decode(content.data().clone()).await
 }
 
 /// Build the per-modality typed tree from an [`UntypedDocumentHandle`],

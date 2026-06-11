@@ -1,17 +1,17 @@
 //! WAV handler: holds raw WAV audio bytes and exposes them as a
-//! single-track audio handle via [`Handle<Audio>`].
+//! single-track audio handle via [`Handler<Audio>`].
 //!
 //! Redaction decodes the WAV via [`hound`], applies sample-level
 //! mutations, and re-encodes back to bytes. Supported formats: `i8` /
 //! `i16` / `i32` PCM and `f32` IEEE float; other bit depths surface a
 //! clear error.
 //!
-//! Batched [`Handle::redact`] sorts right-to-left by
+//! Batched [`Handler::redact`] sorts right-to-left by
 //! `time_span.start_us` so [`AudioReplacement::Remove`] operations don't
 //! shift the indices of pending redactions.
 //!
-//! [`Handle<Audio>`]: crate::core::Handle
-//! [`Handle::redact`]: crate::core::Handle::redact
+//! [`Handler<Audio>`]: crate::core::Handler
+//! [`Handler::redact`]: crate::core::Handler::redact
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
 
 use std::io::Cursor;
@@ -25,7 +25,7 @@ use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use super::{WavLoader, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::handler::audio::sort_redactions_for_audio;
 use crate::{Format, FormatId};
 
@@ -36,18 +36,15 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.audio.wav");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Audio, _>(
-        FORMAT_ID.clone(),
-        vec!["wav".into()],
-        vec!["audio/wav".into(), "audio/x-wav".into()],
-        WavLoader,
-    )
+    Format::new::<Audio, _>(FORMAT_ID.clone(), WavLoader)
+        .with_extensions(["wav"])
+        .with_content_types(["audio/wav", "audio/x-wav"])
 }
 
 /// Handler for loaded WAV content. Stores the encoded bytes; decode
-/// happens on demand inside [`Handle::redact`].
+/// happens on demand inside [`Handler::redact`].
 ///
-/// [`Handle::redact`]: crate::core::Handle::redact
+/// [`Handler::redact`]: crate::core::Handler::redact
 #[derive(Debug)]
 pub struct WavHandler {
     source: ContentSource,
@@ -90,7 +87,8 @@ impl WavHandler {
     }
 }
 
-impl Handler for WavHandler {
+#[async_trait::async_trait]
+impl Handler<Audio> for WavHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -105,10 +103,7 @@ impl Handler for WavHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, self.bytes.clone()))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Audio> for WavHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Audio>>, Error> {
         if self.yielded {
             return Ok(None);
@@ -116,11 +111,7 @@ impl Handle<Audio> for WavHandler {
         let location = AudioLocation::new(TimeSpan::new(0, 0));
         let data = AudioData::new(self.bytes.clone()).with_filename(self.filename.clone());
         self.yielded = true;
-        Ok(Some(Chunk {
-            location,
-            data,
-            embed: None,
-        }))
+        Ok(Some(Chunk { location, data }))
     }
 
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {

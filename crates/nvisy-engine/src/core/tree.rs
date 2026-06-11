@@ -14,8 +14,7 @@
 
 use nvisy_codec::DocumentHandle;
 use nvisy_codec::content::ContentDescriptor;
-use nvisy_codec::core::ModalityKind;
-use nvisy_core::modality::{Audio, Image, Tabular, Text};
+use nvisy_core::modality::{Audio, Image, ModalityKind, Tabular, Text};
 
 use crate::document::Document;
 use crate::document::provenance::AnyAudit;
@@ -28,11 +27,11 @@ pub struct DocumentTree<M: DocumentModality> {
     pub root: Document<M>,
     /// Codec handle backing the underlying bytes. Phases borrow this
     /// directly via the typed [`DocumentHandle<M>`] for reads
-    /// (via [`Handle::read`]) and redactions
-    /// (via [`Handle::redact`]).
+    /// (via [`Handler::read`]) and redactions
+    /// (via [`Handler::redact`]).
     ///
-    /// [`Handle::read`]: nvisy_codec::core::Handle::read
-    /// [`Handle::redact`]: nvisy_codec::core::Handle::redact
+    /// [`Handler::read`]: nvisy_codec::core::Handler::read
+    /// [`Handler::redact`]: nvisy_codec::core::Handler::redact
     pub handle: DocumentHandle<M>,
     /// Caller-supplied descriptor (filename, MIME hint, policy
     /// metadata) from the original upload. Policy evaluation

@@ -1,57 +1,63 @@
-//! What a codec handle exposes — the trait surface every shipped
+//! What a codec handler exposes — the trait surface every shipped
 //! format handler implements:
 //!
-//! - [`Handler`] — base trait every handler implements, regardless
-//!   of modality. Identifies the format, exposes the content
-//!   source, encodes back to bytes, surfaces embedded children for
-//!   rich formats.
-//! - [`Codable`] — codec-side extension of [`Modality`]: pins each
-//!   modality marker to a runtime [`ModalityKind`] tag so erased
-//!   handles can dispatch.
-//! - [`Handle<M>`] — per-modality capability trait. Streaming
-//!   ([`next_chunk`]), random-access reads and redactions
-//!   ([`read`], [`redact`]), and offset lifting back to source
-//!   coordinates ([`lift_chunk`]).
+//! - [`Handler<M>`] — per-modality capability trait. Identifies and
+//!   serialises the handler ([`format`], [`source`], [`encode`]),
+//!   streams chunks ([`next_chunk`]), supports random-access reads
+//!   and redactions ([`read`], [`redact`]), and lifts recognizer
+//!   offsets back to source coordinates ([`lift_chunk`]).
 //! - [`Chunk<M>`] — one decoded unit yielded by `next_chunk`.
-//! - [`HandleId`] — stable identifier for an embedded child
-//!   handle, recorded on the parent's chunks via [`Chunk::embed`].
-//! - [`EmbeddedHandles`] — rich-format capability: a parent handler
-//!   resolves embed ids to [`UntypedDocumentHandle`]s on demand.
 //!
-//! [`Modality`]: nvisy_core::modality::Modality
-//! [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
-//! [`next_chunk`]: Handle::next_chunk
-//! [`read`]: Handle::read
-//! [`redact`]: Handle::redact
-//! [`lift_chunk`]: Handle::lift_chunk
+//! [`format`]: Handler::format
+//! [`source`]: Handler::source
+//! [`encode`]: Handler::encode
+//! [`next_chunk`]: Handler::next_chunk
+//! [`read`]: Handler::read
+//! [`redact`]: Handler::redact
+//! [`lift_chunk`]: Handler::lift_chunk
 
-use std::fmt;
 use std::ops::Range;
 
 use nvisy_core::Error;
 use nvisy_core::modality::Modality;
 use nvisy_core::redaction::Redactions;
-use uuid::Uuid;
 
-use super::{FormatId, ModalityKind};
+use super::FormatId;
 use crate::content::{ContentData, ContentSource};
-use crate::document::UntypedDocumentHandle;
 
-/// Base trait implemented by all format handlers, independent of
-/// modality.
+/// One decoded unit yielded by [`Handler::next_chunk`].
 ///
-/// A handler holds loaded, validated content and provides methods
-/// to identify and serialize it. Handlers are produced by their
-/// corresponding [`Loader`].
+/// `data` is the per-modality wire payload; `location` is the
+/// coordinate the handler will accept in [`Handler::read`] /
+/// [`Handler::redact`] to address the same chunk again.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Chunk<M: Modality> {
+    /// Coordinate addressing this chunk inside the handler.
+    pub location: M::Location,
+    /// Wire payload at the chunk's location.
+    pub data: M::Data,
+}
+
+/// Per-modality capability trait every format handler implements.
 ///
-/// Per-modality capability is provided by implementing
-/// [`Handle<M>`] for the single modality the handler exposes.
-/// Multi-modality is **not** done via multiple `Handle<M>` impls
-/// on the same struct — rich formats implement [`EmbeddedHandles`]
-/// and expose child handles instead.
+/// Identifies and serialises the handler ([`format`], [`source`],
+/// [`encode`]), streams chunks ([`next_chunk`]), supports
+/// random-access reads and redactions ([`read`], [`redact`]), and
+/// lifts recognizer offsets back to source coordinates
+/// ([`lift_chunk`]).
 ///
-/// [`Loader`]: super::Loader
-pub trait Handler: Send + Sync + 'static {
+/// The handler owns the streaming cursor — concurrent iteration
+/// of the same handle is not supported (only one `&mut self`).
+///
+/// [`format`]: Handler::format
+/// [`source`]: Handler::source
+/// [`encode`]: Handler::encode
+/// [`next_chunk`]: Handler::next_chunk
+/// [`read`]: Handler::read
+/// [`redact`]: Handler::redact
+/// [`lift_chunk`]: Handler::lift_chunk
+#[async_trait::async_trait]
+pub trait Handler<M: Modality>: Send + Sync + 'static {
     /// Stable id of the format this handler represents (e.g.
     /// `"nvisy.text.txt"`). Cheap to clone.
     fn format(&self) -> FormatId;
@@ -62,102 +68,6 @@ pub trait Handler: Send + Sync + 'static {
     /// Serialize the current handler content back to [`ContentData`].
     fn encode(&self) -> Result<ContentData, Error>;
 
-    /// Embedded-child accessor for rich formats (PDF, DOCX) whose
-    /// chunks reference inner [`UntypedDocumentHandle`] handles.
-    /// Returns `None` for leaf formats — the default — so only rich
-    /// handlers need to override.
-    ///
-    /// The engine importer walks this to build the embed tree under
-    /// the root document, without an `Any` downcast at the call site.
-    fn embedded(&self) -> Option<&dyn EmbeddedHandles> {
-        None
-    }
-}
-
-/// Codec-side extension of [`Modality`]: pins each modality marker
-/// to a runtime [`ModalityKind`] tag so the registry can erase
-/// typed handles into the matching [`UntypedDocumentHandle`]
-/// variant.
-///
-/// The per-location data payload yielded inside [`Chunk::data`]
-/// and returned by [`Handle::read`] is [`Modality::Data`] — the
-/// codec doesn't redefine it.
-pub trait Codable: Modality {
-    /// Runtime tag for this modality.
-    const KIND: ModalityKind;
-}
-
-/// Stable identifier for an embedded child handle inside a rich
-/// document. Issued by the producing handler at decode time and
-/// recorded on the parent's chunks via [`Chunk::embed`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct HandleId(Uuid);
-
-impl HandleId {
-    /// Fresh identifier for a newly decoded embedded handle.
-    pub fn new() -> Self {
-        Self(Uuid::new_v4())
-    }
-
-    /// Wrap a caller-provided UUID. Useful for round-tripping
-    /// handles across a stable boundary (snapshot/restore,
-    /// distributed pipelines).
-    pub fn from_uuid(uuid: Uuid) -> Self {
-        Self(uuid)
-    }
-
-    /// Inner UUID.
-    pub fn as_uuid(&self) -> Uuid {
-        self.0
-    }
-}
-
-impl Default for HandleId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl fmt::Display for HandleId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// One decoded unit yielded by [`Handle::next_chunk`].
-///
-/// `data` is the per-modality wire payload; `location` is the
-/// coordinate the handler will accept in [`Handle::read`] /
-/// [`Handle::redact`] to address the same chunk again.
-///
-/// `embed` is `Some(id)` only for text chunks that reference an
-/// embedded child handle (e.g. an image figure in a PDF); resolve
-/// it through [`EmbeddedHandles::get`] on the parent handler.
-/// Non-text modalities leave it `None`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Chunk<M: Codable> {
-    /// Coordinate addressing this chunk inside the handler.
-    pub location: M::Location,
-    /// Wire payload at the chunk's location.
-    pub data: M::Data,
-    /// Reference to an embedded child handle, if any.
-    pub embed: Option<HandleId>,
-}
-
-/// Per-modality capability trait every format handler implements:
-/// streaming chunks ([`next_chunk`]), random-access reads and
-/// redactions ([`read`], [`redact`]), and offset lifting back to
-/// source coordinates ([`lift_chunk`]).
-///
-/// The handler owns the streaming cursor — concurrent iteration
-/// of the same handle is not supported (only one `&mut self`).
-///
-/// [`next_chunk`]: Handle::next_chunk
-/// [`read`]: Handle::read
-/// [`redact`]: Handle::redact
-/// [`lift_chunk`]: Handle::lift_chunk
-#[async_trait::async_trait]
-pub trait Handle<M: Codable>: Handler {
     /// Advance the cursor and yield the next chunk, or `None` at
     /// end-of-stream.
     async fn next_chunk(&mut self) -> Result<Option<Chunk<M>>, Error>;
@@ -169,7 +79,7 @@ pub trait Handle<M: Codable>: Handler {
     /// drives [`next_chunk`] which returns `(location, data)`
     /// together.
     ///
-    /// [`next_chunk`]: Handle::next_chunk
+    /// [`next_chunk`]: Handler::next_chunk
     /// [`TextAt`]: nvisy_core::extraction::TextAt
     async fn read(&self, location: &M::Location) -> Result<Option<M::Data>, Error>;
 
@@ -206,23 +116,4 @@ pub trait Handle<M: Codable>: Handler {
     fn lift_chunk(&self, _chunk: &Chunk<M>, _value_range: Range<usize>) -> Option<M::Location> {
         None
     }
-}
-
-/// Capability trait for rich-format handlers (PDF, DOCX, …) whose
-/// chunks reference embedded child handles.
-///
-/// A primary handler that emits [`Chunk`]s with [`Chunk::embed`]
-/// set implements this trait so consumers can resolve the
-/// referenced handle on demand. Embedded handles are
-/// **first-class** [`UntypedDocumentHandle`]s — they carry their
-/// own source identity, format, and cursor.
-///
-/// Lookup is lazy: implementations decode the referenced child on
-/// demand, so a 500-page PDF with 2000 images does not pay the
-/// extraction cost until a consumer asks for a specific image.
-pub trait EmbeddedHandles: Send + Sync {
-    /// Resolve an embedded child handle. Returns `None` if the id
-    /// was never issued by this handler or the child can no longer
-    /// be produced.
-    fn get(&self, id: HandleId) -> Option<UntypedDocumentHandle>;
 }

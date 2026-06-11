@@ -1,18 +1,18 @@
 //! PDF handler: holds per-page extracted text and raw document bytes,
-//! exposing per-page chunks via [`Handle<Text>`].
+//! exposing per-page chunks via [`Handler<Text>`].
 //!
 //! Text offsets are cumulative over the per-page text sequence in
 //! document order. Each chunk carries the page number on its
 //! [`TextLocation`] for downstream provenance.
 //!
 //! Embedded image extraction (figures, page rasterization for OCR)
-//! lives on inherent methods rather than `Handle<Image>` — see
+//! lives on inherent methods rather than `Handler<Image>` — see
 //! [`render_pages`] and [`extract_embedded_images`]. These
 //! return [`DocumentHandle<Image>`] values backed by PNG bytes so
 //! downstream extractors can route them through the standard image
 //! pipeline.
 //!
-//! [`Handle<Text>`]: crate::core::Handle
+//! [`Handler<Text>`]: crate::core::Handler
 //! [`render_pages`]: PdfHandler::render_pages
 //! [`extract_embedded_images`]: PdfHandler::extract_embedded_images
 
@@ -27,7 +27,7 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 use super::PdfLoader;
 use super::pdf_render::PdfRenderer;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::handler::image::PngHandler;
 use crate::handler::text::{lift_identity, redact};
 use crate::{DocumentHandle, Format, FormatId};
@@ -39,12 +39,9 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.rich.pdf");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Text, _>(
-        FORMAT_ID.clone(),
-        vec!["pdf".into()],
-        vec!["application/pdf".into()],
-        PdfLoader::default(),
-    )
+    Format::new::<Text, _>(FORMAT_ID.clone(), PdfLoader::default())
+        .with_extensions(["pdf"])
+        .with_content_types(["application/pdf"])
 }
 
 /// Handler for loaded PDF content.
@@ -165,7 +162,8 @@ impl PdfHandler {
     }
 }
 
-impl Handler for PdfHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for PdfHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -180,10 +178,7 @@ impl Handler for PdfHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, self.raw.clone()))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Text> for PdfHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.pages.len() {
             return Ok(None);
@@ -201,7 +196,6 @@ impl Handle<Text> for PdfHandler {
                 ..Default::default()
             },
             data: TextData::from(text.as_str()),
-            embed: None,
         }))
     }
 

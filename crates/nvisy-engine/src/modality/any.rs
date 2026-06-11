@@ -1,7 +1,8 @@
 //! Type-erased [`Modality::Location`] enum.
 
-use nvisy_codec::core::ModalityKind;
-use nvisy_core::modality::{AudioLocation, ImageLocation, TabularLocation, TextLocation};
+use nvisy_core::modality::{
+    AudioLocation, ImageLocation, ModalityKind, TabularLocation, TextLocation,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::EnumTryAs;

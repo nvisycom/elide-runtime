@@ -2,16 +2,16 @@
 //! structs (PNG, JPEG, TIFF — anything backed by one
 //! `image::DynamicImage` + a `ContentSource`).
 //!
-//! Generates the [`Handler`], [`Handle<Image>`],
-//! [`Handle<Image>`] impls plus inherent constructors and a
+//! Generates the [`Handler`], [`Handler<Image>`],
+//! [`Handler<Image>`] impls plus inherent constructors and a
 //! `pub fn format() -> Format` descriptor that registers with
 //! [`crate::CodecRegistry`].
 //!
 //! [`Handler`]: crate::core::Handler
-//! [`Handle<Image>`]: crate::core::Handle
-//! [`Handle<Image>`]: crate::core::Handle
+//! [`Handler<Image>`]: crate::core::Handler
+//! [`Handler<Image>`]: crate::core::Handler
 
-/// Implement [`Handler`], [`Handle<Image>`], [`Handle<Image>`],
+/// Implement [`Handler`], [`Handler<Image>`], [`Handler<Image>`],
 /// and the shared inherent methods for an image handler struct that
 /// holds a single `DynamicImage`, a `ContentSource`, and a streaming
 /// cursor.
@@ -22,7 +22,7 @@
 ///   matching loader through [`Format::new`] into the registry
 ///
 /// [`Handler`]: crate::core::Handler
-/// [`Handle<Image>`]: crate::core::Handle
+/// [`Handler<Image>`]: crate::core::Handler
 /// [`Format::new`]: crate::core::Format::new
 #[macro_export]
 macro_rules! impl_image_handler {
@@ -46,13 +46,14 @@ macro_rules! impl_image_handler {
         pub fn format() -> $crate::core::Format {
             $crate::core::Format::new::<::nvisy_core::modality::Image, _>(
                 FORMAT_ID.clone(),
-                vec![$($ext.into()),+],
-                vec![$($mime.into()),+],
                 $loader::default(),
             )
+            .with_extensions([$($ext),+])
+            .with_content_types([$($mime),+])
         }
 
-        impl $crate::core::Handler for $handler {
+        #[::async_trait::async_trait]
+        impl $crate::core::Handler<::nvisy_core::modality::Image> for $handler {
             fn format(&self) -> $crate::core::FormatId {
                 FORMAT_ID.clone()
             }
@@ -72,10 +73,7 @@ macro_rules! impl_image_handler {
                     .with_parent(&self.source);
                 Ok($crate::content::ContentData::new(source, out.into()))
             }
-        }
 
-        #[::async_trait::async_trait]
-        impl $crate::core::Handle<::nvisy_core::modality::Image> for $handler {
             async fn next_chunk(
                 &mut self,
             ) -> ::std::result::Result<
@@ -112,7 +110,6 @@ macro_rules! impl_image_handler {
                 Ok(Some($crate::core::Chunk {
                     location,
                     data,
-                    embed: None,
                 }))
             }
 
@@ -189,7 +186,7 @@ macro_rules! impl_image_handler {
             /// Rewind the streaming cursor so [`next_chunk`] yields
             /// the full-image chunk again.
             ///
-            /// [`next_chunk`]: $crate::core::Handle::next_chunk
+            /// [`next_chunk`]: $crate::core::Handler::next_chunk
             pub fn rewind(&mut self) {
                 self.yielded = false;
             }

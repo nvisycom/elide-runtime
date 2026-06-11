@@ -27,9 +27,9 @@
 use std::collections::{HashMap, HashSet};
 
 use jiff::Timestamp;
-use nvisy_codec::core::ModalityKind;
 use nvisy_core::Error;
 use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::modality::ModalityKind;
 use nvisy_core::primitive::Confidence;
 use uuid::Uuid;
 

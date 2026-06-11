@@ -26,6 +26,7 @@ impl Modality for Text {
     type Location = TextLocation;
     type Replacement = TextReplacement;
 
+    const KIND: super::ModalityKind = super::ModalityKind::Text;
     const NAME: &'static str = "text";
 }
 

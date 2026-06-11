@@ -11,7 +11,7 @@ use nvisy_core::redaction::Redactions;
 
 use super::XlsxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::handler::tabular::TabularHandle;
 use crate::{Format, FormatId};
 
@@ -20,12 +20,9 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.xlsx");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Tabular, _>(
-        FORMAT_ID.clone(),
-        vec!["xlsx".into()],
-        vec!["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".into()],
-        XlsxLoader,
-    )
+    Format::new::<Tabular, _>(FORMAT_ID.clone(), XlsxLoader)
+        .with_extensions(["xlsx"])
+        .with_content_types(["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"])
 }
 
 #[derive(Debug, Default)]
@@ -44,7 +41,8 @@ impl XlsxHandler {
     }
 }
 
-impl Handler for XlsxHandler {
+#[async_trait::async_trait]
+impl Handler<Tabular> for XlsxHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -60,10 +58,7 @@ impl Handler for XlsxHandler {
             "xlsx-handler",
         ))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Tabular> for XlsxHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Tabular>>, Error> {
         Ok(None)
     }

@@ -16,11 +16,13 @@
 //! consumer reaches for: [`Location`] (coordinate), [`Data`] (per-call
 //! payload the recognizer/extractor scans), [`Replacement`] (redaction
 //! record), and [`Extraction`] (per-modality provenance enum stamped
-//! onto a document at extractor time). The document-shape side
-//! (`Block`, `Metadata`) lives in `nvisy-engine`; the codec-side
-//! tag (`Codable`) lives in `nvisy-codec`. Each layer adds its own
-//! extension trait (`DocumentModality`, `Codable`) atop this marker
-//! — toolkit and document don't pollute core.
+//! onto a document at extractor time), plus the [`KIND`] runtime tag
+//! ([`ModalityKind`]) used wherever `M` has been erased. The
+//! document-shape side (`Block`, `Metadata`) lives in `nvisy-engine`
+//! via a `DocumentModality` extension trait — toolkit and document
+//! don't pollute core.
+//!
+//! [`KIND`]: Modality::KIND
 //!
 //! [`Location`]: Modality::Location
 //! [`Data`]: Modality::Data
@@ -34,6 +36,7 @@ mod image;
 mod tabular;
 mod text;
 
+use std::any::TypeId;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -45,6 +48,52 @@ pub use self::audio::{Audio, AudioData, AudioExtraction, AudioLocation};
 pub use self::image::{Image, ImageData, ImageExtraction, ImageLocation};
 pub use self::tabular::{Tabular, TabularExtraction, TabularLocation};
 pub use self::text::{ContextWindow, Text, TextData, TextExtraction, TextLocation};
+
+/// Runtime tag identifying which [`Modality`] a generic container
+/// carries. Used wherever the typed `M` is erased — the codec
+/// registry returning `UntypedDocumentHandle`, redaction
+/// applicator switching on the audit modality, etc.
+///
+/// Closed set today (Text/Tabular/Image/Audio). Adding a fifth
+/// modality is a workspace-wide change — it also requires a new
+/// variant on every `Untyped*` enum and a [`Modality`] impl.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ModalityKind {
+    /// [`Text`] modality.
+    Text,
+    /// [`Tabular`] modality.
+    Tabular,
+    /// [`Image`] modality.
+    Image,
+    /// [`Audio`] modality.
+    Audio,
+}
+
+impl ModalityKind {
+    /// Return the [`ModalityKind`] for a typed `M: Modality` at the
+    /// call site.
+    ///
+    /// Resolved at runtime via [`TypeId`]; the match is exhaustive
+    /// over the four built-in marker types. An unknown `M` panics
+    /// — the modality set is closed.
+    #[must_use]
+    pub fn of<M: Modality>() -> Self {
+        let id = TypeId::of::<M>();
+        if id == TypeId::of::<Text>() {
+            Self::Text
+        } else if id == TypeId::of::<Tabular>() {
+            Self::Tabular
+        } else if id == TypeId::of::<Image>() {
+            Self::Image
+        } else if id == TypeId::of::<Audio>() {
+            Self::Audio
+        } else {
+            unreachable!("Modality must be one of Text/Tabular/Image/Audio");
+        }
+    }
+}
 
 /// Marker trait implemented by every per-modality marker type
 /// ([`Text`], [`Image`], [`Audio`], [`Tabular`]).
@@ -79,6 +128,11 @@ pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'sta
     /// logs. Each marker advertises its own; downstream code never
     /// pattern-matches on the closed set.
     const NAME: &'static str;
+
+    /// Runtime tag for this modality. Used wherever the typed `M`
+    /// is erased — the codec registry, untyped document handles,
+    /// the redaction applicator's audit dispatch, etc.
+    const KIND: ModalityKind;
 
     /// Coordinate value carried by generic containers parameterised
     /// on this modality.

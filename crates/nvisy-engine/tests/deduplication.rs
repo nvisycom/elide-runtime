@@ -41,7 +41,7 @@ async fn tree_from(text: &str) -> DocumentTree<Text> {
     let registry = CodecRegistry::with_builtin();
     let format = registry.by_extension("txt").expect("txt codec registered");
     let data = ContentData::new(ContentSource::new(), text.as_bytes().to_vec().into());
-    let untyped = format.loader().decode(data).await.expect("decode");
+    let untyped = format.decode(data).await.expect("decode");
     let handle = match untyped {
         UntypedDocumentHandle::Text(h) => h,
         _ => panic!("txt loader must produce Text"),

@@ -19,6 +19,7 @@ impl Modality for Tabular {
     type Location = TabularLocation;
     type Replacement = TabularReplacement;
 
+    const KIND: super::ModalityKind = super::ModalityKind::Tabular;
     const NAME: &'static str = "tabular";
 }
 

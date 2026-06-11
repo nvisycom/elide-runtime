@@ -1,6 +1,6 @@
 //! Plain-text handler: holds loaded text content and streams it
-//! line-by-line via [`Handle<Text>`], with random-access reads /
-//! redactions via [`Handle<Text>`].
+//! line-by-line via [`Handler<Text>`], with random-access reads /
+//! redactions via [`Handler<Text>`].
 //!
 //! The handler stores the text as a vector of lines together with a
 //! trailing-newline flag so the original file can be reconstructed
@@ -14,7 +14,7 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 
 use super::{TxtLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::{Format, FormatId};
 
 const TARGET: &str = "txt-handler";
@@ -24,12 +24,9 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.txt");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Text, _>(
-        FORMAT_ID.clone(),
-        vec!["txt".into(), "log".into()],
-        vec!["text/plain".into()],
-        TxtLoader::default(),
-    )
+    Format::new::<Text, _>(FORMAT_ID.clone(), TxtLoader::default())
+        .with_extensions(["txt", "log"])
+        .with_content_types(["text/plain"])
 }
 
 /// Handler for loaded plain-text content. Each line is independently
@@ -38,8 +35,8 @@ pub fn format() -> Format {
 /// `line_starts` is a cumulative-offset index maintained alongside
 /// `lines`: `line_starts[i]` is the byte position of line `i` in the
 /// serialized output, and `line_starts[lines.len()]` is the total
-/// length sentinel. Random-access [`Handle::read`] and
-/// [`Handle::redact`] resolve a byte offset to a line in
+/// length sentinel. Random-access [`Handler::read`] and
+/// [`Handler::redact`] resolve a byte offset to a line in
 /// `O(log N)` instead of rebuilding the table on every call.
 #[derive(Debug)]
 pub struct TxtHandler {
@@ -50,7 +47,8 @@ pub struct TxtHandler {
     cursor: usize,
 }
 
-impl Handler for TxtHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for TxtHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -70,10 +68,7 @@ impl Handler for TxtHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, bytes.into()))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Text> for TxtHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.lines.len() {
             return Ok(None);
@@ -90,7 +85,6 @@ impl Handle<Text> for TxtHandler {
                 ..Default::default()
             },
             data: TextData::from(line.as_str()),
-            embed: None,
         }))
     }
 

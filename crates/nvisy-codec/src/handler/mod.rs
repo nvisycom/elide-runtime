@@ -1,10 +1,10 @@
 //! Concrete per-modality format implementations.
 //!
-//! Each modality module owns its `impl Codable for X` block plus the
-//! concrete handlers + loaders for every format that produces that
-//! modality (TXT/JSON/HTML for text, PNG/JPEG/TIFF for image, …).
-//! Rich-document formats (PDF, DOCX) live under [`rich`] because they
-//! produce text handles with embedded image children.
+//! Each modality module owns the concrete handlers + loaders for
+//! every format that produces that modality (TXT/JSON/HTML for
+//! text, PNG/JPEG/TIFF for image, …). Rich-document formats (PDF,
+//! DOCX) live under [`rich`] because they produce text handles
+//! with embedded image children.
 
 #[cfg(feature = "internal_audio")]
 pub mod audio;

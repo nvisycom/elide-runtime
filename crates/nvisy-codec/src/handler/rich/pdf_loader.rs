@@ -39,7 +39,7 @@ mod tests {
 
     use super::*;
     use crate::content::ContentSource;
-    use crate::core::{Handle, Handler};
+    use crate::core::Handler;
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))

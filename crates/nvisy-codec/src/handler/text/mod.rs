@@ -1,34 +1,30 @@
-//! Text modality: `impl Codable for Text` plus the concrete format
-//! implementations that produce text handles (TXT, JSON, Markdown,
-//! HTML). The per-modality capability surface lives on the generic
-//! [`Handle<Text>`] trait in [`crate::core`]; replacements written
-//! during [`Handle::redact`] use [`TextReplacement`].
+//! Text modality: concrete format implementations that produce
+//! text handles (TXT, JSON, Markdown, HTML). The per-modality
+//! capability surface lives on the generic [`Handler<Text>`] trait
+//! in [`crate::core`]; replacements written during
+//! [`Handler::redact`] use [`TextReplacement`].
 //!
-//! [`Handle<Text>`]: crate::core::Handle
-//! [`Handle::redact`]: crate::core::Handle::redact
+//! [`Handler<Text>`]: crate::core::Handler
+//! [`Handler::redact`]: crate::core::Handler::redact
 //! [`TextReplacement`]: nvisy_core::redaction::TextReplacement
 
 use std::ops::Range;
 
 use nvisy_core::modality::{Text, TextLocation};
 
-use crate::core::{Chunk, Codable, ModalityKind};
-
-impl Codable for Text {
-    const KIND: ModalityKind = ModalityKind::Text;
-}
+use crate::core::Chunk;
 
 /// Identity lift for handlers where `chunk.data` is byte-for-byte
 /// a slice of the source covered by `chunk.location` — no
 /// escapes, no decoding. The default implementation backing
-/// [`Handle::lift_chunk`] for TXT lines, HTML text nodes,
+/// [`Handler::lift_chunk`] for TXT lines, HTML text nodes,
 /// PDF page text, and DOCX text runs.
 ///
 /// Adds `value_range` to `chunk.location.start` and copies
 /// `page_number` / `context` through. Returns `None` when the
 /// range falls outside the chunk's value.
 ///
-/// [`Handle::lift_chunk`]: crate::core::Handle::lift_chunk
+/// [`Handler::lift_chunk`]: crate::core::Handler::lift_chunk
 pub fn lift_identity(chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
     let len = chunk.location.end.checked_sub(chunk.location.start)?;
     if value_range.start > value_range.end || value_range.end > len {

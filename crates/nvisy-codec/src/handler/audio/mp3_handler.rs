@@ -1,13 +1,13 @@
 //! MP3 handler: holds raw MP3 audio bytes and exposes them as a
-//! single-track audio handle via [`Handle<Audio>`].
+//! single-track audio handle via [`Handler<Audio>`].
 //!
 //! Redaction is **not supported**: no pure-Rust MP3 encoder exists
 //! and pulling a C dependency (libmp3lame) is out of scope here.
-//! [`Handle::redact`] returns an error. Convert audio to
+//! [`Handler::redact`] returns an error. Convert audio to
 //! WAV upstream if redaction is required.
 //!
-//! [`Handle<Audio>`]: crate::core::Handle
-//! [`Handle::redact`]: crate::core::Handle::redact
+//! [`Handler<Audio>`]: crate::core::Handler
+//! [`Handler::redact`]: crate::core::Handler::redact
 
 use bytes::Bytes;
 use nvisy_core::Error;
@@ -17,7 +17,7 @@ use nvisy_core::redaction::Redactions;
 
 use super::Mp3Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::{Format, FormatId};
 
 const TARGET: &str = "mp3-handler";
@@ -27,12 +27,9 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.audio.mp3");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Audio, _>(
-        FORMAT_ID.clone(),
-        vec!["mp3".into()],
-        vec!["audio/mpeg".into()],
-        Mp3Loader,
-    )
+    Format::new::<Audio, _>(FORMAT_ID.clone(), Mp3Loader)
+        .with_extensions(["mp3"])
+        .with_content_types(["audio/mpeg"])
 }
 
 /// Handler for loaded MP3 content.
@@ -78,7 +75,8 @@ impl Mp3Handler {
     }
 }
 
-impl Handler for Mp3Handler {
+#[async_trait::async_trait]
+impl Handler<Audio> for Mp3Handler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -93,10 +91,7 @@ impl Handler for Mp3Handler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, self.bytes.clone()))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Audio> for Mp3Handler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Audio>>, Error> {
         if self.yielded {
             return Ok(None);
@@ -104,11 +99,7 @@ impl Handle<Audio> for Mp3Handler {
         let location = AudioLocation::new(TimeSpan::new(0, 0));
         let data = AudioData::new(self.bytes.clone()).with_filename(self.filename.clone());
         self.yielded = true;
-        Ok(Some(Chunk {
-            location,
-            data,
-            embed: None,
-        }))
+        Ok(Some(Chunk { location, data }))
     }
 
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {

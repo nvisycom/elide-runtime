@@ -1,9 +1,9 @@
 //! [`DocumentHandle<Text>`] implements [`TextAt`], [`DataAt`], and
 //! [`RedactAt`] for the [`Text`] modality by delegating to the
-//! underlying [`Handle<Text>`].
+//! underlying [`Handler<Text>`].
 //!
 //! [`DocumentHandle<Text>`]: crate::document::DocumentHandle
-//! [`Handle<Text>`]: crate::core::Handle
+//! [`Handler<Text>`]: crate::core::Handler
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
 //! [`RedactAt`]: nvisy_core::redaction::RedactAt

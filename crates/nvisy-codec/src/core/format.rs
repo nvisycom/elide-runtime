@@ -2,27 +2,21 @@
 //!
 //! - [`FormatId`] — stable string identifier (e.g.
 //!   `"nvisy.text.txt"`). Open namespace, no central enum.
-//! - [`ModalityKind`] — runtime tag for the four codec modalities
-//!   (Text, Tabular, Image, Audio). Used wherever the typed `M`
-//!   marker has been erased.
 //! - [`Format`] — descriptor [`CodecRegistry`] indexes by id /
 //!   extension / content type. Bundles a `FormatId`, its
-//!   `ModalityKind`, lookup keys, and the [`ErasedLoader`] that
+//!   [`ModalityKind`], lookup keys, and an erased loader that
 //!   decodes bytes into a typed handle.
 //!
 //! [`CodecRegistry`]: super::CodecRegistry
-//! [`ErasedLoader`]: super::ErasedLoader
+//! [`ModalityKind`]: nvisy_core::modality::ModalityKind
 
-use std::any::TypeId;
 use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 
-use nvisy_core::modality::{Audio, Image, Modality, Tabular, Text};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use nvisy_core::modality::{Modality, ModalityKind};
 
-use super::{Codable, ErasedLoader, Loader, erase};
+use super::{ErasedLoader, Loader, erase};
 use crate::document::{DocumentHandle, UntypedDocumentHandle};
 
 /// Stable identifier for a registered codec format. Open string
@@ -64,63 +58,6 @@ impl AsRef<str> for FormatId {
     }
 }
 
-/// Runtime tag identifying which [`Modality`] a generic container
-/// carries. Used for runtime dispatch where the marker type is
-/// erased — at the codec / pipeline boundary where a `Document<M>`
-/// or `Handle<M>` has been pushed through an
-/// [`UntypedDocumentHandle`] or `AnyLocation` arm and the typed
-/// `M` is no longer in scope.
-///
-/// [`Modality`]: nvisy_core::modality::Modality
-/// [`UntypedDocumentHandle`]: crate::document::UntypedDocumentHandle
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ModalityKind {
-    /// [`Text`] modality.
-    ///
-    /// [`Text`]: nvisy_core::modality::Text
-    Text,
-    /// [`Tabular`] modality.
-    ///
-    /// [`Tabular`]: nvisy_core::modality::Tabular
-    Tabular,
-    /// [`Image`] modality.
-    ///
-    /// [`Image`]: nvisy_core::modality::Image
-    Image,
-    /// [`Audio`] modality.
-    ///
-    /// [`Audio`]: nvisy_core::modality::Audio
-    Audio,
-}
-
-impl ModalityKind {
-    /// Return the [`ModalityKind`] for a typed `M: Modality` at the
-    /// call site.
-    ///
-    /// Resolved at runtime via [`TypeId`] rather than a
-    /// `Modality`-level associated const so adding a new modality
-    /// type doesn't force every implementor to advertise a tag.
-    /// The match is exhaustive over the four built-in marker types;
-    /// an unknown `M` panics.
-    #[must_use]
-    pub fn of<M: Modality>() -> Self {
-        let id = TypeId::of::<M>();
-        if id == TypeId::of::<Text>() {
-            Self::Text
-        } else if id == TypeId::of::<Tabular>() {
-            Self::Tabular
-        } else if id == TypeId::of::<Image>() {
-            Self::Image
-        } else if id == TypeId::of::<Audio>() {
-            Self::Audio
-        } else {
-            unreachable!("Modality must be one of Text/Tabular/Image/Audio");
-        }
-    }
-}
-
 /// Descriptor for one registered codec format. Indexed by
 /// [`CodecRegistry`] under its [`FormatId`], every extension in
 /// `extensions`, and every MIME in `content_types`.
@@ -146,24 +83,53 @@ impl Format {
     /// [`ModalityKind`] tag is taken from `M::KIND` and the loader
     /// is erased internally — neither needs to be named at the call
     /// site.
-    pub fn new<M, L>(
-        id: FormatId,
-        extensions: Vec<Cow<'static, str>>,
-        content_types: Vec<Cow<'static, str>>,
-        loader: L,
-    ) -> Self
+    ///
+    /// Extensions and content types default to empty; chain
+    /// [`with_extensions`] / [`with_content_types`] to declare the
+    /// lookup keys the [`CodecRegistry`] indexes this format under.
+    ///
+    /// [`with_extensions`]: Self::with_extensions
+    /// [`with_content_types`]: Self::with_content_types
+    /// [`CodecRegistry`]: super::CodecRegistry
+    pub fn new<M, L>(id: FormatId, loader: L) -> Self
     where
-        M: Codable,
+        M: Modality,
         L: Loader<M>,
         DocumentHandle<M>: Into<UntypedDocumentHandle>,
     {
         Self {
             id,
             modality: M::KIND,
-            extensions,
-            content_types,
+            extensions: Vec::new(),
+            content_types: Vec::new(),
             loader: erase(loader),
         }
+    }
+
+    /// Declare the file extensions (lowercased, no leading dot) that
+    /// resolve to this format. Extends any previously-declared list.
+    #[must_use]
+    pub fn with_extensions<I, S>(mut self, extensions: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Cow<'static, str>>,
+    {
+        self.extensions
+            .extend(extensions.into_iter().map(Into::into));
+        self
+    }
+
+    /// Declare the MIME content types (lowercased) that resolve to
+    /// this format. Extends any previously-declared list.
+    #[must_use]
+    pub fn with_content_types<I, S>(mut self, content_types: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Cow<'static, str>>,
+    {
+        self.content_types
+            .extend(content_types.into_iter().map(Into::into));
+        self
     }
 
     /// Stable identifier of this format.
@@ -187,9 +153,17 @@ impl Format {
         &self.content_types
     }
 
-    /// Loader that decodes raw content into the typed handle.
-    pub fn loader(&self) -> &Arc<dyn ErasedLoader> {
-        &self.loader
+    /// Decode raw content through this format's loader, returning
+    /// the runtime-tagged handle. Equivalent to calling
+    /// [`CodecRegistry::decode_from_memory`] after resolving the
+    /// format yourself.
+    ///
+    /// [`CodecRegistry::decode_from_memory`]: super::CodecRegistry::decode_from_memory
+    pub async fn decode(
+        &self,
+        content: crate::content::ContentData,
+    ) -> Result<crate::document::UntypedDocumentHandle, nvisy_core::Error> {
+        self.loader.decode(content).await
     }
 }
 

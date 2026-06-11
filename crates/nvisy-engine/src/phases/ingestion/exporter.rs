@@ -9,7 +9,6 @@
 use std::sync::Arc;
 
 use nvisy_codec::content::{Content, ContentData, ContentSource};
-use nvisy_codec::core::Codable;
 use nvisy_core::Result;
 use uuid::Uuid;
 
@@ -64,7 +63,7 @@ impl Exporter {
 
     async fn export_one<M>(&self, tree: &DocumentTree<M>, shared: &Arc<SharedData>) -> Result<()>
     where
-        M: DocumentModality + Codable,
+        M: DocumentModality,
     {
         let content_data = tree.handle.handler().encode()?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());

@@ -1,31 +1,27 @@
 //! Codec core contracts, grouped by concern:
 //!
 //! - `format` — *what kind of thing a codec is*. [`FormatId`],
-//!   [`Format`] descriptor, [`ModalityKind`] tag.
-//! - `handle` — *what a handle exposes*. [`Handler`] (base
-//!   trait), [`Codable`] (modality marker → [`ModalityKind`] bridge),
-//!   [`Handle<M>`] (per-modality capability surface), [`Chunk<M>`]
-//!   payload, [`HandleId`] for embeds, [`EmbeddedHandles`] for
-//!   rich-format children.
+//!   [`Format`] descriptor.
+//! - `handle` — *what a handler exposes*. [`Handler<M>`]
+//!   (per-modality capability surface — identify, encode, stream,
+//!   read, redact, lift), [`Chunk<M>`] payload.
 //! - `loader` — *how raw bytes become a handle*. [`Loader<M>`]
-//!   (per-modality decoder), [`ErasedLoader`] (object-safe surface
-//!   the registry stores), and a crate-internal `erase` helper that
-//!   bridges typed loaders into [`Format::new`].
+//!   (per-modality decoder). The registry-side erasure machinery
+//!   (`ErasedLoader` trait, `erase` helper) is crate-internal and
+//!   wired through [`Format::new`] / [`Format::decode`].
 //! - `registry` — *the lookup engine*. [`CodecRegistry`] indexes
 //!   [`Format`]s by id, extension, and content type, and decodes
 //!   bytes through the matching loader.
 //!
-//! Concrete format implementations live in `crate::handler::*`;
-//! their `impl Codable for X` blocks live next to the per-modality
-//! markers they specialise.
+//! Concrete format implementations live in `crate::handler::*`.
 
 mod format;
 mod handle;
 mod loader;
 mod registry;
 
-pub use self::format::{Format, FormatId, ModalityKind};
-pub use self::handle::{Chunk, Codable, EmbeddedHandles, Handle, HandleId, Handler};
-pub(crate) use self::loader::erase;
-pub use self::loader::{ErasedLoader, Loader};
+pub use self::format::{Format, FormatId};
+pub use self::handle::{Chunk, Handler};
+pub use self::loader::Loader;
+pub(crate) use self::loader::{ErasedLoader, erase};
 pub use self::registry::CodecRegistry;

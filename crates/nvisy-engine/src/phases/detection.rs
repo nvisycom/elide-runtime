@@ -195,7 +195,7 @@ where
 async fn detect_image_chunks(
     registry: &RecognizerRegistry,
     doc: &mut Document<Image>,
-    handle: &mut dyn nvisy_codec::core::Handle<Image>,
+    handle: &mut dyn nvisy_codec::core::Handler<Image>,
     cfg: &Detection,
     run_id: uuid::Uuid,
 ) -> Result<()> {
@@ -229,7 +229,7 @@ async fn detect_image_chunks(
 async fn detect_image_chunks(
     _registry: &RecognizerRegistry,
     _doc: &mut Document<Image>,
-    _handle: &mut dyn nvisy_codec::core::Handle<Image>,
+    _handle: &mut dyn nvisy_codec::core::Handler<Image>,
     _cfg: &Detection,
     _run_id: uuid::Uuid,
 ) -> Result<()> {

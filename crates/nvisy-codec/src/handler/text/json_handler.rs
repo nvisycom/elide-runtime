@@ -5,8 +5,8 @@
 //! kept verbatim) or [`Slot::Leaf`] (a key, string value, or
 //! scalar). Leaves carry both the original source bytes
 //! (`serialized`) and the unescaped UTF-8 value the recognizer
-//! sees (`value`). [`Handle::next_chunk`] yields leaves in
-//! document order; [`Handle::redact`] mutates the leaf's
+//! sees (`value`). [`Handler::next_chunk`] yields leaves in
+//! document order; [`Handler::redact`] mutates the leaf's
 //! value and re-renders its serialized form; [`Handler::encode`]
 //! concatenates every slot.
 //!
@@ -23,7 +23,7 @@ use nvisy_core::redaction::Redactions;
 
 use super::redact;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::{Format, FormatId};
 
 const TARGET: &str = "json-handler";
@@ -33,12 +33,9 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.json");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Text, _>(
-        FORMAT_ID.clone(),
-        vec!["json".into()],
-        vec!["application/json".into()],
-        super::JsonLoader::default(),
-    )
+    Format::new::<Text, _>(FORMAT_ID.clone(), super::JsonLoader::default())
+        .with_extensions(["json"])
+        .with_content_types(["application/json"])
 }
 
 /// One element of the parsed source.
@@ -96,7 +93,8 @@ pub struct JsonHandler {
     cursor: usize,
 }
 
-impl Handler for JsonHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for JsonHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -118,10 +116,7 @@ impl Handler for JsonHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, out.into_bytes().into()))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Text> for JsonHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         while self.cursor < self.slots.len() {
             let start = self.offset_of(self.cursor);
@@ -135,7 +130,6 @@ impl Handle<Text> for JsonHandler {
                         ..Default::default()
                     },
                     data: TextData::from(leaf.value.as_str()),
-                    embed: None,
                 }));
             }
         }

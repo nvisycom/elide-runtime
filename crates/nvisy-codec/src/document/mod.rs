@@ -8,15 +8,15 @@
 //! produces — that's a property of the format descriptor, resolved
 //! at decode time. [`UntypedDocumentHandle`] is the registry-level
 //! return: an enum with one variant per modality, each carrying an
-//! `Box<dyn Handle<M>>` + the [`FormatId`].
+//! `Box<dyn Handler<M>>` + the [`FormatId`].
 //!
 //! Consumers downstream of decode commit to a modality via the
 //! consuming accessors ([`into_text`], [`into_image`], …),
 //! which yield a [`DocumentHandle<M>`] — a typed wrapper that owns
-//! the underlying [`Handle<M>`] and exposes the per-modality
+//! the underlying [`Handler<M>`] and exposes the per-modality
 //! capability surface without further dispatch.
 //!
-//! [`Handle<M>`]: crate::core::Handle
+//! [`Handler<M>`]: crate::core::Handler
 //! [`into_text`]: UntypedDocumentHandle::into_text
 //! [`into_image`]: UntypedDocumentHandle::into_image
 
@@ -34,15 +34,16 @@ use derive_more::From;
 use nvisy_core::modality::Audio;
 #[cfg(feature = "internal_image")]
 use nvisy_core::modality::Image;
+use nvisy_core::modality::Modality;
 #[cfg(feature = "internal_tabular")]
 use nvisy_core::modality::Tabular;
 #[cfg(feature = "internal_text")]
 use nvisy_core::modality::Text;
 
-use crate::core::{Codable, FormatId, Handle, ModalityKind};
+use crate::core::{FormatId, Handler};
 
 /// Runtime-tagged handle returned by the codec registry, carrying the
-/// underlying [`Handle<M>`] for some `M` along with the
+/// underlying [`Handler<M>`] for some `M` along with the
 /// [`FormatId`] of the producing loader.
 ///
 /// Commit to a modality via [`into_text`] / [`into_image`] /
@@ -50,7 +51,7 @@ use crate::core::{Codable, FormatId, Handle, ModalityKind};
 /// [`DocumentHandle<M>`]. The accessors are consuming — once you
 /// commit to a modality, the untyped form is gone.
 ///
-/// [`Handle<M>`]: crate::core::Handle
+/// [`Handler<M>`]: crate::core::Handler
 /// [`into_text`]: Self::into_text
 /// [`into_image`]: Self::into_image
 /// [`into_audio`]: Self::into_audio
@@ -83,21 +84,6 @@ impl UntypedDocumentHandle {
             Self::Image(h) => h.format_id(),
             #[cfg(feature = "internal_audio")]
             Self::Audio(h) => h.format_id(),
-        }
-    }
-
-    /// Runtime modality tag — cheaper than matching variants directly
-    /// when the caller only needs the modality, not the handle.
-    pub fn modality_kind(&self) -> ModalityKind {
-        match self {
-            #[cfg(feature = "internal_text")]
-            Self::Text(_) => ModalityKind::Text,
-            #[cfg(feature = "internal_tabular")]
-            Self::Tabular(_) => ModalityKind::Tabular,
-            #[cfg(feature = "internal_image")]
-            Self::Image(_) => ModalityKind::Image,
-            #[cfg(feature = "internal_audio")]
-            Self::Audio(_) => ModalityKind::Audio,
         }
     }
 
@@ -197,17 +183,17 @@ impl UntypedDocumentHandle {
 /// [`TextAt`]: nvisy_core::extraction::TextAt
 /// [`DataAt`]: nvisy_core::extraction::DataAt
 /// [`RedactAt`]: nvisy_core::redaction::RedactAt
-pub struct DocumentHandle<M: Codable> {
+pub struct DocumentHandle<M: Modality> {
     format_id: FormatId,
-    handler: Box<dyn Handle<M>>,
+    handler: Box<dyn Handler<M>>,
 }
 
-impl<M: Codable> DocumentHandle<M> {
+impl<M: Modality> DocumentHandle<M> {
     /// Wrap a handler and a format id into a typed handle. Used by
     /// codec loaders to produce the typed handle, which is then
     /// erased into an [`UntypedDocumentHandle`] variant for registry
     /// return.
-    pub fn new(format_id: FormatId, handler: Box<dyn Handle<M>>) -> Self {
+    pub fn new(format_id: FormatId, handler: Box<dyn Handler<M>>) -> Self {
         Self { format_id, handler }
     }
 
@@ -217,30 +203,30 @@ impl<M: Codable> DocumentHandle<M> {
     }
 
     /// Borrow the inner handler. Use this for read-only capability
-    /// methods ([`Handle::read`]).
+    /// methods ([`Handler::read`]).
     ///
-    /// [`Handle::read`]: crate::core::Handle::read
-    pub fn handler(&self) -> &dyn Handle<M> {
+    /// [`Handler::read`]: crate::core::Handler::read
+    pub fn handler(&self) -> &dyn Handler<M> {
         &*self.handler
     }
 
     /// Mutably borrow the inner handler. Use this for cursor-advancing
-    /// methods ([`Handle::next_chunk`]) and the redaction batch
-    /// applicator ([`Handle::redact`]).
+    /// methods ([`Handler::next_chunk`]) and the redaction batch
+    /// applicator ([`Handler::redact`]).
     ///
-    /// [`Handle::next_chunk`]: crate::core::Handle::next_chunk
-    /// [`Handle::redact`]: crate::core::Handle::redact
-    pub fn handler_mut(&mut self) -> &mut dyn Handle<M> {
+    /// [`Handler::next_chunk`]: crate::core::Handler::next_chunk
+    /// [`Handler::redact`]: crate::core::Handler::redact
+    pub fn handler_mut(&mut self) -> &mut dyn Handler<M> {
         &mut *self.handler
     }
 
     /// Consume self, returning the inner handler.
-    pub fn into_handler(self) -> Box<dyn Handle<M>> {
+    pub fn into_handler(self) -> Box<dyn Handler<M>> {
         self.handler
     }
 }
 
-impl<M: Codable> std::fmt::Debug for DocumentHandle<M> {
+impl<M: Modality> std::fmt::Debug for DocumentHandle<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DocumentHandle")
             .field("format_id", &self.format_id)

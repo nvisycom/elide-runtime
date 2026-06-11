@@ -24,6 +24,7 @@ impl Modality for Audio {
     type Location = AudioLocation;
     type Replacement = AudioReplacement;
 
+    const KIND: super::ModalityKind = super::ModalityKind::Audio;
     const NAME: &'static str = "audio";
 }
 

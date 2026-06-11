@@ -1,9 +1,9 @@
 //! [`DocumentHandle<Tabular>`] implements [`TextAt`], [`DataAt`],
 //! and [`RedactAt`] for the [`Tabular`] modality by delegating to
-//! the underlying [`Handle<Tabular>`].
+//! the underlying [`Handler<Tabular>`].
 //!
 //! [`DocumentHandle<Tabular>`]: crate::document::DocumentHandle
-//! [`Handle<Tabular>`]: crate::core::Handle
+//! [`Handler<Tabular>`]: crate::core::Handler
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
 //! [`RedactAt`]: nvisy_core::redaction::RedactAt

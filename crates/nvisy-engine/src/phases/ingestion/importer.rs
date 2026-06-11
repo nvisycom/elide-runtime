@@ -103,7 +103,6 @@ impl Importer {
         tracing::debug!(
             target: TARGET,
             format = %untyped.format_id(),
-            modality = ?untyped.modality_kind(),
             "decoded document",
         );
 
@@ -142,7 +141,7 @@ async fn decode(registry: &CodecRegistry, content: &Content) -> Result<UntypedDo
                 TARGET,
             )
         })?;
-    format.loader().decode(content.data().clone()).await
+    format.decode(content.data().clone()).await
 }
 
 /// Build the per-modality typed tree from an [`UntypedDocumentHandle`],

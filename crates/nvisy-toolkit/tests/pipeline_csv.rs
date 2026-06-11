@@ -1,7 +1,7 @@
 //! End-to-end: decode a CSV fixture through the codec registry,
 //! detect entities via [`RecognizerRegistryExt::detect`] (which
 //! runs Text recognizers against each cell value and lifts every
-//! match to a [`TabularLocation`] via [`Handle::lift_chunk`]
+//! match to a [`TabularLocation`] via [`Handler::lift_chunk`]
 //! on the CSV handler), dedup, redact through a [`Tabular`]
 //! redaction registry, encode back to bytes, and assert on the
 //! result.
@@ -17,7 +17,7 @@
 //!    [`Mask`] operators newly added to the toolkit.
 //!
 //! [`TabularLocation`]: nvisy_core::modality::TabularLocation
-//! [`Handle::lift_chunk`]: nvisy_codec::core::Handle::lift_chunk
+//! [`Handler::lift_chunk`]: nvisy_codec::core::Handler::lift_chunk
 //! [`RecognizerRegistryExt::detect`]: nvisy_toolkit::detection::RecognizerRegistryExt::detect
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`Replace`]: nvisy_toolkit::redaction::anonymizer::Replace

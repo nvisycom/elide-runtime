@@ -1,6 +1,6 @@
 //! [`DocumentHandle<Audio>`] implements [`DataAt`] and
 //! [`RedactAt`] for the [`Audio`] modality by delegating to the
-//! underlying [`Handle<Audio>`].
+//! underlying [`Handler<Audio>`].
 //!
 //! Audio does not implement [`TextAt`]: "text at this location" for
 //! audio is transcript text, which the extraction phase (in
@@ -8,7 +8,7 @@
 //! document blocks. The codec layer has no visibility into STT.
 //!
 //! [`DocumentHandle<Audio>`]: crate::document::DocumentHandle
-//! [`Handle<Audio>`]: crate::core::Handle
+//! [`Handler<Audio>`]: crate::core::Handler
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
 //! [`RedactAt`]: nvisy_core::redaction::RedactAt

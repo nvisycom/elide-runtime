@@ -1,6 +1,6 @@
 //! CSV handler: holds parsed CSV content and streams cell coordinates
-//! via [`Handle<Tabular>`], with random-access reads / redactions via
-//! [`Handle<Tabular>`].
+//! via [`Handler<Tabular>`], with random-access reads / redactions via
+//! [`Handler<Tabular>`].
 //!
 //! Cell coordinates are `(row, col)`. Row 0 is the header row (if
 //! present); row 1 is the first data row when headers exist, else row
@@ -16,7 +16,7 @@ use nvisy_core::redaction::{Redactions, TabularReplacement};
 
 use super::CsvLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::handler::tabular::TabularHandle;
 use crate::handler::text::redact;
 use crate::{Format, FormatId};
@@ -28,12 +28,9 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.csv");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Tabular, _>(
-        FORMAT_ID.clone(),
-        vec!["csv".into()],
-        vec!["text/csv".into()],
-        CsvLoader::default(),
-    )
+    Format::new::<Tabular, _>(FORMAT_ID.clone(), CsvLoader::default())
+        .with_extensions(["csv"])
+        .with_content_types(["text/csv"])
 }
 
 /// Parsed CSV content.
@@ -66,7 +63,8 @@ struct CsvCursor {
     col: u32,
 }
 
-impl Handler for CsvHandler {
+#[async_trait::async_trait]
+impl Handler<Tabular> for CsvHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -82,10 +80,7 @@ impl Handler for CsvHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, bytes.into()))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Tabular> for CsvHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Tabular>>, Error> {
         let total_rows = if self.data.headers.is_some() {
             self.data.rows.len() as u32 + 1
@@ -121,11 +116,7 @@ impl Handle<Tabular> for CsvHandler {
         let data = TextData::from(cell.to_owned());
 
         self.cursor.col += 1;
-        Ok(Some(Chunk {
-            location,
-            data,
-            embed: None,
-        }))
+        Ok(Some(Chunk { location, data }))
     }
 
     fn lift_chunk(
@@ -211,7 +202,7 @@ impl CsvHandler {
 
     /// A specific cell by `(data_row, col)`. `data_row` is 0-based
     /// against the data rows; the header is *not* data row 0. Use
-    /// [`Handle::read`] with [`TabularLocation`] if you need
+    /// [`Handler::read`] with [`TabularLocation`] if you need
     /// to address the header.
     pub fn cell(&self, data_row: usize, col: usize) -> Option<&str> {
         self.data

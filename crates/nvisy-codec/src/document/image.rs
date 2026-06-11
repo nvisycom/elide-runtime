@@ -1,6 +1,6 @@
 //! [`DocumentHandle<Image>`] implements [`DataAt`] and
 //! [`RedactAt`] for the [`Image`] modality by delegating to the
-//! underlying [`Handle<Image>`].
+//! underlying [`Handler<Image>`].
 //!
 //! Image does not implement [`TextAt`]: "text at this location" for
 //! an image is OCR text, which the extraction phase (in
@@ -8,7 +8,7 @@
 //! document blocks. The codec layer has no visibility into OCR.
 //!
 //! [`DocumentHandle<Image>`]: crate::document::DocumentHandle
-//! [`Handle<Image>`]: crate::core::Handle
+//! [`Handler<Image>`]: crate::core::Handler
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
 //! [`RedactAt`]: nvisy_core::redaction::RedactAt

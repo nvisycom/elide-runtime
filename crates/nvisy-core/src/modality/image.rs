@@ -24,6 +24,7 @@ impl Modality for Image {
     type Location = ImageLocation;
     type Replacement = ImageReplacement;
 
+    const KIND: super::ModalityKind = super::ModalityKind::Image;
     const NAME: &'static str = "image";
 }
 

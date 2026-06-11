@@ -1,6 +1,6 @@
 //! HTML handler: holds parsed HTML content and streams its text
-//! nodes via [`Handle<Text>`], with random-access reads / redactions
-//! via [`Handle<Text>`].
+//! nodes via [`Handler<Text>`], with random-access reads / redactions
+//! via [`Handler<Text>`].
 //!
 //! Offsets are cumulative over the **text-node sequence** in document
 //! order, not raw HTML bytes. [`Handler::encode`] reconstructs the
@@ -17,7 +17,7 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 
 use super::{HtmlLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::{Format, FormatId};
 
 const TARGET: &str = "html-handler";
@@ -27,12 +27,9 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.html");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Text, _>(
-        FORMAT_ID.clone(),
-        vec!["html".into(), "htm".into()],
-        vec!["text/html".into()],
-        HtmlLoader::default(),
-    )
+    Format::new::<Text, _>(FORMAT_ID.clone(), HtmlLoader::default())
+        .with_extensions(["html", "htm"])
+        .with_content_types(["text/html"])
 }
 
 /// Parsed HTML content: extracted text nodes alongside the raw source
@@ -60,7 +57,8 @@ pub struct HtmlHandler {
     cursor: usize,
 }
 
-impl Handler for HtmlHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for HtmlHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -95,10 +93,7 @@ impl Handler for HtmlHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, bytes.into()))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Text> for HtmlHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.data.text_nodes.len() {
             return Ok(None);
@@ -115,7 +110,6 @@ impl Handle<Text> for HtmlHandler {
                 ..Default::default()
             },
             data: TextData::from(text.as_str()),
-            embed: None,
         }))
     }
 

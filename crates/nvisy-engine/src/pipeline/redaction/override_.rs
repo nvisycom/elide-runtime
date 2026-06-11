@@ -42,8 +42,8 @@
 
 use std::collections::HashSet;
 
-use nvisy_codec::core::ModalityKind;
 use nvisy_core::entity::EntityKind;
+use nvisy_core::modality::ModalityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

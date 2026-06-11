@@ -19,12 +19,9 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.markdown");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Text, _>(
-        FORMAT_ID.clone(),
-        vec!["md".into(), "markdown".into()],
-        vec!["text/markdown".into()],
-        MarkdownLoader::default(),
-    )
+    Format::new::<Text, _>(FORMAT_ID.clone(), MarkdownLoader::default())
+        .with_extensions(["md", "markdown"])
+        .with_content_types(["text/markdown"])
 }
 
 /// Loader for Markdown files. Produces a [`TxtHandler`] per input.

@@ -1,8 +1,7 @@
-//! Audio modality: `impl Codable for Audio`, the
-//! [`sort_redactions_for_audio`] helper, plus concrete audio format
-//! implementations (WAV, MP3).
+//! Audio modality: the [`sort_redactions_for_audio`] helper plus
+//! concrete audio format implementations (WAV, MP3).
 //!
-//! Audio handlers override [`Handle::redact`] to call
+//! Audio handlers override [`Handler::redact`] to call
 //! [`sort_redactions_for_audio`] so spans are applied right-to-left
 //! (an [`AudioReplacement::Remove`] shrinks the buffer and shifts
 //! every later sample index; right-to-left order keeps earlier
@@ -10,18 +9,12 @@
 //!
 //! [`AudioReplacement`]: nvisy_core::redaction::AudioReplacement
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
-//! [`Handle::redact`]: crate::core::Handle::redact
+//! [`Handler::redact`]: crate::core::Handler::redact
 
 use std::cmp::Reverse;
 
 use nvisy_core::modality::{Audio, AudioLocation};
 use nvisy_core::redaction::{AudioReplacement, Redactions};
-
-use crate::core::{Codable, ModalityKind};
-
-impl Codable for Audio {
-    const KIND: ModalityKind = ModalityKind::Audio;
-}
 
 /// Sort an audio redaction batch right-to-left by `time_span.start_us`.
 ///

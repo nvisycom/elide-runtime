@@ -1,19 +1,11 @@
-//! Image modality: `impl Codable for Image` plus concrete image
-//! format implementations (PNG, JPEG, TIFF) and pixel-decode helpers.
+//! Image modality: concrete image format implementations (PNG,
+//! JPEG, TIFF) and pixel-decode helpers.
 //!
-//! Replacements written during [`Handle::redact`] use
+//! Replacements written during [`Handler::redact`] use
 //! [`ImageReplacement`].
 //!
 //! [`ImageReplacement`]: nvisy_core::redaction::ImageReplacement
-//! [`Handle::redact`]: crate::core::Handle::redact
-
-use nvisy_core::modality::Image;
-
-use crate::core::{Codable, ModalityKind};
-
-impl Codable for Image {
-    const KIND: ModalityKind = ModalityKind::Image;
-}
+//! [`Handler::redact`]: crate::core::Handler::redact
 
 #[macro_use]
 pub(crate) mod macros;

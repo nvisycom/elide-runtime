@@ -12,7 +12,7 @@ use nvisy_core::redaction::Redactions;
 
 use super::DocxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler};
+use crate::core::{Chunk, Handler};
 use crate::handler::text::lift_identity;
 use crate::{Format, FormatId};
 
@@ -23,12 +23,11 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.rich.docx");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Text, _>(
-        FORMAT_ID.clone(),
-        vec!["docx".into()],
-        vec!["application/vnd.openxmlformats-officedocument.wordprocessingml.document".into()],
-        DocxLoader,
-    )
+    Format::new::<Text, _>(FORMAT_ID.clone(), DocxLoader)
+        .with_extensions(["docx"])
+        .with_content_types([
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ])
 }
 
 #[derive(Debug)]
@@ -55,7 +54,8 @@ impl DocxHandler {
     }
 }
 
-impl Handler for DocxHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for DocxHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
@@ -70,10 +70,7 @@ impl Handler for DocxHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, self.raw.clone()))
     }
-}
 
-#[async_trait::async_trait]
-impl Handle<Text> for DocxHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         Ok(None)
     }

@@ -24,7 +24,10 @@ pub enum TabularBlock {
     /// the block level.
     ///
     /// [`Span<Tabular>::source`]: crate::document::Span::source
-    Row { text: String },
+    Row {
+        /// Flattened row text (cells joined per the source delimiter).
+        text: String,
+    },
 }
 
 impl TabularBlock {

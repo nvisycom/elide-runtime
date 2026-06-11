@@ -2,7 +2,7 @@
 //!
 //! - `format` — *what kind of thing a codec is*. [`FormatId`],
 //!   [`Format`] descriptor.
-//! - `handle` — *what a handler exposes*. [`Handler<M>`]
+//! - `handler` — *what a handler exposes*. [`Handler<M>`]
 //!   (per-modality capability surface — identify, encode, stream,
 //!   read, redact, lift), [`Chunk<M>`] payload.
 //! - `loader` — *how raw bytes become a handle*. [`Loader<M>`]
@@ -16,12 +16,12 @@
 //! Concrete format implementations live in `crate::handler::*`.
 
 mod format;
-mod handle;
+mod handler;
 mod loader;
 mod registry;
 
 pub use self::format::{Format, FormatId};
-pub use self::handle::{Chunk, Handler};
+pub use self::handler::{Chunk, Handler};
 pub use self::loader::Loader;
 pub(crate) use self::loader::{ErasedLoader, erase};
 pub use self::registry::CodecRegistry;

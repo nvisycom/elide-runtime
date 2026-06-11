@@ -21,6 +21,8 @@ pub struct ContextWindow {
 }
 
 impl ContextWindow {
+    /// Build a context window from the model's maximum token budget
+    /// and the share reserved for the completion.
     pub fn new(max_tokens: usize, reserve_output: usize) -> Self {
         Self {
             max_tokens,

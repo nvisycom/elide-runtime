@@ -92,6 +92,20 @@ impl TextLocation {
     }
 }
 
+impl Ord for TextLocation {
+    /// Lex order over `(start, end)`. `context` and `page_number`
+    /// are ignored.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.start, self.end).cmp(&(other.start, other.end))
+    }
+}
+
+impl PartialOrd for TextLocation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 /// How a [`Document<Text>`]'s text content was produced.
 ///
 /// [`Document<Text>`]: # "carrier owned by nvisy-engine"

@@ -132,10 +132,9 @@ impl Handler<Text> for HtmlHandler {
             .map(TextData::from))
     }
 
-    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
-        let mut items = redactions.into_items();
-        items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
-        for (location, replacement) in items {
+    async fn redact(&mut self, mut redactions: Redactions<Text>) -> Result<(), Error> {
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
             self.redact_one(&location, replacement)?;
         }
         Ok(())

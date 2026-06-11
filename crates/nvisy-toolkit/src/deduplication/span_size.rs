@@ -25,6 +25,9 @@ use nvisy_core::modality::{AudioLocation, ImageLocation, TabularLocation, TextLo
 /// - **Audio**: time span duration.
 /// - **Tabular**: cell text length.
 pub trait SpanSize {
+    /// Compare two locations by their modality's notion of "size".
+    /// Returns `None` when the modality offers no meaningful size
+    /// (e.g. tabular cells without intra-cell offsets).
     fn span_cmp(&self, other: &Self) -> Option<Ordering>;
 }
 

@@ -68,9 +68,13 @@ impl<M: DocumentModality> DocumentTree<M> {
 /// [`DocumentTree<M>`] directly.
 #[non_exhaustive]
 pub enum AnyTree {
+    /// Text-modality tree.
     Text(DocumentTree<Text>),
+    /// Tabular-modality tree.
     Tabular(DocumentTree<Tabular>),
+    /// Image-modality tree.
     Image(DocumentTree<Image>),
+    /// Audio-modality tree.
     Audio(DocumentTree<Audio>),
 }
 

@@ -143,19 +143,12 @@ impl Handler<Tabular> for CsvHandler {
             .map(|s| TextData::from(s.to_owned())))
     }
 
-    async fn redact(&mut self, redactions: Redactions<Tabular>) -> Result<(), Error> {
+    async fn redact(&mut self, mut redactions: Redactions<Tabular>) -> Result<(), Error> {
         // Multiple redactions can target intra-cell byte ranges within
         // the same cell; apply right-to-left over byte offsets so an
         // earlier shrink doesn't invalidate later offsets.
-        let mut items = redactions.into_items();
-        items.sort_by(|(a, _), (b, _)| {
-            (b.row_index, b.column_index, b.start_offset.unwrap_or(0)).cmp(&(
-                a.row_index,
-                a.column_index,
-                a.start_offset.unwrap_or(0),
-            ))
-        });
-        for (location, replacement) in items {
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
             self.redact_one(&location, replacement)?;
         }
         Ok(())

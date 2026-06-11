@@ -241,6 +241,10 @@ async fn detect_image_chunks(
 /// Map a block-text byte range to an absolute `M` location using the
 /// block's spans.
 pub trait LiftFromBlock: DocumentModality + Sized {
+    /// Translate a block-text byte range `[start, end)` to the
+    /// source-coordinate `Self::Location` carried by the block's
+    /// spans. Returns `None` when the range has no matching pre-image
+    /// in `spans` (e.g. a recognizer match that straddled a span gap).
     fn lift_from_block(
         spans: &[Span<Self>],
         start: usize,

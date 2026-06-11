@@ -35,9 +35,13 @@ use super::text::TextRedaction;
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum AnyRedaction {
+    /// Text-modality redaction operator.
     Text(TextRedaction),
+    /// Tabular-modality redaction operator.
     Tabular(TabularRedaction),
+    /// Image-modality redaction operator.
     Image(ImageRedaction),
+    /// Audio-modality redaction operator.
     Audio(AudioRedaction),
 }
 

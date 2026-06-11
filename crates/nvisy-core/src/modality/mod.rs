@@ -184,5 +184,7 @@ pub trait Modality: Copy + Default + Debug + PartialEq + Eq + Send + Sync + 'sta
 ///
 /// [`Location`]: Modality::Location
 pub trait Overlap {
+    /// Whether this coordinate overlaps `other` in its modality's
+    /// natural sense.
     fn overlaps(&self, other: &Self) -> bool;
 }

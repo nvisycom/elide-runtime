@@ -24,16 +24,22 @@ pub fn format() -> Format {
         .with_content_types(["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"])
 }
 
+/// Handler for loaded XLSX content. Placeholder: the current XLSX
+/// pipeline only carries source identity through to downstream phases;
+/// chunking and redact return empty / `None` until the full
+/// spreadsheet parser lands.
 #[derive(Debug, Default)]
 pub struct XlsxHandler {
     source: ContentSource,
 }
 
 impl XlsxHandler {
+    /// Build an empty handler with no attached source.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Attach a content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
         self

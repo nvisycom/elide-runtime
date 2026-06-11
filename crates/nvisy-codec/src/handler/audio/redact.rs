@@ -9,10 +9,10 @@
 //! responsibility: an [`AudioReplacement::Remove`] shrinks the buffer,
 //! so later time spans must be applied first to keep earlier ones'
 //! indices valid. Audio handlers typically override
-//! [`Handler::redact`] to use [`sort_redactions_for_audio`].
+//! [`Handler::redact`] to call [`Redactions::sort_descending`].
 //!
 //! [`Handler::redact`]: crate::Handler::redact
-//! [`sort_redactions_for_audio`]: crate::handler::audio::sort_redactions_for_audio
+//! [`Redactions::sort_descending`]: nvisy_core::redaction::Redactions::sort_descending
 
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::AudioReplacement;

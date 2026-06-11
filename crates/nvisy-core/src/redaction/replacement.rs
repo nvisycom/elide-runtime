@@ -23,7 +23,10 @@ pub enum TextReplacement {
     /// Substitute the span with this string. Covers `Replace`,
     /// `Mask`, `Hash`, `Encrypt`, and every other text operator
     /// that emits a string.
-    Substituted { value: String },
+    Substituted {
+        /// The string the codec writes over the span.
+        value: String,
+    },
     /// Delete the span entirely. Covers `Redact`.
     Removed,
 }
@@ -54,13 +57,25 @@ impl TextReplacement {
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum ImageReplacement {
     /// Gaussian blur applied to the region with the given sigma.
-    Blur { sigma: f32 },
+    Blur {
+        /// Standard deviation of the Gaussian kernel in pixels.
+        sigma: f32,
+    },
     /// Opaque solid-colour block overlay on the region.
-    Block { color: Color },
+    Block {
+        /// Fill colour the codec rasterises over the region.
+        color: Color,
+    },
     /// Mosaic pixelation with a fixed block size in pixels.
-    Pixelate { block_size: u32 },
+    Pixelate {
+        /// Side length in pixels of each mosaic block.
+        block_size: u32,
+    },
     /// Region replaced with the supplied encoded image bytes.
-    Replace { data: Bytes },
+    Replace {
+        /// Encoded replacement image (PNG / JPEG / TIFF bytes).
+        data: Bytes,
+    },
 }
 
 /// What a tabular-modality anonymizer writes at the entity's
@@ -75,7 +90,10 @@ pub enum ImageReplacement {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TabularReplacement {
     /// Substitute the cell with this string.
-    Substituted { value: String },
+    Substituted {
+        /// The string the codec writes into the cell.
+        value: String,
+    },
     /// Drop the column schema-wide.
     ColumnDropped,
 }
@@ -112,5 +130,8 @@ pub enum AudioReplacement {
     Remove,
     /// The time-span is replaced with the supplied encoded audio
     /// bytes.
-    Replace { data: Bytes },
+    Replace {
+        /// Encoded replacement audio (WAV / MP3 bytes).
+        data: Bytes,
+    },
 }

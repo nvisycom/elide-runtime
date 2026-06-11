@@ -125,9 +125,13 @@ impl<M: DocumentModality> Audit<M> {
 #[derive(Debug, Clone, From, IsVariant, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum AnyAudit {
+    /// Text-modality audit.
     Text(Audit<Text>),
+    /// Tabular-modality audit.
     Tabular(Audit<Tabular>),
+    /// Image-modality audit.
     Image(Audit<Image>),
+    /// Audio-modality audit.
     Audio(Audit<Audio>),
 }
 

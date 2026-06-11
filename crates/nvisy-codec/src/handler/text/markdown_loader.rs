@@ -18,20 +18,20 @@ pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.markdown");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format::new::<Text, _>(FORMAT_ID.clone(), MarkdownLoader::default())
+    Format::new::<Text, _>(FORMAT_ID.clone(), MdLoader::default())
         .with_extensions(["md", "markdown"])
         .with_content_types(["text/markdown"])
 }
 
 /// Loader for Markdown files. Produces a [`TxtHandler`] per input.
 #[derive(Debug, Default)]
-pub struct MarkdownLoader {
+pub struct MdLoader {
     /// Character encoding of the input bytes. Defaults to UTF-8.
     pub encoding: TextEncoding,
 }
 
 #[async_trait::async_trait]
-impl Loader<Text> for MarkdownLoader {
+impl Loader<Text> for MdLoader {
     type Handler = TxtHandler;
 
     #[tracing::instrument(name = "markdown.decode", skip_all, fields(input_bytes, lines))]

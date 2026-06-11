@@ -24,9 +24,13 @@ use strum::EnumTryAs;
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum AnyLocation {
+    /// Text-modality location.
     Text(TextLocation),
+    /// Tabular-modality location.
     Tabular(TabularLocation),
+    /// Image-modality location.
     Image(ImageLocation),
+    /// Audio-modality location.
     Audio(AudioLocation),
 }
 

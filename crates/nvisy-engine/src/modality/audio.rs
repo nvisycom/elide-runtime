@@ -22,12 +22,18 @@ use super::ModalityBlock;
 pub enum AudioBlock {
     /// A transcribed speech segment (typically one speaker turn).
     Speech {
+        /// Segment time interval.
         time_span: TimeSpan,
+        /// Transcribed text content.
         text: String,
+        /// Speaker identifier from diarization, when available.
         speaker_id: Option<String>,
     },
     /// A silence or non-speech segment surfaced for completeness.
-    Silence { time_span: TimeSpan },
+    Silence {
+        /// Segment time interval.
+        time_span: TimeSpan,
+    },
 }
 
 impl AudioBlock {

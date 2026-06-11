@@ -107,12 +107,11 @@ impl Handler<Text> for TxtHandler {
             .map(TextData::from))
     }
 
-    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
+    async fn redact(&mut self, mut redactions: Redactions<Text>) -> Result<(), Error> {
         // Apply right-to-left so each edit's length delta doesn't
         // invalidate earlier locations.
-        let mut items = redactions.into_items();
-        items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
-        for (location, replacement) in items {
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
             self.redact_one(&location, replacement)?;
         }
         Ok(())

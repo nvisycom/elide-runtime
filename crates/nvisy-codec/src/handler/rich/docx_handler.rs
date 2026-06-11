@@ -29,6 +29,8 @@ pub fn format() -> Format {
         ])
 }
 
+/// Handler for loaded DOCX content. Owns the raw document bytes;
+/// chunking and read/redact operate on the parsed paragraph stream.
 #[derive(Debug)]
 pub struct DocxHandler {
     source: ContentSource,
@@ -36,6 +38,8 @@ pub struct DocxHandler {
 }
 
 impl DocxHandler {
+    /// Build a handler from raw DOCX bytes; the parsed-paragraph
+    /// stream is reconstructed lazily inside the `Handler<Text>` impl.
     pub fn new(raw: impl Into<Bytes>) -> Self {
         Self {
             source: ContentSource::new(),
@@ -43,11 +47,13 @@ impl DocxHandler {
         }
     }
 
+    /// Attach a content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
         self
     }
 
+    /// Borrow the raw DOCX bytes.
     pub fn raw(&self) -> &[u8] {
         &self.raw
     }

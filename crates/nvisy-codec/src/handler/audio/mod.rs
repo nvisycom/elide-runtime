@@ -1,33 +1,15 @@
-//! Audio modality: the [`sort_redactions_for_audio`] helper plus
-//! concrete audio format implementations (WAV, MP3).
+//! Audio modality: concrete audio format implementations (WAV, MP3).
 //!
 //! Audio handlers override [`Handler::redact`] to call
-//! [`sort_redactions_for_audio`] so spans are applied right-to-left
+//! [`Redactions::sort_descending`] so spans are applied right-to-left
 //! (an [`AudioReplacement::Remove`] shrinks the buffer and shifts
 //! every later sample index; right-to-left order keeps earlier
 //! indices valid). Replacements use [`AudioReplacement`].
 //!
 //! [`AudioReplacement`]: nvisy_core::redaction::AudioReplacement
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
+//! [`Redactions::sort_descending`]: nvisy_core::redaction::Redactions::sort_descending
 //! [`Handler::redact`]: crate::Handler::redact
-
-use std::cmp::Reverse;
-
-use nvisy_core::modality::{Audio, AudioLocation};
-use nvisy_core::redaction::{AudioReplacement, Redactions};
-
-/// Sort an audio redaction batch right-to-left by `time_span.start_us`.
-///
-/// Returned in the order audio handlers should apply individual
-/// replacements: later spans first so a [`AudioReplacement::Remove`]
-/// doesn't invalidate earlier sample indices.
-pub fn sort_redactions_for_audio(
-    redactions: Redactions<Audio>,
-) -> Vec<(AudioLocation, AudioReplacement)> {
-    let mut items = redactions.into_items();
-    items.sort_by_key(|(loc, _)| Reverse(loc.time_span.start_us));
-    items
-}
 
 #[cfg(feature = "wav")]
 pub(crate) mod redact;

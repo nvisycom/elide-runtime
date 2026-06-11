@@ -64,7 +64,7 @@ pub use self::json_handler::{JsonHandler, format as json_format};
 #[cfg(feature = "json")]
 pub use self::json_loader::JsonLoader;
 #[cfg(feature = "markdown")]
-pub use self::markdown_loader::{MarkdownLoader, format as markdown_format};
+pub use self::markdown_loader::{MdLoader, format as markdown_format};
 #[cfg(feature = "txt")]
 pub use self::txt_handler::{TxtHandler, format as txt_format};
 #[cfg(feature = "txt")]

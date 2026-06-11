@@ -3,6 +3,9 @@
 use super::JpegLoader;
 use crate::content::ContentSource;
 
+/// Handler for loaded JPEG content. Holds the decoded
+/// [`image::DynamicImage`] and a streaming cursor; the macro-generated
+/// `Handler<Image>` impl encodes back to JPEG on demand.
 #[derive(Debug)]
 pub struct JpegHandler {
     source: ContentSource,

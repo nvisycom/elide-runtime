@@ -67,6 +67,24 @@ impl ImageLocation {
     }
 }
 
+impl PartialOrd for ImageLocation {
+    /// Reading order: top-to-bottom by `bounding_box.y`, then
+    /// left-to-right by `bounding_box.x`, then `height`, then
+    /// `width`. Float fields compare via [`f64::total_cmp`]. `Ord`
+    /// is not implemented — `f64` is not `Eq`, so a total order
+    /// can't be promised at the trait level.
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let bb = &self.bounding_box;
+        let ob = &other.bounding_box;
+        Some(
+            bb.y.total_cmp(&ob.y)
+                .then_with(|| bb.x.total_cmp(&ob.x))
+                .then_with(|| bb.height.total_cmp(&ob.height))
+                .then_with(|| bb.width.total_cmp(&ob.width)),
+        )
+    }
+}
+
 /// Per-call payload for [`Image`] recognizers and extractors.
 ///
 /// The pixel dimensions are needed alongside the encoded bytes

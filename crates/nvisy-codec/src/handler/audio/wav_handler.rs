@@ -25,7 +25,6 @@ use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use super::{WavLoader, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::handler::audio::sort_redactions_for_audio;
 use crate::{Chunk, Format, FormatId, Handler};
 
 const TARGET: &str = "nvisy_codec::handler::audio::wav";
@@ -121,8 +120,9 @@ impl Handler<Audio> for WavHandler {
 
     /// Apply spans right-to-left so a [`AudioReplacement::Remove`] doesn't
     /// invalidate earlier sample indices.
-    async fn redact(&mut self, redactions: Redactions<Audio>) -> Result<(), Error> {
-        for (location, replacement) in sort_redactions_for_audio(redactions) {
+    async fn redact(&mut self, mut redactions: Redactions<Audio>) -> Result<(), Error> {
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
             self.redact_one(&location, replacement)?;
         }
         Ok(())

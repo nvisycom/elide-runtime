@@ -47,20 +47,33 @@ pub enum TextBlock {
 #[non_exhaustive]
 pub enum TextContent {
     /// A regular paragraph or text run.
-    Paragraph { text: String },
+    Paragraph {
+        /// Paragraph text.
+        text: String,
+    },
     /// A heading.
     Heading {
+        /// Heading text.
         text: String,
         /// Heading depth (1 = h1, 2 = h2, …). `None` when the source
         /// doesn't expose a level.
         level: Option<u8>,
     },
     /// A list item.
-    ListItem { text: String },
+    ListItem {
+        /// List item text.
+        text: String,
+    },
     /// A code block or pre-formatted text.
-    Code { text: String },
+    Code {
+        /// Code-block content.
+        text: String,
+    },
     /// A blockquote.
-    Quote { text: String },
+    Quote {
+        /// Quoted text.
+        text: String,
+    },
 }
 
 impl TextContent {

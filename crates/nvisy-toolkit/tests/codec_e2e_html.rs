@@ -1,18 +1,26 @@
-//! End-to-end HTML codec. The HTML loader chunks the source on
-//! text nodes; this test exercises:
+//! End-to-end HTML codec. The HTML loader chunks the source on a
+//! heterogeneous redactable-item stream — text nodes, comments,
+//! scanned attributes, and URL bodies inside scheme-known
+//! attributes (`mailto:`, `tel:`, `sms:`, `callto:`). This test
+//! exercises:
 //!
-//! 1. Entity detection inside per-tag text nodes (PII split across
-//!    `<strong>`, `<em>`, `<code>` resolves and feeds the redactor).
-//! 2. Tag preservation: `Handler::encode` rebuilds the document
-//!    from the parsed tree so `<p>`, `<strong>`, `<em>`, `<code>`,
-//!    `<h1>`, etc. survive alongside the rewritten text.
+//! 1. Detection inside per-tag text nodes.
+//! 2. Detection inside the default-scanned attributes (`alt`,
+//!    `title`, `value`, `placeholder`, `aria-label`,
+//!    `aria-describedby`, `data-*`).
+//! 3. Detection inside HTML comments (scanned by default).
+//! 4. Detection inside `mailto:` and `tel:` URL bodies, with the
+//!    scheme prefix and any trailing query suffix re-attached
+//!    after redact.
+//! 5. Tag preservation: `Handler::encode` rebuilds the document
+//!    from the parsed tree so structural elements survive
+//!    alongside the rewritten content.
 //!
-//! Note: entity locations on HTML are text-stream coords (relative
-//! to the concatenated text nodes), not raw HTML source byte
-//! offsets, so this test asserts by entity-kind presence rather
-//! than slicing the source at each entity's range. See
-//! `.ignore/html-handler-improvements.md` for the longer-term
-//! roadmap (attribute scanning, URL scheme awareness, …).
+//! Note: entity locations on HTML are item-stream coords (relative
+//! to the concatenated text + attribute + comment + URL-body
+//! stream), not raw HTML source byte offsets, so this test asserts
+//! by entity-kind presence rather than slicing the source at each
+//! entity's range. See `.ignore/html-handler-improvements.md`.
 
 mod fixtures;
 
@@ -53,15 +61,28 @@ async fn html_codec_detects_and_redacts() {
         );
     }
 
+    // Cover every PII string in the fixture — text-node, attribute,
+    // comment, and URL-body locations. If any of these survive,
+    // it's a regression somewhere in the redactable-item pipeline.
     assert_pii_removed(
         &outcome.redacted,
         &[
+            // Text-node values.
             "alice.johnson@example.com",
             "+1 (415) 555-0142",
             "4111 1111 1111 1111",
             "GB29 NWBK 6016 1331 9268 19",
             "123-45-6789",
             "192.168.1.42",
+            // Attribute values (alt, aria-label, placeholder, data-*).
+            "Avatar for alice.johnson@example.com",
+            "Call Alice at +1 (415) 555-0142",
+            "Backup contact e.g. carol.lee@example.com",
+            // Comment body.
+            "bob.smith@example.com",
+            // URL bodies (mailto: + tel:).
+            "mailto:alice.johnson@example.com",
+            "tel:+14155550142",
         ],
     );
     assert_tokens_present(
@@ -109,6 +130,30 @@ async fn html_codec_detects_and_redacts() {
     assert!(
         outcome.redacted.contains("<code>"),
         "code tag lost: {}",
+        outcome.redacted,
+    );
+    // URL scheme prefixes survive: redact only edits the body and
+    // re-attaches `scheme:` plus any trailing `?…` / `#…` suffix.
+    assert!(
+        outcome.redacted.contains("href=\"mailto:"),
+        "mailto: scheme prefix lost: {}",
+        outcome.redacted,
+    );
+    assert!(
+        outcome.redacted.contains("?subject=Welcome"),
+        "mailto: query suffix lost: {}",
+        outcome.redacted,
+    );
+    assert!(
+        outcome.redacted.contains("href=\"tel:"),
+        "tel: scheme prefix lost: {}",
+        outcome.redacted,
+    );
+    // Comments survive as `<!-- … -->` after their bodies are
+    // rewritten.
+    assert!(
+        outcome.redacted.contains("<!--"),
+        "comment delimiter lost: {}",
         outcome.redacted,
     );
 }

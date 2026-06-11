@@ -28,7 +28,7 @@ json = ["internal_text"]
 ## Markdown loader.
 markdown = ["internal_text"]
 ## HTML loader and handler via `scraper`.
-html = ["internal_text", "dep:scraper"]
+html = ["internal_text", "dep:scraper", "dep:ego-tree"]
 
 ## CSV loader and handler via the `csv` crate. Tabular cells reuse the
 ## text redact helper, so this pulls `internal_text`.
@@ -131,6 +131,7 @@ rayon = { workspace = true, optional = true, features = [] }
 # Document parsing (feature-gated)
 csv = { workspace = true, optional = true, features = [] }
 scraper = { workspace = true, optional = true, features = [] }
+ego-tree = { workspace = true, optional = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

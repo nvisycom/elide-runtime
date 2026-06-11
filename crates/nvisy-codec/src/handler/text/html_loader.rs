@@ -10,8 +10,8 @@ use nvisy_core::modality::Text;
 use scraper::Html;
 
 use super::{HtmlData, HtmlHandler};
+use crate::Loader;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::Loader;
 
 /// Loader for HTML files. Produces one [`HtmlHandler`] per input.
 #[derive(Debug, Default)]

@@ -11,13 +11,13 @@
 //! indices valid. Audio handlers typically override
 //! [`Handler::redact`] to use [`sort_redactions_for_audio`].
 //!
-//! [`Handler::redact`]: crate::core::Handler::redact
+//! [`Handler::redact`]: crate::Handler::redact
 //! [`sort_redactions_for_audio`]: crate::handler::audio::sort_redactions_for_audio
 
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::AudioReplacement;
 
-const TARGET: &str = "nvisy_codec::audio";
+const TARGET: &str = "nvisy_codec::handler::audio::redact";
 
 /// Apply a single replacement to `samples` in place.
 pub(crate) fn apply<S>(

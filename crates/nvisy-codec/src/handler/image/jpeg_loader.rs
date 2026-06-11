@@ -5,8 +5,8 @@ use nvisy_core::Error;
 use nvisy_core::modality::Image;
 
 use super::JpegHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader for JPEG files. Produces one [`JpegHandler`] per input.
 #[derive(Debug, Default)]

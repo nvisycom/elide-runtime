@@ -11,9 +11,8 @@ use nvisy_core::redaction::Redactions;
 
 use super::XlsxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
 use crate::handler::tabular::TabularHandle;
-use crate::{Format, FormatId};
+use crate::{Chunk, Format, FormatId, Handler};
 
 /// Stable [`FormatId`] for the XLSX codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.xlsx");

@@ -23,10 +23,9 @@ use nvisy_core::redaction::Redactions;
 
 use super::redact;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
-use crate::{Format, FormatId};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "json-handler";
+const TARGET: &str = "nvisy_codec::handler::text::json";
 
 /// Stable [`FormatId`] for the JSON codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.json");

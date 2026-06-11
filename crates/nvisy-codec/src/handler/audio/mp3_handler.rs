@@ -6,8 +6,8 @@
 //! [`Handler::redact`] returns an error. Convert audio to
 //! WAV upstream if redaction is required.
 //!
-//! [`Handler<Audio>`]: crate::core::Handler
-//! [`Handler::redact`]: crate::core::Handler::redact
+//! [`Handler<Audio>`]: crate::Handler
+//! [`Handler::redact`]: crate::Handler::redact
 
 use bytes::Bytes;
 use nvisy_core::Error;
@@ -17,10 +17,9 @@ use nvisy_core::redaction::Redactions;
 
 use super::Mp3Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
-use crate::{Format, FormatId};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "mp3-handler";
+const TARGET: &str = "nvisy_codec::handler::audio::mp3";
 
 /// Stable [`FormatId`] for the MP3 codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.audio.mp3");

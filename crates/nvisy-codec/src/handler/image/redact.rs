@@ -11,7 +11,7 @@ use nvisy_core::redaction::ImageReplacement;
 
 use super::image_ops::ImageOps;
 
-const TARGET: &str = "nvisy_codec::image";
+const TARGET: &str = "nvisy_codec::handler::image::redact";
 
 /// Apply a single replacement to `img` in place at the given bounding
 /// box.

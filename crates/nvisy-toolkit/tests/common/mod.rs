@@ -12,8 +12,7 @@
 
 use std::str::from_utf8;
 
-use nvisy_codec::CodecRegistry;
-use nvisy_codec::document::DocumentHandle;
+use nvisy_codec::{CodecRegistry, DocumentHandle};
 use nvisy_core::Result;
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::extraction::DataAt;

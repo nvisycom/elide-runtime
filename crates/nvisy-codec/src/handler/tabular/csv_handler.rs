@@ -16,12 +16,11 @@ use nvisy_core::redaction::{Redactions, TabularReplacement};
 
 use super::CsvLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
 use crate::handler::tabular::TabularHandle;
 use crate::handler::text::redact;
-use crate::{Format, FormatId};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "csv-handler";
+const TARGET: &str = "nvisy_codec::handler::tabular::csv";
 
 /// Stable [`FormatId`] for the CSV codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.csv");

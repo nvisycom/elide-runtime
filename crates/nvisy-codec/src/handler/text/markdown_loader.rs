@@ -11,8 +11,7 @@ use nvisy_core::modality::Text;
 
 use super::TxtHandler;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::Loader;
-use crate::{Format, FormatId};
+use crate::{Format, FormatId, Loader};
 
 /// Stable [`FormatId`] for the Markdown codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.markdown");

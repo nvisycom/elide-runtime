@@ -4,8 +4,8 @@ use nvisy_core::Error;
 use nvisy_core::modality::Audio;
 
 use super::WavHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader that wraps raw WAV bytes. Produces one [`WavHandler`] per input.
 #[derive(Debug, Default)]

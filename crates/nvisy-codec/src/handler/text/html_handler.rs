@@ -17,10 +17,9 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 
 use super::{HtmlLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
-use crate::{Format, FormatId};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "html-handler";
+const TARGET: &str = "nvisy_codec::handler::text::html";
 
 /// Stable [`FormatId`] for the HTML codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.html");

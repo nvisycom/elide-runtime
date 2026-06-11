@@ -30,8 +30,8 @@ pub struct DocumentTree<M: DocumentModality> {
     /// (via [`Handler::read`]) and redactions
     /// (via [`Handler::redact`]).
     ///
-    /// [`Handler::read`]: nvisy_codec::core::Handler::read
-    /// [`Handler::redact`]: nvisy_codec::core::Handler::redact
+    /// [`Handler::read`]: nvisy_codec::Handler::read
+    /// [`Handler::redact`]: nvisy_codec::Handler::redact
     pub handle: DocumentHandle<M>,
     /// Caller-supplied descriptor (filename, MIME hint, policy
     /// metadata) from the original upload. Policy evaluation

@@ -6,10 +6,10 @@ use nvisy_core::Error;
 use nvisy_core::modality::Tabular;
 
 use super::{CsvData, CsvHandler};
+use crate::Loader;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::Loader;
 
-const TARGET: &str = "crate::core::csv";
+const TARGET: &str = "nvisy_codec::handler::tabular::csv";
 
 /// Loader for CSV files. Produces one [`CsvHandler`] per input.
 #[derive(Debug)]
@@ -41,7 +41,9 @@ impl Loader<Tabular> for CsvLoader {
         let parent = content.content_source;
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
-        let text = self.encoding.decode_bytes(&raw, "csv-loader")?;
+        let text = self
+            .encoding
+            .decode_bytes(&raw, "nvisy_codec::handler::tabular::csv")?;
         let trailing_newline = text.ends_with('\n');
         let delimiter = self.delimiter.unwrap_or_else(|| detect_delimiter(&text));
         tracing::Span::current().record("delimiter", tracing::field::display(delimiter as char));
@@ -53,9 +55,12 @@ impl Loader<Tabular> for CsvLoader {
             .from_reader(text.as_bytes());
 
         let headers = if self.has_headers {
-            let hdr = reader
-                .headers()
-                .map_err(|e| Error::validation(format!("CSV header error: {e}"), "csv-loader"))?;
+            let hdr = reader.headers().map_err(|e| {
+                Error::validation(
+                    format!("CSV header error: {e}"),
+                    "nvisy_codec::handler::tabular::csv",
+                )
+            })?;
             Some(hdr.iter().map(String::from).collect())
         } else {
             None
@@ -63,8 +68,12 @@ impl Loader<Tabular> for CsvLoader {
 
         let mut rows = Vec::new();
         for result in reader.records() {
-            let record = result
-                .map_err(|e| Error::validation(format!("CSV parse error: {e}"), "csv-loader"))?;
+            let record = result.map_err(|e| {
+                Error::validation(
+                    format!("CSV parse error: {e}"),
+                    "nvisy_codec::handler::tabular::csv",
+                )
+            })?;
             rows.push(record.iter().map(String::from).collect());
         }
         tracing::Span::current().record("rows", rows.len());
@@ -119,8 +128,8 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
+    use crate::Handler;
     use crate::content::ContentSource;
-    use crate::core::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

@@ -9,7 +9,7 @@
 //!
 //! [`AudioReplacement`]: nvisy_core::redaction::AudioReplacement
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
-//! [`Handler::redact`]: crate::core::Handler::redact
+//! [`Handler::redact`]: crate::Handler::redact
 
 use std::cmp::Reverse;
 

@@ -12,7 +12,7 @@
 //! downstream extractors can route them through the standard image
 //! pipeline.
 //!
-//! [`Handler<Text>`]: crate::core::Handler
+//! [`Handler<Text>`]: crate::Handler
 //! [`render_pages`]: PdfHandler::render_pages
 //! [`extract_embedded_images`]: PdfHandler::extract_embedded_images
 
@@ -27,12 +27,11 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 use super::PdfLoader;
 use super::pdf_render::PdfRenderer;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
 use crate::handler::image::PngHandler;
 use crate::handler::text::{lift_identity, redact};
-use crate::{DocumentHandle, Format, FormatId};
+use crate::{Chunk, DocumentHandle, Format, FormatId, Handler};
 
-const TARGET: &str = "pdf-handler";
+const TARGET: &str = "nvisy_codec::handler::rich::pdf";
 
 /// Stable [`FormatId`] for the PDF codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.rich.pdf");

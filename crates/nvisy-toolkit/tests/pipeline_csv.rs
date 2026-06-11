@@ -17,7 +17,7 @@
 //!    [`Mask`] operators newly added to the toolkit.
 //!
 //! [`TabularLocation`]: nvisy_core::modality::TabularLocation
-//! [`Handler::lift_chunk`]: nvisy_codec::core::Handler::lift_chunk
+//! [`Handler::lift_chunk`]: nvisy_codec::Handler::lift_chunk
 //! [`RecognizerRegistryExt::detect`]: nvisy_toolkit::detection::RecognizerRegistryExt::detect
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`Replace`]: nvisy_toolkit::redaction::anonymizer::Replace

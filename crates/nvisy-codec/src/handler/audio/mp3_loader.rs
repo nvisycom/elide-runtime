@@ -4,8 +4,8 @@ use nvisy_core::Error;
 use nvisy_core::modality::Audio;
 
 use super::Mp3Handler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader that wraps raw MP3 bytes. Produces one [`Mp3Handler`] per input.
 #[derive(Debug, Default)]

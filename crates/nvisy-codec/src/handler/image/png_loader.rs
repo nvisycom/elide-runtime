@@ -5,8 +5,8 @@ use nvisy_core::Error;
 use nvisy_core::modality::Image;
 
 use super::PngHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader for PNG files. Produces one [`PngHandler`] per input.
 #[derive(Debug, Default)]

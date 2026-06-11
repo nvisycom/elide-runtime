@@ -15,12 +15,11 @@
 //! ```
 //!
 //! [`CodecRegistry`]: nvisy_codec::CodecRegistry
-//! [`DocumentHandle`]: nvisy_codec::document::DocumentHandle
+//! [`DocumentHandle`]: nvisy_codec::DocumentHandle
 
 use std::str::from_utf8;
 
-use nvisy_codec::CodecRegistry;
-use nvisy_codec::document::DocumentHandle;
+use nvisy_codec::{CodecRegistry, DocumentHandle};
 use nvisy_core::Result;
 use nvisy_core::entity::EntityKind;
 use nvisy_core::modality::{Text, TextData};

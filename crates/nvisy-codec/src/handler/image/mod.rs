@@ -5,7 +5,7 @@
 //! [`ImageReplacement`].
 //!
 //! [`ImageReplacement`]: nvisy_core::redaction::ImageReplacement
-//! [`Handler::redact`]: crate::core::Handler::redact
+//! [`Handler::redact`]: crate::Handler::redact
 
 #[macro_use]
 pub(crate) mod macros;

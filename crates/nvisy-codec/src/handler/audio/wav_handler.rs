@@ -10,8 +10,8 @@
 //! `time_span.start_us` so [`AudioReplacement::Remove`] operations don't
 //! shift the indices of pending redactions.
 //!
-//! [`Handler<Audio>`]: crate::core::Handler
-//! [`Handler::redact`]: crate::core::Handler::redact
+//! [`Handler<Audio>`]: crate::Handler
+//! [`Handler::redact`]: crate::Handler::redact
 //! [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
 
 use std::io::Cursor;
@@ -25,11 +25,10 @@ use nvisy_core::redaction::{AudioReplacement, Redactions};
 
 use super::{WavLoader, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
 use crate::handler::audio::sort_redactions_for_audio;
-use crate::{Format, FormatId};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "wav-handler";
+const TARGET: &str = "nvisy_codec::handler::audio::wav";
 
 /// Stable [`FormatId`] for the WAV codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.audio.wav");
@@ -44,7 +43,7 @@ pub fn format() -> Format {
 /// Handler for loaded WAV content. Stores the encoded bytes; decode
 /// happens on demand inside [`Handler::redact`].
 ///
-/// [`Handler::redact`]: crate::core::Handler::redact
+/// [`Handler::redact`]: crate::Handler::redact
 #[derive(Debug)]
 pub struct WavHandler {
     source: ContentSource,

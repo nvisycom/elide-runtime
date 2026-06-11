@@ -16,11 +16,11 @@ compile_error!(
 );
 
 pub mod content;
-pub mod core;
-pub mod document;
+mod core;
+mod document;
 pub mod handler;
 
-pub use self::core::{CodecRegistry, Format, FormatId, Handler, Loader};
+pub use self::core::{Chunk, CodecRegistry, Format, FormatId, Handler, Loader};
 pub use self::document::{DocumentHandle, UntypedDocumentHandle};
 
 #[cfg(test)]

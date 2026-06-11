@@ -7,8 +7,8 @@ use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
 use super::DocxHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader that wraps raw DOCX bytes.
 #[derive(Debug, Default)]

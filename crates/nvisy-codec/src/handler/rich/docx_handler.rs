@@ -12,11 +12,10 @@ use nvisy_core::redaction::Redactions;
 
 use super::DocxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
 use crate::handler::text::lift_identity;
-use crate::{Format, FormatId};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "docx-handler";
+const TARGET: &str = "nvisy_codec::handler::rich::docx";
 
 /// Stable [`FormatId`] for the DOCX codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.rich.docx");

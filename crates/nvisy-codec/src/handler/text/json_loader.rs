@@ -7,8 +7,8 @@ use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
 use super::JsonHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::Loader;
 
 /// Loader for JSON files. Produces one [`JsonHandler`] per input.
 #[derive(Debug, Default)]

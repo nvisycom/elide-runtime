@@ -23,10 +23,10 @@
 //! recognition), it would skip this helper entirely and call
 //! [`RecognizerRegistry::run`] for its own modality directly.
 //!
-//! [`Handler<M>`]: nvisy_codec::core::Handler
-//! [`Handler::lift_chunk`]: nvisy_codec::core::Handler::lift_chunk
+//! [`Handler<M>`]: nvisy_codec::Handler
+//! [`Handler::lift_chunk`]: nvisy_codec::Handler::lift_chunk
 
-use nvisy_codec::core::Handler;
+use nvisy_codec::Handler;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Modality, Tabular, TabularLocation, Text, TextData, TextLocation};
@@ -44,7 +44,7 @@ use super::RecognizerRegistry;
 /// Callers `use nvisy_toolkit::detection::RecognizerRegistryExt;`
 /// to bring the method into scope.
 ///
-/// [`Handler::lift_chunk`]: nvisy_codec::core::Handler::lift_chunk
+/// [`Handler::lift_chunk`]: nvisy_codec::Handler::lift_chunk
 #[async_trait::async_trait]
 pub trait RecognizerRegistryExt {
     /// Walk `handler`'s chunks, run every registered `Text`

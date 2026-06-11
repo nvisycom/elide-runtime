@@ -10,7 +10,7 @@
 //! strings, so the per-format handlers share the text crate's redact
 //! helper.
 //!
-//! [`Handler::redact`]: crate::core::Handler::redact
+//! [`Handler::redact`]: crate::Handler::redact
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`TabularReplacement`]: nvisy_core::redaction::TabularReplacement
 //! [`TextData`]: nvisy_core::modality::TextData
@@ -18,7 +18,7 @@
 
 use nvisy_core::modality::Tabular;
 
-use crate::core::Handler;
+use crate::Handler;
 
 /// Extension trait implemented by every tabular handler exposing the
 /// "do I have a header row?" signal.

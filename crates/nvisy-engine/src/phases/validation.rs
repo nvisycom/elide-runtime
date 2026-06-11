@@ -11,7 +11,7 @@
 //! [`Severity`]: nvisy_toolkit::validation::Severity
 //! [`Validation`]: crate::pipeline::Validation
 
-use nvisy_codec::core::Handler;
+use nvisy_codec::Handler;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};

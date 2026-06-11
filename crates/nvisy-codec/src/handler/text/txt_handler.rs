@@ -14,10 +14,9 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 
 use super::{TxtLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handler};
-use crate::{Format, FormatId};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "txt-handler";
+const TARGET: &str = "nvisy_codec::handler::text::txt";
 
 /// Stable [`FormatId`] for the plain-text codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.txt");

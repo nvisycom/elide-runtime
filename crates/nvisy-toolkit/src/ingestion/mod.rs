@@ -23,10 +23,9 @@
 //! [`CodecRegistry`]: nvisy_codec::CodecRegistry
 //! [`CodecRegistry::with_builtin`]: nvisy_codec::CodecRegistry::with_builtin
 //! [`decode_from_memory`]: nvisy_codec::CodecRegistry::decode_from_memory
-//! [`DocumentHandle<M>`]: nvisy_codec::document::DocumentHandle
+//! [`DocumentHandle<M>`]: nvisy_codec::DocumentHandle
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt
 //! [`RedactAt`]: nvisy_core::redaction::RedactAt
 
-pub use nvisy_codec::CodecRegistry;
-pub use nvisy_codec::document::DocumentHandle;
+pub use nvisy_codec::{CodecRegistry, DocumentHandle};

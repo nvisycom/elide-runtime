@@ -10,7 +10,7 @@
 //!
 //! [`Block<M>`]: crate::document::Block
 //! [`DocumentTree<M>`]: crate::core::DocumentTree
-//! [`Handler::next_chunk`]: nvisy_codec::core::Handler::next_chunk
+//! [`Handler::next_chunk`]: nvisy_codec::Handler::next_chunk
 
 use std::collections::BTreeMap;
 
@@ -136,7 +136,7 @@ impl ExtractionPhase {
 /// entity offsets to source locations uniformly across modalities.
 async fn populate_text_blocks(
     doc: &mut Document<Text>,
-    handle: &mut dyn nvisy_codec::core::Handler<Text>,
+    handle: &mut dyn nvisy_codec::Handler<Text>,
 ) -> Result<()> {
     let mut blocks = Vec::new();
     while let Some(chunk) = handle.next_chunk().await? {
@@ -170,7 +170,7 @@ async fn populate_text_blocks(
 /// [`Tabular`] coordinates.
 async fn populate_tabular_blocks(
     doc: &mut Document<Tabular>,
-    handle: &mut dyn nvisy_codec::core::Handler<Tabular>,
+    handle: &mut dyn nvisy_codec::Handler<Tabular>,
 ) -> Result<()> {
     let mut rows: BTreeMap<u32, Vec<(TabularLocation, String)>> = BTreeMap::new();
     while let Some(chunk) = handle.next_chunk().await? {
@@ -223,7 +223,7 @@ async fn populate_tabular_blocks(
 async fn populate_image_doc(
     engine: &ExtractorRegistry,
     doc: &mut Document<Image>,
-    handle: &mut dyn nvisy_codec::core::Handler<Image>,
+    handle: &mut dyn nvisy_codec::Handler<Image>,
 ) -> Result<()> {
     if let Some(ref ocr) = engine.image {
         run_ocr_into(ocr.as_ref(), doc, handle).await?;
@@ -235,7 +235,7 @@ async fn populate_image_doc(
 async fn populate_image_doc(
     _engine: &ExtractorRegistry,
     _doc: &mut Document<Image>,
-    _handle: &mut dyn nvisy_codec::core::Handler<Image>,
+    _handle: &mut dyn nvisy_codec::Handler<Image>,
 ) -> Result<()> {
     Ok(())
 }
@@ -247,7 +247,7 @@ async fn populate_image_doc(
 async fn run_ocr_into(
     ocr: &dyn Extractor<Image, Output = ImageExtractorOutput>,
     doc: &mut Document<Image>,
-    handle: &mut dyn nvisy_codec::core::Handler<Image>,
+    handle: &mut dyn nvisy_codec::Handler<Image>,
 ) -> Result<()> {
     while let Some(chunk) = handle.next_chunk().await? {
         let dims = chunk.data.dims;
@@ -306,7 +306,7 @@ fn ocr_block_to_block(raw: RawOcrBlock) -> Block<Image> {
 async fn populate_audio_doc(
     engine: &ExtractorRegistry,
     doc: &mut Document<Audio>,
-    handle: &mut dyn nvisy_codec::core::Handler<Audio>,
+    handle: &mut dyn nvisy_codec::Handler<Audio>,
     _descriptor: &ContentDescriptor,
     plan: &Extraction,
 ) -> Result<()> {
@@ -350,7 +350,7 @@ async fn populate_audio_doc(
 async fn populate_audio_doc(
     _engine: &ExtractorRegistry,
     _doc: &mut Document<Audio>,
-    _handle: &mut dyn nvisy_codec::core::Handler<Audio>,
+    _handle: &mut dyn nvisy_codec::Handler<Audio>,
     _descriptor: &ContentDescriptor,
     _plan: &Extraction,
 ) -> Result<()> {

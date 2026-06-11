@@ -19,10 +19,20 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio"]
-tabular = []
-image = []
-audio = []
+default = ["text", "tabular", "image", "audio", "rich"]
+
+## Re-export `DecodedBuffer<Text>` from `nvisy-codec` and pull in
+## every shipped text-format codec (txt/json/markdown/html).
+text = ["nvisy-codec/text"]
+## Re-export `DecodedBuffer<Tabular>` and pull in csv/xlsx codecs.
+tabular = ["nvisy-codec/tabular"]
+## Re-export `DecodedBuffer<Image>` and pull in png/jpeg/tiff codecs.
+image = ["nvisy-codec/image"]
+## Re-export `DecodedBuffer<Audio>` and pull in wav/mp3 codecs.
+audio = ["nvisy-codec/audio"]
+## Pull in rich-document codecs (pdf/docx). Implies `image` since
+## PDF rendering produces image children.
+rich = ["image", "nvisy-codec/rich"]
 
 ## Reversible AES-GCM encrypt/decrypt redaction operators.
 encrypt = ["dep:aes-gcm"]
@@ -37,6 +47,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-codec = { workspace = true, features = [] }
 nvisy-llm = { workspace = true, features = [] }
 nvisy-stt = { workspace = true, features = [] }
 nvisy-ner = { workspace = true, features = [] }
@@ -55,6 +66,7 @@ tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
+type-map = { workspace = true, features = [] }
 
 # Unicode-aware text folding for leak detection.
 unicode-normalization = { workspace = true, features = [] }
@@ -70,10 +82,16 @@ tracing = { workspace = true, features = [] }
 [dev-dependencies]
 # Internal test utilities (Entity::test_builder, …).
 nvisy-core = { workspace = true, features = ["test-utils"] }
-# Pattern recognizer used by the end-to-end example.
+# Codec front door for E2E pipeline tests. Production builds pull
+# nvisy-codec via the toolkit's per-modality features; the dev
+# entry pins txt/csv/json so the pipeline_*.rs tests compile.
+nvisy-codec = { workspace = true, features = ["txt", "csv", "json"] }
+# Pattern recognizer used by the end-to-end example and pipeline tests.
 nvisy-pattern = { workspace = true }
 # Fake-data anonymizer wrapped through Vault in the integration test.
 nvisy-fake = { workspace = true }
+# JSON parsing for asserting redacted JSON still parses cleanly.
+serde_json = { workspace = true, features = [] }
 # Async-trait + tokio runtime for the example.
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

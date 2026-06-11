@@ -18,13 +18,13 @@ use super::result::RedactionResult;
 use super::state::{RedactionRecord, RedactionState};
 use super::status::RedactionStatus;
 use crate::core::{PolicyStore, RunContext, RunEngines, SharedData};
+use crate::document::provenance::AnyAudit;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
 use crate::pipeline::detection::DetectionState;
 use crate::policy::Policy;
-use crate::provenance::AnyAudit;
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::redaction::pipeline";
@@ -136,7 +136,7 @@ impl RedactionPipeline {
         let cancel = CancellationToken::new();
         let engines = RunEngines {
             extraction_engine: (*self.state.extraction_engine).clone(),
-            recognizer_registry: (*self.state.recognizer_registry).clone(),
+            recognizer_registry: Arc::clone(&self.state.recognizer_registry),
             redaction_config: (*self.state.redaction_config).clone(),
             redaction_registries: (*self.state.redaction_registries).clone(),
         };

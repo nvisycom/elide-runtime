@@ -13,7 +13,6 @@ mod usage;
 
 use std::borrow::Cow;
 
-use async_trait::async_trait;
 use nvisy_core::{Error as CoreError, Result};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
@@ -122,7 +121,7 @@ impl RigBackend {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl LlmBackend for RigBackend {
     #[tracing::instrument(target = TARGET, skip_all, fields(model = %self.model_name))]
     async fn predict(&self, request: LlmRequest<'_>) -> Result<LlmResponse> {

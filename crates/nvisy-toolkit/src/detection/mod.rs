@@ -21,6 +21,7 @@
 //!
 //! [`EntityRecognizer`]: nvisy_core::recognition::EntityRecognizer
 
+mod chunks;
 pub mod llm;
 pub mod ner;
 pub mod pattern;
@@ -28,4 +29,5 @@ mod registry;
 
 pub use nvisy_core::recognition::EntityRecognizer;
 
+pub use self::chunks::{LiftedFromText, RecognizerRegistryExt};
 pub use self::registry::RecognizerRegistry;

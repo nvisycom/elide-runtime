@@ -22,7 +22,6 @@
 //!
 //! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::primitive::LanguageTag;
 use type_map::concurrent::TypeMap;
@@ -42,7 +41,7 @@ use super::capabilities::NlpCapabilities;
 /// the orchestrator and are shared across recognition tasks.
 ///
 /// [`capabilities`]: Self::capabilities
-#[async_trait]
+#[async_trait::async_trait]
 pub trait NlpEngine: Send + Sync + 'static {
     /// Languages this engine can produce artifacts for. Empty when
     /// the engine is language-agnostic (e.g. a tokenizer that

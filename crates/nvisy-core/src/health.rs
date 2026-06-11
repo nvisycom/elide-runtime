@@ -27,7 +27,6 @@
 
 use std::borrow::Cow;
 
-use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +80,7 @@ impl ComponentCheck {
 /// `&dyn Healthcheck`, not roll them up. Operators want
 /// per-component visibility ("ocr-bento is degraded, ocr-tesseract
 /// is healthy"), not aggregate status.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Healthcheck: Send + Sync {
     /// Stable identifier for this component on the wire (e.g.
     /// `"ner-bento"`, `"ocr-tesseract"`, `"registry"`).

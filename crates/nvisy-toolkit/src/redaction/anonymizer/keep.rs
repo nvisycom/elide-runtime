@@ -5,7 +5,6 @@
 //! replacement records the original value verbatim so the audit
 //! trail still has a row.
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
@@ -16,10 +15,10 @@ use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Keep;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Anonymizer<Text> for Keep {
     fn leak_profile(&self) -> LeakProfile {
-        // The original value is unchanged — strictly more leaky than
+        // The original value is unchanged: strictly more leaky than
         // every other operator. The `Recoverable` ordering matches
         // "the original is trivially derivable from the output."
         LeakProfile::Recoverable

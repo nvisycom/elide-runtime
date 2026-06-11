@@ -8,7 +8,6 @@
 
 mod strategy;
 
-use async_trait::async_trait;
 use nvisy_core::entity::Entity;
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Modality, Overlap};
@@ -34,7 +33,7 @@ impl ResolveConflictsLayer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M, R> Layer<M, R> for ResolveConflictsLayer
 where
     M: Modality,

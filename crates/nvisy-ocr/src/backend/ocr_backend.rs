@@ -1,6 +1,5 @@
 //! [`OcrBackend`]: the OCR backend contract.
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use nvisy_core::Error;
 use nvisy_core::entity::ModelProvenance;
@@ -111,7 +110,7 @@ impl OcrResponse {
 ///
 /// [`extract`]: Self::extract
 /// [`extract_batch`]: Self::extract_batch
-#[async_trait]
+#[async_trait::async_trait]
 pub trait OcrBackend: Send + Sync + 'static {
     /// Backend identity (model / service name + provenance kind).
     ///

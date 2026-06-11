@@ -13,7 +13,7 @@
 //!   pairs handed from the producer side (anonymizer / registry) to
 //!   the write-back side.
 //! - [`RedactAt<M>`] — the write-back trait every sink implements
-//!   (toolkit's `MemoryBuffer`, document's `DocumentTree`).
+//!   (codec's `DocumentHandle`, engine's `DocumentTree`).
 //! - [`Deanonymizer`] — audit-keyed inverse of `Anonymizer`.
 //!   Implemented by recoverable wrappers that persist the original
 //!   at apply-time keyed on `entity.id`.

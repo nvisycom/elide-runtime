@@ -18,18 +18,18 @@
 //! [`RedactionRegistry<Text>`], and reference it from policy with
 //! `{ kind = "custom", id = "..." }`.
 //!
-//! [`Replace`]: nvisy_toolkit::redaction::builtin::Replace
-//! [`Mask`]: nvisy_toolkit::redaction::builtin::Mask
-//! [`Hash`]: nvisy_toolkit::redaction::builtin::Hash
-//! [`Redact`]: nvisy_toolkit::redaction::builtin::Redact
-//! [`Keep`]: nvisy_toolkit::redaction::builtin::Keep
-//! [`Encrypt`]: nvisy_toolkit::redaction::builtin::Encrypt
+//! [`Replace`]: nvisy_toolkit::redaction::anonymizer::Replace
+//! [`Mask`]: nvisy_toolkit::redaction::anonymizer::Mask
+//! [`Hash`]: nvisy_toolkit::redaction::anonymizer::Hash
+//! [`Redact`]: nvisy_toolkit::redaction::anonymizer::Redact
+//! [`Keep`]: nvisy_toolkit::redaction::anonymizer::Keep
+//! [`Encrypt`]: nvisy_toolkit::redaction::anonymizer::Encrypt
 //! [`Aes256Gcm`]: https://docs.rs/aes-gcm
 //! [`RedactionRegistry<Text>`]: nvisy_toolkit::redaction::RedactionRegistry
 
 use nvisy_core::modality::Text;
 use nvisy_toolkit::redaction::AnonymizerId;
-use nvisy_toolkit::redaction::builtin::HashAlgorithm;
+use nvisy_toolkit::redaction::anonymizer::HashAlgorithm;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -46,17 +46,21 @@ pub enum TextRedaction {
         #[serde(default = "default_replace_template")]
         template: String,
     },
-    /// Character-replacement masking.
+    /// Character-replacement masking. Leaves `keep_prefix` leading
+    /// and `keep_suffix` trailing characters visible; masks the
+    /// rest with `mask_char`.
     Mask {
         /// The character that replaces masked positions.
         #[serde(default = "default_mask_char")]
         mask_char: char,
-        /// How many characters to mask. `None` masks the whole value.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        chars_to_mask: Option<usize>,
-        /// When `true`, masking starts from the end of the value.
-        #[serde(default)]
-        from_end: bool,
+        /// Characters to leave unmasked at the start of the value.
+        /// `0` (the default) masks from the start.
+        #[serde(default, skip_serializing_if = "is_zero")]
+        keep_prefix: usize,
+        /// Characters to leave unmasked at the end of the value.
+        /// `0` (the default) masks through to the end.
+        #[serde(default, skip_serializing_if = "is_zero")]
+        keep_suffix: usize,
     },
     /// One-way SHA-2 hash with optional salt.
     Hash {
@@ -87,4 +91,8 @@ fn default_replace_template() -> String {
 
 fn default_mask_char() -> char {
     '*'
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }

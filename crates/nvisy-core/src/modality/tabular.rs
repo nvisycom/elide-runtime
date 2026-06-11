@@ -18,6 +18,9 @@ impl Modality for Tabular {
     type Extraction = TabularExtraction;
     type Location = TabularLocation;
     type Replacement = TabularReplacement;
+
+    const KIND: super::ModalityKind = super::ModalityKind::Tabular;
+    const NAME: &'static str = "tabular";
 }
 
 /// A cell (or sub-cell range) within tabular content.
@@ -68,6 +71,30 @@ impl TabularLocation {
             self.start_offset.unwrap_or(0),
             self.end_offset.unwrap_or(usize::MAX),
         )
+    }
+}
+
+impl Ord for TabularLocation {
+    /// Lex order over `(sheet_name, row_index, column_index,
+    /// start_offset, end_offset)`. Absent intra-cell offsets sort
+    /// as `0` / `usize::MAX` respectively so a whole-cell location
+    /// brackets any sub-cell range. `column_name` is ignored.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let (s1, e1) = self.cell_range();
+        let (s2, e2) = other.cell_range();
+        (&self.sheet_name, self.row_index, self.column_index, s1, e1).cmp(&(
+            &other.sheet_name,
+            other.row_index,
+            other.column_index,
+            s2,
+            e2,
+        ))
+    }
+}
+
+impl PartialOrd for TabularLocation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 

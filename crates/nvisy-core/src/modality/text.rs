@@ -25,6 +25,9 @@ impl Modality for Text {
     type Extraction = TextExtraction;
     type Location = TextLocation;
     type Replacement = TextReplacement;
+
+    const KIND: super::ModalityKind = super::ModalityKind::Text;
+    const NAME: &'static str = "text";
 }
 
 /// Half-open `[start, end)` byte range around a [`TextLocation`],
@@ -86,6 +89,20 @@ impl TextLocation {
     /// Whether the range is empty (zero length).
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+impl Ord for TextLocation {
+    /// Lex order over `(start, end)`. `context` and `page_number`
+    /// are ignored.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.start, self.end).cmp(&(other.start, other.end))
+    }
+}
+
+impl PartialOrd for TextLocation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 

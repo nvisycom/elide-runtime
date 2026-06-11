@@ -22,8 +22,8 @@
 
 use std::env;
 
-use nvisy_core::entity::EntityKind;
-use nvisy_core::modality::TextData;
+use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::modality::{Text, TextData};
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_llm::backend::rig::RigBackend;
 use nvisy_llm::provider::LlmProvider;
@@ -52,7 +52,6 @@ fn build_registry() -> RecognizerRegistry {
 
     let bento_url = env_or("NVISY_BENTO_URL", "http://localhost:3000");
     let bento_backend = BentoBackend::new(BentoParams::new(bento_url)).expect("bento backend init");
-
     let ner = NerRecognizer::builder()
         .with_name("ner")
         .with_engine(bento_backend)
@@ -74,15 +73,12 @@ fn build_registry() -> RecognizerRegistry {
         .expect("llm recognizer builds");
 
     RecognizerRegistry::new()
-        .add_text_recognizer(pattern)
-        .add_text_recognizer(ner)
-        .add_text_recognizer(llm)
+        .with_recognizer::<Text>(pattern)
+        .with_recognizer::<Text>(ner)
+        .with_recognizer::<Text>(llm)
 }
 
-fn fired(
-    entities: &[nvisy_core::entity::Entity<nvisy_core::modality::Text>],
-    source: &str,
-) -> bool {
+fn fired(entities: &[Entity<Text>], source: &str) -> bool {
     entities
         .iter()
         .any(|e| e.trail.iter().any(|s| s.source == source))
@@ -95,7 +91,7 @@ async fn registry_dispatches_pattern_ner_and_llm_against_live_services() {
     let input = RecognizerInput::new(TextData::new(SAMPLE.to_owned()));
 
     let entities = registry
-        .run_text(input)
+        .run::<Text>(input)
         .await
         .expect("dispatch over pattern + ner + llm succeeds");
 

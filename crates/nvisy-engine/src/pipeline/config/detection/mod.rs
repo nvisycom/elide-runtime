@@ -19,6 +19,7 @@ mod plan;
 use nvisy_core::Error;
 use nvisy_core::Result;
 use nvisy_core::entity::EntityKind;
+use nvisy_core::modality::Text;
 use nvisy_ner::NerRecognizer;
 use nvisy_ner::backend::NoopBackend;
 #[cfg(feature = "bento")]
@@ -77,7 +78,7 @@ impl DetectionConfig {
             let recognizer = PatternRecognizer::builder()
                 .with_registry(PatternRegistry::builtin())
                 .build()?;
-            reg = reg.add_text_recognizer(recognizer);
+            reg = reg.with_recognizer::<Text>(recognizer);
         }
 
         if let Some(ner_cfg) = self.ner.as_ref().filter(|c| c.enabled) {
@@ -88,7 +89,7 @@ impl DetectionConfig {
                         .with_engine(NoopBackend)
                         .with_supported_kinds(default_text_kinds())
                         .build()?;
-                    reg.add_text_recognizer(recognizer)
+                    reg.with_recognizer::<Text>(recognizer)
                 }
 
                 #[cfg(feature = "bento")]
@@ -99,7 +100,7 @@ impl DetectionConfig {
                         .with_engine(backend)
                         .with_supported_kinds(default_text_kinds())
                         .build()?;
-                    reg.add_text_recognizer(recognizer)
+                    reg.with_recognizer::<Text>(recognizer)
                 }
 
                 #[cfg(not(feature = "bento"))]

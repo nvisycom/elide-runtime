@@ -10,7 +10,6 @@
 //!
 //! The output is the lowercase hex representation of the digest.
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
@@ -64,7 +63,7 @@ impl Hash {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Anonymizer<Text> for Hash {
     fn leak_profile(&self) -> LeakProfile {
         // A hash is recoverable when the candidate plaintext space

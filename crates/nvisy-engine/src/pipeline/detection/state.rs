@@ -16,8 +16,8 @@ use uuid::Uuid;
 
 use super::result::{DetectionEntry, DetectionFilter, DetectionResult, DetectionSnapshot};
 use super::status::DetectionStatus;
+use crate::document::provenance::AnyAudit;
 use crate::phases::ingestion::ImportFile;
-use crate::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_engine::detection::state";
 

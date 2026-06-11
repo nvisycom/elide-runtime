@@ -1,0 +1,17 @@
+{
+  "subject": "Customer onboarding",
+  "contacts": [
+    {
+      "name": "Alice Johnson",
+      "email": "alice.johnson@example.com",
+      "phone": "+1 (415) 555-0142",
+      "card": "4111 1111 1111 1111"
+    },
+    {
+      "name": "Bob Smith",
+      "email": "bob.smith@example.com",
+      "phone": "+1 (510) 555-0199",
+      "card": "5555 5555 5555 4444"
+    }
+  ]
+}

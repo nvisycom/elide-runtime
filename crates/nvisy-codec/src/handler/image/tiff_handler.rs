@@ -3,6 +3,9 @@
 use super::TiffLoader;
 use crate::content::ContentSource;
 
+/// Handler for loaded TIFF content. Holds the decoded
+/// [`image::DynamicImage`] and a streaming cursor; the macro-generated
+/// `Handler<Image>` impl encodes back to TIFF on demand.
 #[derive(Debug)]
 pub struct TiffHandler {
     source: ContentSource,

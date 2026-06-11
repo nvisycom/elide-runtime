@@ -1,9 +1,9 @@
 //! PNG handler: holds a decoded image and exposes it as a single
-//! full-image chunk via [`Handle<Image>`], with random-access region
-//! reads / pixel redactions via [`IndexedHandle<Image>`].
+//! full-image chunk via [`Handler<Image>`], with random-access region
+//! reads / pixel redactions via [`Handler<Image>`].
 //!
-//! [`Handle<Image>`]: crate::core::Handle
-//! [`IndexedHandle<Image>`]: crate::core::IndexedHandle
+//! [`Handler<Image>`]: crate::Handler
+//! [`Handler<Image>`]: crate::Handler
 
 use super::PngLoader;
 use crate::content::ContentSource;
@@ -13,7 +13,7 @@ use crate::content::ContentSource;
 /// demand by [`Handler::encode`].
 ///
 /// [`DynamicImage`]: image::DynamicImage
-/// [`Handler::encode`]: crate::core::Handler::encode
+/// [`Handler::encode`]: crate::Handler::encode
 #[derive(Debug)]
 pub struct PngHandler {
     source: ContentSource,

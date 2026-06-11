@@ -7,7 +7,6 @@ mod transcription;
 use std::fmt;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::entity::ModelProvenance;
 use nvisy_core::extraction::{Extractor, ExtractorOutput, Span};
@@ -50,7 +49,7 @@ impl SttExtractor {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Extractor<Audio> for SttExtractor {
     type Output = Transcription;
 

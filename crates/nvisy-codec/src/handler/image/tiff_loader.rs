@@ -1,19 +1,18 @@
 //! TIFF loader: validates and decodes raw TIFF bytes into a
 //! [`TiffHandler`].
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Image;
 
 use super::TiffHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader for TIFF files. Produces one [`TiffHandler`] per input.
 #[derive(Debug, Default)]
 pub struct TiffLoader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Image> for TiffLoader {
     type Handler = TiffHandler;
 

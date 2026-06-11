@@ -10,7 +10,6 @@
 //! Object-safe: extractors hold `Arc<dyn SttBackend>` and dispatch
 //! per call.
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::entity::ModelProvenance;
 use nvisy_core::primitive::LanguageTag;
@@ -57,7 +56,7 @@ impl SttResponse {
 /// transcribed segments — hosted provider clients (OpenAI Whisper,
 /// Deepgram, AssemblyAI), local model wrappers, and the in-process
 /// no-op test stub.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait SttBackend: Send + Sync + 'static {
     /// Backend identity (model / service name + provenance kind).
     ///

@@ -25,13 +25,18 @@ pub struct UsageTracker {
 /// backends can sum their snapshots into a single aggregate.
 #[derive(Debug, Default, Clone, AddAssign)]
 pub struct UsageStats {
+    /// Cumulative input (prompt) tokens billed across every request.
     pub total_input_tokens: u64,
+    /// Cumulative output (completion) tokens billed across every request.
     pub total_output_tokens: u64,
+    /// Number of completed LLM requests.
     pub total_requests: u64,
+    /// Number of retry attempts triggered by transient failures.
     pub total_retries: u64,
 }
 
 impl UsageTracker {
+    /// Build a tracker with every counter at zero.
     pub fn new() -> Self {
         Self {
             input_tokens: AtomicU64::new(0),

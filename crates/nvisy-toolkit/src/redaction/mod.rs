@@ -6,10 +6,11 @@
 //!
 //! - The [`Anonymizer<M>`] / [`Deanonymizer<M>`] traits operators
 //!   implement.
-//! - A catalogue of built-in operator structs in [`builtin`]
-//!   ([`Replace`], [`Mask`], [`Hash`], [`Redact`],
-//!   [`Keep`], [`Encrypt`]). Each is a plain struct; consumers
-//!   construct one per rule with whatever params they need.
+//! - Built-in forward operators in [`anonymizer`] (`Replace`,
+//!   `Mask`, `Hash`, `Redact`, `Keep`, `Encrypt`) and reverse
+//!   operators in [`deanonymizer`] (`Decrypt`). Each is a plain
+//!   struct; consumers construct one per rule with whatever params
+//!   they need.
 //! - [`AnonymizerId<M>`] + [`RedactionRegistry<M>`] for the
 //!   `Custom` escape hatch: stateful Rust operators (KMS clients,
 //!   token vaults, …) that can't be expressed as a config blob.
@@ -25,18 +26,19 @@
 //! inline) or a `Custom(AnonymizerId<M>)` (looked up in the
 //! registry).
 //!
-//! [`Replace`]: builtin::Replace
-//! [`Mask`]: builtin::Mask
-//! [`Hash`]: builtin::Hash
-//! [`Redact`]: builtin::Redact
-//! [`Keep`]: builtin::Keep
-//! [`Encrypt`]: builtin::Encrypt
+//! [`Replace`]: anonymizer::Replace
+//! [`Mask`]: anonymizer::Mask
+//! [`Hash`]: anonymizer::Hash
+//! [`Redact`]: anonymizer::Redact
+//! [`Keep`]: anonymizer::Keep
+//! [`Encrypt`]: anonymizer::Encrypt
 
 mod id;
 mod registry;
 mod store;
 
-pub mod builtin;
+pub mod anonymizer;
+pub mod deanonymizer;
 
 pub use nvisy_core::modality::Modality;
 pub use nvisy_core::redaction::{

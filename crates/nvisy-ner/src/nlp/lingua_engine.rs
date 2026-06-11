@@ -12,7 +12,6 @@
 //!
 //! [`Asserted`]: nvisy_core::primitive::LanguageProvenance::Asserted
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::primitive::{
     LanguageDetection, LanguageDetections, LanguageProvenance, LanguageTag,
@@ -75,7 +74,7 @@ impl Default for LinguaNlpEngine {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl NlpEngine for LinguaNlpEngine {
     fn supported_languages(&self) -> &[LanguageTag] {
         &self.candidates

@@ -1,7 +1,8 @@
 //! Type-erased [`Modality::Location`] enum.
 
-use nvisy_codec::core::ModalityKind;
-use nvisy_core::modality::{AudioLocation, ImageLocation, TabularLocation, TextLocation};
+use nvisy_core::modality::{
+    AudioLocation, ImageLocation, ModalityKind, TabularLocation, TextLocation,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::EnumTryAs;
@@ -23,9 +24,13 @@ use strum::EnumTryAs;
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum AnyLocation {
+    /// Text-modality location.
     Text(TextLocation),
+    /// Tabular-modality location.
     Tabular(TabularLocation),
+    /// Image-modality location.
     Image(ImageLocation),
+    /// Audio-modality location.
     Audio(AudioLocation),
 }
 

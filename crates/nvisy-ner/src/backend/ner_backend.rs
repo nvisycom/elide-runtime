@@ -14,7 +14,6 @@
 //!
 //! [`NerRecognizer::recognize`]: crate::NerRecognizer
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::entity::{EntityKind, ModelProvenance};
 use nvisy_core::primitive::LanguageTag;
@@ -70,7 +69,7 @@ impl NerResponse {
 ///
 /// Object-safe: recognizers hold `Arc<dyn NerBackend>` and dispatch
 /// per call.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait NerBackend: Send + Sync + 'static {
     /// Backend identity (model / service name + provenance kind).
     ///

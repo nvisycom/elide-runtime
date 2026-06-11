@@ -16,12 +16,12 @@
 //!
 //! [`Anonymizer<M>`]: super::Anonymizer
 //! [`RedactionRegistry<M>`]: super::RedactionRegistry
-//! [`Replace`]: super::builtin::Replace
-//! [`Mask`]: super::builtin::Mask
-//! [`Hash`]: super::builtin::Hash
-//! [`Redact`]: super::builtin::Redact
-//! [`Keep`]: super::builtin::Keep
-//! [`Encrypt`]: super::builtin::Encrypt
+//! [`Replace`]: super::anonymizer::Replace
+//! [`Mask`]: super::anonymizer::Mask
+//! [`Hash`]: super::anonymizer::Hash
+//! [`Redact`]: super::anonymizer::Redact
+//! [`Keep`]: super::anonymizer::Keep
+//! [`Encrypt`]: super::anonymizer::Encrypt
 
 use std::borrow::Cow;
 use std::fmt::{self, Debug, Display};

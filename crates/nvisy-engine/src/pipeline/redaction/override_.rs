@@ -42,8 +42,8 @@
 
 use std::collections::HashSet;
 
-use nvisy_codec::core::ModalityKind;
 use nvisy_core::entity::EntityKind;
+use nvisy_core::modality::ModalityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -196,4 +196,4 @@ pub fn validate_overrides(overrides: &[RedactionOverride]) -> Result<(), nvisy_c
 // because it's a property of the audit entry, not a property of
 // the request shape. Re-exported from this module for ergonomic
 // access:
-pub use crate::provenance::RedactionDecision;
+pub use crate::document::provenance::RedactionDecision;

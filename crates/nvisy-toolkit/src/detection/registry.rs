@@ -1,161 +1,140 @@
-//! [`RecognizerRegistry`]: per-modality recognizer container.
+//! [`RecognizerRegistry`]: open per-modality recognizer container.
 //!
-//! Two ordered `Vec<Arc<dyn EntityRecognizer<M>>>` lists, one per
-//! modality. Every registered recognizer runs on every dispatch;
-//! there is no per-request name-based allowlist. Operators shape
-//! the result set by tuning what they register at engine startup
-//! (built-ins through [`DetectionConfig`], custom recognizers
-//! through [`add_text_recognizer`] / [`add_image_recognizer`]) and
-//! by filtering downstream via [`Detection::entity_kinds`].
+//! One [`TypeMap`] slot per [`Modality`], keyed by the marker
+//! type. Each slot is `Vec<Arc<dyn EntityRecognizer<M>>>`; iteration
+//! order at dispatch matches registration order. Populate via
+//! [`with_recognizer`] after constructing each backend.
 //!
 //! Scope: this type knows nothing about [`Document`]. It only owns
 //! recognizers and runs them against a [`RecognizerInput`]. Walking a
 //! document, lifting block-local spans to modality coordinates, and
-//! per-modality node dispatch all live in [`super::dispatch`].
+//! per-modality node dispatch live in the engine's detection phase.
 //!
 //! Failure is fail-fast within a modality: on the first task error
 //! every other in-flight task in that modality is aborted and the
 //! error is returned.
 //!
-//! [`Detection::entity_kinds`]: crate::detection::Detection::entity_kinds
-//! [`add_text_recognizer`]: RecognizerRegistry::add_text_recognizer
-//! [`add_image_recognizer`]: RecognizerRegistry::add_image_recognizer
+//! [`with_recognizer`]: RecognizerRegistry::with_recognizer
+//! [`Modality`]: nvisy_core::modality::Modality
 //! [`RecognizerInput`]: nvisy_core::recognition::RecognizerInput
-//! [`DetectionConfig`]: crate::detection::DetectionConfig
+//! [`TypeMap`]: type_map::concurrent::TypeMap
 
 use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::entity::Entity;
-use nvisy_core::modality::{Image, Modality, Text};
+use nvisy_core::modality::Modality;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
 use nvisy_core::{Error, Result};
 use tokio::task::JoinSet;
 use tracing::Instrument;
+use type_map::concurrent::TypeMap;
 
 const TARGET: &str = "nvisy_toolkit::detection";
 
-/// Per-modality recognizer container.
+/// Open per-modality recognizer container.
 ///
-/// Each modality keeps an ordered `Vec<Arc<dyn EntityRecognizer<M>>>`;
-/// iteration order matches registration order. Populate via
-/// [`add_text_recognizer`] / [`add_image_recognizer`] after
-/// constructing each backend.
+/// Holds a [`TypeMap`] keyed by the modality marker type `M`.
+/// Each slot is a `Vec<Arc<dyn EntityRecognizer<M>>>`. Adding a
+/// new modality requires zero edits to the registry — the modality
+/// crate's `impl Modality` is all that's needed.
 ///
-/// [`add_text_recognizer`]: Self::add_text_recognizer
-/// [`add_image_recognizer`]: Self::add_image_recognizer
-#[derive(Default, Clone)]
+/// [`TypeMap`]: type_map::concurrent::TypeMap
+#[derive(Default)]
 pub struct RecognizerRegistry {
-    /// Text-modality recognizers, dispatched in registration order.
-    pub text: Vec<Arc<dyn EntityRecognizer<Text>>>,
-    /// Image-modality recognizers, dispatched in registration order.
-    pub image: Vec<Arc<dyn EntityRecognizer<Image>>>,
+    slots: TypeMap,
 }
 
 impl RecognizerRegistry {
-    /// Build an empty registry. Consumers populate it with
-    /// [`add_text_recognizer`] / [`add_image_recognizer`] after
-    /// constructing each backend they want to install.
+    /// Empty registry. Populate with [`with_recognizer`].
     ///
-    /// [`add_text_recognizer`]: Self::add_text_recognizer
-    /// [`add_image_recognizer`]: Self::add_image_recognizer
+    /// [`with_recognizer`]: Self::with_recognizer
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Register a text-modality recognizer. Appended to the existing
-    /// list; iteration order at dispatch matches registration order.
-    /// Chainable — returns `self` for builder-style construction.
-    /// Takes ownership of the recognizer and wraps it in `Arc`.
+    /// Register a recognizer for modality `M`. Appended to that
+    /// modality's slot; iteration order at dispatch matches
+    /// registration order. Chainable.
     #[must_use]
-    pub fn add_text_recognizer<R>(mut self, recognizer: R) -> Self
-    where
-        R: EntityRecognizer<Text> + 'static,
-    {
-        self.text.push(Arc::new(recognizer));
+    pub fn with_recognizer<M: Modality>(
+        mut self,
+        recognizer: impl EntityRecognizer<M> + 'static,
+    ) -> Self {
+        self.slot_mut::<M>().push(Arc::new(recognizer));
         self
     }
 
-    /// Register an image-modality recognizer. Appended to the
-    /// existing list; iteration order at dispatch matches
-    /// registration order. Chainable — returns `self` for
-    /// builder-style construction. Takes ownership and wraps in
-    /// `Arc`.
+    /// Number of recognizers registered for modality `M`.
     #[must_use]
-    pub fn add_image_recognizer<R>(mut self, recognizer: R) -> Self
-    where
-        R: EntityRecognizer<Image> + 'static,
-    {
-        self.image.push(Arc::new(recognizer));
-        self
+    pub fn count<M: Modality>(&self) -> usize {
+        self.slots
+            .get::<Slot<M>>()
+            .map_or(0, |slot| slot.recognizers.len())
     }
 
-    /// Run every registered text recognizer against `input` in
-    /// parallel and return the combined entity set.
-    pub async fn run_text(&self, input: RecognizerInput<Text>) -> Result<Vec<Entity<Text>>> {
+    /// Run every registered recognizer for modality `M` against
+    /// `input` in parallel and return the combined entity set.
+    ///
+    /// Returns `Ok(Vec::new())` when no recognizers are registered
+    /// for `M`.
+    pub async fn run<M>(&self, input: RecognizerInput<M>) -> Result<Vec<Entity<M>>>
+    where
+        M: Modality,
+        M::Data: fmt::Debug,
+    {
+        let Some(slot) = self.slots.get::<Slot<M>>() else {
+            return Ok(Vec::new());
+        };
+        if slot.recognizers.is_empty() {
+            return Ok(Vec::new());
+        }
+
         let span = tracing::debug_span!(
             target: TARGET,
-            "detect.text",
-            text_len = input.data.text.len(),
+            "detect",
+            modality = M::NAME,
+            input = ?input.data,
             correlation_id = input.correlation_id.as_ref().map(|id| id.to_string()),
         );
 
         let input = Arc::new(input);
-        let mut set: JoinSet<Result<RecognizerOutput<Text>>> = JoinSet::new();
-
-        for recognizer in &self.text {
+        let mut set: JoinSet<Result<RecognizerOutput<M>>> = JoinSet::new();
+        for recognizer in &slot.recognizers {
             let recognizer = Arc::clone(recognizer);
             let input = Arc::clone(&input);
             set.spawn(async move { recognizer.recognize(&input).await });
         }
 
-        async move { collect_join_set(set).await }
+        async move { collect_join_set::<M>(set).await }
             .instrument(span)
             .await
     }
 
-    /// Run every registered image recognizer against `input` in
-    /// parallel and return the combined entity set.
-    #[cfg(feature = "image")]
-    pub async fn run_image(&self, input: RecognizerInput<Image>) -> Result<Vec<Entity<Image>>> {
-        let span = tracing::debug_span!(
-            target: TARGET,
-            "detect.image",
-            image_bytes = input.data.bytes.len(),
-            width = input.data.dims.width,
-            height = input.data.dims.height,
-            correlation_id = input.correlation_id.as_ref().map(|id| id.to_string()),
-        );
-
-        let input = Arc::new(input);
-        let mut set: JoinSet<Result<RecognizerOutput<Image>>> = JoinSet::new();
-
-        for recognizer in &self.image {
-            let recognizer = Arc::clone(recognizer);
-            let input = Arc::clone(&input);
-            set.spawn(async move { recognizer.recognize(&input).await });
-        }
-
-        async move { collect_join_set(set).await }
-            .instrument(span)
-            .await
+    fn slot_mut<M: Modality>(&mut self) -> &mut Vec<Arc<dyn EntityRecognizer<M>>> {
+        let slot = self.slots.entry::<Slot<M>>();
+        &mut slot.or_insert_with(Slot::default).recognizers
     }
+}
 
-    /// Reset per-document state on every registered recognizer.
-    /// Call at document boundaries.
-    pub async fn reset(&self) {
-        for recognizer in &self.text {
-            recognizer.reset().await;
-        }
-        for recognizer in &self.image {
-            recognizer.reset().await;
+/// `TypeMap` entry for one modality. Wrapping `Vec` in a named
+/// struct keeps the entry shape `Default + Send + Sync` without
+/// needing those bounds in the `EntityRecognizer<M>` super-traits.
+struct Slot<M: Modality> {
+    recognizers: Vec<Arc<dyn EntityRecognizer<M>>>,
+}
+
+impl<M: Modality> Default for Slot<M> {
+    fn default() -> Self {
+        Self {
+            recognizers: Vec::new(),
         }
     }
 }
 
-async fn collect_join_set<E: Modality>(
-    mut set: JoinSet<Result<RecognizerOutput<E>>>,
-) -> Result<Vec<Entity<E>>> {
+async fn collect_join_set<M: Modality>(
+    mut set: JoinSet<Result<RecognizerOutput<M>>>,
+) -> Result<Vec<Entity<M>>> {
     let mut all = Vec::new();
     while let Some(joined) = set.join_next().await {
         match joined {
@@ -186,9 +165,6 @@ async fn collect_join_set<E: Modality>(
 
 impl fmt::Debug for RecognizerRegistry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RecognizerRegistry")
-            .field("text", &self.text.len())
-            .field("image", &self.image.len())
-            .finish()
+        f.debug_struct("RecognizerRegistry").finish_non_exhaustive()
     }
 }

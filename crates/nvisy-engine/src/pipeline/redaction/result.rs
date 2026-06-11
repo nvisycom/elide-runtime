@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::status::RedactionStatus;
-use crate::provenance::AnyAudit;
+use crate::document::provenance::AnyAudit;
 
 /// Artifact produced by one redaction pass.
 ///
@@ -32,15 +32,22 @@ pub struct RedactionResult {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionSnapshot {
+    /// Unique identifier for the redaction pass.
     pub id: Uuid,
+    /// Detection pass this redaction was applied against.
     pub detection_id: Uuid,
+    /// Identity of the actor who initiated the pass.
     pub actor_id: Uuid,
+    /// Lifecycle status (queued / running / completed / failed).
     pub status: RedactionStatus,
+    /// When the pass was created.
     #[schemars(with = "String")]
     pub created_at: Timestamp,
+    /// When the applicator began running, if it ever did.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub started_at: Option<Timestamp>,
+    /// When the applicator reached a terminal state, if it did.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub completed_at: Option<Timestamp>,
@@ -48,6 +55,7 @@ pub struct RedactionSnapshot {
     /// state with at least one audit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<RedactionResult>,
+    /// Terminal error message, when the pass failed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -56,18 +64,26 @@ pub struct RedactionSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionEntry {
+    /// Unique identifier for the redaction pass.
     pub id: Uuid,
+    /// Detection pass this redaction was applied against.
     pub detection_id: Uuid,
+    /// Identity of the actor who initiated the pass.
     pub actor_id: Uuid,
+    /// Lifecycle status (queued / running / completed / failed).
     pub status: RedactionStatus,
+    /// When the pass was created.
     #[schemars(with = "String")]
     pub created_at: Timestamp,
+    /// When the applicator began running, if it ever did.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub started_at: Option<Timestamp>,
+    /// When the applicator reached a terminal state, if it did.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub completed_at: Option<Timestamp>,
+    /// Total redactions applied across all documents.
     pub redactions_applied: u64,
 }
 

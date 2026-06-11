@@ -9,7 +9,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use derive_builder::Builder;
 use nvisy_core::modality::Modality;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
@@ -103,7 +102,7 @@ impl<M: Modality> LlmRecognizerBuilder<M> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M: Modality> EntityRecognizer<M> for LlmRecognizer<M> {
     async fn recognize(&self, input: &RecognizerInput<M>) -> Result<RecognizerOutput<M>> {
         let prompt = self.prompt.build(input);

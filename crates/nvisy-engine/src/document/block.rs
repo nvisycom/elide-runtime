@@ -25,8 +25,12 @@ use crate::modality::DocumentModality;
 pub struct Block<M: DocumentModality> {
     /// Modality-specific payload (variant + its data).
     pub kind: M::Block,
-    /// Source-mapped spans into the block's text. Empty for non-
-    /// textual blocks.
+    /// Source-mapped spans into the block's text. Carries the
+    /// `block-local offset -> M::Location` map every modality uses
+    /// to lift recognizer findings (which run on the block's text
+    /// string) back to source coordinates. Empty only for layout-
+    /// only variants that have no text (e.g. `ImageBlock::Figure`,
+    /// `ImageBlock::Logo`).
     pub spans: Vec<Span<M>>,
     /// Recognition confidence for the block as a whole. Absent for
     /// native text-layer extraction where the source already provides

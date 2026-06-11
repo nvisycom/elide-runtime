@@ -5,14 +5,13 @@
 //! order, and produces a handler backed by those nodes plus the raw
 //! source (used to reconstruct the HTML after edits).
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 use scraper::Html;
 
 use super::{HtmlData, HtmlHandler};
+use crate::Loader;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::Loader;
 
 /// Loader for HTML files. Produces one [`HtmlHandler`] per input.
 #[derive(Debug, Default)]
@@ -21,7 +20,7 @@ pub struct HtmlLoader {
     pub encoding: TextEncoding,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Text> for HtmlLoader {
     type Handler = HtmlHandler;
 

@@ -3,9 +3,8 @@
 //! Preserves the raw bytes for round-trip encoding and exposes no
 //! text chunks until per-paragraph extraction lands.
 
-use std::sync::Arc;
+use std::ops::Range;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
@@ -13,27 +12,25 @@ use nvisy_core::redaction::Redactions;
 
 use super::DocxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::handler::text::lift_identity;
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "docx-handler";
+const TARGET: &str = "nvisy_codec::handler::rich::docx";
 
 /// Stable [`FormatId`] for the DOCX codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.rich.docx");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["docx".into()],
-        content_types: vec![
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document".into(),
-        ],
-        loader: Arc::new(LoaderAdapter::new(DocxLoader)),
-    }
+    Format::new::<Text, _>(FORMAT_ID.clone(), DocxLoader)
+        .with_extensions(["docx"])
+        .with_content_types([
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ])
 }
 
+/// Handler for loaded DOCX content. Owns the raw document bytes;
+/// chunking and read/redact operate on the parsed paragraph stream.
 #[derive(Debug)]
 pub struct DocxHandler {
     source: ContentSource,
@@ -41,6 +38,8 @@ pub struct DocxHandler {
 }
 
 impl DocxHandler {
+    /// Build a handler from raw DOCX bytes; the parsed-paragraph
+    /// stream is reconstructed lazily inside the `Handler<Text>` impl.
     pub fn new(raw: impl Into<Bytes>) -> Self {
         Self {
             source: ContentSource::new(),
@@ -48,23 +47,26 @@ impl DocxHandler {
         }
     }
 
+    /// Attach a content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
         self
     }
 
+    /// Borrow the raw DOCX bytes.
     pub fn raw(&self) -> &[u8] {
         &self.raw
     }
 }
 
-impl Handler for DocxHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for DocxHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "docx.encode", skip_all, fields(output_bytes))]
@@ -73,17 +75,15 @@ impl Handler for DocxHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, self.raw.clone()))
     }
-}
 
-#[async_trait]
-impl Handle<Text> for DocxHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         Ok(None)
     }
-}
 
-#[async_trait]
-impl IndexedHandle<Text> for DocxHandler {
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        lift_identity(chunk, value_range)
+    }
+
     async fn read(&self, _location: &TextLocation) -> Result<Option<TextData>, Error> {
         Ok(None)
     }

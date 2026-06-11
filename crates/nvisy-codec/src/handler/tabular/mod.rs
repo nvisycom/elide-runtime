@@ -1,17 +1,16 @@
-//! Tabular modality: `impl Codable for Tabular`, the [`TabularHandle`]
-//! extension trait, plus concrete tabular format implementations
-//! (CSV, XLSX).
+//! Tabular modality: the [`TabularHandle`] extension trait plus
+//! concrete tabular format implementations (CSV, XLSX).
 //!
 //! Tabular handlers address content by cell coordinate
 //! ([`Tabular`] = row + column, optionally with intra-cell byte
 //! offsets) and return [`TextData`] from `read` — the cell's string
 //! value — so [`Modality::Data`] aliases [`TextData`] for the
 //! [`Tabular`] modality. Replacements written during
-//! [`IndexedHandle::redact`] use [`TabularReplacement`]; cells are
+//! [`Handler::redact`] use [`TabularReplacement`]; cells are
 //! strings, so the per-format handlers share the text crate's redact
 //! helper.
 //!
-//! [`IndexedHandle::redact`]: crate::core::IndexedHandle::redact
+//! [`Handler::redact`]: crate::Handler::redact
 //! [`Tabular`]: nvisy_core::modality::Tabular
 //! [`TabularReplacement`]: nvisy_core::redaction::TabularReplacement
 //! [`TextData`]: nvisy_core::modality::TextData
@@ -19,11 +18,7 @@
 
 use nvisy_core::modality::Tabular;
 
-use crate::core::{Codable, Handle, ModalityKind};
-
-impl Codable for Tabular {
-    const KIND: ModalityKind = ModalityKind::Tabular;
-}
+use crate::Handler;
 
 /// Extension trait implemented by every tabular handler exposing the
 /// "do I have a header row?" signal.
@@ -36,7 +31,7 @@ impl Codable for Tabular {
 ///
 /// [`TabularExtraction::SchemaTyped`]: nvisy_core::modality::TabularExtraction::SchemaTyped
 /// [`TabularExtraction::SchemaInferred`]: nvisy_core::modality::TabularExtraction::SchemaInferred
-pub trait TabularHandle: Handle<Tabular> {
+pub trait TabularHandle: Handler<Tabular> {
     /// `true` when the source format carries explicit column headers
     /// or typed schema (CSV with header row, Parquet, XLSX); `false`
     /// when column semantics have to be inferred from the data.

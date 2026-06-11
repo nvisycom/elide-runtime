@@ -4,13 +4,12 @@
 //!
 //! [`lopdf`]: https://docs.rs/lopdf
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
 use super::PdfHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader for PDF files. Produces one [`PdfHandler`] per input.
 #[derive(Debug, Default)]
@@ -19,7 +18,7 @@ pub struct PdfLoader {
     pub password: Option<String>,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Text> for PdfLoader {
     type Handler = PdfHandler;
 
@@ -39,8 +38,8 @@ mod tests {
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
 
     use super::*;
+    use crate::Handler;
     use crate::content::ContentSource;
-    use crate::core::{Handle, Handler};
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))

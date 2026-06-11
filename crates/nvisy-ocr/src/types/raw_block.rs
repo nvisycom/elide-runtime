@@ -35,11 +35,26 @@ pub struct RawOcrBlock {
 #[non_exhaustive]
 pub enum OcrBlockKind {
     /// A region of recognized text.
-    Text { region: ImageLocation, text: String },
+    Text {
+        /// Bounding box of the recognized region in image coordinates.
+        region: ImageLocation,
+        /// Recognized text content.
+        text: String,
+    },
     /// A heading.
-    Heading { region: ImageLocation, text: String },
+    Heading {
+        /// Bounding box of the recognized region in image coordinates.
+        region: ImageLocation,
+        /// Recognized text content.
+        text: String,
+    },
     /// A tabular region recognized in the image.
-    Table { region: ImageLocation, text: String },
+    Table {
+        /// Bounding box of the recognized region in image coordinates.
+        region: ImageLocation,
+        /// Recognized text content (cells flattened in reading order).
+        text: String,
+    },
 }
 
 /// Per-word span emitted by an OCR backend.

@@ -1,18 +1,17 @@
 //! XLSX loader (stub: awaiting full spreadsheet support).
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Tabular;
 
 use super::XlsxHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader for XLSX spreadsheets. Produces a single (stub) [`XlsxHandler`].
 #[derive(Debug, Default)]
 pub struct XlsxLoader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Tabular> for XlsxLoader {
     type Handler = XlsxHandler;
 

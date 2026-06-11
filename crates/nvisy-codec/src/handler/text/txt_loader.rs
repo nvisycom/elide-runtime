@@ -1,13 +1,12 @@
 //! Plain-text loader: validates and parses raw text content into a
 //! [`TxtHandler`].
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
 use super::TxtHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::Loader;
 
 /// Loader that validates and parses plain-text files. Produces one
 /// [`TxtHandler`] per input.
@@ -17,7 +16,7 @@ pub struct TxtLoader {
     pub encoding: TextEncoding,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Text> for TxtLoader {
     type Handler = TxtHandler;
 
@@ -42,8 +41,8 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
+    use crate::Handler;
     use crate::content::ContentSource;
-    use crate::core::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

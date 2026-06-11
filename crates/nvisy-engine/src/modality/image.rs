@@ -24,19 +24,46 @@ use super::ModalityBlock;
 #[non_exhaustive]
 pub enum ImageBlock {
     /// A region of recognized text (paragraph, line, OCR text block).
-    Text { region: ImageLocation, text: String },
+    Text {
+        /// Bounding region in image coordinates.
+        region: ImageLocation,
+        /// Recognized text content.
+        text: String,
+    },
     /// A heading.
-    Heading { region: ImageLocation, text: String },
+    Heading {
+        /// Bounding region in image coordinates.
+        region: ImageLocation,
+        /// Recognized text content.
+        text: String,
+    },
     /// A tabular region recognized in the image.
-    Table { region: ImageLocation, text: String },
+    Table {
+        /// Bounding region in image coordinates.
+        region: ImageLocation,
+        /// Recognized text content (cells flattened in reading order).
+        text: String,
+    },
     /// A figure, illustration or photograph.
-    Figure { region: ImageLocation },
+    Figure {
+        /// Bounding region in image coordinates.
+        region: ImageLocation,
+    },
     /// A separator (rule, line, divider).
-    Separator { region: ImageLocation },
+    Separator {
+        /// Bounding region in image coordinates.
+        region: ImageLocation,
+    },
     /// A background element (watermark, fill, decoration).
-    Background { region: ImageLocation },
+    Background {
+        /// Bounding region in image coordinates.
+        region: ImageLocation,
+    },
     /// A logo or brand mark.
-    Logo { region: ImageLocation },
+    Logo {
+        /// Bounding region in image coordinates.
+        region: ImageLocation,
+    },
 }
 
 impl ImageBlock {

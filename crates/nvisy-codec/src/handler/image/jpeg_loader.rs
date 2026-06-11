@@ -1,19 +1,18 @@
 //! JPEG loader: validates and decodes raw JPEG bytes into a
 //! [`JpegHandler`].
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Image;
 
 use super::JpegHandler;
+use crate::Loader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::Loader;
 
 /// Loader for JPEG files. Produces one [`JpegHandler`] per input.
 #[derive(Debug, Default)]
 pub struct JpegLoader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader<Image> for JpegLoader {
     type Handler = JpegHandler;
 

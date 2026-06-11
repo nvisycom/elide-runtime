@@ -18,9 +18,9 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::core::{DocumentTree, RunContext};
+use crate::document::provenance::EntityRecord;
 use crate::modality::DocumentModality;
 use crate::pipeline::{DeduplicationParams, Plan};
-use crate::provenance::EntityRecord;
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
@@ -30,6 +30,8 @@ const TARGET: &str = "nvisy_engine::deduplication";
 pub struct DeduplicationPhase;
 
 impl DeduplicationPhase {
+    /// Build a fresh dedup phase. The phase is stateless; instances
+    /// are interchangeable.
     pub fn new() -> Self {
         Self
     }

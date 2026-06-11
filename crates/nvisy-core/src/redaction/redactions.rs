@@ -77,6 +77,24 @@ impl<M: Modality> Redactions<M> {
     }
 }
 
+impl<M: Modality> Redactions<M>
+where
+    M::Location: Ord,
+{
+    /// Sort the batch right-to-left by location (descending). Used by
+    /// [`RedactAt::redact_at`] implementations whose write step
+    /// shrinks or shifts the underlying buffer so an earlier shrink
+    /// doesn't invalidate later coordinates.
+    ///
+    /// Only implemented when `M::Location: Ord` — image redaction
+    /// writes pixels in place and doesn't need this method.
+    ///
+    /// [`RedactAt::redact_at`]: super::RedactAt::redact_at
+    pub fn sort_descending(&mut self) {
+        self.items.sort_by(|(a, _), (b, _)| b.cmp(a));
+    }
+}
+
 impl<M: Modality> Default for Redactions<M> {
     fn default() -> Self {
         Self::new()

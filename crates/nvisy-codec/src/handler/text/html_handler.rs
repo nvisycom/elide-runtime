@@ -1,6 +1,6 @@
 //! HTML handler: holds parsed HTML content and streams its text
-//! nodes via [`Handle<Text>`], with random-access reads / redactions
-//! via [`IndexedHandle<Text>`].
+//! nodes via [`Handler<Text>`], with random-access reads / redactions
+//! via [`Handler<Text>`].
 //!
 //! Offsets are cumulative over the **text-node sequence** in document
 //! order, not raw HTML bytes. [`Handler::encode`] reconstructs the
@@ -9,32 +9,26 @@
 //!
 //! [`Html::html`]: scraper::Html::html
 
-use std::sync::Arc;
+use std::ops::Range;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::{Redactions, TextReplacement};
 
-use super::{HtmlLoader, redact};
+use super::{HtmlLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "html-handler";
+const TARGET: &str = "nvisy_codec::handler::text::html";
 
 /// Stable [`FormatId`] for the HTML codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.html");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["html".into(), "htm".into()],
-        content_types: vec!["text/html".into()],
-        loader: Arc::new(LoaderAdapter::new(HtmlLoader::default())),
-    }
+    Format::new::<Text, _>(FORMAT_ID.clone(), HtmlLoader::default())
+        .with_extensions(["html", "htm"])
+        .with_content_types(["text/html"])
 }
 
 /// Parsed HTML content: extracted text nodes alongside the raw source
@@ -62,13 +56,14 @@ pub struct HtmlHandler {
     cursor: usize,
 }
 
-impl Handler for HtmlHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for HtmlHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
@@ -97,10 +92,7 @@ impl Handler for HtmlHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, bytes.into()))
     }
-}
 
-#[async_trait]
-impl Handle<Text> for HtmlHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.data.text_nodes.len() {
             return Ok(None);
@@ -117,13 +109,13 @@ impl Handle<Text> for HtmlHandler {
                 ..Default::default()
             },
             data: TextData::from(text.as_str()),
-            embed: None,
         }))
     }
-}
 
-#[async_trait]
-impl IndexedHandle<Text> for HtmlHandler {
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        lift_identity(chunk, value_range)
+    }
+
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
         let Some(i) = self.node_for(location.start) else {
             return Ok(None);
@@ -140,10 +132,9 @@ impl IndexedHandle<Text> for HtmlHandler {
             .map(TextData::from))
     }
 
-    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
-        let mut items = redactions.into_items();
-        items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
-        for (location, replacement) in items {
+    async fn redact(&mut self, mut redactions: Redactions<Text>) -> Result<(), Error> {
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
             self.redact_one(&location, replacement)?;
         }
         Ok(())

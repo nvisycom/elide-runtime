@@ -5,7 +5,6 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use fjall::{Database, Keyspace};
 use nvisy_codec::content::{
     Content, ContentDescriptor, ContentDigest, ContentRecord, ContentSource,
@@ -22,8 +21,8 @@ use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
 use super::paged::PagedResult;
 use super::resource_cache::ResourceCache;
 use crate::document::AnyAnnotations;
+use crate::document::provenance::AnyAudit;
 use crate::policy::Policy;
-use crate::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_engine::ingestion::registry";
 
@@ -404,6 +403,8 @@ impl Registry {
         .await
     }
 
+    /// Persist a policy under the actor's namespace and return its id.
+    /// Overwrites any existing policy with the same id.
     #[tracing::instrument(target = TARGET, name = "registry.register_policy", skip(self, policy), fields(%actor_id))]
     pub async fn register_policy(&self, actor_id: Uuid, policy: Policy<Text>) -> Result<Uuid> {
         let id = policy.id;
@@ -414,12 +415,14 @@ impl Registry {
         Ok(id)
     }
 
+    /// Load a single policy by id from the actor's namespace.
     #[tracing::instrument(target = TARGET, name = "registry.read_policy", skip(self), fields(%actor_id, %policy_id))]
     pub async fn read_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<Policy<Text>> {
         let key = CompositeKey::new(actor_id, policy_id);
         self.load_json(&self.inner.policies_ks, key, "policy").await
     }
 
+    /// Remove a single policy from the actor's namespace.
     #[tracing::instrument(target = TARGET, name = "registry.unregister_policy", skip(self), fields(%actor_id, %policy_id))]
     pub async fn unregister_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<()> {
         let key = CompositeKey::new(actor_id, policy_id);
@@ -427,12 +430,15 @@ impl Registry {
             .await
     }
 
+    /// Remove every policy in the actor's namespace; returns the
+    /// number of policies deleted.
     #[tracing::instrument(target = TARGET, name = "registry.unregister_all_policies", skip(self), fields(%actor_id))]
     pub async fn unregister_all_policies(&self, actor_id: Uuid) -> Result<usize> {
         self.remove_all_entries(&self.inner.policies_ks, actor_id)
             .await
     }
 
+    /// List ids of every policy stored under the actor's namespace.
     #[tracing::instrument(target = TARGET, name = "registry.list_policies", skip(self), fields(%actor_id))]
     pub async fn list_policies(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
         self.list_resource_ids(&self.inner.policies_ks, actor_id)
@@ -590,7 +596,7 @@ impl Registry {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Healthcheck for Registry {
     fn name(&self) -> Cow<'static, str> {
         Cow::Borrowed("registry")

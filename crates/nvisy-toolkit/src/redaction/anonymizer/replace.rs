@@ -10,12 +10,11 @@
 //!
 //! The default template is `[{entity_kind}]`.
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
-use nvisy_core::modality::{Text, TextData};
+use nvisy_core::modality::{Tabular, Text, TextData};
 
-use crate::redaction::{Anonymizer, LeakProfile, TextReplacement};
+use crate::redaction::{Anonymizer, LeakProfile, TabularReplacement, TextReplacement};
 
 /// Substitute the matched span with a template string.
 #[derive(Debug, Clone)]
@@ -41,7 +40,7 @@ impl Default for Replace {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Anonymizer<Text> for Replace {
     fn leak_profile(&self) -> LeakProfile {
         // Position and length of the rewritten span are still
@@ -55,6 +54,24 @@ impl Anonymizer<Text> for Replace {
         let kind = entity.entity_kind.to_string();
         let rendered = render(&self.template, &kind, value);
         Ok(TextReplacement::substituted(rendered))
+    }
+}
+
+#[async_trait::async_trait]
+impl Anonymizer<Tabular> for Replace {
+    fn leak_profile(&self) -> LeakProfile {
+        LeakProfile::Partial
+    }
+
+    async fn apply(
+        &self,
+        entity: &Entity<Tabular>,
+        source: &TextData,
+    ) -> Result<TabularReplacement> {
+        let value = source.text.as_str();
+        let kind = entity.entity_kind.to_string();
+        let rendered = render(&self.template, &kind, value);
+        Ok(TabularReplacement::substituted(rendered))
     }
 }
 

@@ -23,21 +23,22 @@
 //! `Document` is an in-memory pipeline carrier — it is intentionally
 //! not `Serialize`/`Deserialize` and has no `Default`.
 //!
-//! [`Audit<M>`]: crate::provenance::Audit
-//! [`AnyAudit`]: crate::provenance::AnyAudit
+//! [`Audit<M>`]: self::provenance::Audit
+//! [`AnyAudit`]: self::provenance::AnyAudit
 //! [`TextBlock::Embed`]: crate::modality::TextBlock::Embed
 
 mod annotations;
 mod block;
+pub mod provenance;
 mod span;
 
 use nvisy_core::entity::{Annotation, ContentSource, Entity, LabelAnnotation};
 
 pub use self::annotations::AnyAnnotations;
 pub use self::block::Block;
+use self::provenance::Audit;
 pub use self::span::Span;
 use crate::modality::DocumentModality;
-use crate::provenance::Audit;
 
 /// Unified addressable view of a parsed document for modality `M`.
 ///
@@ -49,7 +50,7 @@ use crate::provenance::Audit;
 /// `Document<Tabular>`) keeps every nested doc's audit attached to
 /// the doc it describes — the per-source audit is the tree of these.
 ///
-/// [`Audit<M>`]: crate::provenance::Audit
+/// [`Audit<M>`]: self::provenance::Audit
 #[derive(Debug, Clone)]
 pub struct Document<M: DocumentModality> {
     /// Per-modality document-level metadata.
@@ -97,7 +98,7 @@ impl<M: DocumentModality> Document<M> {
     /// each into a fresh [`EntityRecord`]. Used by detection phases
     /// at both the root and nested-document level.
     ///
-    /// [`EntityRecord`]: crate::provenance::EntityRecord
+    /// [`EntityRecord`]: self::provenance::EntityRecord
     pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
         for entity in entities {
             self.audit.push_entity(entity);

@@ -22,7 +22,7 @@ mod instantiate;
 mod tabular;
 mod text;
 
-pub use nvisy_toolkit::redaction::builtin::HashAlgorithm;
+pub use nvisy_toolkit::redaction::anonymizer::HashAlgorithm;
 
 pub use self::any::AnyRedaction;
 pub use self::audio::AudioRedaction;

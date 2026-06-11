@@ -12,10 +12,9 @@
 //!   [`ContentDescriptor`] — the upload-shape carrier.
 //! - [`ContentSource`]: UUIDv7-based content identity and lineage.
 //!
-//! Top-level format classification lives on [`FormatId`] in
-//! [`crate::core`].
+//! Top-level format classification lives on [`FormatId`].
 //!
-//! [`FormatId`]: crate::core::FormatId
+//! [`FormatId`]: crate::FormatId
 
 mod bundle;
 mod content_data;

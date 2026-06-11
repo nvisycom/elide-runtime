@@ -15,7 +15,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use async_trait::async_trait;
 use nvisy_core::entity::{Entity, TrailStep};
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
@@ -108,7 +107,7 @@ impl CalibrateLayer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M: Modality, R: TextAt<M> + ?Sized> Layer<M, R> for CalibrateLayer {
     async fn apply(
         &self,

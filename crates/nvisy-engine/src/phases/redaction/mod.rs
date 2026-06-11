@@ -45,10 +45,12 @@ use nvisy_toolkit::redaction::RedactionRegistry;
 
 pub use self::registries::RedactionRegistries;
 use crate::core::{Decision, DocumentTree, PolicyStore};
+use crate::document::provenance::{
+    AuditEntry, Decision as AuditDecision, EntryMetadata, Execution,
+};
 use crate::modality::DocumentModality;
 use crate::policy::Action;
 use crate::policy::redaction::Instantiate;
-use crate::provenance::{AuditEntry, Decision as AuditDecision, EntryMetadata, Execution};
 
 pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 

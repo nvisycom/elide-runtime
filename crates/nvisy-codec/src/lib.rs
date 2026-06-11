@@ -16,14 +16,12 @@ compile_error!(
 );
 
 pub mod content;
-pub mod core;
-pub mod document;
+mod core;
+mod document;
 pub mod handler;
 
-pub use self::core::{
-    CodecRegistry, ErasedLoader, Format, FormatId, Handler, Loader, LoaderAdapter, WrapUntyped,
-};
-pub use self::document::{DecodedBuffer, DocumentHandle, UntypedDocumentHandle};
+pub use self::core::{Chunk, CodecRegistry, Format, FormatId, Handler, Loader};
+pub use self::document::{DocumentHandle, UntypedDocumentHandle};
 
 #[cfg(test)]
 mod tests {
@@ -38,7 +36,7 @@ mod tests {
             .await
             .expect("txt decoded");
         let typed = handle.into_text().expect("text variant");
-        assert_eq!(typed.format().as_str(), "nvisy.text.txt");
+        assert_eq!(typed.format_id().as_str(), "nvisy.text.txt");
     }
 
     #[cfg(feature = "csv")]
@@ -50,7 +48,7 @@ mod tests {
             .await
             .expect("csv decoded");
         let typed = handle.into_tabular().expect("tabular variant");
-        assert_eq!(typed.format().as_str(), "nvisy.tabular.csv");
+        assert_eq!(typed.format_id().as_str(), "nvisy.tabular.csv");
     }
 
     #[cfg(all(feature = "txt", feature = "csv"))]

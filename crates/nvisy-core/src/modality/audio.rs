@@ -23,6 +23,9 @@ impl Modality for Audio {
     type Extraction = AudioExtraction;
     type Location = AudioLocation;
     type Replacement = AudioReplacement;
+
+    const KIND: super::ModalityKind = super::ModalityKind::Audio;
+    const NAME: &'static str = "audio";
 }
 
 /// A time interval within audio content.
@@ -49,6 +52,23 @@ impl AudioLocation {
             speaker_id: None,
             audio_id: None,
         }
+    }
+}
+
+impl Eq for AudioLocation {}
+
+impl Ord for AudioLocation {
+    /// Lex order over `(time_span.start_us, time_span.end_us)`.
+    /// `speaker_id` and `audio_id` are ignored.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.time_span.start_us, self.time_span.end_us)
+            .cmp(&(other.time_span.start_us, other.time_span.end_us))
+    }
+}
+
+impl PartialOrd for AudioLocation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 

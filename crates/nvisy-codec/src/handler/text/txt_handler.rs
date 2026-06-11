@@ -1,37 +1,31 @@
 //! Plain-text handler: holds loaded text content and streams it
-//! line-by-line via [`Handle<Text>`], with random-access reads /
-//! redactions via [`IndexedHandle<Text>`].
+//! line-by-line via [`Handler<Text>`], with random-access reads /
+//! redactions via [`Handler<Text>`].
 //!
 //! The handler stores the text as a vector of lines together with a
 //! trailing-newline flag so the original file can be reconstructed
 //! byte-for-byte after edits.
 
-use std::sync::Arc;
+use std::ops::Range;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::{Redactions, TextReplacement};
 
-use super::{TxtLoader, redact};
+use super::{TxtLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "txt-handler";
+const TARGET: &str = "nvisy_codec::handler::text::txt";
 
 /// Stable [`FormatId`] for the plain-text codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.txt");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["txt".into(), "log".into()],
-        content_types: vec!["text/plain".into()],
-        loader: Arc::new(LoaderAdapter::new(TxtLoader::default())),
-    }
+    Format::new::<Text, _>(FORMAT_ID.clone(), TxtLoader::default())
+        .with_extensions(["txt", "log"])
+        .with_content_types(["text/plain"])
 }
 
 /// Handler for loaded plain-text content. Each line is independently
@@ -40,8 +34,8 @@ pub fn format() -> Format {
 /// `line_starts` is a cumulative-offset index maintained alongside
 /// `lines`: `line_starts[i]` is the byte position of line `i` in the
 /// serialized output, and `line_starts[lines.len()]` is the total
-/// length sentinel. Random-access [`IndexedHandle::read`] and
-/// [`IndexedHandle::redact`] resolve a byte offset to a line in
+/// length sentinel. Random-access [`Handler::read`] and
+/// [`Handler::redact`] resolve a byte offset to a line in
 /// `O(log N)` instead of rebuilding the table on every call.
 #[derive(Debug)]
 pub struct TxtHandler {
@@ -52,13 +46,14 @@ pub struct TxtHandler {
     cursor: usize,
 }
 
-impl Handler for TxtHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for TxtHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "txt.encode", skip_all, fields(output_bytes))]
@@ -72,10 +67,7 @@ impl Handler for TxtHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, bytes.into()))
     }
-}
 
-#[async_trait]
-impl Handle<Text> for TxtHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.lines.len() {
             return Ok(None);
@@ -92,13 +84,13 @@ impl Handle<Text> for TxtHandler {
                 ..Default::default()
             },
             data: TextData::from(line.as_str()),
-            embed: None,
         }))
     }
-}
 
-#[async_trait]
-impl IndexedHandle<Text> for TxtHandler {
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        lift_identity(chunk, value_range)
+    }
+
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
         let Some(i) = self.line_for(location.start) else {
             return Ok(None);
@@ -115,12 +107,11 @@ impl IndexedHandle<Text> for TxtHandler {
             .map(TextData::from))
     }
 
-    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
+    async fn redact(&mut self, mut redactions: Redactions<Text>) -> Result<(), Error> {
         // Apply right-to-left so each edit's length delta doesn't
         // invalidate earlier locations.
-        let mut items = redactions.into_items();
-        items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
-        for (location, replacement) in items {
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
             self.redact_one(&location, replacement)?;
         }
         Ok(())
@@ -243,6 +234,19 @@ mod tests {
         let trailing_newline = text.ends_with('\n');
         let lines = text.lines().map(String::from).collect();
         TxtHandler::new(lines, trailing_newline)
+    }
+
+    #[tokio::test]
+    async fn lift_chunk_is_identity_on_second_line() -> Result<(), Error> {
+        // line "world" starts at byte 6. A value-byte range 1..4
+        // ("orl") lifts to source bytes 7..10.
+        let mut h = handler("hello\nworld\n");
+        let _first = h.next_chunk().await?.unwrap();
+        let second = h.next_chunk().await?.unwrap();
+        let lifted = h.lift_chunk(&second, 1..4).expect("in bounds");
+        assert_eq!(lifted.start, 7);
+        assert_eq!(lifted.end, 10);
+        Ok(())
     }
 
     #[tokio::test]
@@ -411,6 +415,31 @@ mod tests {
         // line 0 shrank from 5 → 3, so line 1's start shifted by -2.
         assert_eq!(h.line_starts, vec![0, 4, 10]);
         assert_eq!(h.lines(), &["[X]", "world"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_mixes_substituted_and_removed() -> Result<(), Error> {
+        let mut h = handler("alice@example.test and bob@example.test");
+        let mut rs = Redactions::new();
+        rs.push(
+            TextLocation {
+                start: 0,
+                end: 18,
+                ..Default::default()
+            },
+            TextReplacement::substituted("[EMAIL]"),
+        );
+        rs.push(
+            TextLocation {
+                start: 23,
+                end: 39,
+                ..Default::default()
+            },
+            TextReplacement::Removed,
+        );
+        h.redact(rs).await?;
+        assert_eq!(h.lines(), &["[EMAIL] and "]);
         Ok(())
     }
 }

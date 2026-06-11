@@ -6,40 +6,32 @@
 //! is carried by [`FORMAT_ID`] on the [`Format`] descriptor so
 //! downstream code can apply Markdown-aware processing when needed.
 
-use std::sync::Arc;
-
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::Text;
 
 use super::TxtHandler;
 use crate::content::{ContentData, ContentSource, TextEncoding};
-use crate::core::{Loader, ModalityKind};
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Format, FormatId, Loader};
 
 /// Stable [`FormatId`] for the Markdown codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.markdown");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["md".into(), "markdown".into()],
-        content_types: vec!["text/markdown".into()],
-        loader: Arc::new(LoaderAdapter::new(MarkdownLoader::default())),
-    }
+    Format::new::<Text, _>(FORMAT_ID.clone(), MdLoader::default())
+        .with_extensions(["md", "markdown"])
+        .with_content_types(["text/markdown"])
 }
 
 /// Loader for Markdown files. Produces a [`TxtHandler`] per input.
 #[derive(Debug, Default)]
-pub struct MarkdownLoader {
+pub struct MdLoader {
     /// Character encoding of the input bytes. Defaults to UTF-8.
     pub encoding: TextEncoding,
 }
 
-#[async_trait]
-impl Loader<Text> for MarkdownLoader {
+#[async_trait::async_trait]
+impl Loader<Text> for MdLoader {
     type Handler = TxtHandler;
 
     #[tracing::instrument(name = "markdown.decode", skip_all, fields(input_bytes, lines))]

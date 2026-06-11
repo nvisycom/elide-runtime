@@ -56,6 +56,8 @@ pub enum AnnotationStrength {
     /// detected entities if the LLM honours the hint. `None`
     /// defaults to `1.0` when materialised.
     Hint {
+        /// Confidence to forward to the detector when the hint is
+        /// honoured. `None` defaults to `1.0` at materialisation time.
         #[serde(skip_serializing_if = "Option::is_none")]
         confidence: Option<Confidence>,
     },

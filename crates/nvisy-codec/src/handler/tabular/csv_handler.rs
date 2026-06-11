@@ -1,6 +1,6 @@
 //! CSV handler: holds parsed CSV content and streams cell coordinates
-//! via [`Handle<Tabular>`], with random-access reads / redactions via
-//! [`IndexedHandle<Tabular>`].
+//! via [`Handler<Tabular>`], with random-access reads / redactions via
+//! [`Handler<Tabular>`].
 //!
 //! Cell coordinates are `(row, col)`. Row 0 is the header row (if
 //! present); row 1 is the first data row when headers exist, else row
@@ -8,34 +8,28 @@
 //! [`TabularLocation`] address sub-strings within a cell value;
 //! omitting them redacts the whole cell.
 
-use std::sync::Arc;
+use std::ops::Range;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::{Tabular, TabularLocation, TextData};
 use nvisy_core::redaction::{Redactions, TabularReplacement};
 
 use super::CsvLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::handler::tabular::TabularHandle;
 use crate::handler::text::redact;
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const TARGET: &str = "csv-handler";
+const TARGET: &str = "nvisy_codec::handler::tabular::csv";
 
 /// Stable [`FormatId`] for the CSV codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.tabular.csv");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Tabular,
-        extensions: vec!["csv".into()],
-        content_types: vec!["text/csv".into()],
-        loader: Arc::new(LoaderAdapter::new(CsvLoader::default())),
-    }
+    Format::new::<Tabular, _>(FORMAT_ID.clone(), CsvLoader::default())
+        .with_extensions(["csv"])
+        .with_content_types(["text/csv"])
 }
 
 /// Parsed CSV content.
@@ -68,13 +62,14 @@ struct CsvCursor {
     col: u32,
 }
 
-impl Handler for CsvHandler {
+#[async_trait::async_trait]
+impl Handler<Tabular> for CsvHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "csv.encode", skip_all, fields(output_bytes))]
@@ -84,10 +79,7 @@ impl Handler for CsvHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, bytes.into()))
     }
-}
 
-#[async_trait]
-impl Handle<Tabular> for CsvHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Tabular>>, Error> {
         let total_rows = if self.data.headers.is_some() {
             self.data.rows.len() as u32 + 1
@@ -123,35 +115,40 @@ impl Handle<Tabular> for CsvHandler {
         let data = TextData::from(cell.to_owned());
 
         self.cursor.col += 1;
-        Ok(Some(Chunk {
-            location,
-            data,
-            embed: None,
-        }))
+        Ok(Some(Chunk { location, data }))
     }
-}
 
-#[async_trait]
-impl IndexedHandle<Tabular> for CsvHandler {
+    fn lift_chunk(
+        &self,
+        chunk: &Chunk<Tabular>,
+        value_range: Range<usize>,
+    ) -> Option<TabularLocation> {
+        let cell = self.cell_at(chunk.location.row_index, chunk.location.column_index)?;
+        if value_range.start > value_range.end || value_range.end > cell.len() {
+            return None;
+        }
+        Some(TabularLocation {
+            row_index: chunk.location.row_index,
+            column_index: chunk.location.column_index,
+            start_offset: Some(value_range.start),
+            end_offset: Some(value_range.end),
+            column_name: chunk.location.column_name.clone(),
+            sheet_name: chunk.location.sheet_name.clone(),
+        })
+    }
+
     async fn read(&self, location: &TabularLocation) -> Result<Option<TextData>, Error> {
         Ok(self
             .cell_at(location.row_index, location.column_index)
             .map(|s| TextData::from(s.to_owned())))
     }
 
-    async fn redact(&mut self, redactions: Redactions<Tabular>) -> Result<(), Error> {
+    async fn redact(&mut self, mut redactions: Redactions<Tabular>) -> Result<(), Error> {
         // Multiple redactions can target intra-cell byte ranges within
         // the same cell; apply right-to-left over byte offsets so an
         // earlier shrink doesn't invalidate later offsets.
-        let mut items = redactions.into_items();
-        items.sort_by(|(a, _), (b, _)| {
-            (b.row_index, b.column_index, b.start_offset.unwrap_or(0)).cmp(&(
-                a.row_index,
-                a.column_index,
-                a.start_offset.unwrap_or(0),
-            ))
-        });
-        for (location, replacement) in items {
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
             self.redact_one(&location, replacement)?;
         }
         Ok(())
@@ -197,7 +194,7 @@ impl CsvHandler {
 
     /// A specific cell by `(data_row, col)`. `data_row` is 0-based
     /// against the data rows; the header is *not* data row 0. Use
-    /// [`IndexedHandle::read`] with [`TabularLocation`] if you need
+    /// [`Handler::read`] with [`TabularLocation`] if you need
     /// to address the header.
     pub fn cell(&self, data_row: usize, col: usize) -> Option<&str> {
         self.data
@@ -402,6 +399,66 @@ mod tests {
         let h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
         assert!(h.read(&TabularLocation::new(99, 0)).await?.is_none());
         assert!(h.read(&TabularLocation::new(0, 99)).await?.is_none());
+        Ok(())
+    }
+
+    /// Lifting a recognizer-emitted intra-cell range turns into a
+    /// TabularLocation whose row/col match the chunk and whose
+    /// start_offset/end_offset point at the substring. Round-trips
+    /// through `read` (whole-cell) and a partial-cell redact.
+    #[tokio::test]
+    async fn lift_chunk_addresses_intra_cell_range() -> Result<(), Error> {
+        // Data row 1 col 1 is the email cell.
+        let mut h = handler_with_headers(
+            vec!["name", "email"],
+            vec![vec!["Alice", "alice@example.com"]],
+        );
+        // Advance the cursor to the email cell.
+        let chunk = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == "alice@example.com" {
+                break c;
+            }
+        };
+        // Recognizer says `alice` starts at byte 0 within the cell.
+        let lifted = h
+            .lift_chunk(&chunk, 0.."alice".len())
+            .expect("range in bounds");
+        assert_eq!(lifted.row_index, 1);
+        assert_eq!(lifted.column_index, 1);
+        assert_eq!(lifted.column_name.as_deref(), Some("email"));
+        assert_eq!(lifted.start_offset, Some(0));
+        assert_eq!(lifted.end_offset, Some(5));
+
+        // Out of bounds returns None.
+        assert!(h.lift_chunk(&chunk, 0..9999).is_none());
+        assert!(h.lift_chunk(&chunk, 99..100).is_none());
+        Ok(())
+    }
+
+    /// Pipeline: lift a recognizer-emitted intra-cell range, push it
+    /// through `redact`, and confirm only the matched substring
+    /// changes (not the whole cell).
+    #[tokio::test]
+    async fn lift_chunk_into_partial_cell_redact() -> Result<(), Error> {
+        let mut h = handler_with_headers(vec!["email"], vec![vec!["alice@example.com"]]);
+        let chunk = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == "alice@example.com" {
+                break c;
+            }
+        };
+        let lifted = h
+            .lift_chunk(&chunk, 0.."alice".len())
+            .expect("range in bounds");
+        let mut rs = Redactions::new();
+        rs.push(lifted, TabularReplacement::substituted("[USER]"));
+        h.redact(rs).await?;
+        let encoded = h.encode()?.as_str().unwrap().to_owned();
+        assert!(
+            encoded.contains("[USER]@example.com"),
+            "partial cell redaction lost: {encoded}",
+        );
         Ok(())
     }
 

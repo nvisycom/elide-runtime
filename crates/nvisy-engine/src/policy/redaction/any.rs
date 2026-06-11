@@ -15,7 +15,7 @@
 //! [`RedactionOverride::Replace`]: crate::pipeline::redaction::RedactionOverride::Replace
 //! [`RedactionAddEntity`]: crate::pipeline::redaction::RedactionAddEntity
 
-use nvisy_codec::core::ModalityKind;
+use nvisy_core::modality::ModalityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::EnumTryAs;
@@ -35,9 +35,13 @@ use super::text::TextRedaction;
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum AnyRedaction {
+    /// Text-modality redaction operator.
     Text(TextRedaction),
+    /// Tabular-modality redaction operator.
     Tabular(TabularRedaction),
+    /// Image-modality redaction operator.
     Image(ImageRedaction),
+    /// Audio-modality redaction operator.
     Audio(AudioRedaction),
 }
 

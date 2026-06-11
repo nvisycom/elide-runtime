@@ -90,10 +90,16 @@ pub enum Execution<M: DocumentModality> {
     /// Applicator ran successfully. `replacement` records *what the
     /// operator wrote* at the entity's location, in the modality's
     /// per-`M::Replacement` shape.
-    Applied { replacement: M::Replacement },
+    Applied {
+        /// What the operator wrote at the entity's location.
+        replacement: M::Replacement,
+    },
     /// Operator dispatch or codec apply errored. The decision stays
     /// on the entry; this variant records why no bytes were written.
-    Failed { reason: String },
+    Failed {
+        /// Human-readable failure description from the operator or codec.
+        reason: String,
+    },
     /// A `Suppress` rule fired: the entity was deliberately not
     /// redacted. The decision is recorded for completeness but no
     /// codec work was scheduled.

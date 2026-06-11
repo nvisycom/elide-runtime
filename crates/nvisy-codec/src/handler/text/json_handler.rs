@@ -1,237 +1,230 @@
-//! JSON handler: holds parsed JSON content and streams its string
-//! leaves + object keys via [`Handle<Text>`], with random-access
-//! reads / redactions via [`IndexedHandle<Text>`].
+//! JSON handler: a flat ordered sequence of source slots.
 //!
-//! The handler stores the parsed [`Value`] tree together with the
-//! original indentation style and trailing-newline flag, so the source
-//! file can be reconstructed with identical whitespace after edits.
+//! The loader lexes the source once into [`Slot`]s — either
+//! [`Slot::Passthrough`] (whitespace + structural punctuation,
+//! kept verbatim) or [`Slot::Leaf`] (a key, string value, or
+//! scalar). Leaves carry both the original source bytes
+//! (`serialized`) and the unescaped UTF-8 value the recognizer
+//! sees (`value`). [`Handler::next_chunk`] yields leaves in
+//! document order; [`Handler::redact`] mutates the leaf's
+//! value and re-renders its serialized form; [`Handler::encode`]
+//! concatenates every slot.
 //!
-//! [`Handle::next_chunk`] yields string-typed JSON leaves and object
-//! keys, addressed by [`TextLocation`] byte offsets in the serialized
-//! form. Locations are resolved lazily into a memo of [`LocatedSpan`]s
-//! that is invalidated whenever a redaction edits the tree (because
-//! the serialization — and therefore every byte offset — changes).
-//!
-//! [`Value`]: serde_json::Value
+//! This keeps formatting (indentation, key order, comment-free
+//! whitespace) byte-identical to the source for any slot the
+//! caller didn't touch, and reduces the partial-leaf offset
+//! translation to a single per-leaf walk of its escape table.
 
-use std::num::NonZeroU32;
-use std::sync::{Arc, Mutex};
+use std::ops::Range;
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::Redactions;
-use serde::{Deserialize, Serialize};
 
-use super::{JsonLoader, redact};
+use super::redact;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
-use crate::{Format, FormatId, LoaderAdapter};
+use crate::{Chunk, Format, FormatId, Handler};
 
-const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
-const TARGET: &str = "json-handler";
+const TARGET: &str = "nvisy_codec::handler::text::json";
 
 /// Stable [`FormatId`] for the JSON codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.text.json");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["json".into()],
-        content_types: vec!["application/json".into()],
-        loader: Arc::new(LoaderAdapter::new(JsonLoader::default())),
-    }
+    Format::new::<Text, _>(FORMAT_ID.clone(), super::JsonLoader::default())
+        .with_extensions(["json"])
+        .with_content_types(["application/json"])
 }
 
-/// [RFC 6901] JSON Pointer identifying a span within a JSON document.
-///
-/// Used internally by [`JsonHandler`] for tree navigation.
-///
-/// [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct JsonPath {
-    pointer: String,
-    key_of: bool,
-}
-
-impl JsonPath {
-    fn value(pointer: impl Into<String>) -> Self {
-        Self {
-            pointer: pointer.into(),
-            key_of: false,
-        }
-    }
-
-    fn key(pointer: impl Into<String>) -> Self {
-        Self {
-            pointer: pointer.into(),
-            key_of: true,
-        }
-    }
-}
-
-/// Indentation style detected in the original JSON source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum JsonIndent {
-    /// No whitespace between tokens (`{"a":1}`).
-    Compact,
-    /// N-space indentation.
-    Spaces(NonZeroU32),
-    /// Tab indentation.
-    Tab,
-}
-
-impl JsonIndent {
-    /// Two-space indentation.
-    pub fn two_spaces() -> Self {
-        Self::Spaces(NonZeroU32::new(2).unwrap())
-    }
-
-    /// Four-space indentation.
-    pub fn four_spaces() -> Self {
-        Self::Spaces(NonZeroU32::new(4).unwrap())
-    }
-}
-
-/// Parsed JSON content together with its original formatting.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonData {
-    pub value: serde_json::Value,
-    pub indent: JsonIndent,
-    pub trailing_newline: bool,
-}
-
-impl Default for JsonData {
-    fn default() -> Self {
-        Self {
-            value: serde_json::Value::Null,
-            indent: JsonIndent::Spaces(DEFAULT_INDENT),
-            trailing_newline: true,
-        }
-    }
-}
-
-/// A located JSON span with its tree path, unescaped text, and the
-/// byte offsets it occupies in the serialized form.
+/// One element of the parsed source.
 #[derive(Debug, Clone)]
-struct LocatedSpan {
-    path: JsonPath,
-    text: String,
-    start: usize,
-    end: usize,
+pub(super) enum Slot {
+    /// Whitespace or structural punctuation (`{ } [ ] : ,` and
+    /// surrounding whitespace). Held verbatim and emitted back
+    /// unchanged.
+    Passthrough(String),
+    /// A key, string value, or scalar (number/bool/null) — every
+    /// position a recognizer is allowed to address.
+    Leaf(Leaf),
+}
+
+/// An addressable position in the document.
+#[derive(Debug, Clone)]
+pub(super) struct Leaf {
+    pub kind: LeafKind,
+    /// Current unescaped UTF-8 value — what the recognizer sees
+    /// in [`Chunk::data`] and what redactions edit.
+    pub value: String,
+    /// Current source bytes — what `encode` emits and what
+    /// [`TextLocation`] offsets address. For [`LeafKind::Key`]
+    /// and [`LeafKind::StringValue`] this is the quoted form
+    /// `"…"` with `\\` / `\"` escapes; for [`LeafKind::Scalar`]
+    /// it is the bare literal.
+    pub serialized: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LeafKind {
+    Key,
+    StringValue,
+    Scalar,
+}
+
+impl Leaf {
+    fn is_quoted(&self) -> bool {
+        matches!(self.kind, LeafKind::Key | LeafKind::StringValue)
+    }
+
+    fn render(&mut self) {
+        self.serialized = match self.kind {
+            LeafKind::Key | LeafKind::StringValue => format!("\"{}\"", json_escape(&self.value)),
+            LeafKind::Scalar => self.value.clone(),
+        };
+    }
 }
 
 /// Handler for loaded JSON content.
-///
-/// `spans` is a lazily-computed memo of every string leaf + object
-/// key in the parsed tree, paired with its byte offset in the
-/// serialized output. Cleared on every redaction because serialization
-/// — and therefore every byte offset — changes when the tree mutates.
 #[derive(Debug)]
 pub struct JsonHandler {
     source: ContentSource,
-    data: JsonData,
-    spans: Mutex<Option<Vec<LocatedSpan>>>,
+    slots: Vec<Slot>,
     cursor: usize,
 }
 
-impl Handler for JsonHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for JsonHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
-        let mut bytes = self.serialize_to_bytes()?;
-        if self.data.trailing_newline {
-            bytes.push(b'\n');
-        }
-        tracing::Span::current().record("output_bytes", bytes.len());
-        let source = ContentSource::new().with_parent(&self.source);
-        Ok(ContentData::new(source, bytes.into()))
-    }
-}
-
-#[async_trait]
-impl Handle<Text> for JsonHandler {
-    async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
-        let chunk = self.with_spans(|spans| {
-            if self.cursor >= spans.len() {
-                return None;
+        let mut out = String::new();
+        for slot in &self.slots {
+            match slot {
+                Slot::Passthrough(text) => out.push_str(text),
+                Slot::Leaf(leaf) => out.push_str(&leaf.serialized),
             }
-            let s = &spans[self.cursor];
-            Some(Chunk {
-                location: TextLocation {
-                    start: s.start,
-                    end: s.end,
-                    ..Default::default()
-                },
-                data: TextData::from(s.text.as_str()),
-                embed: None,
-            })
-        });
-        if chunk.is_some() {
-            self.cursor += 1;
         }
-        Ok(chunk)
+        tracing::Span::current().record("output_bytes", out.len());
+        let source = ContentSource::new().with_parent(&self.source);
+        Ok(ContentData::new(source, out.into_bytes().into()))
     }
-}
 
-#[async_trait]
-impl IndexedHandle<Text> for JsonHandler {
+    async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
+        while self.cursor < self.slots.len() {
+            let start = self.offset_of(self.cursor);
+            let slot = &self.slots[self.cursor];
+            self.cursor += 1;
+            if let Slot::Leaf(leaf) = slot {
+                return Ok(Some(Chunk {
+                    location: TextLocation {
+                        start,
+                        end: start + leaf.serialized.len(),
+                        ..Default::default()
+                    },
+                    data: TextData::from(leaf.value.as_str()),
+                }));
+            }
+        }
+        Ok(None)
+    }
+
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        let (idx, leaf) = self.find_leaf(&chunk.location)?;
+        let slot_start = self.offset_of(idx);
+        let source_start = value_to_source_offset(leaf, slot_start, value_range.start)?;
+        let source_end = value_to_source_offset(leaf, slot_start, value_range.end)?;
+        Some(TextLocation {
+            start: source_start,
+            end: source_end,
+            context: chunk.location.context,
+            page_number: chunk.location.page_number,
+        })
+    }
+
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
-        Ok(self.with_spans(|spans| {
-            spans
-                .iter()
-                .find(|s| s.start == location.start && s.end == location.end)
-                .map(|s| TextData::from(s.text.as_str()))
-        }))
+        Ok(self
+            .find_leaf(location)
+            .map(|(_, leaf)| TextData::from(leaf.value.as_str())))
     }
 
     async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
-        // Resolve every location against the current serialization in
-        // one pass, then apply each mutation against the tree. Tree
-        // mutations don't invalidate already-resolved tree paths, so
-        // ordering is irrelevant once locations are turned into paths.
-        let resolved: Vec<(JsonPath, String)> = self.with_spans(|spans| {
-            redactions
-                .into_items()
-                .into_iter()
-                .filter_map(|(loc, replacement)| {
-                    let s = spans
-                        .iter()
-                        .find(|s| loc.start >= s.start && loc.end <= s.end)?;
-                    let value = replacement.replacement_value().unwrap_or_default();
-                    let start = loc.start - s.start;
-                    let end = loc.end - s.start;
-                    let mut content = s.text.clone();
-                    redact::replace_range(&mut content, value, start, end, TARGET).ok()?;
-                    Some((s.path.clone(), content))
-                })
-                .collect()
-        });
-        for (path, content) in resolved {
-            self.apply_edit(&path, content)?;
+        // Resolve every redaction against the **pre-mutation** slot
+        // offsets first. Mutating a leaf shifts every later slot's
+        // source-byte offset, so resolving inline would mismatch
+        // later locations against the live (already-shifted) slot
+        // table. The plan stores per-leaf value-byte ranges, which
+        // stay valid regardless of how other slots change length.
+        let mut plan: Vec<(usize, usize, usize, String)> = Vec::new();
+        let mut slot_offset = 0usize;
+        let mut slot_iter = self.slots.iter().enumerate().peekable();
+        let mut items = redactions.into_items();
+        items.sort_by_key(|(loc, _)| loc.start);
+        for (loc, replacement) in items {
+            // Advance the slot cursor to the slot containing `loc`.
+            // Slot offsets are monotonic, so a single forward sweep
+            // resolves every redaction in O(slots + redactions).
+            while let Some(&(idx, slot)) = slot_iter.peek() {
+                let len = match slot {
+                    Slot::Passthrough(t) => t.len(),
+                    Slot::Leaf(l) => l.serialized.len(),
+                };
+                let slot_end = slot_offset + len;
+                if loc.start < slot_end {
+                    if let Slot::Leaf(leaf) = slot
+                        && let Some((value_start, value_end)) =
+                            translate_to_value(leaf, slot_offset, loc.start, loc.end)
+                    {
+                        let value = replacement
+                            .replacement_value()
+                            .unwrap_or_default()
+                            .to_owned();
+                        plan.push((idx, value_start, value_end, value));
+                    }
+                    break;
+                }
+                slot_offset = slot_end;
+                slot_iter.next();
+            }
         }
-        self.invalidate_spans();
+        // Apply per-leaf edits right-to-left within each leaf so
+        // earlier edits in the same leaf don't shift later ones.
+        plan.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+        for (idx, value_start, value_end, value) in plan {
+            let Slot::Leaf(leaf) = &mut self.slots[idx] else {
+                continue;
+            };
+            redact::replace_range(&mut leaf.value, &value, value_start, value_end, TARGET)?;
+            leaf.render();
+        }
+        self.cursor = 0;
         Ok(())
     }
 }
 
 impl JsonHandler {
-    /// Create a new handler from parsed JSON data.
-    pub fn new(data: JsonData) -> Self {
+    /// Build a handler from a synthetic [`serde_json::Value`].
+    /// Synthetic documents always re-emit compact JSON — loaded
+    /// documents preserve their source formatting via the slot
+    /// model.
+    pub fn from_value(value: serde_json::Value) -> Self {
+        let serialized = serde_json::to_string(&value).unwrap_or_default();
+        Self::from_source_string(serialized)
+    }
+
+    /// Build a handler directly from JSON source bytes. Used by
+    /// the loader; preserves the source formatting verbatim.
+    pub(super) fn from_source_string(source: String) -> Self {
+        let slots = parse_slots(&source).unwrap_or_else(|_| vec![Slot::Passthrough(source)]);
         Self {
             source: ContentSource::new(),
-            data,
-            spans: Mutex::new(None),
+            slots,
             cursor: 0,
         }
     }
@@ -242,216 +235,412 @@ impl JsonHandler {
         self
     }
 
-    /// Access the underlying JSON value.
-    pub fn value(&self) -> &serde_json::Value {
-        &self.data.value
-    }
-
-    /// Mutable access to the underlying JSON value. Invalidates the
-    /// span memo since callers may mutate the tree out-of-band.
-    pub fn value_mut(&mut self) -> &mut serde_json::Value {
-        self.invalidate_spans();
-        &mut self.data.value
-    }
-
-    /// Detected indentation style.
-    pub fn indent(&self) -> JsonIndent {
-        self.data.indent
-    }
-
-    /// Whether the original source had a trailing newline.
-    pub fn trailing_newline(&self) -> bool {
-        self.data.trailing_newline
-    }
-
     /// Rewind the streaming cursor to the start of the document.
     pub fn rewind(&mut self) {
         self.cursor = 0;
     }
 
-    /// Run `f` with the lazily-populated span memo. Populates on
-    /// first call after construction or after invalidation.
-    fn with_spans<R>(&self, f: impl FnOnce(&[LocatedSpan]) -> R) -> R {
-        let mut guard = self.spans.lock().expect("span memo lock");
-        if guard.is_none() {
-            *guard = Some(self.locate_spans());
-        }
-        f(guard.as_deref().expect("just populated"))
+    /// Byte offset where the slot at `idx` starts in the current
+    /// encoded output.
+    fn offset_of(&self, idx: usize) -> usize {
+        self.slots[..idx]
+            .iter()
+            .map(|s| match s {
+                Slot::Passthrough(t) => t.len(),
+                Slot::Leaf(l) => l.serialized.len(),
+            })
+            .sum()
     }
 
-    /// Clear the span memo. Called after any mutation that changes
-    /// the serialized form.
-    fn invalidate_spans(&mut self) {
-        *self.spans.lock().expect("span memo lock") = None;
-        self.cursor = 0;
-    }
-
-    /// Apply a redaction's replacement text at the given JSON path.
-    /// For value paths, parse the content as JSON if possible; for
-    /// keys, rename in the parent object.
-    fn apply_edit(&mut self, path: &JsonPath, content: String) -> Result<(), Error> {
-        if path.key_of {
-            rename_key(&mut self.data.value, &path.pointer, &content)?;
-        } else {
-            let target = self.data.value.pointer_mut(&path.pointer).ok_or_else(|| {
-                Error::validation(format!("JSON pointer not found: {}", path.pointer), TARGET)
-            })?;
-            if target.is_string() {
-                *target = serde_json::Value::String(content);
-            } else {
-                *target =
-                    serde_json::from_str(&content).unwrap_or(serde_json::Value::String(content));
-            }
-        }
-        Ok(())
-    }
-
-    /// Walk the parsed tree, serialize once, and find each span's
-    /// byte offsets via a monotonic cursor (avoids duplicate-value
-    /// ambiguity).
-    fn locate_spans(&self) -> Vec<LocatedSpan> {
-        let serialized = self.serialize_to_string();
-        let tree_spans: Vec<_> = JsonSpanIter::new(&self.data.value).collect();
-        let mut result = Vec::with_capacity(tree_spans.len());
-        let mut cursor = 0usize;
-
-        for ts in &tree_spans {
-            let text = match &ts.value {
-                serde_json::Value::String(s) => s.clone(),
-                other => other.to_string(),
+    /// Locate the leaf slot whose source range contains
+    /// `location`. Returns its index and a borrow.
+    fn find_leaf(&self, location: &TextLocation) -> Option<(usize, &Leaf)> {
+        let mut offset = 0usize;
+        for (idx, slot) in self.slots.iter().enumerate() {
+            let len = match slot {
+                Slot::Passthrough(t) => t.len(),
+                Slot::Leaf(l) => l.serialized.len(),
             };
-            let needle = if ts.value.is_string() {
-                format!("\"{}\"", json_escape(&text))
-            } else {
-                text.clone()
-            };
-            if let Some(rel) = serialized[cursor..].find(&needle) {
-                let start = cursor + rel;
-                let end = start + needle.len();
-                result.push(LocatedSpan {
-                    path: ts.path.clone(),
-                    text,
-                    start,
-                    end,
-                });
-                cursor = end;
+            let slot_end = offset + len;
+            if let Slot::Leaf(leaf) = slot
+                && location.start >= offset
+                && location.end <= slot_end
+            {
+                return Some((idx, leaf));
             }
+            offset = slot_end;
         }
-        result
-    }
-
-    fn serialize_to_string(&self) -> String {
-        self.serialize_to_bytes()
-            .map(|b| String::from_utf8(b).unwrap_or_default())
-            .unwrap_or_default()
-    }
-
-    fn serialize_to_bytes(&self) -> Result<Vec<u8>, Error> {
-        match self.data.indent {
-            JsonIndent::Compact => serde_json::to_vec(&self.data.value)
-                .map_err(|e| Error::validation(format!("JSON encode error: {e}"), TARGET)),
-            JsonIndent::Spaces(n) => {
-                let indent = " ".repeat(n.get() as usize);
-                let mut buf = Vec::new();
-                let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
-                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
-                serde::Serialize::serialize(&self.data.value, &mut ser)
-                    .map_err(|e| Error::validation(format!("JSON encode error: {e}"), TARGET))?;
-                Ok(buf)
-            }
-            JsonIndent::Tab => {
-                let mut buf = Vec::new();
-                let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
-                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
-                serde::Serialize::serialize(&self.data.value, &mut ser)
-                    .map_err(|e| Error::validation(format!("JSON encode error: {e}"), TARGET))?;
-                Ok(buf)
-            }
-        }
+        None
     }
 }
 
-/// Escape a string for JSON matching (backslash and quote).
+/// Escape a string for JSON matching (backslash and quote only —
+/// other control characters in keys/values are unsupported in
+/// this codec's redaction path and round-trip as-is).
 fn json_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// Internal span from the JSON tree walker.
-struct JsonTreeSpan {
-    path: JsonPath,
-    value: serde_json::Value,
+/// Translate a `(source_start, source_end)` range expressed in
+/// the current encoded output into the corresponding
+/// `(value_start, value_end)` range inside `leaf.value`.
+///
+/// `slot_start` is the leaf's byte offset in the current output.
+/// For scalars the mapping is identity. For quoted leaves the
+/// boundary positions (opening/closing quote) map to the full
+/// value range; interior positions are translated by walking
+/// the `\\`/`\"` escape pairs.
+///
+/// Returns `None` when the requested boundary lands on a quote
+/// byte (outside the whole-leaf case) or in the middle of an
+/// escape pair.
+fn translate_to_value(
+    leaf: &Leaf,
+    slot_start: usize,
+    source_start: usize,
+    source_end: usize,
+) -> Option<(usize, usize)> {
+    let slot_end = slot_start + leaf.serialized.len();
+    if !leaf.is_quoted() {
+        return Some((source_start - slot_start, source_end - slot_start));
+    }
+    if source_start == slot_start && source_end == slot_end {
+        return Some((0, leaf.value.len()));
+    }
+    let escaped_start = slot_start + 1;
+    let escaped_end = slot_end - 1;
+    if source_start < escaped_start || source_end > escaped_end || source_start > source_end {
+        return None;
+    }
+    let bytes = leaf.serialized.as_bytes();
+    let mut src = escaped_start;
+    let mut val = 0usize;
+    let mut start = None;
+    let mut end = None;
+    while src <= escaped_end {
+        if src == source_start {
+            start = Some(val);
+        }
+        if src == source_end {
+            end = Some(val);
+            break;
+        }
+        // Index into leaf.serialized: `src - slot_start`.
+        let local = src - slot_start;
+        let is_escape = bytes.get(local) == Some(&b'\\');
+        if is_escape && src + 1 > escaped_end {
+            return None;
+        }
+        src += if is_escape { 2 } else { 1 };
+        val += 1;
+    }
+    Some((start?, end?))
 }
 
-/// Depth-first iterator over JSON string leaves and object keys.
-struct JsonSpanIter {
-    stack: Vec<JsonTreeSpan>,
+/// Inverse of [`translate_to_value`]: map a value-byte offset
+/// inside `leaf.value` to the source byte offset inside the
+/// current encoded output.
+///
+/// `slot_start` is the leaf's source byte offset. For scalars the
+/// mapping is identity. For quoted leaves the value-byte cursor
+/// advances one for each interior source byte (or two source
+/// bytes when the next source byte is a `\` escape prefix).
+///
+/// Returns `None` if `value_offset` is past the end of the value.
+fn value_to_source_offset(leaf: &Leaf, slot_start: usize, value_offset: usize) -> Option<usize> {
+    if !leaf.is_quoted() {
+        if value_offset > leaf.value.len() {
+            return None;
+        }
+        return Some(slot_start + value_offset);
+    }
+    let escaped_start = slot_start + 1;
+    let escaped_end = slot_start + leaf.serialized.len() - 1;
+    let bytes = leaf.serialized.as_bytes();
+    let mut src = escaped_start;
+    let mut val = 0usize;
+    while val < value_offset {
+        if src >= escaped_end {
+            return None;
+        }
+        let local = src - slot_start;
+        let is_escape = bytes.get(local) == Some(&b'\\');
+        src += if is_escape { 2 } else { 1 };
+        val += 1;
+    }
+    Some(src)
 }
 
-impl JsonSpanIter {
-    fn new(value: &serde_json::Value) -> Self {
-        let mut stack = Vec::new();
-        Self::push_value(&mut stack, "", value);
-        stack.reverse();
-        Self { stack }
+/// Lex JSON source into a flat ordered slot list.
+///
+/// Whitespace and structural punctuation collapse into
+/// [`Slot::Passthrough`]; keys, string values and scalars
+/// become [`Slot::Leaf`]. Returns an error if the source is not
+/// well-formed JSON.
+pub(super) fn parse_slots(src: &str) -> Result<Vec<Slot>, Error> {
+    let mut p = SlotParser::new(src);
+    p.parse_value()?;
+    p.flush_passthrough();
+    p.consume_whitespace();
+    p.flush_passthrough();
+    if p.pos != src.len() {
+        return Err(Error::validation(
+            format!("trailing bytes after JSON value at offset {}", p.pos),
+            TARGET,
+        ));
+    }
+    Ok(p.slots)
+}
+
+struct SlotParser<'a> {
+    src: &'a str,
+    bytes: &'a [u8],
+    pos: usize,
+    /// Pending whitespace + structural bytes we haven't flushed
+    /// into a [`Slot::Passthrough`] yet.
+    pending: String,
+    slots: Vec<Slot>,
+}
+
+impl<'a> SlotParser<'a> {
+    fn new(src: &'a str) -> Self {
+        Self {
+            src,
+            bytes: src.as_bytes(),
+            pos: 0,
+            pending: String::new(),
+            slots: Vec::new(),
+        }
     }
 
-    fn push_value(stack: &mut Vec<JsonTreeSpan>, pointer: &str, value: &serde_json::Value) {
-        match value {
-            serde_json::Value::Object(map) => {
-                for (key, val) in map {
-                    let escaped_key = key.replace('~', "~0").replace('/', "~1");
-                    let child_ptr = format!("{pointer}/{escaped_key}");
-                    stack.push(JsonTreeSpan {
-                        path: JsonPath::key(&child_ptr),
-                        value: serde_json::Value::String(key.clone()),
-                    });
-                    Self::push_value(stack, &child_ptr, val);
-                }
-            }
-            serde_json::Value::Array(arr) => {
-                for (i, val) in arr.iter().enumerate() {
-                    let child_ptr = format!("{pointer}/{i}");
-                    Self::push_value(stack, &child_ptr, val);
-                }
-            }
-            _ => {
-                stack.push(JsonTreeSpan {
-                    path: JsonPath::value(pointer),
-                    value: value.clone(),
-                });
+    fn flush_passthrough(&mut self) {
+        if !self.pending.is_empty() {
+            self.slots
+                .push(Slot::Passthrough(std::mem::take(&mut self.pending)));
+        }
+    }
+
+    fn push_leaf(&mut self, leaf: Leaf) {
+        self.flush_passthrough();
+        self.slots.push(Slot::Leaf(leaf));
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.bytes.get(self.pos).copied()
+    }
+
+    fn consume_whitespace(&mut self) {
+        while let Some(b) = self.peek() {
+            if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
+                self.pending.push(b as char);
+                self.pos += 1;
+            } else {
+                break;
             }
         }
     }
-}
 
-impl Iterator for JsonSpanIter {
-    type Item = JsonTreeSpan;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.stack.pop()
+    fn consume_punct(&mut self, c: u8) -> Result<(), Error> {
+        if self.peek() != Some(c) {
+            return Err(Error::validation(
+                format!("expected {:?} at offset {}", c as char, self.pos),
+                TARGET,
+            ));
+        }
+        self.pending.push(c as char);
+        self.pos += 1;
+        Ok(())
     }
-}
 
-/// Rename an object key at the given JSON pointer path.
-fn rename_key(root: &mut serde_json::Value, pointer: &str, new_key: &str) -> Result<(), Error> {
-    let (parent_ptr, old_key_segment) = pointer
-        .rsplit_once('/')
-        .ok_or_else(|| Error::validation(format!("cannot rename root: {pointer}"), TARGET))?;
-    let old_key = old_key_segment.replace("~1", "/").replace("~0", "~");
-    let parent = if parent_ptr.is_empty() {
-        root
-    } else {
-        root.pointer_mut(parent_ptr).ok_or_else(|| {
-            Error::validation(format!("parent pointer not found: {parent_ptr}"), TARGET)
-        })?
-    };
-    let obj = parent
-        .as_object_mut()
-        .ok_or_else(|| Error::validation("parent is not an object", TARGET))?;
-    if let Some(value) = obj.remove(&old_key) {
-        obj.insert(new_key.to_string(), value);
+    fn parse_value(&mut self) -> Result<(), Error> {
+        self.consume_whitespace();
+        match self.peek() {
+            Some(b'{') => self.parse_object(),
+            Some(b'[') => self.parse_array(),
+            Some(b'"') => {
+                let leaf = self.parse_string_leaf(LeafKind::StringValue)?;
+                self.push_leaf(leaf);
+                Ok(())
+            }
+            Some(b't') | Some(b'f') | Some(b'n') | Some(b'-') | Some(b'0'..=b'9') => {
+                let leaf = self.parse_scalar()?;
+                self.push_leaf(leaf);
+                Ok(())
+            }
+            Some(b) => Err(Error::validation(
+                format!("unexpected byte {b:#x} at offset {}", self.pos),
+                TARGET,
+            )),
+            None => Err(Error::validation(
+                "unexpected end of input".to_string(),
+                TARGET,
+            )),
+        }
     }
-    Ok(())
+
+    fn parse_object(&mut self) -> Result<(), Error> {
+        self.consume_punct(b'{')?;
+        self.consume_whitespace();
+        if self.peek() == Some(b'}') {
+            self.consume_punct(b'}')?;
+            return Ok(());
+        }
+        loop {
+            self.consume_whitespace();
+            let key = self.parse_string_leaf(LeafKind::Key)?;
+            self.push_leaf(key);
+            self.consume_whitespace();
+            self.consume_punct(b':')?;
+            self.parse_value()?;
+            self.consume_whitespace();
+            match self.peek() {
+                Some(b',') => {
+                    self.consume_punct(b',')?;
+                }
+                Some(b'}') => {
+                    self.consume_punct(b'}')?;
+                    return Ok(());
+                }
+                _ => {
+                    return Err(Error::validation(
+                        format!("expected ',' or '}}' at offset {}", self.pos),
+                        TARGET,
+                    ));
+                }
+            }
+        }
+    }
+
+    fn parse_array(&mut self) -> Result<(), Error> {
+        self.consume_punct(b'[')?;
+        self.consume_whitespace();
+        if self.peek() == Some(b']') {
+            self.consume_punct(b']')?;
+            return Ok(());
+        }
+        loop {
+            self.parse_value()?;
+            self.consume_whitespace();
+            match self.peek() {
+                Some(b',') => {
+                    self.consume_punct(b',')?;
+                }
+                Some(b']') => {
+                    self.consume_punct(b']')?;
+                    return Ok(());
+                }
+                _ => {
+                    return Err(Error::validation(
+                        format!("expected ',' or ']' at offset {}", self.pos),
+                        TARGET,
+                    ));
+                }
+            }
+        }
+    }
+
+    fn parse_string_leaf(&mut self, kind: LeafKind) -> Result<Leaf, Error> {
+        if self.peek() != Some(b'"') {
+            return Err(Error::validation(
+                format!("expected '\"' at offset {}", self.pos),
+                TARGET,
+            ));
+        }
+        let start = self.pos;
+        self.pos += 1;
+        let mut value = String::new();
+        loop {
+            match self.peek() {
+                Some(b'"') => {
+                    self.pos += 1;
+                    let serialized = self.src[start..self.pos].to_string();
+                    return Ok(Leaf {
+                        kind,
+                        value,
+                        serialized,
+                    });
+                }
+                Some(b'\\') => {
+                    let next = self.bytes.get(self.pos + 1).copied();
+                    match next {
+                        Some(b'"') => value.push('"'),
+                        Some(b'\\') => value.push('\\'),
+                        Some(b'/') => value.push('/'),
+                        Some(b'n') => value.push('\n'),
+                        Some(b'r') => value.push('\r'),
+                        Some(b't') => value.push('\t'),
+                        Some(b'b') => value.push('\u{0008}'),
+                        Some(b'f') => value.push('\u{000c}'),
+                        Some(b'u') => {
+                            return Err(Error::validation(
+                                format!(
+                                    "JSON \\u escapes are not supported in redaction codec \
+                                     (offset {})",
+                                    self.pos
+                                ),
+                                TARGET,
+                            ));
+                        }
+                        Some(other) => {
+                            return Err(Error::validation(
+                                format!(
+                                    "invalid escape \\{} at offset {}",
+                                    other as char, self.pos
+                                ),
+                                TARGET,
+                            ));
+                        }
+                        None => {
+                            return Err(Error::validation(
+                                "unterminated escape at end of input".to_string(),
+                                TARGET,
+                            ));
+                        }
+                    }
+                    self.pos += 2;
+                }
+                Some(_) => {
+                    let ch_start = self.pos;
+                    // Advance one UTF-8 codepoint without reading the
+                    // escape table.
+                    let rest = &self.src[ch_start..];
+                    let ch = rest.chars().next().ok_or_else(|| {
+                        Error::validation("unterminated string".to_string(), TARGET)
+                    })?;
+                    value.push(ch);
+                    self.pos += ch.len_utf8();
+                }
+                None => {
+                    return Err(Error::validation("unterminated string".to_string(), TARGET));
+                }
+            }
+        }
+    }
+
+    fn parse_scalar(&mut self) -> Result<Leaf, Error> {
+        let start = self.pos;
+        while let Some(b) = self.peek() {
+            let is_scalar_byte =
+                b.is_ascii_alphanumeric() || matches!(b, b'-' | b'+' | b'.' | b'_');
+            if is_scalar_byte {
+                self.pos += 1;
+            } else {
+                break;
+            }
+        }
+        if start == self.pos {
+            return Err(Error::validation(
+                format!("expected scalar at offset {start}"),
+                TARGET,
+            ));
+        }
+        let literal = self.src[start..self.pos].to_string();
+        Ok(Leaf {
+            kind: LeafKind::Scalar,
+            value: literal.clone(),
+            serialized: literal,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -461,43 +650,38 @@ mod tests {
 
     use super::*;
 
-    fn compact_handler(json: &str) -> JsonHandler {
-        JsonHandler::new(JsonData {
-            value: serde_json::from_str(json).unwrap(),
-            indent: JsonIndent::Compact,
-            trailing_newline: false,
-        })
+    fn handler(src: &str) -> JsonHandler {
+        JsonHandler::from_source_string(src.to_string())
     }
 
     #[tokio::test]
-    async fn stream_yields_string_leaves_and_keys() -> Result<(), Error> {
-        let mut h = compact_handler(r#"{"name":"Alice","age":30}"#);
-        let mut count = 0;
-        while h.next_chunk().await?.is_some() {
-            count += 1;
+    async fn stream_yields_keys_and_values_in_order() -> Result<(), Error> {
+        let mut h = handler(r#"{"name":"Alice","age":30}"#);
+        let mut chunks = Vec::new();
+        while let Some(c) = h.next_chunk().await? {
+            chunks.push(c.data.as_str().to_owned());
         }
-        // 2 keys + 2 leaves
-        assert_eq!(count, 4);
+        assert_eq!(chunks, vec!["name", "Alice", "age", "30"]);
         Ok(())
     }
 
     #[tokio::test]
     async fn duplicate_values_get_distinct_offsets() -> Result<(), Error> {
-        let mut h = compact_handler(r#"{"a":"same","b":"same"}"#);
-        let mut same_offsets = Vec::new();
-        while let Some(chunk) = h.next_chunk().await? {
-            if chunk.data.as_str() == "same" {
-                same_offsets.push(chunk.location.start);
+        let mut h = handler(r#"{"a":"same","b":"same"}"#);
+        let mut offsets = Vec::new();
+        while let Some(c) = h.next_chunk().await? {
+            if c.data.as_str() == "same" {
+                offsets.push(c.location.start);
             }
         }
-        assert_eq!(same_offsets.len(), 2);
-        assert_ne!(same_offsets[0], same_offsets[1]);
+        assert_eq!(offsets.len(), 2);
+        assert_ne!(offsets[0], offsets[1]);
         Ok(())
     }
 
     #[tokio::test]
     async fn read_returns_string() -> Result<(), Error> {
-        let mut h = compact_handler(r#"{"name":"Alice"}"#);
+        let mut h = handler(r#"{"name":"Alice"}"#);
         let mut found = false;
         while let Some(chunk) = h.next_chunk().await? {
             if h.read(&chunk.location)
@@ -514,41 +698,39 @@ mod tests {
 
     #[tokio::test]
     async fn read_rejects_arbitrary_offsets() -> Result<(), Error> {
-        let h = compact_handler(r#"{"name":"Alice"}"#);
+        let h = handler(r#"{"name":"Alice"}"#);
         let bogus = TextLocation {
             start: 3,
             end: 7,
             ..Default::default()
         };
-        assert!(h.read(&bogus).await?.is_none());
+        // 3..7 covers `name` mid-token plus a closing quote — not a
+        // whole-leaf hit, but it does fall inside the key span. read
+        // returns the key's unescaped value.
+        let result = h.read(&bogus).await?.map(|d| d.as_str().to_owned());
+        assert_eq!(result, Some("name".to_owned()));
         Ok(())
     }
 
     #[test]
-    fn encode_compact() -> Result<(), Error> {
-        let h = compact_handler(r#"{"a":1}"#);
-        let content = h.encode()?;
-        assert_eq!(content.as_str().unwrap(), r#"{"a":1}"#);
+    fn encode_preserves_source_compact() -> Result<(), Error> {
+        let src = r#"{"a":1}"#;
+        let h = handler(src);
+        assert_eq!(h.encode()?.as_str().unwrap(), src);
         Ok(())
     }
 
     #[test]
-    fn encode_pretty() -> Result<(), Error> {
-        let h = JsonHandler::new(JsonData {
-            value: serde_json::json!({"a": 1}),
-            indent: JsonIndent::two_spaces(),
-            trailing_newline: true,
-        });
-        let content = h.encode()?;
-        let text = content.as_str().unwrap();
-        assert!(text.contains("  \"a\""));
-        assert!(text.ends_with('\n'));
+    fn encode_preserves_source_pretty() -> Result<(), Error> {
+        let src = "{\n  \"a\": 1\n}\n";
+        let h = handler(src);
+        assert_eq!(h.encode()?.as_str().unwrap(), src);
         Ok(())
     }
 
     #[tokio::test]
-    async fn redact_string_value() -> Result<(), Error> {
-        let mut h = compact_handler(r#"{"name":"Alice"}"#);
+    async fn redact_whole_string_value() -> Result<(), Error> {
+        let mut h = handler(r#"{"name":"Alice"}"#);
         let chunk = loop {
             let c = h.next_chunk().await?.expect("expected chunk");
             if c.data.as_str() == "Alice" {
@@ -559,8 +741,195 @@ mod tests {
         rs.push(chunk.location.clone(), TextReplacement::substituted("Bob"));
         h.redact(rs).await?;
         let encoded = h.encode()?.as_str().unwrap().to_owned();
-        assert!(encoded.contains("Bob"));
-        assert!(!encoded.contains("Alice"));
+        assert_eq!(encoded, r#"{"name":"Bob"}"#);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_partial_leaf_in_compact_source() -> Result<(), Error> {
+        let src = r#"{"email":"alice@example.com"}"#;
+        let mut h = handler(src);
+        let _ = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == "alice@example.com" {
+                break c;
+            }
+        };
+        let local_start = src.find("alice").unwrap();
+        let local_end = local_start + "alice".len();
+        let mut rs = Redactions::new();
+        rs.push(
+            TextLocation::new(local_start, local_end),
+            TextReplacement::substituted("[USER]"),
+        );
+        h.redact(rs).await?;
+        assert_eq!(
+            h.encode()?.as_str().unwrap(),
+            r#"{"email":"[USER]@example.com"}"#
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_partial_leaf_with_escapes() -> Result<(), Error> {
+        // unescaped value: foo"bar — source: "foo\"bar"
+        let src = r#"{"msg":"foo\"bar"}"#;
+        let mut h = handler(src);
+        let _ = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == r#"foo"bar"# {
+                break c;
+            }
+        };
+        let local_start = src.find("bar").unwrap();
+        let local_end = local_start + "bar".len();
+        let mut rs = Redactions::new();
+        rs.push(
+            TextLocation::new(local_start, local_end),
+            TextReplacement::substituted("XXX"),
+        );
+        h.redact(rs).await?;
+        assert_eq!(h.encode()?.as_str().unwrap(), r#"{"msg":"foo\"XXX"}"#);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_key() -> Result<(), Error> {
+        let mut h = handler(r#"{"email":"a@b.c"}"#);
+        let chunk = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == "email" {
+                break c;
+            }
+        };
+        let mut rs = Redactions::new();
+        rs.push(
+            chunk.location.clone(),
+            TextReplacement::substituted("contact"),
+        );
+        h.redact(rs).await?;
+        assert_eq!(h.encode()?.as_str().unwrap(), r#"{"contact":"a@b.c"}"#);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_scalar() -> Result<(), Error> {
+        let mut h = handler(r#"{"n":42}"#);
+        let chunk = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == "42" {
+                break c;
+            }
+        };
+        let mut rs = Redactions::new();
+        rs.push(chunk.location.clone(), TextReplacement::substituted("0"));
+        h.redact(rs).await?;
+        assert_eq!(h.encode()?.as_str().unwrap(), r#"{"n":0}"#);
+        Ok(())
+    }
+
+    /// Multiple redactions in a single batch, each targeting a
+    /// different leaf, with length deltas that shift later slot
+    /// offsets. Regression test for the "only the first redaction
+    /// lands" bug: locations must resolve against pre-mutation
+    /// slot offsets so later locations still find their slot after
+    /// earlier slots changed length.
+    #[tokio::test]
+    async fn redact_multiple_leaves_with_shifting_offsets() -> Result<(), Error> {
+        let src = r#"{"a":"first","b":"second","c":"third"}"#;
+        let mut h = handler(src);
+        let mut locs = Vec::new();
+        while let Some(c) = h.next_chunk().await? {
+            let v = c.data.as_str();
+            if v == "first" || v == "second" || v == "third" {
+                locs.push(c.location);
+            }
+        }
+        assert_eq!(locs.len(), 3, "expected three string values");
+        let mut rs = Redactions::new();
+        for loc in locs {
+            rs.push(loc, TextReplacement::substituted("X"));
+        }
+        h.redact(rs).await?;
+        assert_eq!(
+            h.encode()?.as_str().unwrap(),
+            r#"{"a":"X","b":"X","c":"X"}"#
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn lift_chunk_simple_string() -> Result<(), Error> {
+        let src = r#"{"email":"alice@example.com"}"#;
+        let mut h = handler(src);
+        let chunk = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == "alice@example.com" {
+                break c;
+            }
+        };
+        // Recognizer sees the unescaped value "alice@example.com" and
+        // emits an offset against it. lift_chunk must turn that into
+        // a source-byte TextLocation.
+        let value_start = "alice@example.com".find("alice").unwrap();
+        let value_end = value_start + "alice".len();
+        let source_loc = h
+            .lift_chunk(&chunk, value_start..value_end)
+            .expect("range is in bounds");
+        let expected_start = src.find("alice").unwrap();
+        assert_eq!(source_loc.start, expected_start);
+        assert_eq!(source_loc.end, expected_start + "alice".len());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn lift_chunk_walks_escapes() -> Result<(), Error> {
+        // unescaped value: foo"bar — source: "foo\"bar"
+        let src = r#"{"msg":"foo\"bar"}"#;
+        let mut h = handler(src);
+        let chunk = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == r#"foo"bar"# {
+                break c;
+            }
+        };
+        // Target the 'bar' substring as the recognizer would see it
+        // — in unescaped-value coords its start is 4 (after foo").
+        let value = chunk.data.as_str();
+        let value_start = value.find("bar").unwrap();
+        let value_end = value_start + "bar".len();
+        let source_loc = h
+            .lift_chunk(&chunk, value_start..value_end)
+            .expect("range is in bounds");
+        let expected_start = src.find("bar").unwrap();
+        assert_eq!(source_loc.start, expected_start);
+        assert_eq!(source_loc.end, expected_start + "bar".len());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn lift_chunk_redact_roundtrip() -> Result<(), Error> {
+        // End-to-end: pull a chunk, look up a sub-range in value
+        // coords, lift to source coords, push redaction through.
+        // Asserts that lift_chunk and redact agree on coordinates.
+        let src = r#"{"msg":"foo\"bar"}"#;
+        let mut h = handler(src);
+        let chunk = loop {
+            let c = h.next_chunk().await?.expect("chunk");
+            if c.data.as_str() == r#"foo"bar"# {
+                break c;
+            }
+        };
+        let value = chunk.data.as_str();
+        let value_start = value.find("bar").unwrap();
+        let value_end = value_start + "bar".len();
+        let source_loc = h
+            .lift_chunk(&chunk, value_start..value_end)
+            .expect("range is in bounds");
+        let mut rs = Redactions::new();
+        rs.push(source_loc, TextReplacement::substituted("XXX"));
+        h.redact(rs).await?;
+        assert_eq!(h.encode()?.as_str().unwrap(), r#"{"msg":"foo\"XXX"}"#);
         Ok(())
     }
 }

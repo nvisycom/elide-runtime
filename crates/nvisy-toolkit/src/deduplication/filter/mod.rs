@@ -6,7 +6,6 @@
 //!
 //! [`Layer::apply`]: super::layer::Layer::apply
 
-use async_trait::async_trait;
 use nvisy_core::entity::{Entity, EntityKind};
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
@@ -69,7 +68,7 @@ impl FilterLayer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M: Modality, R: TextAt<M> + ?Sized> Layer<M, R> for FilterLayer {
     async fn apply(
         &self,

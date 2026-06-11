@@ -9,6 +9,8 @@
 //! [`Document<M>`]: crate::document::Document
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
 
+use std::sync::Arc;
+
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{
@@ -29,19 +31,19 @@ const TARGET: &str = "nvisy_engine::detection";
 /// Detection phase: runs every registered recognizer over each
 /// document's blocks and writes [`EntityRecord`]s to `doc.audit`.
 ///
-/// Holds a [`RecognizerRegistry`] by value — the registry's
-/// recognizer lists keep the underlying recognizers shared via `Arc`
-/// inside, without an outer wrap.
+/// Holds an `Arc<RecognizerRegistry>` so the registry is shared
+/// cheaply across per-document phases without cloning the
+/// underlying recognizer lists.
 ///
-/// [`EntityRecord`]: crate::provenance::EntityRecord
+/// [`EntityRecord`]: crate::document::provenance::EntityRecord
 pub struct DetectionPhase {
-    registry: RecognizerRegistry,
+    registry: Arc<RecognizerRegistry>,
 }
 
 impl DetectionPhase {
     /// Build the phase from the shared recognizer registry. Called
     /// once per pipeline by the pipeline orchestrator.
-    pub fn new(registry: RecognizerRegistry) -> Self {
+    pub fn new(registry: Arc<RecognizerRegistry>) -> Self {
         Self { registry }
     }
 
@@ -91,7 +93,6 @@ impl DetectionPhase {
                 run_id,
             )
             .await?;
-            self.registry.reset().await;
             Ok(())
         }
         .instrument(span)
@@ -112,7 +113,6 @@ impl DetectionPhase {
         let run_id = ctx.shared().run_id;
         async move {
             detect_text_blocks(&self.registry, doc, &plan.detection, run_id).await?;
-            self.registry.reset().await;
             Ok(())
         }
         .instrument(span)
@@ -151,7 +151,7 @@ where
         let mut input = RecognizerInput::new(TextData::new(text.to_owned()));
         input.correlation_id = Some(run_id);
 
-        let detected = registry.run_text(input).await?;
+        let detected = registry.run::<Text>(input).await?;
         for entity in detected {
             if !cfg.entity_kinds.is_empty() && !cfg.entity_kinds.contains(&entity.entity_kind) {
                 continue;
@@ -195,11 +195,11 @@ where
 async fn detect_image_chunks(
     registry: &RecognizerRegistry,
     doc: &mut Document<Image>,
-    handle: &mut dyn nvisy_codec::core::IndexedHandle<Image>,
+    handle: &mut dyn nvisy_codec::Handler<Image>,
     cfg: &Detection,
     run_id: uuid::Uuid,
 ) -> Result<()> {
-    if registry.image.is_empty() {
+    if registry.count::<Image>() == 0 {
         return Ok(());
     }
 
@@ -208,7 +208,7 @@ async fn detect_image_chunks(
         let mut input = RecognizerInput::new(chunk.data);
         input.correlation_id = Some(run_id);
 
-        let detected = registry.run_image(input).await?;
+        let detected = registry.run::<Image>(input).await?;
         let filtered: Vec<Entity<Image>> = detected
             .into_iter()
             .filter(|e| cfg.entity_kinds.is_empty() || cfg.entity_kinds.contains(&e.entity_kind))
@@ -229,7 +229,7 @@ async fn detect_image_chunks(
 async fn detect_image_chunks(
     _registry: &RecognizerRegistry,
     _doc: &mut Document<Image>,
-    _handle: &mut dyn nvisy_codec::core::IndexedHandle<Image>,
+    _handle: &mut dyn nvisy_codec::Handler<Image>,
     _cfg: &Detection,
     _run_id: uuid::Uuid,
 ) -> Result<()> {
@@ -241,6 +241,10 @@ async fn detect_image_chunks(
 /// Map a block-text byte range to an absolute `M` location using the
 /// block's spans.
 pub trait LiftFromBlock: DocumentModality + Sized {
+    /// Translate a block-text byte range `[start, end)` to the
+    /// source-coordinate `Self::Location` carried by the block's
+    /// spans. Returns `None` when the range has no matching pre-image
+    /// in `spans` (e.g. a recognizer match that straddled a span gap).
     fn lift_from_block(
         spans: &[Span<Self>],
         start: usize,

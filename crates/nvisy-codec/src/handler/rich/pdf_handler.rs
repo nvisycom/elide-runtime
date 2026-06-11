@@ -1,26 +1,23 @@
 //! PDF handler: holds per-page extracted text and raw document bytes,
-//! streaming pages via [`Handle<Text>`] with random-access reads and
-//! page-text redaction via [`IndexedHandle<Text>`].
+//! exposing per-page chunks via [`Handler<Text>`].
 //!
 //! Text offsets are cumulative over the per-page text sequence in
 //! document order. Each chunk carries the page number on its
 //! [`TextLocation`] for downstream provenance.
 //!
 //! Embedded image extraction (figures, page rasterization for OCR)
-//! lives on inherent methods rather than `Handle<Image>` — see
+//! lives on inherent methods rather than `Handler<Image>` — see
 //! [`render_pages`] and [`extract_embedded_images`]. These
 //! return [`DocumentHandle<Image>`] values backed by PNG bytes so
 //! downstream extractors can route them through the standard image
 //! pipeline.
 //!
-//! [`Handle<Text>`]: crate::core::Handle
-//! [`IndexedHandle<Text>`]: crate::core::IndexedHandle
+//! [`Handler<Text>`]: crate::Handler
 //! [`render_pages`]: PdfHandler::render_pages
 //! [`extract_embedded_images`]: PdfHandler::extract_embedded_images
 
-use std::sync::Arc;
+use std::ops::Range;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use nvisy_core::Error;
 use nvisy_core::modality::{Image, Text, TextData, TextLocation};
@@ -30,25 +27,20 @@ use nvisy_core::redaction::{Redactions, TextReplacement};
 use super::PdfLoader;
 use super::pdf_render::PdfRenderer;
 use crate::content::{ContentData, ContentSource};
-use crate::core::{Chunk, Handle, Handler, IndexedHandle, ModalityKind};
 use crate::handler::image::PngHandler;
-use crate::handler::text::redact;
-use crate::{DocumentHandle, Format, FormatId, LoaderAdapter};
+use crate::handler::text::{lift_identity, redact};
+use crate::{Chunk, DocumentHandle, Format, FormatId, Handler};
 
-const TARGET: &str = "pdf-handler";
+const TARGET: &str = "nvisy_codec::handler::rich::pdf";
 
 /// Stable [`FormatId`] for the PDF codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.rich.pdf");
 
 /// [`Format`] descriptor registered into [`crate::CodecRegistry`].
 pub fn format() -> Format {
-    Format {
-        id: FORMAT_ID.clone(),
-        modality: ModalityKind::Text,
-        extensions: vec!["pdf".into()],
-        content_types: vec!["application/pdf".into()],
-        loader: Arc::new(LoaderAdapter::new(PdfLoader::default())),
-    }
+    Format::new::<Text, _>(FORMAT_ID.clone(), PdfLoader::default())
+        .with_extensions(["pdf"])
+        .with_content_types(["application/pdf"])
 }
 
 /// Handler for loaded PDF content.
@@ -169,13 +161,14 @@ impl PdfHandler {
     }
 }
 
-impl Handler for PdfHandler {
+#[async_trait::async_trait]
+impl Handler<Text> for PdfHandler {
     fn format(&self) -> FormatId {
         FORMAT_ID.clone()
     }
 
-    fn source(&self) -> &ContentSource {
-        &self.source
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "pdf.encode", skip_all, fields(output_bytes))]
@@ -184,10 +177,7 @@ impl Handler for PdfHandler {
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, self.raw.clone()))
     }
-}
 
-#[async_trait]
-impl Handle<Text> for PdfHandler {
     async fn next_chunk(&mut self) -> Result<Option<Chunk<Text>>, Error> {
         if self.cursor >= self.pages.len() {
             return Ok(None);
@@ -205,13 +195,13 @@ impl Handle<Text> for PdfHandler {
                 ..Default::default()
             },
             data: TextData::from(text.as_str()),
-            embed: None,
         }))
     }
-}
 
-#[async_trait]
-impl IndexedHandle<Text> for PdfHandler {
+    fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
+        lift_identity(chunk, value_range)
+    }
+
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
         let Some(i) = self.page_for(location.start) else {
             return Ok(None);
@@ -228,12 +218,11 @@ impl IndexedHandle<Text> for PdfHandler {
             .map(TextData::from))
     }
 
-    async fn redact(&mut self, redactions: Redactions<Text>) -> Result<(), Error> {
+    async fn redact(&mut self, mut redactions: Redactions<Text>) -> Result<(), Error> {
         // Right-to-left so each page's length delta doesn't invalidate
         // earlier byte offsets.
-        let mut items = redactions.into_items();
-        items.sort_by_key(|(loc, _)| std::cmp::Reverse(loc.start));
-        for (location, replacement) in items {
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
             self.redact_one(&location, replacement)?;
         }
         Ok(())

@@ -9,15 +9,15 @@
 //! responsibility: an [`AudioReplacement::Remove`] shrinks the buffer,
 //! so later time spans must be applied first to keep earlier ones'
 //! indices valid. Audio handlers typically override
-//! [`Handle::redact`] to use [`sort_redactions_for_audio`].
+//! [`Handler::redact`] to call [`Redactions::sort_descending`].
 //!
-//! [`Handle::redact`]: crate::core::Handle::redact
-//! [`sort_redactions_for_audio`]: crate::handler::audio::sort_redactions_for_audio
+//! [`Handler::redact`]: crate::Handler::redact
+//! [`Redactions::sort_descending`]: nvisy_core::redaction::Redactions::sort_descending
 
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::AudioReplacement;
 
-const TARGET: &str = "nvisy_codec::audio";
+const TARGET: &str = "nvisy_codec::handler::audio::redact";
 
 /// Apply a single replacement to `samples` in place.
 pub(crate) fn apply<S>(

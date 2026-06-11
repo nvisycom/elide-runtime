@@ -11,7 +11,7 @@
 //! [`Severity`]: nvisy_toolkit::validation::Severity
 //! [`Validation`]: crate::pipeline::Validation
 
-use nvisy_codec::core::IndexedHandle;
+use nvisy_codec::Handler;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
@@ -197,7 +197,7 @@ fn finalize(findings: &[Finding]) -> Result<()> {
 /// Drain the post-redaction text chunks into one concatenated string
 /// for substring-based leak detection. Returns `None` when the handle
 /// has no chunks at all.
-async fn stream_text(handle: &mut dyn IndexedHandle<Text>) -> Result<Option<String>> {
+async fn stream_text(handle: &mut dyn Handler<Text>) -> Result<Option<String>> {
     let mut buf = String::new();
     while let Some(chunk) = handle.next_chunk().await? {
         if !buf.is_empty() {
@@ -209,7 +209,7 @@ async fn stream_text(handle: &mut dyn IndexedHandle<Text>) -> Result<Option<Stri
 }
 
 /// Drain post-redaction tabular cells, separating rows with newlines.
-async fn stream_tabular(handle: &mut dyn IndexedHandle<Tabular>) -> Result<Option<String>> {
+async fn stream_tabular(handle: &mut dyn Handler<Tabular>) -> Result<Option<String>> {
     let mut buf = String::new();
     let mut current_row: Option<u32> = None;
     while let Some(chunk) = handle.next_chunk().await? {

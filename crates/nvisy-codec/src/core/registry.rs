@@ -153,19 +153,21 @@ impl CodecRegistry {
         self.formats.iter()
     }
 
-    /// Decode in-memory bytes using the format resolved from the
-    /// extension hint.
-    pub async fn decode_from_memory(
+    /// Decode raw content using the format resolved from the
+    /// extension hint. Accepts anything convertible into
+    /// [`ContentData`] — `&str`, `&[u8]`, `Vec<u8>`, `Bytes`,
+    /// `String`.
+    pub async fn decode(
         &self,
-        bytes: impl Into<ContentData>,
+        content: impl Into<ContentData>,
         extension: &str,
     ) -> Result<UntypedDocumentHandle, Error> {
         let format = self.by_extension(extension).ok_or_else(|| {
             Error::validation(
                 format!("no codec registered for extension `{extension}`"),
-                "nvisy_codec::registry::decode_from_memory",
+                "nvisy_codec::handler::registry::decode",
             )
         })?;
-        format.loader.decode(bytes.into()).await
+        format.loader.decode(content.into()).await
     }
 }

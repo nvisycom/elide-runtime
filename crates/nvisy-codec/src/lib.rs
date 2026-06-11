@@ -32,7 +32,7 @@ mod tests {
     async fn registry_decodes_txt_from_extension() {
         let reg = CodecRegistry::with_builtin();
         let handle = reg
-            .decode_from_memory("hello\nworld\n".to_owned().into_bytes(), "txt")
+            .decode("hello\nworld\n".to_owned().into_bytes(), "txt")
             .await
             .expect("txt decoded");
         let typed = handle.into_text().expect("text variant");
@@ -44,7 +44,7 @@ mod tests {
     async fn registry_decodes_csv_from_extension() {
         let reg = CodecRegistry::with_builtin();
         let handle = reg
-            .decode_from_memory("a,b\n1,2\n".to_owned().into_bytes(), "csv")
+            .decode("a,b\n1,2\n".to_owned().into_bytes(), "csv")
             .await
             .expect("csv decoded");
         let typed = handle.into_tabular().expect("tabular variant");

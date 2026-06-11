@@ -6,7 +6,7 @@
 //!
 //! - [`CodecRegistry`] is the entry point — call
 //!   [`CodecRegistry::with_builtin`] to get every shipped format the
-//!   active features compile in, then [`decode_from_memory`] to
+//!   active features compile in, then [`decode`] to
 //!   commit bytes to a typed handle.
 //! - [`DocumentHandle<M>`] is the typed handle. It implements the
 //!   resolver traits ([`TextAt`], [`DataAt`]) plus [`RedactAt`] that
@@ -22,7 +22,7 @@
 //!
 //! [`CodecRegistry`]: nvisy_codec::CodecRegistry
 //! [`CodecRegistry::with_builtin`]: nvisy_codec::CodecRegistry::with_builtin
-//! [`decode_from_memory`]: nvisy_codec::CodecRegistry::decode_from_memory
+//! [`decode`]: nvisy_codec::CodecRegistry::decode
 //! [`DocumentHandle<M>`]: nvisy_codec::DocumentHandle
 //! [`TextAt`]: nvisy_core::extraction::TextAt
 //! [`DataAt`]: nvisy_core::extraction::DataAt

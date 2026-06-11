@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     // loader and pulling the resulting handle back into a typed
     // text DocumentHandle.
     let registry = CodecRegistry::with_builtin();
-    let untyped = registry.decode_from_memory(SAMPLE, "txt").await?;
+    let untyped = registry.decode(SAMPLE, "txt").await?;
     let mut source = untyped
         .into_text()
         .expect("txt extension resolves to text modality");

@@ -155,10 +155,10 @@ impl Format {
 
     /// Decode raw content through this format's loader, returning
     /// the runtime-tagged handle. Equivalent to calling
-    /// [`CodecRegistry::decode_from_memory`] after resolving the
+    /// [`CodecRegistry::decode`] after resolving the
     /// format yourself.
     ///
-    /// [`CodecRegistry::decode_from_memory`]: super::CodecRegistry::decode_from_memory
+    /// [`CodecRegistry::decode`]: super::CodecRegistry::decode
     pub async fn decode(
         &self,
         content: crate::content::ContentData,

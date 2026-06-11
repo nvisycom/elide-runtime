@@ -74,12 +74,12 @@ pub trait Loader<M: Modality>: Send + Sync + 'static {
 /// signature returning an [`UntypedDocumentHandle`].
 ///
 /// Crate-internal: every consumer goes through [`Format::decode`]
-/// or [`CodecRegistry::decode_from_memory`] instead of touching
+/// or [`CodecRegistry::decode`] instead of touching
 /// this trait directly.
 ///
 /// [`CodecRegistry`]: super::CodecRegistry
 /// [`Format::decode`]: super::Format::decode
-/// [`CodecRegistry::decode_from_memory`]: super::CodecRegistry::decode_from_memory
+/// [`CodecRegistry::decode`]: super::CodecRegistry::decode
 #[async_trait::async_trait]
 pub(crate) trait ErasedLoader: Send + Sync + 'static {
     /// Decode raw content into an [`UntypedDocumentHandle`].

@@ -1,18 +1,23 @@
-//! End-to-end HTML codec. The HTML loader chunks the source on
-//! text nodes; this test exercises:
+//! End-to-end HTML codec. The HTML loader emits a redactable-item
+//! stream: text nodes, every element attribute, and HTML comments.
+//! `mailto:` / `tel:` URLs are scanned in place — the recognizer
+//! matches the PII substring inside the attribute value, redact
+//! rewrites only that range, and the scheme prefix + query suffix
+//! pass through untouched. This test exercises:
 //!
-//! 1. Entity detection inside per-tag text nodes (PII split across
-//!    `<strong>`, `<em>`, `<code>` resolves and feeds the redactor).
-//! 2. Tag preservation: `Handler::encode` rebuilds the document
-//!    from the parsed tree so `<p>`, `<strong>`, `<em>`, `<code>`,
-//!    `<h1>`, etc. survive alongside the rewritten text.
+//! 1. Detection inside per-tag text nodes.
+//! 2. Detection inside attributes (`alt`, `aria-label`,
+//!    `placeholder`, `data-*`).
+//! 3. Detection inside HTML comments.
+//! 4. PII matching inside URL attribute values without explicit
+//!    scheme parsing.
+//! 5. Tag preservation through encode.
 //!
-//! Note: entity locations on HTML are text-stream coords (relative
-//! to the concatenated text nodes), not raw HTML source byte
+//! Note: entity locations on HTML are item-stream coords (relative
+//! to the concatenated item stream), not raw HTML source byte
 //! offsets, so this test asserts by entity-kind presence rather
 //! than slicing the source at each entity's range. See
-//! `.ignore/html-handler-improvements.md` for the longer-term
-//! roadmap (attribute scanning, URL scheme awareness, …).
+//! `.ignore/html-handler-improvements.md`.
 
 mod fixtures;
 
@@ -53,15 +58,28 @@ async fn html_codec_detects_and_redacts() {
         );
     }
 
+    // Cover every PII string in the fixture — text-node, attribute,
+    // comment, and URL-body locations. If any of these survive,
+    // it's a regression somewhere in the redactable-item pipeline.
     assert_pii_removed(
         &outcome.redacted,
         &[
+            // Text-node values.
             "alice.johnson@example.com",
             "+1 (415) 555-0142",
             "4111 1111 1111 1111",
             "GB29 NWBK 6016 1331 9268 19",
             "123-45-6789",
             "192.168.1.42",
+            // Attribute values (alt, aria-label, placeholder, data-*).
+            "Avatar for alice.johnson@example.com",
+            "Call Alice at +1 (415) 555-0142",
+            "Backup contact e.g. carol.lee@example.com",
+            // Comment body.
+            "bob.smith@example.com",
+            // URL bodies (mailto: + tel:).
+            "mailto:alice.johnson@example.com",
+            "tel:+14155550142",
         ],
     );
     assert_tokens_present(
@@ -109,6 +127,29 @@ async fn html_codec_detects_and_redacts() {
     assert!(
         outcome.redacted.contains("<code>"),
         "code tag lost: {}",
+        outcome.redacted,
+    );
+    // URL `scheme:` prefixes survive verbatim because attribute
+    // values pass through and the recognizer matches only the PII
+    // substring (`alice@example.com` inside `mailto:...`).
+    assert!(
+        outcome.redacted.contains("href=\"mailto:"),
+        "mailto: scheme prefix lost: {}",
+        outcome.redacted,
+    );
+    assert!(
+        outcome.redacted.contains("?subject=Welcome"),
+        "mailto: query suffix lost: {}",
+        outcome.redacted,
+    );
+    assert!(
+        outcome.redacted.contains("href=\"tel:"),
+        "tel: scheme prefix lost: {}",
+        outcome.redacted,
+    );
+    assert!(
+        outcome.redacted.contains("<!--"),
+        "comment delimiter lost: {}",
         outcome.redacted,
     );
 }

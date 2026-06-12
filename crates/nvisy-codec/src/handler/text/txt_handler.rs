@@ -12,7 +12,7 @@ use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::{Redactions, TextReplacement};
 
-use super::{TxtLoader, lift_identity, redact};
+use super::{TxtLoader, redact};
 use crate::content::{ContentData, ContentSource};
 use crate::{Chunk, Format, FormatId, Handler};
 
@@ -88,7 +88,7 @@ impl Handler<Text> for TxtHandler {
     }
 
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
-        lift_identity(chunk, value_range)
+        chunk.location.subslice(value_range)
     }
 
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
@@ -206,7 +206,7 @@ impl TxtHandler {
         let local_end = location.end - line_start;
         let value = replacement.replacement_value().unwrap_or_default();
         let before_len = self.lines[i].len();
-        redact::replace_range(&mut self.lines[i], value, local_start, local_end, TARGET)?;
+        redact::replace_range(&mut self.lines[i], value, local_start..local_end, TARGET)?;
         let after_len = self.lines[i].len();
         self.shift_starts_after(i, after_len as isize - before_len as isize);
         Ok(())

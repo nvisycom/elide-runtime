@@ -28,7 +28,7 @@ use super::PdfLoader;
 use super::pdf_render::PdfRenderer;
 use crate::content::{ContentData, ContentSource};
 use crate::handler::image::PngHandler;
-use crate::handler::text::{lift_identity, redact};
+use crate::handler::text::redact;
 use crate::{Chunk, DocumentHandle, Format, FormatId, Handler};
 
 const TARGET: &str = "nvisy_codec::handler::rich::pdf";
@@ -199,7 +199,7 @@ impl Handler<Text> for PdfHandler {
     }
 
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
-        lift_identity(chunk, value_range)
+        chunk.location.subslice(value_range)
     }
 
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
@@ -249,7 +249,7 @@ impl PdfHandler {
         let mut content = self.pages[i].clone();
         let value = replacement.replacement_value().unwrap_or_default();
         let before_len = self.pages[i].len();
-        redact::replace_range(&mut content, value, local_start, local_end, TARGET)?;
+        redact::replace_range(&mut content, value, local_start..local_end, TARGET)?;
 
         // Bake the edit into the raw PDF content stream so the encoded
         // bytes round-trip with the redaction.

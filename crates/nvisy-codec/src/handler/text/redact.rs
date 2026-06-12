@@ -3,25 +3,26 @@
 //! the PDF rich handler) plus the tabular cell handlers (CSV, XLSX
 //! cells are flat strings).
 //!
-//! Replaces `content[start..end]` with `value`. Clamps offsets to
-//! `content.len()`; errors when either offset falls mid-character.
+//! Replaces `buf[range]` with `value`. Clamps the range endpoints
+//! to `buf.len()`; errors when either endpoint falls mid-character.
+
+use std::ops::Range;
 
 use nvisy_core::Error;
 
-/// Replace `buf[start..end]` with `value` in place.
+/// Replace `buf[range]` with `value` in place.
 ///
-/// Returns an error if either offset falls mid-character. Offsets are
-/// clamped to `buf.len()`; an empty replacement against an empty range
-/// is a no-op.
+/// Returns an error if either endpoint falls mid-character. The
+/// range endpoints are clamped to `buf.len()`; an empty range is
+/// a no-op.
 pub(crate) fn replace_range(
     buf: &mut String,
     value: &str,
-    start: usize,
-    end: usize,
+    range: Range<usize>,
     target: &'static str,
 ) -> Result<(), Error> {
-    let s = start.min(buf.len());
-    let e = end.min(buf.len());
+    let s = range.start.min(buf.len());
+    let e = range.end.min(buf.len());
     if s >= e {
         return Ok(());
     }
@@ -29,7 +30,9 @@ pub(crate) fn replace_range(
         return Err(Error::validation(
             format!(
                 "redaction offset falls mid-character \
-                 (start={start}, end={end}, len={})",
+                 (start={}, end={}, len={})",
+                range.start,
+                range.end,
                 buf.len()
             ),
             target,
@@ -46,28 +49,28 @@ mod tests {
     #[test]
     fn single_replacement() {
         let mut s = String::from("hello world");
-        replace_range(&mut s, "[X]", 0, 5, "test").unwrap();
+        replace_range(&mut s, "[X]", 0..5, "test").unwrap();
         assert_eq!(s, "[X] world");
     }
 
     #[test]
     fn remove_empty_value() {
         let mut s = String::from("hello world");
-        replace_range(&mut s, "", 5, 11, "test").unwrap();
+        replace_range(&mut s, "", 5..11, "test").unwrap();
         assert_eq!(s, "hello");
     }
 
     #[test]
     fn out_of_bounds_clipped() {
         let mut s = String::from("short");
-        replace_range(&mut s, "[X]", 0, 999, "test").unwrap();
+        replace_range(&mut s, "[X]", 0..999, "test").unwrap();
         assert_eq!(s, "[X]");
     }
 
     #[test]
     fn mid_character_rejected() {
         let mut s = String::from("héllo"); // 'é' is 2 bytes
-        let err = replace_range(&mut s, "[X]", 0, 2, "test").unwrap_err();
+        let err = replace_range(&mut s, "[X]", 0..2, "test").unwrap_err();
         assert!(err.to_string().contains("mid-character"));
     }
 }

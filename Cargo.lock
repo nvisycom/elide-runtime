@@ -2834,6 +2834,7 @@ dependencies = [
  "bytes",
  "csv",
  "derive_more",
+ "ego-tree",
  "hex",
  "hound",
  "image",

@@ -200,7 +200,7 @@ impl Handler<Text> for JsonHandler {
             let Slot::Leaf(leaf) = &mut self.slots[idx] else {
                 continue;
             };
-            redact::replace_range(&mut leaf.value, &value, value_start, value_end, TARGET)?;
+            redact::replace_range(&mut leaf.value, &value, value_start..value_end, TARGET)?;
             leaf.render();
         }
         self.cursor = 0;

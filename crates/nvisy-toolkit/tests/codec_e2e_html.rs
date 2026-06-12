@@ -1,26 +1,23 @@
-//! End-to-end HTML codec. The HTML loader chunks the source on a
-//! heterogeneous redactable-item stream — text nodes, comments,
-//! scanned attributes, and URL bodies inside scheme-known
-//! attributes (`mailto:`, `tel:`, `sms:`, `callto:`). This test
-//! exercises:
+//! End-to-end HTML codec. The HTML loader emits a redactable-item
+//! stream: text nodes, every element attribute, and HTML comments.
+//! `mailto:` / `tel:` URLs are scanned in place — the recognizer
+//! matches the PII substring inside the attribute value, redact
+//! rewrites only that range, and the scheme prefix + query suffix
+//! pass through untouched. This test exercises:
 //!
 //! 1. Detection inside per-tag text nodes.
-//! 2. Detection inside the default-scanned attributes (`alt`,
-//!    `title`, `value`, `placeholder`, `aria-label`,
-//!    `aria-describedby`, `data-*`).
-//! 3. Detection inside HTML comments (scanned by default).
-//! 4. Detection inside `mailto:` and `tel:` URL bodies, with the
-//!    scheme prefix and any trailing query suffix re-attached
-//!    after redact.
-//! 5. Tag preservation: `Handler::encode` rebuilds the document
-//!    from the parsed tree so structural elements survive
-//!    alongside the rewritten content.
+//! 2. Detection inside attributes (`alt`, `aria-label`,
+//!    `placeholder`, `data-*`).
+//! 3. Detection inside HTML comments.
+//! 4. PII matching inside URL attribute values without explicit
+//!    scheme parsing.
+//! 5. Tag preservation through encode.
 //!
 //! Note: entity locations on HTML are item-stream coords (relative
-//! to the concatenated text + attribute + comment + URL-body
-//! stream), not raw HTML source byte offsets, so this test asserts
-//! by entity-kind presence rather than slicing the source at each
-//! entity's range. See `.ignore/html-handler-improvements.md`.
+//! to the concatenated item stream), not raw HTML source byte
+//! offsets, so this test asserts by entity-kind presence rather
+//! than slicing the source at each entity's range. See
+//! `.ignore/html-handler-improvements.md`.
 
 mod fixtures;
 
@@ -132,8 +129,9 @@ async fn html_codec_detects_and_redacts() {
         "code tag lost: {}",
         outcome.redacted,
     );
-    // URL scheme prefixes survive: redact only edits the body and
-    // re-attaches `scheme:` plus any trailing `?…` / `#…` suffix.
+    // URL `scheme:` prefixes survive verbatim because attribute
+    // values pass through and the recognizer matches only the PII
+    // substring (`alice@example.com` inside `mailto:...`).
     assert!(
         outcome.redacted.contains("href=\"mailto:"),
         "mailto: scheme prefix lost: {}",
@@ -149,8 +147,6 @@ async fn html_codec_detects_and_redacts() {
         "tel: scheme prefix lost: {}",
         outcome.redacted,
     );
-    // Comments survive as `<!-- … -->` after their bodies are
-    // rewritten.
     assert!(
         outcome.redacted.contains("<!--"),
         "comment delimiter lost: {}",

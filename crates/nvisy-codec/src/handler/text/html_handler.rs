@@ -1,35 +1,29 @@
-//! HTML handler: parses HTML into a heterogeneous stream of
-//! [`RedactableItem`]s — text nodes, comments, element attributes,
-//! URL bodies inside scheme-known attributes, and `<script>` /
-//! `<style>` bodies. Each item participates in the same
-//! `decode → chunk → detect → redact → encode` flow.
+//! HTML handler: holds a parsed HTML document as a stream of
+//! [`RedactableItem`]s — text nodes, comments, element
+//! attributes, and (per [`HtmlLoader::script_policy`] /
+//! [`HtmlLoader::style_policy`]) `<script>` / `<style>` bodies.
 //!
 //! Offsets are cumulative over the redactable-item sequence in
 //! document order, not raw HTML source bytes. [`Handler::encode`]
 //! reconstructs the HTML by re-parsing the original source into a
-//! DOM, replaying each item's mutation in the same order the
-//! loader visited it, and serializing back with [`Html::html`].
-//!
-//! What gets scanned is controlled at decode time via the
-//! [`HtmlLoader`] policy fields ([`scan_attributes`],
-//! [`scan_comments`], [`scan_url_schemes`], [`script_policy`],
-//! [`style_policy`]).
+//! DOM, splicing each mutated value back in document order, and
+//! serializing with [`Html::html`].
 //!
 //! [`Html::html`]: scraper::Html::html
 //! [`HtmlLoader`]: super::HtmlLoader
-//! [`scan_attributes`]: super::HtmlLoader::scan_attributes
-//! [`scan_comments`]: super::HtmlLoader::scan_comments
-//! [`scan_url_schemes`]: super::HtmlLoader::scan_url_schemes
-//! [`script_policy`]: super::HtmlLoader::script_policy
-//! [`style_policy`]: super::HtmlLoader::style_policy
+//! [`HtmlLoader::script_policy`]: super::HtmlLoader::script_policy
+//! [`HtmlLoader::style_policy`]: super::HtmlLoader::style_policy
 
 use std::ops::Range;
 
+use ego_tree::NodeId;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::{Redactions, TextReplacement};
+use scraper::Html;
+use scraper::node::Node;
 
-use super::{HtmlLoader, UrlScheme, lift_identity, redact};
+use super::{HtmlLoader, lift_identity, redact};
 use crate::content::{ContentData, ContentSource};
 use crate::{Chunk, Format, FormatId, Handler};
 
@@ -55,22 +49,19 @@ pub struct HtmlData {
     /// The raw HTML source. Re-parsed at encode time so the
     /// serialiser can splice mutated values back into a fresh
     /// DOM and emit the result.
-    ///
-    /// [`HtmlLoader::decode`]: super::HtmlLoader
     pub raw: String,
 }
 
 /// One redactable unit yielded by [`HtmlHandler::next_chunk`].
 ///
-/// `value` is the decoded text the recognizer scans and that
+/// `value` is the text the recognizer scans and that
 /// [`HtmlHandler::redact`] mutates in place. `kind` tells encode
 /// where to splice the mutated value back into the document.
 #[derive(Debug, Clone)]
 pub struct RedactableItem {
     /// Where this item lives in the document.
     pub kind: RedactableKind,
-    /// The decoded value: text-node text, comment body, attribute
-    /// value, URL body (without the scheme prefix), or script /
+    /// Text-node text, comment body, attribute value, or script /
     /// style element text.
     pub value: String,
 }
@@ -92,9 +83,8 @@ pub enum RedactableKind {
         /// Document-order index among comments.
         index: usize,
     },
-    /// Any element-bound item: an attribute value, a URL body
-    /// inside a scheme-known attribute, or a script / style
-    /// element's text body.
+    /// Any element-bound item: an attribute value or a script /
+    /// style element's text body.
     Element {
         /// Document-order index among elements.
         element_index: usize,
@@ -111,20 +101,6 @@ pub enum ElementTarget {
     Attribute {
         /// Attribute local name.
         attr_name: String,
-    },
-    /// The body of a scheme-known URL stored in `attr_name`
-    /// (typically `href` or `src`). The item's `value` is the
-    /// scannable body without the `scheme:` prefix and any
-    /// trailing query string; encode re-attaches them.
-    UrlBody {
-        /// Attribute local name carrying the URL (`href` / `src`).
-        attr_name: String,
-        /// URL scheme recognised at decode time.
-        scheme: UrlScheme,
-        /// Optional query / fragment suffix that decode peeled off
-        /// (everything from the first `?` or `#` onwards).
-        /// Re-attached verbatim at encode.
-        suffix: String,
     },
     /// The text body of a `<script>` element scanned as plain text.
     ScriptText,
@@ -159,7 +135,7 @@ impl Handler<Text> for HtmlHandler {
 
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
-        let mut dom = scraper::Html::parse_document(&self.data.raw);
+        let mut dom = Html::parse_document(&self.data.raw);
         let plan = EncodePlan::from_items(&self.data.items);
 
         let mut text_seen = 0usize;
@@ -172,19 +148,19 @@ impl Handler<Text> for HtmlHandler {
                 continue;
             };
             match node.value() {
-                scraper::node::Node::Text(_) => {
+                Node::Text(_) => {
                     if let Some(value) = plan.text_value(text_seen) {
                         write_text(&mut dom, node_id, value);
                     }
                     text_seen += 1;
                 }
-                scraper::node::Node::Comment(_) => {
+                Node::Comment(_) => {
                     if let Some(value) = plan.comment_value(comment_seen) {
                         write_comment(&mut dom, node_id, value);
                     }
                     comment_seen += 1;
                 }
-                scraper::node::Node::Element(_) => {
+                Node::Element(_) => {
                     if let Some(targets) = plan.element_targets(element_seen) {
                         for et in targets {
                             apply_element_target(&mut dom, node_id, et);
@@ -439,18 +415,18 @@ fn grow_to(v: &mut Vec<Option<&str>>, index: usize) {
     }
 }
 
-fn write_text(dom: &mut scraper::Html, node_id: ego_tree::NodeId, value: &str) {
+fn write_text(dom: &mut Html, node_id: NodeId, value: &str) {
     if let Some(mut n) = dom.tree.get_mut(node_id)
-        && let scraper::node::Node::Text(t) = n.value()
+        && let Node::Text(t) = n.value()
         && t.text.as_ref() != value
     {
         t.text = value.into();
     }
 }
 
-fn write_comment(dom: &mut scraper::Html, node_id: ego_tree::NodeId, value: &str) {
+fn write_comment(dom: &mut Html, node_id: NodeId, value: &str) {
     if let Some(mut n) = dom.tree.get_mut(node_id)
-        && let scraper::node::Node::Comment(c) = n.value()
+        && let Node::Comment(c) = n.value()
         && c.comment.as_ref() != value
     {
         c.comment = value.into();
@@ -458,21 +434,13 @@ fn write_comment(dom: &mut scraper::Html, node_id: ego_tree::NodeId, value: &str
 }
 
 fn apply_element_target(
-    dom: &mut scraper::Html,
-    node_id: ego_tree::NodeId,
+    dom: &mut Html,
+    node_id: NodeId,
     patch: &ElementTargetPatch<'_>,
 ) {
     match patch.target {
         ElementTarget::Attribute { attr_name } => {
             write_attribute(dom, node_id, attr_name, patch.value);
-        }
-        ElementTarget::UrlBody {
-            attr_name,
-            scheme,
-            suffix,
-        } => {
-            let rebuilt = format!("{}{}{}", scheme.prefix(), patch.value, suffix);
-            write_attribute(dom, node_id, attr_name, &rebuilt);
         }
         ElementTarget::ScriptText | ElementTarget::StyleText => {
             write_text_child(dom, node_id, patch.value);
@@ -481,13 +449,13 @@ fn apply_element_target(
 }
 
 fn write_attribute(
-    dom: &mut scraper::Html,
-    element_id: ego_tree::NodeId,
+    dom: &mut Html,
+    element_id: NodeId,
     attr_name: &str,
     value: &str,
 ) {
     if let Some(mut n) = dom.tree.get_mut(element_id)
-        && let scraper::node::Node::Element(e) = n.value()
+        && let Node::Element(e) = n.value()
     {
         for (qn, val) in &mut e.attrs {
             if qn.local.as_ref() == attr_name {
@@ -500,7 +468,7 @@ fn write_attribute(
     }
 }
 
-fn write_text_child(dom: &mut scraper::Html, element_id: ego_tree::NodeId, value: &str) {
+fn write_text_child(dom: &mut Html, element_id: NodeId, value: &str) {
     let child_id = dom
         .tree
         .get(element_id)
@@ -621,43 +589,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn url_body_redact_reattaches_scheme() -> Result<(), Error> {
+    async fn href_attribute_carries_url_verbatim() -> Result<(), Error> {
         let raw = r#"<html><head></head><body><a href="mailto:alice@example.com?subject=Hi">contact</a></body></html>"#;
         let mut h = load(raw).await;
-        let mut loc = None;
-        while let Some(chunk) = h.next_chunk().await? {
-            if chunk.data.as_str() == "alice@example.com" {
-                loc = Some(chunk.location);
-                break;
-            }
-        }
-        let loc = loc.expect("mailto body yields a chunk");
-        let mut rs = Redactions::new();
-        rs.push(loc, TextReplacement::substituted("[email]"));
-        h.redact(rs).await?;
-        let out = h.encode()?.as_str().unwrap().to_owned();
-        assert!(
-            out.contains(r#"href="mailto:[email]?subject=Hi""#),
-            "mailto url not rewritten with scheme + suffix: {out}"
-        );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn opt_out_of_attribute_scanning() -> Result<(), Error> {
-        let raw = r#"<html><head></head><body><img alt="alice@example.com"></body></html>"#;
-        let loader = HtmlLoader {
-            scan_attributes: Vec::new(),
-            ..HtmlLoader::default()
-        };
-        let mut h = load_with(raw, loader).await;
         let mut emitted = Vec::new();
         while let Some(chunk) = h.next_chunk().await? {
             emitted.push(chunk.data.as_str().to_owned());
         }
         assert!(
-            emitted.iter().all(|v| v != "alice@example.com"),
-            "alt attribute should not have been scanned when opt-out empties the list: {emitted:?}"
+            emitted
+                .iter()
+                .any(|v| v == "mailto:alice@example.com?subject=Hi"),
+            "href emitted as one verbatim attribute item: {emitted:?}"
         );
         Ok(())
     }

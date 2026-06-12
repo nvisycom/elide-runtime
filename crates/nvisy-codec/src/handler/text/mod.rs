@@ -60,7 +60,7 @@ pub use self::html_handler::{
     ElementTarget, HtmlData, HtmlHandler, RedactableItem, RedactableKind, format as html_format,
 };
 #[cfg(feature = "html")]
-pub use self::html_loader::{HtmlLoader, ScriptPolicy, UrlScheme, default_scan_attributes};
+pub use self::html_loader::{HtmlLoader, ScriptPolicy};
 #[cfg(feature = "json")]
 pub use self::json_handler::{JsonHandler, format as json_format};
 #[cfg(feature = "json")]

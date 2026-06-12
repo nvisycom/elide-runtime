@@ -1,13 +1,22 @@
 //! MP3 handler: holds raw MP3 audio bytes and exposes them as a
 //! single-track audio handle via [`Handler<Audio>`].
 //!
-//! Redaction is **not supported**: no pure-Rust MP3 encoder exists
-//! and pulling a C dependency (libmp3lame) is out of scope here.
-//! [`Handler::redact`] returns an error. Convert audio to
-//! WAV upstream if redaction is required.
+//! [`Handler::redact`] decodes the stream via Symphonia, mutates an
+//! interleaved `f32` PCM buffer with the same
+//! [`super::redact::apply`] helper the WAV handler uses, then
+//! re-encodes via `mp3lame-encoder` at the input clip's measured
+//! average bitrate. The round-trip is therefore lossy in addition to
+//! whatever loss the input already had — operators wanting bit-exact
+//! preservation of unredacted regions should not redact MP3 inputs.
+//!
+//! The MP3 encoder dependency carries an LGPL-3.0 licence (via
+//! libmp3lame) and requires a C toolchain plus `autoconf` /
+//! `automake` at build time. Both prerequisites travel with the
+//! `mp3` crate feature.
 //!
 //! [`Handler<Audio>`]: crate::Handler
 //! [`Handler::redact`]: crate::Handler::redact
+//! [`super::redact::apply`]: super::redact::apply
 
 use bytes::Bytes;
 use nvisy_core::Error;
@@ -17,10 +26,10 @@ use nvisy_core::redaction::Redactions;
 
 use super::Mp3Loader;
 use super::duration::probe_duration_us;
+use super::mp3_codec::{decode_to_pcm, encode_from_pcm};
+use super::redact;
 use crate::content::{ContentData, ContentSource};
 use crate::{Chunk, Format, FormatId, Handler};
-
-const TARGET: &str = "nvisy_codec::handler::audio::mp3";
 
 /// Stable [`FormatId`] for the MP3 codec.
 pub const FORMAT_ID: FormatId = FormatId::from_static("nvisy.audio.mp3");
@@ -109,15 +118,60 @@ impl Handler<Audio> for Mp3Handler {
         ))
     }
 
-    async fn redact(&mut self, redactions: Redactions<Audio>) -> Result<(), Error> {
+    /// Apply spans right-to-left so a [`AudioReplacement::Remove`]
+    /// doesn't invalidate earlier sample indices. The MP3 round-trip
+    /// decodes via `symphonia`, mutates an interleaved `f32` PCM
+    /// buffer, then re-encodes via `mp3lame-encoder` at the input's
+    /// average bitrate so the output's size stays in the same
+    /// ballpark.
+    ///
+    /// [`AudioReplacement::Remove`]: nvisy_core::redaction::AudioReplacement::Remove
+    async fn redact(&mut self, mut redactions: Redactions<Audio>) -> Result<(), Error> {
         if redactions.is_empty() {
             return Ok(());
         }
-        Err(Error::validation(
-            "MP3 redaction is not yet supported — convert audio to WAV before redaction",
-            TARGET,
-        ))
+        let original_bytes_len = self.bytes.len();
+        let original_duration_us = probe_duration_us(&self.bytes, "mp3")?;
+
+        let mut decoded = decode_to_pcm(&self.bytes)?;
+
+        redactions.sort_descending();
+        for (location, replacement) in redactions.into_items() {
+            redact::apply(
+                &mut decoded.samples,
+                location.time_span,
+                &replacement,
+                decoded.sample_rate,
+                decoded.channels,
+            );
+        }
+
+        let target_bitrate_bps = average_bitrate_bps(original_bytes_len, original_duration_us);
+        let new_bytes = encode_from_pcm(
+            &decoded.samples,
+            decoded.sample_rate,
+            decoded.channels,
+            target_bitrate_bps,
+        )?;
+        self.bytes = Bytes::from(new_bytes);
+        Ok(())
     }
+}
+
+/// Compute the average bitrate of the source file in bits/sec, so
+/// the re-encode lands roughly on the same target. Falls back to
+/// 128 kbps when the duration is non-positive (degenerate input).
+fn average_bitrate_bps(file_bytes: usize, duration_us: i64) -> u32 {
+    if duration_us <= 0 {
+        return 128_000;
+    }
+    // bps = file_bits * 1_000_000 / duration_us
+    let bits = (file_bytes as u128).saturating_mul(8);
+    let bps = bits
+        .saturating_mul(1_000_000)
+        .checked_div(duration_us as u128)
+        .unwrap_or(128_000);
+    u32::try_from(bps).unwrap_or(320_000)
 }
 
 #[cfg(test)]
@@ -126,31 +180,86 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn redact_with_entries_errors() {
-        let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
-        let location = AudioLocation::new(TimeSpan::new(0, 1_000));
-        let mut rs = Redactions::new();
-        rs.push(location, AudioReplacement::Silence);
-        let err = handler.redact(rs).await.unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("MP3 redaction is not yet supported")
-        );
+    /// Mint a small mono MP3 fixture for round-trip tests: 1 second
+    /// of constant-amplitude tone at 16 kHz, encoded at 64 kbps.
+    fn fixture_mono_tone_mp3(seconds: usize) -> Bytes {
+        let total = 16_000 * seconds;
+        let samples: Vec<f32> = (0..total).map(|i| (i as f32 * 0.01).sin() * 0.5).collect();
+        let encoded = encode_from_pcm(&samples, 16_000, 1, 64_000).expect("encode fixture");
+        Bytes::from(encoded)
     }
 
     #[tokio::test]
     async fn empty_redactions_is_noop() {
-        let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
+        let bytes = fixture_mono_tone_mp3(1);
+        let original = bytes.clone();
+        let mut handler = Mp3Handler::new(bytes);
         let rs: Redactions<Audio> = Redactions::default();
         handler.redact(rs).await.unwrap();
+        assert_eq!(handler.bytes(), &original);
+    }
+
+    #[tokio::test]
+    async fn silence_redaction_round_trips_and_zeros_target_window() {
+        let bytes = fixture_mono_tone_mp3(2);
+        let mut handler = Mp3Handler::new(bytes);
+
+        let mut rs = Redactions::new();
+        rs.push(
+            AudioLocation::new(TimeSpan::new(500_000, 1_500_000)),
+            AudioReplacement::Silence,
+        );
+        handler.redact(rs).await.unwrap();
+
+        // Decode the redacted MP3 back and assert the middle second is
+        // (approximately) silence. We allow generous tolerance because
+        // MP3 is lossy and the encoder smears boundaries slightly.
+        let decoded = decode_to_pcm(handler.bytes()).unwrap();
+        let sr = decoded.sample_rate as usize;
+        // Sample a window inside the silenced region, away from the
+        // boundary where smear is biggest.
+        let start = sr * 3 / 4;
+        let end = sr * 5 / 4;
+        let mean_abs: f32 = decoded.samples[start..end].iter().map(|s| s.abs()).sum::<f32>()
+            / (end - start) as f32;
+        assert!(
+            mean_abs < 0.05,
+            "silenced region should be near zero, mean |s| = {mean_abs}"
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_redaction_shortens_clip_duration() {
+        let bytes = fixture_mono_tone_mp3(3);
+        let original_duration = probe_duration_us(&bytes, "mp3").unwrap();
+        let mut handler = Mp3Handler::new(bytes);
+
+        let mut rs = Redactions::new();
+        rs.push(
+            AudioLocation::new(TimeSpan::new(1_000_000, 2_000_000)),
+            AudioReplacement::Remove,
+        );
+        handler.redact(rs).await.unwrap();
+
+        let new_duration = probe_duration_us(handler.bytes(), "mp3").unwrap();
+        // Removed 1s out of 3s; LAME pads the edges, so expect roughly
+        // 2s ± 200ms.
+        let diff = (new_duration - 2_000_000).abs();
+        assert!(
+            diff < 200_000,
+            "expected ~2s after 1s removal, got {new_duration} us"
+        );
+        assert!(
+            new_duration < original_duration,
+            "redacted duration must be shorter than original"
+        );
     }
 
     #[tokio::test]
     async fn next_chunk_propagates_probe_error_for_garbage_bytes() {
-        // Real MP3 fixtures live in upstream symphonia tests; here we
-        // only need to confirm the handler wires the probe in and
-        // surfaces failures rather than silently stamping (0, 0).
+        // Real MP3 fixtures are constructed inline above; here we only
+        // need to confirm the handler wires the probe in and surfaces
+        // failures rather than silently stamping (0, 0).
         let mut handler = Mp3Handler::new(Bytes::from_static(b"definitely not an mp3"));
         let err = handler.next_chunk().await.unwrap_err();
         assert!(err.to_string().contains("audio probe failed"));

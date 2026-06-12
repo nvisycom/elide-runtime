@@ -49,10 +49,11 @@ tiff = ["internal_image"]
 ## WAV audio loader and handler. `hound` covers sample read + write;
 ## `symphonia` probes container metadata for the clip duration.
 wav = ["internal_audio", "dep:hound", "dep:symphonia"]
-## MP3 audio loader and handler. Read-only on the redact path (no
-## pure-Rust MP3 encoder); `symphonia` decodes the stream for the
-## chunk duration probe.
-mp3 = ["internal_audio", "dep:symphonia"]
+## MP3 audio loader and handler. `symphonia` covers the duration
+## probe and PCM decode; `mp3lame-encoder` (LGPL-3.0 via libmp3lame —
+## requires a C toolchain + autoconf/automake at build time) handles
+## re-encoding for the redaction round-trip.
+mp3 = ["internal_audio", "dep:symphonia", "dep:mp3lame-encoder"]
 
 ## PDF loader, handler, and page-to-image rendering via `lopdf` +
 ## `pdfium-render`. Pulls `internal_text` (page-text redact) +
@@ -126,6 +127,7 @@ imageproc = { workspace = true, features = [] }
 # Audio processing (feature-gated)
 hound = { workspace = true, optional = true, features = [] }
 symphonia = { workspace = true, optional = true, features = [] }
+mp3lame-encoder = { workspace = true, optional = true, features = [] }
 
 # PDF processing (feature-gated)
 lopdf = { workspace = true, optional = true, features = [] }

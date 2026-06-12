@@ -13,9 +13,11 @@
 
 #[cfg(any(feature = "wav", feature = "mp3"))]
 pub(crate) mod duration;
-#[cfg(feature = "wav")]
+#[cfg(any(feature = "wav", feature = "mp3"))]
 pub(crate) mod redact;
 
+#[cfg(feature = "mp3")]
+mod mp3_codec;
 #[cfg(feature = "mp3")]
 mod mp3_handler;
 #[cfg(feature = "mp3")]

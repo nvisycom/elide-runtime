@@ -16,6 +16,7 @@ use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::Redactions;
 
 use super::Mp3Loader;
+use super::duration::probe_duration_us;
 use crate::content::{ContentData, ContentSource};
 use crate::{Chunk, Format, FormatId, Handler};
 
@@ -95,7 +96,8 @@ impl Handler<Audio> for Mp3Handler {
         if self.yielded {
             return Ok(None);
         }
-        let location = AudioLocation::new(TimeSpan::new(0, 0));
+        let duration_us = probe_duration_us(&self.bytes, "mp3")?;
+        let location = AudioLocation::new(TimeSpan::new(0, duration_us));
         let data = AudioData::new(self.bytes.clone()).with_filename(self.filename.clone());
         self.yielded = true;
         Ok(Some(Chunk { location, data }))
@@ -142,5 +144,15 @@ mod tests {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
         let rs: Redactions<Audio> = Redactions::default();
         handler.redact(rs).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn next_chunk_propagates_probe_error_for_garbage_bytes() {
+        // Real MP3 fixtures live in upstream symphonia tests; here we
+        // only need to confirm the handler wires the probe in and
+        // surfaces failures rather than silently stamping (0, 0).
+        let mut handler = Mp3Handler::new(Bytes::from_static(b"definitely not an mp3"));
+        let err = handler.next_chunk().await.unwrap_err();
+        assert!(err.to_string().contains("audio probe failed"));
     }
 }

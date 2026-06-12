@@ -11,6 +11,8 @@
 //! [`Redactions::sort_descending`]: nvisy_core::redaction::Redactions::sort_descending
 //! [`Handler::redact`]: crate::Handler::redact
 
+#[cfg(any(feature = "wav", feature = "mp3"))]
+pub(crate) mod duration;
 #[cfg(feature = "wav")]
 pub(crate) mod redact;
 

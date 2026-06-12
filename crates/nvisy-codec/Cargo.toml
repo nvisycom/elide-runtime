@@ -46,10 +46,13 @@ jpeg = ["internal_image"]
 ## TIFF loader and handler.
 tiff = ["internal_image"]
 
-## WAV audio loader and handler via `hound` (read + write).
-wav = ["internal_audio", "dep:hound"]
-## MP3 audio loader and handler (read-only — no pure-Rust encoder).
-mp3 = ["internal_audio"]
+## WAV audio loader and handler. `hound` covers sample read + write;
+## `symphonia` probes container metadata for the clip duration.
+wav = ["internal_audio", "dep:hound", "dep:symphonia"]
+## MP3 audio loader and handler. Read-only on the redact path (no
+## pure-Rust MP3 encoder); `symphonia` decodes the stream for the
+## chunk duration probe.
+mp3 = ["internal_audio", "dep:symphonia"]
 
 ## PDF loader, handler, and page-to-image rendering via `lopdf` +
 ## `pdfium-render`. Pulls `internal_text` (page-text redact) +
@@ -122,6 +125,7 @@ imageproc = { workspace = true, features = [] }
 
 # Audio processing (feature-gated)
 hound = { workspace = true, optional = true, features = [] }
+symphonia = { workspace = true, optional = true, features = [] }
 
 # PDF processing (feature-gated)
 lopdf = { workspace = true, optional = true, features = [] }

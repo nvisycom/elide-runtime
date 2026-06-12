@@ -1,89 +1,297 @@
-# Sensitive Data Detection
+# Detection: A Conceptual Model
 
-## 1. Overview
+## Abstract
 
-The detection engine is the core intellectual property of the platform. It is responsible for identifying sensitive content across all supported modalities with high precision and recall. Detection must operate through multiple complementary strategies: deterministic pattern matching, learned models, and computer vision, to achieve robust coverage across diverse content types and regulatory categories.
+This paper describes the conceptual architecture of a system for identifying
+sensitive data spans inside heterogeneous documents. The system is designed
+around the observation that no single recognition technique is adequate across
+all categories of personally identifiable information (PII), all content
+encodings, and all confidence regimes. Multiple recognizer families run in
+parallel against decomposed document fragments; their findings are lifted into
+a shared coordinate system and reconciled through a deterministic
+deduplication pipeline; annotations and policy rules then shape the surviving
+candidates into the final detection artifact consumed by redaction.
+Implementation details are out of scope.
 
-## 2. Language Coverage
+## 1. The Detection Problem
 
-The platform must support detection across multiple languages and writing systems. Real-world data frequently contains non-English text, multilingual documents, and code-switched content (multiple languages within a single document or conversation). Detection models must handle at minimum the major European languages, CJK (Chinese, Japanese, Korean), and Arabic script. Deterministic patterns must be parameterized by locale: national identifier formats, date conventions, and address structures vary by jurisdiction.
+Sensitive data detection is the task of locating spans of content that
+constitute personally identifiable information within a document of arbitrary
+structure. The problem is harder than it first appears because three axes vary
+independently:
 
-For audio, speech-to-text and subsequent NER must support the same language set, including language identification and mid-utterance language switching.
+- **Category heterogeneity.** PII is not a single class. Email addresses,
+  telephone numbers, government identifiers, financial account numbers,
+  biometric references, medical history, geolocation traces, and free-form
+  references to private third parties all qualify. Each category has its own
+  surface form, its own jurisdictional variants, and its own contextual cues.
 
-## 3. Deterministic Detection
+- **Encoding heterogeneity.** The same logical document can present its
+  contents as plain prose, as cells in a spreadsheet, as text regions inside a
+  raster image, as transcribed segments of an audio recording, as metadata
+  attached to a binary asset, or as fragments embedded in a structured
+  archive. A telephone number in a CSV cell is the same datum as a telephone
+  number spoken in an interview, but the detection paths leading to them are
+  not.
 
-Deterministic methods provide high-precision, low-latency detection for well-defined patterns:
+- **Confidence heterogeneity.** Different recognition techniques produce
+  fundamentally different confidence semantics. A regular expression with a
+  checksum is either correct or incorrect; the probability mass concentrates
+  at the extremes. A neural sequence tagger emits a smooth distribution
+  centered on a soft decision boundary. A generative model produces an answer
+  whose calibration is opaque. Treating these signals as commensurable
+  requires care.
 
-- **Regular expressions**: Pattern matching for structured identifiers such as Social Security numbers, credit card numbers, passport numbers, and other nationally defined formats.
-- **Checksum validation**: Algorithmic verification (e.g., Luhn algorithm for credit card numbers) to reduce false positives from pattern matching alone.
-- **Custom pattern libraries**: User-defined pattern sets that extend detection to organization-specific sensitive categories such as internal project identifiers, proprietary terms, or custom reference numbers.
+A detection system that ignores any of these axes will fail in production.
 
-## 4. Machine Learning and NLP-Based Detection
+## 2. Pluralistic Recognition
 
-Learned models address the detection of sensitive content that cannot be captured by fixed patterns:
+The central design commitment is pluralism: the system runs a population of
+recognizers concurrently and treats each as a hypothesis-generator rather than
+an authority. Three families dominate the population.
 
-- **Named entity recognition (NER)**: Identification of person names, locations, organizations, and other entity types in unstructured text.
-- **Domain-specific entity models**: Specialized models trained on financial data, medical records (HIPAA-relevant entities), legal identifiers, and biometric references.
-- **Contextual detection**: Inference of sensitivity from surrounding context rather than explicit entity presence. Phrases such as "the patient" or "my lawyer" may indicate sensitive content even in the absence of a named entity. This capability requires models that reason over discourse context rather than isolated tokens.
+### 2.1 Rule-Based Recognition
 
-## 5. Computer Vision Detection
+Rule-based recognizers combine pattern matching with deterministic validators
+and curated dictionaries. A regular expression establishes a candidate span; a
+validator (checksum verification, structural conformance, range checking)
+filters out coincidental matches; a dictionary lookup confirms membership in a
+known set (country codes, common first names, area codes). Rule-based
+recognition has high precision when the rule is well-formed, near-zero
+latency, and very low recall outside the patterns it codifies. It cannot find
+what it has not been told to look for.
 
-Visual content requires detection methods that operate on pixel-level and spatial features:
+### 2.2 Statistical Recognition
 
-- **Face detection and recognition**: Identification of human faces in images for subsequent obfuscation.
-- **Document and identifier detection**: Recognition of identity documents, license plates, and other visual identifiers.
-- **Handwritten text detection**: Extraction and analysis of handwritten content in scanned documents and images.
-- **Screen capture analysis**: Detection of sensitive text rendered in screenshots, application windows, and other digital captures.
+Statistical recognizers are sequence-labeling models trained on annotated
+corpora. They consume extracted text and emit entity spans with associated
+class probabilities. They generalize beyond a closed set of patterns and
+capture entities whose surface form is irregular (person names, organization
+names, free-form addresses) but their behavior is bounded by the distribution
+of their training data. They are noisy near class boundaries and at the
+edges of supported languages, and they are sensitive to domain shift.
 
-## 6. Audio Detection
+### 2.3 Generative Recognition
 
-Audio content introduces temporal and speaker-level dimensions to detection:
+Generative recognizers prompt a large language model to enumerate entities
+within a fragment. They are valuable for categories that resist both rule
+authorship and supervised training: open-class identifiers, paraphrased
+references to sensitive attributes, contextual mentions ("the patient," "my
+attorney"). They are the most expensive recognition path and the least
+calibrated. Their utility is highest where the other families are weakest.
 
-- **Transcript-based NER**: Application of named entity recognition to speech-to-text output, with alignment back to audio timestamps.
-- **Direct waveform redaction**: Replacement of sensitive audio segments with silence, tones, or noise at the waveform level.
-- **Speaker-specific redaction**: Selective redaction of content from identified speakers while preserving contributions from others, enabled by speaker diarization.
+### 2.4 No Dominant Strategy
 
-## 7. Policies
+None of these families subsumes the others. Each has a precision-recall
+profile shaped by its operating principle. The system does not elect a winner:
+it runs the families in parallel and defers the question of which finding to
+keep to a later stage that has access to all the evidence at once.
 
-Detection is governed by policies: declarative rule sets that define what to detect and how to handle it. A policy is the primary configuration surface through which administrators, compliance officers, and integrators express redaction intent without modifying detection code.
+```
+                          document
+                              |
+                  +-----------+-----------+
+                  |           |           |
+              rule-based  statistical  generative
+              recognizer  recognizer   recognizer
+                  |           |           |
+                  +-----------+-----------+
+                              |
+                       candidate set
+```
 
-### 7.1 Policy Structure
+## 3. Chunking and Lifting
 
-A policy is a named, versioned collection of rules. Each rule specifies:
+Documents are not scanned end-to-end. They are first decomposed into chunks:
+paragraphs in prose, cells in tabular content, regions in images, segments in
+audio. Chunking bounds the working set for any single recognizer invocation,
+preserves locality so recognizer outputs remain interpretable, and exposes
+structural context to the recognition layer (a tabular header can inform
+interpretation of the cells beneath it).
 
-- **What to detect**: An entity type, pattern, or semantic category (e.g., "SSN", "face", "medical diagnosis").
-- **Detection parameters**: Confidence thresholds, locale constraints, and any modality-specific settings.
-- **Redaction action**: The redaction method to apply when the rule matches (mask, blur, replace, or suppress).
-- **Additional context**: Free-form or structured metadata attached to a rule that provides guidance to downstream stages: a justification string, a regulatory citation, or instructions for human reviewers.
+Each recognizer reports its findings in coordinates local to the chunk it
+inspected: a character offset within a paragraph, a pixel offset within an
+image region, a millisecond offset within an audio segment. The system lifts
+these local coordinates back into the source document's coordinate system.
+Lifting is mechanical but essential: redaction acts on the original document
+and must locate every finding inside it, irrespective of which chunk produced
+the evidence.
 
-### 7.2 Annotations
+## 4. Modality Boundaries
 
-Files submitted for processing may carry annotations: either provided by the user at submission time or attached as part of a broader context (e.g., a case management system that tags documents with classification labels). Annotations can include:
+Recognition is organized by the *nature of the payload* presented to a
+recognizer, not by the modality of the source document. Text recognizers
+operate on textual payloads, regardless of whether the text came from a prose
+paragraph, a spreadsheet cell, an OCR pass over an image region, or a
+transcription pass over an audio segment. This factoring prevents
+combinatorial duplication of recognizer logic across modalities and ensures
+that improvements to a text recognizer benefit every upstream extraction
+path.
 
-- **Pre-identified regions**: Bounding boxes, text spans, or time ranges that the submitter has already marked as sensitive, bypassing or supplementing automated detection.
-- **Classification labels**: Document-level or region-level labels (e.g., "contains PHI", "attorney-client privileged") that influence which policy rules apply.
-- **Exclusion markers**: Regions or entities explicitly marked as non-sensitive, instructing the detection engine to skip them.
+The recognizer population is also open across modalities. Adding a native
+image recognizer that emits bounding-box findings, or a native audio
+recognizer that emits time-interval findings, does not perturb the existing
+text recognizers; the new recognizer is registered alongside the existing
+ones and contributes evidence on the same terms. The registry is a fan-out
+point, not a closed taxonomy.
 
-The detection engine must consume annotations as first-class inputs alongside its own detection results, merging user-provided and machine-generated findings into a unified annotation set before redaction.
+## 5. Deduplication and Conflict Resolution
 
-## 8. Pipeline State and Metadata
+The parallel evaluation of many recognizers against the same content produces
+a redundant candidate set. The same entity is often discovered by multiple
+recognizers; spans frequently overlap rather than coincide; class labels
+sometimes disagree. A layered reconciliation pipeline reduces this to a
+disjoint, deduplicated set of findings.
 
-Each document entering the detection pipeline is wrapped in an envelope that carries both the decoded document content and the original content metadata (MIME type, filename, source path, and arbitrary key-value pairs). This metadata is preserved from ingestion through every detection and redaction stage.
+### 5.1 Threshold Filtering
 
-Metadata availability during detection enables format-aware and context-aware decisions. For example, a detection rule might apply different confidence thresholds to `.csv` files than to freeform text, or a custom metadata tag attached at upload (e.g., `"department": "legal"`) might activate additional detection policies. Detection operations access this metadata directly from the pipeline envelope without re-reading the original content from storage.
+The first layer applies a confidence floor. Candidates below a category- and
+recognizer-specific threshold are discarded. This is not noise rejection in
+the signal-processing sense; it is a policy decision about the precision-
+recall tradeoff appropriate for the deployment. Thresholds are tunable and
+auditable.
 
-## 9. Detection Orchestration
+### 5.2 Overlap Resolution
 
-Individual detection strategies: deterministic, ML-based, vision, and audio, must be composed into a coherent pipeline rather than operating in isolation.
+The second layer resolves spatial conflicts. When two findings cover
+overlapping spans (in text: overlapping character ranges; in images:
+intersecting bounding boxes; in audio: overlapping time intervals), the
+higher-confidence finding is preserved and the lower-confidence finding is
+suppressed. Class agreement is not required: a generic name detection that
+overlaps a more specific identifier detection yields to the latter.
 
-### 9.1 Tiered Execution
+### 5.3 Fusion
 
-Detection should proceed in tiers ordered by cost and specificity. Deterministic patterns (regex, checksums) execute first, providing high-precision results at minimal computational cost. ML and vision models execute subsequently, targeting content that deterministic methods cannot address. This tiered architecture avoids unnecessary GPU inference for content that can be resolved through pattern matching alone.
+The third layer fuses *concurring* evidence. When multiple recognizers report
+the same span and the same category, the system merges them into a single
+finding whose confidence reflects the agreement of independent sources and
+whose provenance records every contributing recognizer. Fusion is not a
+simple maximum or average; it acknowledges that a rule-based hit and a
+statistical hit on the same span are stronger evidence than either alone.
 
-### 9.2 Result Merging
+```
+       raw candidate set
+              |
+              v
+     +------------------+
+     | threshold filter |  drop confidence < tau
+     +------------------+
+              |
+              v
+     +------------------+
+     | overlap resolve  |  keep highest-confidence span
+     +------------------+
+              |
+              v
+     +------------------+
+     |     fusion       |  merge concurring evidence
+     +------------------+
+              |
+              v
+       surviving entities
+```
 
-When multiple detection strategies identify overlapping or adjacent sensitive regions within the same content, the platform must merge results into a unified set of detection annotations. Overlapping detections should be consolidated rather than duplicated. Each merged annotation must retain provenance: which strategies contributed to the detection and at what confidence level.
+Order matters. Threshold filtering before overlap resolution prevents
+low-confidence findings from displacing high-confidence ones. Overlap
+resolution before fusion prevents fusing across categories. The pipeline is
+deterministic given the same inputs.
 
-### 9.3 Conflict Resolution
+## 6. Annotations: Ground Truth and Overrides
 
-When detection strategies disagree (for example, a regex match identifies a number as a credit card while an NER model classifies the surrounding context as non-sensitive), the platform must apply configurable conflict resolution rules. Default behavior should favor the higher-confidence or higher-sensitivity classification, but administrators must be able to override this through policy.
+User-supplied annotations are first-class participants in detection, not a
+separate workflow. They enter at two levels of authority.
+
+A **hint** marks a span as likely sensitive, biasing detection toward
+confirming the annotation but allowing recognizers to overrule it. Hints
+amplify noisy upstream beliefs about sensitivity without dictating outcomes.
+
+An **assertion** marks a span as known to contain a specific entity. It
+materializes directly as a finding with maximum confidence, bypassing
+recognizer evaluation for that span. Assertions are how authoritative
+knowledge (a human reviewer's verdict, an audited upstream tag) enters
+detection.
+
+Symmetrically, **exclusions** mark spans that must not appear as findings.
+Exclusions are applied as a final filter, removing any recognizer output
+that falls within an excluded region. Exclusions are how users correct false
+positives without retraining models or rewriting rules.
+
+## 7. Policy Filtering
+
+Detection identifies what is *present*. Policy decides what is *actionable*.
+The separation is intentional. The set of entities in a document is a
+property of the document; the set of entities subject to redaction in a
+given workflow is a property of the workflow.
+
+Policy is expressed as an ordered sequence of rules. Each rule conditions on
+attributes of the candidate finding (category, recognizer confidence,
+language, surrounding labels) and on attributes of the document (source,
+classification labels attached by upstream systems, jurisdiction). The first
+rule whose conditions are satisfied determines the disposition of the
+candidate: retain, suppress, or annotate. Subsequent rules do not fire for
+the same candidate.
+
+This formulation has two consequences worth naming. First, the same
+detection artifact can be filtered by different policies to produce
+different actionable sets, supporting per-tenant or per-context redaction
+without re-running detection. Second, policy authorship is auditable in
+isolation: a reviewer can read the rule set and understand which entities
+will be acted on without understanding how detection found them.
+
+## 8. The Detection Artifact
+
+The output of detection is an immutable record of every entity that survived
+the pipeline. Each entry carries:
+
+- a typed category;
+- a position expressed in source-document coordinates;
+- a confidence value derived from the contributing recognizers;
+- a provenance trail naming every recognizer that contributed evidence and
+  what evidence it contributed;
+- any annotations attached by upstream systems or by the policy layer.
+
+The artifact is the contract between detection and redaction. It is
+serializable, inspectable, and replayable. A redaction pass consumes the
+artifact and acts on the source document; it does not re-run detection. A
+later audit can reconstruct exactly which recognizers fired on which spans
+with which confidence, without access to the model weights or the rule
+internals at the time of the original run.
+
+The immutability of the artifact is what makes detection an *evidentiary*
+operation rather than an opaque transformation. Every decision can be
+attributed; every absence can be questioned.
+
+## 9. Limitations and Honest Gaps
+
+Detection accuracy is bounded by the accuracy of its constituent recognizers.
+Rule-based recall is bounded by the rule set: an identifier format the rules
+do not encode will not be found by rule. Statistical recall is bounded by
+training data: an entity class underrepresented in the corpus will be
+underdetected, and domain shift between training and deployment degrades
+performance silently. Generative recall is bounded by the model: hallucinated
+entities and missed entities are both possible, and the confidence the model
+assigns to its own output is not necessarily informative.
+
+The system does not promise zero leakage. It promises that detection is
+pluralistic, that evidence is reconciled deterministically, that annotations
+participate as first-class signals, that policy is separable from
+recognition, and that the resulting artifact is auditable. These are
+engineering invariants, not statistical guarantees. A deployment that
+requires statistical guarantees must measure them on its own data and tune
+its recognizer population, thresholds, and policy accordingly.
+
+The architecture is open at every layer where recall can fail: recognizers
+can be added, rules extended, models replaced, policies rewritten. The closed
+surfaces are the ones that must be stable: the chunking and lifting model,
+the deduplication pipeline, the artifact format. Stability in the contracts
+is what allows pluralism in the recognizers.
+
+## 10. Summary
+
+Detection is the parallel evaluation of many fallible recognizers against a
+chunked decomposition of a document, followed by deterministic reconciliation
+of their findings, followed by a policy projection onto the actionable
+subset. Annotations participate throughout. The product is an immutable,
+attributable record of every entity the system believes is present. The model
+is conservative about what it guarantees and generous about what it allows to
+be extended.

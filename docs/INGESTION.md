@@ -1,115 +1,299 @@
-# Ingestion & Transformation
+# Document Ingestion in a Multimodal PII System
 
-## 1. Overview
+## Abstract
 
-The ingestion layer is responsible for accepting content from heterogeneous sources and normalizing it into a unified internal representation suitable for downstream detection and redaction. The transformation layer handles the inverse concern: producing redacted output in the appropriate format while preserving the structural integrity of the original document.
+A privacy system is, before anything else, a decoder. Detection models and
+redaction policies operate on structured representations of content; the world
+delivers content as opaque byte streams in dozens of incompatible formats.
+Ingestion is the layer that bridges the two: it accepts heterogeneous bytes,
+resolves them to a typed representation that detection can address, mediates
+the mutation that redaction performs, and re-emits bytes in the original format
+without losing fidelity. This paper describes the conceptual model that governs
+ingestion in our runtime. We treat formats not as a catalogue but as instances
+of a single abstraction — the typed handle — and we describe the coordinate
+systems, mutation contract, and round-trip guarantees that hold across the
+abstraction.
 
-The quality of the ingestion layer is a critical success factor. Redaction platforms that cannot reliably parse and extract content from real-world documents — scanned forms, embedded tables, multi-speaker audio — will produce incomplete redaction results regardless of the sophistication of their detection models.
+## 1. The Ingestion Problem
 
-## 2. Supported Input Formats
+Every input to a privacy system arrives as a sequence of bytes paired with a
+claim about what those bytes mean. The system must produce, from that pair, a
+representation against which detection can operate and into which redaction
+can write. The difficulty is that no two formats agree on what either of those
+operations means.
 
-The platform must support ingestion across multiple modalities. Formats are organized into tiers reflecting implementation priority and expected coverage at each stage of the product lifecycle.
+A plain-text file encoded in UTF-8 differs from the same text in UTF-16 not
+just at the byte level but in the unit of indexing a recognizer must use.
+A structured document hides its strings behind escape sequences, so the text a
+recognizer sees is not the text the file contains. Markup languages resolve
+entity references and decode attribute values, presenting the recognizer with
+a view that may have no direct byte correspondence to the source. Delimited
+text formats negotiate quoting rules whose details depend on a dialect. Images
+speak in pixel coordinates; audio speaks in time. Each format also disagrees on
+what counts as a redactable unit: a span of characters, a scalar value, a
+rectangle in pixel space, a half-open interval of audio samples.
 
-### Tier 1: Core (launch requirement)
+Ingestion is the discipline of generalising over these formats without erasing
+them. A naive approach would coerce everything into one common type — say, a
+string of characters — and lose the formats on the way in. The result would be
+a system that detects names in a word-processing document but cannot produce a
+word-processing document back. A correct ingestion layer keeps the format
+present from the moment bytes arrive to the moment bytes leave.
 
-These formats represent the most common inputs in regulated enterprise environments and must be supported at general availability:
+## 2. The Content Bundle
 
-- **PDF**: Native (digitally authored) and scanned, including multi-page documents with mixed content (text, images, tables, forms).
-- **Images**: JPG, PNG, and TIFF: the dominant formats for scanned documents, photographs, and screenshots.
-- **Plain text and markup**: TXT, HTML, and Markdown.
-- **Structured data**: CSV and JSON.
-- **Office documents**: DOCX, XLSX, PPTX.
-- **Audio**: WAV, MP3, and other common audio formats.
+Content does not arrive as a single object. It arrives as several orthogonal
+facets that the system keeps separate on purpose:
 
-### Tier 2: Extended (near-term)
+```
+                            content
+                               |
+        +----------+-----------+-----------+----------+
+        |          |           |           |          |
+      bytes     descriptor   digest      record    (future)
+        |          |           |           |
+      raw       caller-       system-    system-
+      data      supplied      computed   derived
+      +         metadata      metadata   metadata
+      stable    (claimed      (hashes    (storage
+      source    format,       for        time,
+      id        filename,     dedup,     derived
+                source path)  integrity) attributes)
+```
 
-These formats are frequently encountered in enterprise workflows and should be supported shortly after launch:
+The split is not cosmetic. Each facet has a different trust level and a
+different lifecycle. Raw bytes are immutable: they are what was uploaded.
+Descriptor metadata is caller-supplied and may be wrong — by accident or
+otherwise. Digest metadata is computed by the system from the bytes themselves
+and is authoritative. Record metadata captures processing facts the system
+knows but the caller could not have known — when the content entered the
+system, what derived attributes the pipeline later attached.
 
-- **Email**: EML and MSG formats, including inline content and attachments (recursively ingested).
-- **Communications**: Chat log exports from Slack, Teams, and WhatsApp.
+Merging these facets would corrupt them. A caller who misreports a format
+could overwrite a system-computed integrity hash; a system-derived attribute
+could be confused with caller intent. Keeping the facets separate keeps the
+trust boundaries legible: at any later stage, the pipeline can ask whether a
+fact came from the caller or from the system, and treat it accordingly.
 
-### Tier 3: Specialized (roadmap)
+## 3. Format Detection
 
-These formats address long-tail use cases in specific verticals or operational contexts:
+Detection is the act of choosing which decoder to apply to a stream of bytes.
+The system resolves format identity by consulting signals in priority order:
 
-- **Archival and compound formats**: ZIP, TAR, and other container formats with recursive extraction of enclosed files.
-- **Domain-specific**: DICOM (medical imaging), GeoTIFF (geospatial), and other vertical-specific formats as demand dictates.
+```
+   caller MIME hint  ->  filename extension  ->  content-type heuristics
+        (1)                    (2)                       (3)
+```
 
-## 3. Extraction Capabilities
+The caller's explicit hint takes priority. If the upload arrived through a
+request with a content-type header, or through a programmatic interface that
+named the format, that claim wins. When no hint exists, the filename
+extension is consulted. When neither is available, a small set of
+content-derived heuristics fills the gap.
 
-Each modality requires specialized extraction techniques:
+The runtime does not perform deep magic-byte sniffing. This is a deliberate
+design choice with a real cost. Deployments that need probabilistic format
+detection — accepting uploads from end users who provide no metadata, for
+instance — must add a sniffer upstream. Inside the runtime, format identity
+is treated as supplied: the system decodes according to what it was told.
+The tradeoff is precision for predictability. A runtime that re-identifies
+formats can disagree with the caller about what was uploaded, and that
+disagreement becomes a class of bug that does not exist when the caller is
+authoritative.
 
-- **Optical character recognition (OCR)**: Layout-aware OCR that preserves spatial relationships between text regions, table cells, headers, and form fields.
-- **Speech-to-text**: Transcription with speaker diarization, enabling attribution of spoken content to individual speakers.
-- **Entity identification in images**: Detection and localization of entities within images: faces, persons, objects, text regions, documents, and other identifiable elements, producing bounding boxes or segmentation masks that downstream detection and redaction stages can operate on.
-- **Document structure parsing**: Identification of semantic document elements: headings, paragraphs, tables, lists, and form fields, beyond raw text extraction.
-- **Metadata extraction**: Capture of authorship, timestamps, geolocation, and other embedded metadata that may itself constitute sensitive information.
+## 4. The Typed Handle
 
-## 4. Transformation & Output
+Once decoded, content is no longer a byte stream; it is a typed handle whose
+type encodes both the format and the modality. The handle is the central
+abstraction of the ingestion layer, and every downstream stage operates
+through it.
 
-Following redaction, the transformation layer must produce output that meets downstream requirements while maintaining fidelity to the original format.
+A handle exposes five capabilities:
 
-### 4.1 Format Preservation
+1. **Streaming chunking.** The handle yields redactable units in document
+   order. A unit may be a span of text, a value in a structured document, a
+   region of an image, a segment of audio. The chunker streams units as the
+   recognizer requests them, without materialising the entire decoded view.
+2. **Random-access retrieval.** Given a coordinate, the handle returns the
+   unit at that coordinate, supporting stages that revisit units out of
+   document order.
+3. **In-place mutation.** Redaction does not rewrite the handle from scratch;
+   it mutates the units the recognizer identified. Mutation is addressed by
+   coordinate and confined to the units the policy named.
+4. **Re-encoding.** The handle serialises itself back to bytes in the same
+   format as the input.
+5. **Coordinate lifting.** Given an offset in the decoded view a recognizer
+   saw, the handle returns the corresponding offset in the source bytes.
 
-Redacted output should preserve the structural characteristics of the source document. Tables must remain aligned, page layouts must be maintained, and non-redacted content must remain unaltered.
+The handle's type is parameterised on the modality. Downstream code that
+holds a handle does not need to ask what kind of content it carries; the
+type already encodes it, and a routine written for text handles cannot
+accept an image handle by mistake.
 
-### 4.2 Output Formats
+## 5. Modality Boundaries Within a Document
 
-The primary output of the transformation layer is a redacted file in the same format as the input — a PDF produces a redacted PDF, an image produces a redacted image, and so on. The platform must not alter the source format unless explicitly requested.
+Some formats produce a homogeneous decoded view: a plain-text file decodes to
+text, an image file decodes to an image, an audio file decodes to audio. Many
+real-world formats do not. A word-processing document combines text with
+embedded images and inline comments. A markup page mixes textual body content,
+attribute values, embedded scripts, and structural markup, each with its own
+redaction semantics.
 
-In addition to the format-preserving primary output, the platform should produce supplementary outputs that serve downstream workflows:
+The system models a mixed handle as a heterogeneous stream of redactable
+items. Each item carries with it both the kind of unit it represents and the
+knowledge of how to write a mutated value back at encode time. A text span
+knows how to substitute its replacement into the appropriate container slot;
+an image region knows how to overwrite its pixel range; an attribute value
+knows how to escape itself back into a markup attribute. The recognizer
+addresses items by kind; the encoder delegates to each item's own write-back
+logic.
 
-- **Redaction metadata (JSON)**: A structured manifest describing every redaction applied: entity type, location, triggering rule, confidence score, and reviewer disposition. This metadata enables programmatic consumption of redaction results by audit systems, analytics pipelines, and downstream integrations.
-- **Masked structured data (CSV/JSON)**: For tabular or structured inputs, a masked variant in which sensitive cell values are replaced according to the active masking strategy, suitable for analytics or data science consumption.
-- **Anonymized datasets**: Fully de-identified exports intended for secondary use (model training, statistical analysis) where no re-identification pathway should exist.
+Modality is a per-item property, not a per-document property. A single handle
+can yield a text item, then an image item, then another text item, in
+document order, and each is handled by the recognizer appropriate to its
+modality.
 
-### 4.3 Masking Strategies
+## 6. The Decode-Redact-Encode Loop
 
-Multiple masking strategies should be available, selected according to the use case:
+The lifecycle of content inside the ingestion layer is a single loop:
 
-- **Tokenization and pseudonymization**: Replacement of sensitive values with consistent tokens that preserve referential integrity across documents.
-- **Reversible masking**: Vault-based masking where original values can be recovered by authorized parties through a secure key exchange.
-- **De-identification with re-linking key**: Removal of direct identifiers with a separately stored mapping that enables re-identification under controlled conditions.
+```
+   bytes
+     |
+     v
+   decode  --->  typed handle  --->  chunker  ---+
+                       ^                          |
+                       |                       items
+                       |                          |
+                   mutations                      v
+                       |                     recognizer
+                       |                          |
+                       |                       findings
+                       |                          |
+                       |                          v
+                       |                       lift to
+                       |                       source
+                       |                       coords
+                       |                          |
+                       +--------------------------+
+                       |
+                       v
+                   re-encode
+                       |
+                       v
+                    bytes
+```
 
-## 5. Content Model
+The handle is decoded once. The chunker streams items into the recognizer,
+which identifies sensitive regions in the decoded view. The lifter translates
+those regions from decoded coordinates back to source coordinates. The policy
+stage decides what to do with each finding, and mutations are applied to the
+handle in source coordinates. The encoder serialises the mutated handle back
+to format-native bytes. There is no second decode pass and no separate write
+phase: the handle is the medium through which decoding, recognition, and
+re-encoding communicate.
 
-The internal content representation separates raw data from descriptive metadata. This separation is fundamental to reliable format detection and pipeline execution.
+## 7. The Encode Round-Trip Contract
 
-### 5.1 Content Data and Metadata
+Re-encoding has a two-clause contract.
 
-Each piece of ingested content is represented as a `Content` bundle consisting of two parts:
+First, untouched units serialise byte-for-byte where the format permits. For
+formats whose parsers preserve a verbatim view of the source — plain text and
+structured formats where unmodified regions are kept as raw slices — the
+encoder copies untouched bytes directly. The output of a document with no
+mutations is byte-identical to the input.
 
-- **Content data**: The raw bytes and a unique source identifier. Content data carries no descriptive information: it is opaque binary or text.
-- **Content metadata**: All descriptive attributes that accompany the content: the caller-supplied MIME type, the auto-detected MIME type (from magic-byte signatures), the original filename, the source path, and an extensible key-value map for arbitrary metadata.
+Second, touched units serialise their mutated value through format-aware
+write-back. A text replacement is escaped according to the format's rules. A
+redacted image region is composited into the output pixel buffer. An audio
+segment is replaced in the sample stream.
 
-This separation ensures that descriptive information is never lost during storage and retrieval. The registry persists data and metadata in separate storage keyspaces; when content is reconstructed for pipeline execution, both halves are reunited into a complete bundle.
+Some formats cannot satisfy the first clause completely. Markup languages and
+rich word-processing formats discard structural information during parsing —
+attribute ordering, whitespace between tags, default values left implicit.
+For these formats, re-encoding necessarily re-parses and re-serialises the
+source, producing output that is semantically equivalent but not byte-identical
+to the input. The system makes this tradeoff explicit per format rather than
+silently degrading round-trip fidelity across the board.
 
-### 5.2 Format Detection
+## 8. Coordinate Systems and Lifting
 
-Format detection determines the document type (text, image, audio, PDF, spreadsheet, etc.) and drives decoder selection. Detection evaluates multiple signals in priority order:
+The recognizer and the encoder do not speak the same coordinate language. A
+recognizer sees the decoded payload of a chunk: escape sequences resolved,
+percent-encoding decoded, content extracted from containers, character
+encodings normalised. Its offsets index into that decoded view. The encoder
+must address the source. A mutation expressed in decoded coordinates would
+land on the wrong bytes — sometimes by a few characters, sometimes by an
+entire escape sequence, sometimes by a chunk boundary.
 
-1. **Caller-supplied MIME type** — highest priority. Set explicitly at upload time (e.g. from an HTTP `Content-Type` header). This is the only way to identify text formats that have no magic bytes.
-2. **Magic-byte detection** — automatic detection from binary signatures in the raw content. Reliable for binary formats (PNG, JPEG, WAV, PDF) but returns nothing for plain text.
-3. **Filename extension** — lowest priority. Used as a fallback when MIME type and magic bytes are inconclusive. When the MIME type identifies a broad category (e.g. `text/plain`) and the extension provides a more specific variant (e.g. `.log`), the extension refines the result.
+The lifting contract closes this gap. Given a decoded offset, the handle
+returns the corresponding source offset. The mechanism varies by format:
 
-Format detection occurs at decode time, not at upload. Metadata is persisted at upload so that all detection signals are available when the content is later processed.
+```
+   format class                lifting mechanism
+   --------------------------+-----------------------------------------
+   verbatim text             | identity (decoded offset == source)
+   escaped textual formats   | escape map walked at lift time
+   container/parsed formats  | item-index coordinates, not byte offsets
+```
 
-### 5.3 Metadata Through the Pipeline
+For verbatim text, the lift is the identity function. For formats with escape
+sequences, the handle maintains an escape map built during decode and walks
+it at lift time. For formats whose parsers discard byte-level structure, the
+lift cannot return a meaningful source offset; the system accepts that
+source-byte fidelity is lost and addresses items by structural index instead.
 
-Once content is decoded into a document, the original metadata is preserved on the pipeline envelope and flows through every processing stage — detection, fusion, policy evaluation, redaction, and export. This enables operations to make context-aware decisions based on the original filename, MIME type, or custom metadata without re-reading the raw content.
+The lifting contract allows recognizers to be format-agnostic. A recognizer
+for personal names does not need to know about escape sequences or entity
+references; it operates on decoded text and returns decoded offsets, and the
+handle is responsible for translating those into something the encoder can
+act on.
 
-## 6. Validation and Error Handling
+## 9. Compression and Encryption Boundaries
 
-Ingestion must account for real-world content that is malformed, incomplete, or unsupported.
+Some ingestion paths receive bytes that are not in their final form. Content
+may be compressed at rest or encrypted with a symmetric scheme. The pipeline
+decompresses and decrypts before decode, performs the decode-redact-encode
+loop on the cleartext, and may re-encrypt and re-compress before storage.
 
-### 6.1 Input Validation
+The runtime does not hold long-lived keys. Keys are supplied by a
+deployment-pluggable key provider, which the runtime calls at the moment a
+cleartext is needed. The provider can be backed by a hardware security
+module, a managed key service, or a process-local secret, as the deployment
+requires. The runtime sees cleartext only for the duration of the loop.
 
-Before processing begins, the platform must validate that submitted content meets minimum requirements: supported file format, non-zero size, and absence of corruption indicators. Invalid submissions must be rejected with actionable error messages that identify the specific validation failure.
+This boundary separates two threats. Threats against the keys are addressed
+by the provider's deployment. Threats against the cleartext during processing
+are addressed by the runtime's own memory hygiene. Conflating the two — for
+instance, by caching decrypted bytes in the runtime — would weaken both.
 
-### 6.2 Partial Extraction
+## 10. Persistence and Retrieval
 
-When a document is partially parseable — a multi-page PDF with a corrupt page, an audio file with a damaged segment, or an image with an unreadable region — the platform should extract what it can and flag the remainder as incomplete. Partial extraction results must be clearly annotated so that downstream detection operates only on successfully extracted content.
+Ingested content is persisted in a registry. The registry key is the source
+identifier paired with an actor scope, which provides multi-tenant isolation:
+two tenants may upload content with the same source identifier without
+colliding.
 
-### 6.3 Error Reporting
+Persistence stores the bundle's facets separately, matching the in-memory
+split. Retrieval reconstructs the bundle by reading each facet and
+reassembling them, so downstream stages receive the same bundle they would
+have received on first ingest. A pipeline that crashes mid-processing can
+restart from the persisted bundle; a re-detection after a policy update can
+read the bundle without asking the caller to re-upload; audit replays can
+reconstruct the exact bytes the pipeline processed.
 
-Every ingestion failure must produce a structured error record that includes the content identifier, the failure type (unsupported format, corrupt data, extraction timeout, codec unavailable), and the processing stage at which the failure occurred. These records must be available through the same audit infrastructure described in [COMPLIANCE.md](COMPLIANCE.md).
+## 11. Honest Scope
+
+The runtime supports a curated set of formats today. Some are full
+implementations with bidirectional decode-encode fidelity; some are present
+as stubs whose interfaces are stable but whose internals are incomplete. The
+architecture treats new format support as a plug-in concern: adding a format
+means implementing a decoder that produces a handle and an encoder that
+serialises one. Once both exist, the format is available to detection, to
+redaction, to persistence, and to every downstream stage without further
+changes.
+
+New formats require code. They do not require pipeline changes, schema
+migrations, or coordination across stages. This is the property the
+ingestion abstraction was designed to provide, and it is the property by
+which the abstraction should be judged.

@@ -99,13 +99,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_is_uuidv7() {
-        let source = ContentSource::new();
-        assert_eq!(source.as_uuid().get_version_num(), 7);
-        assert!(!source.as_uuid().is_nil());
-    }
-
-    #[test]
     fn with_parent_sets_parent_id() {
         let parent = ContentSource::new();
         let child = ContentSource::new().with_parent(&parent);

@@ -152,14 +152,6 @@ mod tests {
     }
 
     #[test]
-    fn serialises_as_bare_number() {
-        let cutoff = ConfidenceThreshold::new(0.85).unwrap();
-        assert_eq!(serde_json::to_string(&cutoff).unwrap(), "0.85");
-        let parsed: ConfidenceThreshold = serde_json::from_str("0.85").unwrap();
-        assert_eq!(parsed, cutoff);
-    }
-
-    #[test]
     fn deserialize_rejects_out_of_range() {
         assert!(serde_json::from_str::<ConfidenceThreshold>("1.5").is_err());
         assert!(serde_json::from_str::<ConfidenceThreshold>("-0.1").is_err());

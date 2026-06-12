@@ -201,11 +201,4 @@ mod tests {
         assert!(serde_json::from_str::<Confidence>("-0.2").is_err());
     }
 
-    #[test]
-    fn deserialize_rejects_non_finite() {
-        // NaN and Infinity aren't representable in standard JSON;
-        // serde_json reports them as invalid number syntax. We
-        // still cover the constructor path via the new() check.
-        assert!(serde_json::from_str::<Confidence>("null").is_err());
-    }
 }

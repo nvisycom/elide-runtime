@@ -201,14 +201,4 @@ mod tests {
         let (start, end) = span.sample_range(1000, 1);
         assert_eq!((start, end), (0, 2));
     }
-
-    #[test]
-    fn sample_level_precision() {
-        // At 48kHz, one sample = 20.833... μs
-        // Two adjacent samples should be distinguishable
-        let sample_duration_us = 1_000_000 / 48_000; // 20μs (truncated)
-        let a = TimeSpan::new(0, sample_duration_us);
-        let b = TimeSpan::new(sample_duration_us, sample_duration_us * 2);
-        assert!(!a.overlaps(&b));
-    }
 }

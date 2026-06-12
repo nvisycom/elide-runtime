@@ -38,7 +38,6 @@ schemars = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
-jiff = { workspace = true, features = [] }
 oxilangtag = { workspace = true, features = [] }
 type-map = { workspace = true, features = [] }
 

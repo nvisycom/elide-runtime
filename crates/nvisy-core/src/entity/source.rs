@@ -1,7 +1,6 @@
 //! Content source identity and lineage.
 
 use derive_more::Display;
-use jiff::Zoned;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -21,16 +20,17 @@ pub struct ContentSource {
 
 impl ContentSource {
     /// Create a new content source with a fresh UUIDv7.
+    ///
+    /// The timestamp comes from [`Uuid::now_v7`], which wraps
+    /// `SystemTime::now()` and treats the duration since the Unix
+    /// epoch as the timestamp source — no zoned-time round-trip,
+    /// no separate sign handling for pre-epoch clocks (the standard
+    /// library returns those as `Err` rather than as a negative
+    /// `i64` to be silently `unsigned_abs`'d).
     #[must_use]
     pub fn new() -> Self {
-        let now = Zoned::now();
-        let timestamp = uuid::Timestamp::from_unix(
-            uuid::NoContext,
-            now.timestamp().as_second().unsigned_abs(),
-            now.timestamp().subsec_nanosecond().unsigned_abs(),
-        );
         Self {
-            id: Uuid::new_v7(timestamp),
+            id: Uuid::now_v7(),
             parent_id: None,
         }
     }

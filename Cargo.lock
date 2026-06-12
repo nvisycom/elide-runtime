@@ -2863,7 +2863,6 @@ dependencies = [
  "derive_builder",
  "derive_more",
  "hipstr",
- "jiff",
  "oxilangtag",
  "schemars",
  "serde",

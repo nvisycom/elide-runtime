@@ -283,7 +283,7 @@ impl CsvHandler {
         let start = location.start_offset.unwrap_or(0);
         let end = location.end_offset.unwrap_or(cell.len());
         let value = replacement.replacement_value().unwrap_or_default();
-        redact::replace_range(cell, value, start, end, TARGET)
+        redact::replace_range(cell, value, start..end, TARGET)
     }
 
     fn serialize_bytes(&self) -> Result<Vec<u8>, Error> {

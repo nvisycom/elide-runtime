@@ -16,14 +16,13 @@
 
 use std::ops::Range;
 
-use ego_tree::NodeId;
 use nvisy_core::Error;
 use nvisy_core::modality::{Text, TextData, TextLocation};
 use nvisy_core::redaction::{Redactions, TextReplacement};
 use scraper::Html;
-use scraper::node::Node;
 
-use super::{HtmlLoader, lift_identity, redact};
+use super::html_encode::EncodePlan;
+use super::{HtmlLoader, redact};
 use crate::content::{ContentData, ContentSource};
 use crate::{Chunk, Format, FormatId, Handler};
 
@@ -136,41 +135,7 @@ impl Handler<Text> for HtmlHandler {
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         let mut dom = Html::parse_document(&self.data.raw);
-        let plan = EncodePlan::from_items(&self.data.items);
-
-        let mut text_seen = 0usize;
-        let mut comment_seen = 0usize;
-        let mut element_seen = 0usize;
-
-        let node_ids: Vec<_> = dom.tree.nodes().map(|n| n.id()).collect();
-        for node_id in node_ids {
-            let Some(node) = dom.tree.get(node_id) else {
-                continue;
-            };
-            match node.value() {
-                Node::Text(_) => {
-                    if let Some(value) = plan.text_value(text_seen) {
-                        write_text(&mut dom, node_id, value);
-                    }
-                    text_seen += 1;
-                }
-                Node::Comment(_) => {
-                    if let Some(value) = plan.comment_value(comment_seen) {
-                        write_comment(&mut dom, node_id, value);
-                    }
-                    comment_seen += 1;
-                }
-                Node::Element(_) => {
-                    if let Some(targets) = plan.element_targets(element_seen) {
-                        for et in targets {
-                            apply_element_target(&mut dom, node_id, et);
-                        }
-                    }
-                    element_seen += 1;
-                }
-                _ => {}
-            }
-        }
+        EncodePlan::from_items(&self.data.items).apply(&mut dom);
 
         let bytes = dom.html().into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
@@ -198,7 +163,7 @@ impl Handler<Text> for HtmlHandler {
     }
 
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
-        lift_identity(chunk, value_range)
+        chunk.location.subslice(value_range)
     }
 
     async fn read(&self, location: &TextLocation) -> Result<Option<TextData>, Error> {
@@ -313,8 +278,7 @@ impl HtmlHandler {
         redact::replace_range(
             &mut self.data.items[i].value,
             value,
-            local_start,
-            local_end,
+            local_start..local_end,
             TARGET,
         )?;
         let delta = self.data.items[i].value.len() as isize - before_len as isize;
@@ -334,149 +298,6 @@ fn compute_item_starts(items: &[RedactableItem]) -> Vec<usize> {
     }
     starts.push(offset);
     starts
-}
-
-/// Pre-bucketed view of the loader's items, indexed by kind so
-/// encode's single DOM walk can answer "what does item-of-kind-X at
-/// index N look like?" in O(1).
-struct EncodePlan<'a> {
-    /// Indexed by text-node ordinal in document order. `Some(value)`
-    /// when the loader emitted an item for that text node;
-    /// `None` for skipped text nodes (e.g. script/style children
-    /// when the policy is Skip).
-    text_values: Vec<Option<&'a str>>,
-    /// Indexed by comment ordinal. Same shape as `text_values`.
-    comment_values: Vec<Option<&'a str>>,
-    /// Indexed by element ordinal. Each entry is the (possibly
-    /// empty) list of element-bound items at that element.
-    element_targets: Vec<Vec<ElementTargetPatch<'a>>>,
-}
-
-/// A single element-bound patch staged for encode.
-struct ElementTargetPatch<'a> {
-    target: &'a ElementTarget,
-    value: &'a str,
-}
-
-impl<'a> EncodePlan<'a> {
-    fn from_items(items: &'a [RedactableItem]) -> Self {
-        let mut text_values: Vec<Option<&'a str>> = Vec::new();
-        let mut comment_values: Vec<Option<&'a str>> = Vec::new();
-        let mut element_targets: Vec<Vec<ElementTargetPatch<'a>>> = Vec::new();
-
-        for item in items {
-            match &item.kind {
-                RedactableKind::TextNode { index } => {
-                    grow_to(&mut text_values, *index);
-                    text_values[*index] = Some(item.value.as_str());
-                }
-                RedactableKind::Comment { index } => {
-                    grow_to(&mut comment_values, *index);
-                    comment_values[*index] = Some(item.value.as_str());
-                }
-                RedactableKind::Element {
-                    element_index,
-                    target,
-                } => {
-                    while element_targets.len() <= *element_index {
-                        element_targets.push(Vec::new());
-                    }
-                    element_targets[*element_index].push(ElementTargetPatch {
-                        target,
-                        value: item.value.as_str(),
-                    });
-                }
-            }
-        }
-
-        Self {
-            text_values,
-            comment_values,
-            element_targets,
-        }
-    }
-
-    fn text_value(&self, ordinal: usize) -> Option<&'a str> {
-        self.text_values.get(ordinal).copied().flatten()
-    }
-
-    fn comment_value(&self, ordinal: usize) -> Option<&'a str> {
-        self.comment_values.get(ordinal).copied().flatten()
-    }
-
-    fn element_targets(&self, ordinal: usize) -> Option<&[ElementTargetPatch<'a>]> {
-        self.element_targets.get(ordinal).map(|v| v.as_slice())
-    }
-}
-
-fn grow_to(v: &mut Vec<Option<&str>>, index: usize) {
-    while v.len() <= index {
-        v.push(None);
-    }
-}
-
-fn write_text(dom: &mut Html, node_id: NodeId, value: &str) {
-    if let Some(mut n) = dom.tree.get_mut(node_id)
-        && let Node::Text(t) = n.value()
-        && t.text.as_ref() != value
-    {
-        t.text = value.into();
-    }
-}
-
-fn write_comment(dom: &mut Html, node_id: NodeId, value: &str) {
-    if let Some(mut n) = dom.tree.get_mut(node_id)
-        && let Node::Comment(c) = n.value()
-        && c.comment.as_ref() != value
-    {
-        c.comment = value.into();
-    }
-}
-
-fn apply_element_target(
-    dom: &mut Html,
-    node_id: NodeId,
-    patch: &ElementTargetPatch<'_>,
-) {
-    match patch.target {
-        ElementTarget::Attribute { attr_name } => {
-            write_attribute(dom, node_id, attr_name, patch.value);
-        }
-        ElementTarget::ScriptText | ElementTarget::StyleText => {
-            write_text_child(dom, node_id, patch.value);
-        }
-    }
-}
-
-fn write_attribute(
-    dom: &mut Html,
-    element_id: NodeId,
-    attr_name: &str,
-    value: &str,
-) {
-    if let Some(mut n) = dom.tree.get_mut(element_id)
-        && let Node::Element(e) = n.value()
-    {
-        for (qn, val) in &mut e.attrs {
-            if qn.local.as_ref() == attr_name {
-                if val.as_ref() != value {
-                    *val = value.into();
-                }
-                return;
-            }
-        }
-    }
-}
-
-fn write_text_child(dom: &mut Html, element_id: NodeId, value: &str) {
-    let child_id = dom
-        .tree
-        .get(element_id)
-        .and_then(|n| n.first_child().map(|c| c.id()));
-    let Some(child_id) = child_id else {
-        return;
-    };
-    write_text(dom, child_id, value);
 }
 
 #[cfg(test)]

@@ -2,6 +2,8 @@
 //! [`TextData`] per-call payload, and [`TextExtraction`] provenance
 //! enum.
 
+use std::ops::Range;
+
 use derive_more::{AsRef, Deref, Display, From};
 use hipstr::HipStr;
 use schemars::JsonSchema;
@@ -89,6 +91,31 @@ impl TextLocation {
     /// Whether the range is empty (zero length).
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Translate a value-local byte range to a parent-local
+    /// [`TextLocation`], assuming the value is a verbatim slice of
+    /// the source covered by `self` (no escapes, no decoding).
+    ///
+    /// Returns `None` when `value_range.end > self.len()` or the
+    /// range is malformed (`start > end`).
+    ///
+    /// Used by [`Handler::lift_chunk`] implementations whose chunk
+    /// data and source bytes coincide — TXT lines, HTML text
+    /// nodes, PDF page text, DOCX text runs, etc.
+    ///
+    /// [`Handler::lift_chunk`]: # "see nvisy-codec"
+    #[must_use]
+    pub fn subslice(&self, value_range: Range<usize>) -> Option<TextLocation> {
+        if value_range.start > value_range.end || value_range.end > self.len() {
+            return None;
+        }
+        Some(TextLocation {
+            start: self.start + value_range.start,
+            end: self.start + value_range.end,
+            context: self.context,
+            page_number: self.page_number,
+        })
     }
 }
 

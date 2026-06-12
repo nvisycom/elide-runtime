@@ -12,7 +12,6 @@ use nvisy_core::redaction::Redactions;
 
 use super::DocxLoader;
 use crate::content::{ContentData, ContentSource};
-use crate::handler::text::lift_identity;
 use crate::{Chunk, Format, FormatId, Handler};
 
 const TARGET: &str = "nvisy_codec::handler::rich::docx";
@@ -81,7 +80,7 @@ impl Handler<Text> for DocxHandler {
     }
 
     fn lift_chunk(&self, chunk: &Chunk<Text>, value_range: Range<usize>) -> Option<TextLocation> {
-        lift_identity(chunk, value_range)
+        chunk.location.subslice(value_range)
     }
 
     async fn read(&self, _location: &TextLocation) -> Result<Option<TextData>, Error> {

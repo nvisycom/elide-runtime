@@ -16,7 +16,6 @@ pub mod error;
 mod detections;
 mod files;
 mod infra;
-mod policies;
 mod redactions;
 
 mod request;
@@ -34,12 +33,19 @@ use crate::service::ServiceState;
 /// ```text
 /// /health                                  (unversioned)
 /// /api/v1/files[/{id}]                     (DELETE /files removes every file)
-/// /api/v1/policies[/{id}]                  (DELETE /policies removes every policy)
 /// /api/v1/detections[/{id}[/cancel]]       (DELETE /detections removes every finished detection)
 /// /api/v1/redactions[/{id}[/cancel]]       (DELETE /redactions removes every finished redaction)
 /// /api/v1/openapi.json                     (added by OpenAPI middleware)
 /// /docs                                    (added by OpenAPI middleware)
 /// ```
+///
+/// Policies are not a persisted resource: the caller submits the
+/// full [`AnyPolicy`] bodies inline on `POST /api/v1/detections`.
+/// The audit refers to each rule by `PolicyDecisionRef` so the
+/// caller can correlate decisions against their own copy of the
+/// policy bytes when rendering.
+///
+/// [`AnyPolicy`]: nvisy_engine::policy::AnyPolicy
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(infra::health_routes())
@@ -54,7 +60,6 @@ pub fn routes() -> ApiRouter<ServiceState> {
 fn v1_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(files::routes_v1())
-        .merge(policies::routes_v1())
         .merge(detections::routes_v1())
         .merge(redactions::routes_v1())
 }

@@ -32,6 +32,7 @@ use super::redaction::{
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
+use crate::policy::validate_policy_namespace;
 use crate::registry::Registry;
 
 /// Shared inner state for the engine, held behind an `Arc`.
@@ -226,6 +227,8 @@ impl Engine {
     /// observable via [`Engine::get_detection`]. The `Result`
     /// return reserves space for future synchronous validation.
     pub async fn detect(&self, input: DetectionInput) -> Result<Uuid, Error> {
+        validate_policy_namespace(&input.policies)?;
+
         let pipeline = self.detection_pipeline();
         let detection_id = pipeline.id();
         pipeline.register_pending(&input).await;

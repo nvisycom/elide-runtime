@@ -159,12 +159,12 @@ fn action_redact_custom_id_round_trips() {
 #[test]
 fn policy_with_redact_rules_round_trips_from_toml() {
     let toml = r##"
-        id = "00000000-0000-0000-0000-000000000000"
         name = "email-and-card"
         version = "1.0.0"
         description = "redact emails, mask cards, drop everything else by default"
 
         [[rules]]
+        name = "redact-email"
         action = "redact"
         operator = { kind = "replace", template = "[EMAIL]" }
 
@@ -172,6 +172,7 @@ fn policy_with_redact_rules_round_trips_from_toml() {
         entityKinds = ["email_address"]
 
         [[rules]]
+        name = "mask-card"
         action = "redact"
         operator = { kind = "mask", mask_char = "#", keep_suffix = 4 }
 

@@ -17,13 +17,13 @@
 
 use std::sync::Arc;
 
+use hipstr::HipStr;
 use nvisy_codec::content::ContentDescriptor;
 use nvisy_core::entity::Entity;
 use type_map::concurrent::TypeMap;
-use uuid::Uuid;
 
 use crate::modality::DocumentModality;
-use crate::policy::{Action, Condition, Policy, PolicyRule, RuleRank};
+use crate::policy::{Action, Condition, Policy, PolicyRule};
 
 /// Heterogeneous container of policies across all modalities,
 /// stored as `Arc<Policy<M>>` so that multiple per-run stores can
@@ -102,36 +102,36 @@ impl PolicyStore {
         document_labels: &[&str],
         descriptor: &ContentDescriptor,
     ) -> Decision<M> {
-        for (policy_idx, policy) in self.get::<M>().iter().enumerate() {
-            let policy_index = u32::try_from(policy_idx).unwrap_or(u32::MAX);
-            for (rule_idx, rule) in policy.rules.iter().enumerate() {
+        for policy in self.get::<M>() {
+            for rule in &policy.rules {
                 if !rule_matches(rule, entity, document_labels, descriptor) {
                     continue;
                 }
-                let rule_index = u32::try_from(rule_idx).unwrap_or(u32::MAX);
-                let rank = RuleRank::new(policy_index, rule_index);
+                let policy_name = policy.name.clone();
+                let rule_name = Some(rule.name.clone());
                 return match &rule.action {
                     Action::Redact { operator } => Decision::Redact {
-                        policy_id: policy.id,
-                        rank,
+                        policy_name,
+                        rule_name,
                         operator: operator.clone(),
                     },
                     Action::Suppress => Decision::Suppress {
-                        policy_id: policy.id,
-                        rank,
+                        policy_name,
+                        rule_name,
                     },
                 };
             }
             if let Some(default) = policy.default_action.as_ref() {
+                let policy_name = policy.name.clone();
                 return match default {
                     Action::Redact { operator } => Decision::Redact {
-                        policy_id: policy.id,
-                        rank: RuleRank::for_default(policy_index),
+                        policy_name,
+                        rule_name: None,
                         operator: operator.clone(),
                     },
                     Action::Suppress => Decision::Suppress {
-                        policy_id: policy.id,
-                        rank: RuleRank::for_default(policy_index),
+                        policy_name,
+                        rule_name: None,
                     },
                 };
             }
@@ -164,15 +164,20 @@ impl std::fmt::Debug for PolicyStore {
 /// [`RedactionRegistry<M>`]: nvisy_toolkit::redaction::RedactionRegistry
 pub(crate) enum Decision<M: DocumentModality> {
     /// A rule chose to redact. `operator` is the per-modality
-    /// operator spec the winning rule carried; `rank` locates the
-    /// producing rule inside the chain.
+    /// operator spec the winning rule carried; `policy_name` +
+    /// `rule_name` locate the producing rule. `rule_name` is `None`
+    /// when the policy's `default_action` fallback fired.
     Redact {
-        policy_id: Uuid,
-        rank: RuleRank,
+        policy_name: HipStr<'static>,
+        rule_name: Option<HipStr<'static>>,
         operator: M::Redaction,
     },
     /// A `Suppress` rule fired; the caller records the suppression.
-    Suppress { policy_id: Uuid, rank: RuleRank },
+    /// Same naming semantics as [`Decision::Redact`].
+    Suppress {
+        policy_name: HipStr<'static>,
+        rule_name: Option<HipStr<'static>>,
+    },
     /// No policy in the chain produced a decision. The caller falls
     /// back to its default-threshold path.
     Fallthrough,
@@ -223,8 +228,7 @@ mod tests {
 
     fn text_policy() -> Arc<Policy<Text>> {
         Arc::new(Policy::<Text> {
-            id: uuid::Uuid::nil(),
-            name: "test".into(),
+            name: HipStr::from("test"),
             version: Version::new(1, 0, 0),
             description: None,
             rules: Vec::new(),
@@ -235,8 +239,7 @@ mod tests {
 
     fn image_policy() -> Arc<Policy<Image>> {
         Arc::new(Policy::<Image> {
-            id: uuid::Uuid::nil(),
-            name: "test".into(),
+            name: HipStr::from("test"),
             version: Version::new(1, 0, 0),
             description: None,
             rules: Vec::new(),

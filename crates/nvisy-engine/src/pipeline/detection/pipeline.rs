@@ -11,7 +11,6 @@ use std::sync::Arc;
 use jiff::Timestamp;
 use nvisy_codec::CodecRegistry;
 use nvisy_core::Error;
-use nvisy_core::modality::Text;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
@@ -28,7 +27,7 @@ use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
-use crate::policy::Policy;
+use crate::policy::AnyPolicy;
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::detection::pipeline";
@@ -101,14 +100,8 @@ impl DetectionPipeline {
         input: DetectionInput,
     ) -> Result<(Vec<AnyAudit>, u64, DetectionStatus), Error> {
         let actor_id = input.actor_id;
-        let policy_ids = input.policies.clone();
 
-        let _policy_guard = self.acquire_policies(actor_id, &policy_ids).await;
-        let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
-        let text_policies: Vec<Arc<Policy<Text>>> = cached_policies;
-
-        let mut policy_store = PolicyStore::new();
-        policy_store.set::<Text>(text_policies);
+        let policy_store = build_policy_store(&input.policies);
 
         let mut shared_data = SharedData {
             run_id: self.detection_id,
@@ -159,7 +152,7 @@ impl DetectionPipeline {
             let result = DetectionResult {
                 id: self.detection_id,
                 actor_id,
-                policies: input.policies.clone(),
+                policies: input.policies.iter().map(AnyPolicy::digest).collect(),
                 imports: input.imports.clone(),
                 audits: audits.clone(),
                 entities_detected,
@@ -193,22 +186,33 @@ impl DetectionPipeline {
         Ok((audits, entities_detected, status))
     }
 
-    async fn acquire_policies(
-        &self,
-        actor_id: Uuid,
-        policy_ids: &[Uuid],
-    ) -> crate::registry::ResourceGuard<Policy<Text>> {
-        self.registry
-            .policy_cache()
-            .acquire(policy_ids, |id| async move {
-                match self.registry.read_policy(actor_id, id).await {
-                    Ok(policy) => Some(policy),
-                    Err(e) => {
-                        tracing::warn!(%id, error = %e, "failed to load policy");
-                        None
-                    }
-                }
-            })
-            .await
+}
+
+/// Distribute the modality-erased policies the caller submitted
+/// into the typed [`PolicyStore`] buckets the evaluator reads at
+/// rule-resolution time. One [`Arc::new`] per policy — the original
+/// `AnyPolicy` values are kept alive through the detection record;
+/// the store holds independent Arcs purely for the per-run hot
+/// path.
+pub(crate) fn build_policy_store(policies: &[AnyPolicy]) -> PolicyStore {
+    use crate::modality::{Audio, Image, Tabular, Text};
+
+    let mut text = Vec::new();
+    let mut tabular = Vec::new();
+    let mut image = Vec::new();
+    let mut audio = Vec::new();
+    for any in policies {
+        match any {
+            AnyPolicy::Text(p) => text.push(Arc::new(p.clone())),
+            AnyPolicy::Tabular(p) => tabular.push(Arc::new(p.clone())),
+            AnyPolicy::Image(p) => image.push(Arc::new(p.clone())),
+            AnyPolicy::Audio(p) => audio.push(Arc::new(p.clone())),
+        }
     }
+    let mut store = PolicyStore::new();
+    store.set::<Text>(text);
+    store.set::<Tabular>(tabular);
+    store.set::<Image>(image);
+    store.set::<Audio>(audio);
+    store
 }

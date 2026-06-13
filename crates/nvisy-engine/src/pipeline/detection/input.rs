@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::phases::ingestion::ImportFile;
 use crate::pipeline::Plan;
+use crate::policy::AnyPolicy;
 
 /// Input required to execute a detection pass.
 ///
@@ -22,9 +23,11 @@ use crate::pipeline::Plan;
 pub struct DetectionInput {
     /// Identity of the human or service account initiating the run.
     pub actor_id: Uuid,
-    /// Previously uploaded policies to apply, in precedence order:
-    /// index `0` is highest precedence.
-    pub policies: Vec<Uuid>,
+    /// Policies to apply, in precedence order: index `0` is highest
+    /// precedence. Submitted inline with their full rule bodies —
+    /// the engine does not persist policies as a resource. Callers
+    /// reuse policies by re-submitting the same bytes.
+    pub policies: Vec<AnyPolicy>,
     /// Content sources to ingest at the start of the run.
     pub imports: Vec<ImportFile>,
     /// Per-phase behaviour knobs the pipeline reads for each

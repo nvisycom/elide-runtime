@@ -9,6 +9,7 @@ use uuid::Uuid;
 use super::status::DetectionStatus;
 use crate::document::provenance::AnyAudit;
 use crate::phases::ingestion::ImportFile;
+use crate::policy::PolicyDigest;
 
 /// Immutable artifact produced by one detection pass.
 ///
@@ -26,8 +27,15 @@ pub struct DetectionResult {
     pub id: Uuid,
     /// Identity of the actor who initiated the pass.
     pub actor_id: Uuid,
-    /// Policies that were applied, in precedence order.
-    pub policies: Vec<Uuid>,
+    /// Header cards for the policies that were applied, in
+    /// precedence order. The full rule bodies live only in the
+    /// original [`DetectionInput::policies`] submission; the
+    /// digests here let a reader render `"<name> v<version>"` and
+    /// correlate audit entries by [`PolicyDigest::name`] without
+    /// re-uploading anything.
+    ///
+    /// [`DetectionInput::policies`]: super::DetectionInput::policies
+    pub policies: Vec<PolicyDigest>,
     /// Original import references — needed by [`Engine::redact`].
     ///
     /// [`Engine::redact`]: super::super::Engine::redact

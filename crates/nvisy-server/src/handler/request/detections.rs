@@ -2,6 +2,7 @@
 
 use nvisy_engine::phases::ingestion::ImportFile;
 use nvisy_engine::pipeline::{DetectionInput, DetectionStatus, Plan};
+use nvisy_engine::policy::AnyPolicy;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -12,10 +13,11 @@ use crate::handler::request::pagination::Pagination;
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewDetection {
-    /// Previously uploaded policies to apply, in precedence
-    /// order (index 0 is highest precedence).
+    /// Policies to apply, in precedence order (index 0 is highest
+    /// precedence). Submitted inline with their full rule bodies —
+    /// the engine does not persist policies as a resource.
     #[serde(default)]
-    pub policies: Vec<Uuid>,
+    pub policies: Vec<AnyPolicy>,
     /// Content sources to ingest at the start of the pass.
     pub imports: Vec<ImportFile>,
     /// Per-phase behaviour knobs.

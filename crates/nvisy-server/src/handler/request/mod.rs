@@ -9,11 +9,9 @@
 mod detections;
 mod pagination;
 mod path;
-mod policies;
 mod redactions;
 
 pub use self::detections::{DetectionQuery, NewDetection};
 pub use self::pagination::{MAX_PAGE_LIMIT, Pagination};
-pub use self::path::{ContentPath, DetectionPath, PolicyPath, RedactionPath};
-pub use self::policies::NewPolicy;
+pub use self::path::{ContentPath, DetectionPath, RedactionPath};
 pub use self::redactions::{NewRedaction, RedactionQuery};

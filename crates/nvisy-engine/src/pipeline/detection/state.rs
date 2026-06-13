@@ -18,6 +18,7 @@ use super::result::{DetectionEntry, DetectionFilter, DetectionResult, DetectionS
 use super::status::DetectionStatus;
 use crate::document::provenance::AnyAudit;
 use crate::phases::ingestion::ImportFile;
+use crate::policy::AnyPolicy;
 
 const TARGET: &str = "nvisy_engine::detection::state";
 
@@ -30,10 +31,29 @@ pub(crate) struct DetectionState {
     inner: Arc<RwLock<HashMap<Uuid, DetectionRecord>>>,
 }
 
+/// Internal handoff shape the redaction pipeline reads from the
+/// detection record. Carries the full inline policy bodies the
+/// redact phase needs to re-evaluate operator specs, alongside the
+/// per-document imports and the pending audits. Lives only between
+/// detection-state lookup and redaction-pipeline construction;
+/// never serialised.
+pub(crate) struct DetectionHandoff {
+    pub policies: Vec<AnyPolicy>,
+    pub imports: Vec<ImportFile>,
+    pub audits: Vec<AnyAudit>,
+}
+
 /// Mutable per-pass state.
 pub(crate) struct DetectionRecord {
     pub actor_id: Uuid,
-    pub policies: Vec<Uuid>,
+    /// Full inline policy bodies the caller submitted. Kept in
+    /// memory so the matching redact pass can re-evaluate operator
+    /// specs without the caller re-submitting them. The public
+    /// snapshot ([`DetectionResult::policies`]) carries only
+    /// digests.
+    ///
+    /// [`DetectionResult::policies`]: super::result::DetectionResult::policies
+    pub policies: Vec<AnyPolicy>,
     pub imports: Vec<ImportFile>,
     pub status: DetectionStatus,
     pub created_at: Timestamp,
@@ -51,7 +71,7 @@ impl DetectionRecord {
             DetectionStatus::Succeeded | DetectionStatus::PartialFailure => Some(DetectionResult {
                 id,
                 actor_id: self.actor_id,
-                policies: self.policies.clone(),
+                policies: self.policies.iter().map(AnyPolicy::digest).collect(),
                 imports: self.imports.clone(),
                 audits: self.audits.clone(),
                 entities_detected: self.entities_detected,
@@ -136,7 +156,16 @@ impl DetectionState {
     ///
     /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
     /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
-    pub async fn result(&self, actor_id: Uuid, id: Uuid) -> Result<DetectionResult, Error> {
+    /// Internal hand-off shape used by the redaction pipeline: full
+    /// inline policy bodies plus the rest of the detection record's
+    /// payload. Replaces the public-facing `DetectionResult` for the
+    /// detect→redact wiring so the redact phase can re-evaluate
+    /// operator specs against the actual rule bodies.
+    pub(crate) async fn handoff(
+        &self,
+        actor_id: Uuid,
+        id: Uuid,
+    ) -> Result<DetectionHandoff, Error> {
         let guard = self.inner.read().await;
         let Some(record) = guard.get(&id) else {
             return Err(Error::not_found(
@@ -162,13 +191,10 @@ impl DetectionState {
                 TARGET,
             ));
         }
-        Ok(DetectionResult {
-            id,
-            actor_id: record.actor_id,
+        Ok(DetectionHandoff {
             policies: record.policies.clone(),
             imports: record.imports.clone(),
             audits: record.audits.clone(),
-            entities_detected: record.entities_detected,
         })
     }
 

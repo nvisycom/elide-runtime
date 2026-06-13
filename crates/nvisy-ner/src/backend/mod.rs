@@ -1,11 +1,11 @@
 //! Backend layer: the [`NerBackend`] trait and its shipped impls.
 //!
 //! One trait covers zero-shot backends (per-call labels via
-//! [`NerRequest::labels = Some(...)`][NerRequest::labels]) and
-//! fixed-label backends (labels baked into the model,
-//! `labels = None`). Built-in [`NoopBackend`] (returns no spans;
-//! test stub) and feature-gated [`BentoBackend`] (HTTP call into the
-//! externalised `inference-gliner` service).
+//! [`NerRequest::labels`] = `Some(...)`) and fixed-label backends
+//! (labels baked into the model, `labels = None`). Built-in
+//! [`NoopBackend`] (returns no spans; test stub) and feature-gated
+//! [`BentoBackend`] (HTTP call into the externalised
+//! `inference-gliner` service).
 
 mod ner_backend;
 mod ner_span;

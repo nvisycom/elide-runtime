@@ -30,9 +30,9 @@ pub use self::config::OcrExtractorConfig;
 #[cfg(feature = "audio")]
 pub use self::config::SttExtractorConfig;
 pub use self::config::{
-    AudioPlan, DeduplicationParams, Detection, DetectionConfig, EngineConfig, Extraction,
-    ExtractionConfig, ImagePlan, NerBackend, NerDetection, PatternDetection, Redaction,
-    RedactionConfig, ResourceLimits, RuntimeConfig, TabularPlan, TextPlan, Validation,
+    AudioPlan, DeduplicationParams, DetectionConfig, EngineConfig, Extraction, ExtractionConfig,
+    ImagePlan, NerBackend, NerDetection, PatternDetection, Redaction, RedactionConfig,
+    ResourceLimits, RuntimeConfig, TabularPlan, TextPlan, Validation,
 };
 pub use self::detection::{
     DetectionEntry, DetectionFilter, DetectionInput, DetectionResult, DetectionSnapshot,

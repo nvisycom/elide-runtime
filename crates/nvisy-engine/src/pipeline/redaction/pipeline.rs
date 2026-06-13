@@ -29,7 +29,6 @@ const TARGET: &str = "nvisy_engine::pipeline::redaction::pipeline";
 
 pub(crate) struct RedactionEngineState {
     pub extraction_engine: Arc<ExtractorRegistry>,
-    pub recognizer_registry: Arc<RecognizerRegistry>,
     pub redaction_config: Arc<RedactionConfig>,
     pub redaction_registries: Arc<RedactionRegistries>,
 }
@@ -111,10 +110,13 @@ impl RedactionPipeline {
             return Err(e);
         }
 
+        let catalog = Arc::new(detection.policies.catalog());
+
         let mut shared_data = SharedData {
             run_id: self.redaction_id,
             actor_id,
             policies: detection.policies,
+            catalog,
             registry: self.registry.clone(),
             codec_registry: CodecRegistry::with_builtin(),
             key_provider: SharedKeyProvider::default(),
@@ -126,7 +128,7 @@ impl RedactionPipeline {
         let cancel = CancellationToken::new();
         let engines = RunEngines {
             extraction_engine: (*self.state.extraction_engine).clone(),
-            recognizer_registry: Arc::clone(&self.state.recognizer_registry),
+            recognizer_registry: Arc::new(RecognizerRegistry::new()),
             redaction_config: (*self.state.redaction_config).clone(),
             redaction_registries: (*self.state.redaction_registries).clone(),
         };

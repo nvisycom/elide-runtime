@@ -7,9 +7,11 @@
 //! separate enum.
 //!
 //! The `BUILT_INS` slice indexes every constant for the
-//! [`EntityLabelCatalog::with_builtins`][super::EntityLabelCatalog::with_builtins]
-//! constructor; the constants themselves are public and reachable
-//! by name (e.g. `builtins::PERSON_NAME`).
+//! [`EntityLabelCatalog::with_builtins`] constructor; the
+//! constants themselves are public and reachable by name (e.g.
+//! `builtins::PERSON_NAME`).
+//!
+//! [`EntityLabelCatalog::with_builtins`]: super::EntityLabelCatalog::with_builtins
 
 use std::sync::LazyLock;
 

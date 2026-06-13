@@ -14,7 +14,6 @@ use std::sync::Arc;
 use std::{fmt, mem};
 
 use nvisy_core::Error;
-use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio::sync::Mutex;
 use tokio::task::JoinSet;
@@ -31,6 +30,7 @@ use super::redaction::{
 };
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
+use crate::pipeline::config::DetectionConfig;
 use crate::pipeline::RedactionConfig;
 use crate::policy::validate_policy_namespace;
 use crate::registry::Registry;
@@ -42,9 +42,11 @@ pub(super) struct EngineInner {
     /// Pre-built extractor registry, constructed once from
     /// `runtime_config.extraction` and shared across every pass.
     pub extraction_engine: Arc<ExtractorRegistry>,
-    /// Pre-built recognizer registry, constructed once from
-    /// `runtime_config.detection` and shared across every pass.
-    pub recognizer_registry: Arc<RecognizerRegistry>,
+    /// Detection config template. The per-request
+    /// [`RecognizerRegistry`] is built fresh inside the detection
+    /// pipeline from this template plus the request's policy-supplied
+    /// label catalog.
+    pub detection_config: Arc<DetectionConfig>,
     /// Server-wide redaction defaults shared across every pass.
     pub redaction_config: Arc<RedactionConfig>,
     /// Per-modality custom-anonymizer registries.
@@ -108,10 +110,7 @@ impl Engine {
                 .transpose()?
                 .unwrap_or_default(),
         );
-        let recognizer_registry = Arc::new(match config.detection.as_ref() {
-            Some(section) => section.build()?,
-            None => RecognizerRegistry::default(),
-        });
+        let detection_config = Arc::new(config.detection.clone().unwrap_or_default());
         let redaction_config = Arc::new(config.redaction.clone().unwrap_or_default());
         let redaction_registries = Arc::new(RedactionRegistries::default());
 
@@ -119,7 +118,7 @@ impl Engine {
             inner: Arc::new(EngineInner {
                 runtime_config: config,
                 extraction_engine,
-                recognizer_registry,
+                detection_config,
                 redaction_config,
                 redaction_registries,
                 registry,
@@ -206,7 +205,7 @@ impl Engine {
             self.inner.runtime_config.clone(),
             DetectionEngineState {
                 extraction_engine: Arc::clone(&self.inner.extraction_engine),
-                recognizer_registry: Arc::clone(&self.inner.recognizer_registry),
+                detection_config: Arc::clone(&self.inner.detection_config),
                 redaction_config: Arc::clone(&self.inner.redaction_config),
                 redaction_registries: Arc::clone(&self.inner.redaction_registries),
             },
@@ -231,7 +230,7 @@ impl Engine {
 
         let pipeline = self.detection_pipeline();
         let detection_id = pipeline.id();
-        let prepared = pipeline.register_pending(input).await;
+        let prepared = pipeline.register_pending(input).await?;
 
         self.inner.background_tasks.lock().await.spawn(async move {
             if let Err(e) = pipeline.execute(prepared).await {
@@ -370,7 +369,6 @@ impl Engine {
             self.inner.runtime_config.clone(),
             RedactionEngineState {
                 extraction_engine: Arc::clone(&self.inner.extraction_engine),
-                recognizer_registry: Arc::clone(&self.inner.recognizer_registry),
                 redaction_config: Arc::clone(&self.inner.redaction_config),
                 redaction_registries: Arc::clone(&self.inner.redaction_registries),
             },

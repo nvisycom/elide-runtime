@@ -64,6 +64,38 @@ impl PolicyStore {
         self.bucket_mut::<M>().push(policy);
     }
 
+    /// Union every stored policy's [`Policy::labels`] into a single
+    /// [`EntityLabelCatalog`]. Used at redaction time to rebuild the
+    /// per-request catalog the detection pass already validated.
+    /// Conflicts here are impossible because the same union was
+    /// validated at detection-time submission.
+    pub(crate) fn catalog(&self) -> nvisy_core::entity::EntityLabelCatalog {
+        use crate::modality::{Audio, Image, Tabular, Text};
+
+        let mut catalog = nvisy_core::entity::EntityLabelCatalog::new();
+        for p in self.chain::<Text>() {
+            for l in &p.labels {
+                catalog.insert(l.clone());
+            }
+        }
+        for p in self.chain::<Tabular>() {
+            for l in &p.labels {
+                catalog.insert(l.clone());
+            }
+        }
+        for p in self.chain::<Image>() {
+            for l in &p.labels {
+                catalog.insert(l.clone());
+            }
+        }
+        for p in self.chain::<Audio>() {
+            for l in &p.labels {
+                catalog.insert(l.clone());
+            }
+        }
+        catalog
+    }
+
     fn chain<M: DocumentModality>(&self) -> &[Arc<Policy<M>>] {
         self.inner
             .get::<Vec<Arc<Policy<M>>>>()
@@ -84,12 +116,13 @@ impl PolicyStore {
     pub(crate) fn resolve<M: DocumentModality>(
         &self,
         entity: &Entity<M>,
+        catalog: &nvisy_core::entity::EntityLabelCatalog,
         document_labels: &[&str],
         descriptor: &ContentDescriptor,
     ) -> Decision<M> {
         for policy in self.chain::<M>() {
             for rule in &policy.rules {
-                if !rule_matches(rule, entity, document_labels, descriptor) {
+                if !rule_matches(rule, entity, catalog, document_labels, descriptor) {
                     continue;
                 }
                 let policy_name = policy.name.clone();
@@ -171,11 +204,12 @@ pub(crate) enum Decision<M: DocumentModality> {
 fn rule_matches<M: DocumentModality>(
     rule: &PolicyRule<M>,
     entity: &Entity<M>,
+    catalog: &nvisy_core::entity::EntityLabelCatalog,
     document_labels: &[&str],
     descriptor: &ContentDescriptor,
 ) -> bool {
     rule.enabled
-        && rule.selector.matches(entity)
+        && rule.selector.matches(entity, catalog)
         && rule
             .conditions
             .iter()
@@ -216,6 +250,7 @@ mod tests {
             name: HipStr::from(name),
             version: Version::new(1, 0, 0),
             description: None,
+            labels: Vec::new(),
             rules: Vec::new(),
             default_action: None,
             retention: Vec::new(),
@@ -227,6 +262,7 @@ mod tests {
             name: HipStr::from(name),
             version: Version::new(1, 0, 0),
             description: None,
+            labels: Vec::new(),
             rules: Vec::new(),
             default_action: None,
             retention: Vec::new(),
@@ -238,8 +274,9 @@ mod tests {
         let store = PolicyStore::default();
         let entity = Entity::<Text>::test_builder(0, 4).test_build();
         let descriptor = ContentDescriptor::new();
+        let catalog = nvisy_core::entity::EntityLabelCatalog::new();
         assert!(matches!(
-            store.resolve::<Text>(&entity, &[], &descriptor),
+            store.resolve::<Text>(&entity, &catalog, &[], &descriptor),
             Decision::Fallthrough
         ));
     }

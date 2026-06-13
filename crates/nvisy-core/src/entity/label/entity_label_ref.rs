@@ -9,10 +9,10 @@
 //!
 //! Catalog-side metadata (description, tags) lives on
 //! [`EntityLabel`] and is dereferenced through
-//! [`EntityLabelCatalog::lookup`][catalog-lookup] when a consumer needs it.
+//! [`EntityLabelCatalog::lookup`] when a consumer needs it.
 //!
 //! [`EntityLabel`]: super::EntityLabel
-//! [catalog-lookup]: super::EntityLabelCatalog::lookup
+//! [`EntityLabelCatalog::lookup`]: super::EntityLabelCatalog::lookup
 
 use std::fmt;
 
@@ -20,12 +20,15 @@ use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Name-only handle to an [`EntityLabel`][super::EntityLabel].
-/// Cheap-clone wrapper around [`HipStr<'static>`].
+/// Name-only handle to an [`EntityLabel`]. Cheap-clone wrapper
+/// around [`HipStr<'static>`].
 ///
-/// Carried on every [`Entity`][crate::entity::Entity] in place of
-/// the full catalog metadata. Two refs are equal when their names
-/// are equal byte-for-byte.
+/// Carried on every [`Entity`] in place of the full catalog
+/// metadata. Two refs are equal when their names are equal
+/// byte-for-byte.
+///
+/// [`EntityLabel`]: super::EntityLabel
+/// [`Entity`]: crate::entity::Entity
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 #[schemars(with = "String")]

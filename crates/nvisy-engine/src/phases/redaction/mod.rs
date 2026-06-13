@@ -62,6 +62,7 @@ pub(crate) async fn run_redaction<M>(
     tree: &mut DocumentTree<M>,
     descriptor: &ContentDescriptor,
     policies: &PolicyStore,
+    catalog: &nvisy_core::entity::EntityLabelCatalog,
     registry: &RedactionRegistry<M>,
 ) -> Result<()>
 where
@@ -105,7 +106,7 @@ where
         if !default_threshold.admits(record.entity.confidence) {
             continue;
         }
-        let decision = policies.resolve::<M>(&record.entity, &document_labels, descriptor);
+        let decision = policies.resolve::<M>(&record.entity, catalog, &document_labels, descriptor);
         let entry = match decision {
             Decision::Redact {
                 policy_name,

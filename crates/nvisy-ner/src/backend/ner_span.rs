@@ -18,9 +18,10 @@ use std::ops::Range;
 /// One raw entity span predicted by a NER model.
 ///
 /// Pre-normalization: the label is the model's string, not a
-/// canonical [`EntityLabelRef`][nvisy_core::entity::EntityLabelRef].
-/// Coordinate space is byte offsets into the source text the backend
-/// was called with.
+/// canonical [`EntityLabelRef`]. Coordinate space is byte offsets
+/// into the source text the backend was called with.
+///
+/// [`EntityLabelRef`]: nvisy_core::entity::EntityLabelRef
 #[derive(Debug, Clone, PartialEq)]
 pub struct RawNerSpan {
     /// Model-emitted label, verbatim.

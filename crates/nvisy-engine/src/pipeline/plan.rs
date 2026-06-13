@@ -4,7 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{DeduplicationParams, Detection, Extraction, Redaction, Validation};
+use super::{DeduplicationParams, Extraction, Redaction, Validation};
 
 /// Per-request bundle of per-phase configs.
 ///
@@ -18,8 +18,6 @@ use super::{DeduplicationParams, Detection, Extraction, Redaction, Validation};
 pub struct Plan {
     /// Extraction settings per modality.
     pub extraction: Extraction,
-    /// Detection settings (post-detection entity-kind allowlist).
-    pub detection: Detection,
     /// Deduplication settings applied to combined detection results.
     pub deduplication: DeduplicationParams,
     /// Redaction settings applied after policy evaluation.

@@ -16,7 +16,6 @@ use tower_http::classify::SharedClassifier;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::{self, TraceLayer};
-use tracing::Level;
 
 /// Header name used for request correlation.
 const REQUEST_ID_HEADER: &str = "x-request-id";
@@ -60,14 +59,14 @@ fn trace_layer() -> TraceLayer<SharedClassifier<tower_http::classify::ServerErro
     TraceLayer::new_for_http()
         .make_span_with(
             trace::DefaultMakeSpan::new()
-                .level(Level::INFO)
+                .level(tracing::Level::INFO)
                 .include_headers(false),
         )
-        .on_request(trace::DefaultOnRequest::new().level(Level::DEBUG))
+        .on_request(trace::DefaultOnRequest::new().level(tracing::Level::DEBUG))
         .on_response(
             trace::DefaultOnResponse::new()
-                .level(Level::INFO)
+                .level(tracing::Level::INFO)
                 .include_headers(false),
         )
-        .on_failure(trace::DefaultOnFailure::new().level(Level::ERROR))
+        .on_failure(trace::DefaultOnFailure::new().level(tracing::Level::ERROR))
 }

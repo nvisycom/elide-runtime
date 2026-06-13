@@ -6,17 +6,20 @@
 //!   tags). Authored once per label; consumed by selectors and
 //!   audit-rendering tooling that need the metadata.
 //! - [`EntityLabelRef`] — name-only handle stored on every
-//!   detected [`Entity`][crate::entity::Entity]. Cheap-clone
-//!   wrapper around [`HipStr<'static>`][hipstr::HipStr].
-//! - [`EntityLabelCatalog`] — name-indexed lookup over a collection of
-//!   `EntityLabel`s. The workspace ships a built-in catalog
-//!   constructed from [`EntityLabelCatalog::with_builtins`]; consumers can
-//!   register custom labels alongside or instead of the
-//!   built-ins.
+//!   detected [`Entity`]. Cheap-clone wrapper around
+//!   [`HipStr<'static>`].
+//! - [`EntityLabelCatalog`] — name-indexed lookup over a
+//!   collection of `EntityLabel`s. The workspace ships a built-in
+//!   catalog constructed from [`EntityLabelCatalog::with_builtins`];
+//!   consumers can register custom labels alongside or instead of
+//!   the built-ins.
 //! - [`builtins`] — every built-in `EntityLabel` constant
 //!   (`builtins::PERSON_NAME`, `builtins::EMAIL_ADDRESS`, …) plus
 //!   the internal `BUILT_INS` slice the catalog walks at
 //!   construction time.
+//!
+//! [`Entity`]: crate::entity::Entity
+//! [`HipStr<'static>`]: hipstr::HipStr
 
 pub mod builtins;
 mod entity_label;

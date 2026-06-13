@@ -24,7 +24,7 @@ use tracing::Instrument;
 use crate::core::{DocumentTree, RunContext};
 use crate::document::{Document, Span};
 use crate::modality::{DocumentModality, ModalityBlock};
-use crate::pipeline::{Detection, Plan};
+use crate::pipeline::Plan;
 
 const TARGET: &str = "nvisy_engine::detection";
 
@@ -77,19 +77,17 @@ impl DetectionPhase {
     pub(crate) async fn apply_image(
         &self,
         ctx: &RunContext,
-        plan: &Plan,
+        _plan: &Plan,
         tree: &mut DocumentTree<Image>,
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "detection.image");
         let run_id = ctx.shared().run_id;
-        let cfg = &plan.detection;
         async move {
-            detect_text_blocks(&self.registry, &mut tree.root, cfg, run_id).await?;
+            detect_text_blocks(&self.registry, &mut tree.root, run_id).await?;
             detect_image_chunks(
                 &self.registry,
                 &mut tree.root,
                 tree.handle.handler_mut(),
-                cfg,
                 run_id,
             )
             .await?;
@@ -102,7 +100,7 @@ impl DetectionPhase {
     async fn run_text_only<M>(
         &self,
         ctx: &RunContext,
-        plan: &Plan,
+        _plan: &Plan,
         doc: &mut Document<M>,
     ) -> Result<()>
     where
@@ -112,7 +110,7 @@ impl DetectionPhase {
         let span = tracing::info_span!(target: TARGET, "phase", name = "detection.text_only");
         let run_id = ctx.shared().run_id;
         async move {
-            detect_text_blocks(&self.registry, doc, &plan.detection, run_id).await?;
+            detect_text_blocks(&self.registry, doc, run_id).await?;
             Ok(())
         }
         .instrument(span)
@@ -125,7 +123,6 @@ impl DetectionPhase {
 async fn detect_text_blocks<M>(
     registry: &RecognizerRegistry,
     doc: &mut Document<M>,
-    cfg: &Detection,
     run_id: uuid::Uuid,
 ) -> Result<()>
 where
@@ -153,9 +150,6 @@ where
 
         let detected = registry.run::<Text>(input).await?;
         for entity in detected {
-            if !cfg.labels.is_empty() && !cfg.labels.contains(&entity.label) {
-                continue;
-            }
             let Some(location) =
                 M::lift_from_block(&block.spans, entity.location.start, entity.location.end)
             else {
@@ -196,7 +190,6 @@ async fn detect_image_chunks(
     registry: &RecognizerRegistry,
     doc: &mut Document<Image>,
     handle: &mut dyn nvisy_codec::Handler<Image>,
-    cfg: &Detection,
     run_id: uuid::Uuid,
 ) -> Result<()> {
     if registry.count::<Image>() == 0 {
@@ -209,12 +202,8 @@ async fn detect_image_chunks(
         input.correlation_id = Some(run_id);
 
         let detected = registry.run::<Image>(input).await?;
-        let filtered: Vec<Entity<Image>> = detected
-            .into_iter()
-            .filter(|e| cfg.labels.is_empty() || cfg.labels.contains(&e.label))
-            .collect();
-        detected_total += filtered.len();
-        doc.add_entities(filtered);
+        detected_total += detected.len();
+        doc.add_entities(detected);
     }
 
     tracing::debug!(
@@ -230,7 +219,6 @@ async fn detect_image_chunks(
     _registry: &RecognizerRegistry,
     _doc: &mut Document<Image>,
     _handle: &mut dyn nvisy_codec::Handler<Image>,
-    _cfg: &Detection,
     _run_id: uuid::Uuid,
 ) -> Result<()> {
     Ok(())

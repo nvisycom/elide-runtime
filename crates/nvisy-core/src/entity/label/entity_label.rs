@@ -109,9 +109,11 @@ impl EntityLabel {
         self.tags.iter().any(|t| t == tag)
     }
 
-    /// Construct a name-only [`EntityLabelRef`][super::EntityLabelRef]
-    /// handle to this label. Clones the underlying [`HipStr`]
-    /// (a refcount bump for `from_static` labels — no allocation).
+    /// Construct a name-only [`EntityLabelRef`] handle to this
+    /// label. Clones the underlying [`HipStr`] (a refcount bump
+    /// for `from_static` labels — no allocation).
+    ///
+    /// [`EntityLabelRef`]: super::EntityLabelRef
     #[must_use]
     pub fn label_ref(&self) -> EntityLabelRef {
         EntityLabelRef::from(self.name.clone())

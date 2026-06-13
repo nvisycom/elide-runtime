@@ -11,7 +11,6 @@ use std::sync::Arc;
 use jiff::Timestamp;
 use nvisy_codec::CodecRegistry;
 use nvisy_core::Error;
-use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -27,8 +26,8 @@ use crate::phases::ingestion::ImportFile;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
-use crate::pipeline::config::RuntimeConfig;
-use crate::policy::{AnyPolicy, PolicyDigest};
+use crate::pipeline::config::{DetectionConfig, RuntimeConfig};
+use crate::policy::{AnyPolicy, PolicyDigest, unify_labels, validate_selector_labels};
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::detection::pipeline";
@@ -37,7 +36,7 @@ const TARGET: &str = "nvisy_engine::pipeline::detection::pipeline";
 /// the duration of one pass.
 pub(crate) struct DetectionEngineState {
     pub extraction_engine: Arc<ExtractorRegistry>,
-    pub recognizer_registry: Arc<RecognizerRegistry>,
+    pub detection_config: Arc<DetectionConfig>,
     pub redaction_config: Arc<RedactionConfig>,
     pub redaction_registries: Arc<RedactionRegistries>,
 }
@@ -74,12 +73,22 @@ impl DetectionPipeline {
         self.detection_id
     }
 
-    /// Build the per-pass [`PolicyStore`] + digests from the
-    /// submitted policies and register a pending detection record.
-    /// Returns a handle the caller can pass to [`Self::execute`]
-    /// carrying the prepared shared state — no further policy
-    /// clones happen between this call and orchestrator dispatch.
-    pub(crate) async fn register_pending(&self, input: DetectionInput) -> PreparedDetection {
+    /// Validate the submitted policies, union their labels into the
+    /// per-request catalog, build the per-pass [`PolicyStore`] +
+    /// digests, and register a pending detection record.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if `unify_labels` finds a label
+    /// conflict between policies or if a selector references a
+    /// label no policy declares.
+    pub(crate) async fn register_pending(
+        &self,
+        input: DetectionInput,
+    ) -> Result<PreparedDetection, Error> {
+        let catalog = unify_labels(&input.policies)?;
+        validate_selector_labels(&input.policies, &catalog)?;
+
         let actor_id = input.actor_id;
         let policy_digests: Vec<PolicyDigest> =
             input.policies.iter().map(AnyPolicy::digest).collect();
@@ -105,13 +114,14 @@ impl DetectionPipeline {
             )
             .await;
 
-        PreparedDetection {
+        Ok(PreparedDetection {
             actor_id,
             policies,
             policy_digests,
+            catalog,
             imports: input.imports,
             plan: input.plan,
-        }
+        })
     }
 
     /// Run the detection pass to completion.
@@ -121,10 +131,19 @@ impl DetectionPipeline {
     ) -> Result<(Vec<AnyAudit>, u64, DetectionStatus), Error> {
         let actor_id = prepared.actor_id;
 
+        let recognizer_registry = match self.state.detection_config.build_for_request(&prepared.catalog) {
+            Ok(r) => Arc::new(r),
+            Err(e) => {
+                self.detections.fail(self.detection_id, e.to_string()).await;
+                return Err(e);
+            }
+        };
+
         let mut shared_data = SharedData {
             run_id: self.detection_id,
             actor_id,
             policies: prepared.policies,
+            catalog: Arc::new(prepared.catalog),
             registry: self.registry.clone(),
             codec_registry: CodecRegistry::with_builtin(),
             key_provider: SharedKeyProvider::default(),
@@ -136,7 +155,7 @@ impl DetectionPipeline {
         let cancel = CancellationToken::new();
         let engines = RunEngines {
             extraction_engine: (*self.state.extraction_engine).clone(),
-            recognizer_registry: Arc::clone(&self.state.recognizer_registry),
+            recognizer_registry,
             redaction_config: (*self.state.redaction_config).clone(),
             redaction_registries: (*self.state.redaction_registries).clone(),
         };
@@ -212,6 +231,7 @@ pub(crate) struct PreparedDetection {
     actor_id: Uuid,
     policies: Arc<PolicyStore>,
     policy_digests: Vec<PolicyDigest>,
+    catalog: nvisy_core::entity::EntityLabelCatalog,
     imports: Vec<ImportFile>,
     plan: crate::pipeline::Plan,
 }

@@ -8,7 +8,6 @@ use nvisy_core::entity::ModelProvenance;
 use nvisy_core::extraction::{Extractor as CoreExtractor, ExtractorOutput, Span};
 use nvisy_core::modality::{Image, ImageExtraction};
 use nvisy_core::{Error, Result};
-use tracing::instrument;
 
 use crate::backend::{OcrBackend, OcrRequest, OcrResponse};
 
@@ -47,7 +46,7 @@ impl OcrExtractor {
     }
 
     /// Extract OCR blocks from a single image.
-    #[instrument(skip_all, fields(image_bytes = request.image.len()))]
+    #[tracing::instrument(skip_all, fields(image_bytes = request.image.len()))]
     pub async fn extract(&self, request: OcrRequest<'_>) -> Result<OcrResponse, Error> {
         let response = self.backend.extract(request).await?;
         tracing::debug!(
@@ -61,7 +60,7 @@ impl OcrExtractor {
     /// Extract OCR blocks from multiple images, concatenating the
     /// per-image blocks. See [`OcrBackend::extract_batch`] for the
     /// same-source assumption.
-    #[instrument(skip_all, fields(count = requests.len()))]
+    #[tracing::instrument(skip_all, fields(count = requests.len()))]
     pub async fn extract_batch(&self, requests: &[OcrRequest<'_>]) -> Result<OcrResponse, Error> {
         let response = self.backend.extract_batch(requests).await?;
         tracing::debug!(

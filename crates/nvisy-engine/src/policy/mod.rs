@@ -22,6 +22,7 @@ mod selector;
 use derive_builder::Builder;
 use derive_more::{From, IsVariant};
 use hipstr::HipStr;
+use nvisy_core::entity::{EntityLabel, EntityLabelCatalog};
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -63,6 +64,16 @@ pub struct Policy<M: DocumentModality> {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Entity labels this policy operates over. Every label name a
+    /// [`PolicyRule::selector`] references must appear here. The
+    /// engine unions every submitted policy's `labels` into a
+    /// per-request [`EntityLabelCatalog`] used to drive recognizer
+    /// dispatch and tag-based selector matching. Two policies
+    /// declaring the same label name with different
+    /// `(description, tags)` are a conflict and fail the request.
+    #[builder(default = "Vec::new()")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<EntityLabel>,
     /// Ordered list of rules. First matching rule wins.
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -148,6 +159,16 @@ impl AnyPolicy {
             Self::Audio(p) => PolicyDigest::from_policy(p),
         }
     }
+
+    /// Entity labels declared on the contained policy.
+    pub fn labels(&self) -> &[EntityLabel] {
+        match self {
+            Self::Text(p) => &p.labels,
+            Self::Tabular(p) => &p.labels,
+            Self::Image(p) => &p.labels,
+            Self::Audio(p) => &p.labels,
+        }
+    }
 }
 
 /// Header card identifying a policy submitted to a run, persisted on
@@ -215,6 +236,108 @@ impl PolicyDecisionRef {
             rule_name,
         }
     }
+}
+
+/// Union every submitted policy's [`Policy::labels`] into a single
+/// [`EntityLabelCatalog`] driving recognizer dispatch and selector
+/// tag matching for one request.
+///
+/// Two policies declaring the same label name with non-equal
+/// `(description, tags)` are a conflict and fail the request — the
+/// engine cannot pick a winner without violating one author's
+/// intent. Identical re-declarations of the same label are allowed
+/// (idempotent).
+///
+/// # Errors
+///
+/// Returns a validation error naming both policies on the first
+/// conflict encountered.
+pub fn unify_labels(policies: &[AnyPolicy]) -> Result<EntityLabelCatalog, nvisy_core::Error> {
+    use std::collections::HashMap;
+
+    const TARGET: &str = "nvisy_engine::policy::unify_labels";
+
+    let mut catalog = EntityLabelCatalog::new();
+    let mut origin: HashMap<HipStr<'static>, HipStr<'static>> = HashMap::new();
+
+    for any in policies {
+        let policy_name = HipStr::from(any.name().to_owned());
+        for label in any.labels() {
+            if let Some(existing) = catalog.lookup(label.name.as_str()) {
+                if existing != label {
+                    let prior = origin
+                        .get(&label.name)
+                        .map(HipStr::as_str)
+                        .unwrap_or("<unknown>");
+                    return Err(nvisy_core::Error::validation(
+                        format!(
+                            "policy `{}` redeclares label `{}` with a different body \
+                             than policy `{prior}`; resolve the divergence so both \
+                             policies share one definition",
+                            policy_name, label.name,
+                        ),
+                        TARGET,
+                    ));
+                }
+                continue;
+            }
+            origin.insert(label.name.clone(), policy_name.clone());
+            catalog.insert(label.clone());
+        }
+    }
+    Ok(catalog)
+}
+
+/// Validate every [`EntitySelector::labels`] entry across every
+/// rule references a label name registered in `catalog`. Selectors
+/// targeting unregistered names would never match — silently
+/// dropping them would let a typo bypass redaction without anyone
+/// noticing.
+///
+/// # Errors
+///
+/// Returns a validation error naming the policy, rule, and missing
+/// label on the first violation encountered.
+pub fn validate_selector_labels(
+    policies: &[AnyPolicy],
+    catalog: &EntityLabelCatalog,
+) -> Result<(), nvisy_core::Error> {
+    const TARGET: &str = "nvisy_engine::policy::validate_selector_labels";
+
+    fn check<M: DocumentModality>(
+        policy_name: &str,
+        rules: &[PolicyRule<M>],
+        catalog: &EntityLabelCatalog,
+    ) -> Result<(), nvisy_core::Error> {
+        for rule in rules {
+            for label in &rule.selector.labels {
+                if catalog.lookup(label.as_str()).is_none() {
+                    return Err(nvisy_core::Error::validation(
+                        format!(
+                            "policy `{policy_name}` rule `{}` selects label `{}` \
+                             which no policy declares; declare it on `policy.labels` \
+                             or remove the selector entry",
+                            rule.name,
+                            label.as_str(),
+                        ),
+                        TARGET,
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    for any in policies {
+        let policy_name = any.name();
+        match any {
+            AnyPolicy::Text(p) => check(policy_name, &p.rules, catalog)?,
+            AnyPolicy::Tabular(p) => check(policy_name, &p.rules, catalog)?,
+            AnyPolicy::Image(p) => check(policy_name, &p.rules, catalog)?,
+            AnyPolicy::Audio(p) => check(policy_name, &p.rules, catalog)?,
+        }
+    }
+    Ok(())
 }
 
 /// Validate the name uniqueness invariants the audit's
@@ -290,6 +413,10 @@ mod tests {
     use crate::modality::Text;
 
     fn text_policy(name: &str, rules: &[&str]) -> AnyPolicy {
+        text_policy_with(name, rules, Vec::new())
+    }
+
+    fn text_policy_with(name: &str, rules: &[&str], labels: Vec<EntityLabel>) -> AnyPolicy {
         let rules = rules
             .iter()
             .map(|n| PolicyRule {
@@ -304,6 +431,7 @@ mod tests {
             name: HipStr::from(name),
             version: Version::new(1, 0, 0),
             description: None,
+            labels,
             rules,
             default_action: None,
             retention: Vec::new(),
@@ -339,5 +467,97 @@ mod tests {
             err.to_string().contains("duplicate rule name `dup`"),
             "got: {err}"
         );
+    }
+
+    fn label(name: &str, tags: &[&'static str]) -> EntityLabel {
+        EntityLabel::new(name.to_owned()).with_tags(tags.iter().copied())
+    }
+
+    #[test]
+    fn unify_labels_empty_input_is_empty_catalog() {
+        let cat = unify_labels(&[]).unwrap();
+        assert!(cat.is_empty());
+    }
+
+    #[test]
+    fn unify_labels_unions_disjoint_policies() {
+        let policies = vec![
+            text_policy_with("gdpr", &[], vec![label("email_address", &["pii"])]),
+            text_policy_with("hipaa", &[], vec![label("diagnosis", &["phi"])]),
+        ];
+        let cat = unify_labels(&policies).unwrap();
+        assert_eq!(cat.len(), 2);
+        assert!(cat.lookup("email_address").is_some());
+        assert!(cat.lookup("diagnosis").is_some());
+    }
+
+    #[test]
+    fn unify_labels_idempotent_redeclaration_passes() {
+        let lbl = label("email_address", &["pii"]);
+        let policies = vec![
+            text_policy_with("gdpr", &[], vec![lbl.clone()]),
+            text_policy_with("ccpa", &[], vec![lbl]),
+        ];
+        let cat = unify_labels(&policies).unwrap();
+        assert_eq!(cat.len(), 1);
+    }
+
+    fn text_policy_rule(name: &str, selector_labels: &[&str]) -> AnyPolicy {
+        let labels: Vec<nvisy_core::entity::EntityLabelRef> = selector_labels
+            .iter()
+            .map(|s| nvisy_core::entity::EntityLabelRef::new(HipStr::from(s.to_owned())))
+            .collect();
+        AnyPolicy::Text(Policy::<Text> {
+            name: HipStr::from(name),
+            version: Version::new(1, 0, 0),
+            description: None,
+            labels: Vec::new(),
+            rules: vec![PolicyRule {
+                name: HipStr::from("r"),
+                selector: EntitySelector {
+                    labels,
+                    ..EntitySelector::default()
+                },
+                action: Action::Suppress,
+                conditions: Vec::new(),
+                enabled: true,
+            }],
+            default_action: None,
+            retention: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn validate_selector_labels_passes_when_label_in_catalog() {
+        let catalog = EntityLabelCatalog::new().with_label(label("email_address", &["pii"]));
+        let policies = vec![text_policy_rule("gdpr", &["email_address"])];
+        assert!(validate_selector_labels(&policies, &catalog).is_ok());
+    }
+
+    #[test]
+    fn validate_selector_labels_fails_on_missing_label() {
+        let catalog = EntityLabelCatalog::new();
+        let policies = vec![text_policy_rule("gdpr", &["email_address"])];
+        let err = validate_selector_labels(&policies, &catalog).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("email_address"), "got: {msg}");
+        assert!(msg.contains("gdpr"), "got: {msg}");
+    }
+
+    #[test]
+    fn unify_labels_conflicting_redeclaration_fails() {
+        let policies = vec![
+            text_policy_with("gdpr", &[], vec![label("email_address", &["pii"])]),
+            text_policy_with(
+                "ccpa",
+                &[],
+                vec![label("email_address", &["pii", "contact_info"])],
+            ),
+        ];
+        let err = unify_labels(&policies).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("ccpa"), "got: {msg}");
+        assert!(msg.contains("gdpr"), "got: {msg}");
+        assert!(msg.contains("email_address"), "got: {msg}");
     }
 }

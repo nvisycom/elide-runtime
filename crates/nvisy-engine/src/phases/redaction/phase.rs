@@ -47,12 +47,14 @@ impl RedactionPhase {
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
         let policies = &ctx.shared().policies;
+        let catalog = &ctx.shared().catalog;
         let descriptor = tree.descriptor.clone();
         run_redaction(
             threshold,
             tree,
             &descriptor,
             policies,
+            catalog,
             &self.registries.text,
         )
         .await
@@ -69,12 +71,14 @@ impl RedactionPhase {
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
         let policies = &ctx.shared().policies;
+        let catalog = &ctx.shared().catalog;
         let descriptor = tree.descriptor.clone();
         run_redaction(
             threshold,
             tree,
             &descriptor,
             policies,
+            catalog,
             &self.registries.image,
         )
         .await
@@ -91,12 +95,14 @@ impl RedactionPhase {
             .confidence_threshold
             .unwrap_or(self.config.confidence_threshold);
         let policies = &ctx.shared().policies;
+        let catalog = &ctx.shared().catalog;
         let descriptor = tree.descriptor.clone();
         run_redaction(
             threshold,
             tree,
             &descriptor,
             policies,
+            catalog,
             &self.registries.audio,
         )
         .await

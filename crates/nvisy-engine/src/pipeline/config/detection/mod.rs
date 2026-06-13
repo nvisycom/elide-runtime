@@ -1,24 +1,24 @@
 //! Detection config: deployment-time `[detection.*]` configuration
-//! the engine builds a [`RecognizerRegistry`] from at startup, plus
-//! the per-request [`Detection`] plan node.
+//! describing which recognizers are available. The per-request
+//! [`RecognizerRegistry`] is built from this template plus the
+//! request's policy-supplied [`EntityLabelCatalog`].
 //!
-//! Pattern detection is always-on (default registry + custom extras
-//! aren't yet plan-configurable). NER is opt-in via
-//! `[detection.ner]`. LLM and VLM sections are not currently wired
-//! — those modules are parked pending rework to implement
-//! [`EntityRecognizer<M>`] directly.
+//! Pattern detection is always-on; the registry built per request
+//! drops patterns whose label isn't in the request catalog. NER is
+//! opt-in via `[detection.ner]`. LLM and VLM sections are not
+//! currently wired — those modules are parked pending rework to
+//! implement [`EntityRecognizer<M>`] directly.
 //!
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
 //! [`EntityRecognizer<M>`]: nvisy_core::recognition::EntityRecognizer
 
 mod ner;
 mod pattern;
-mod plan;
 
 #[cfg(not(feature = "bento"))]
 use nvisy_core::Error;
 use nvisy_core::Result;
-use nvisy_core::entity::{EntityLabelCatalog, EntityLabelRef};
+use nvisy_core::entity::EntityLabelCatalog;
 use nvisy_core::modality::Text;
 use nvisy_ner::NerRecognizer;
 use nvisy_ner::backend::NoopBackend;
@@ -29,7 +29,6 @@ use nvisy_toolkit::detection::RecognizerRegistry;
 
 pub use self::ner::{NerBackend, NerDetection};
 pub use self::pattern::PatternDetection;
-pub use self::plan::Detection;
 
 /// Stable name the NER recognizer registers under (surfaced in trail
 /// provenance on emitted entities).
@@ -57,37 +56,43 @@ pub struct DetectionConfig {
 }
 
 impl DetectionConfig {
-    /// Build the [`RecognizerRegistry`] from each opted-in section,
-    /// inserting the concrete recognizer directly so no `dyn`
-    /// erasure is required outside the registry's internal storage.
+    /// Build a per-request [`RecognizerRegistry`] from each opted-in
+    /// section, wiring the request `catalog` into recognizers that
+    /// need it (NER's zero-shot label list, pattern filtering).
     ///
-    /// Pattern detection is always-on: even when `cfg.pattern` is
-    /// `None`, a pattern recognizer with the shipped default registry
-    /// is registered. NER is opt-in via `cfg.ner`.
+    /// Pattern detection is always-on; pattern emissions whose label
+    /// isn't registered in `catalog` are filtered out at registry
+    /// construction so unmatched patterns never run. NER is opt-in
+    /// via `cfg.ner`; when enabled, the request catalog's labels are
+    /// passed as the zero-shot label list.
     ///
     /// # Errors
     ///
     /// Returns the first construction error encountered — pattern
     /// compile failure, NER backend init failure, or a
     /// config-selected backend whose feature wasn't compiled in.
-    pub fn build(&self) -> Result<RecognizerRegistry> {
+    pub fn build_for_request(&self, catalog: &EntityLabelCatalog) -> Result<RecognizerRegistry> {
         let mut reg = RecognizerRegistry::new();
 
         let pattern_cfg = self.pattern.clone().unwrap_or_default();
         if pattern_cfg.enabled {
-            let recognizer = PatternRecognizer::builder()
-                .with_registry(PatternRegistry::builtin())
-                .build()?;
-            reg = reg.with_recognizer::<Text>(recognizer);
+            let pattern_registry = PatternRegistry::builtin().filter_by_catalog(catalog);
+            if !pattern_registry.is_empty() {
+                let recognizer = PatternRecognizer::builder()
+                    .with_registry(pattern_registry)
+                    .build()?;
+                reg = reg.with_recognizer::<Text>(recognizer);
+            }
         }
 
         if let Some(ner_cfg) = self.ner.as_ref().filter(|c| c.enabled) {
+            let supported_labels = catalog.iter().map(|l| l.label_ref()).collect::<Vec<_>>();
             reg = match &ner_cfg.backend {
                 NerBackend::Noop => {
                     let recognizer = NerRecognizer::builder()
                         .with_name(NER_RECOGNIZER_NAME)
                         .with_engine(NoopBackend)
-                        .with_supported_labels(default_text_labels())
+                        .with_supported_labels(supported_labels)
                         .build()?;
                     reg.with_recognizer::<Text>(recognizer)
                 }
@@ -98,7 +103,7 @@ impl DetectionConfig {
                     let recognizer = NerRecognizer::builder()
                         .with_name(NER_RECOGNIZER_NAME)
                         .with_engine(backend)
-                        .with_supported_labels(default_text_labels())
+                        .with_supported_labels(supported_labels)
                         .build()?;
                     reg.with_recognizer::<Text>(recognizer)
                 }
@@ -115,18 +120,4 @@ impl DetectionConfig {
 
         Ok(reg)
     }
-}
-
-/// Default label allowlist for the engine-side NER recognizer.
-///
-/// Every built-in label except those that only surface in images
-/// (biometric templates, visual elements). The zero-shot model is
-/// fed this list as "look for any of these"; centralised
-/// post-filtering at the dispatch layer narrows further per call.
-fn default_text_labels() -> Vec<EntityLabelRef> {
-    EntityLabelCatalog::with_builtins()
-        .iter()
-        .filter(|l| !l.has_tag("biometric") && !l.has_tag("visual"))
-        .map(|l| l.label_ref())
-        .collect()
 }

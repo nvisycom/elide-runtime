@@ -4,10 +4,10 @@
 //! optional subsystem sections — [`EngineConfig`],
 //! [`ExtractionConfig`], [`DetectionConfig`], [`RedactionConfig`].
 //!
-//! Per-request plan nodes ([`Detection`], [`Extraction`],
-//! [`Redaction`], [`DeduplicationParams`]) live alongside their
-//! corresponding config sections; the per-phase `crate::detection`,
-//! `crate::phases::extraction`, … modules consume them at dispatch time.
+//! Per-request plan nodes ([`Extraction`], [`Redaction`],
+//! [`DeduplicationParams`]) live alongside their corresponding
+//! config sections; the per-phase `crate::phases::extraction`, …
+//! modules consume them at dispatch time.
 //!
 //! # Post-load steps
 //!
@@ -30,7 +30,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-pub use self::detection::{Detection, DetectionConfig, NerBackend, NerDetection, PatternDetection};
+pub use self::detection::{DetectionConfig, NerBackend, NerDetection, PatternDetection};
 pub use self::engine::{EngineConfig, ResourceLimits};
 #[cfg(feature = "image")]
 pub use self::extraction::OcrExtractorConfig;
@@ -56,8 +56,8 @@ fn default_config_version() -> Version {
 /// startup, builds the per-section state behind `Arc`s on its inner
 /// shared state, and never re-reads it. Per-request override is not
 /// supported — plans tune behaviour through their own per-phase
-/// config nodes ([`Extraction`], [`Detection`], [`Redaction`], …),
-/// not by resupplying a `RuntimeConfig`.
+/// config nodes ([`Extraction`], [`Redaction`], …), not by
+/// resupplying a `RuntimeConfig`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Configuration schema version.

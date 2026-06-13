@@ -49,7 +49,7 @@ use crate::document::provenance::{
     AuditEntry, Decision as AuditDecision, EntryMetadata, Execution,
 };
 use crate::modality::DocumentModality;
-use crate::policy::Action;
+use crate::policy::{Action, PolicyDecisionRef};
 use crate::policy::redaction::Instantiate;
 
 pub(crate) const TARGET: &str = "nvisy_engine::redaction";
@@ -108,22 +108,23 @@ where
         let decision = policies.resolve::<M>(&record.entity, &document_labels, descriptor);
         let entry = match decision {
             Decision::Redact {
-                policy_id,
-                rank,
+                policy_name,
+                rule_name,
                 operator,
             } => AuditEntry {
                 decision: AuditDecision {
-                    policy_id: Some(policy_id),
-                    rank: Some(rank),
+                    policy_ref: Some(PolicyDecisionRef::new(policy_name, rule_name)),
                     action: Action::Redact { operator },
                 },
                 execution: Execution::Pending,
                 metadata: EntryMetadata::now(),
             },
-            Decision::Suppress { policy_id, rank } => AuditEntry {
+            Decision::Suppress {
+                policy_name,
+                rule_name,
+            } => AuditEntry {
                 decision: AuditDecision {
-                    policy_id: Some(policy_id),
-                    rank: Some(rank),
+                    policy_ref: Some(PolicyDecisionRef::new(policy_name, rule_name)),
                     action: Action::Suppress,
                 },
                 execution: Execution::Suppressed,

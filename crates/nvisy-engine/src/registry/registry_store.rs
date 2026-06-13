@@ -11,7 +11,6 @@ use nvisy_codec::content::{
 };
 use nvisy_core::Result;
 use nvisy_core::health::{Healthcheck, ServiceStatus};
-use nvisy_core::modality::Text;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -19,10 +18,8 @@ use super::composite_key::CompositeKey;
 use super::content_handle::ContentHandle;
 use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
 use super::paged::PagedResult;
-use super::resource_cache::ResourceCache;
 use crate::document::AnyAnnotations;
 use crate::document::provenance::AnyAudit;
-use crate::policy::Policy;
 
 const TARGET: &str = "nvisy_engine::ingestion::registry";
 
@@ -40,7 +37,6 @@ struct RegistryInner {
     content_ks: Keyspace,
     content_meta_ks: Keyspace,
     annotations_ks: Keyspace,
-    policies_ks: Keyspace,
     audits_ks: Keyspace,
     /// Persisted [`DetectionResult`]s, keyed by
     /// `(actor_id, detection_id)`. JSON-encoded; one entry per
@@ -54,7 +50,6 @@ struct RegistryInner {
     ///
     /// [`RedactionResult`]: crate::pipeline::redaction::RedactionResult
     redactions_ks: Keyspace,
-    policy_cache: ResourceCache<Policy<Text>>,
 }
 
 impl fmt::Debug for Registry {
@@ -74,7 +69,6 @@ impl Registry {
         let content_ks = db.open_blob_keyspace("content")?;
         let content_meta_ks = db.open_keyspace("content_meta")?;
         let annotations_ks = db.open_keyspace("annotations")?;
-        let policies_ks = db.open_keyspace("policies")?;
         let audits_ks = db.open_keyspace("run_outputs")?;
         let detections_ks = db.open_keyspace("detections")?;
         let redactions_ks = db.open_keyspace("redactions")?;
@@ -87,11 +81,9 @@ impl Registry {
                 content_ks,
                 content_meta_ks,
                 annotations_ks,
-                policies_ks,
                 audits_ks,
                 detections_ks,
                 redactions_ks,
-                policy_cache: ResourceCache::new("policy"),
             }),
         })
     }
@@ -100,11 +92,6 @@ impl Registry {
     #[must_use]
     pub fn base_dir(&self) -> &Path {
         &self.inner.base_dir
-    }
-
-    /// Returns the shared policy cache.
-    pub fn policy_cache(&self) -> &ResourceCache<Policy<Text>> {
-        &self.inner.policy_cache
     }
 
     /// Registers content: stores the raw bytes, builds the
@@ -344,30 +331,6 @@ impl Registry {
         .await
     }
 
-    /// Removes all entries in a keyspace for an actor. Returns count.
-    async fn remove_all_entries(&self, ks: &Keyspace, actor_id: Uuid) -> Result<usize> {
-        let ks = ks.clone();
-        let db = self.inner.db.clone();
-        blocking(move || {
-            let keys = ks.prefix_keys(actor_id.as_bytes())?;
-            let count = keys.len();
-            for key in &keys {
-                ks.delete(*key)?;
-            }
-            if count > 0 {
-                db.sync()?;
-            }
-            Ok(count)
-        })
-        .await
-    }
-
-    /// Lists resource IDs in a keyspace for the given actor.
-    async fn list_resource_ids(&self, ks: &Keyspace, actor_id: Uuid) -> Result<Vec<Uuid>> {
-        let ks = ks.clone();
-        blocking(move || ks.resource_ids(actor_id)).await
-    }
-
     /// Persist user-supplied annotations for a piece of content.
     ///
     /// Annotations live per-`ContentSource`, written at upload time
@@ -399,81 +362,6 @@ impl Registry {
         blocking(move || match ks.get_bytes(key)? {
             Some(bytes) => Ok(serde_json::from_slice(&bytes)?),
             None => Ok(AnyAnnotations::default()),
-        })
-        .await
-    }
-
-    /// Persist a policy under the actor's namespace and return its id.
-    /// Overwrites any existing policy with the same id.
-    #[tracing::instrument(target = TARGET, name = "registry.register_policy", skip(self, policy), fields(%actor_id))]
-    pub async fn register_policy(&self, actor_id: Uuid, policy: Policy<Text>) -> Result<Uuid> {
-        let id = policy.id;
-        let key = CompositeKey::new(actor_id, id);
-        self.store_json(&self.inner.policies_ks, key, &policy)
-            .await?;
-        tracing::trace!(target: TARGET, %id, "policy registered");
-        Ok(id)
-    }
-
-    /// Load a single policy by id from the actor's namespace.
-    #[tracing::instrument(target = TARGET, name = "registry.read_policy", skip(self), fields(%actor_id, %policy_id))]
-    pub async fn read_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<Policy<Text>> {
-        let key = CompositeKey::new(actor_id, policy_id);
-        self.load_json(&self.inner.policies_ks, key, "policy").await
-    }
-
-    /// Remove a single policy from the actor's namespace.
-    #[tracing::instrument(target = TARGET, name = "registry.unregister_policy", skip(self), fields(%actor_id, %policy_id))]
-    pub async fn unregister_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<()> {
-        let key = CompositeKey::new(actor_id, policy_id);
-        self.remove_entry(&self.inner.policies_ks, key, "policy")
-            .await
-    }
-
-    /// Remove every policy in the actor's namespace; returns the
-    /// number of policies deleted.
-    #[tracing::instrument(target = TARGET, name = "registry.unregister_all_policies", skip(self), fields(%actor_id))]
-    pub async fn unregister_all_policies(&self, actor_id: Uuid) -> Result<usize> {
-        self.remove_all_entries(&self.inner.policies_ks, actor_id)
-            .await
-    }
-
-    /// List ids of every policy stored under the actor's namespace.
-    #[tracing::instrument(target = TARGET, name = "registry.list_policies", skip(self), fields(%actor_id))]
-    pub async fn list_policies(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
-        self.list_resource_ids(&self.inner.policies_ks, actor_id)
-            .await
-    }
-
-    /// Lists a window of stored policies for the given actor.
-    ///
-    /// Same pagination shape as
-    /// [`Registry::list_content_with_record`]: counts keys cheaply,
-    /// deserialises only the windowed slice. Use this instead of
-    /// `list_policies` + per-id `read_policy` for listing endpoints.
-    #[tracing::instrument(target = TARGET, name = "registry.list_policies_with_summary", skip(self), fields(%actor_id, offset, limit))]
-    pub async fn list_policies_with_summary(
-        &self,
-        actor_id: Uuid,
-        offset: usize,
-        limit: usize,
-    ) -> Result<PagedResult<(Uuid, Policy<Text>)>> {
-        let policies_ks = self.inner.policies_ks.clone();
-
-        blocking(move || {
-            let ids = policies_ks.resource_ids(actor_id)?;
-            let total = ids.len();
-            let window: Vec<Uuid> = ids.into_iter().skip(offset).take(limit).collect();
-            let mut items = Vec::with_capacity(window.len());
-            for id in window {
-                let key = CompositeKey::new(actor_id, id);
-                let bytes = policies_ks
-                    .get_bytes(key)?
-                    .ok_or_else(|| not_found("policy", actor_id, id))?;
-                let policy: Policy<Text> = serde_json::from_slice(&bytes)?;
-                items.push((id, policy));
-            }
-            Ok(PagedResult { items, total })
         })
         .await
     }

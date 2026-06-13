@@ -2924,6 +2924,7 @@ dependencies = [
  "derive_more",
  "fjall",
  "futures",
+ "hipstr",
  "humantime-serde",
  "jiff",
  "nvisy-codec",

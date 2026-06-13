@@ -11,7 +11,6 @@ use std::sync::Arc;
 use jiff::Timestamp;
 use nvisy_codec::CodecRegistry;
 use nvisy_core::Error;
-use nvisy_core::modality::Text;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
@@ -24,11 +23,12 @@ use super::state::{DetectionRecord, DetectionState};
 use super::status::DetectionStatus;
 use crate::core::{PolicyStore, RunContext, RunEngines, SharedData};
 use crate::document::provenance::AnyAudit;
+use crate::phases::ingestion::ImportFile;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
-use crate::policy::Policy;
+use crate::policy::{AnyPolicy, PolicyDigest};
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::detection::pipeline";
@@ -74,13 +74,24 @@ impl DetectionPipeline {
         self.detection_id
     }
 
-    pub(crate) async fn register_pending(&self, input: &DetectionInput) {
+    /// Build the per-pass [`PolicyStore`] + digests from the
+    /// submitted policies and register a pending detection record.
+    /// Returns a handle the caller can pass to [`Self::execute`]
+    /// carrying the prepared shared state — no further policy
+    /// clones happen between this call and orchestrator dispatch.
+    pub(crate) async fn register_pending(&self, input: DetectionInput) -> PreparedDetection {
+        let actor_id = input.actor_id;
+        let policy_digests: Vec<PolicyDigest> =
+            input.policies.iter().map(AnyPolicy::digest).collect();
+        let policies = Arc::new(PolicyStore::from_any_policies(input.policies));
+
         self.detections
             .insert(
                 self.detection_id,
                 DetectionRecord {
-                    actor_id: input.actor_id,
-                    policies: input.policies.clone(),
+                    actor_id,
+                    policies: Arc::clone(&policies),
+                    policy_digests: policy_digests.clone(),
                     imports: input.imports.clone(),
                     status: DetectionStatus::Pending,
                     created_at: Timestamp::now(),
@@ -93,27 +104,27 @@ impl DetectionPipeline {
                 },
             )
             .await;
+
+        PreparedDetection {
+            actor_id,
+            policies,
+            policy_digests,
+            imports: input.imports,
+            plan: input.plan,
+        }
     }
 
     /// Run the detection pass to completion.
     pub(crate) async fn execute(
         &self,
-        input: DetectionInput,
+        prepared: PreparedDetection,
     ) -> Result<(Vec<AnyAudit>, u64, DetectionStatus), Error> {
-        let actor_id = input.actor_id;
-        let policy_ids = input.policies.clone();
-
-        let _policy_guard = self.acquire_policies(actor_id, &policy_ids).await;
-        let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
-        let text_policies: Vec<Arc<Policy<Text>>> = cached_policies;
-
-        let mut policy_store = PolicyStore::new();
-        policy_store.set::<Text>(text_policies);
+        let actor_id = prepared.actor_id;
 
         let mut shared_data = SharedData {
             run_id: self.detection_id,
             actor_id,
-            policies: policy_store,
+            policies: prepared.policies,
             registry: self.registry.clone(),
             codec_registry: CodecRegistry::with_builtin(),
             key_provider: SharedKeyProvider::default(),
@@ -135,7 +146,7 @@ impl DetectionPipeline {
         self.detections.set_started_at(self.detection_id).await;
 
         let orchestrator = DetectionOrchestrator::new(ctx);
-        let output = match orchestrator.run(&input.imports, &input.plan).await {
+        let output = match orchestrator.run(&prepared.imports, &prepared.plan).await {
             Ok(out) => out,
             Err(e) => {
                 self.detections.fail(self.detection_id, e.to_string()).await;
@@ -159,8 +170,8 @@ impl DetectionPipeline {
             let result = DetectionResult {
                 id: self.detection_id,
                 actor_id,
-                policies: input.policies.clone(),
-                imports: input.imports.clone(),
+                policies: prepared.policy_digests,
+                imports: prepared.imports.clone(),
                 audits: audits.clone(),
                 entities_detected,
             };
@@ -192,23 +203,15 @@ impl DetectionPipeline {
 
         Ok((audits, entities_detected, status))
     }
+}
 
-    async fn acquire_policies(
-        &self,
-        actor_id: Uuid,
-        policy_ids: &[Uuid],
-    ) -> crate::registry::ResourceGuard<Policy<Text>> {
-        self.registry
-            .policy_cache()
-            .acquire(policy_ids, |id| async move {
-                match self.registry.read_policy(actor_id, id).await {
-                    Ok(policy) => Some(policy),
-                    Err(e) => {
-                        tracing::warn!(%id, error = %e, "failed to load policy");
-                        None
-                    }
-                }
-            })
-            .await
-    }
+/// Output of [`DetectionPipeline::register_pending`] — the
+/// per-pass state that has to flow to [`DetectionPipeline::execute`]
+/// without re-touching the original `Vec<AnyPolicy>`.
+pub(crate) struct PreparedDetection {
+    actor_id: Uuid,
+    policies: Arc<PolicyStore>,
+    policy_digests: Vec<PolicyDigest>,
+    imports: Vec<ImportFile>,
+    plan: crate::pipeline::Plan,
 }

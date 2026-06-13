@@ -56,6 +56,12 @@ fjall = { workspace = true, features = [] }
 # Encoding
 base64 = { workspace = true, features = [] }
 
+# Cheap-clone strings (refcounted / inline / borrowed). Used on
+# policy / rule names and the audit's [`PolicyDecisionRef`] so
+# audit-heavy passes share refcounts rather than allocating
+# per-entity.
+hipstr = { workspace = true, features = [] }
+
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }

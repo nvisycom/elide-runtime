@@ -2,6 +2,7 @@
 //! it matches an entity, plus the rule wrapper that binds a selector,
 //! action, conditions, and enabled flag.
 
+use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -33,17 +34,24 @@ pub enum Action<M: DocumentModality> {
     Suppress,
 }
 
-/// One rule inside a [`Policy`]: a selector, an action, optional
-/// conditions, and an enabled flag.
+/// One rule inside a [`Policy`]: a name, a selector, an action,
+/// optional conditions, and an enabled flag.
 ///
 /// Rules are ordered inside their owning policy; the first matching
 /// rule wins. There is no separate `priority` field — re-ordering
-/// rules in the policy file is how authors change priority.
+/// rules in the policy file is how authors change priority. The
+/// [`name`] field is what audit entries reference; it must be
+/// unique within the owning policy.
 ///
 /// [`Policy`]: super::Policy
+/// [`name`]: Self::name
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyRule<M: DocumentModality> {
+    /// Author-supplied rule name. Must be unique within the
+    /// owning policy; audit entries reference this string verbatim.
+    #[schemars(with = "String")]
+    pub name: HipStr<'static>,
     /// Which entities this rule applies to.
     pub selector: EntitySelector,
     /// What this rule does when it matches. Flattened so the

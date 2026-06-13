@@ -1,8 +1,9 @@
 //! Application state and dependency injection.
 //!
 //! [`ServiceState`] holds the [`Engine`] which owns all shared
-//! dependencies (registry, HTTP client, policies). Individual handlers
-//! extract the engine via a `FromRef` implementation.
+//! dependencies (registry, codec set, recognizer / extractor
+//! registries). Individual handlers extract the engine via a
+//! `FromRef` implementation.
 
 use std::path::{Path, PathBuf};
 

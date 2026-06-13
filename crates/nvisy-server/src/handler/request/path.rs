@@ -15,13 +15,6 @@ pub struct ContentPath {
     pub id: Uuid,
 }
 
-/// Path parameter for `/policies/{id}` endpoints.
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct PolicyPath {
-    /// Policy identifier.
-    pub id: Uuid,
-}
-
 /// Path parameter for `/detections/{id}` endpoints.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DetectionPath {

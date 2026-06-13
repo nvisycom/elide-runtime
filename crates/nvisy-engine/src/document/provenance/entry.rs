@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use super::override_decision::RedactionDecision;
 use crate::modality::DocumentModality;
-use crate::policy::{Action, RuleRank};
+use crate::policy::{Action, PolicyDecisionRef};
 
 /// A per-entity redaction record produced during a pipeline run.
 ///
@@ -64,15 +64,11 @@ impl<M: DocumentModality> AuditEntry<M> {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Decision<M: DocumentModality> {
-    /// Identifier of the policy that produced this decision. `None`
+    /// Reference to the rule that produced this decision. `None`
     /// when the decision came from a source outside the policy chain
     /// (e.g. the default-threshold fallback path).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub policy_id: Option<Uuid>,
-    /// Position of the producing rule in the per-run policy chain.
-    /// `None` for non-policy-driven decisions.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rank: Option<RuleRank>,
+    pub policy_ref: Option<PolicyDecisionRef>,
     /// The action the matching rule picked (with its operator spec
     /// for [`Action::Redact`]).
     pub action: Action<M>,

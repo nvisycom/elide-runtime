@@ -160,8 +160,7 @@ where
             RedactionOverride::Reject { .. } => {
                 let entry = record.audit.take().unwrap_or_else(|| AuditEntry {
                     decision: Decision {
-                        policy_id: None,
-                        rank: None,
+                        policy_ref: None,
                         action: Action::Suppress,
                     },
                     execution: Execution::Suppressed,
@@ -189,14 +188,12 @@ where
                     )
                 })?;
                 let prior = record.audit.take();
-                let prior_decision = prior
+                let policy_ref = prior
                     .as_ref()
-                    .map(|e| (e.decision.policy_id, e.decision.rank));
-                let (policy_id, rank) = prior_decision.unwrap_or((None, None));
+                    .and_then(|e| e.decision.policy_ref.clone());
                 record.audit = Some(AuditEntry {
                     decision: Decision {
-                        policy_id,
-                        rank,
+                        policy_ref,
                         action: Action::Redact { operator: typed },
                     },
                     execution: Execution::Pending,
@@ -315,8 +312,7 @@ fn append_typed<M>(
     };
     let prebuilt = operator.map(|op| AuditEntry {
         decision: Decision {
-            policy_id: None,
-            rank: None,
+            policy_ref: None,
             action: Action::Redact { operator: op },
         },
         execution: Execution::Pending,
@@ -345,8 +341,7 @@ where
     } else {
         record.audit = Some(AuditEntry {
             decision: Decision {
-                policy_id: None,
-                rank: None,
+                policy_ref: None,
                 action: Action::Suppress,
             },
             execution: Execution::Pending,

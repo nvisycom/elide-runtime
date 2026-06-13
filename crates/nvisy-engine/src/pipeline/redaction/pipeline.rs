@@ -5,7 +5,6 @@ use std::sync::Arc;
 use jiff::Timestamp;
 use nvisy_codec::CodecRegistry;
 use nvisy_core::Error;
-use nvisy_core::modality::Text;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
@@ -17,14 +16,13 @@ use super::orchestrator::RedactionOrchestrator;
 use super::result::RedactionResult;
 use super::state::{RedactionRecord, RedactionState};
 use super::status::RedactionStatus;
-use crate::core::{PolicyStore, RunContext, RunEngines, SharedData};
+use crate::core::{RunContext, RunEngines, SharedData};
 use crate::document::provenance::AnyAudit;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
 use crate::pipeline::detection::DetectionState;
-use crate::policy::Policy;
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::redaction::pipeline";
@@ -94,7 +92,7 @@ impl RedactionPipeline {
     pub(crate) async fn execute(&self, input: RedactionInput) -> Result<(), Error> {
         let actor_id = input.actor_id;
 
-        let detection = match self.detections.result(actor_id, input.detection_id).await {
+        let detection = match self.detections.handoff(actor_id, input.detection_id).await {
             Ok(d) => d,
             Err(e) => {
                 self.redactions.fail(self.redaction_id, e.to_string()).await;
@@ -113,18 +111,10 @@ impl RedactionPipeline {
             return Err(e);
         }
 
-        let policy_ids = detection.policies.clone();
-        let _policy_guard = self.acquire_policies(actor_id, &policy_ids).await;
-        let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
-        let text_policies: Vec<Arc<Policy<Text>>> = cached_policies;
-
-        let mut policy_store = PolicyStore::new();
-        policy_store.set::<Text>(text_policies);
-
         let mut shared_data = SharedData {
             run_id: self.redaction_id,
             actor_id,
-            policies: policy_store,
+            policies: detection.policies,
             registry: self.registry.clone(),
             codec_registry: CodecRegistry::with_builtin(),
             key_provider: SharedKeyProvider::default(),
@@ -207,22 +197,4 @@ impl RedactionPipeline {
         Ok(())
     }
 
-    async fn acquire_policies(
-        &self,
-        actor_id: Uuid,
-        policy_ids: &[Uuid],
-    ) -> crate::registry::ResourceGuard<Policy<Text>> {
-        self.registry
-            .policy_cache()
-            .acquire(policy_ids, |id| async move {
-                match self.registry.read_policy(actor_id, id).await {
-                    Ok(policy) => Some(policy),
-                    Err(e) => {
-                        tracing::warn!(%id, error = %e, "failed to load policy");
-                        None
-                    }
-                }
-            })
-            .await
-    }
 }

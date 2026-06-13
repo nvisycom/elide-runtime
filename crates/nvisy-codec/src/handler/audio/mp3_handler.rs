@@ -161,6 +161,15 @@ impl Handler<Audio> for Mp3Handler {
 /// Compute the average bitrate of the source file in bits/sec, so
 /// the re-encode lands roughly on the same target. Falls back to
 /// 128 kbps when the duration is non-positive (degenerate input).
+///
+/// `file_bytes` is the **whole** MP3 file size including ID3v1/v2
+/// tags and any embedded album art; this slightly biases the
+/// computed bitrate above the true audio-payload bitrate. The
+/// inflation is typically <5% (a few KB of tags against megabytes
+/// of audio) and gets snapped to a discrete LAME variant anyway,
+/// so the practical effect on output size is negligible. Worth
+/// revisiting only if we ever ship clips with very large embedded
+/// art relative to audio length.
 fn average_bitrate_bps(file_bytes: usize, duration_us: i64) -> u32 {
     if duration_us <= 0 {
         return 128_000;

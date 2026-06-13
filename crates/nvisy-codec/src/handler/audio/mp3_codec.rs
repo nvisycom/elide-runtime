@@ -39,6 +39,46 @@ pub(super) struct DecodedMp3 {
     pub channels: u16,
 }
 
+/// Probe `bytes` and return the channel count of the first audio
+/// track. Cheap — runs only the format probe + codec-params lookup,
+/// no packet decoding.
+///
+/// Used by the loader as a gate so >2-channel inputs are rejected
+/// before they ever reach the redact path (LAME's encoder side
+/// only supports mono and stereo, and silent downmixing would
+/// quietly edit the *unredacted* audio).
+pub(super) fn probe_channels(bytes: &Bytes) -> Result<u16, Error> {
+    let mss = MediaSourceStream::new(
+        Box::new(Cursor::new(bytes.clone())),
+        Default::default(),
+    );
+    let mut hint = Hint::new();
+    hint.with_extension("mp3");
+
+    let reader = get_probe()
+        .probe(&hint, mss, FormatOptions::default(), MetadataOptions::default())
+        .map_err(|e| Error::validation(format!("MP3 probe failed: {e}"), TARGET))?;
+
+    let track = reader
+        .default_track(TrackType::Audio)
+        .ok_or_else(|| Error::validation("MP3 stream has no audio track", TARGET))?;
+
+    let channels = track
+        .codec_params
+        .as_ref()
+        .and_then(|p| p.audio())
+        .and_then(|a| a.channels.as_ref())
+        .map(|c| c.count())
+        .ok_or_else(|| Error::validation("MP3 track is missing channel info", TARGET))?;
+
+    u16::try_from(channels).map_err(|_| {
+        Error::validation(
+            format!("MP3 track channel count {channels} exceeds u16"),
+            TARGET,
+        )
+    })
+}
+
 /// Decode `bytes` (an MP3 stream) into interleaved `f32` PCM samples.
 ///
 /// Symphonia returns each decoded packet as a planar
@@ -90,6 +130,7 @@ pub(super) fn decode_to_pcm(bytes: &Bytes) -> Result<DecodedMp3, Error> {
         .map_err(|e| Error::validation(format!("MP3 decoder init failed: {e}"), TARGET))?;
 
     let mut samples = Vec::<f32>::new();
+    let mut dropped_packets: u64 = 0;
     loop {
         let packet = match reader.next_packet() {
             Ok(Some(p)) => p,
@@ -115,7 +156,10 @@ pub(super) fn decode_to_pcm(bytes: &Bytes) -> Result<DecodedMp3, Error> {
                 // Single-packet decode failures don't fatally end the
                 // stream; symphonia's reference player skips them and
                 // continues. Match that behaviour so a single corrupt
-                // frame doesn't abort the redact pass.
+                // frame doesn't abort the redact pass — but count the
+                // drops so the caller can correlate the shorter output
+                // with the input damage.
+                dropped_packets += 1;
                 continue;
             }
             Err(e) => {
@@ -125,6 +169,20 @@ pub(super) fn decode_to_pcm(bytes: &Bytes) -> Result<DecodedMp3, Error> {
                 ));
             }
         }
+    }
+
+    if dropped_packets > 0 {
+        // Each dropped packet removes ~1152 samples (MPEG layer 3
+        // frame). Surface this so support investigations can
+        // correlate a shorter-than-expected output with input damage
+        // and so callers can reject the redact result if drift is
+        // unacceptable.
+        tracing::warn!(
+            target: TARGET,
+            dropped_packets,
+            decoded_samples = samples.len(),
+            "decoded MP3 had corrupt packets; redacted output will be shorter than input",
+        );
     }
 
     Ok(DecodedMp3 {
@@ -168,10 +226,13 @@ fn append_interleaved_f32(
         GenericAudioBufferRef::S32(buf) => extend(buf, channels, out),
         GenericAudioBufferRef::F32(buf) => extend(buf, channels, out),
         GenericAudioBufferRef::F64(buf) => extend(buf, channels, out),
-        // U24 and S24 round-trip through their next-larger integer; symphonia exposes
-        // them as `u24` / `i24` newtypes that already implement `ConvertibleSample`.
-        GenericAudioBufferRef::U24(buf) => extend(buf, channels, out),
-        GenericAudioBufferRef::S24(buf) => extend(buf, channels, out),
+        // MP3 decoders only output 8-/16-/32-bit integer or 32-/64-bit
+        // float samples — never 24-bit. If symphonia ever changes that
+        // we'd want to handle the new variants explicitly, not silently
+        // route them through a generic path that was never tested.
+        GenericAudioBufferRef::U24(_) | GenericAudioBufferRef::S24(_) => {
+            unreachable!("MP3 decoder does not emit 24-bit sample buffers");
+        }
     }
 }
 
@@ -266,6 +327,29 @@ mod tests {
         assert_eq!(snap_bitrate(96_000) as u32, Bitrate::Kbps96 as u32);
         assert_eq!(snap_bitrate(0) as u32, Bitrate::Kbps8 as u32);
         assert_eq!(snap_bitrate(1_000_000) as u32, Bitrate::Kbps320 as u32);
+    }
+
+    #[test]
+    fn snap_bitrate_resolves_ties_toward_lower() {
+        // 144_000 bps is exactly halfway between Kbps128 and Kbps160.
+        // `min_by_key` returns the first minimum seen in iteration
+        // order, so the lower variant wins. Locking this in so future
+        // refactors don't silently flip the tie-break direction.
+        assert_eq!(
+            snap_bitrate(144_000) as u32,
+            mp3lame_encoder::Bitrate::Kbps128 as u32
+        );
+    }
+
+    #[test]
+    fn snap_bitrate_clamps_below_floor() {
+        use mp3lame_encoder::Bitrate;
+
+        // Below the lowest valid bitrate (Kbps8 = 8 kbps) should still
+        // produce Kbps8 — degraded inputs (e.g. duration probe glitch)
+        // shouldn't crash the encoder.
+        assert_eq!(snap_bitrate(7_999) as u32, Bitrate::Kbps8 as u32);
+        assert_eq!(snap_bitrate(7_500) as u32, Bitrate::Kbps8 as u32);
     }
 
     #[test]

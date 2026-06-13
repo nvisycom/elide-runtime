@@ -131,6 +131,8 @@ imageproc = { version = "0.27", features = [] }
 
 # Audio processing
 hound = { version = "3.5", features = [] }
+symphonia = { version = "0.6", default-features = false, features = ["wav", "pcm", "mp3"] }
+mp3lame-encoder = { version = "0.2", features = [] }
 
 # CLI
 clap = { version = "4.6", features = [] }

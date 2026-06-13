@@ -23,6 +23,7 @@ use nvisy_core::modality::{Audio, AudioData, AudioLocation};
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::{AudioReplacement, Redactions};
 
+use super::duration::probe_duration_us;
 use super::{WavLoader, redact};
 use crate::content::{ContentData, ContentSource};
 use crate::{Chunk, Format, FormatId, Handler};
@@ -106,7 +107,8 @@ impl Handler<Audio> for WavHandler {
         if self.yielded {
             return Ok(None);
         }
-        let location = AudioLocation::new(TimeSpan::new(0, 0));
+        let duration_us = probe_duration_us(&self.bytes, "wav")?;
+        let location = AudioLocation::new(TimeSpan::new(0, duration_us));
         let data = AudioData::new(self.bytes.clone()).with_filename(self.filename.clone());
         self.yielded = true;
         Ok(Some(Chunk { location, data }))
@@ -306,5 +308,15 @@ mod tests {
         );
         let err = handler.redact(rs).await.unwrap_err();
         assert!(err.to_string().contains("invalid WAV"));
+    }
+
+    #[tokio::test]
+    async fn next_chunk_reports_real_duration() {
+        // 1000 samples at 1000 Hz mono = exactly 1_000_000 us.
+        let bytes = encode_wav_mono_i16(&vec![0i16; 1000]);
+        let mut handler = WavHandler::new(bytes);
+        let chunk = handler.next_chunk().await.unwrap().unwrap();
+        assert_eq!(chunk.location.time_span.start_us, 0);
+        assert_eq!(chunk.location.time_span.end_us, 1_000_000);
     }
 }

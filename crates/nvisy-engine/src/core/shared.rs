@@ -7,7 +7,7 @@
 //! Policies are typed per modality; the [`PolicyStore`] in this struct
 //! holds the per-modality stacks heterogeneously, so a
 //! `DocumentEnvelope<M>` pulls its stack with
-//! `shared.policies.get::<M>()`.
+//! `shared.policies.resolve::<M>(...)`.
 
 use std::fmt;
 use std::sync::Arc;
@@ -16,9 +16,7 @@ use nvisy_codec::CodecRegistry;
 use uuid::Uuid;
 
 use super::PolicyStore;
-use crate::modality::DocumentModality;
 use crate::phases::ingestion::encryption::SharedKeyProvider;
-use crate::policy::Policy;
 use crate::registry::Registry;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.
@@ -27,8 +25,10 @@ pub struct SharedData {
     pub run_id: Uuid,
     /// Identity of the human or service account that initiated the run.
     pub actor_id: Uuid,
-    /// Per-modality policy stacks, in precedence order (index 0 highest).
-    pub policies: PolicyStore,
+    /// Per-modality policy stacks built at submission time. Held as
+    /// `Arc<PolicyStore>` so detection and redaction passes share
+    /// the same store without rebuilding it.
+    pub policies: Arc<PolicyStore>,
     /// Content and context storage.
     pub registry: Registry,
     /// Codec registry resolving file extensions / content types to
@@ -43,42 +43,6 @@ pub struct SharedData {
     pub codec_registry: CodecRegistry,
     /// Key provider for encryption/decryption.
     pub key_provider: SharedKeyProvider,
-}
-
-impl SharedData {
-    /// Create a new shared data with the given run, actor, and registry.
-    /// The codec registry is preloaded with every built-in format the
-    /// active feature set enables.
-    pub fn new(run_id: Uuid, actor_id: Uuid, registry: Registry) -> Arc<Self> {
-        Arc::new(Self {
-            run_id,
-            actor_id,
-            policies: PolicyStore::new(),
-            registry,
-            codec_registry: CodecRegistry::with_builtin(),
-            key_provider: SharedKeyProvider::default(),
-        })
-    }
-
-    /// Attach a key provider for encryption/decryption operations.
-    pub fn with_key_provider(mut self, provider: SharedKeyProvider) -> Self {
-        self.key_provider = provider;
-        self
-    }
-
-    /// Append a single policy for modality `M`. The policy is held
-    /// as an [`Arc`] so it can also live in the registry's cross-run
-    /// cache without copying.
-    pub fn with_policy<M: DocumentModality>(mut self, policy: Arc<Policy<M>>) -> Self {
-        self.policies.insert(policy);
-        self
-    }
-
-    /// Replace the policy stack for modality `M`.
-    pub fn with_policies<M: DocumentModality>(mut self, policies: Vec<Arc<Policy<M>>>) -> Self {
-        self.policies.set::<M>(policies);
-        self
-    }
 }
 
 impl fmt::Debug for SharedData {

@@ -16,9 +16,10 @@ use uuid::Uuid;
 
 use super::result::{DetectionEntry, DetectionFilter, DetectionResult, DetectionSnapshot};
 use super::status::DetectionStatus;
+use crate::core::PolicyStore;
 use crate::document::provenance::AnyAudit;
 use crate::phases::ingestion::ImportFile;
-use crate::policy::AnyPolicy;
+use crate::policy::PolicyDigest;
 
 const TARGET: &str = "nvisy_engine::detection::state";
 
@@ -32,13 +33,13 @@ pub(crate) struct DetectionState {
 }
 
 /// Internal handoff shape the redaction pipeline reads from the
-/// detection record. Carries the full inline policy bodies the
-/// redact phase needs to re-evaluate operator specs, alongside the
-/// per-document imports and the pending audits. Lives only between
-/// detection-state lookup and redaction-pipeline construction;
-/// never serialised.
+/// detection record. Carries the shared per-modality policy chains
+/// the redact phase needs to re-evaluate operator specs, alongside
+/// the per-document imports and the pending audits. Lives only
+/// between detection-state lookup and redaction-pipeline
+/// construction; never serialised.
 pub(crate) struct DetectionHandoff {
-    pub policies: Vec<AnyPolicy>,
+    pub policies: Arc<PolicyStore>,
     pub imports: Vec<ImportFile>,
     pub audits: Vec<AnyAudit>,
 }
@@ -46,14 +47,14 @@ pub(crate) struct DetectionHandoff {
 /// Mutable per-pass state.
 pub(crate) struct DetectionRecord {
     pub actor_id: Uuid,
-    /// Full inline policy bodies the caller submitted. Kept in
-    /// memory so the matching redact pass can re-evaluate operator
-    /// specs without the caller re-submitting them. The public
-    /// snapshot ([`DetectionResult::policies`]) carries only
-    /// digests.
-    ///
-    /// [`DetectionResult::policies`]: super::result::DetectionResult::policies
-    pub policies: Vec<AnyPolicy>,
+    /// Shared per-modality policy chains built once from the
+    /// submitted inline bodies. Detection and redaction pipelines
+    /// both `Arc::clone` this — no deep policy clones after
+    /// submission.
+    pub policies: Arc<PolicyStore>,
+    /// Header cards for the policies that ran, computed once at
+    /// submission time. Surfaced verbatim in [`DetectionResult`].
+    pub policy_digests: Vec<PolicyDigest>,
     pub imports: Vec<ImportFile>,
     pub status: DetectionStatus,
     pub created_at: Timestamp,
@@ -71,7 +72,7 @@ impl DetectionRecord {
             DetectionStatus::Succeeded | DetectionStatus::PartialFailure => Some(DetectionResult {
                 id,
                 actor_id: self.actor_id,
-                policies: self.policies.iter().map(AnyPolicy::digest).collect(),
+                policies: self.policy_digests.clone(),
                 imports: self.imports.clone(),
                 audits: self.audits.clone(),
                 entities_detected: self.entities_detected,

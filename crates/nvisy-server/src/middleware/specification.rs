@@ -123,11 +123,6 @@ fn api_docs(mut api: TransformOpenApi<'_>, config: OpenApiConfig) -> TransformOp
         ..Default::default()
     })
     .tag(Tag {
-        name: "policies".into(),
-        description: Some("Redaction policy upload and management".into()),
-        ..Default::default()
-    })
-    .tag(Tag {
         name: "detections".into(),
         description: Some(
             "Detection passes: recognise + evaluate without applying redaction".into(),

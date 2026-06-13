@@ -125,8 +125,11 @@ pub enum AnyPolicy {
 impl AnyPolicy {
     /// Author-supplied name of the contained policy. Echoed
     /// verbatim into the audit's [`PolicyDecisionRef`] every time a
-    /// rule in this policy fires.
-    pub fn name(&self) -> &HipStr<'static> {
+    /// rule in this policy fires. Returned as `&str` for ergonomic
+    /// comparison; callers needing a refcount-cheap owned clone
+    /// can match the variant directly and clone the inner
+    /// [`HipStr`].
+    pub fn name(&self) -> &str {
         match self {
             Self::Text(p) => &p.name,
             Self::Tabular(p) => &p.name,
@@ -156,7 +159,7 @@ impl AnyPolicy {
 /// in the caller's submission; the engine remembers which policies
 /// ran by digest, and stamps every audit decision with a
 /// [`PolicyDecisionRef`] pointing at one of them.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyDigest {
     /// Policy name; matches `Policy::name` of the submitted policy.
@@ -190,7 +193,7 @@ impl PolicyDigest {
 ///
 /// [`AuditEntry`]: crate::document::provenance::AuditEntry
 /// [`default_action`]: Policy::default_action
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyDecisionRef {
     /// Name of the policy that made the decision. Matches the
@@ -233,26 +236,10 @@ pub fn validate_policy_namespace(policies: &[AnyPolicy]) -> Result<(), nvisy_cor
 
     const TARGET: &str = "nvisy_engine::policy::validate";
 
-    let mut seen_policies: HashSet<&str> = HashSet::with_capacity(policies.len());
-    for any in policies {
-        let policy_name = any.name();
-        if !seen_policies.insert(policy_name.as_str()) {
-            return Err(nvisy_core::Error::validation(
-                format!(
-                    "duplicate policy name `{policy_name}` in detection submission; \
-                     audit references rules by policy + rule name, so policy \
-                     names must be unique within a single detect call",
-                ),
-                TARGET,
-            ));
-        }
-
-        let rule_names: Vec<&str> = match any {
-            AnyPolicy::Text(p) => p.rules.iter().map(|r| r.name.as_str()).collect(),
-            AnyPolicy::Tabular(p) => p.rules.iter().map(|r| r.name.as_str()).collect(),
-            AnyPolicy::Image(p) => p.rules.iter().map(|r| r.name.as_str()).collect(),
-            AnyPolicy::Audio(p) => p.rules.iter().map(|r| r.name.as_str()).collect(),
-        };
+    fn check_rule_names<'a, I: ExactSizeIterator<Item = &'a str>>(
+        policy_name: &str,
+        rule_names: I,
+    ) -> Result<(), nvisy_core::Error> {
         let mut seen_rules: HashSet<&str> = HashSet::with_capacity(rule_names.len());
         for rule_name in rule_names {
             if !seen_rules.insert(rule_name) {
@@ -263,6 +250,37 @@ pub fn validate_policy_namespace(policies: &[AnyPolicy]) -> Result<(), nvisy_cor
                     ),
                     TARGET,
                 ));
+            }
+        }
+        Ok(())
+    }
+
+    let mut seen_policies: HashSet<&str> = HashSet::with_capacity(policies.len());
+    for any in policies {
+        let policy_name = any.name();
+        if !seen_policies.insert(policy_name) {
+            return Err(nvisy_core::Error::validation(
+                format!(
+                    "duplicate policy name `{policy_name}` in detection submission; \
+                     audit references rules by policy + rule name, so policy \
+                     names must be unique within a single detect call",
+                ),
+                TARGET,
+            ));
+        }
+
+        match any {
+            AnyPolicy::Text(p) => {
+                check_rule_names(policy_name, p.rules.iter().map(|r| r.name.as_str()))?;
+            }
+            AnyPolicy::Tabular(p) => {
+                check_rule_names(policy_name, p.rules.iter().map(|r| r.name.as_str()))?;
+            }
+            AnyPolicy::Image(p) => {
+                check_rule_names(policy_name, p.rules.iter().map(|r| r.name.as_str()))?;
+            }
+            AnyPolicy::Audio(p) => {
+                check_rule_names(policy_name, p.rules.iter().map(|r| r.name.as_str()))?;
             }
         }
     }

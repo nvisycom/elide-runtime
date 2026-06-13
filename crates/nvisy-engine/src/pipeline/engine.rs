@@ -231,10 +231,10 @@ impl Engine {
 
         let pipeline = self.detection_pipeline();
         let detection_id = pipeline.id();
-        pipeline.register_pending(&input).await;
+        let prepared = pipeline.register_pending(input).await;
 
         self.inner.background_tasks.lock().await.spawn(async move {
-            if let Err(e) = pipeline.execute(input).await {
+            if let Err(e) = pipeline.execute(prepared).await {
                 tracing::error!(
                     %detection_id,
                     error = %e,

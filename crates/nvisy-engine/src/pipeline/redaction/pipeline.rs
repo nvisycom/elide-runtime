@@ -22,7 +22,7 @@ use crate::phases::ingestion::encryption::SharedKeyProvider;
 use crate::phases::redaction::RedactionRegistries;
 use crate::pipeline::RedactionConfig;
 use crate::pipeline::config::RuntimeConfig;
-use crate::pipeline::detection::{DetectionState, build_policy_store};
+use crate::pipeline::detection::DetectionState;
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::redaction::pipeline";
@@ -111,12 +111,10 @@ impl RedactionPipeline {
             return Err(e);
         }
 
-        let policy_store = build_policy_store(&detection.policies);
-
         let mut shared_data = SharedData {
             run_id: self.redaction_id,
             actor_id,
-            policies: policy_store,
+            policies: detection.policies,
             registry: self.registry.clone(),
             codec_registry: CodecRegistry::with_builtin(),
             key_provider: SharedKeyProvider::default(),

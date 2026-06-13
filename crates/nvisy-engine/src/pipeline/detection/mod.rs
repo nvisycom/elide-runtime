@@ -24,7 +24,7 @@ mod state;
 mod status;
 
 pub use self::input::DetectionInput;
-pub(crate) use self::pipeline::{DetectionEngineState, DetectionPipeline, build_policy_store};
+pub(crate) use self::pipeline::{DetectionEngineState, DetectionPipeline};
 pub use self::result::{DetectionEntry, DetectionFilter, DetectionResult, DetectionSnapshot};
 pub(crate) use self::state::DetectionState;
 pub use self::status::DetectionStatus;

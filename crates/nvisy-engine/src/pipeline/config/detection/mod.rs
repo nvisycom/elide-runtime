@@ -18,7 +18,7 @@ mod plan;
 #[cfg(not(feature = "bento"))]
 use nvisy_core::Error;
 use nvisy_core::Result;
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::{EntityLabelCatalog, EntityLabelRef};
 use nvisy_core::modality::Text;
 use nvisy_ner::NerRecognizer;
 use nvisy_ner::backend::NoopBackend;
@@ -87,7 +87,7 @@ impl DetectionConfig {
                     let recognizer = NerRecognizer::builder()
                         .with_name(NER_RECOGNIZER_NAME)
                         .with_engine(NoopBackend)
-                        .with_supported_kinds(default_text_kinds())
+                        .with_supported_labels(default_text_labels())
                         .build()?;
                     reg.with_recognizer::<Text>(recognizer)
                 }
@@ -98,7 +98,7 @@ impl DetectionConfig {
                     let recognizer = NerRecognizer::builder()
                         .with_name(NER_RECOGNIZER_NAME)
                         .with_engine(backend)
-                        .with_supported_kinds(default_text_kinds())
+                        .with_supported_labels(default_text_labels())
                         .build()?;
                     reg.with_recognizer::<Text>(recognizer)
                 }
@@ -117,16 +117,16 @@ impl DetectionConfig {
     }
 }
 
-/// Default kind allowlist for the engine-side NER recognizer.
+/// Default label allowlist for the engine-side NER recognizer.
 ///
-/// Every defined [`EntityKind`] except those that only surface in
-/// images (biometric templates, visual elements). The zero-shot model
-/// is fed this list as "look for any of these"; centralised
+/// Every built-in label except those that only surface in images
+/// (biometric templates, visual elements). The zero-shot model is
+/// fed this list as "look for any of these"; centralised
 /// post-filtering at the dispatch layer narrows further per call.
-///
-/// [`EntityKind`]: nvisy_core::entity::EntityKind
-fn default_text_kinds() -> Vec<EntityKind> {
-    EntityKind::all()
-        .filter(|k| !k.is_biometric() && !k.is_visual())
+fn default_text_labels() -> Vec<EntityLabelRef> {
+    EntityLabelCatalog::with_builtins()
+        .iter()
+        .filter(|l| !l.has_tag("biometric") && !l.has_tag("visual"))
+        .map(|l| l.label_ref())
         .collect()
 }

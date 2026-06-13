@@ -96,7 +96,7 @@ where
     /// fuse → resolve. Every layer's config is read from `params`.
     pub fn from_params(params: &LayerParams) -> Self {
         let filter = FilterLayer::new()
-            .with_allowed_kinds(params.allowed_kinds.clone())
+            .with_allowed_labels(params.allowed_labels.clone())
             .with_confidence_threshold(params.confidence_threshold);
         Self::new()
             .with_layer(CalibrateLayer::new(params.calibration.clone()))

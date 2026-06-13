@@ -44,16 +44,18 @@ const TARGET: &str = "nvisy_codec::handler::audio::duration";
 /// first track lacks a timebase or a known duration, or when the
 /// computed duration would overflow `i64` microseconds.
 pub(super) fn probe_duration_us(bytes: &Bytes, extension_hint: &str) -> Result<i64, Error> {
-    let mss = MediaSourceStream::new(
-        Box::new(Cursor::new(bytes.clone())),
-        Default::default(),
-    );
+    let mss = MediaSourceStream::new(Box::new(Cursor::new(bytes.clone())), Default::default());
 
     let mut hint = Hint::new();
     hint.with_extension(extension_hint);
 
     let reader = get_probe()
-        .probe(&hint, mss, FormatOptions::default(), MetadataOptions::default())
+        .probe(
+            &hint,
+            mss,
+            FormatOptions::default(),
+            MetadataOptions::default(),
+        )
         .map_err(|e| Error::validation(format!("audio probe failed: {e}"), TARGET))?;
 
     let track = reader
@@ -61,9 +63,9 @@ pub(super) fn probe_duration_us(bytes: &Bytes, extension_hint: &str) -> Result<i
         .first()
         .ok_or_else(|| Error::validation("audio probe returned no tracks", TARGET))?;
 
-    let time_base = track.time_base.ok_or_else(|| {
-        Error::validation("audio track is missing a timebase", TARGET)
-    })?;
+    let time_base = track
+        .time_base
+        .ok_or_else(|| Error::validation("audio track is missing a timebase", TARGET))?;
     let duration = track.duration.ok_or_else(|| {
         Error::validation("audio track is missing a container-level duration", TARGET)
     })?;

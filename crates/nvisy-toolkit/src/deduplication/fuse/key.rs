@@ -1,6 +1,6 @@
 //! [`GroupKey`]: hash key for the first grouping phase.
 
-use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::entity::{Entity, EntityLabelRef};
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::Modality;
 
@@ -18,7 +18,7 @@ use super::group::GroupingCriteria;
 /// [`Normalized`]: GroupingCriteria::Normalized
 #[derive(Hash, PartialEq, Eq)]
 pub(super) struct GroupKey {
-    pub(super) kind: EntityKind,
+    pub(super) label: EntityLabelRef,
     pub(super) value: String,
 }
 
@@ -36,7 +36,7 @@ impl GroupKey {
             None => entity.id.to_string(),
         };
         Self {
-            kind: entity.entity_kind,
+            label: entity.label.clone(),
             value,
         }
     }

@@ -7,7 +7,7 @@
 //! [`Refinement`]: nvisy_core::entity::TrailStepKind::Refinement
 
 use nvisy_core::context::{Context, ContextEnhancer};
-use nvisy_core::entity::{EntityKind, PatternProvenance, TrailProvenance, TrailStepKind};
+use nvisy_core::entity::{PatternProvenance, TrailProvenance, TrailStepKind, builtins};
 use nvisy_core::modality::TextData;
 use nvisy_core::primitive::Confidence;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
@@ -17,7 +17,7 @@ use nvisy_pattern::{PatternRecognizer, PatternRegistry, Regex};
 async fn enhancer_boosts_matches_near_keyword_only() {
     let ssn = Regex::builder()
         .with_name("ssn")
-        .with_entity_kind(EntityKind::GovernmentId)
+        .with_label(builtins::GOVERNMENT_ID.label_ref())
         .with_regex(r"\b\d{3}-\d{2}-\d{4}\b")
         .with_score(Confidence::clamped(0.6))
         .with_context(Context::new(["ssn", "social security"]))

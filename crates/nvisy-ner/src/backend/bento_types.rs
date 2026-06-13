@@ -7,7 +7,6 @@
 //! [`BentoBackend`]: super::BentoBackend
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 
-use nvisy_core::entity::EntityKind;
 use serde::{Deserialize, Serialize};
 
 /// Outer batch wrapper. Single- and multi-text calls share the
@@ -26,10 +25,10 @@ pub(super) struct WireBatch {
 pub(super) struct WireRequest {
     /// The text to recognise entities in.
     pub text: String,
-    /// Entity kinds the caller is interested in. GLiNER is
+    /// Entity label names the caller is interested in. GLiNER is
     /// zero-shot — sending an empty list is meaningless and the
     /// runtime short-circuits before making the call.
-    pub kinds: Vec<EntityKind>,
+    pub labels: Vec<String>,
     /// Lower bound on per-entity score. The runtime keeps this at
     /// `0.0` and post-filters locally so threshold decisions stay
     /// in one place (the engine-side detection driver).
@@ -51,9 +50,11 @@ pub(super) struct WireResponse {
     /// batch.
     #[allow(dead_code)]
     pub model: String,
-    /// Recognised entities, already classified into the canonical
-    /// [`EntityKind`] taxonomy by the service. Defaults to empty
-    /// when the service omits the field.
+    /// Recognised entities. Each entity's label is the
+    /// service-side classification, returned as a string so the
+    /// recognizer's [`LabelMap`] can re-canonicalise it.
+    ///
+    /// [`LabelMap`]: nvisy_core::recognition::LabelMap
     #[serde(default)]
     pub entities: Vec<WireEntity>,
 }
@@ -62,8 +63,10 @@ pub(super) struct WireResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct WireEntity {
-    /// Canonical entity kind the service classified this span as.
-    pub kind: EntityKind,
+    /// Service-side classification of this span. Translated to
+    /// the workspace label vocabulary by the recognizer's
+    /// `LabelMap`.
+    pub label: String,
     /// Raw model score in `[0.0, 1.0]`.
     pub score: f64,
     /// Byte offset of the entity's start within

@@ -42,7 +42,7 @@
 
 use std::collections::HashSet;
 
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::modality::ModalityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -118,8 +118,8 @@ pub struct RedactionAddEntity {
     /// tag (`text`/`tabular`/`image`/`audio`) determines the
     /// entity's modality.
     pub location: AnyLocation,
-    /// Entity kind (drives policy evaluation and operator pick).
-    pub entity_kind: EntityKind,
+    /// Entity label (drives policy evaluation and operator pick).
+    pub label: EntityLabelRef,
     /// When `Some`, pins the operator the redaction will apply,
     /// bypassing the policy chain for this entity. Must match
     /// `location`'s modality; mismatches are rejected at

@@ -61,7 +61,7 @@ where
                 if losers[j] {
                     continue;
                 }
-                if entities[i].entity_kind == entities[j].entity_kind {
+                if entities[i].label == entities[j].label {
                     continue;
                 }
                 if !entities[i].location.overlaps(&entities[j].location) {
@@ -102,7 +102,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::entity::{Entity, EntityKind};
+    use nvisy_core::entity::{Entity, builtins};
     use nvisy_core::modality::Text;
     use nvisy_core::primitive::Confidence;
 
@@ -128,26 +128,26 @@ mod tests {
     async fn highest_confidence_keeps_winner() {
         let mut entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 8)
-                .with_entity_kind(EntityKind::PhoneNumber)
+                .with_label(builtins::PHONE_NUMBER.label_ref())
                 .test_build(),
             Entity::test_builder(0, 8)
-                .with_entity_kind(EntityKind::EmailAddress)
+                .with_label(builtins::EMAIL_ADDRESS.label_ref())
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
         let _ = apply(ConflictResolution::HighestConfidence, &mut entities).await;
         assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].entity_kind, EntityKind::PhoneNumber);
+        assert_eq!(entities[0].label, builtins::PHONE_NUMBER.label_ref());
     }
 
     #[tokio::test]
     async fn non_overlapping_not_resolved() {
         let mut entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 8)
-                .with_entity_kind(EntityKind::PhoneNumber)
+                .with_label(builtins::PHONE_NUMBER.label_ref())
                 .test_build(),
             Entity::test_builder(20, 24)
-                .with_entity_kind(EntityKind::EmailAddress)
+                .with_label(builtins::EMAIL_ADDRESS.label_ref())
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
@@ -159,10 +159,10 @@ mod tests {
     async fn same_kind_not_resolved() {
         let mut entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 8)
-                .with_entity_kind(EntityKind::PhoneNumber)
+                .with_label(builtins::PHONE_NUMBER.label_ref())
                 .test_build(),
             Entity::test_builder(0, 8)
-                .with_entity_kind(EntityKind::PhoneNumber)
+                .with_label(builtins::PHONE_NUMBER.label_ref())
                 .with_confidence(conf(0.8))
                 .test_build(),
         ];
@@ -174,15 +174,15 @@ mod tests {
     async fn longest_span_keeps_longer() {
         let mut entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 3)
-                .with_entity_kind(EntityKind::PhoneNumber)
+                .with_label(builtins::PHONE_NUMBER.label_ref())
                 .test_build(),
             Entity::test_builder(0, 8)
-                .with_entity_kind(EntityKind::EmailAddress)
+                .with_label(builtins::EMAIL_ADDRESS.label_ref())
                 .with_confidence(conf(0.7))
                 .test_build(),
         ];
         let _ = apply(ConflictResolution::LongestSpan, &mut entities).await;
         assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].entity_kind, EntityKind::EmailAddress);
+        assert_eq!(entities[0].label, builtins::EMAIL_ADDRESS.label_ref());
     }
 }

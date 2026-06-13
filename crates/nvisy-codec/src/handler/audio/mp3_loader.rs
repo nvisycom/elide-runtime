@@ -68,20 +68,19 @@ mod tests {
 
     #[tokio::test]
     async fn accepts_stereo_mp3() {
-        let loader = Mp3Loader;
         let bytes = fixture_stereo_mp3();
         let content = ContentData::new(ContentSource::new(), bytes);
-        loader.decode(content).await.expect("stereo MP3 should load");
+        let handler = Mp3Loader.decode(content).await;
+        handler.expect("stereo MP3 should load");
     }
 
     #[tokio::test]
     async fn rejects_garbage_bytes() {
-        let loader = Mp3Loader;
         let content = ContentData::new(
             ContentSource::new(),
             Bytes::from_static(b"definitely not an mp3"),
         );
-        let err = loader.decode(content).await.unwrap_err();
+        let err = Mp3Loader.decode(content).await.unwrap_err();
         assert!(err.to_string().contains("MP3 probe failed"));
     }
 }

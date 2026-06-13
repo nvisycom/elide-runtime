@@ -12,7 +12,7 @@
 use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::context::Context;
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -34,8 +34,8 @@ pub struct Regex {
     /// Surfaced in trail steps so downstream consumers can see
     /// which rule matched.
     pub name: String,
-    /// Entity kind every match emits.
-    pub entity_kind: EntityKind,
+    /// Entity label every match emits.
+    pub label: EntityLabelRef,
     /// Regex source. Compiled to a [`regex::Regex`] by
     /// [`PatternRecognizer::build`]; shape
     /// errors there, not here.
@@ -70,7 +70,7 @@ pub struct Regex {
 
 impl Regex {
     /// Start a chainable builder. Required fields: `name`,
-    /// `entity_kind`, `regex`.
+    /// `label`, `regex`.
     #[must_use]
     pub fn builder() -> RegexBuilder {
         RegexBuilder::default()

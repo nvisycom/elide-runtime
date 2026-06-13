@@ -22,7 +22,7 @@
 
 use std::env;
 
-use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Text, TextData};
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_llm::backend::rig::RigBackend;
@@ -55,7 +55,12 @@ fn build_registry() -> RecognizerRegistry {
     let ner = NerRecognizer::builder()
         .with_name("ner")
         .with_engine(bento_backend)
-        .with_supported_kinds(EntityKind::all().collect::<Vec<_>>())
+        .with_supported_labels(
+            nvisy_core::entity::EntityLabelCatalog::with_builtins()
+                .iter()
+                .map(|l| l.label_ref())
+                .collect::<Vec<_>>(),
+        )
         .build()
         .expect("ner recognizer builds");
 

@@ -121,7 +121,7 @@ impl LiftedFromText for Tabular {
     fn from_text(text_entity: Entity<Text>, location: TabularLocation) -> Entity<Tabular> {
         let mut builder = Entity::<Tabular>::builder()
             .with_id(text_entity.id)
-            .with_entity_kind(text_entity.entity_kind)
+            .with_label(text_entity.label)
             .with_location(location)
             .with_confidence(text_entity.confidence)
             .with_trail(text_entity.trail);

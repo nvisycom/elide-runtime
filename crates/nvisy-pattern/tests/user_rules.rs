@@ -5,7 +5,7 @@
 //! confirm a real internal-handoff document yields the custom
 //! entities.
 
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::builtins;
 use nvisy_core::modality::TextData;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
 use nvisy_pattern::{Dictionary, PatternRecognizer, PatternRegistry, Regex, Terms};
@@ -53,7 +53,7 @@ async fn user_toml_rules_load_and_detect() {
     // The custom regex finds both employee numbers.
     let emp_hits: Vec<&str> = entities
         .iter()
-        .filter(|e| e.entity_kind == EntityKind::InternalId)
+        .filter(|e| e.label == builtins::INTERNAL_ID.label_ref())
         .map(|e| &text[e.location.start..e.location.end])
         .collect();
     assert!(
@@ -86,7 +86,7 @@ async fn user_toml_rules_load_and_detect() {
     assert!(
         entities
             .iter()
-            .any(|e| e.entity_kind == EntityKind::EmailAddress
+            .any(|e| e.label == builtins::EMAIL_ADDRESS.label_ref()
                 && &text[e.location.start..e.location.end] == "counsel@example.com"),
         "expected shipped email pattern to fire alongside user rules"
     );

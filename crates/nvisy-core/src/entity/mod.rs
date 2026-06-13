@@ -17,8 +17,7 @@
 //! [`AuditEntry<M>`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/provenance/struct.AuditEntry.html
 
 mod annotation;
-mod category;
-mod kind;
+pub mod label;
 mod method;
 mod source;
 
@@ -30,8 +29,7 @@ use uuid::Uuid;
 pub use self::annotation::{
     Annotation, AnnotationKind, AnnotationStrength, LabelAnnotation, is_excluded,
 };
-pub use self::category::EntityCategory;
-pub use self::kind::EntityKind;
+pub use self::label::{EntityLabel, EntityLabelCatalog, EntityLabelRef, builtins};
 pub use self::method::{
     AnnotationProvenance, ModelProvenance, PatternProvenance, TrailProvenance, TrailStep,
     TrailStepKind,
@@ -44,11 +42,8 @@ use crate::primitive::{Confidence, LanguageTag};
 
 /// A detected sensitive data occurrence within a document.
 ///
-/// The category for an entity is derived from its [`entity_kind`] via
-/// [`EntityKind::category`]; it is not stored separately. The trail
-/// of score-affecting steps lives on [`trail`].
+/// The trail of score-affecting steps lives on [`trail`].
 ///
-/// [`entity_kind`]: Self::entity_kind
 /// [`trail`]: Self::trail
 #[derive(Debug, Clone, PartialEq, Builder)]
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -68,9 +63,11 @@ pub struct Entity<M: Modality> {
     #[builder(default, setter(into = false))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entity_id: Option<String>,
-    /// Specific entity kind. The broad [`EntityCategory`] is derived
-    /// via [`Entity::category`].
-    pub entity_kind: EntityKind,
+    /// Open-vocabulary classification of the entity. Wraps the
+    /// label's identifying name; full catalog metadata
+    /// (description, tags) is dereferenced through an
+    /// [`EntityLabelCatalog`].
+    pub label: EntityLabelRef,
     /// Modality-specific location of the entity within the document.
     pub location: M::Location,
     /// Detection confidence score in the range `[0.0, 1.0]`. Equals
@@ -98,12 +95,6 @@ impl<M: Modality> Entity<M> {
     /// Create a new [`EntityBuilder`].
     pub fn builder() -> EntityBuilder<M> {
         EntityBuilder::default()
-    }
-
-    /// Derived broad classification — `self.entity_kind.category()`.
-    #[must_use]
-    pub fn category(&self) -> EntityCategory {
-        self.entity_kind.category()
     }
 
     /// Original recognition score, before any post-recognition
@@ -142,7 +133,9 @@ impl Entity<Text> {
     pub fn test_builder(start: usize, end: usize) -> EntityBuilder<Text> {
         let conf = Confidence::clamped(0.9);
         Entity::builder()
-            .with_entity_kind(EntityKind::PersonName)
+            .with_label(EntityLabelRef::from(
+                self::builtins::PERSON_NAME.name.clone(),
+            ))
             .with_trail(vec![TrailStep::recognition(
                 "pattern",
                 conf,

@@ -153,7 +153,7 @@ where
 
         let detected = registry.run::<Text>(input).await?;
         for entity in detected {
-            if !cfg.entity_kinds.is_empty() && !cfg.entity_kinds.contains(&entity.entity_kind) {
+            if !cfg.labels.is_empty() && !cfg.labels.contains(&entity.label) {
                 continue;
             }
             let Some(location) =
@@ -161,7 +161,7 @@ where
             else {
                 tracing::debug!(
                     target: TARGET,
-                    kind = %entity.entity_kind,
+                    label = %entity.label,
                     "dropping entity with no overlapping span",
                 );
                 continue;
@@ -169,7 +169,7 @@ where
             lifted.push(Entity {
                 id: entity.id,
                 entity_id: entity.entity_id,
-                entity_kind: entity.entity_kind,
+                label: entity.label,
                 location,
                 confidence: entity.confidence,
                 trail: entity.trail,
@@ -211,7 +211,7 @@ async fn detect_image_chunks(
         let detected = registry.run::<Image>(input).await?;
         let filtered: Vec<Entity<Image>> = detected
             .into_iter()
-            .filter(|e| cfg.entity_kinds.is_empty() || cfg.entity_kinds.contains(&e.entity_kind))
+            .filter(|e| cfg.labels.is_empty() || cfg.labels.contains(&e.label))
             .collect();
         detected_total += filtered.len();
         doc.add_entities(filtered);

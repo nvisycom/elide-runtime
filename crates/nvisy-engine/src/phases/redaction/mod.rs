@@ -49,8 +49,8 @@ use crate::document::provenance::{
     AuditEntry, Decision as AuditDecision, EntryMetadata, Execution,
 };
 use crate::modality::DocumentModality;
-use crate::policy::{Action, PolicyDecisionRef};
 use crate::policy::redaction::Instantiate;
+use crate::policy::{Action, PolicyDecisionRef};
 
 pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 

@@ -196,5 +196,4 @@ impl RedactionPipeline {
 
         Ok(())
     }
-
 }

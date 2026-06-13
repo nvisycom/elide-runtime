@@ -209,10 +209,7 @@ pub struct PolicyDecisionRef {
 
 impl PolicyDecisionRef {
     /// Construct a reference from a policy + rule name.
-    pub fn new(
-        policy_name: HipStr<'static>,
-        rule_name: Option<HipStr<'static>>,
-    ) -> Self {
+    pub fn new(policy_name: HipStr<'static>, rule_name: Option<HipStr<'static>>) -> Self {
         Self {
             policy_name,
             rule_name,
@@ -339,8 +336,7 @@ mod tests {
         let policies = vec![text_policy("gdpr", &["dup", "dup"])];
         let err = validate_policy_namespace(&policies).unwrap_err();
         assert!(
-            err.to_string()
-                .contains("duplicate rule name `dup`"),
+            err.to_string().contains("duplicate rule name `dup`"),
             "got: {err}"
         );
     }

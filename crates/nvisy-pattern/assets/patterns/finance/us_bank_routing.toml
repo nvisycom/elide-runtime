@@ -1,4 +1,4 @@
 name = "us-bank-routing"
-entity_kind = "bank_routing"
+label = "bank_routing"
 regex = "\\b(?:0[1-9]|[12]\\d|3[0-2])\\d{7}\\b"
 score = 0.5

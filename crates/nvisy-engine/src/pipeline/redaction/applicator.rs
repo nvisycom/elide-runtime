@@ -28,7 +28,7 @@ use std::collections::{HashMap, HashSet};
 
 use jiff::Timestamp;
 use nvisy_core::Error;
-use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::entity::{Entity, EntityLabelRef};
 use nvisy_core::modality::ModalityKind;
 use nvisy_core::primitive::Confidence;
 use uuid::Uuid;
@@ -188,9 +188,7 @@ where
                     )
                 })?;
                 let prior = record.audit.take();
-                let policy_ref = prior
-                    .as_ref()
-                    .and_then(|e| e.decision.policy_ref.clone());
+                let policy_ref = prior.as_ref().and_then(|e| e.decision.policy_ref.clone());
                 record.audit = Some(AuditEntry {
                     decision: Decision {
                         policy_ref,
@@ -211,23 +209,23 @@ where
 
 /// Append a synthesised entity to the matching audit.
 fn append_add(audits: &mut [AnyAudit], add: RedactionAddEntity) -> Result<(), Error> {
+    let kind = add.location.kind();
+
     // Optional pinned operator: if it disagrees with the
     // location's modality, fail.
     if let Some(op) = &add.operator
-        && op.modality() != add.location.kind()
+        && op.modality() != kind
     {
         return Err(Error::validation(
             format!(
-                "override Add operator modality {:?} differs from location modality {:?}",
+                "override Add operator modality {:?} differs from location modality {kind:?}",
                 op.modality(),
-                add.location.kind(),
             ),
             TARGET,
         ));
     }
 
     // Find a target audit of matching modality.
-    let kind = add.location.kind();
     let target = audits.iter_mut().find(|a| {
         matches!(
             (a, kind),
@@ -240,44 +238,47 @@ fn append_add(audits: &mut [AnyAudit], add: RedactionAddEntity) -> Result<(), Er
     let Some(target) = target else {
         return Err(Error::validation(
             format!(
-                "override Add for modality {:?} has no audit of that modality in the detection",
-                add.location.kind(),
+                "override Add for modality {kind:?} has no audit of that modality in the detection",
             ),
             TARGET,
         ));
     };
 
-    let entity_kind = add.entity_kind;
-    let operator = add.operator;
-    let location = add.location;
     match target {
         AnyAudit::Text(a) => {
-            let loc = location.try_as_text().ok_or_else(modality_mismatch)?;
-            let op = operator
+            let loc = add.location.try_as_text().ok_or_else(modality_mismatch)?;
+            let op = add
+                .operator
                 .map(|o| o.try_as_text().ok_or_else(modality_mismatch))
                 .transpose()?;
-            append_typed(a, entity_kind, loc, op);
+            append_typed(a, add.label, loc, op);
         }
         AnyAudit::Tabular(a) => {
-            let loc = location.try_as_tabular().ok_or_else(modality_mismatch)?;
-            let op = operator
+            let loc = add
+                .location
+                .try_as_tabular()
+                .ok_or_else(modality_mismatch)?;
+            let op = add
+                .operator
                 .map(|o| o.try_as_tabular().ok_or_else(modality_mismatch))
                 .transpose()?;
-            append_typed(a, entity_kind, loc, op);
+            append_typed(a, add.label, loc, op);
         }
         AnyAudit::Image(a) => {
-            let loc = location.try_as_image().ok_or_else(modality_mismatch)?;
-            let op = operator
+            let loc = add.location.try_as_image().ok_or_else(modality_mismatch)?;
+            let op = add
+                .operator
                 .map(|o| o.try_as_image().ok_or_else(modality_mismatch))
                 .transpose()?;
-            append_typed(a, entity_kind, loc, op);
+            append_typed(a, add.label, loc, op);
         }
         AnyAudit::Audio(a) => {
-            let loc = location.try_as_audio().ok_or_else(modality_mismatch)?;
-            let op = operator
+            let loc = add.location.try_as_audio().ok_or_else(modality_mismatch)?;
+            let op = add
+                .operator
                 .map(|o| o.try_as_audio().ok_or_else(modality_mismatch))
                 .transpose()?;
-            append_typed(a, entity_kind, loc, op);
+            append_typed(a, add.label, loc, op);
         }
     }
     Ok(())
@@ -295,7 +296,7 @@ fn modality_mismatch() -> Error {
 /// Append a synthesised entity to a typed audit.
 fn append_typed<M>(
     audit: &mut Audit<M>,
-    entity_kind: EntityKind,
+    label: EntityLabelRef,
     location: M::Location,
     operator: Option<M::Redaction>,
 ) where
@@ -304,7 +305,7 @@ fn append_typed<M>(
     let entity = Entity {
         id: Uuid::now_v7(),
         entity_id: None,
-        entity_kind,
+        label,
         location,
         confidence: Confidence::clamped(1.0),
         trail: Vec::new(),

@@ -27,7 +27,7 @@
 //! [`entity_kinds`]: Detection::entity_kinds
 //! [`RecognizerRegistry`]: crate::detection::RecognizerRegistry
 
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::EntityLabelRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -36,10 +36,10 @@ use validator::Validate;
 #[derive(Debug, Clone, Default, PartialEq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Detection {
-    /// Entity-kind allowlist applied to every dispatched recognizer.
-    /// Empty = all kinds permitted.
+    /// Entity-label allowlist applied to every dispatched recognizer.
+    /// Empty = all labels permitted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub entity_kinds: Vec<EntityKind>,
+    pub labels: Vec<EntityLabelRef>,
 }
 
 impl Detection {

@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use aho_corasick::{AhoCorasick, MatchKind};
-use nvisy_core::entity::{Entity, EntityKind, PatternProvenance, TrailProvenance, TrailStep};
+use nvisy_core::entity::{Entity, EntityLabelRef, PatternProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
@@ -31,7 +31,7 @@ use crate::validators::{Validator, ValidatorRegistry};
 /// [`ContextEnhancer`]: crate::ContextEnhancer
 struct CompiledPattern {
     name: String,
-    entity_kind: EntityKind,
+    label: EntityLabelRef,
     regex: Regex,
     raw_regex: String,
     score: Confidence,
@@ -45,7 +45,7 @@ struct CompiledPattern {
 /// emission metadata.
 struct CompiledDictionary {
     name: String,
-    entity_kind: EntityKind,
+    label: EntityLabelRef,
     /// First term-id (inclusive) for this dictionary inside the
     /// shared automaton.
     term_start: usize,
@@ -145,7 +145,7 @@ impl PatternRecognizerBuilder {
             regex_sources.push(pattern.regex.clone());
             compiled_patterns.push(CompiledPattern {
                 name: pattern.name.clone(),
-                entity_kind: pattern.entity_kind,
+                label: pattern.label.clone(),
                 regex,
                 raw_regex: pattern.regex.clone(),
                 score: pattern.score,
@@ -181,7 +181,7 @@ impl PatternRecognizerBuilder {
             let term_end = all_terms.len();
             compiled_dicts.push(CompiledDictionary {
                 name: dict.name.clone(),
-                entity_kind: dict.entity_kind,
+                label: dict.label.clone(),
                 term_start,
                 term_end,
                 term_scores,
@@ -288,7 +288,7 @@ fn build_pattern_entity(pat: &CompiledPattern, start: usize, end: usize) -> Enti
         format!("pattern `{}` matched", pat.name),
     );
     Entity::builder()
-        .with_entity_kind(pat.entity_kind)
+        .with_label(pat.label.clone())
         .with_trail(vec![step])
         .with_confidence(pat.score)
         .with_location(TextLocation::new(start, end))
@@ -331,7 +331,7 @@ fn build_dictionary_entity(
         format!("dictionary `{}` matched", dict.name),
     );
     Entity::builder()
-        .with_entity_kind(dict.entity_kind)
+        .with_label(dict.label.clone())
         .with_trail(vec![step])
         .with_confidence(score)
         .with_location(TextLocation::new(start, end))
@@ -341,7 +341,7 @@ fn build_dictionary_entity(
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::entity::EntityKind;
+    use nvisy_core::entity::builtins;
     use nvisy_core::modality::TextData;
     use nvisy_core::recognition::RecognizerInput;
 
@@ -353,7 +353,7 @@ mod tests {
     fn dict(name: &str, terms: &[&str], word_boundary: bool) -> Dictionary {
         Dictionary::builder()
             .with_name(name.to_owned())
-            .with_entity_kind(EntityKind::Language)
+            .with_label(EntityLabelRef::from(builtins::LANGUAGE.name.clone()))
             .with_terms(Terms::from(terms))
             .with_word_boundary(word_boundary)
             .build()

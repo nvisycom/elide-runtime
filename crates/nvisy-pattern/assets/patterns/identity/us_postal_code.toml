@@ -1,4 +1,4 @@
 name = "us-postal-code"
-entity_kind = "postal_code"
+label = "postal_code"
 regex = "\\b\\d{5}(?:-\\d{4})?\\b"
 score = 0.5

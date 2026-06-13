@@ -221,7 +221,8 @@ mod tests {
     use super::*;
     use crate::context::Context;
     use crate::entity::{
-        EntityKind, ModelProvenance, PatternProvenance, TrailProvenance, TrailStepKind,
+        EntityLabelRef, ModelProvenance, PatternProvenance, TrailProvenance, TrailStepKind,
+        builtins,
     };
     use crate::modality::{Text, TextLocation};
 
@@ -240,7 +241,7 @@ mod tests {
             format!("pattern `{name}` matched"),
         );
         Entity::builder()
-            .with_entity_kind(EntityKind::GovernmentId)
+            .with_label(EntityLabelRef::from(builtins::GOVERNMENT_ID.name.clone()))
             .with_trail(vec![step])
             .with_confidence(confidence)
             .with_location(TextLocation::new(span.start, span.end))
@@ -258,7 +259,7 @@ mod tests {
             format!("model `{name}` matched"),
         );
         Entity::builder()
-            .with_entity_kind(EntityKind::PersonName)
+            .with_label(EntityLabelRef::from(builtins::PERSON_NAME.name.clone()))
             .with_trail(vec![step])
             .with_confidence(confidence)
             .with_location(TextLocation::new(span.start, span.end))

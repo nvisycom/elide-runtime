@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use derive_builder::Builder;
-use nvisy_core::entity::{Entity, EntityKind, ModelProvenance, TrailProvenance, TrailStep};
+use nvisy_core::entity::{Entity, EntityLabelRef, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::Confidence;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
@@ -50,12 +50,12 @@ pub struct NerRecognizer {
     /// [`with_engine`]: NerRecognizerBuilder::with_engine
     #[builder(setter(custom))]
     engine: Arc<dyn NerBackend>,
-    /// Kinds the recognizer advertises. When non-empty, the
+    /// Labels the recognizer advertises. When non-empty, the
     /// recognizer asks the backend for only this subset on every
     /// call (zero-shot path). When empty, the backend is asked for
     /// whatever it natively produces (fixed-label path).
     #[builder(default)]
-    supported_kinds: Vec<EntityKind>,
+    supported_labels: Vec<EntityLabelRef>,
     /// Normalization knobs applied to the backend's raw output
     /// before entities are emitted.
     #[builder(default)]
@@ -79,10 +79,10 @@ impl NerRecognizer {
         &self.name
     }
 
-    /// Kinds this recognizer advertises.
+    /// Labels this recognizer advertises.
     #[must_use]
-    pub fn supported_kinds(&self) -> &[EntityKind] {
-        &self.supported_kinds
+    pub fn supported_labels(&self) -> &[EntityLabelRef] {
+        &self.supported_labels
     }
 
     /// Borrow the normalization config.
@@ -91,20 +91,20 @@ impl NerRecognizer {
         &self.model
     }
 
-    fn build_entity(&self, span: &RawNerSpan, kind: EntityKind) -> Entity<Text> {
+    fn build_entity(&self, span: &RawNerSpan, label: EntityLabelRef) -> Entity<Text> {
         let raw_confidence =
             Confidence::try_clamped(span.score).unwrap_or(self.model.default_score);
-        let confidence = if self.model.low_score_kinds.contains(&kind) {
+        let confidence = if self.model.low_score_labels.contains(label.as_str()) {
             let demoted = raw_confidence.get() * self.model.low_score_multiplier;
             Confidence::try_clamped(demoted).unwrap_or(self.model.default_score)
         } else {
             raw_confidence
         };
         let provenance = TrailProvenance::Model(ModelProvenance::new(self.name.clone()));
-        let reason = format!("recognizer `{}` identified {kind}", self.name);
+        let reason = format!("recognizer `{}` identified {label}", self.name);
         let step = TrailStep::recognition("ner", confidence, provenance, reason);
         Entity::builder()
-            .with_entity_kind(kind)
+            .with_label(label)
             .with_trail(vec![step])
             .with_confidence(confidence)
             .with_location(TextLocation::new(span.offset.start, span.offset.end))
@@ -132,14 +132,19 @@ impl NerRecognizerBuilder {
 #[async_trait::async_trait]
 impl EntityRecognizer<Text> for NerRecognizer {
     async fn recognize(&self, input: &RecognizerInput<Text>) -> Result<RecognizerOutput<Text>> {
-        let kinds = if self.supported_kinds.is_empty() {
+        let supported_borrowed: Vec<&str> = self
+            .supported_labels
+            .iter()
+            .map(EntityLabelRef::as_str)
+            .collect();
+        let labels = if supported_borrowed.is_empty() {
             None
         } else {
-            Some(self.supported_kinds.as_slice())
+            Some(supported_borrowed.as_slice())
         };
         let request = NerRequest {
             text: input.data.text.as_str(),
-            kinds,
+            labels,
             language: input.language.as_ref(),
             correlation_id: input.correlation_id,
         };
@@ -153,8 +158,12 @@ impl EntityRecognizer<Text> for NerRecognizer {
                 self.model
                     .label_map
                     .lookup(&s.label)
-                    .filter(|k| self.supported_kinds.is_empty() || self.supported_kinds.contains(k))
-                    .map(|k| self.build_entity(s, k))
+                    .filter(|name| {
+                        self.supported_labels.is_empty()
+                            || self.supported_labels.iter().any(|sl| sl == *name)
+                    })
+                    .cloned()
+                    .map(|name| self.build_entity(s, name))
             })
             .collect();
         Ok(RecognizerOutput::new(entities))
@@ -163,6 +172,7 @@ impl EntityRecognizer<Text> for NerRecognizer {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_core::entity::builtins;
     use nvisy_core::modality::TextData;
 
     use super::*;
@@ -173,7 +183,10 @@ mod tests {
         let rec = NerRecognizer::builder()
             .with_name("test")
             .with_engine(NoopBackend)
-            .with_supported_kinds(vec![EntityKind::PersonName, EntityKind::EmailAddress])
+            .with_supported_labels(vec![
+                EntityLabelRef::from(builtins::PERSON_NAME.name.clone()),
+                EntityLabelRef::from(builtins::EMAIL_ADDRESS.name.clone()),
+            ])
             .build()
             .expect("builder succeeds");
         let input = RecognizerInput::new(TextData::new("Alice Smith"));
@@ -182,7 +195,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn empty_supported_kinds_passes_none_to_engine() {
+    async fn empty_supported_labels_passes_none_to_engine() {
         let rec = NerRecognizer::builder()
             .with_name("test")
             .with_engine(NoopBackend)

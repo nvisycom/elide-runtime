@@ -100,7 +100,7 @@ impl Anonymizer<Tabular> for Encrypt {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::entity::{EntityKind, TrailStep};
+    use nvisy_core::entity::{TrailStep, builtins};
     use nvisy_core::modality::TextLocation;
     use nvisy_core::primitive::Confidence;
 
@@ -114,7 +114,7 @@ mod tests {
 
     fn entity(start: usize, end: usize) -> Entity<Text> {
         Entity::builder()
-            .with_entity_kind(EntityKind::EmailAddress)
+            .with_label(builtins::EMAIL_ADDRESS.label_ref())
             .with_location(TextLocation::new(start, end))
             .with_confidence(Confidence::new(1.0).unwrap())
             .with_trail(Vec::<TrailStep>::new())

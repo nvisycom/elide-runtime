@@ -16,6 +16,8 @@
 //! redaction of MP3 streams. Callers wanting bit-perfect preservation
 //! of unredacted regions should not round-trip.
 
+use std::io::Cursor;
+
 use bytes::Bytes;
 use mp3lame_encoder::{Builder, FlushNoGap, InterleavedPcm, MonoPcm};
 use nvisy_core::Error;
@@ -27,8 +29,6 @@ use symphonia::core::formats::{FormatOptions, TrackType};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::default::{get_codecs, get_probe};
-
-use std::io::Cursor;
 
 const TARGET: &str = "nvisy_codec::handler::audio::mp3_codec";
 
@@ -48,15 +48,17 @@ pub(super) struct DecodedMp3 {
 /// only supports mono and stereo, and silent downmixing would
 /// quietly edit the *unredacted* audio).
 pub(super) fn probe_channels(bytes: &Bytes) -> Result<u16, Error> {
-    let mss = MediaSourceStream::new(
-        Box::new(Cursor::new(bytes.clone())),
-        Default::default(),
-    );
+    let mss = MediaSourceStream::new(Box::new(Cursor::new(bytes.clone())), Default::default());
     let mut hint = Hint::new();
     hint.with_extension("mp3");
 
     let reader = get_probe()
-        .probe(&hint, mss, FormatOptions::default(), MetadataOptions::default())
+        .probe(
+            &hint,
+            mss,
+            FormatOptions::default(),
+            MetadataOptions::default(),
+        )
         .map_err(|e| Error::validation(format!("MP3 probe failed: {e}"), TARGET))?;
 
     let track = reader
@@ -87,15 +89,17 @@ pub(super) fn probe_channels(bytes: &Bytes) -> Result<u16, Error> {
 /// [`super::redact::apply`] helper and for handing back to
 /// [`encode_from_pcm`].
 pub(super) fn decode_to_pcm(bytes: &Bytes) -> Result<DecodedMp3, Error> {
-    let mss = MediaSourceStream::new(
-        Box::new(Cursor::new(bytes.clone())),
-        Default::default(),
-    );
+    let mss = MediaSourceStream::new(Box::new(Cursor::new(bytes.clone())), Default::default());
     let mut hint = Hint::new();
     hint.with_extension("mp3");
 
     let mut reader = get_probe()
-        .probe(&hint, mss, FormatOptions::default(), MetadataOptions::default())
+        .probe(
+            &hint,
+            mss,
+            FormatOptions::default(),
+            MetadataOptions::default(),
+        )
         .map_err(|e| Error::validation(format!("MP3 probe failed: {e}"), TARGET))?;
 
     let track = reader
@@ -110,9 +114,9 @@ pub(super) fn decode_to_pcm(bytes: &Bytes) -> Result<DecodedMp3, Error> {
         .ok_or_else(|| Error::validation("MP3 track is missing audio codec params", TARGET))?
         .clone();
 
-    let sample_rate = audio_params.sample_rate.ok_or_else(|| {
-        Error::validation("MP3 track is missing a sample rate", TARGET)
-    })?;
+    let sample_rate = audio_params
+        .sample_rate
+        .ok_or_else(|| Error::validation("MP3 track is missing a sample rate", TARGET))?;
     let channels = audio_params
         .channels
         .as_ref()
@@ -163,10 +167,7 @@ pub(super) fn decode_to_pcm(bytes: &Bytes) -> Result<DecodedMp3, Error> {
                 continue;
             }
             Err(e) => {
-                return Err(Error::validation(
-                    format!("MP3 decode failed: {e}"),
-                    TARGET,
-                ));
+                return Err(Error::validation(format!("MP3 decode failed: {e}"), TARGET));
             }
         }
     }
@@ -250,8 +251,8 @@ pub(super) fn encode_from_pcm(
 ) -> Result<Vec<u8>, Error> {
     let bitrate = snap_bitrate(target_bitrate_bps);
 
-    let mut encoder = Builder::new()
-        .ok_or_else(|| Error::validation("LAME builder failed", TARGET))?;
+    let mut encoder =
+        Builder::new().ok_or_else(|| Error::validation("LAME builder failed", TARGET))?;
     encoder
         .set_sample_rate(sample_rate)
         .map_err(|e| Error::validation(format!("LAME sample-rate rejected: {e:?}"), TARGET))?;

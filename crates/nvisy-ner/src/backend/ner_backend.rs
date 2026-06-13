@@ -2,11 +2,11 @@
 //!
 //! Replaces the previous split between `GlinerBackend` (zero-shot,
 //! takes per-call kinds) and `NlpEngine`-produced NER spans
-//! (fixed-label, no per-call kinds). The `kinds` field on
-//! [`NerRequest`] is `Option<&[EntityKind]>`: `Some(...)` for
-//! zero-shot backends that take a kind allowlist per call,
-//! `None` for fixed-label backends whose set of kinds is baked
-//! into the model.
+//! (fixed-label, no per-call kinds). The `labels` field on
+//! [`NerRequest`] is `Option<&[&str]>`: `Some(...)` for zero-shot
+//! backends that take a label allowlist per call, `None` for
+//! fixed-label backends whose set of labels is baked into the
+//! model.
 //!
 //! Engines are called from inside [`NerRecognizer::recognize`] — no
 //! shared NLP pass, no orchestrator plumbing. Each recognizer holds
@@ -15,7 +15,7 @@
 //! [`NerRecognizer::recognize`]: crate::NerRecognizer
 
 use nvisy_core::Result;
-use nvisy_core::entity::{EntityKind, ModelProvenance};
+use nvisy_core::entity::ModelProvenance;
 use nvisy_core::primitive::LanguageTag;
 use uuid::Uuid;
 
@@ -27,12 +27,12 @@ pub struct NerRequest<'a> {
     /// Source text to scan. Byte offsets in returned spans refer
     /// back into this string.
     pub text: &'a str,
-    /// Kinds to detect when the backend supports per-call kind
-    /// selection. `None` means the backend uses its built-in
+    /// Label names to detect when the backend supports per-call
+    /// label selection. `None` means the backend uses its built-in
     /// fixed label set; `Some(slice)` means restrict detection to
-    /// the listed kinds. Empty slice short-circuits the call to
-    /// no work in the caller.
-    pub kinds: Option<&'a [EntityKind]>,
+    /// the listed names. Empty slice short-circuits the call to no
+    /// work in the caller.
+    pub labels: Option<&'a [&'a str]>,
     /// Caller-asserted language. Backends that support per-call
     /// language hinting use this; backends that don't ignore it.
     pub language: Option<&'a LanguageTag>,

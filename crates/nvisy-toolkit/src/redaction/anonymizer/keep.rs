@@ -1,7 +1,7 @@
 //! [`Keep`]: pass the matched span through unchanged.
 //!
 //! Useful in mixed policies — e.g. mask every kind by default but
-//! keep `EntityKind::Currency` so prices remain readable. The
+//! keep `builtins::CURRENCY.label_ref()` so prices remain readable. The
 //! replacement records the original value verbatim so the audit
 //! trail still has a row.
 

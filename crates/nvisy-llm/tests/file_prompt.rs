@@ -9,7 +9,7 @@
 //! rendering for text, bbox access for image), plus the
 //! `label_map` / `labels_to_ignore` policy on the lift side.
 
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::{EntityLabelRef, builtins};
 use nvisy_core::modality::{ImageData, ImageLocation, TextData, TextLocation};
 use nvisy_core::primitive::{BoundingBox, Dimensions};
 use nvisy_core::recognition::{Hint, RecognizerInput};
@@ -30,7 +30,7 @@ fn text_prompt_renders_template_and_lifts_entities() {
 
     let hint = Hint::<nvisy_core::modality::Text>::new(TextLocation::new(alice_start, alice_end))
         .with_name("uploader-alice")
-        .with_entity_kind(EntityKind::PersonName);
+        .with_label(builtins::PERSON_NAME.label_ref());
 
     let input = RecognizerInput::new(TextData::new(body))
         .with_hints(vec![hint])
@@ -58,10 +58,10 @@ fn text_prompt_renders_template_and_lifts_entities() {
     );
 
     // -- lift(): the TOML maps `person_name → date_of_birth` and
-    // ignores `diagnosis`. The model emits typed snake_case kinds
-    // (TextCandidate.entity_type is `Option<EntityKind>`); we expect
-    // PersonName → DateOfBirth via the map, EmailAddress untouched,
-    // and Diagnosis dropped by the ignore list.
+    // ignores `diagnosis`. The model emits snake_case label names
+    // (TextCandidate.entity_type is `Option<String>`); we expect
+    // person_name → date_of_birth via the map, email_address
+    // untouched, and diagnosis dropped by the ignore list.
     let response = LlmResponse::new(
         r#"{"entities":[
             {"entity_type":"person_name","value":"Alice Carter","context":"From: Alice Carter <","confidence":0.9},
@@ -71,17 +71,17 @@ fn text_prompt_renders_template_and_lifts_entities() {
     );
     let entities = prompt.lift(&response, &input);
 
-    let kinds: Vec<EntityKind> = entities.iter().map(|e| e.entity_kind).collect();
+    let kinds: Vec<EntityLabelRef> = entities.iter().map(|e| e.label.clone()).collect();
     assert!(
-        kinds.contains(&EntityKind::DateOfBirth),
+        kinds.contains(&builtins::DATE_OF_BIRTH.label_ref()),
         "person_name should have been remapped to DateOfBirth via label_map: {kinds:?}",
     );
     assert!(
-        kinds.contains(&EntityKind::EmailAddress),
+        kinds.contains(&builtins::EMAIL_ADDRESS.label_ref()),
         "email_address (no map entry) should pass through: {kinds:?}",
     );
     assert!(
-        !kinds.contains(&EntityKind::Diagnosis),
+        !kinds.contains(&builtins::DIAGNOSIS.label_ref()),
         "diagnosis was in labels_to_ignore but appeared: {kinds:?}",
     );
     assert_eq!(
@@ -105,7 +105,7 @@ fn image_prompt_renders_template_and_lifts_entities() {
         10.0, 20.0, 100.0, 50.0,
     )))
     .with_name("uploader-face")
-    .with_entity_kind(EntityKind::PersonName);
+    .with_label(builtins::PERSON_NAME.label_ref());
 
     let input = RecognizerInput::new(ImageData::new(bytes.clone(), dims))
         .with_hints(vec![hint])
@@ -132,24 +132,24 @@ fn image_prompt_renders_template_and_lifts_entities() {
     // kinds; assert remap + ignore both fire.
     let response = LlmResponse::new(
         r#"{"entities":[
-            {"entity_kind":"person_name","x":0.1,"y":0.1,"width":0.2,"height":0.2,"confidence":0.85},
-            {"entity_kind":"license_plate","x":0.5,"y":0.5,"width":0.1,"height":0.05,"confidence":0.7},
-            {"entity_kind":"url","x":0.0,"y":0.0,"width":0.05,"height":0.05,"confidence":0.9}
+            {"label":"person_name","x":0.1,"y":0.1,"width":0.2,"height":0.2,"confidence":0.85},
+            {"label":"license_plate","x":0.5,"y":0.5,"width":0.1,"height":0.05,"confidence":0.7},
+            {"label":"url","x":0.0,"y":0.0,"width":0.05,"height":0.05,"confidence":0.9}
         ]}"#,
     );
     let entities = prompt.lift(&response, &input);
 
-    let kinds: Vec<EntityKind> = entities.iter().map(|e| e.entity_kind).collect();
+    let kinds: Vec<EntityLabelRef> = entities.iter().map(|e| e.label.clone()).collect();
     assert!(
-        kinds.contains(&EntityKind::DateOfBirth),
+        kinds.contains(&builtins::DATE_OF_BIRTH.label_ref()),
         "person_name should have been remapped to DateOfBirth via label_map: {kinds:?}",
     );
     assert!(
-        kinds.contains(&EntityKind::LicensePlate),
+        kinds.contains(&builtins::LICENSE_PLATE.label_ref()),
         "license_plate (no map entry) should pass through: {kinds:?}",
     );
     assert!(
-        !kinds.contains(&EntityKind::Url),
+        !kinds.contains(&builtins::URL.label_ref()),
         "url was in labels_to_ignore but appeared: {kinds:?}",
     );
     assert_eq!(

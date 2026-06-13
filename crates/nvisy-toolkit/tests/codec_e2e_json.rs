@@ -9,7 +9,7 @@
 
 mod fixtures;
 
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::builtins;
 
 use crate::fixtures::{Fixture, assert_pii_removed, assert_text_entity, assert_tokens_present};
 
@@ -27,18 +27,21 @@ async fn json_codec_detects_and_redacts() {
     // its escape table — so slicing the fixture by an entity's
     // location yields the same bytes the recognizer matched.
     for (kind, needle) in [
-        (EntityKind::EmailAddress, "alice.johnson@example.com"),
-        (EntityKind::EmailAddress, "bob.smith@example.com"),
-        (EntityKind::PhoneNumber, "+1 (415) 555-0142"),
-        (EntityKind::PhoneNumber, "+1 (510) 555-0199"),
-        (EntityKind::PaymentCard, "4111 1111 1111 1111"),
-        (EntityKind::PaymentCard, "5555 5555 5555 4444"),
-        (EntityKind::Iban, "GB29 NWBK 6016 1331 9268 19"),
-        (EntityKind::Iban, "DE89 3704 0044 0532 0130 00"),
-        (EntityKind::GovernmentId, "123-45-6789"),
-        (EntityKind::GovernmentId, "234-56-7890"),
-        (EntityKind::IpAddress, "192.168.1.42"),
-        (EntityKind::IpAddress, "10.0.0.7"),
+        (
+            builtins::EMAIL_ADDRESS.label_ref(),
+            "alice.johnson@example.com",
+        ),
+        (builtins::EMAIL_ADDRESS.label_ref(), "bob.smith@example.com"),
+        (builtins::PHONE_NUMBER.label_ref(), "+1 (415) 555-0142"),
+        (builtins::PHONE_NUMBER.label_ref(), "+1 (510) 555-0199"),
+        (builtins::PAYMENT_CARD.label_ref(), "4111 1111 1111 1111"),
+        (builtins::PAYMENT_CARD.label_ref(), "5555 5555 5555 4444"),
+        (builtins::IBAN.label_ref(), "GB29 NWBK 6016 1331 9268 19"),
+        (builtins::IBAN.label_ref(), "DE89 3704 0044 0532 0130 00"),
+        (builtins::GOVERNMENT_ID.label_ref(), "123-45-6789"),
+        (builtins::GOVERNMENT_ID.label_ref(), "234-56-7890"),
+        (builtins::IP_ADDRESS.label_ref(), "192.168.1.42"),
+        (builtins::IP_ADDRESS.label_ref(), "10.0.0.7"),
     ] {
         assert_text_entity(FIXTURE.source, &outcome.entities, kind, needle);
     }

@@ -1,22 +1,27 @@
 //! Entity-presence and redaction-output assertion helpers for the
 //! codec E2E tests.
 
-use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::entity::{Entity, EntityLabelRef, builtins};
 use nvisy_core::modality::{Tabular, Text};
 
 /// Assert at least one `Entity<Text>` of `kind` matches `needle`
 /// when its location is sliced against `source`.
 #[track_caller]
-pub fn assert_text_entity(source: &str, entities: &[Entity<Text>], kind: EntityKind, needle: &str) {
+pub fn assert_text_entity(
+    source: &str,
+    entities: &[Entity<Text>],
+    label: EntityLabelRef,
+    needle: &str,
+) {
     let hit = entities
         .iter()
-        .any(|e| e.entity_kind == kind && &source[e.location.start..e.location.end] == needle);
+        .any(|e| e.label == label && &source[e.location.start..e.location.end] == needle);
     assert!(
         hit,
-        "expected `{needle}` as {kind:?}; got: {:?}",
+        "expected `{needle}` as {label:?}; got: {:?}",
         entities
             .iter()
-            .map(|e| (e.entity_kind, &source[e.location.start..e.location.end]))
+            .map(|e| (e.label.clone(), &source[e.location.start..e.location.end]))
             .collect::<Vec<_>>()
     );
 }
@@ -27,13 +32,13 @@ pub fn assert_text_entity(source: &str, entities: &[Entity<Text>], kind: EntityK
 pub fn assert_tabular_entity(
     cell_value: &str,
     entities: &[Entity<Tabular>],
-    kind: EntityKind,
+    label: EntityLabelRef,
     row: u32,
     col: u32,
     needle: &str,
 ) {
     let hit = entities.iter().any(|e| {
-        if e.entity_kind != kind {
+        if e.label != label {
             return false;
         }
         if e.location.row_index != row || e.location.column_index != col {
@@ -45,10 +50,14 @@ pub fn assert_tabular_entity(
     });
     assert!(
         hit,
-        "expected `{needle}` as {kind:?} at ({row},{col}); got: {:?}",
+        "expected `{needle}` as {label:?} at ({row},{col}); got: {:?}",
         entities
             .iter()
-            .map(|e| (e.entity_kind, e.location.row_index, e.location.column_index))
+            .map(|e| (
+                e.label.clone(),
+                e.location.row_index,
+                e.location.column_index
+            ))
             .collect::<Vec<_>>()
     );
 }

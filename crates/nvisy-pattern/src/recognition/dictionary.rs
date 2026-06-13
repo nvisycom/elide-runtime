@@ -25,7 +25,7 @@
 use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::context::Context;
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -44,8 +44,8 @@ use super::terms::Terms;
 pub struct Dictionary {
     /// Human-readable identifier (e.g. `"nationalities"`).
     pub name: String,
-    /// Entity kind every match emits.
-    pub entity_kind: EntityKind,
+    /// Entity label every match emits.
+    pub label: EntityLabelRef,
     /// Literal terms to scan for. The recognizer compiles these into
     /// an Aho-Corasick automaton at build time.
     pub terms: Terms,
@@ -97,7 +97,7 @@ fn default_word_boundary() -> bool {
 
 impl Dictionary {
     /// Start a chainable builder. Required fields: `name`,
-    /// `entity_kind`, `terms`.
+    /// `label`, `terms`.
     #[must_use]
     pub fn builder() -> DictionaryBuilder {
         DictionaryBuilder::default()
@@ -142,7 +142,7 @@ impl Dictionary {
         })?;
         let mut builder = Dictionary::builder()
             .with_name(metadata.name)
-            .with_entity_kind(metadata.entity_kind);
+            .with_label(metadata.label);
         if let Some(score) = metadata.score {
             builder = builder.with_score(score);
         }
@@ -164,7 +164,7 @@ impl Dictionary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DictionaryMetadata {
     name: String,
-    entity_kind: EntityKind,
+    label: EntityLabelRef,
     #[serde(default)]
     score: Option<Confidence>,
     #[serde(default)]

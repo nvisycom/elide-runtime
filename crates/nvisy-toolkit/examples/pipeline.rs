@@ -21,7 +21,7 @@ use std::str::from_utf8;
 
 use nvisy_codec::{CodecRegistry, DocumentHandle};
 use nvisy_core::Result;
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::builtins;
 use nvisy_core::modality::{Text, TextData};
 use nvisy_core::primitive::ConfidenceThreshold;
 use nvisy_core::recognition::RecognizerInput;
@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
         let matched = &SAMPLE[entity.location.start..entity.location.end];
         println!(
             "  - {:?} {:?} at {}..{} (confidence {:.2})",
-            entity.entity_kind,
+            entity.label,
             matched,
             entity.location.start,
             entity.location.end,
@@ -109,9 +109,15 @@ async fn main() -> Result<()> {
     // returns a `Redactions` batch; `redact_at` flushes the batch
     // back into the codec handler in place.
     let redaction = RedactionRegistry::<Text>::new()
-        .insert_kind(EntityKind::EmailAddress, Replace::new("[{entity_kind}]"))
-        .insert_kind(EntityKind::PhoneNumber, Replace::new("[{entity_kind}]"))
-        .insert_kind(EntityKind::PaymentCard, Mask::stars())
+        .insert_label(
+            builtins::EMAIL_ADDRESS.label_ref(),
+            Replace::new("[{label}]"),
+        )
+        .insert_label(
+            builtins::PHONE_NUMBER.label_ref(),
+            Replace::new("[{label}]"),
+        )
+        .insert_label(builtins::PAYMENT_CARD.label_ref(), Mask::stars())
         .with_fallback(Redact);
 
     // `source` is the codec-backed handle; it satisfies `DataAt<Text>`,

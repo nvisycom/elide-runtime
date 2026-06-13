@@ -1,4 +1,4 @@
 name = "us-passport"
-entity_kind = "passport_number"
+label = "passport_number"
 regex = "\\b[A-Z]\\d{8}\\b"
 score = 0.5

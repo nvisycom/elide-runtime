@@ -42,8 +42,9 @@ impl<'a> VlmPromptBuilder<'a> {
             for (i, h) in self.hints.iter().enumerate() {
                 let bbox = &h.location.bounding_box;
                 let kind = h
-                    .entity_kind
-                    .map(|k| k.to_string())
+                    .label
+                    .as_ref()
+                    .map(|l| l.to_string())
                     .unwrap_or_else(|| "unknown".to_string());
                 let name = h.name.as_deref().unwrap_or("");
                 prompt.push_str(&format!(

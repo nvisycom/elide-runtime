@@ -1,20 +1,16 @@
-//! Luhn checksum validator.
-//!
-//! Implements the [Luhn algorithm] used to validate credit/debit card
-//! numbers and other identification numbers. Only digits, spaces, and
-//! dashes are accepted as input: any other character causes the check
-//! to fail.
-//!
-//! [Luhn algorithm]: https://en.wikipedia.org/wiki/Luhn_algorithm
+//! Luhn checksum validator for credit-card and similar identifier
+//! numbers.
 
-/// Return `true` if `num` passes the Luhn checksum.
+/// Return `true` if `num` passes the [Luhn algorithm] checksum.
 ///
 /// Spaces and dashes are stripped before validation, so
 /// `"4539 1488 0343 6467"`, `"4539-1488-0343-6467"`, and
-/// `"4539148803436467"` are all equivalent.
+/// `"4539148803436467"` are equivalent inputs.
 ///
-/// Returns `false` if the input is empty or contains characters other
-/// than digits, spaces, and dashes.
+/// Returns `false` when the input is empty or contains any
+/// character other than digits, spaces, and dashes.
+///
+/// [Luhn algorithm]: https://en.wikipedia.org/wiki/Luhn_algorithm
 pub fn luhn(num: &str) -> bool {
     if num.is_empty() {
         return false;

@@ -1,22 +1,18 @@
-//! Date structural validation.
-//!
-//! Validates that a regex-matched date string represents a real calendar
-//! date. Supports multiple common formats.
+//! Calendar-date structural validator.
 
 /// Return `true` if `value` is a real calendar date in one of the
 /// supported written formats.
 ///
-/// Supported: `MM/DD/YYYY`, `DD/MM/YYYY`, `YYYY-MM-DD`, `YYYY/MM/DD`
-/// (with `/` or `-` separators). Leap years are honoured and the
-/// year must fall in `1900..=2100`.
+/// Supported formats are `MM/DD/YYYY`, `DD/MM/YYYY`, `YYYY-MM-DD`,
+/// and `YYYY/MM/DD`, with `/` or `-` as separators. Leap years
+/// are honoured and the year must fall in `1900..=2100`.
 ///
 /// # Ambiguity
 ///
-/// When both interpretations are valid (e.g. `02/03/1999` could mean
-/// Feb 3 or 3 Mar), the validator prefers `MM/DD/YYYY` and only falls
-/// back to `DD/MM/YYYY` if the first part is not a valid month. This
-/// is a format-level structural check — locale disambiguation is out
-/// of scope.
+/// When both interpretations are valid (e.g. `02/03/1999` could
+/// mean Feb 3 or 3 Mar), the validator prefers `MM/DD/YYYY` and
+/// only falls back to `DD/MM/YYYY` when the first part is not a
+/// valid month. Locale disambiguation is out of scope.
 pub fn date(value: &str) -> bool {
     let parts: Vec<&str> = value.split(['/', '-']).collect();
     if parts.len() != 3 {

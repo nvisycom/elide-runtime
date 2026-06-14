@@ -1,20 +1,19 @@
-//! Post-match validators for detected entity values.
+//! Post-match validators for regex-detected entity values.
 //!
-//! A [`Variant`] inside a [`Regex`] rule can reference a validator
-//! by name (e.g. `validator: Some("luhn")`) to reduce false
-//! positives. At [`PatternRecognizer::build`] time the name is
-//! resolved against a [`ValidatorRegistry`] to a concrete
-//! validation function.
+//! A [`Variant`] inside a [`Regex`] rule may name a validator
+//! (e.g. `validator: Some("luhn")`); the recognizer resolves the
+//! name against a [`ValidatorRegistry`] at build time and drops
+//! matches that fail the resolved check. Use validators to weed
+//! out structurally-suspect false positives that a regex alone
+//! can't.
 //!
-//! The default [`ValidatorRegistry::builtin`] ships with five
-//! validators — `luhn`, `iban`, `ssn`, `phone`, `date`. Consumers
-//! can extend the registry with their own validators by calling
-//! [`ValidatorRegistry::with`] before handing it to the recognizer
-//! builder.
+//! [`ValidatorRegistry::builtin`] ships with [`luhn`], [`iban`],
+//! [`ssn`], [`phone`], and [`date`]. Each validator is also
+//! re-exported as a free function so consumers can compose a
+//! custom registry without taking the full set.
 //!
 //! [`Variant`]: crate::Variant
 //! [`Regex`]: crate::Regex
-//! [`PatternRecognizer::build`]: crate::PatternRecognizer
 
 mod date;
 mod iban;
@@ -22,25 +21,25 @@ mod luhn;
 mod phone;
 mod ssn;
 
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 pub use self::date::date;
 pub use self::iban::iban;
 pub use self::luhn::luhn;
 pub use self::phone::phone;
 pub use self::ssn::ssn;
 
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::Arc;
-
-/// Post-match validator: returns `true` when `matched` passes the
-/// validator's check.
+/// Post-match validator returning whether a matched string is
+/// structurally valid.
 ///
-/// Implemented by both built-in function-pointer validators (via the
-/// blanket impl) and any third-party validator types a consumer
-/// registers.
+/// Implemented by every `Fn(&str) -> bool + Send + Sync` via the
+/// blanket impl, so plain function pointers slot in without a
+/// wrapper type. Implement directly for types that need to carry
+/// state (e.g. a remote-lookup client).
 pub trait Validator: Send + Sync {
-    /// Validate the text the recognizer matched. Returns `true` to
-    /// keep the match, `false` to drop it.
+    /// Return `true` to keep the match, `false` to drop it.
     fn validate(&self, matched: &str) -> bool;
 }
 
@@ -53,33 +52,30 @@ where
     }
 }
 
-/// Resolves validator names referenced in [`Variant`] definitions
-/// to concrete [`Validator`] implementations.
+/// Name → validator resolver consulted at recognizer-build time.
 ///
-/// Keys are [`Cow<'static, str>`] so the built-in registrations skip
-/// any allocation (`&'static str` literal → borrowed variant) while
-/// caller-supplied names that aren't `'static` (e.g. dynamically
-/// constructed at runtime) still flow through as owned `String`s.
-///
-/// [`Variant`]: crate::Variant
+/// Keys are [`Cow<'static, str>`] so a `&'static str` literal stays
+/// borrowed while a runtime-built name flows through as an owned
+/// `String`.
 #[derive(Clone, Default)]
 pub struct ValidatorRegistry {
     table: HashMap<Cow<'static, str>, Arc<dyn Validator>>,
 }
 
 impl ValidatorRegistry {
-    /// Empty registry — no validators registered. Regex rules that
-    /// reference a validator name will fail to resolve at recognizer
-    /// build time.
+    /// Construct an empty registry.
+    ///
+    /// Any [`Variant`] referencing a validator name will fail to
+    /// resolve at recognizer-build time.
+    ///
+    /// [`Variant`]: crate::Variant
     #[must_use]
     pub fn empty() -> Self {
         Self::default()
     }
 
-    /// Registry pre-loaded with every built-in validator: [`luhn`],
-    /// [`iban`], [`ssn`], [`phone`], [`date`]. Each is also
-    /// re-exported individually from this module so consumers can
-    /// mix-and-match without taking all five.
+    /// Construct a registry pre-loaded with the built-in
+    /// validators: [`luhn`], [`iban`], [`ssn`], [`phone`], [`date`].
     #[must_use]
     pub fn builtin() -> Self {
         Self::empty()
@@ -90,16 +86,11 @@ impl ValidatorRegistry {
             .with("date", date)
     }
 
-    /// Register `validator` under `name`. Overwrites any previous
-    /// entry with the same name.
+    /// Register `validator` under `name`, overwriting any previous
+    /// entry with the same key.
     ///
-    /// Built-ins live under `"luhn"`, `"iban"`, `"ssn"`, `"phone"`,
-    /// and `"date"`; consumers can override them with their own
-    /// implementations by registering under the same name.
-    ///
-    /// `name` accepts anything convertible to [`Cow<'static, str>`]
-    /// — a `&'static str` literal stays borrowed (zero allocation),
-    /// an owned `String` becomes the owned variant.
+    /// Override a built-in by registering under the same name
+    /// (e.g. `"luhn"`).
     #[must_use]
     pub fn with<N, V>(mut self, name: N, validator: V) -> Self
     where
@@ -110,8 +101,11 @@ impl ValidatorRegistry {
         self
     }
 
-    /// Look up a validator by name, returning the registered
-    /// implementation or `None` when the name is unknown.
+    /// Look up a validator by name.
+    ///
+    /// Returns `None` when the name is unregistered; the
+    /// recognizer's build step surfaces that as a configuration
+    /// error.
     #[must_use]
     pub fn resolve(&self, name: &str) -> Option<Arc<dyn Validator>> {
         self.table.get(name).cloned()

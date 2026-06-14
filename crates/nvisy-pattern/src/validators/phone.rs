@@ -1,17 +1,14 @@
-//! Phone number structural validation.
-//!
-//! Validates that a regex-matched phone number has a plausible structure:
-//! correct digit count and no obviously invalid prefixes.
+//! Phone-number structural validator.
 
 /// Return `true` if `value` has a plausible phone-number structure.
 ///
-/// Strips all non-digit characters, then checks:
+/// All non-digit characters are stripped, then checks:
 ///
-/// - 7 to 15 digits (ITU-T E.164 range)
-/// - When the original begins with `+` (explicit E.164), the digits
-///   must not start with 0 (no country code is `0…`). National formats
-///   such as UK `020 7946 0958` keep their trunk-prefix zero and remain
-///   valid.
+/// - 7 to 15 digits (the ITU-T E.164 range).
+/// - When the original begins with `+` (explicit E.164), the
+///   digits must not start with `0` — no country code is `0…`.
+///   National formats such as UK `020 7946 0958` keep their
+///   trunk-prefix zero and remain valid.
 pub fn phone(value: &str) -> bool {
     let digits: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
     let len = digits.len();

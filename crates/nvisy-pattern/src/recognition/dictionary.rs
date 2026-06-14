@@ -1,22 +1,4 @@
 //! [`Dictionary`]: literal-term detection rule.
-//!
-//! A dictionary scans for a fixed list of literal strings using an
-//! Aho-Corasick automaton. Compared with [`Regex`], a dictionary
-//! has no regex engine, no validator, and a single shared confidence
-//! score applied to every match.
-//!
-//! Construct via [`Dictionary::builder`] for the chainable style or
-//! [`Dictionary::from_toml`] for a self-contained TOML source.
-//!
-//! Term sources are first-class — see [`Terms`] for [`from_text`]
-//! and [`from_csv`] constructors. The builder's [`with_terms`]
-//! setter accepts anything convertible to [`Terms`].
-//!
-//! [`Regex`]: crate::Regex
-//! [`Terms`]: crate::Terms
-//! [`from_text`]: crate::Terms::from_text
-//! [`from_csv`]: crate::Terms::from_csv
-//! [`with_terms`]: DictionaryBuilder::with_terms
 
 use derive_builder::Builder;
 use nvisy_core::Error;
@@ -24,14 +6,14 @@ use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use serde::Deserialize;
 
-use super::terms::Terms;
+use super::term::Term;
 
 /// Confidence policy for a [`Dictionary`]'s matches.
 ///
 /// Either every term gets the same score ([`Uniform`]), or scores
-/// are picked per CSV source column ([`PerColumn`]). The untagged
-/// serde representation accepts a bare number for the uniform
-/// case and an array for the per-column case:
+/// vary by CSV source column ([`PerColumn`]). The untagged serde
+/// representation accepts a bare number for the uniform case and
+/// an array for the per-column case:
 ///
 /// ```toml
 /// score = 0.9              # Uniform
@@ -43,24 +25,28 @@ use super::terms::Terms;
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
 pub enum Scoring {
-    /// Single confidence stamped on every match. The common case.
+    /// One confidence stamped on every match — the common case.
     Uniform(Confidence),
-    /// Per-column confidence vector. `[i]` is the confidence
-    /// stamped on every term whose source CSV column was `i`. A
-    /// term from a column past the end of this vec is a
-    /// recognizer-build error — define one score per column.
+    /// Per-column confidence vector. Entry `i` is the score for
+    /// terms loaded from CSV column `i`. A term from a column past
+    /// the end of this vector causes a recognizer-build error, so
+    /// callers must declare one score per source column.
     PerColumn(Vec<Confidence>),
 }
 
 impl Scoring {
-    /// Validate the policy's internal shape. A
-    /// `PerColumn(vec![])` can never resolve a score for any
-    /// column, so callers (the recognizer at build time) surface
-    /// it as a configuration error.
+    /// Return `Ok(())` when the policy can resolve a score for at
+    /// least one input.
+    ///
+    /// [`PerColumn`] with an empty vector can never resolve and is
+    /// rejected here; the recognizer surfaces the error at build
+    /// time.
     ///
     /// # Errors
     ///
-    /// Returns the human-readable reason the policy is invalid.
+    /// Returns a human-readable reason when the policy is invalid.
+    ///
+    /// [`PerColumn`]: Self::PerColumn
     pub fn validate(&self) -> Result<(), &'static str> {
         match self {
             Self::Uniform(_) => Ok(()),
@@ -71,12 +57,15 @@ impl Scoring {
         }
     }
 
-    /// Resolve a score for `column`. `Uniform` ignores the column
-    /// and always returns its score; `PerColumn` returns the entry
-    /// at `column`, or `None` when no column is supplied or the
-    /// index is past the end of the per-column vector. Callers
-    /// decide the fall-back policy (per-term override, hard
-    /// error, default constant, etc.).
+    /// Resolve a score for the given source `column`.
+    ///
+    /// [`Uniform`] ignores `column` and always returns its score;
+    /// [`PerColumn`] returns the entry at `column`, or `None` when
+    /// `column` is `None` or out of range. Callers decide the
+    /// fall-back policy (per-term override, hard error, …).
+    ///
+    /// [`Uniform`]: Self::Uniform
+    /// [`PerColumn`]: Self::PerColumn
     #[must_use]
     pub fn get(&self, column: Option<u16>) -> Option<Confidence> {
         match self {
@@ -94,17 +83,29 @@ impl Default for Scoring {
 
 /// Literal-term detection rule.
 ///
+/// Scans for a fixed list of literals using a shared Aho-Corasick
+/// automaton. Unlike [`Regex`], a dictionary has no regex engine,
+/// no validator, and a [`Scoring`] policy shared across its terms.
+///
+/// # Examples
+///
 /// ```
 /// use nvisy_core::entity::builtins;
-/// use nvisy_pattern::{Dictionary, Terms};
+/// use nvisy_pattern::{Dictionary, Term};
 ///
 /// let dictionary = Dictionary::builder()
 ///     .with_name("nationalities")
 ///     .with_label(builtins::NATIONALITY.label_ref())
-///     .with_terms(Terms::from(["German", "French", "Italian"]))
+///     .with_terms(vec![
+///         Term::new("German"),
+///         Term::new("French"),
+///         Term::new("Italian"),
+///     ])
 ///     .build()
 ///     .expect("nationalities dictionary builds");
 /// ```
+///
+/// [`Regex`]: crate::Regex
 #[derive(Debug, Clone, PartialEq, Builder, Deserialize)]
 #[builder(
     name = "DictionaryBuilder",
@@ -113,40 +114,39 @@ impl Default for Scoring {
     build_fn(error = "Error")
 )]
 pub struct Dictionary {
-    /// Human-readable identifier (e.g. `"nationalities"`).
+    /// Human-readable identifier surfaced in trail provenance
+    /// (e.g. `"nationalities"`).
     pub name: String,
     /// Entity label every match emits.
     pub label: EntityLabelRef,
-    /// Literal terms to scan for. The recognizer compiles these
-    /// into an Aho-Corasick automaton at build time.
-    pub terms: Terms,
-    /// Confidence policy: uniform across every term, or per CSV
-    /// source column. Defaults to [`Scoring::Uniform`] with
-    /// [`Confidence::MAX`].
+    /// Literal terms to scan for. Compiled into the shared
+    /// Aho-Corasick automaton at recognizer-build time.
+    pub terms: Vec<Term>,
+    /// Confidence policy resolved against each term at
+    /// recognizer-build time. Defaults to [`Scoring::Uniform`]
+    /// with [`Confidence::MAX`].
     #[builder(default)]
     #[serde(default, rename = "score")]
     pub scoring: Scoring,
     /// Context keywords that lift confidence when one of them
-    /// appears near a match. Harvested by the engine into a
-    /// per-label `BoostRule` in `nvisy-context`; the recognizer
-    /// itself never reads this field.
+    /// appears near a match.
     #[builder(default)]
     #[serde(default)]
     pub context: Vec<String>,
-    /// Languages the dictionary applies to (BCP-47 tags). An empty
-    /// list (the default) means the dictionary applies regardless
-    /// of language; otherwise the recognizer skips this dictionary
-    /// when the per-call language hint is set to a tag not in this
+    /// BCP-47 language tags the dictionary applies to. Empty means
+    /// "any language"; otherwise the recognizer skips the
+    /// dictionary when the per-call language hint is not in the
     /// list.
     #[builder(default)]
     #[serde(default)]
     pub languages: Vec<LanguageTag>,
-    /// Require word-boundary surroundings on every match. With the
-    /// default of `true`, a term `"am"` matches the word `"am"`
-    /// but not the `"am"` inside `"example"`. Word characters are
-    /// alphanumerics and `_` (Unicode-aware). Set to `false` for
-    /// dictionaries that genuinely want substring matching (e.g.
-    /// scanning for embedded credentials inside arbitrary tokens).
+    /// Require word-boundary surroundings on every match.
+    ///
+    /// With the default of `true`, the term `"am"` matches the
+    /// word `"am"` but not the `"am"` inside `"example"`. Word
+    /// characters are Unicode alphanumerics and `_`. Set to
+    /// `false` to allow substring matches (e.g. scanning for
+    /// embedded credentials).
     #[builder(default = "true")]
     #[serde(default = "default_word_boundary")]
     pub word_boundary: bool,
@@ -157,16 +157,18 @@ fn default_word_boundary() -> bool {
 }
 
 impl Dictionary {
-    /// Start a chainable builder. Required fields: `name`,
-    /// `label`, `terms`.
+    /// Start a chainable builder.
+    ///
+    /// Required fields: `name`, `label`, `terms`.
     #[must_use]
     pub fn builder() -> DictionaryBuilder {
         DictionaryBuilder::default()
     }
 
-    /// Parse a self-contained dictionary from a TOML string. The
-    /// TOML must include a `terms` field; for metadata-only TOML
-    /// paired with a separate term source, use
+    /// Parse a self-contained dictionary from a TOML source.
+    ///
+    /// The TOML must include a `terms` field; for metadata-only
+    /// TOML paired with a separate term source, use
     /// [`metadata_from_toml`] instead.
     ///
     /// # Errors
@@ -180,15 +182,11 @@ impl Dictionary {
             .map_err(|e| Error::validation(format!("dictionary TOML: {e}"), "nvisy-pattern"))
     }
 
-    /// Parse the metadata fields of a dictionary from TOML (no
-    /// `terms` required) and return a seeded builder. The caller is
-    /// expected to chain
-    /// [`with_terms`] before
-    /// [`build`].
+    /// Parse dictionary metadata from a sidecar TOML source.
     ///
-    /// Useful when shipped or user-supplied dictionaries split
-    /// metadata into a TOML sidecar and store the actual terms as
-    /// CSV / TXT.
+    /// The returned [`DictionaryBuilder`] is seeded with every
+    /// field except `terms`; callers chain [`with_terms`] (e.g.
+    /// loaded from a paired CSV/TXT) before [`build`].
     ///
     /// # Errors
     ///
@@ -217,8 +215,6 @@ impl Dictionary {
     }
 }
 
-/// Wire shape for the dictionary metadata sidecar TOML — every
-/// field [`Dictionary`] carries except `terms`.
 #[derive(Debug, Clone, Deserialize)]
 struct DictionaryMetadata {
     name: String,

@@ -1,20 +1,4 @@
-//! [`PatternRecognizer`]: compiles patterns and dictionaries into
-//! pooled scanners and implements [`EntityRecognizer<Text>`].
-//!
-//! The internal split is intentional: regex patterns go into a
-//! single [`regex::RegexSet`] for a one-pass scan across every
-//! regex; dictionary terms go into a single
-//! [`aho_corasick::AhoCorasick`] automaton for a one-pass scan
-//! across every literal. Both passes share one walk over the input
-//! and emit entities in modality-local byte coordinates.
-//!
-//! Construction is builder-driven: [`PatternRecognizer::builder`]
-//! returns a [`PatternRecognizerBuilder`] that accumulates patterns,
-//! dictionaries, and (optionally) a custom validator registry, then
-//! compiles everything into the scanners on [`build`]. The shipped
-//! built-in pattern + dictionary set is [`PatternRecognizerBuilder::builtin`].
-//!
-//! [`build`]: PatternRecognizerBuilder::build
+//! [`PatternRecognizer`] and its builder.
 
 use aho_corasick::{AhoCorasick, MatchKind};
 use nvisy_context::{BoostRule, Boosting, Enhancer, SubstringMatcher};
@@ -30,8 +14,21 @@ use super::regex::Regex;
 use crate::shipped;
 use crate::validators::ValidatorRegistry;
 
-/// Runtime text recognizer composed of one regex pool and one
-/// Aho-Corasick automaton.
+/// Runtime text recognizer composed of a regex pool and an Aho-Corasick automaton.
+///
+/// Every registered [`Regex`] variant goes into one
+/// [`::regex::RegexSet`] for a single one-pass scan across every
+/// regex; every [`Dictionary`] term goes into one
+/// [`::aho_corasick::AhoCorasick`] automaton for a single one-pass
+/// scan across every literal. Both passes share one walk over the
+/// input and emit entities in modality-local byte coordinates.
+///
+/// Construct via [`PatternRecognizer::builder`]; the build wraps
+/// the recognizer in a [`Boosting`] layer that lifts confidence on
+/// matches whose neighbourhood contains a per-label context
+/// keyword harvested from the same rules.
+///
+/// # Examples
 ///
 /// ```
 /// use nvisy_pattern::PatternRecognizer;
@@ -42,6 +39,9 @@ use crate::validators::ValidatorRegistry;
 ///     .build()
 ///     .expect("built-in recognizer builds");
 /// ```
+///
+/// [`Regex`]: super::Regex
+/// [`Dictionary`]: super::Dictionary
 pub struct PatternRecognizer {
     patterns: Vec<CompiledPattern>,
     regex_set: Option<RegexSet>,
@@ -50,11 +50,10 @@ pub struct PatternRecognizer {
 }
 
 impl PatternRecognizer {
-    /// Start a builder. Required: at least one pattern or
-    /// dictionary; otherwise [`build`] succeeds with a recognizer
-    /// that always emits zero entities.
+    /// Start a chainable builder.
     ///
-    /// [`build`]: PatternRecognizerBuilder::build
+    /// A recognizer built with no patterns and no dictionaries is
+    /// valid — it emits zero entities on every call.
     #[must_use]
     pub fn builder() -> PatternRecognizerBuilder {
         PatternRecognizerBuilder::default()
@@ -67,9 +66,13 @@ impl PatternRecognizer {
     }
 }
 
-/// Accumulates patterns, dictionaries, and a validator registry,
-/// then compiles them into a [`PatternRecognizer`] wrapped in a
-/// [`Boosting`] layer.
+/// Accumulator of rules + validator registry for
+/// [`PatternRecognizer`].
+///
+/// Patterns and dictionaries are stored as authored — compilation
+/// into the pooled scanners happens in [`build`].
+///
+/// [`build`]: Self::build
 #[derive(Debug, Clone, Default)]
 pub struct PatternRecognizerBuilder {
     patterns: Vec<Regex>,
@@ -84,7 +87,9 @@ impl PatternRecognizerBuilder {
         Self::default()
     }
 
-    /// Pre-seed with the shipped built-in pattern + dictionary set.
+    /// Pre-seed with the shipped built-in patterns and
+    /// dictionaries.
+    ///
     /// Shorthand for
     /// `Self::new().with_builtin_patterns().with_builtin_dictionaries()`.
     #[must_use]
@@ -94,7 +99,7 @@ impl PatternRecognizerBuilder {
             .with_builtin_dictionaries()
     }
 
-    /// Register one pattern. Patterns accumulate in registration
+    /// Register one pattern; patterns accumulate in registration
     /// order.
     #[must_use]
     pub fn with_pattern(mut self, pattern: Regex) -> Self {
@@ -102,7 +107,7 @@ impl PatternRecognizerBuilder {
         self
     }
 
-    /// Register one dictionary. Dictionaries accumulate in
+    /// Register one dictionary; dictionaries accumulate in
     /// registration order.
     #[must_use]
     pub fn with_dictionary(mut self, dictionary: Dictionary) -> Self {
@@ -124,18 +129,22 @@ impl PatternRecognizerBuilder {
         self
     }
 
-    /// Override the validator registry. When unset, the built-in
-    /// registry ([`ValidatorRegistry::builtin`]) is used.
+    /// Override the validator registry used to resolve variant
+    /// validator names.
+    ///
+    /// Defaults to [`ValidatorRegistry::builtin`] when unset.
     #[must_use]
     pub fn with_validators(mut self, registry: ValidatorRegistry) -> Self {
         self.validators = Some(registry);
         self
     }
 
-    /// Drop every pattern and dictionary whose `label` is not
-    /// registered in `catalog`. Used to build a per-request
-    /// recognizer from a workspace-wide template — rules that
-    /// would emit labels no policy declared never run.
+    /// Drop every pattern and dictionary whose label is not
+    /// declared in `catalog`.
+    ///
+    /// The engine uses this to build a per-request recognizer from
+    /// a workspace-wide template — rules that would emit labels no
+    /// policy declared never run.
     #[must_use]
     pub fn filter_by_catalog(mut self, catalog: &EntityLabelCatalog) -> Self {
         self.patterns
@@ -145,10 +154,11 @@ impl PatternRecognizerBuilder {
         self
     }
 
-    /// `true` when the builder has no patterns and no
-    /// dictionaries. Engine code uses this to skip the
-    /// per-request recognizer entirely when the catalog filter
-    /// dropped every rule.
+    /// Return `true` when no patterns and no dictionaries are
+    /// registered.
+    ///
+    /// The engine uses this to skip the per-request recognizer
+    /// entirely after a catalog filter dropped every rule.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.patterns.is_empty() && self.dictionaries.is_empty()
@@ -166,10 +176,12 @@ impl PatternRecognizerBuilder {
         &self.dictionaries
     }
 
-    /// Compile every registered pattern and dictionary into the
-    /// pooled scanners and wrap the recognizer in a [`Boosting`]
-    /// layer carrying per-label keyword boosts harvested from the
-    /// same set of rules.
+    /// Compile every rule into the pooled scanners and wrap the
+    /// recognizer in a [`Boosting`] layer.
+    ///
+    /// Context keywords from every pattern and dictionary are
+    /// harvested into per-label [`BoostRule`]s that lift confidence
+    /// on matches whose neighbourhood contains a declared keyword.
     ///
     /// # Errors
     ///
@@ -265,7 +277,7 @@ impl PatternRecognizerBuilder {
             }
             let term_start = all_terms.len();
             let mut term_scores = Vec::with_capacity(dict.terms.len());
-            for entry in dict.terms.entries() {
+            for entry in &dict.terms {
                 all_terms.push(entry.term.clone());
                 // Per-term `score` wins when set; otherwise ask
                 // the dictionary's `Scoring` to resolve against
@@ -407,13 +419,13 @@ mod tests {
 
     use super::*;
     use crate::Dictionary;
-    use crate::recognition::terms::Terms;
+    use crate::recognition::term::Term;
 
     fn dict(name: &str, terms: &[&str], word_boundary: bool) -> Dictionary {
         Dictionary::builder()
             .with_name(name.to_owned())
             .with_label(EntityLabelRef::from(builtins::LANGUAGE.name.clone()))
-            .with_terms(Terms::from(terms))
+            .with_terms(terms.iter().copied().map(Term::new).collect::<Vec<_>>())
             .with_word_boundary(word_boundary)
             .build()
             .expect("dictionary builds")

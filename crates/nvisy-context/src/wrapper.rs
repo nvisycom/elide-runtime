@@ -22,8 +22,7 @@ use nvisy_core::Result;
 use nvisy_core::modality::Text;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
 
-use super::Enhancer;
-use super::Tokens;
+use super::{Enhancer, Tokens};
 
 /// Wraps an [`EntityRecognizer<Text>`] with a post-recognition
 /// [`Enhancer`] pass. Implements [`EntityRecognizer<Text>`] so

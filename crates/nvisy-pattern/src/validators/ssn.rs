@@ -1,15 +1,16 @@
 //! US Social Security Number format validator.
-//!
-//! Validates the `AAA-GG-SSSS` format where:
-//!
-//! - **Area** (AAA): 001–899, excluding 666.
-//! - **Group** (GG): 01–99.
-//! - **Serial** (SSSS): 0001–9999.
 
-/// Return `true` if `value` is a structurally valid US SSN in `AAA-GG-SSSS`
-/// format.
+/// Return `true` if `value` is a structurally valid US SSN in
+/// `AAA-GG-SSSS` format.
 ///
-/// This is a format check, not a verification against SSA records.
+/// Validates the three parts as:
+///
+/// - **Area** (`AAA`): 001–899, excluding 666.
+/// - **Group** (`GG`): 01–99.
+/// - **Serial** (`SSSS`): 0001–9999.
+///
+/// This is a format check only — not a verification against SSA
+/// records.
 pub fn ssn(value: &str) -> bool {
     let parts: Vec<&str> = value.split('-').collect();
     if parts.len() != 3 {

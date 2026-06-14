@@ -99,7 +99,11 @@ mod tests {
     fn substring_matches_case_insensitively() {
         let m = SubstringMatcher;
         assert!(m.any_match("Your SSN: 123", &[], &kws(&["ssn"])));
-        assert!(m.any_match("the SOCIAL SECURITY number", &[], &kws(&["social security"])));
+        assert!(m.any_match(
+            "the SOCIAL SECURITY number",
+            &[],
+            &kws(&["social security"])
+        ));
         assert!(!m.any_match("nothing here", &[], &kws(&["ssn"])));
     }
 

@@ -10,15 +10,13 @@ use nvisy_core::entity::{TrailStepKind, builtins};
 use nvisy_core::modality::TextData;
 use nvisy_core::primitive::Confidence;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
-use nvisy_pattern::{Regex, PatternRecognizer, Variant};
+use nvisy_pattern::{PatternRecognizer, Regex, Variant};
 
 #[tokio::test]
 async fn enhancer_boosts_matches_near_keyword_only() {
-    let variant = Variant::builder()
-        .with_regex(r"\b\d{3}-\d{2}-\d{4}\b")
-        .with_score(Confidence::clamped(0.6))
-        .build()
-        .expect("ssn variant builds");
+    let variant = Variant::new(r"\b\d{3}-\d{2}-\d{4}\b")
+        .expect("ssn variant builds")
+        .with_score(Confidence::clamped(0.6));
     let regex = Regex::builder()
         .with_name("ssn")
         .with_label(builtins::GOVERNMENT_ID.label_ref())

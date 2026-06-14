@@ -1,21 +1,21 @@
 //! Built-in [`Dictionary`]s, embedded at compile time.
 //!
 //! Each accessor pairs a TOML metadata sidecar
-//! (`assets/dictionaries/**/*.toml`) with a term source
-//! (`*.csv` for multi-column term lists, `*.txt` for one-per-line),
-//! merging them via [`Dictionary::metadata_from_toml`] +
-//! [`Terms::from_csv`] / [`Terms::from_text`].
+//! (`assets/dictionaries/**/*.toml`) with a term source (`*.csv`
+//! for multi-column term lists, `*.txt` for one-per-line), merging
+//! them via [`Dictionary::metadata_from_toml`] + [`Term::from_csv`]
+//! / [`Term::from_text`].
 //!
 //! [`Dictionary`]: crate::Dictionary
 
-use crate::recognition::{Dictionary, Terms};
+use crate::recognition::{Dictionary, Term};
 
 macro_rules! shipped_dictionary {
     ($(#[$meta:meta])* fn $name:ident from $meta_path:literal with csv $terms:literal) => {
         $(#[$meta])*
         #[must_use]
         pub fn $name() -> Dictionary {
-            let terms = Terms::from_csv(include_bytes!(concat!(
+            let terms = Term::from_csv(include_str!(concat!(
                 "../../assets/dictionaries/",
                 $terms
             )))
@@ -34,11 +34,10 @@ macro_rules! shipped_dictionary {
         $(#[$meta])*
         #[must_use]
         pub fn $name() -> Dictionary {
-            let terms = Terms::from_text(include_bytes!(concat!(
+            let terms = Term::from_text(include_str!(concat!(
                 "../../assets/dictionaries/",
                 $terms
-            )))
-            .expect(concat!("shipped term source `", $terms, "` parses"));
+            )));
             Dictionary::metadata_from_toml(include_str!(concat!(
                 "../../assets/dictionaries/",
                 $meta_path

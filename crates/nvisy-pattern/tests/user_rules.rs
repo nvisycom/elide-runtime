@@ -2,14 +2,14 @@
 //! shape (`testdata/patterns/*.toml`,
 //! `testdata/dictionaries/*.{toml,csv}`) through
 //! [`Regex::from_toml`], [`Dictionary::metadata_from_toml`], and
-//! [`Terms::from_csv`], mix them with shipped patterns, and
+//! [`Term::from_csv`], mix them with shipped patterns, and
 //! confirm a real internal-handoff document yields the custom
 //! entities.
 
 use nvisy_core::entity::builtins;
 use nvisy_core::modality::TextData;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
-use nvisy_pattern::{Dictionary, Regex, PatternRecognizer, Terms};
+use nvisy_pattern::{Dictionary, PatternRecognizer, Regex, Term};
 
 #[tokio::test]
 async fn user_toml_rules_load_and_detect() {
@@ -19,7 +19,7 @@ async fn user_toml_rules_load_and_detect() {
         Regex::from_toml(include_str!("../testdata/patterns/product_codes.toml"))
             .expect("product_codes.toml parses");
 
-    let terms = Terms::from_csv(include_bytes!("../testdata/dictionaries/product_codes.csv"))
+    let terms = Term::from_csv(include_str!("../testdata/dictionaries/product_codes.csv"))
         .expect("product_codes.csv parses");
     let product_code_dict =
         Dictionary::metadata_from_toml(include_str!("../testdata/dictionaries/product_codes.toml"))

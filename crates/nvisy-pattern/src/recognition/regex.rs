@@ -1,12 +1,4 @@
-//! [`Regex`]: per-label regex-based detection rule.
-//!
-//! A `Regex` rule bundles one entity label, its context-keyword
-//! list, and one or more [`Variant`]s. Each variant carries its
-//! own regex source, emission score, and optional named
-//! validator. All variants under one rule emit the same label.
-//!
-//! Construct via [`Regex::builder`] for the chainable style or
-//! [`Regex::from_toml`] when loading a definition file.
+//! [`Regex`] rule and its [`Variant`]s.
 
 use derive_builder::Builder;
 use nvisy_core::Error;
@@ -14,74 +6,107 @@ use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use serde::Deserialize;
 
-/// One regex variant inside a [`Regex`] rule. Carries the regex
-/// source, the emission confidence stamped on every match, and the
-/// optional validator name resolved at recognizer-build time.
-#[derive(Debug, Clone, PartialEq, Builder, Deserialize)]
-#[builder(
-    name = "VariantBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with"),
-    build_fn(error = "Error", validate = "VariantBuilder::validate")
-)]
+/// One regex strategy inside a [`Regex`] rule.
+///
+/// A variant pairs a regex source with the confidence stamped on
+/// every match it produces and, optionally, a validator name
+/// resolved against the [`ValidatorRegistry`] at recognizer-build
+/// time so structurally-suspect matches can be dropped.
+///
+/// [`ValidatorRegistry`]: crate::validators::ValidatorRegistry
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Variant {
     /// Regex source. Compiled to a [`::regex::Regex`] by
-    /// [`PatternRecognizer::build`]; shape errors there, not here.
+    /// [`PatternRecognizer::build`].
     ///
     /// [`PatternRecognizer::build`]: super::PatternRecognizer
     pub regex: String,
-    /// Confidence score stamped on every match this variant emits
-    /// before any post-recognition boost.
-    #[builder(default = "Confidence::MAX")]
+    /// Confidence stamped on every match, before any
+    /// post-recognition keyword boost.
+    #[serde(default = "default_score")]
     pub score: Confidence,
-    /// Optional validator name. Resolved at recognizer-build time
-    /// against the [`ValidatorRegistry`]; matches that fail
-    /// validation are dropped.
+    /// Validator name resolved against the [`ValidatorRegistry`].
+    /// Matches that fail validation are dropped.
     ///
     /// [`ValidatorRegistry`]: crate::validators::ValidatorRegistry
-    #[builder(default)]
     #[serde(default)]
     pub validator: Option<String>,
 }
 
 impl Variant {
-    /// Start a chainable builder. Required field: `regex`.
-    #[must_use]
-    pub fn builder() -> VariantBuilder {
-        VariantBuilder::default()
-    }
-}
-
-impl VariantBuilder {
-    fn validate(&self) -> Result<(), Error> {
-        if let Some(regex) = self.regex.as_ref()
-            && let Err(e) = ::regex::Regex::new(regex)
-        {
+    /// Construct a variant from a regex source.
+    ///
+    /// `score` defaults to [`Confidence::MAX`] and `validator` to
+    /// `None`; override with [`with_score`] / [`with_validator`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when `regex` is not a valid
+    /// regular expression.
+    ///
+    /// [`with_score`]: Self::with_score
+    /// [`with_validator`]: Self::with_validator
+    pub fn new(regex: impl Into<String>) -> Result<Self, Error> {
+        let regex = regex.into();
+        if let Err(e) = ::regex::Regex::new(&regex) {
             return Err(Error::validation(
                 format!("invalid regex: {e}"),
                 "nvisy-pattern",
             ));
         }
-        Ok(())
+        Ok(Self {
+            regex,
+            score: Confidence::MAX,
+            validator: None,
+        })
+    }
+
+    /// Set the per-match confidence score.
+    #[must_use]
+    pub fn with_score(mut self, score: Confidence) -> Self {
+        self.score = score;
+        self
+    }
+
+    /// Set the validator name to run on every match.
+    ///
+    /// The name is resolved against the [`ValidatorRegistry`] when
+    /// the parent [`PatternRecognizer`] is built; unknown names
+    /// surface as a build-time error.
+    ///
+    /// [`ValidatorRegistry`]: crate::validators::ValidatorRegistry
+    /// [`PatternRecognizer`]: super::PatternRecognizer
+    #[must_use]
+    pub fn with_validator(mut self, name: impl Into<String>) -> Self {
+        self.validator = Some(name.into());
+        self
     }
 }
 
-/// Regex-based detection rule: one label, optional boost
-/// keywords, one or more [`Variant`]s. Matches the Presidio
-/// "pattern recognizer" shape — multiple regex strategies for one
-/// entity type, plus a shared context keyword list.
+fn default_score() -> Confidence {
+    Confidence::MAX
+}
+
+/// Regex detection rule: one label, optional keyword boosts, and
+/// one or more [`Variant`]s.
+///
+/// Mirrors the Presidio "pattern recognizer" shape — several regex
+/// strategies for one entity type, plus a shared context-keyword
+/// list. Every variant emits the same [`label`]; context keywords
+/// are harvested by [`PatternRecognizer`] into a wrapping boost
+/// layer and are never read by the rule itself.
+///
+/// # Examples
 ///
 /// ```
 /// use nvisy_core::entity::builtins;
 /// use nvisy_core::primitive::Confidence;
 /// use nvisy_pattern::{Regex, Variant};
 ///
-/// let variant = Variant::builder()
-///     .with_regex(r"\b\d{3}-\d{2}-\d{4}\b")
+/// let variant = Variant::new(r"\b\d{3}-\d{2}-\d{4}\b")
+///     .expect("ssn variant builds")
 ///     .with_score(Confidence::clamped(0.9))
-///     .with_validator("ssn")
-///     .build()
-///     .expect("ssn variant builds");
+///     .with_validator("ssn");
 ///
 /// let ssn = Regex::builder()
 ///     .with_name("ssn")
@@ -91,6 +116,9 @@ impl VariantBuilder {
 ///     .build()
 ///     .expect("ssn rule builds");
 /// ```
+///
+/// [`label`]: Regex::label
+/// [`PatternRecognizer`]: super::PatternRecognizer
 #[derive(Debug, Clone, PartialEq, Builder, Deserialize)]
 #[builder(
     name = "RegexBuilder",
@@ -99,44 +127,37 @@ impl VariantBuilder {
     build_fn(error = "Error")
 )]
 pub struct Regex {
-    /// Human-readable identifier (e.g. `"ssn"`, `"credit_card"`).
-    /// Surfaced in trail steps so downstream consumers can see
-    /// which rule matched.
+    /// Human-readable identifier surfaced in trail provenance (e.g.
+    /// `"ssn"`, `"credit_card"`).
     pub name: String,
     /// Entity label every variant emits.
     pub label: EntityLabelRef,
     /// Context keywords that lift confidence when one of them
-    /// appears near a match. Harvested by [`PatternRecognizer`]
-    /// into a per-label boost rule; rules themselves never read
-    /// this field.
-    ///
-    /// [`PatternRecognizer`]: super::PatternRecognizer
+    /// appears near a match.
     #[builder(default)]
     #[serde(default)]
     pub context: Vec<String>,
-    /// Regex variants. At least one is required for the rule to
-    /// produce any matches; the recognizer skips rules with no
-    /// variants.
+    /// Regex variants. At least one is required to produce matches;
+    /// the recognizer skips rules with an empty variant list.
     pub variants: Vec<Variant>,
-    /// Languages this rule applies to (BCP-47 tags). An empty
-    /// list (the default) means the rule applies regardless of
-    /// language; otherwise the recognizer skips this rule when
-    /// the per-call language hint is set to a tag not in this
-    /// list.
+    /// BCP-47 language tags the rule applies to. Empty means "any
+    /// language"; otherwise the recognizer skips the rule when the
+    /// per-call language hint is not in the list.
     #[builder(default)]
     #[serde(default)]
     pub languages: Vec<LanguageTag>,
 }
 
 impl Regex {
-    /// Start a chainable builder. Required fields: `name`,
-    /// `label`, `variants`.
+    /// Start a chainable builder.
+    ///
+    /// Required fields: `name`, `label`, `variants`.
     #[must_use]
     pub fn builder() -> RegexBuilder {
         RegexBuilder::default()
     }
 
-    /// Parse a regex rule from a TOML string.
+    /// Parse a rule from a TOML source.
     ///
     /// # Errors
     ///

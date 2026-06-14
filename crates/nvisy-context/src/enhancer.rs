@@ -475,13 +475,7 @@ mod tests {
         // keyword "social security" must NOT fire — unlike a
         // hypothetical caller that gave it the word-window path,
         // which would split on whitespace.
-        let enhancer = enhancer(vec![rule(
-            govid_label(),
-            &["social security"],
-            1,
-            0,
-            0.2,
-        )]);
+        let enhancer = enhancer(vec![rule(govid_label(), &["social security"], 1, 0, 0.2)]);
         let text = "social security: Your 123-45-6789";
         let entity_start = text.find("123").unwrap();
         let entity_end = entity_start + "123-45-6789".len();
@@ -504,13 +498,7 @@ mod tests {
     fn token_path_boosts_when_keyword_within_token_window() {
         // Same tokens, 2-word prefix: now the `social security`
         // token is reachable and the boost fires.
-        let enhancer = enhancer(vec![rule(
-            govid_label(),
-            &["social security"],
-            2,
-            0,
-            0.2,
-        )]);
+        let enhancer = enhancer(vec![rule(govid_label(), &["social security"], 2, 0, 0.2)]);
         let text = "social security: Your 123-45-6789";
         let entity_start = text.find("123").unwrap();
         let entity_end = entity_start + "123-45-6789".len();

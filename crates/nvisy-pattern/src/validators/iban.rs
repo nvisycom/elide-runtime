@@ -1,12 +1,12 @@
-//! IBAN checksum validator (ISO 13616).
-//!
-//! Rearranges the IBAN so the country code and check digits move to the
-//! end, converts letters to numbers (A=10 … Z=35), and verifies that
-//! the resulting number mod 97 equals 1.
+//! ISO 13616 IBAN checksum validator.
 
-/// Return `true` if `value` passes the ISO 13616 mod-97 IBAN check.
+/// Return `true` if `value` passes the ISO 13616 mod-97 IBAN
+/// checksum.
 ///
-/// Whitespace and dashes are stripped before validation.
+/// Whitespace and dashes are stripped before validation. The
+/// country code and check digits are moved to the end, letters
+/// are converted to numbers (`A`=10 … `Z`=35), and the result is
+/// accepted when `mod 97 == 1`.
 pub fn iban(value: &str) -> bool {
     let cleaned: String = value
         .chars()

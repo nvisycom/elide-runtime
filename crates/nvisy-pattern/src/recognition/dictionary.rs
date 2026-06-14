@@ -23,8 +23,8 @@
 //! [`with_terms`]: DictionaryBuilder::with_terms
 
 use derive_builder::Builder;
+use nvisy_context::Context;
 use nvisy_core::Error;
-use nvisy_core::context::Context;
 use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use schemars::JsonSchema;

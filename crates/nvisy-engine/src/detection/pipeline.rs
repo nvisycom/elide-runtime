@@ -134,12 +134,12 @@ impl DetectionPipeline {
     ) -> Result<(Vec<AnyAudit>, u64, DetectionStatus), Error> {
         let actor_id = prepared.actor_id;
 
-        let recognizer_registry = match self
+        let (recognizer_registry, context_enhancer) = match self
             .state
             .detection_config
             .build_for_request(&prepared.catalog)
         {
-            Ok(r) => Arc::new(r),
+            Ok(r) => (Arc::new(r.recognizers), Arc::new(r.enhancer)),
             Err(e) => {
                 self.detections.fail(self.detection_id, e.to_string()).await;
                 return Err(e);
@@ -163,6 +163,7 @@ impl DetectionPipeline {
         let engines = DetectionEngines {
             extraction_engine: (*self.state.extraction_engine).clone(),
             recognizer_registry,
+            context_enhancer,
         };
         let concurrency = self.base_config.effective_concurrency();
         let ctx = DetectionContext::new(cancel, Arc::new(shared_data), engines, concurrency);

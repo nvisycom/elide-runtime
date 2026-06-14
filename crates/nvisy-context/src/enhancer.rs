@@ -2,14 +2,14 @@
 //! any [`Entity<Text>`] regardless of which recognizer produced it.
 
 use derive_builder::{Builder, UninitializedFieldError};
-use type_map::concurrent::TypeMap;
+use nvisy_core::entity::{Entity, TrailStep};
+use nvisy_core::extraction::Artifacts;
+use nvisy_core::modality::Text;
+use nvisy_core::primitive::Confidence;
 
 use super::Tokens;
 use super::matcher::{KeywordMatcher, SubstringMatcher};
 use super::registry::ContextRegistry;
-use crate::entity::{Entity, TrailStep};
-use crate::modality::Text;
-use crate::primitive::Confidence;
 
 /// Post-recognition enhancer that boosts entity confidence when
 /// keywords declared by the source recognizer appear near the match.
@@ -81,6 +81,14 @@ impl ContextEnhancer {
         ContextEnhancerBuilder::default()
     }
 
+    /// Borrow the underlying registry. Useful for diagnostics and
+    /// for engine code that wants to short-circuit when there are
+    /// no entries to boost against.
+    #[must_use]
+    pub fn registry(&self) -> &ContextRegistry {
+        &self.registry
+    }
+
     /// Apply context-keyword boosting to `entities` in place.
     ///
     /// For each entity, looks at its first recognition step's
@@ -96,14 +104,14 @@ impl ContextEnhancer {
     /// declared context has an empty keyword list) pass through
     /// unchanged.
     ///
-    /// [`Refinement`]: crate::entity::TrailStepKind::Refinement
-    pub fn enhance(&self, entities: &mut [Entity<Text>], text: &str, artifacts: &TypeMap) {
+    /// [`Refinement`]: nvisy_core::entity::TrailStepKind::Refinement
+    pub fn enhance(&self, entities: &mut [Entity<Text>], text: &str, artifacts: &Artifacts) {
         for entity in entities.iter_mut() {
             self.enhance_one(entity, text, artifacts);
         }
     }
 
-    fn enhance_one(&self, entity: &mut Entity<Text>, text: &str, artifacts: &TypeMap) {
+    fn enhance_one(&self, entity: &mut Entity<Text>, text: &str, artifacts: &Artifacts) {
         let Some(name) = entity
             .trail
             .first()
@@ -216,15 +224,15 @@ impl From<UninitializedFieldError> for ContextEnhancerBuilderError {
 
 #[cfg(test)]
 mod tests {
-    use type_map::concurrent::TypeMap;
-
-    use super::*;
-    use crate::context::Context;
-    use crate::entity::{
+    use nvisy_core::entity::{
         EntityLabelRef, ModelProvenance, PatternProvenance, TrailProvenance, TrailStepKind,
         builtins,
     };
-    use crate::modality::{Text, TextLocation};
+    use nvisy_core::extraction::Artifacts;
+    use nvisy_core::modality::{Text, TextLocation};
+
+    use super::*;
+    use crate::Context;
 
     fn pattern_entity(name: &str, span: std::ops::Range<usize>) -> Entity<Text> {
         let confidence = Confidence::new(0.6).unwrap();
@@ -284,7 +292,7 @@ mod tests {
         let text = "Your SSN: 123-45-6789";
         let mut entities = vec![pattern_entity("ssn", 10..21)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, &TypeMap::new());
+        enhancer.enhance(&mut entities, text, &Artifacts::new());
         assert!(entities[0].confidence.get() > before);
         assert!(
             entities[0]
@@ -308,7 +316,7 @@ mod tests {
         let text = "Mr. Smith is named in the report.";
         let mut entities = vec![model_entity("gliner", 4..9)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, &TypeMap::new());
+        enhancer.enhance(&mut entities, text, &Artifacts::new());
         assert!(entities[0].confidence.get() > before);
         let TrailProvenance::Model(prov) = &entities[0].trail[0].provenance else {
             panic!("expected model provenance");
@@ -323,7 +331,7 @@ mod tests {
         let text = "Your SSN: 123-45-6789";
         let mut entities = vec![pattern_entity("ssn", 10..21)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, &TypeMap::new());
+        enhancer.enhance(&mut entities, text, &Artifacts::new());
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -335,7 +343,7 @@ mod tests {
         let text = "far_keyword                            XYZ here";
         let mut entities = vec![pattern_entity("far", 39..42)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, &TypeMap::new());
+        enhancer.enhance(&mut entities, text, &Artifacts::new());
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -349,7 +357,7 @@ mod tests {
         // Push base confidence to 0.95
         entity.confidence = Confidence::new(0.95).unwrap();
         let mut entities = vec![entity];
-        enhancer.enhance(&mut entities, text, &TypeMap::new());
+        enhancer.enhance(&mut entities, text, &Artifacts::new());
         assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
 }

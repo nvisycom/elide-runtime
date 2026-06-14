@@ -10,9 +10,9 @@
 //! [`Regex`] / [`Dictionary`] storage between the two consumers.
 //!
 //! [`PatternRecognizer`]: super::PatternRecognizer
-//! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+//! [`ContextEnhancer`]: nvisy_context::ContextEnhancer
 
-use nvisy_core::context::ContextRegistry;
+use nvisy_context::ContextRegistry;
 use nvisy_core::entity::EntityLabelCatalog;
 
 use super::dictionary::Dictionary;
@@ -134,7 +134,7 @@ impl PatternRegistry {
     /// from — no duplication of keyword data between rule
     /// registration and enhancer construction.
     ///
-    /// [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+    /// [`ContextEnhancer`]: nvisy_context::ContextEnhancer
     #[must_use]
     pub fn context_registry(&self) -> ContextRegistry {
         let mut registry = ContextRegistry::new();

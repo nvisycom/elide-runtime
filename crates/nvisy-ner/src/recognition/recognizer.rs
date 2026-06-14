@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use derive_builder::Builder;
+use nvisy_context::{Context, ContextRegistry};
 use nvisy_core::entity::{Entity, EntityLabelRef, ModelProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Text, TextLocation};
 use nvisy_core::primitive::Confidence;
@@ -40,7 +41,7 @@ pub struct NerRecognizer {
     /// the key the [`ContextEnhancer`] looks up to find the
     /// recognizer's [`default_context`].
     ///
-    /// [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+    /// [`ContextEnhancer`]: nvisy_context::ContextEnhancer
     /// [`default_context`]: NerModel::default_context
     name: String,
     /// Backend that turns `(text, kinds)` into raw spans. Required.
@@ -89,6 +90,24 @@ impl NerRecognizer {
     #[must_use]
     pub fn model(&self) -> &NerModel {
         &self.model
+    }
+
+    /// Build a [`ContextRegistry`] containing this recognizer's
+    /// [`default_context`] keyed on the recognizer's name. Returns
+    /// an empty registry when no keywords were declared.
+    ///
+    /// Mirrors `PatternRegistry::context_registry` so engine code
+    /// can merge per-recognizer contexts from every text-modality
+    /// recognizer into one enhancer input without duplicating the
+    /// keyword data.
+    ///
+    /// [`default_context`]: NerModel::default_context
+    #[must_use]
+    pub fn context_registry(&self) -> ContextRegistry {
+        ContextRegistry::new().with_entry(
+            self.name.clone(),
+            Context::new(self.model.default_context.iter().cloned()),
+        )
     }
 
     fn build_entity(&self, span: &RawNerSpan, label: EntityLabelRef) -> Entity<Text> {

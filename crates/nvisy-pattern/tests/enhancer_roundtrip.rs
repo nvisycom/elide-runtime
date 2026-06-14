@@ -6,8 +6,9 @@
 //!
 //! [`Refinement`]: nvisy_core::entity::TrailStepKind::Refinement
 
-use nvisy_core::context::{Context, ContextEnhancer};
+use nvisy_context::{Context, ContextEnhancer};
 use nvisy_core::entity::{PatternProvenance, TrailProvenance, TrailStepKind, builtins};
+use nvisy_core::extraction::Artifacts;
 use nvisy_core::modality::TextData;
 use nvisy_core::primitive::Confidence;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
@@ -56,7 +57,7 @@ async fn enhancer_boosts_matches_near_keyword_only() {
         .with_default_boost(0.3)
         .build()
         .expect("enhancer builds");
-    enhancer.enhance(&mut entities, text, &type_map::concurrent::TypeMap::new());
+    enhancer.enhance(&mut entities, text, &Artifacts::new());
 
     // First match has `SSN:` within the 20-byte window → boosted.
     let near = entities

@@ -21,9 +21,9 @@
 //! The trait is async because realistic implementations are
 //! HTTP-bound or otherwise yield.
 //!
-//! [`Tokens`]: nvisy_core::context::Tokens
+//! [`Tokens`]: nvisy_context::Tokens
 //! [`LanguageDetections`]: nvisy_core::primitive::LanguageDetections
-//! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+//! [`ContextEnhancer`]: nvisy_context::ContextEnhancer
 //! [`lingua`]: https://crates.io/crates/lingua
 //! [`NerBackend`]: crate::backend::NerBackend
 //! [`NerRecognizer`]: crate::NerRecognizer

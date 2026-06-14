@@ -1,9 +1,9 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "nvisy-pattern"
-description = "Pattern and dictionary recognizers for PII/PHI detection"
-keywords = ["nvisy", "pattern", "dictionary", "pii"]
+name = "nvisy-context"
+description = "Post-recognition keyword-boost enhancer for Nvisy entities"
+keywords = ["nvisy", "context", "enhancer", "pii"]
 categories = ["text-processing"]
 readme = "README.md"
 
@@ -24,25 +24,18 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
-nvisy-context = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
 
-# (De)serialization
-csv = { workspace = true, features = [] }
+# Serialization
 serde = { workspace = true, features = [] }
-toml = { workspace = true, features = ["parse"] }
 schemars = { workspace = true, features = [] }
 
-# Derive macros
+# Derive macros and error handling
 derive_builder = { workspace = true, features = [] }
+thiserror = { workspace = true, features = [] }
 
-# Pattern matching
-regex = { workspace = true, features = [] }
-aho-corasick = { workspace = true, features = [] }
-
-# Async trait sugar
-async-trait = { workspace = true, features = [] }
+# Primitive datatypes (cheap-clone surface form on `Token`)
+hipstr = { workspace = true, features = [] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt"] }
-type-map = { workspace = true, features = [] }
+nvisy-core = { workspace = true, features = ["test-utils"] }

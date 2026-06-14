@@ -9,7 +9,7 @@
 //! [`RecognizerInput::with_artifacts`].
 //!
 //! [`LanguageDetections`]: nvisy_core::primitive::LanguageDetections
-//! [`Tokens`]: nvisy_core::context::Tokens
+//! [`Tokens`]: nvisy_context::Tokens
 //! [`Artifacts`]: nvisy_core::extraction::Artifacts
 //! [`RecognizerInput`]: nvisy_core::recognition::RecognizerInput
 //! [`RecognizerInput::with_artifacts`]: nvisy_core::recognition::RecognizerInput::with_artifacts
@@ -20,7 +20,7 @@
 //! `process_batch`) once per scan; recognizers and the
 //! [`ContextEnhancer`] borrow the resulting map by reference.
 //!
-//! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+//! [`ContextEnhancer`]: nvisy_context::ContextEnhancer
 
 use nvisy_core::Result;
 use nvisy_core::primitive::LanguageTag;

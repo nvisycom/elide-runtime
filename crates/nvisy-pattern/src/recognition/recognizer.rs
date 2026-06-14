@@ -28,7 +28,7 @@ use crate::validators::{Validator, ValidatorRegistry};
 /// the recognizer never reads it; the [`ContextEnhancer`] looks it
 /// up directly on the [`PatternRegistry`] at boost time.
 ///
-/// [`ContextEnhancer`]: crate::ContextEnhancer
+/// [`ContextEnhancer`]: nvisy_context::ContextEnhancer
 struct CompiledPattern {
     name: String,
     label: EntityLabelRef,

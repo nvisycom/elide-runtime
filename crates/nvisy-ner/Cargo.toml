@@ -32,6 +32,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
+nvisy-context = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
 
 # Async trait sugar

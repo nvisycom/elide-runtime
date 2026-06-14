@@ -68,6 +68,17 @@ impl ContextRegistry {
         self
     }
 
+    /// Merge another registry into this one. Last-write-wins on
+    /// duplicate names. Used to combine per-source registries (e.g.
+    /// pattern registry + NER registry) into one enhancer input.
+    #[must_use]
+    pub fn merge(mut self, other: ContextRegistry) -> Self {
+        for (name, context) in other.entries {
+            self.entries.insert(name, context);
+        }
+        self
+    }
+
     /// Look up the [`Context`] for `name`. Returns `None` when the
     /// name was never registered or when the registered context
     /// had an empty keyword list (which is treated as "not

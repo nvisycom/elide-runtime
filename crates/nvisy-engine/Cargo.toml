@@ -39,6 +39,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
+nvisy-context = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
 nvisy-toolkit = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = ["text"] }

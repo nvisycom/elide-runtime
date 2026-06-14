@@ -62,7 +62,7 @@ pub struct NerModel {
     /// recognizer's [`name`] is used
     /// as the registration key.
     ///
-    /// [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+    /// [`ContextEnhancer`]: nvisy_context::ContextEnhancer
     /// [`name`]: super::NerRecognizer::name
     pub default_context: Vec<String>,
 }

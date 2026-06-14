@@ -17,6 +17,7 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use nvisy_context::ContextEnhancer;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
@@ -51,6 +52,11 @@ pub struct DetectionContext {
     /// engine-side detection-config template plus the request's
     /// label catalog.
     pub(crate) recognizer_registry: Arc<RecognizerRegistry>,
+    /// Post-recognition keyword-boost enhancer — built alongside
+    /// `recognizer_registry` from the same recognizer set. Shared
+    /// behind `Arc` so per-document phases borrow it without
+    /// cloning the embedded registry / matcher.
+    pub(crate) context_enhancer: Arc<ContextEnhancer>,
     pub(crate) concurrency: Option<NonZeroUsize>,
 }
 
@@ -61,6 +67,7 @@ pub struct DetectionContext {
 pub(crate) struct DetectionEngines {
     pub extraction_engine: ExtractorRegistry,
     pub recognizer_registry: Arc<RecognizerRegistry>,
+    pub context_enhancer: Arc<ContextEnhancer>,
 }
 
 impl DetectionContext {
@@ -75,12 +82,14 @@ impl DetectionContext {
         let DetectionEngines {
             extraction_engine,
             recognizer_registry,
+            context_enhancer,
         } = engines;
         Self {
             cancel,
             shared,
             extraction_engine,
             recognizer_registry,
+            context_enhancer,
             concurrency,
         }
     }
@@ -98,6 +107,14 @@ impl DetectionContext {
     /// [`DetectionPhase`]: crate::detection::phases::detection::DetectionPhase
     pub(crate) fn recognizer_registry(&self) -> &Arc<RecognizerRegistry> {
         &self.recognizer_registry
+    }
+
+    /// Per-request context-keyword enhancer borrowed by
+    /// [`DetectionPhase`].
+    ///
+    /// [`DetectionPhase`]: crate::detection::phases::detection::DetectionPhase
+    pub(crate) fn context_enhancer(&self) -> &Arc<ContextEnhancer> {
+        &self.context_enhancer
     }
 }
 

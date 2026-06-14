@@ -15,7 +15,7 @@
 //!
 //! [`around`]: Tokens::around
 //! [`lemmas_in`]: Tokens::lemmas_in
-//! [`Entity::location`]: crate::entity::Entity::location
+//! [`Entity::location`]: nvisy_core::entity::Entity::location
 //!
 //! Tokens live next to the [`ContextEnhancer`] because that's the
 //! only consumer: the enhancer reads them off
@@ -102,7 +102,7 @@ impl Token {
 /// The owning token sequence carried by a
 /// [`RecognizerInput::artifacts`] bundle.
 ///
-/// [`RecognizerInput::artifacts`]: crate::recognition::RecognizerInput::artifacts
+/// [`RecognizerInput::artifacts`]: nvisy_core::recognition::RecognizerInput::artifacts
 ///
 /// Tokens are sorted by `offset.start` (producers should emit them
 /// in order; consumer-side code assumes this). The collection

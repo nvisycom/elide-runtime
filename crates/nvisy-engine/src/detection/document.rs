@@ -27,7 +27,10 @@ impl DetectionDocumentPipeline {
     pub(super) fn from_context(ctx: &DetectionContext) -> Self {
         Self {
             extraction: ExtractionPhase::new(ctx.extraction_engine().clone()),
-            detection: DetectionPhase::new(ctx.recognizer_registry().clone()),
+            detection: DetectionPhase::new(
+                ctx.recognizer_registry().clone(),
+                ctx.context_enhancer().clone(),
+            ),
             deduplication: DeduplicationPhase::new(),
         }
     }

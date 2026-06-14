@@ -1,10 +1,10 @@
 //! Recognition primitives — the rule shapes ([`Regex`],
 //! [`Dictionary`]), their building blocks ([`Terms`] plus
-//! [`Context`] from `nvisy-core`),
+//! [`Context`] from `nvisy-context`),
 //! the [`PatternRegistry`] that bundles them, and the runtime
 //! [`PatternRecognizer`] that compiles them into pooled scanners.
 //!
-//! [`Context`]: nvisy_core::context::Context
+//! [`Context`]: nvisy_context::Context
 
 mod dictionary;
 mod recognizer;

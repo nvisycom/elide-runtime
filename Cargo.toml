@@ -5,6 +5,7 @@ resolver = "3"
 members = [
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
+    "./crates/nvisy-context",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
     "./crates/nvisy-fake",
@@ -37,6 +38,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 
 # Internal crates
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
+nvisy-context = { path = "./crates/nvisy-context", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-fake = { path = "./crates/nvisy-fake", version = "0.1.0" }

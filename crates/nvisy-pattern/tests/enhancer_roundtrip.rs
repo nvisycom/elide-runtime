@@ -1,10 +1,10 @@
 //! End-to-end: feed real input through a [`Regex`] →
-//! [`PatternRecognizer`] (wrapped in [`Boosting`]) and verify
+//! [`PatternRecognizer`] (wrapped in [`ContextEnhanced`]) and verify
 //! that confidence is boosted, and a [`Refinement`] step is
 //! appended only for matches that had a nearby keyword.
 //!
 //! [`Refinement`]: nvisy_core::entity::TrailStepKind::Refinement
-//! [`Boosting`]: nvisy_context::Boosting
+//! [`ContextEnhanced`]: nvisy_context::ContextEnhanced
 
 use nvisy_core::entity::{TrailStepKind, builtins};
 use nvisy_core::modality::TextData;
@@ -27,7 +27,7 @@ async fn enhancer_boosts_matches_near_keyword_only() {
 
     let recognizer = PatternRecognizer::builder()
         .with_pattern(regex)
-        .build()
+        .build_context_enhanced()
         .expect("recognizer builds");
 
     // Two SSN-shaped numbers: one near the keyword, one not.
@@ -41,7 +41,7 @@ async fn enhancer_boosts_matches_near_keyword_only() {
     assert_eq!(entities.len(), 2, "two SSN matches expected");
 
     // First match has `SSN:` within the default 5-word prefix/suffix
-    // window and gets boosted by the Boosting<PatternRecognizer> wrapper.
+    // window and gets boosted by the ContextEnhanced<PatternRecognizer> wrapper.
     let near = entities
         .iter()
         .find(|e| &text[e.location.start..e.location.end] == "123-45-6789")

@@ -16,7 +16,7 @@ async fn scan(text: &str) -> (String, Vec<Entity<Text>>) {
     let recognizer = PatternRecognizer::builder()
         .with_builtin_patterns()
         .with_builtin_dictionaries()
-        .build()
+        .build_context_enhanced()
         .expect("shipped recognizer builds");
     let input = RecognizerInput::new(TextData::new(text.to_owned()));
     let entities = recognizer

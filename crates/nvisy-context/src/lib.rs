@@ -12,4 +12,4 @@ pub use self::enhancer::Enhancer;
 pub use self::matcher::{KeywordMatcher, LemmaMatcher, SubstringMatcher};
 pub use self::rule::{BoostRule, DEFAULT_BOOST, DEFAULT_PREFIX_WORDS, DEFAULT_SUFFIX_WORDS};
 pub use self::tokens::{Token, Tokens};
-pub use self::wrapper::Boosting;
+pub use self::wrapper::ContextEnhanced;

@@ -15,10 +15,11 @@ shared `regex::RegexSet` for the regex side and one shared
 single walk over the input runs both scanners and emits
 `Entity<Text>` values in modality-local byte coordinates.
 
-Each rule may declare per-label context keywords; the recognizer
-wraps itself in a `nvisy_context::Boosting` layer at build time
-that lifts confidence on matches whose neighbourhood contains a
-declared keyword.
+Rules may declare per-label context keywords. Calling
+`build_context_enhanced()` wraps the recognizer in a
+`nvisy_context::ContextEnhanced` layer that lifts confidence on
+matches whose neighbourhood contains a declared keyword;
+`build()` returns the bare recognizer.
 
 The built-in pattern + dictionary set lives as TOML under
 `assets/` and is embedded at compile time. The recognizer's

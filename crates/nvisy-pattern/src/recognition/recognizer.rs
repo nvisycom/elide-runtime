@@ -1,7 +1,7 @@
 //! [`PatternRecognizer`] and its builder.
 
 use aho_corasick::{AhoCorasick, MatchKind};
-use nvisy_context::{BoostRule, Boosting, Enhancer, SubstringMatcher};
+use nvisy_context::{BoostRule, ContextEnhanced, Enhancer, SubstringMatcher};
 use nvisy_core::entity::{Entity, EntityLabelCatalog, EntityLabelRef};
 use nvisy_core::modality::Text;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
@@ -14,7 +14,8 @@ use super::regex::Regex;
 use crate::shipped;
 use crate::validators::ValidatorRegistry;
 
-/// Runtime text recognizer composed of a regex pool and an Aho-Corasick automaton.
+/// Runtime text recognizer composed of a regex pool and an
+/// Aho-Corasick automaton.
 ///
 /// Every registered [`Regex`] variant goes into one
 /// [`::regex::RegexSet`] for a single one-pass scan across every
@@ -23,10 +24,11 @@ use crate::validators::ValidatorRegistry;
 /// scan across every literal. Both passes share one walk over the
 /// input and emit entities in modality-local byte coordinates.
 ///
-/// Construct via [`PatternRecognizer::builder`]; the build wraps
-/// the recognizer in a [`Boosting`] layer that lifts confidence on
+/// Construct via [`PatternRecognizer::builder`]. [`build`]
+/// returns the bare recognizer; [`build_context_enhanced`] wraps
+/// it in a [`ContextEnhanced`] layer that lifts confidence on
 /// matches whose neighbourhood contains a per-label context
-/// keyword harvested from the same rules.
+/// keyword.
 ///
 /// # Examples
 ///
@@ -42,6 +44,8 @@ use crate::validators::ValidatorRegistry;
 ///
 /// [`Regex`]: super::Regex
 /// [`Dictionary`]: super::Dictionary
+/// [`build`]: PatternRecognizerBuilder::build
+/// [`build_context_enhanced`]: PatternRecognizerBuilder::build_context_enhanced
 pub struct PatternRecognizer {
     patterns: Vec<CompiledPattern>,
     regex_set: Option<RegexSet>,
@@ -176,12 +180,14 @@ impl PatternRecognizerBuilder {
         &self.dictionaries
     }
 
-    /// Compile every rule into the pooled scanners and wrap the
-    /// recognizer in a [`Boosting`] layer.
+    /// Compile every rule into the pooled scanners and return the
+    /// bare recognizer.
     ///
-    /// Context keywords from every pattern and dictionary are
-    /// harvested into per-label [`BoostRule`]s that lift confidence
-    /// on matches whose neighbourhood contains a declared keyword.
+    /// Per-rule `context` keywords are ignored on the emission
+    /// path; the recognizer emits raw confidence as authored by
+    /// each rule. Wrap the result with [`build_context_enhanced`]
+    /// (or compose with [`ContextEnhanced`] manually) to lift
+    /// confidence on matches near a declared keyword.
     ///
     /// # Errors
     ///
@@ -190,23 +196,40 @@ impl PatternRecognizerBuilder {
     /// validator name, when a dictionary's `scoring` is invalid
     /// or under-declared for some term's source column, or when
     /// the shared automata cannot be constructed.
-    pub fn build(self) -> Result<Boosting<PatternRecognizer>> {
+    ///
+    /// [`build_context_enhanced`]: Self::build_context_enhanced
+    pub fn build(self) -> Result<PatternRecognizer> {
         let validators = self
             .validators
             .clone()
             .unwrap_or_else(ValidatorRegistry::builtin);
         let (compiled_patterns, regex_set) = self.compile_patterns(&validators)?;
         let (compiled_dicts, aho) = self.compile_dictionaries()?;
-        let enhancer = self.build_enhancer();
 
-        let recognizer = PatternRecognizer {
+        Ok(PatternRecognizer {
             patterns: compiled_patterns,
             regex_set,
             dictionaries: compiled_dicts,
             aho,
-        };
+        })
+    }
 
-        Ok(Boosting::new(recognizer, enhancer))
+    /// Compile every rule and wrap the recognizer in a
+    /// [`ContextEnhanced`] layer.
+    ///
+    /// Context keywords from every pattern and dictionary are
+    /// harvested into per-label [`BoostRule`]s that lift confidence
+    /// on matches whose neighbourhood contains a declared keyword.
+    ///
+    /// # Errors
+    ///
+    /// See [`build`].
+    ///
+    /// [`build`]: Self::build
+    pub fn build_context_enhanced(self) -> Result<ContextEnhanced<PatternRecognizer>> {
+        let enhancer = self.build_enhancer();
+        let recognizer = self.build()?;
+        Ok(ContextEnhanced::new(recognizer, enhancer))
     }
 
     /// Compile every `(pattern, variant)` pair into a

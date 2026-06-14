@@ -48,7 +48,7 @@ fn build_registry() -> RecognizerRegistry {
     let pattern = PatternRecognizer::builder()
         .with_builtin_patterns()
         .with_builtin_dictionaries()
-        .build()
+        .build_context_enhanced()
         .expect("pattern recognizer builds from builtin set");
 
     let bento_url = env_or("NVISY_BENTO_URL", "http://localhost:3000");

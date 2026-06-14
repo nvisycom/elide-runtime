@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     let pattern = PatternRecognizer::builder()
         .with_builtin_patterns()
         .with_builtin_dictionaries()
-        .build()?;
+        .build_context_enhanced()?;
     let detection = RecognizerRegistry::new().with_recognizer(pattern);
 
     let input = RecognizerInput::new(TextData::new(SAMPLE.to_owned()));

@@ -32,7 +32,7 @@ use crate::validators::Validator;
 /// indirection.
 ///
 /// `context` is intentionally not stored on compiled state — the
-/// recognizer's wrapping `Boosting` layer harvests keywords from
+/// recognizer's wrapping `ContextEnhanced` layer harvests keywords from
 /// the source patterns at build time.
 pub(super) struct CompiledPattern {
     /// Pattern name (e.g. `"ssn"`). Surfaced in trail provenance.

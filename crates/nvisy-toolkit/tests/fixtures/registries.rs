@@ -1,7 +1,7 @@
 //! Shared recognizer + redaction registry constructors and dedup
 //! params used by every codec E2E test.
 
-use nvisy_context::Boosting;
+use nvisy_context::ContextEnhanced;
 use nvisy_core::entity::builtins;
 use nvisy_core::modality::Modality;
 use nvisy_core::primitive::ConfidenceThreshold;
@@ -11,12 +11,12 @@ use nvisy_toolkit::redaction::anonymizer::{Mask, Replace};
 use nvisy_toolkit::redaction::{Anonymizer, RedactionRegistry};
 
 /// Build the shipped pattern recognizer from every built-in
-/// pattern + dictionary, wrapped in its [`Boosting`] layer.
-pub fn shipped_recognizer() -> Boosting<PatternRecognizer> {
+/// pattern + dictionary, wrapped in its [`ContextEnhanced`] layer.
+pub fn shipped_recognizer() -> ContextEnhanced<PatternRecognizer> {
     PatternRecognizer::builder()
         .with_builtin_patterns()
         .with_builtin_dictionaries()
-        .build()
+        .build_context_enhanced()
         .expect("shipped recognizer builds")
 }
 

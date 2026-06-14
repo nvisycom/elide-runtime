@@ -86,7 +86,7 @@ impl DetectionConfig {
                 .with_builtin_dictionaries()
                 .filter_by_catalog(catalog);
             if !builder.is_empty() {
-                reg = reg.with_recognizer::<Text>(builder.build()?);
+                reg = reg.with_recognizer::<Text>(builder.build_context_enhanced()?);
             }
         }
 

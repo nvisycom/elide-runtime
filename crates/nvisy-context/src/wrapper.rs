@@ -1,4 +1,4 @@
-//! [`Boosting`]: post-recognition keyword-boost wrapper for any
+//! [`ContextEnhanced`]: post-recognition keyword-boost wrapper for any
 //! [`EntityRecognizer<Text>`].
 //!
 //! Composes an inner recognizer with an [`Enhancer`]: the wrapper
@@ -12,7 +12,7 @@
 //! ```ignore
 //! let inner = MyRecognizer::new(...);
 //! let enhancer = Enhancer::new(rules, Box::new(SubstringMatcher));
-//! let recognizer = Boosting::new(inner, enhancer);
+//! let recognizer = ContextEnhanced::new(inner, enhancer);
 //! ```
 //!
 //! The wrapper implements [`EntityRecognizer<Text>`] so the engine
@@ -34,12 +34,12 @@ use super::{Enhancer, Tokens};
 /// same `&str` for the keyword-window walk; a recognizer that
 /// emitted entities relative to a different coordinate space
 /// would surface stale or panic-on-slice offsets.
-pub struct Boosting<R> {
+pub struct ContextEnhanced<R> {
     inner: R,
     enhancer: Enhancer,
 }
 
-impl<R> Boosting<R> {
+impl<R> ContextEnhanced<R> {
     /// Wrap `inner` with `enhancer`. After `recognize` produces
     /// entities, `enhancer` runs over them in place.
     pub fn new(inner: R, enhancer: Enhancer) -> Self {
@@ -59,7 +59,7 @@ impl<R> Boosting<R> {
 }
 
 #[async_trait::async_trait]
-impl<R> EntityRecognizer<Text> for Boosting<R>
+impl<R> EntityRecognizer<Text> for ContextEnhanced<R>
 where
     R: EntityRecognizer<Text> + 'static,
 {

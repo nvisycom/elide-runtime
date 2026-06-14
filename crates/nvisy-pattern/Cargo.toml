@@ -27,22 +27,23 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-context = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
 
-# (De)serialization
-csv = { workspace = true, features = [] }
+# Serialization
 serde = { workspace = true, features = [] }
-toml = { workspace = true, features = ["parse"] }
 schemars = { workspace = true, features = [] }
+toml = { workspace = true, features = ["parse"] }
 
-# Derive macros
+# Derive macros and error handling
 derive_builder = { workspace = true, features = [] }
 
-# Pattern matching
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+
+# Text processing (regex + Aho-Corasick literal matching)
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
 
-# Async trait sugar
-async-trait = { workspace = true, features = [] }
+# Tabular document parsing (dictionary loading from CSV)
+csv = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
-type-map = { workspace = true, features = [] }

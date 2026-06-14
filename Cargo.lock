@@ -2888,7 +2888,6 @@ dependencies = [
  "symphonia",
  "tokio",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -2918,7 +2917,6 @@ dependencies = [
  "serde_json",
  "strum 0.28.0",
  "thiserror",
- "tracing",
  "type-map",
  "uuid",
 ]
@@ -2960,8 +2958,6 @@ dependencies = [
  "tokio-util",
  "toml",
  "tracing",
- "type-map",
- "unicode-normalization",
  "uuid",
  "validator",
 ]
@@ -3001,7 +2997,6 @@ dependencies = [
  "toml",
  "tracing",
  "unicode-normalization",
- "uuid",
 ]
 
 [[package]]
@@ -3026,7 +3021,6 @@ name = "nvisy-ocr"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "base64",
  "bentoml",
  "bytes",
  "futures",
@@ -3051,7 +3045,6 @@ dependencies = [
  "serde",
  "tokio",
  "toml",
- "type-map",
 ]
 
 [[package]]
@@ -3060,7 +3053,6 @@ version = "0.1.0"
 dependencies = [
  "aide",
  "axum",
- "base64",
  "derive_more",
  "futures",
  "humantime-serde",
@@ -3068,7 +3060,6 @@ dependencies = [
  "nvisy-core",
  "nvisy-engine",
  "schemars",
- "semver",
  "serde",
  "tokio",
  "tower",
@@ -3095,8 +3086,6 @@ dependencies = [
  "aes-gcm",
  "async-trait",
  "base64",
- "bytes",
- "hipstr",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-fake",

@@ -100,27 +100,39 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Async runtime
-async-trait = { workspace = true, features = [] }
-tokio = { workspace = true, features = ["sync"] }
-
-# (De)serialization
+# Serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
+
+# Derive macros and error handling
+derive_more = { workspace = true, features = ["as_ref", "deref", "from"] }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
-uuid = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["as_ref", "deref", "from"] }
+
+# Encoding and hashing
 hex = { workspace = true, features = [] }
-infer = { workspace = true, features = [] }
-schemars = { workspace = true, features = [] }
 sha2 = { workspace = true, features = [] }
 
-# Image processing — pulled in unconditionally because the image
-# handler structs reference `image::DynamicImage` directly. The
-# workspace dep already enables png/jpeg/tiff decoders. `imageproc`
-# powers the per-region gaussian blur in `image::redact`.
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["sync"] }
+rayon = { workspace = true, optional = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+# Tabular document parsing (feature-gated)
+csv = { workspace = true, optional = true, features = [] }
+
+# Rich-document parsing (feature-gated: HTML + PDF)
+scraper = { workspace = true, optional = true, features = [] }
+ego-tree = { workspace = true, optional = true, features = [] }
+lopdf = { workspace = true, optional = true, features = [] }
+pdfium-render = { workspace = true, optional = true, features = [] }
+
+# Image processing
 image = { workspace = true, features = [] }
 imageproc = { workspace = true, features = [] }
 
@@ -129,18 +141,8 @@ hound = { workspace = true, optional = true, features = [] }
 symphonia = { workspace = true, optional = true, features = [] }
 mp3lame-encoder = { workspace = true, optional = true, features = [] }
 
-# PDF processing (feature-gated)
-lopdf = { workspace = true, optional = true, features = [] }
-pdfium-render = { workspace = true, optional = true, features = [] }
-rayon = { workspace = true, optional = true, features = [] }
-
-# Document parsing (feature-gated)
-csv = { workspace = true, optional = true, features = [] }
-scraper = { workspace = true, optional = true, features = [] }
-ego-tree = { workspace = true, optional = true, features = [] }
-
-# Observability
-tracing = { workspace = true, features = [] }
+# Storage and file-type detection
+infer = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

@@ -46,38 +46,36 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
-nvisy-core = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
+nvisy-core = { workspace = true, features = [] }
 nvisy-llm = { workspace = true, features = [] }
-nvisy-stt = { workspace = true, features = [] }
 nvisy-ner = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
+nvisy-stt = { workspace = true, features = [] }
 
-# (De)serialization
+# Serialization
 serde = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
-# Async runtime
+# Primitive datatypes
+uuid = { workspace = true, features = [] }
+type-map = { workspace = true, features = [] }
+
+# Encoding and hashing
+base64 = { workspace = true, features = [] }
+sha2 = { workspace = true, features = [] }
+aes-gcm = { workspace = true, features = ["aes", "alloc"], optional = true }
+
+# Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 
-# Primitive datatypes
-uuid = { workspace = true, features = [] }
-bytes = { workspace = true, features = [] }
-hipstr = { workspace = true, features = [] }
-type-map = { workspace = true, features = [] }
-
-# Unicode-aware text folding for leak detection.
-unicode-normalization = { workspace = true, features = [] }
-
-# Cryptography for built-in redaction operators
-sha2 = { workspace = true, features = [] }
-aes-gcm = { workspace = true, features = ["aes", "alloc"], optional = true }
-base64 = { workspace = true, features = [] }
-
 # Observability
 tracing = { workspace = true, features = [] }
+
+# Text processing (unicode-aware folding for leak detection)
+unicode-normalization = { workspace = true, features = [] }
 
 [dev-dependencies]
 # Internal test utilities (Entity::test_builder, …).

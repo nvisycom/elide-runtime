@@ -39,51 +39,22 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
+nvisy-codec = { workspace = true, features = ["text"] }
 nvisy-context = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
-nvisy-toolkit = { workspace = true, features = [] }
-nvisy-codec = { workspace = true, features = ["text"] }
-
-# Detection + extraction backends used by the phase wiring
+nvisy-llm = { workspace = true, features = [] }
 nvisy-ner = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
-nvisy-llm = { workspace = true, features = [] }
 nvisy-stt = { workspace = true, features = [] }
+nvisy-toolkit = { workspace = true, features = [] }
 
-# Storage
-fjall = { workspace = true, features = [] }
-
-# Encoding
-base64 = { workspace = true, features = [] }
-
-# Cheap-clone strings (refcounted / inline / borrowed). Used on
-# policy / rule names and the audit's [`PolicyDecisionRef`] so
-# audit-heavy passes share refcounts rather than allocating
-# per-entity.
-hipstr = { workspace = true, features = [] }
-
-# (De)serialization
+# Serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 toml = { workspace = true, features = [] }
 humantime-serde = { workspace = true, features = [] }
-
-# Async runtime
-async-trait = { workspace = true, features = [] }
-futures = { workspace = true, features = [] }
-tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
-tokio-util = { workspace = true, features = [] }
-
-# Primitive datatypes
-uuid = { workspace = true, features = [] }
-jiff = { workspace = true, features = [] }
-semver = { workspace = true, features = ["serde"] }
-bytes = { workspace = true, features = [] }
-
-# Heterogeneous container for PolicyStore
-type-map = { workspace = true, features = [] }
 
 # Derive macros and error handling
 anyhow = { workspace = true, features = [] }
@@ -91,17 +62,33 @@ derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator"] }
 strum = { workspace = true, features = [] }
 
-# Encryption
+# Primitive datatypes
+uuid = { workspace = true, features = [] }
+bytes = { workspace = true, features = [] }
+hipstr = { workspace = true, features = [] }
+jiff = { workspace = true, features = [] }
+semver = { workspace = true, features = ["serde"] }
+
+# Encoding and hashing
+base64 = { workspace = true, features = [] }
 aes-gcm = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+futures = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tokio-util = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+# Storage and file-type detection
+fjall = { workspace = true, features = [] }
 
 # Utilities
 validator = { workspace = true, features = [] }
 rand = { workspace = true, features = [] }
 tempfile = { workspace = true, features = [], optional = true }
-unicode-normalization = { workspace = true, features = [] }
-
-# Observability
-tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 nvisy-engine = { path = ".", features = ["test-utils"] }

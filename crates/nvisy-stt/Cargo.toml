@@ -29,11 +29,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Async runtime
-async-trait = { workspace = true, features = [] }
-
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

@@ -36,39 +36,41 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# LLM framework
-rig = { workspace = true, features = ["derive", "reqwest-middleware"] }
-
-# Async runtime
-async-trait = { workspace = true, features = [] }
-
-# HTTP client + middleware (shared retry/tracing layers).
-reqwest-middleware = { workspace = true, features = [] }
-reqwest-retry = { workspace = true, features = [] }
-reqwest-tracing = { workspace = true, features = [] }
-humantime-serde = { workspace = true, features = [] }
-
-# (De)serialization
+# Serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 toml = { workspace = true, features = ["parse"] }
 minijinja = { workspace = true, features = [] }
-
-# Primitive datatypes
-uuid = { workspace = true, features = [] }
-
-# Encoding and hashing
-base64 = { workspace = true, features = [] }
-unicode-normalization = { workspace = true, features = [] }
+humantime-serde = { workspace = true, features = [] }
 
 # Derive macros and error handling
 derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["add_assign"] }
 thiserror = { workspace = true, features = [] }
 
+# Encoding and hashing
+base64 = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+
 # Observability
 tracing = { workspace = true, features = [] }
 
+# Text processing
+unicode-normalization = { workspace = true, features = [] }
+
+# AI / LLM frameworks
+rig = { workspace = true, features = ["derive", "reqwest-middleware"] }
+
+# HTTP client and middleware (shared retry/tracing layers)
+reqwest-middleware = { workspace = true, features = [] }
+reqwest-retry = { workspace = true, features = [] }
+reqwest-tracing = { workspace = true, features = [] }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
+
+[package.metadata.cargo-machete]
+ignored = ["humantime-serde"]

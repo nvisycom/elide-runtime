@@ -29,17 +29,10 @@ default = []
 test-utils = []
 
 [dependencies]
-# (De)serialization
+# Serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
-
-# Primitive datatypes
-bytes = { workspace = true, features = [] }
-hipstr = { workspace = true, features = [] }
-uuid = { workspace = true, features = [] }
-oxilangtag = { workspace = true, features = [] }
-type-map = { workspace = true, features = [] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
@@ -47,8 +40,12 @@ derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant"] }
 strum = { workspace = true, features = [] }
 
-# Async trait sugar (object-safe async methods)
-async-trait = { workspace = true, features = [] }
+# Primitive datatypes
+uuid = { workspace = true, features = [] }
+bytes = { workspace = true, features = [] }
+hipstr = { workspace = true, features = [] }
+oxilangtag = { workspace = true, features = [] }
+type-map = { workspace = true, features = [] }
 
-# Observability
-tracing = { workspace = true, features = [] }
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }

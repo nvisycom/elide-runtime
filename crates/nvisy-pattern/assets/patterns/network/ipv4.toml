@@ -1,4 +1,4 @@
 name = "ipv4"
-entity_kind = "ip_address"
+label = "ip_address"
 regex = "\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b"
 score = 0.75

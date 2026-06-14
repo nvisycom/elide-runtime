@@ -21,7 +21,7 @@
 
 mod fixtures;
 
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::builtins;
 
 use crate::fixtures::{Fixture, assert_pii_removed, assert_tokens_present};
 
@@ -40,20 +40,20 @@ async fn html_codec_detects_and_redacts() {
     // per-needle slice assertion the txt/json tests use doesn't
     // translate here; presence-by-kind is the right shape.
     for expected in [
-        EntityKind::EmailAddress,
-        EntityKind::PhoneNumber,
-        EntityKind::PaymentCard,
-        EntityKind::Iban,
-        EntityKind::GovernmentId,
-        EntityKind::IpAddress,
+        builtins::EMAIL_ADDRESS.label_ref(),
+        builtins::PHONE_NUMBER.label_ref(),
+        builtins::PAYMENT_CARD.label_ref(),
+        builtins::IBAN.label_ref(),
+        builtins::GOVERNMENT_ID.label_ref(),
+        builtins::IP_ADDRESS.label_ref(),
     ] {
         assert!(
-            outcome.entities.iter().any(|e| e.entity_kind == expected),
+            outcome.entities.iter().any(|e| e.label == expected),
             "expected at least one {expected:?} entity; got: {:?}",
             outcome
                 .entities
                 .iter()
-                .map(|e| e.entity_kind)
+                .map(|e| e.label.clone())
                 .collect::<Vec<_>>()
         );
     }

@@ -11,7 +11,6 @@ use nvisy_core::Result;
 use nvisy_core::entity::ModelProvenance;
 use nvisy_core::extraction::{Extractor, ExtractorOutput, Span};
 use nvisy_core::modality::{Audio, AudioExtraction};
-use tracing::instrument;
 
 pub use self::transcription::Transcription;
 use crate::backend::{SttBackend, SttRequest};
@@ -53,7 +52,7 @@ impl SttExtractor {
 impl Extractor<Audio> for SttExtractor {
     type Output = Transcription;
 
-    #[instrument(target = TARGET, skip_all, fields(audio_bytes = span.data.bytes.len()))]
+    #[tracing::instrument(target = TARGET, skip_all, fields(audio_bytes = span.data.bytes.len()))]
     async fn extract(&self, span: &Span<Audio>) -> Result<ExtractorOutput<Audio, Self::Output>> {
         let synthesized;
         let filename = match span.data.filename.as_deref() {

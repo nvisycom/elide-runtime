@@ -13,7 +13,7 @@
 use std::collections::{HashMap, HashSet};
 use std::mem;
 
-use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::entity::{Entity, EntityLabelRef};
 use nvisy_core::extraction::TextAt;
 use nvisy_core::modality::{Modality, Overlap};
 use schemars::JsonSchema;
@@ -118,10 +118,10 @@ where
 
         // Phase 2a: within each bucket, sub-group by location overlap.
         let mut groups: Vec<Vec<Entity<M>>> = Vec::new();
-        let mut kind_groups: HashMap<EntityKind, Vec<usize>> = HashMap::new();
+        let mut label_groups: HashMap<EntityLabelRef, Vec<usize>> = HashMap::new();
 
         for (_key, bucket) in buckets {
-            let kind = bucket[0].entity_kind;
+            let label = bucket[0].label.clone();
             let mut sub_groups: Vec<Vec<Entity<M>>> = Vec::new();
 
             for entity in bucket {
@@ -140,7 +140,7 @@ where
                 let idx = groups.len();
                 groups.push(sg);
                 if is_substring {
-                    kind_groups.entry(kind).or_default().push(idx);
+                    label_groups.entry(label.clone()).or_default().push(idx);
                 }
             }
         }
@@ -149,7 +149,7 @@ where
         // kind whose values have a containment relationship.
         if is_substring {
             let mut total_merges = 0usize;
-            for indices in kind_groups.values() {
+            for indices in label_groups.values() {
                 let mut merged_into: HashSet<usize> = HashSet::new();
                 for i in 0..indices.len() {
                     if merged_into.contains(&indices[i]) {

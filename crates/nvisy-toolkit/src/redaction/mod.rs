@@ -20,11 +20,11 @@
 //! [`ImageReplacement`], [`AudioReplacement`], [`TabularReplacement`])
 //! describe what an operator emits at the entity's location.
 //!
-//! Dispatch (entity → operator) lives one layer up, in the document
-//! crate: each rule's `Action::Redact { operator }` carries a closed
-//! per-modality enum that either names a built-in (constructed
-//! inline) or a `Custom(AnonymizerId<M>)` (looked up in the
-//! registry).
+//! Dispatch (entity → operator) lives one layer up, in the engine
+//! crate: each rule's `Action::Redact(ModalityRedactions)` carries
+//! per-modality operator specs. Each operator spec either names a
+//! built-in (constructed inline) or a `Custom(AnonymizerId<M>)`
+//! (looked up in the registry).
 //!
 //! [`Replace`]: anonymizer::Replace
 //! [`Mask`]: anonymizer::Mask

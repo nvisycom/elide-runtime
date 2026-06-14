@@ -15,7 +15,7 @@
 //! [`ConflictResolution`]: super::resolve::ConflictResolution
 //! [`LayerPipeline::from_params`]: super::pipeline::LayerPipeline::from_params
 
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -40,10 +40,10 @@ pub struct LayerParams {
     /// Per-recognizer confidence scaling applied first.
     #[serde(default, skip_serializing_if = "CalibrationMap::is_empty")]
     pub calibration: CalibrationMap,
-    /// Drop entities whose `entity_kind` is outside this set. `None`
-    /// keeps every kind.
+    /// Drop entities whose `label` is outside this set. `None`
+    /// keeps every label.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allowed_kinds: Option<Vec<EntityKind>>,
+    pub allowed_labels: Option<Vec<EntityLabelRef>>,
     /// Minimum calibrated confidence an entity must clear to survive
     /// the filter step. `None` keeps every confidence level.
     #[serde(default, skip_serializing_if = "Option::is_none")]

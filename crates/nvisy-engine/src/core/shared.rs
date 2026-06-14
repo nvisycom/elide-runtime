@@ -13,10 +13,11 @@ use std::fmt;
 use std::sync::Arc;
 
 use nvisy_codec::CodecRegistry;
+use nvisy_core::entity::EntityLabelCatalog;
 use uuid::Uuid;
 
 use super::PolicyStore;
-use crate::phases::ingestion::encryption::SharedKeyProvider;
+use crate::core::ingestion::encryption::SharedKeyProvider;
 use crate::registry::Registry;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.
@@ -29,6 +30,13 @@ pub struct SharedData {
     /// `Arc<PolicyStore>` so detection and redaction passes share
     /// the same store without rebuilding it.
     pub policies: Arc<PolicyStore>,
+    /// Per-request entity-label catalog, unioned from every
+    /// submitted policy's [`Policy::labels`]. Drives recognizer
+    /// dispatch (NER label list, pattern filtering) and selector
+    /// tag matching.
+    ///
+    /// [`Policy::labels`]: crate::policy::Policy::labels
+    pub catalog: Arc<EntityLabelCatalog>,
     /// Content and context storage.
     pub registry: Registry,
     /// Codec registry resolving file extensions / content types to

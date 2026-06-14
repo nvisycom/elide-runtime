@@ -14,7 +14,7 @@ use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{DetectionFilter, DetectionSnapshot, Engine};
+use nvisy_engine::detection::{DetectionEngine, DetectionFilter, DetectionSnapshot};
 
 use super::request::{DetectionPath, DetectionQuery, NewDetection};
 use super::response::{DetectionId, DetectionList, Page};
@@ -27,7 +27,7 @@ const TARGET: &str = "nvisy_server::detections";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn create_detection(
-    State(engine): State<Engine>,
+    State(engine): State<DetectionEngine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewDetection>,
 ) -> Result<(StatusCode, Json<DetectionId>)> {
@@ -51,7 +51,7 @@ fn create_detection_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn list_detections(
-    State(engine): State<Engine>,
+    State(engine): State<DetectionEngine>,
     ActorId(actor_id): ActorId,
     Query(query): Query<DetectionQuery>,
 ) -> Result<Json<DetectionList>> {
@@ -72,7 +72,7 @@ fn list_detections_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_detection(
-    State(engine): State<Engine>,
+    State(engine): State<DetectionEngine>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<Json<DetectionSnapshot>> {
@@ -94,7 +94,7 @@ fn get_detection_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn cancel_detection(
-    State(engine): State<Engine>,
+    State(engine): State<DetectionEngine>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<StatusCode> {
@@ -111,7 +111,7 @@ fn cancel_detection_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn delete_detection(
-    State(engine): State<Engine>,
+    State(engine): State<DetectionEngine>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<StatusCode> {
@@ -128,7 +128,7 @@ fn delete_detection_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn delete_all_detections(
-    State(engine): State<Engine>,
+    State(engine): State<DetectionEngine>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
     let deleted = engine.delete_all_detections(actor_id).await;

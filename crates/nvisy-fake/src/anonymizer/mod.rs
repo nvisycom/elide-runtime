@@ -8,7 +8,7 @@ use std::sync::Arc;
 use fake::rand::SeedableRng;
 use fake::rand::rngs::SmallRng;
 use nvisy_core::Result;
-use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Modality, Tabular, Text, TextData, TextLocation};
 use nvisy_core::primitive::LanguageTag;
 use nvisy_core::redaction::{Anonymizer, LeakProfile, TabularReplacement, TextReplacement};
@@ -94,17 +94,17 @@ impl Fake {
         SmallRng::seed_from_u64(hasher.finish())
     }
 
-    /// Try the generator for `kind`; return `None` if it has no
+    /// Try the generator for `label`; return `None` if it has no
     /// entry, so the caller can delegate to the fallback.
     fn try_generate(
         &self,
         locale: Locale,
-        kind: EntityKind,
+        label: &str,
         identity: Identity<'_>,
         source: &str,
     ) -> Option<String> {
         let mut rng = self.rng_for(identity);
-        generator::Context::new(locale, kind, source).generate(&mut rng)
+        generator::Context::new(locale, label, source).generate(&mut rng)
     }
 }
 
@@ -121,7 +121,7 @@ impl Anonymizer<Text> for Fake {
         let locale = self.locale_for(entity.language.as_ref());
         match self.try_generate(
             locale,
-            entity.entity_kind,
+            entity.label.as_str(),
             Identity::from(entity),
             source.text.as_str(),
         ) {
@@ -145,7 +145,7 @@ impl Anonymizer<Tabular> for Fake {
         let locale = self.locale_for(entity.language.as_ref());
         if let Some(value) = self.try_generate(
             locale,
-            entity.entity_kind,
+            entity.label.as_str(),
             Identity::from(entity),
             source.text.as_str(),
         ) {
@@ -171,7 +171,7 @@ impl Anonymizer<Tabular> for Fake {
 fn adapt_to_text(entity: &Entity<Tabular>) -> Entity<Text> {
     let mut builder = Entity::<Text>::builder()
         .with_id(entity.id)
-        .with_entity_kind(entity.entity_kind)
+        .with_label(entity.label.clone())
         .with_location(TextLocation::new(0, 0))
         .with_confidence(entity.confidence)
         .with_trail(entity.trail.clone());
@@ -223,7 +223,7 @@ impl Hash for Identity<'_> {
 mod tests {
     use std::collections::HashSet;
 
-    use nvisy_core::entity::EntityKind;
+    use nvisy_core::entity::{EntityLabelRef, builtins};
     use nvisy_core::redaction::Anonymizer as _;
     use nvisy_toolkit::redaction::anonymizer::{Mask, Replace};
 
@@ -236,15 +236,15 @@ mod tests {
     /// Build an entity whose location spans the entire `source`
     /// string. Tests don't care about offsets — making them match
     /// the source makes them self-documenting.
-    fn entity_over(kind: EntityKind, source: &str) -> Entity<Text> {
+    fn entity_over(label: EntityLabelRef, source: &str) -> Entity<Text> {
         Entity::test_builder(0, source.len())
-            .with_entity_kind(kind)
+            .with_label(label)
             .test_build()
     }
 
-    fn coref_entity(kind: EntityKind, source: &str, coref_id: &str) -> Entity<Text> {
+    fn coref_entity(label: EntityLabelRef, source: &str, coref_id: &str) -> Entity<Text> {
         Entity::test_builder(0, source.len())
-            .with_entity_kind(kind)
+            .with_label(label)
             .with_entity_id(coref_id.to_string())
             .test_build()
     }
@@ -256,7 +256,7 @@ mod tests {
         // fallback anonymizer.
         let op = Fake::new(Replace::new("[redacted]"));
         let source = TextData::new("hypertension");
-        let entity = entity_over(EntityKind::Diagnosis, source.text.as_str());
+        let entity = entity_over(builtins::DIAGNOSIS.label_ref(), source.text.as_str());
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(out, TextReplacement::substituted("[redacted]"));
     }
@@ -265,7 +265,7 @@ mod tests {
     async fn fallback_can_be_mask() {
         let op = Fake::new(Mask::stars());
         let source = TextData::new("hypertension");
-        let entity = entity_over(EntityKind::Diagnosis, source.text.as_str());
+        let entity = entity_over(builtins::DIAGNOSIS.label_ref(), source.text.as_str());
         let out = op.apply(&entity, &source).await.unwrap();
         assert_eq!(out, TextReplacement::substituted("************"));
     }
@@ -274,7 +274,7 @@ mod tests {
     async fn same_seed_and_entity_id_produces_same_output() {
         let op = fake().with_seed(42);
         let source = TextData::new("alice");
-        let entity = entity_over(EntityKind::PersonName, source.text.as_str());
+        let entity = entity_over(builtins::PERSON_NAME.label_ref(), source.text.as_str());
         let a = op.apply(&entity, &source).await.unwrap();
         let b = op.apply(&entity, &source).await.unwrap();
         assert_eq!(a, b);
@@ -284,7 +284,7 @@ mod tests {
     async fn entity_language_overrides_default() {
         let op = fake();
         let source = TextData::new("名前");
-        let mut entity = entity_over(EntityKind::PersonName, source.text.as_str());
+        let mut entity = entity_over(builtins::PERSON_NAME.label_ref(), source.text.as_str());
         entity.language = Some("ja".parse().unwrap());
         let out = op.apply(&entity, &source).await.unwrap();
         let TextReplacement::Substituted { value } = out else {
@@ -297,7 +297,7 @@ mod tests {
     async fn default_language_applies_when_entity_unlanguaged() {
         let op = fake().with_default_language("ja".parse().unwrap());
         let source = TextData::new("name");
-        let entity = entity_over(EntityKind::PersonName, source.text.as_str());
+        let entity = entity_over(builtins::PERSON_NAME.label_ref(), source.text.as_str());
         let out = op.apply(&entity, &source).await.unwrap();
         let TextReplacement::Substituted { value } = out else {
             panic!("expected Substituted variant");
@@ -309,12 +309,24 @@ mod tests {
     async fn coreferent_entities_collapse_to_same_fake() {
         let op = fake();
         let source = TextData::new("alice");
-        let a = coref_entity(EntityKind::PersonName, source.text.as_str(), "ENTITY_42");
-        let b = coref_entity(EntityKind::PersonName, source.text.as_str(), "ENTITY_42");
+        let a = coref_entity(
+            builtins::PERSON_NAME.label_ref(),
+            source.text.as_str(),
+            "ENTITY_42",
+        );
+        let b = coref_entity(
+            builtins::PERSON_NAME.label_ref(),
+            source.text.as_str(),
+            "ENTITY_42",
+        );
         let out_a = op.apply(&a, &source).await.unwrap();
         let out_b = op.apply(&b, &source).await.unwrap();
         assert_eq!(out_a, out_b);
-        let c = coref_entity(EntityKind::PersonName, source.text.as_str(), "ENTITY_99");
+        let c = coref_entity(
+            builtins::PERSON_NAME.label_ref(),
+            source.text.as_str(),
+            "ENTITY_99",
+        );
         let out_c = op.apply(&c, &source).await.unwrap();
         assert_ne!(
             out_a, out_c,
@@ -328,7 +340,7 @@ mod tests {
         let source = TextData::new("seed");
         let mut outputs: HashSet<String> = HashSet::new();
         for _ in 0..32 {
-            let entity = entity_over(EntityKind::PersonName, source.text.as_str());
+            let entity = entity_over(builtins::PERSON_NAME.label_ref(), source.text.as_str());
             let out = op.apply(&entity, &source).await.unwrap();
             let TextReplacement::Substituted { value } = out else {
                 panic!("expected Substituted");
@@ -346,7 +358,7 @@ mod tests {
     async fn tabular_impl_emits_substituted() {
         let op = fake();
         let entity = Entity::<Tabular>::builder()
-            .with_entity_kind(EntityKind::PersonName)
+            .with_label(builtins::PERSON_NAME.label_ref())
             .with_location(nvisy_core::modality::TabularLocation {
                 row_index: 0u32,
                 column_index: 0u32,

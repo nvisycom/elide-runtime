@@ -2,8 +2,8 @@
 //!
 //! Loads each [`TextRedaction`] variant from TOML, asserts the
 //! deserialised operator matches the spec, then confirms a full
-//! `Action::Redact { operator }` round-trips through the JSON wire
-//! format the audit record uses.
+//! `Action::Redact(ModalityRedactions)` round-trips through the JSON
+//! wire format the audit record uses.
 //!
 //! This exercises the user-visible surface end-to-end without
 //! touching the codec handle — the apply-time bridge from operator
@@ -11,7 +11,7 @@
 //! `policy::redaction::Instantiate` impls.
 
 use nvisy_core::modality::Text;
-use nvisy_engine::policy::redaction::{HashAlgorithm, TextRedaction};
+use nvisy_engine::policy::redaction::{HashAlgorithm, ModalityRedactions, TextRedaction};
 use nvisy_engine::policy::{Action, Policy, PolicyRule};
 use nvisy_toolkit::redaction::AnonymizerId;
 
@@ -107,29 +107,27 @@ fn text_redaction_defaults_fill_in() {
     }
 }
 
-/// A full `Action<Text>::Redact { operator }` round-trips through
+/// A full `Action::Redact(ModalityRedactions)` round-trips through
 /// JSON — the wire shape audit records use.
 #[test]
 fn action_redact_round_trips_through_json() {
-    let action: Action<Text> = Action::Redact {
-        operator: TextRedaction::Replace {
+    let action = Action::Redact(ModalityRedactions {
+        text: Some(TextRedaction::Replace {
             template: "[EMAIL]".into(),
-        },
-    };
+        }),
+        ..Default::default()
+    });
     let json = serde_json::to_string(&action).expect("serialize");
+    assert!(json.contains("\"redact\""), "expected redact tag, got {json}");
     assert!(
-        json.contains("\"action\":\"redact\""),
-        "expected redact tag, got {json}"
-    );
-    assert!(
-        json.contains("\"kind\":\"replace\""),
-        "expected nested replace kind, got {json}"
+        json.contains("\"text\""),
+        "expected text operator, got {json}"
     );
 
-    let parsed: Action<Text> = serde_json::from_str(&json).expect("deserialize");
+    let parsed: Action = serde_json::from_str(&json).expect("deserialize");
     match parsed {
-        Action::Redact { operator } => match operator {
-            TextRedaction::Replace { template } => assert_eq!(template, "[EMAIL]"),
+        Action::Redact(operators) => match operators.text {
+            Some(TextRedaction::Replace { template }) => assert_eq!(template, "[EMAIL]"),
             other => panic!("expected nested Replace, got {other:?}"),
         },
         other => panic!("expected Redact, got {other:?}"),
@@ -141,21 +139,23 @@ fn action_redact_round_trips_through_json() {
 #[test]
 fn action_redact_custom_id_round_trips() {
     let id = AnonymizerId::<Text>::from_static("kms_encrypt");
-    let action: Action<Text> = Action::Redact {
-        operator: TextRedaction::Custom { id: id.clone() },
-    };
+    let action = Action::Redact(ModalityRedactions {
+        text: Some(TextRedaction::Custom { id: id.clone() }),
+        ..Default::default()
+    });
     let json = serde_json::to_string(&action).expect("serialize");
-    let parsed: Action<Text> = serde_json::from_str(&json).expect("deserialize");
+    let parsed: Action = serde_json::from_str(&json).expect("deserialize");
     match parsed {
-        Action::Redact {
-            operator: TextRedaction::Custom { id: round_tripped },
-        } => assert_eq!(round_tripped, id),
-        other => panic!("expected Custom redact, got {other:?}"),
+        Action::Redact(operators) => match operators.text {
+            Some(TextRedaction::Custom { id: round_tripped }) => assert_eq!(round_tripped, id),
+            other => panic!("expected Custom redact, got {other:?}"),
+        },
+        other => panic!("expected Redact, got {other:?}"),
     }
 }
 
-/// A `Policy<Text>` with mixed rules deserialises from TOML and the
-/// `default_action` arm carries its operator spec verbatim.
+/// A `Policy` with mixed rules deserialises from TOML and the
+/// `defaultAction` carries its operator spec verbatim.
 #[test]
 fn policy_with_redact_rules_round_trips_from_toml() {
     let toml = r##"
@@ -165,60 +165,54 @@ fn policy_with_redact_rules_round_trips_from_toml() {
 
         [[rules]]
         name = "redact-email"
-        action = "redact"
-        operator = { kind = "replace", template = "[EMAIL]" }
-
-        [rules.selector]
-        entityKinds = ["email_address"]
+        match = { labels = ["email_address"] }
+        [rules.redact]
+        text = { kind = "replace", template = "[EMAIL]" }
 
         [[rules]]
         name = "mask-card"
-        action = "redact"
-        operator = { kind = "mask", mask_char = "#", keep_suffix = 4 }
+        match = { labels = ["payment_card"] }
+        [rules.redact]
+        text = { kind = "mask", mask_char = "#", keep_suffix = 4 }
 
-        [rules.selector]
-        entityKinds = ["payment_card"]
-
-        [defaultAction]
-        action = "redact"
-        operator = { kind = "redact" }
+        [defaultAction.redact]
+        text = { kind = "redact" }
     "##;
 
-    let policy: Policy<Text> = toml::from_str(toml).expect("parse policy");
+    let policy: Policy = toml::from_str(toml).expect("parse policy");
     assert_eq!(policy.name, "email-and-card");
     assert_eq!(policy.rules.len(), 2);
 
-    // First rule: email → Replace { "[EMAIL]" }.
     let PolicyRule { action, .. } = &policy.rules[0];
     match action {
-        Action::Redact {
-            operator: TextRedaction::Replace { template },
-        } => assert_eq!(template, "[EMAIL]"),
-        other => panic!("expected Replace, got {other:?}"),
+        Action::Redact(operators) => match &operators.text {
+            Some(TextRedaction::Replace { template }) => assert_eq!(template, "[EMAIL]"),
+            other => panic!("expected Replace, got {other:?}"),
+        },
+        other => panic!("expected Redact, got {other:?}"),
     }
 
-    // Second rule: card → Mask { '#', keep last 4 }.
     let PolicyRule { action, .. } = &policy.rules[1];
     match action {
-        Action::Redact {
-            operator:
-                TextRedaction::Mask {
-                    mask_char,
-                    keep_suffix,
-                    ..
-                },
-        } => {
-            assert_eq!(*mask_char, '#');
-            assert_eq!(*keep_suffix, 4);
-        }
-        other => panic!("expected Mask, got {other:?}"),
+        Action::Redact(operators) => match &operators.text {
+            Some(TextRedaction::Mask {
+                mask_char,
+                keep_suffix,
+                ..
+            }) => {
+                assert_eq!(*mask_char, '#');
+                assert_eq!(*keep_suffix, 4);
+            }
+            other => panic!("expected Mask, got {other:?}"),
+        },
+        other => panic!("expected Redact, got {other:?}"),
     }
 
-    // Default action: full Redact (drop the span entirely).
     match policy.default_action.as_ref() {
-        Some(Action::Redact {
-            operator: TextRedaction::Redact,
-        }) => {}
-        other => panic!("expected default Redact, got {other:?}"),
+        Some(Action::Redact(operators)) => match &operators.text {
+            Some(TextRedaction::Redact) => {}
+            other => panic!("expected default Redact, got {other:?}"),
+        },
+        other => panic!("expected default Redact action, got {other:?}"),
     }
 }

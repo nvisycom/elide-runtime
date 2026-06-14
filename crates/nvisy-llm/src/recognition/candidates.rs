@@ -1,7 +1,6 @@
 //! Structured-output candidate types — the typed schemas the model
 //! is asked to produce.
 
-use nvisy_core::entity::EntityKind;
 use nvisy_core::primitive::NormalizedBoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -26,9 +25,9 @@ pub(super) struct TextCandidate {
     /// entity. Stable across coreferent mentions within one call.
     #[serde(default)]
     pub entity_id: Option<String>,
-    /// Specific entity type. Missing (`None`) means the model
-    /// declined to type the candidate; the recognizer drops these.
-    pub entity_type: Option<EntityKind>,
+    /// Label name. Missing (`None`) means the model declined to
+    /// type the candidate; the recognizer drops these.
+    pub entity_type: Option<String>,
     /// The matched text value — the literal surface form to flag.
     pub value: String,
     /// Model-asserted confidence in `[0.0, 1.0]`.
@@ -58,7 +57,7 @@ pub(super) struct VlmCandidates {
 /// coordinates using the source image's dimensions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub(super) struct VlmCandidate {
-    pub entity_kind: EntityKind,
+    pub label: String,
     #[serde(flatten)]
     pub bbox: NormalizedBoundingBox,
     #[serde(default)]

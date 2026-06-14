@@ -25,7 +25,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{AnnotationProvenance, Entity, EntityKind, TrailProvenance, TrailStep};
+use super::{AnnotationProvenance, Entity, EntityLabelRef, TrailProvenance, TrailStep, builtins};
 use crate::modality::{Modality, Overlap};
 use crate::primitive::Confidence;
 
@@ -82,16 +82,14 @@ pub enum AnnotationStrength {
 pub enum AnnotationKind<M: Modality> {
     /// Pre-identified region the user wants treated as sensitive.
     Inclusion {
-        /// Specific entity kind. `None` when the user wants the
-        /// region treated as sensitive without committing to a
-        /// kind — synthesised entities fall back to
-        /// [`EntityKind::Unresolved`]. The broad
-        /// [`EntityCategory`] is derived via
-        /// [`EntityKind::category`].
+        /// Label to attach to the synthesised entity. `None`
+        /// when the user wants the region treated as sensitive
+        /// without committing to a kind — synthesised entities
+        /// then fall back to [`builtins::UNRESOLVED`].
         ///
-        /// [`EntityCategory`]: super::EntityCategory
-        #[serde(skip_serializing_if = "Option::is_none")]
-        entity_kind: Option<EntityKind>,
+        /// [`builtins::UNRESOLVED`]: super::builtins::UNRESOLVED
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<EntityLabelRef>,
         /// Modality-specific location this inclusion targets.
         target: M::Location,
         /// Whether this is an advisory [`Hint`] (LLM may reject) or
@@ -137,7 +135,7 @@ impl<M: Modality> Annotation<M> {
     /// [`Hint`]: AnnotationStrength::Hint
     pub fn to_inclusion_entity(&self) -> Option<Entity<M>> {
         let AnnotationKind::Inclusion {
-            entity_kind,
+            label,
             target,
             strength: AnnotationStrength::Assert,
         } = &self.kind
@@ -145,8 +143,12 @@ impl<M: Modality> Annotation<M> {
             return None;
         };
 
+        let label_ref = label
+            .clone()
+            .unwrap_or_else(|| EntityLabelRef::from(builtins::UNRESOLVED.name.clone()));
+
         let entity = Entity::builder()
-            .with_entity_kind(entity_kind.unwrap_or(EntityKind::Unresolved))
+            .with_label(label_ref)
             .with_trail(vec![TrailStep::recognition(
                 "annotation",
                 Confidence::MAX,
@@ -212,7 +214,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::EntityCategory;
+    use crate::entity::builtins;
     use crate::modality::{Image, ImageLocation, Text, TextLocation};
     use crate::primitive::BoundingBox;
 
@@ -220,7 +222,7 @@ mod tests {
         Annotation {
             name: None,
             kind: AnnotationKind::Inclusion {
-                entity_kind: Some(EntityKind::PersonName),
+                label: Some(EntityLabelRef::from(builtins::PERSON_NAME.name.clone())),
                 target: TextLocation::new(start, end),
                 strength,
             },
@@ -263,14 +265,13 @@ mod tests {
         let ann: Annotation<Text> = Annotation {
             name: None,
             kind: AnnotationKind::Inclusion {
-                entity_kind: None,
+                label: None,
                 target: TextLocation::new(0, 10),
                 strength: AnnotationStrength::Assert,
             },
         };
         let entity = ann.to_inclusion_entity().unwrap();
-        assert_eq!(entity.category(), EntityCategory::Unresolved);
-        assert_eq!(entity.entity_kind, EntityKind::Unresolved);
+        assert_eq!(entity.label.as_str(), builtins::UNRESOLVED.name.as_str());
     }
 
     #[test]
@@ -285,7 +286,7 @@ mod tests {
         let ann: Annotation<Image> = Annotation {
             name: Some("face".into()),
             kind: AnnotationKind::Inclusion {
-                entity_kind: Some(EntityKind::PersonName),
+                label: Some(EntityLabelRef::from(builtins::FACE.name.clone())),
                 target: ImageLocation::new(bbox),
                 strength: AnnotationStrength::Assert,
             },

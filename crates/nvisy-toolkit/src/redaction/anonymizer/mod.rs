@@ -3,10 +3,10 @@
 //!
 //! Each operator is a typed Rust struct; consumers construct it
 //! with the parameters they want and register the instance
-//! against the [`EntityKind`]s it should run for.
+//! against the [`EntityLabelRef`]s it should run for.
 //!
 //! [`Anonymizer<M>`]: crate::redaction::Anonymizer
-//! [`EntityKind`]: nvisy_core::entity::EntityKind
+//! [`EntityLabelRef`]: nvisy_core::entity::EntityLabelRef
 
 #[cfg(feature = "encrypt")]
 #[cfg_attr(docsrs, doc(cfg(feature = "encrypt")))]

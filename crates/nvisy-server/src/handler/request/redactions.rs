@@ -1,7 +1,7 @@
 //! Request bodies for `/redactions` endpoints.
 
-use nvisy_engine::phases::ingestion::ExportFile;
-use nvisy_engine::pipeline::{Plan, RedactionInput, RedactionOverride, RedactionStatus};
+use nvisy_engine::core::ingestion::ExportFile;
+use nvisy_engine::redaction::{RedactionInput, RedactionOverride, RedactionPlan, RedactionStatus};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -19,7 +19,7 @@ pub struct NewRedaction {
     pub overrides: Vec<RedactionOverride>,
     /// Per-phase behaviour knobs (validation thresholds etc.).
     #[serde(default)]
-    pub plan: Plan,
+    pub plan: RedactionPlan,
     /// Sinks to write redacted content to.
     #[serde(default)]
     pub exports: Vec<ExportFile>,

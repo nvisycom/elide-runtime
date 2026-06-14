@@ -29,7 +29,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use clap::{Args, Parser};
-use nvisy_engine::pipeline::RuntimeConfig;
+use nvisy_engine::core::RuntimeConfig;
 use serde::Deserialize;
 
 pub use self::server::ServerConfig;

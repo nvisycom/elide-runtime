@@ -15,7 +15,6 @@
 use std::collections::HashSet;
 
 use derive_builder::Builder;
-use nvisy_core::entity::EntityKind;
 use nvisy_core::primitive::Confidence;
 use nvisy_core::recognition::LabelMap;
 
@@ -30,9 +29,8 @@ use super::aggregation::{AggregationStrategy, AlignmentMode};
     build_fn(skip)
 )]
 pub struct NerModel {
-    /// Translation from raw model labels to canonical
-    /// [`EntityKind`] values. Defaults to
-    /// [`LabelMap::canonical`].
+    /// Translation from raw model labels to canonical entity
+    /// label names. Defaults to [`LabelMap::canonical`].
     pub label_map: LabelMap,
     /// Raw labels the adapter drops without translation. Useful
     /// for filtering out labels the model emits but we don't care
@@ -43,11 +41,11 @@ pub struct NerModel {
     /// `[0.0, 1.0]` (treated as a bug; clamped + this used as the
     /// safe default).
     pub default_score: Confidence,
-    /// Entity kinds whose emitted confidence is multiplied by
-    /// `low_score_multiplier` before being surfaced. Use for
+    /// Entity label names whose emitted confidence is multiplied
+    /// by `low_score_multiplier` before being surfaced. Use for
     /// noisy-but-high-recall labels.
-    pub low_score_kinds: HashSet<EntityKind>,
-    /// Multiplier applied to `low_score_kinds`. Must be in
+    pub low_score_labels: HashSet<String>,
+    /// Multiplier applied to `low_score_labels`. Must be in
     /// `[0.0, 1.0]`.
     pub low_score_multiplier: f64,
     /// Aggregation policy for backends that emit token-level
@@ -75,7 +73,7 @@ impl Default for NerModel {
             label_map: LabelMap::canonical(),
             labels_to_ignore: HashSet::new(),
             default_score: Confidence::new(0.85).expect("0.85 in range"),
-            low_score_kinds: HashSet::new(),
+            low_score_labels: HashSet::new(),
             low_score_multiplier: 0.4,
             aggregation: AggregationStrategy::Max,
             alignment: AlignmentMode::Expand,
@@ -104,7 +102,7 @@ impl NerModelBuilder {
             label_map: self.label_map.unwrap_or(defaults.label_map),
             labels_to_ignore: self.labels_to_ignore.unwrap_or(defaults.labels_to_ignore),
             default_score: self.default_score.unwrap_or(defaults.default_score),
-            low_score_kinds: self.low_score_kinds.unwrap_or(defaults.low_score_kinds),
+            low_score_labels: self.low_score_labels.unwrap_or(defaults.low_score_labels),
             low_score_multiplier: self
                 .low_score_multiplier
                 .unwrap_or(defaults.low_score_multiplier),

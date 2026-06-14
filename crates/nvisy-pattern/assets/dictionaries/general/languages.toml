@@ -1,5 +1,5 @@
 name = "languages"
-entity_kind = "language"
+label = "language"
 score = 0.85
 # Per-CSV-column overrides:
 #   column 0 = long-form names (`English`, `Spanish`, ...) — high

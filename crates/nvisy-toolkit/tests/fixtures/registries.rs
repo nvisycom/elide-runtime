@@ -1,7 +1,7 @@
 //! Shared recognizer + redaction registry constructors and dedup
 //! params used by every codec E2E test.
 
-use nvisy_core::entity::EntityKind;
+use nvisy_core::entity::builtins;
 use nvisy_core::modality::Modality;
 use nvisy_core::primitive::ConfidenceThreshold;
 use nvisy_pattern::{PatternRecognizer, PatternRegistry};
@@ -21,7 +21,7 @@ pub fn shipped_recognizer() -> PatternRecognizer {
 /// patterns can emit is mapped to a deterministic operator so test
 /// assertions can spot-check the replacement tokens.
 ///
-/// - emails, phones, IBANs, government ids, IPs → `[{entity_kind}]`
+/// - emails, phones, IBANs, government ids, IPs → `[{label}]`
 /// - payment cards → `Mask::stars()` (digits masked, no token)
 pub fn redaction_registry<M>() -> RedactionRegistry<M>
 where
@@ -30,12 +30,21 @@ where
     Mask: Anonymizer<M>,
 {
     RedactionRegistry::<M>::new()
-        .insert_kind(EntityKind::EmailAddress, Replace::new("[{entity_kind}]"))
-        .insert_kind(EntityKind::PhoneNumber, Replace::new("[{entity_kind}]"))
-        .insert_kind(EntityKind::Iban, Replace::new("[{entity_kind}]"))
-        .insert_kind(EntityKind::GovernmentId, Replace::new("[{entity_kind}]"))
-        .insert_kind(EntityKind::IpAddress, Replace::new("[{entity_kind}]"))
-        .insert_kind(EntityKind::PaymentCard, Mask::stars())
+        .insert_label(
+            builtins::EMAIL_ADDRESS.label_ref(),
+            Replace::new("[{label}]"),
+        )
+        .insert_label(
+            builtins::PHONE_NUMBER.label_ref(),
+            Replace::new("[{label}]"),
+        )
+        .insert_label(builtins::IBAN.label_ref(), Replace::new("[{label}]"))
+        .insert_label(
+            builtins::GOVERNMENT_ID.label_ref(),
+            Replace::new("[{label}]"),
+        )
+        .insert_label(builtins::IP_ADDRESS.label_ref(), Replace::new("[{label}]"))
+        .insert_label(builtins::PAYMENT_CARD.label_ref(), Mask::stars())
 }
 
 /// Standard dedup params: a `0.5` confidence threshold drops the

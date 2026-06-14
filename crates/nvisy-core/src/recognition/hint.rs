@@ -18,7 +18,7 @@
 //! [`Entity<M>`]: crate::entity::Entity
 //! [`RecognizerInput::hints`]: super::RecognizerInput::hints
 
-use crate::entity::EntityKind;
+use crate::entity::EntityLabelRef;
 use crate::modality::Modality;
 
 /// Uploader-supplied annotation region in modality-native
@@ -29,20 +29,22 @@ pub struct Hint<M: Modality> {
     /// confirm or relocate this hint forward the name into the
     /// emitted entity's recognition trail step.
     pub name: Option<String>,
-    /// Uploader-claimed entity kind (optional).
-    pub entity_kind: Option<EntityKind>,
+    /// Uploader-claimed label (optional). When set, recognizers
+    /// that confirm the hint stamp this on the emitted entity's
+    /// `label` field.
+    pub label: Option<EntityLabelRef>,
     /// Region in modality-native coordinates.
     pub location: M::Location,
 }
 
 impl<M: Modality> Hint<M> {
-    /// Construct a hint with only the location set; name and kind
+    /// Construct a hint with only the location set; name and label
     /// default to `None`.
     #[must_use]
     pub fn new(location: M::Location) -> Self {
         Self {
             name: None,
-            entity_kind: None,
+            label: None,
             location,
         }
     }
@@ -54,10 +56,10 @@ impl<M: Modality> Hint<M> {
         self
     }
 
-    /// Attach an uploader-claimed entity kind.
+    /// Attach an uploader-claimed label.
     #[must_use]
-    pub fn with_entity_kind(mut self, entity_kind: EntityKind) -> Self {
-        self.entity_kind = Some(entity_kind);
+    pub fn with_label(mut self, label: impl Into<EntityLabelRef>) -> Self {
+        self.label = Some(label.into());
         self
     }
 }

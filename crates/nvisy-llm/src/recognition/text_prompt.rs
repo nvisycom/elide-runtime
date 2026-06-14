@@ -57,8 +57,9 @@ impl<'a> TextPromptBuilder<'a> {
                 let snippet = snippet_around(self.text, h.location.start, h.location.end);
                 let name = h.name.as_deref().unwrap_or("");
                 let kind = h
-                    .entity_kind
-                    .map(|k| k.to_string())
+                    .label
+                    .as_ref()
+                    .map(|l| l.to_string())
                     .unwrap_or_else(|| "unknown".to_string());
                 prompt.push_str(&format!(
                     "\n[hint {i}] name=\"{name}\", kind={kind}, \

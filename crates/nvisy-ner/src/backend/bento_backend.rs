@@ -5,20 +5,18 @@
 //! `nvisy_core.ner.v1` from [`nvisycom/inference`]; per-request
 //! `correlation_id` propagation rides on the `x-request-id`
 //! header. Today the service is zero-shot — it requires a per-call
-//! `kinds` list — so the backend errors out when called with
-//! `kinds = None`.
+//! `labels` list — so the backend errors out when called with
+//! `labels = None`.
 //!
-//! Wire compatibility note: the inference service today returns
-//! `kind: EntityKind` (already normalized server-side); this
-//! backend serialises that back to a string label so the
-//! recognizer's [`LabelMap`] sees a uniform raw label regardless
-//! of which backend produced it.
+//! Wire compatibility note: the inference service returns the
+//! service-side label string verbatim; the recognizer's
+//! [`LabelMap`] re-canonicalises it into a workspace label name.
 //!
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
-//! [`LabelMap`]: crate::LabelMap
+//! [`LabelMap`]: nvisy_core::recognition::LabelMap
 
 use bentoml::prelude::*;
-use nvisy_core::entity::{EntityKind, ModelProvenance};
+use nvisy_core::entity::ModelProvenance;
 use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
@@ -78,20 +76,20 @@ impl NerBackend for BentoBackend {
 
     #[tracing::instrument(skip_all)]
     async fn recognize(&self, request: NerRequest<'_>) -> Result<NerResponse> {
-        let Some(kinds) = request.kinds else {
+        let Some(labels) = request.labels else {
             return Err(Error::validation(
-                "BentoBackend requires per-call kinds (the inference-gliner service is zero-shot)",
+                "BentoBackend requires per-call labels (the inference-gliner service is zero-shot)",
                 COMPONENT,
             ));
         };
-        if kinds.is_empty() {
+        if labels.is_empty() {
             return Ok(NerResponse::default());
         }
 
         let language = request.language.map(|l| l.as_str().to_owned());
         let wire_request = WireRequest {
             text: request.text.to_owned(),
-            kinds: kinds.to_vec(),
+            labels: labels.iter().map(|s| (*s).to_owned()).collect(),
             threshold: 0.0,
             language,
         };
@@ -114,7 +112,7 @@ impl NerBackend for BentoBackend {
         for response in &responses {
             for entity in &response.entities {
                 spans.push(RawNerSpan::new(
-                    entity_kind_label(entity.kind),
+                    entity.label.clone(),
                     entity.score,
                     entity.start..entity.end,
                 ));
@@ -122,15 +120,4 @@ impl NerBackend for BentoBackend {
         }
         Ok(NerResponse::new(spans))
     }
-}
-
-/// Serialise an [`EntityKind`] to its
-/// canonical snake_case label. The Bento service returns normalized
-/// kinds; we round-trip through the wire label so [`LabelMap`] sees
-/// a uniform raw label across backends.
-///
-/// [`EntityKind`]: nvisy_core::entity::EntityKind
-/// [`LabelMap`]: crate::LabelMap
-fn entity_kind_label(kind: EntityKind) -> String {
-    kind.to_string()
 }

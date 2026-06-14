@@ -5,10 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// Provenance for a pattern-based detection (regex, dictionary,
 /// deny-list). Each variant carries only the fields meaningful for
-/// that matcher — the old flat `PatternKind` + `Option<String>`
-/// representation allowed invalid combinations (a `Regex` row with
-/// no pattern name, a `DenyList` row with a stale validator) that
-/// can't be constructed in this shape.
+/// that matcher.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]

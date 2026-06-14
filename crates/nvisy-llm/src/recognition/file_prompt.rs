@@ -14,8 +14,8 @@
 //! name = "ner-default"
 //! modality = "text"   # or "image"
 //!
-//! # Optional. Maps model-emitted labels to canonical EntityKind.
-//! # Use snake_case EntityKind names on the right-hand side.
+//! # Optional. Maps model-emitted labels to canonical entity
+//! # labels. Use snake_case label names on the right-hand side.
 //! [label_map]
 //! person = "person_name"
 //! email = "email_address"
@@ -48,7 +48,7 @@ use std::path::Path;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use minijinja::{Environment, context};
-use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::entity::Entity;
 use nvisy_core::modality::{Image, Text};
 use nvisy_core::recognition::{LabelMap, RecognizerInput};
 use nvisy_core::{Error, Result};
@@ -113,14 +113,11 @@ impl<M> FilePrompt<M> {
 
         let mut label_map = LabelMap::new();
         if let Some(entries) = parsed.label_map {
-            for (label, kind_str) in entries {
-                let kind = kind_str.parse::<EntityKind>().map_err(|_| {
-                    Error::validation(
-                        format!("unknown EntityKind {kind_str:?} in label_map"),
-                        "file-prompt",
-                    )
-                })?;
-                label_map = label_map.with_entry(label, kind);
+            for (model_label, entity_label) in entries {
+                label_map = label_map.with_entry(
+                    model_label,
+                    nvisy_core::entity::EntityLabelRef::from(entity_label),
+                );
             }
         }
 
@@ -158,8 +155,8 @@ impl FilePrompt<Text> {
     /// # Errors
     ///
     /// Returns a validation error when the file is missing, malformed,
-    /// declares a non-`text` modality, references an unknown
-    /// `EntityKind`, or contains an invalid Jinja2 template.
+    /// declares a non-`text` modality, or contains an invalid Jinja2
+    /// template.
     pub fn from_toml_file(path: impl AsRef<Path>) -> Result<Self> {
         let raw = fs::read_to_string(path.as_ref())
             .map_err(|e| Error::validation(format!("reading prompt file: {e}"), "file-prompt"))?;
@@ -215,7 +212,7 @@ impl Prompt<Text> for FilePrompt<Text> {
                 let snippet = snippet_around(text, h.location.start, h.location.end);
                 context! {
                     name => h.name.as_deref().unwrap_or(""),
-                    kind => h.entity_kind.map(|k| k.to_string()).unwrap_or_else(|| "unknown".to_owned()),
+                    kind => h.label.as_ref().map(|l| l.to_string()).unwrap_or_else(|| "unknown".to_owned()),
                     value => value,
                     snippet => snippet,
                 }
@@ -259,7 +256,7 @@ impl Prompt<Image> for FilePrompt<Image> {
                 let bbox = &h.location.bounding_box;
                 context! {
                     name => h.name.as_deref().unwrap_or(""),
-                    kind => h.entity_kind.map(|k| k.to_string()).unwrap_or_else(|| "unknown".to_owned()),
+                    kind => h.label.as_ref().map(|l| l.to_string()).unwrap_or_else(|| "unknown".to_owned()),
                     bbox => context! {
                         x => bbox.x,
                         y => bbox.y,

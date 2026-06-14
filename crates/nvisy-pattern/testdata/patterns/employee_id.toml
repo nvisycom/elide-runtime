@@ -1,4 +1,4 @@
 name = "internal-employee-id"
-entity_kind = "internal_id"
+label = "internal_id"
 regex = "\\bEMP-\\d{5}\\b"
 score = 0.95

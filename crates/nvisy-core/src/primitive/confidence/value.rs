@@ -200,5 +200,4 @@ mod tests {
         assert!(serde_json::from_str::<Confidence>("1.4").is_err());
         assert!(serde_json::from_str::<Confidence>("-0.2").is_err());
     }
-
 }

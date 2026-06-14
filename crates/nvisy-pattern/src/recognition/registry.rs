@@ -13,6 +13,7 @@
 //! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
 
 use nvisy_core::context::ContextRegistry;
+use nvisy_core::entity::EntityLabelCatalog;
 
 use super::dictionary::Dictionary;
 use super::regex_rule::Regex;
@@ -99,6 +100,25 @@ impl PatternRegistry {
     #[must_use]
     pub fn dictionaries(&self) -> &[Dictionary] {
         &self.dictionaries
+    }
+
+    /// Drop every regex and dictionary whose `label` is not
+    /// registered in `catalog`. Used to build a per-request
+    /// registry from the workspace template — patterns that would
+    /// emit labels no policy declared never run.
+    #[must_use]
+    pub fn filter_by_catalog(mut self, catalog: &EntityLabelCatalog) -> Self {
+        self.regexes
+            .retain(|r| catalog.lookup(r.label.as_str()).is_some());
+        self.dictionaries
+            .retain(|d| catalog.lookup(d.label.as_str()).is_some());
+        self
+    }
+
+    /// `true` when the registry has no regexes and no dictionaries.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.regexes.is_empty() && self.dictionaries.is_empty()
     }
 
     /// Build a [`ContextRegistry`] containing every per-rule

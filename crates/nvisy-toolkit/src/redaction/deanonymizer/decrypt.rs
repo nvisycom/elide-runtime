@@ -105,7 +105,7 @@ impl Deanonymizer<Tabular> for Decrypt {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::entity::{EntityKind, TrailStep};
+    use nvisy_core::entity::{TrailStep, builtins};
     use nvisy_core::modality::{TabularLocation, TextLocation};
     use nvisy_core::primitive::Confidence;
 
@@ -121,7 +121,7 @@ mod tests {
 
     fn text_entity(start: usize, end: usize) -> Entity<Text> {
         Entity::builder()
-            .with_entity_kind(EntityKind::EmailAddress)
+            .with_label(builtins::EMAIL_ADDRESS.label_ref())
             .with_location(TextLocation::new(start, end))
             .with_confidence(Confidence::new(1.0).unwrap())
             .with_trail(Vec::<TrailStep>::new())
@@ -131,7 +131,7 @@ mod tests {
 
     fn tabular_entity(row: u32, col: u32) -> Entity<Tabular> {
         Entity::builder()
-            .with_entity_kind(EntityKind::EmailAddress)
+            .with_label(builtins::EMAIL_ADDRESS.label_ref())
             .with_location(TabularLocation::new(row, col))
             .with_confidence(Confidence::new(1.0).unwrap())
             .with_trail(Vec::<TrailStep>::new())

@@ -29,7 +29,9 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::entry::{AuditEntry, AuditEntryBuilder, Decision, EntryMetadata, Execution};
+pub use self::entry::{
+    AuditEntry, AuditEntryBuilder, Decision, EntryMetadata, Execution, ResolvedAction,
+};
 pub use self::override_decision::RedactionDecision;
 pub use self::record::EntityRecord;
 use crate::modality::{Audio, DocumentModality, Image, Tabular, Text};

@@ -4,23 +4,23 @@
 //! The registry exposes two independent indexes plus an optional
 //! catch-all:
 //!
-//! - **`by_kind`** — keyed by [`EntityKind`]. The dispatch the
-//!   toolkit-only pipeline uses: "this entity has kind
-//!   `EmailAddress`; what operator do I run?". Populated by callers
-//!   with `insert_kind`.
+//! - **`by_label`** — keyed by [`EntityLabelRef`]. The dispatch
+//!   the toolkit-only pipeline uses: "this entity has label
+//!   `email_address`; what operator do I run?". Populated by
+//!   callers with `insert_label`.
 //! - **`by_id`** — keyed by [`AnonymizerId<M>`]. The dispatch the
 //!   document-side policy layer uses when a policy rule resolves to
 //!   `Custom { name }` and the named operator must be looked up by
 //!   string id. Populated by callers with `insert_id`.
-//! - **`fallback`** — the operator to use when `by_kind.get(kind)`
-//!   misses. Optional; when absent, unregistered kinds skip.
+//! - **`fallback`** — the operator to use when `by_label.get(label)`
+//!   misses. Optional; when absent, unregistered labels skip.
 //!
 //! The two indexes are independent: registering the same operator
 //! both by kind and by id is a deliberate call-site choice, not an
 //! automatic mirroring.
 //!
 //! ```ignore
-//! use nvisy_core::entity::EntityKind;
+//! use nvisy_core::entity::builtins;
 //! use nvisy_core::modality::Text;
 //! use nvisy_toolkit::redaction::anonymizer::{Mask, Redact, Replace};
 //! use nvisy_toolkit::redaction::{AnonymizerId, RedactionRegistry};
@@ -28,8 +28,8 @@
 //! const KMS_ENCRYPT: AnonymizerId<Text> = AnonymizerId::from_static("kms_encrypt");
 //!
 //! let registry = RedactionRegistry::<Text>::new()
-//!     .insert_kind(EntityKind::EmailAddress, Replace::new("[EMAIL]"))
-//!     .insert_kind(EntityKind::PaymentCard, Mask::new('#').with_keep_suffix(4))
+//!     .insert_label(builtins::EMAIL_ADDRESS.label_ref(), Replace::new("[EMAIL]"))
+//!     .insert_label(builtins::PAYMENT_CARD.label_ref(), Mask::new('#').with_keep_suffix(4))
 //!     .insert_id(KMS_ENCRYPT, MyKmsOperator::new(client))
 //!     .with_fallback(Redact);
 //! ```
@@ -40,7 +40,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Result;
-use nvisy_core::entity::{Entity, EntityKind};
+use nvisy_core::entity::{Entity, EntityLabelRef};
 use nvisy_core::extraction::DataAt;
 use nvisy_core::modality::Modality;
 use nvisy_core::redaction::Redactions;
@@ -48,38 +48,39 @@ use nvisy_core::redaction::Redactions;
 use super::{Anonymizer, AnonymizerId};
 
 /// Per-modality registry of [`Anonymizer<M>`] instances, indexed by
-/// both [`EntityKind`] (toolkit-side per-kind dispatch) and
+/// both [`EntityLabelRef`] (toolkit-side per-label dispatch) and
 /// [`AnonymizerId<M>`] (policy-side custom-operator resolution).
 ///
 /// [`Anonymizer<M>`]: super::Anonymizer
 pub struct RedactionRegistry<M: Modality> {
-    by_kind: HashMap<EntityKind, Arc<dyn Anonymizer<M>>>,
+    by_label: HashMap<EntityLabelRef, Arc<dyn Anonymizer<M>>>,
     by_id: HashMap<AnonymizerId<M>, Arc<dyn Anonymizer<M>>>,
     fallback: Option<Arc<dyn Anonymizer<M>>>,
 }
 
 impl<M: Modality> RedactionRegistry<M> {
-    /// Build an empty registry. Use [`insert_kind`], [`insert_id`],
+    /// Build an empty registry. Use [`insert_label`], [`insert_id`],
     /// or [`with_fallback`] to populate it.
     ///
-    /// [`insert_kind`]: Self::insert_kind
+    /// [`insert_label`]: Self::insert_label
     /// [`insert_id`]: Self::insert_id
     /// [`with_fallback`]: Self::with_fallback
     #[must_use]
     pub fn new() -> Self {
         Self {
-            by_kind: HashMap::new(),
+            by_label: HashMap::new(),
             by_id: HashMap::new(),
             fallback: None,
         }
     }
 
-    /// Register `op` as the operator the toolkit pipeline picks when
-    /// it encounters an entity of `kind`. Re-registering the same
-    /// kind replaces the previous instance.
+    /// Register `op` as the operator the toolkit pipeline picks
+    /// when it encounters an entity carrying `label`.
+    /// Re-registering the same label replaces the previous
+    /// instance.
     #[must_use]
-    pub fn insert_kind(mut self, kind: EntityKind, op: impl Anonymizer<M> + 'static) -> Self {
-        self.by_kind.insert(kind, Arc::new(op));
+    pub fn insert_label(mut self, label: EntityLabelRef, op: impl Anonymizer<M> + 'static) -> Self {
+        self.by_label.insert(label, Arc::new(op));
         self
     }
 
@@ -102,13 +103,13 @@ impl<M: Modality> RedactionRegistry<M> {
         self
     }
 
-    /// Resolve an entity-kind to its registered operator, falling
-    /// back to the catch-all when no per-kind binding exists.
-    /// Returns `None` only when neither a per-kind operator nor a
+    /// Resolve an entity label to its registered operator, falling
+    /// back to the catch-all when no per-label binding exists.
+    /// Returns `None` only when neither a per-label operator nor a
     /// fallback was registered.
     #[must_use]
-    pub fn resolve(&self, kind: EntityKind) -> Option<&Arc<dyn Anonymizer<M>>> {
-        self.by_kind.get(&kind).or(self.fallback.as_ref())
+    pub fn resolve(&self, label: &EntityLabelRef) -> Option<&Arc<dyn Anonymizer<M>>> {
+        self.by_label.get(label).or(self.fallback.as_ref())
     }
 
     /// Resolve an [`AnonymizerId<M>`] to its registered operator.
@@ -119,10 +120,10 @@ impl<M: Modality> RedactionRegistry<M> {
         self.by_id.get(id)
     }
 
-    /// Number of distinct entity-kinds registered.
+    /// Number of distinct entity labels registered.
     #[must_use]
-    pub fn kinds_len(&self) -> usize {
-        self.by_kind.len()
+    pub fn labels_len(&self) -> usize {
+        self.by_label.len()
     }
 
     /// Number of distinct ids registered.
@@ -134,7 +135,7 @@ impl<M: Modality> RedactionRegistry<M> {
     /// `true` when neither index nor a fallback are registered.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_kind.is_empty() && self.by_id.is_empty() && self.fallback.is_none()
+        self.by_label.is_empty() && self.by_id.is_empty() && self.fallback.is_none()
     }
 
     /// Run [`resolve`] + [`Anonymizer::apply`] over every entity, and
@@ -147,7 +148,7 @@ impl<M: Modality> RedactionRegistry<M> {
     /// never sees the whole document. Entities whose location can't
     /// be resolved by the source are skipped.
     ///
-    /// Entities whose kind has no per-kind operator and where no
+    /// Entities whose label has no per-label operator and where no
     /// fallback was registered are skipped (counted as a debug-level
     /// tracing event); the rest are applied in iteration order.
     ///
@@ -168,7 +169,7 @@ impl<M: Modality> RedactionRegistry<M> {
         let mut skipped = 0usize;
         let mut unresolved = 0usize;
         for entity in entities {
-            let Some(op) = self.resolve(entity.entity_kind) else {
+            let Some(op) = self.resolve(&entity.label) else {
                 skipped += 1;
                 continue;
             };
@@ -183,7 +184,7 @@ impl<M: Modality> RedactionRegistry<M> {
             tracing::debug!(
                 target: "nvisy_toolkit::redaction::registry",
                 skipped,
-                "RedactionRegistry::apply_all skipped entities with no per-kind operator and no fallback",
+                "RedactionRegistry::apply_all skipped entities with no per-label operator and no fallback",
             );
         }
         if unresolved > 0 {
@@ -206,7 +207,7 @@ impl<M: Modality> Default for RedactionRegistry<M> {
 impl<M: Modality> Clone for RedactionRegistry<M> {
     fn clone(&self) -> Self {
         Self {
-            by_kind: self.by_kind.clone(),
+            by_label: self.by_label.clone(),
             by_id: self.by_id.clone(),
             fallback: self.fallback.clone(),
         }
@@ -216,7 +217,7 @@ impl<M: Modality> Clone for RedactionRegistry<M> {
 impl<M: Modality> std::fmt::Debug for RedactionRegistry<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RedactionRegistry")
-            .field("kinds", &self.by_kind.len())
+            .field("labels", &self.by_label.len())
             .field("ids", &self.by_id.len())
             .field("fallback", &self.fallback.is_some())
             .finish()
@@ -226,7 +227,7 @@ impl<M: Modality> std::fmt::Debug for RedactionRegistry<M> {
 #[cfg(test)]
 mod tests {
 
-    use nvisy_core::entity::Entity;
+    use nvisy_core::entity::{Entity, builtins};
     use nvisy_core::modality::{Text, TextData, TextLocation};
     use nvisy_core::primitive::Confidence;
 
@@ -263,9 +264,9 @@ mod tests {
         }
     }
 
-    fn entity(kind: EntityKind, start: usize, end: usize) -> Entity<Text> {
+    fn entity(label: EntityLabelRef, start: usize, end: usize) -> Entity<Text> {
         Entity::<Text>::builder()
-            .with_entity_kind(kind)
+            .with_label(label)
             .with_location(TextLocation::new(start, end))
             .with_confidence(Confidence::new(0.9).unwrap())
             .build()
@@ -276,16 +277,18 @@ mod tests {
     fn empty_registry_resolves_nothing() {
         let r = RedactionRegistry::<Text>::new();
         assert!(r.is_empty());
-        assert!(r.resolve(EntityKind::EmailAddress).is_none());
+        assert!(r.resolve(&builtins::EMAIL_ADDRESS.label_ref()).is_none());
         assert!(r.resolve_id(&AnonymizerId::from_static("kms")).is_none());
     }
 
     #[test]
-    fn insert_kind_then_resolve_returns_operator() {
-        let r = RedactionRegistry::<Text>::new()
-            .insert_kind(EntityKind::EmailAddress, StubAnonymizer("[EMAIL]"));
-        assert_eq!(r.kinds_len(), 1);
-        assert!(r.resolve(EntityKind::EmailAddress).is_some());
+    fn insert_label_then_resolve_returns_operator() {
+        let r = RedactionRegistry::<Text>::new().insert_label(
+            builtins::EMAIL_ADDRESS.label_ref(),
+            StubAnonymizer("[EMAIL]"),
+        );
+        assert_eq!(r.labels_len(), 1);
+        assert!(r.resolve(&builtins::EMAIL_ADDRESS.label_ref()).is_some());
     }
 
     #[test]
@@ -297,30 +300,34 @@ mod tests {
     }
 
     #[test]
-    fn fallback_covers_unregistered_kinds() {
+    fn fallback_covers_unregistered_labels() {
         let r = RedactionRegistry::<Text>::new().with_fallback(StubAnonymizer("[REDACTED]"));
-        assert!(r.resolve(EntityKind::PaymentCard).is_some());
+        assert!(r.resolve(&builtins::PAYMENT_CARD.label_ref()).is_some());
     }
 
     #[test]
-    fn per_kind_wins_over_fallback() {
+    fn per_label_wins_over_fallback() {
         let r = RedactionRegistry::<Text>::new()
-            .insert_kind(EntityKind::EmailAddress, StubAnonymizer("[EMAIL]"))
+            .insert_label(
+                builtins::EMAIL_ADDRESS.label_ref(),
+                StubAnonymizer("[EMAIL]"),
+            )
             .with_fallback(StubAnonymizer("[OTHER]"));
-        // Both resolve, but per-kind takes precedence — exercised
-        // indirectly via apply_all below.
-        assert!(r.resolve(EntityKind::EmailAddress).is_some());
-        assert!(r.resolve(EntityKind::PaymentCard).is_some());
+        assert!(r.resolve(&builtins::EMAIL_ADDRESS.label_ref()).is_some());
+        assert!(r.resolve(&builtins::PAYMENT_CARD.label_ref()).is_some());
     }
 
     #[tokio::test]
-    async fn apply_all_uses_per_kind_with_fallback() {
+    async fn apply_all_uses_per_label_with_fallback() {
         let r = RedactionRegistry::<Text>::new()
-            .insert_kind(EntityKind::EmailAddress, StubAnonymizer("[EMAIL]"))
+            .insert_label(
+                builtins::EMAIL_ADDRESS.label_ref(),
+                StubAnonymizer("[EMAIL]"),
+            )
             .with_fallback(StubAnonymizer("[OTHER]"));
         let entities = [
-            entity(EntityKind::EmailAddress, 0, 5),
-            entity(EntityKind::PaymentCard, 6, 10),
+            entity(builtins::EMAIL_ADDRESS.label_ref(), 0, 5),
+            entity(builtins::PAYMENT_CARD.label_ref(), 6, 10),
         ];
         let source = StubSource("abcdefghij".to_owned());
         let rs = r.apply_all(entities.iter(), &source).await.unwrap();
@@ -332,11 +339,13 @@ mod tests {
 
     #[tokio::test]
     async fn apply_all_skips_unmatched_entities_without_fallback() {
-        let r = RedactionRegistry::<Text>::new()
-            .insert_kind(EntityKind::EmailAddress, StubAnonymizer("[EMAIL]"));
+        let r = RedactionRegistry::<Text>::new().insert_label(
+            builtins::EMAIL_ADDRESS.label_ref(),
+            StubAnonymizer("[EMAIL]"),
+        );
         let entities = [
-            entity(EntityKind::EmailAddress, 0, 5),
-            entity(EntityKind::PaymentCard, 6, 10),
+            entity(builtins::EMAIL_ADDRESS.label_ref(), 0, 5),
+            entity(builtins::PAYMENT_CARD.label_ref(), 6, 10),
         ];
         let source = StubSource("abcdefghij".to_owned());
         let rs = r.apply_all(entities.iter(), &source).await.unwrap();

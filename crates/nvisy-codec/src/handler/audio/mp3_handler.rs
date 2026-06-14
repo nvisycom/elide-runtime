@@ -24,10 +24,9 @@ use nvisy_core::modality::{Audio, AudioData, AudioLocation};
 use nvisy_core::primitive::TimeSpan;
 use nvisy_core::redaction::Redactions;
 
-use super::Mp3Loader;
 use super::duration::probe_duration_us;
 use super::mp3_codec::{decode_to_pcm, encode_from_pcm};
-use super::redact;
+use super::{Mp3Loader, redact};
 use crate::content::{ContentData, ContentSource};
 use crate::{Chunk, Format, FormatId, Handler};
 
@@ -229,7 +228,10 @@ mod tests {
         // boundary where smear is biggest.
         let start = sr * 3 / 4;
         let end = sr * 5 / 4;
-        let mean_abs: f32 = decoded.samples[start..end].iter().map(|s| s.abs()).sum::<f32>()
+        let mean_abs: f32 = decoded.samples[start..end]
+            .iter()
+            .map(|s| s.abs())
+            .sum::<f32>()
             / (end - start) as f32;
         assert!(
             mean_abs < 0.05,

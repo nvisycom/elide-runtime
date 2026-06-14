@@ -1,9 +1,8 @@
 name = "phone"
 label = "phone_number"
+context = ["phone", "call", "mobile", "tel", "fax", "contact"]
+
+[[variants]]
 regex = "(?:\\+\\d{1,3}[\\s.\\-]?)?\\(?\\d{2,4}\\)?[\\s.\\-]?\\d{3,4}[\\s.\\-]?\\d{4}\\b"
 score = 0.8
 validator = "phone"
-
-[context]
-keywords = ["phone", "call", "mobile", "tel", "fax", "contact"]
-penalty = 0.15

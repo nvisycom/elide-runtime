@@ -1,9 +1,10 @@
 //! Post-match validators for detected entity values.
 //!
-//! A [`Regex`] can reference a validator by name (e.g.
-//! `validator: Some("luhn")`) to reduce false positives. At
-//! [`PatternRecognizer::build`] time the name is resolved against a
-//! [`ValidatorRegistry`] to a concrete validation function.
+//! A [`Variant`] inside a [`Regex`] rule can reference a validator
+//! by name (e.g. `validator: Some("luhn")`) to reduce false
+//! positives. At [`PatternRecognizer::build`] time the name is
+//! resolved against a [`ValidatorRegistry`] to a concrete
+//! validation function.
 //!
 //! The default [`ValidatorRegistry::builtin`] ships with five
 //! validators — `luhn`, `iban`, `ssn`, `phone`, `date`. Consumers
@@ -11,6 +12,7 @@
 //! [`ValidatorRegistry::with`] before handing it to the recognizer
 //! builder.
 //!
+//! [`Variant`]: crate::Variant
 //! [`Regex`]: crate::Regex
 //! [`PatternRecognizer::build`]: crate::PatternRecognizer
 
@@ -20,15 +22,15 @@ mod luhn;
 mod phone;
 mod ssn;
 
+pub use self::date::date;
+pub use self::iban::iban;
+pub use self::luhn::luhn;
+pub use self::phone::phone;
+pub use self::ssn::ssn;
+
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
-
-use self::date::validate_date;
-use self::iban::validate_iban;
-use self::luhn::luhn_check;
-use self::phone::validate_phone;
-use self::ssn::validate_ssn;
 
 /// Post-match validator: returns `true` when `matched` passes the
 /// validator's check.
@@ -51,15 +53,15 @@ where
     }
 }
 
-/// Resolves validator names referenced in [`Regex`] definitions to
-/// concrete [`Validator`] implementations.
+/// Resolves validator names referenced in [`Variant`] definitions
+/// to concrete [`Validator`] implementations.
 ///
 /// Keys are [`Cow<'static, str>`] so the built-in registrations skip
 /// any allocation (`&'static str` literal → borrowed variant) while
 /// caller-supplied names that aren't `'static` (e.g. dynamically
 /// constructed at runtime) still flow through as owned `String`s.
 ///
-/// [`Regex`]: crate::Regex
+/// [`Variant`]: crate::Variant
 #[derive(Clone, Default)]
 pub struct ValidatorRegistry {
     table: HashMap<Cow<'static, str>, Arc<dyn Validator>>,
@@ -74,16 +76,18 @@ impl ValidatorRegistry {
         Self::default()
     }
 
-    /// Registry pre-loaded with every built-in validator: `luhn`,
-    /// `iban`, `ssn`, `phone`, `date`.
+    /// Registry pre-loaded with every built-in validator: [`luhn`],
+    /// [`iban`], [`ssn`], [`phone`], [`date`]. Each is also
+    /// re-exported individually from this module so consumers can
+    /// mix-and-match without taking all five.
     #[must_use]
     pub fn builtin() -> Self {
         Self::empty()
-            .with("luhn", luhn_check)
-            .with("iban", validate_iban)
-            .with("ssn", validate_ssn)
-            .with("phone", validate_phone)
-            .with("date", validate_date)
+            .with("luhn", luhn)
+            .with("iban", iban)
+            .with("ssn", ssn)
+            .with("phone", phone)
+            .with("date", date)
     }
 
     /// Register `validator` under `name`. Overwrites any previous

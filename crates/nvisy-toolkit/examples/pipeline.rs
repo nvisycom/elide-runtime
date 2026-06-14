@@ -26,7 +26,7 @@ use nvisy_core::modality::{Text, TextData};
 use nvisy_core::primitive::ConfidenceThreshold;
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_core::redaction::RedactAt;
-use nvisy_pattern::{PatternRecognizer, PatternRegistry};
+use nvisy_pattern::PatternRecognizer;
 use nvisy_toolkit::deduplication::{LayerContext, LayerParams, LayerPipeline};
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::redaction::RedactionRegistry;
@@ -54,7 +54,8 @@ async fn main() -> Result<()> {
     // services. Add NER / LLM recognizers with extra
     // `.with_recognizer(...)` calls.
     let pattern = PatternRecognizer::builder()
-        .with_registry(PatternRegistry::builtin())
+        .with_builtin_patterns()
+        .with_builtin_dictionaries()
         .build()?;
     let detection = RecognizerRegistry::new().with_recognizer(pattern);
 

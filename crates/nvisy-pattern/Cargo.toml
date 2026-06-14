@@ -29,7 +29,6 @@ nvisy-core = { workspace = true, features = [] }
 
 # Serialization
 serde = { workspace = true, features = [] }
-schemars = { workspace = true, features = [] }
 toml = { workspace = true, features = ["parse"] }
 
 # Derive macros and error handling

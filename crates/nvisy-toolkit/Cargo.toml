@@ -80,6 +80,8 @@ unicode-normalization = { workspace = true, features = [] }
 [dev-dependencies]
 # Internal test utilities (Entity::test_builder, …).
 nvisy-core = { workspace = true, features = ["test-utils"] }
+# Boosting<R> wrapper type returned by PatternRecognizer::build().
+nvisy-context = { workspace = true, features = [] }
 # Codec front door for E2E pipeline tests. Production builds pull
 # nvisy-codec via the toolkit's per-modality features; the dev
 # entry pins txt/csv/json so the pipeline_*.rs tests compile.

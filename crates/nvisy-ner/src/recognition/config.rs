@@ -55,16 +55,6 @@ pub struct NerModel {
     /// Alignment policy for sub-word predictions. Same advisory
     /// status as `aggregation`.
     pub alignment: AlignmentMode,
-    /// Per-recognizer context-keyword list for the post-recognition
-    /// [`ContextEnhancer`].
-    /// Empty when the recognizer doesn't participate in boosting.
-    /// Each emitted entity's source name keys the lookup, so the
-    /// recognizer's [`name`] is used
-    /// as the registration key.
-    ///
-    /// [`ContextEnhancer`]: nvisy_context::ContextEnhancer
-    /// [`name`]: super::NerRecognizer::name
-    pub default_context: Vec<String>,
 }
 
 impl Default for NerModel {
@@ -77,7 +67,6 @@ impl Default for NerModel {
             low_score_multiplier: 0.4,
             aggregation: AggregationStrategy::Max,
             alignment: AlignmentMode::Expand,
-            default_context: Vec::new(),
         }
     }
 }
@@ -108,7 +97,6 @@ impl NerModelBuilder {
                 .unwrap_or(defaults.low_score_multiplier),
             aggregation: self.aggregation.unwrap_or(defaults.aggregation),
             alignment: self.alignment.unwrap_or(defaults.alignment),
-            default_context: self.default_context.unwrap_or(defaults.default_context),
         }
     }
 }

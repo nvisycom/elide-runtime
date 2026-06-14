@@ -1,72 +1,68 @@
 //! [`KeywordMatcher`] strategy + the two shipped implementations.
 //!
 //! - [`SubstringMatcher`] — ASCII case-insensitive substring search
-//!   over the raw text window. The fallback when no [`Tokens`] are
-//!   present in `RecognizerInput.artifacts`.
+//!   over the raw text window. The fallback when no token artifact
+//!   is present on `RecognizerInput.artifacts`.
 //! - [`LemmaMatcher`] — matches keywords against lemmatized tokens
-//!   stamped on `RecognizerInput.artifacts` as a [`Tokens`] entry by an
-//!   upstream NLP engine. Recognizes morphological variants
-//!   ("running" → "run", "SSNs" → "ssn") that substring matching
-//!   misses, at the cost of needing a producer engine with
-//!   lemmatization.
+//!   the upstream NLP engine stamped on `RecognizerInput.artifacts`
+//!   as a [`Tokens`] entry. Recognizes morphological variants
+//!   ("running" → "run", "SSNs" → "ssn") substring matching misses.
 //!
-//! Both implementations are stateless; the
-//! [`ContextEnhancer`] owns one as a
-//! configured strategy.
+//! Both implementations are stateless; the [`Enhancer`] owns one
+//! as a configured strategy.
 //!
 //! [`Tokens`]: super::Tokens
-//! [`ContextEnhancer`]: super::ContextEnhancer
+//! [`Enhancer`]: super::Enhancer
 
-use super::Tokens;
+use hipstr::HipStr;
 
-/// Decide whether any keyword from `keywords` fires within `window`.
+use super::Token;
+
+/// Decide whether any keyword from `keywords` fires within the
+/// candidate region around an entity match.
 ///
-/// The trait is the strategy slot that lets the enhancer swap raw
-/// substring matching for lemma-aware matching (or a third-party
+/// The strategy slot that lets the enhancer swap raw substring
+/// matching for lemma-aware matching (or a third-party
 /// fuzzy/word-boundary implementation) without changing its core
 /// pipeline.
 ///
 /// Implementations receive both a raw `window` slice of the source
-/// text (for substring strategies) and an optional `tokens` view
-/// (for token/lemma strategies). Either or both may be ignored.
+/// text (for substring strategies) and the `tokens` covering that
+/// same range (for token/lemma strategies). Either or both may be
+/// ignored; `tokens` is empty when no NLP engine produced a token
+/// artifact.
 pub trait KeywordMatcher: Send + Sync {
     /// `true` if at least one keyword from `keywords` appears in
-    /// the input. `window` is the raw text slice surrounding the
-    /// entity match; `tokens` is the subset of [`Tokens`] covering
-    /// that same range when an upstream NLP engine produced one,
-    /// `None` otherwise.
-    ///
-    /// [`Tokens`]: super::Tokens
-    fn any_match(&self, window: &str, tokens: Option<&Tokens>, keywords: &[String]) -> bool;
+    /// the input.
+    fn any_match(&self, window: &str, tokens: &[Token], keywords: &[HipStr<'static>]) -> bool;
 }
 
-/// ASCII case-insensitive substring matcher. The default — used
-/// whenever no [`Tokens`] were stamped on `RecognizerInput.artifacts`, or
-/// whenever the caller explicitly picks raw matching.
+/// ASCII case-insensitive substring matcher. The default —
+/// runs whenever no token artifact was stamped on
+/// `RecognizerInput.artifacts`, or whenever the caller explicitly
+/// picks raw matching.
 ///
 /// Fast, allocation-light, permissive: the keyword `"email"` fires
 /// inside `"MyEmailAddress"`. Ignores the `tokens` argument.
-///
-/// [`Tokens`]: super::Tokens
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SubstringMatcher;
 
 impl KeywordMatcher for SubstringMatcher {
-    fn any_match(&self, window: &str, _tokens: Option<&Tokens>, keywords: &[String]) -> bool {
+    fn any_match(&self, window: &str, _tokens: &[Token], keywords: &[HipStr<'static>]) -> bool {
         let lowered = window.to_ascii_lowercase();
         keywords
             .iter()
-            .any(|kw| lowered.contains(&kw.to_ascii_lowercase()))
+            .any(|kw| lowered.contains(kw.as_str().to_ascii_lowercase().as_str()))
     }
 }
 
-/// Lemma-aware matcher. Compares each lemma in `tokens` against the
-/// keyword list with ASCII case-insensitive equality.
+/// Lemma-aware matcher. Compares each lemma in `tokens` against
+/// the keyword list with ASCII case-insensitive equality.
 ///
 /// Falls back to [`SubstringMatcher`] semantics when `tokens` is
-/// `None` (no shared NLP artifact was produced) so the enhancer
-/// can be wired uniformly regardless of whether a given scan had
-/// artifacts.
+/// empty (no shared NLP artifact was produced) so the enhancer
+/// runs uniformly regardless of whether the upstream pass emitted
+/// tokens.
 ///
 /// Recognizes morphological variants the substring matcher cannot:
 /// `"running" → "run"`, `"dogs" → "dog"`, `"SSNs" → "ssn"`. Cost
@@ -76,60 +72,59 @@ impl KeywordMatcher for SubstringMatcher {
 pub struct LemmaMatcher;
 
 impl KeywordMatcher for LemmaMatcher {
-    fn any_match(&self, window: &str, tokens: Option<&Tokens>, keywords: &[String]) -> bool {
-        let Some(tokens) = tokens else {
-            return SubstringMatcher.any_match(window, None, keywords);
-        };
-        let lowered_keywords: Vec<String> =
-            keywords.iter().map(|k| k.to_ascii_lowercase()).collect();
+    fn any_match(&self, window: &str, tokens: &[Token], keywords: &[HipStr<'static>]) -> bool {
+        if tokens.is_empty() {
+            return SubstringMatcher.any_match(window, tokens, keywords);
+        }
+        let lowered_keywords: Vec<String> = keywords
+            .iter()
+            .map(|k| k.as_str().to_ascii_lowercase())
+            .collect();
         tokens.iter().any(|tok| {
-            let lemma = tok.lemma.to_ascii_lowercase();
-            lowered_keywords.iter().any(|kw| kw == &lemma)
+            let lemma = tok.lemma.as_str().to_ascii_lowercase();
+            lowered_keywords.contains(&lemma)
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::Token;
     use super::*;
+
+    fn kws(items: &[&'static str]) -> Vec<HipStr<'static>> {
+        items.iter().copied().map(HipStr::from).collect()
+    }
 
     #[test]
     fn substring_matches_case_insensitively() {
         let m = SubstringMatcher;
-        assert!(m.any_match("Your SSN: 123", None, &["ssn".into()]));
-        assert!(m.any_match(
-            "the SOCIAL SECURITY number",
-            None,
-            &["social security".into()]
-        ));
-        assert!(!m.any_match("nothing here", None, &["ssn".into()]));
+        assert!(m.any_match("Your SSN: 123", &[], &kws(&["ssn"])));
+        assert!(m.any_match("the SOCIAL SECURITY number", &[], &kws(&["social security"])));
+        assert!(!m.any_match("nothing here", &[], &kws(&["ssn"])));
     }
 
     #[test]
     fn substring_is_permissive() {
         let m = SubstringMatcher;
-        assert!(m.any_match("MyEmailAddress", None, &["email".into()]));
+        assert!(m.any_match("MyEmailAddress", &[], &kws(&["email"])));
     }
 
     #[test]
     fn lemma_matches_morph_variants() {
-        // tokens with lemmatization: "running" → "run", "dogs" → "dog"
-        let tokens = Tokens::new(vec![
+        let tokens = vec![
             Token::from_text("the", 0..3),
             Token::from_text("running", 4..11).with_lemma("run"),
             Token::from_text("dogs", 12..16).with_lemma("dog"),
-        ]);
+        ];
         let m = LemmaMatcher;
-        assert!(m.any_match("", Some(&tokens), &["run".into()]));
-        assert!(m.any_match("", Some(&tokens), &["dog".into()]));
-        assert!(!m.any_match("", Some(&tokens), &["cat".into()]));
+        assert!(m.any_match("", &tokens, &kws(&["run"])));
+        assert!(m.any_match("", &tokens, &kws(&["dog"])));
+        assert!(!m.any_match("", &tokens, &kws(&["cat"])));
     }
 
     #[test]
     fn lemma_falls_back_to_substring_without_tokens() {
         let m = LemmaMatcher;
-        // No artifacts → fall back to substring matching.
-        assert!(m.any_match("Your SSN: 123", None, &["ssn".into()]));
+        assert!(m.any_match("Your SSN: 123", &[], &kws(&["ssn"])));
     }
 }

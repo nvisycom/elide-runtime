@@ -3,13 +3,12 @@
 //! Validates that a regex-matched date string represents a real calendar
 //! date. Supports multiple common formats.
 
-/// Validate a date string in common formats.
+/// Return `true` if `value` is a real calendar date in one of the
+/// supported written formats.
 ///
 /// Supported: `MM/DD/YYYY`, `DD/MM/YYYY`, `YYYY-MM-DD`, `YYYY/MM/DD`
-/// (with `/` or `-` separators).
-///
-/// Checks that the date is a real calendar date (accounts for leap years)
-/// and that the year is in 1900:2100.
+/// (with `/` or `-` separators). Leap years are honoured and the
+/// year must fall in `1900..=2100`.
 ///
 /// # Ambiguity
 ///
@@ -18,7 +17,7 @@
 /// back to `DD/MM/YYYY` if the first part is not a valid month. This
 /// is a format-level structural check — locale disambiguation is out
 /// of scope.
-pub fn validate_date(value: &str) -> bool {
+pub fn date(value: &str) -> bool {
     let parts: Vec<&str> = value.split(['/', '-']).collect();
     if parts.len() != 3 {
         return false;
@@ -94,47 +93,47 @@ mod tests {
 
     #[test]
     fn mm_dd_yyyy() {
-        assert!(validate_date("01/15/1990"));
-        assert!(validate_date("12-31-2000"));
+        assert!(date("01/15/1990"));
+        assert!(date("12-31-2000"));
     }
 
     #[test]
     fn yyyy_mm_dd() {
-        assert!(validate_date("1990-01-15"));
-        assert!(validate_date("2000/12/31"));
+        assert!(date("1990-01-15"));
+        assert!(date("2000/12/31"));
     }
 
     #[test]
     fn leap_year() {
-        assert!(validate_date("02/29/2000"));
-        assert!(validate_date("2000-02-29"));
-        assert!(!validate_date("02/29/2001"));
+        assert!(date("02/29/2000"));
+        assert!(date("2000-02-29"));
+        assert!(!date("02/29/2001"));
     }
 
     #[test]
     fn invalid_day() {
-        assert!(!validate_date("04/31/1990"));
-        assert!(!validate_date("01/32/1990"));
-        assert!(!validate_date("01/00/1990"));
+        assert!(!date("04/31/1990"));
+        assert!(!date("01/32/1990"));
+        assert!(!date("01/00/1990"));
     }
 
     #[test]
     fn invalid_month() {
         // 13/01/1990 is valid as DD/MM/YYYY (Jan 13)
-        assert!(validate_date("13/01/1990"));
+        assert!(date("13/01/1990"));
         // YYYY-MM-DD format: month 13 is invalid
-        assert!(!validate_date("1990-13-01"));
+        assert!(!date("1990-13-01"));
     }
 
     #[test]
     fn invalid_year() {
-        assert!(!validate_date("01/01/1899"));
-        assert!(!validate_date("1899-01-01"));
+        assert!(!date("01/01/1899"));
+        assert!(!date("1899-01-01"));
     }
 
     #[test]
     fn dd_mm_yyyy_ambiguous() {
         // 15/01/1990: first part > 12 so must be DD/MM
-        assert!(validate_date("15/01/1990"));
+        assert!(date("15/01/1990"));
     }
 }

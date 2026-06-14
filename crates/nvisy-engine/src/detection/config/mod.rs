@@ -9,13 +9,17 @@
 //! currently wired — those modules are parked pending rework to
 //! implement [`EntityRecognizer<M>`] directly.
 //!
+//! Each recognizer owns its own post-recognition processing
+//! (boosting, deduplication-within-recognizer, validation post-pass).
+//! The engine orchestrates recognizers; it does not orchestrate
+//! recognizer-internal phases.
+//!
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
 //! [`EntityRecognizer<M>`]: nvisy_core::recognition::EntityRecognizer
 
 mod ner;
 mod pattern;
 
-use nvisy_context::{ContextEnhancer, ContextRegistry};
 #[cfg(not(feature = "bento"))]
 use nvisy_core::Error;
 use nvisy_core::Result;
@@ -25,7 +29,7 @@ use nvisy_ner::NerRecognizer;
 use nvisy_ner::backend::NoopBackend;
 #[cfg(feature = "bento")]
 use nvisy_ner::backend::{BentoBackend, BentoParams};
-use nvisy_pattern::{PatternRecognizer, PatternRegistry};
+use nvisy_pattern::PatternRecognizer;
 use nvisy_toolkit::detection::RecognizerRegistry;
 
 pub use self::ner::{NerBackend, NerDetection};
@@ -34,26 +38,6 @@ pub use self::pattern::PatternDetection;
 /// Stable name the NER recognizer registers under (surfaced in trail
 /// provenance on emitted entities).
 const NER_RECOGNIZER_NAME: &str = "ner";
-
-/// Engine-wide defaults for the post-recognition [`ContextEnhancer`].
-/// Mirrors Presidio's defaults (`context_similarity_factor = 0.35`,
-/// `context_prefix_count = ~5 words ≈ 50 bytes`).
-const ENHANCER_DEFAULT_WINDOW: usize = 50;
-const ENHANCER_DEFAULT_BOOST: f64 = 0.35;
-
-/// Bundle returned by [`DetectionConfig::build_for_request`]:
-/// the per-request recognizer registry plus the matching
-/// [`ContextEnhancer`] built from each recognizer's declared
-/// context keywords.
-pub struct DetectionResources {
-    /// Recognizers selected for this request.
-    pub recognizers: RecognizerRegistry,
-    /// Post-recognition keyword-boost enhancer for `Text`
-    /// entities. Always present; carries an empty registry when
-    /// no recognizer declared context keywords (cheap to skip
-    /// inside [`ContextEnhancer::enhance`]).
-    pub enhancer: ContextEnhancer,
-}
 
 /// Configuration for the [`RecognizerRegistry`].
 ///
@@ -92,19 +76,17 @@ impl DetectionConfig {
     /// Returns the first construction error encountered — pattern
     /// compile failure, NER backend init failure, or a
     /// config-selected backend whose feature wasn't compiled in.
-    pub fn build_for_request(&self, catalog: &EntityLabelCatalog) -> Result<DetectionResources> {
+    pub fn build_for_request(&self, catalog: &EntityLabelCatalog) -> Result<RecognizerRegistry> {
         let mut reg = RecognizerRegistry::new();
-        let mut context_registry = ContextRegistry::new();
 
         let pattern_cfg = self.pattern.clone().unwrap_or_default();
         if pattern_cfg.enabled {
-            let pattern_registry = PatternRegistry::builtin().filter_by_catalog(catalog);
-            if !pattern_registry.is_empty() {
-                context_registry = context_registry.merge(pattern_registry.context_registry());
-                let recognizer = PatternRecognizer::builder()
-                    .with_registry(pattern_registry)
-                    .build()?;
-                reg = reg.with_recognizer::<Text>(recognizer);
+            let builder = PatternRecognizer::builder()
+                .with_builtin_patterns()
+                .with_builtin_dictionaries()
+                .filter_by_catalog(catalog);
+            if !builder.is_empty() {
+                reg = reg.with_recognizer::<Text>(builder.build()?);
             }
         }
 
@@ -135,20 +117,9 @@ impl DetectionConfig {
                     ));
                 }
             };
-            context_registry = context_registry.merge(recognizer.context_registry());
             reg = reg.with_recognizer::<Text>(recognizer);
         }
 
-        let enhancer = ContextEnhancer::builder()
-            .with_registry(context_registry)
-            .with_default_window(ENHANCER_DEFAULT_WINDOW)
-            .with_default_boost(ENHANCER_DEFAULT_BOOST)
-            .build()
-            .expect("enhancer fields (window, boost, registry) all set");
-
-        Ok(DetectionResources {
-            recognizers: reg,
-            enhancer,
-        })
+        Ok(reg)
     }
 }

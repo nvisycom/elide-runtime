@@ -2894,12 +2894,10 @@ dependencies = [
 name = "nvisy-context"
 version = "0.1.0"
 dependencies = [
- "derive_builder",
+ "async-trait",
  "hipstr",
  "nvisy-core",
- "schemars",
- "serde",
- "thiserror",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -2938,7 +2936,6 @@ dependencies = [
  "humantime-serde",
  "jiff",
  "nvisy-codec",
- "nvisy-context",
  "nvisy-core",
  "nvisy-engine",
  "nvisy-llm",
@@ -3007,7 +3004,6 @@ dependencies = [
  "bentoml",
  "derive_builder",
  "lingua",
- "nvisy-context",
  "nvisy-core",
  "serde",
  "tokio",
@@ -3041,7 +3037,6 @@ dependencies = [
  "nvisy-context",
  "nvisy-core",
  "regex",
- "schemars",
  "serde",
  "tokio",
  "toml",
@@ -3087,6 +3082,7 @@ dependencies = [
  "async-trait",
  "base64",
  "nvisy-codec",
+ "nvisy-context",
  "nvisy-core",
  "nvisy-fake",
  "nvisy-llm",

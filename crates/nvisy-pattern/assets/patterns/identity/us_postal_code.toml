@@ -1,4 +1,6 @@
 name = "us-postal-code"
 label = "postal_code"
+
+[[variants]]
 regex = "\\b\\d{5}(?:-\\d{4})?\\b"
 score = 0.5

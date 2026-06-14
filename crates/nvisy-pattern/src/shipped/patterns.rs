@@ -119,7 +119,7 @@ shipped_pattern!(
     fn datetime from "personal/datetime.toml"
 );
 
-/// Every built-in regex pattern shipped by this crate, in arbitrary
+/// Every built-in pattern shipped by this crate, in arbitrary
 /// stable order.
 #[must_use]
 pub fn all() -> Vec<Regex> {

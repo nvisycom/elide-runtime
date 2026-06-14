@@ -10,7 +10,7 @@
 /// format.
 ///
 /// This is a format check, not a verification against SSA records.
-pub fn validate_ssn(value: &str) -> bool {
+pub fn ssn(value: &str) -> bool {
     let parts: Vec<&str> = value.split('-').collect();
     if parts.len() != 3 {
         return false;
@@ -36,42 +36,42 @@ mod tests {
 
     #[test]
     fn valid() {
-        assert!(validate_ssn("123-45-6789"));
-        assert!(validate_ssn("001-01-0001"));
-        assert!(validate_ssn("899-99-9999"));
+        assert!(ssn("123-45-6789"));
+        assert!(ssn("001-01-0001"));
+        assert!(ssn("899-99-9999"));
     }
 
     #[test]
     fn invalid_area_zero() {
-        assert!(!validate_ssn("000-45-6789"));
+        assert!(!ssn("000-45-6789"));
     }
 
     #[test]
     fn invalid_area_666() {
-        assert!(!validate_ssn("666-45-6789"));
+        assert!(!ssn("666-45-6789"));
     }
 
     #[test]
     fn invalid_area_900_plus() {
-        assert!(!validate_ssn("900-45-6789"));
-        assert!(!validate_ssn("999-45-6789"));
+        assert!(!ssn("900-45-6789"));
+        assert!(!ssn("999-45-6789"));
     }
 
     #[test]
     fn invalid_group_zero() {
-        assert!(!validate_ssn("123-00-6789"));
+        assert!(!ssn("123-00-6789"));
     }
 
     #[test]
     fn invalid_serial_zero() {
-        assert!(!validate_ssn("123-45-0000"));
+        assert!(!ssn("123-45-0000"));
     }
 
     #[test]
     fn wrong_format() {
-        assert!(!validate_ssn("12345-6789"));
-        assert!(!validate_ssn("123456789"));
-        assert!(!validate_ssn("abc-de-fghi"));
-        assert!(!validate_ssn(""));
+        assert!(!ssn("12345-6789"));
+        assert!(!ssn("123456789"));
+        assert!(!ssn("abc-de-fghi"));
+        assert!(!ssn(""));
     }
 }

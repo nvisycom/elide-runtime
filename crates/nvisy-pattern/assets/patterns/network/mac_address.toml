@@ -1,4 +1,6 @@
 name = "mac-address"
 label = "mac_address"
+
+[[variants]]
 regex = "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b"
 score = 0.85

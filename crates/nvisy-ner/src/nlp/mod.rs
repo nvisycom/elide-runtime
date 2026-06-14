@@ -1,13 +1,13 @@
 //! Producer side of the shared-NLP-pass primitive.
 //!
-//! Consumer-side types live in `nvisy-core` so any text consumer
-//! (pattern recognizers, NER adapters, context enhancer) can read
-//! them without depending on this crate:
-//! [`LanguageDetections`] sits with the language primitives;
-//! [`Tokens`] sits next to the [`ContextEnhancer`] that consumes
-//! it. This module declares the [`NlpEngine`] trait and the
-//! engines that produce those artifacts into the shared `TypeMap`
-//! stamped on `RecognizerInput.artifacts`.
+//! Consumer-side types live in their natural crates so any text
+//! consumer can read them without depending on this one:
+//! [`LanguageDetections`] sits with the language primitives in
+//! `nvisy-core`; the optional token artifact lives in
+//! `nvisy-context` next to its only consumer (the keyword-boost
+//! `Enhancer`). This module declares the [`NlpEngine`] trait and
+//! the engines that produce those artifacts into the shared
+//! `TypeMap` stamped on `RecognizerInput.artifacts`.
 //!
 //! One engine ships today:
 //! - [`LinguaNlpEngine`] — language-only NLP, backed by the
@@ -21,9 +21,7 @@
 //! The trait is async because realistic implementations are
 //! HTTP-bound or otherwise yield.
 //!
-//! [`Tokens`]: nvisy_context::Tokens
 //! [`LanguageDetections`]: nvisy_core::primitive::LanguageDetections
-//! [`ContextEnhancer`]: nvisy_context::ContextEnhancer
 //! [`lingua`]: https://crates.io/crates/lingua
 //! [`NerBackend`]: crate::backend::NerBackend
 //! [`NerRecognizer`]: crate::NerRecognizer

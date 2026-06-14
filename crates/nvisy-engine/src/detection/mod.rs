@@ -28,9 +28,7 @@ mod result;
 mod state;
 mod status;
 
-pub use self::config::{
-    DetectionConfig, DetectionResources, NerBackend, NerDetection, PatternDetection,
-};
+pub use self::config::{DetectionConfig, NerBackend, NerDetection, PatternDetection};
 pub use self::engine::DetectionEngine;
 pub use self::extraction::ExtractionConfig;
 #[cfg(feature = "image")]

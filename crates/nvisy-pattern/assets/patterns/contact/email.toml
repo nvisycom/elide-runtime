@@ -1,4 +1,6 @@
 name = "email"
 label = "email_address"
+
+[[variants]]
 regex = "\\b[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}\\b"
 score = 0.95

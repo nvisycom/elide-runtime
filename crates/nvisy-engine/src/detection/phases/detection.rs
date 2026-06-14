@@ -11,10 +11,8 @@
 
 use std::sync::Arc;
 
-use nvisy_context::ContextEnhancer;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
-use nvisy_core::extraction::Artifacts;
 use nvisy_core::modality::{
     Audio, AudioLocation, Image, ImageLocation, Overlap, Tabular, TabularLocation, Text, TextData,
     TextLocation,
@@ -35,21 +33,20 @@ const TARGET: &str = "nvisy_engine::detection";
 ///
 /// Holds an `Arc<RecognizerRegistry>` so the registry is shared
 /// cheaply across per-document phases without cloning the
-/// underlying recognizer lists, plus an `Arc<ContextEnhancer>` for
-/// the post-recognition keyword-boost pass.
+/// underlying recognizer lists. Recognizers own any post-detection
+/// work they need (boosting, dedup, validation) — the engine just
+/// orchestrates the registry.
 ///
 /// [`EntityRecord`]: crate::document::provenance::EntityRecord
 pub struct DetectionPhase {
     registry: Arc<RecognizerRegistry>,
-    enhancer: Arc<ContextEnhancer>,
 }
 
 impl DetectionPhase {
-    /// Build the phase from the shared recognizer registry and
-    /// matching context enhancer. Called once per pipeline by the
-    /// pipeline orchestrator.
-    pub fn new(registry: Arc<RecognizerRegistry>, enhancer: Arc<ContextEnhancer>) -> Self {
-        Self { registry, enhancer }
+    /// Build the phase from the shared recognizer registry. Called
+    /// once per pipeline by the pipeline orchestrator.
+    pub fn new(registry: Arc<RecognizerRegistry>) -> Self {
+        Self { registry }
     }
 
     pub(crate) async fn apply_text(
@@ -88,7 +85,7 @@ impl DetectionPhase {
         let span = tracing::info_span!(target: TARGET, "phase", name = "detection.image");
         let run_id = ctx.shared().run_id;
         async move {
-            detect_text_blocks(&self.registry, &self.enhancer, &mut tree.root, run_id).await?;
+            detect_text_blocks(&self.registry, &mut tree.root, run_id).await?;
             detect_image_chunks(
                 &self.registry,
                 &mut tree.root,
@@ -115,7 +112,7 @@ impl DetectionPhase {
         let span = tracing::info_span!(target: TARGET, "phase", name = "detection.text_only");
         let run_id = ctx.shared().run_id;
         async move {
-            detect_text_blocks(&self.registry, &self.enhancer, doc, run_id).await?;
+            detect_text_blocks(&self.registry, doc, run_id).await?;
             Ok(())
         }
         .instrument(span)
@@ -127,7 +124,6 @@ impl DetectionPhase {
 /// text via [`ModalityBlock::scan_text`] (today: every modality).
 async fn detect_text_blocks<M>(
     registry: &RecognizerRegistry,
-    enhancer: &ContextEnhancer,
     doc: &mut Document<M>,
     run_id: uuid::Uuid,
 ) -> Result<()>
@@ -154,13 +150,7 @@ where
         let mut input = RecognizerInput::new(TextData::new(text.to_owned()));
         input.correlation_id = Some(run_id);
 
-        let mut detected = registry.run::<Text>(input).await?;
-        // Apply context-keyword boosting in block-local coordinates,
-        // before lifting to modality-absolute locations. The shared
-        // NLP-pass producer hasn't been wired into the detection
-        // pipeline yet, so we pass an empty `Artifacts` — the
-        // enhancer's substring path runs without it.
-        enhancer.enhance(&mut detected, text, &Artifacts::new());
+        let detected = registry.run::<Text>(input).await?;
         for entity in detected {
             let Some(location) =
                 M::lift_from_block(&block.spans, entity.location.start, entity.location.end)

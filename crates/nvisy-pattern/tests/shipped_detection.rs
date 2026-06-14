@@ -10,17 +10,14 @@
 use nvisy_core::entity::{Entity, EntityLabelRef, builtins};
 use nvisy_core::modality::{Text, TextData};
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
-use nvisy_pattern::{PatternRecognizer, PatternRegistry};
-
-fn shipped_recognizer() -> PatternRecognizer {
-    PatternRecognizer::builder()
-        .with_registry(PatternRegistry::builtin())
-        .build()
-        .expect("shipped recognizer builds")
-}
+use nvisy_pattern::PatternRecognizer;
 
 async fn scan(text: &str) -> (String, Vec<Entity<Text>>) {
-    let recognizer = shipped_recognizer();
+    let recognizer = PatternRecognizer::builder()
+        .with_builtin_patterns()
+        .with_builtin_dictionaries()
+        .build()
+        .expect("shipped recognizer builds");
     let input = RecognizerInput::new(TextData::new(text.to_owned()));
     let entities = recognizer
         .recognize(&input)

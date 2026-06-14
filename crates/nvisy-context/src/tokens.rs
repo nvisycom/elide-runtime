@@ -6,33 +6,29 @@
 //! text, and two precomputed predicates the enhancer reads
 //! (`is_stop`, `is_punct`).
 //!
-//! [`Tokens`] is the owning collection plus lookup helpers the
-//! enhancer uses: [`around`] gets the slice of tokens within a byte
-//! window, [`lemmas_in`] iterates lemmas covering a byte range.
-//! Both work in *source-text byte offsets* — the same coordinate
-//! space as [`Entity::location`] — so there's no coordinate
-//! translation at the call site.
+//! [`Tokens`] is the owning collection — a `Vec<Token>` newtype
+//! exposing iteration and length. The [`Enhancer`] slices the
+//! stream by *count* (prefix/suffix word radii) using its own
+//! internal helpers; the byte range carried on each [`Token`] is
+//! there for consumers that want to map a token back to its
+//! source-text substring.
 //!
-//! [`around`]: Tokens::around
-//! [`lemmas_in`]: Tokens::lemmas_in
-//! [`Entity::location`]: nvisy_core::entity::Entity::location
+//! [`Enhancer`]: super::Enhancer
 //!
-//! Tokens live next to the [`ContextEnhancer`] because that's the
-//! only consumer: the enhancer reads them off
+//! Tokens live next to the [`Enhancer`] because that's the only
+//! consumer: the enhancer reads them off
 //! `RecognizerInput::artifacts` to drive lemma-aware keyword
 //! matching. The producer (a tokenizer in some upstream NLP
 //! backend) only needs to know the type by name; the type itself
-//! belongs in the consumer's neighborhood.
+//! belongs in the consumer's neighbourhood.
 //!
 //! The shape is intentionally minimal. POS tags, morphology,
-//! dependency trees, and other heavier features are not part of the
-//! v1 surface; they get added as fields when a downstream consumer
-//! needs them. This keeps the artifact cheap for engines that don't
-//! produce them — `text == lemma`, `is_stop == false`,
+//! dependency trees, and other heavier features are not part of
+//! the v1 surface; they get added as fields when a downstream
+//! consumer needs them. This keeps the artifact cheap for engines
+//! that don't produce them — `text == lemma`, `is_stop == false`,
 //! `is_punct == false` are the defaults for a tokenizer-only
 //! engine.
-//!
-//! [`ContextEnhancer`]: super::ContextEnhancer
 
 use std::ops::Range;
 
@@ -99,17 +95,18 @@ impl Token {
     }
 }
 
-/// The owning token sequence carried by a
-/// [`RecognizerInput::artifacts`] bundle.
+/// Owning token sequence stamped on a
+/// [`RecognizerInput::artifacts`] bundle by an upstream NLP engine.
 ///
 /// [`RecognizerInput::artifacts`]: nvisy_core::recognition::RecognizerInput::artifacts
 ///
 /// Tokens are sorted by `offset.start` (producers should emit them
-/// in order; consumer-side code assumes this). The collection
-/// exposes byte-range lookup helpers the [`ContextEnhancer`] uses
-/// to pull lemmas around an entity match.
+/// in order; consumer-side code assumes this). The [`Enhancer`]
+/// borrows the underlying slice via [`as_slice`] and walks it by
+/// count when scoring the entity's neighbourhood.
 ///
-/// [`ContextEnhancer`]: super::ContextEnhancer
+/// [`Enhancer`]: super::Enhancer
+/// [`as_slice`]: Tokens::as_slice
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Tokens(Vec<Token>);
 
@@ -150,47 +147,6 @@ impl Tokens {
     pub fn iter(&self) -> std::slice::Iter<'_, Token> {
         self.0.iter()
     }
-
-    /// Tokens overlapping `byte_range`, plus a `window`-byte
-    /// margin on each side.
-    ///
-    /// Used by the enhancer to grab the keyword neighborhood around
-    /// an entity match. Returns the contiguous sub-slice; tokens at
-    /// the boundary are included when their byte range overlaps the
-    /// expanded range.
-    ///
-    /// Cost is `O(log n)` for the start probe + linear over the
-    /// returned slice; the sequence is sorted so a binary search
-    /// suffices.
-    #[must_use]
-    pub fn around(&self, byte_range: Range<usize>, window: usize) -> &[Token] {
-        let lo = byte_range.start.saturating_sub(window);
-        let hi = byte_range.end.saturating_add(window);
-        self.in_range(lo..hi)
-    }
-
-    /// Lemmas of every token overlapping `byte_range`. Useful when
-    /// only the lemma strings are needed (e.g. for keyword
-    /// matching).
-    pub fn lemmas_in(&self, byte_range: Range<usize>) -> impl Iterator<Item = &str> {
-        self.in_range(byte_range).iter().map(|t| t.lemma.as_str())
-    }
-
-    /// Tokens fully contained within (or overlapping) `byte_range`.
-    /// Returned as a sub-slice — tokens with `offset.end > range.start`
-    /// and `offset.start < range.end` are included.
-    #[must_use]
-    pub fn in_range(&self, byte_range: Range<usize>) -> &[Token] {
-        if self.0.is_empty() || byte_range.start >= byte_range.end {
-            return &[];
-        }
-        let start = self.0.partition_point(|t| t.offset.end <= byte_range.start);
-        let end = self.0.partition_point(|t| t.offset.start < byte_range.end);
-        if start >= end {
-            return &[];
-        }
-        &self.0[start..end]
-    }
 }
 
 impl FromIterator<Token> for Tokens {
@@ -205,70 +161,5 @@ impl IntoIterator for Tokens {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn t(text: &'static str, start: usize, end: usize) -> Token {
-        Token::from_text(text, start..end)
-    }
-
-    #[test]
-    fn in_range_returns_overlapping_tokens() {
-        let tokens = Tokens::new(vec![t("hello", 0, 5), t("world", 6, 11), t("foo", 12, 15)]);
-        // 4..7 overlaps "hello" and "world"
-        let got: Vec<&str> = tokens
-            .in_range(4..7)
-            .iter()
-            .map(|t| t.text.as_str())
-            .collect();
-        assert_eq!(got, vec!["hello", "world"]);
-    }
-
-    #[test]
-    fn around_extends_by_window() {
-        let tokens = Tokens::new(vec![
-            t("a", 0, 1),
-            t("b", 2, 3),
-            t("c", 4, 5),
-            t("d", 6, 7),
-            t("e", 8, 9),
-        ]);
-        // around 4..5 with window=2 → look at 2..7 → "b","c","d"
-        let got: Vec<&str> = tokens
-            .around(4..5, 2)
-            .iter()
-            .map(|t| t.text.as_str())
-            .collect();
-        assert_eq!(got, vec!["b", "c", "d"]);
-    }
-
-    #[test]
-    fn lemmas_in_yields_lemmas() {
-        let tokens = Tokens::new(vec![
-            t("running", 0, 7).with_lemma("run"),
-            t("dogs", 8, 12).with_lemma("dog"),
-        ]);
-        let got: Vec<&str> = tokens.lemmas_in(0..12).collect();
-        assert_eq!(got, vec!["run", "dog"]);
-    }
-
-    #[test]
-    fn in_range_empty_for_disjoint_range() {
-        let tokens = Tokens::new(vec![t("a", 0, 5)]);
-        assert!(tokens.in_range(10..20).is_empty());
-    }
-
-    #[test]
-    fn in_range_empty_for_inverted_range() {
-        let tokens = Tokens::new(vec![t("a", 0, 5)]);
-        let inverted = Range {
-            start: 5usize,
-            end: 3usize,
-        };
-        assert!(tokens.in_range(inverted).is_empty());
     }
 }

@@ -17,33 +17,86 @@
 use std::io::Cursor;
 
 use nvisy_core::Error;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use nvisy_core::primitive::Confidence;
+use serde::Deserialize;
 
-/// Literal term list. Each term carries the **column index** it
-/// came from (CSV column number, 0-based; non-CSV sources always
-/// use column `0`). The column index is the join key for
-/// [`Dictionary::column_scores`] per-column overrides.
+/// Literal term list. Each [`Term`] carries an optional source
+/// column (set by [`Terms::from_csv`]) plus an optional per-term
+/// score override. The column index is the join key for
+/// [`Dictionary::scoring`] when it's [`Scoring::PerColumn`].
 ///
-/// JSON-transparent: serialises to / deserialises from a JSON array
-/// of `[term, column]` pairs.
-///
-/// [`Dictionary::column_scores`]: crate::Dictionary::column_scores
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
+/// [`Dictionary::scoring`]: crate::Dictionary::scoring
+/// [`Scoring::PerColumn`]: crate::Scoring::PerColumn
+#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
 #[serde(transparent)]
-pub struct Terms(Vec<TermEntry>);
+pub struct Terms(Vec<Term>);
 
-/// One entry in a [`Terms`] list: the literal plus the column it
-/// was loaded from. Serde-renamed so the wire shape is the compact
-/// tuple `[term, column]` rather than a verbose object.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct TermEntry {
+/// One entry in a [`Terms`] list: the literal, the column it was
+/// loaded from (when applicable), and an optional explicit score
+/// that overrides the dictionary's [`Scoring`] policy for this
+/// term.
+///
+/// Per-term score is `None` for the common path — the dictionary's
+/// [`Scoring`] resolves the per-match score from the column.
+/// Set `score` only for one-off exceptions (e.g. a term known to
+/// be high-confidence even though its column is generally noisy).
+///
+/// Per-term column is `None` for non-CSV sources (plain text
+/// lists, the `From<Vec<String>>` / array impls). `Some(i)` flags
+/// a CSV cell from column `i`; the dictionary's
+/// [`Scoring::PerColumn`] uses it to pick the per-column score.
+///
+/// [`Scoring`]: crate::Scoring
+/// [`Scoring::PerColumn`]: crate::Scoring::PerColumn
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Term {
     /// The literal scanned for.
     pub term: String,
-    /// CSV column the term came from (0-based). `0` for any
-    /// non-CSV source.
+    /// CSV column the term came from. `None` for non-CSV
+    /// sources; `Some(i)` for the cell at column `i` of a CSV.
     #[serde(default)]
-    pub column: u16,
+    pub column: Option<u16>,
+    /// Optional per-term score override. When `Some`, the
+    /// recognizer stamps this score on every match of this term;
+    /// when `None`, falls back to the dictionary's [`Scoring`]
+    /// policy resolved against [`column`].
+    ///
+    /// [`Scoring`]: crate::Scoring
+    /// [`column`]: Self::column
+    #[serde(default)]
+    pub score: Option<Confidence>,
+}
+
+impl Term {
+    /// Construct a term with no column and no per-term score
+    /// override. The common path for plain-text sources and
+    /// programmatic `From<…>` constructions.
+    #[must_use]
+    pub fn new(term: impl Into<String>) -> Self {
+        Self {
+            term: term.into(),
+            column: None,
+            score: None,
+        }
+    }
+
+    /// Attach a CSV source-column index, used by the dictionary's
+    /// [`Scoring::PerColumn`] to pick a per-column score.
+    ///
+    /// [`Scoring::PerColumn`]: crate::Scoring::PerColumn
+    #[must_use]
+    pub fn with_column(mut self, column: u16) -> Self {
+        self.column = Some(column);
+        self
+    }
+
+    /// Set an explicit per-term score, overriding the dictionary's
+    /// column-resolved score for this term.
+    #[must_use]
+    pub fn with_score(mut self, score: Confidence) -> Self {
+        self.score = Some(score);
+        self
+    }
 }
 
 impl Terms {
@@ -55,7 +108,7 @@ impl Terms {
 
     /// Borrow the inner entries.
     #[must_use]
-    pub fn entries(&self) -> &[TermEntry] {
+    pub fn entries(&self) -> &[Term] {
         &self.0
     }
 
@@ -73,44 +126,42 @@ impl Terms {
 
     /// Consume into the inner entries.
     #[must_use]
-    pub fn into_inner(self) -> Vec<TermEntry> {
+    pub fn into_inner(self) -> Vec<Term> {
         self.0
     }
 
     /// Parse terms from plain-text bytes — one term per line.
-    /// Each line is trimmed; empty lines and lines starting with `#`
-    /// are skipped. Every term gets column `0`.
+    /// Each line is trimmed; empty lines and lines starting with
+    /// `#` are skipped. Plain-text terms carry no column.
     ///
     /// # Errors
     ///
-    /// Returns a validation error when the input is not valid UTF-8.
+    /// Returns a validation error when the input is not valid
+    /// UTF-8.
     pub fn from_text(bytes: &[u8]) -> Result<Self, Error> {
         let text = std::str::from_utf8(bytes)
             .map_err(|e| Error::validation(format!("terms text: {e}"), "nvisy-pattern"))?;
-        let entries: Vec<TermEntry> = text
+        let entries: Vec<Term> = text
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
-            .map(|line| TermEntry {
-                term: line.to_owned(),
-                column: 0,
-            })
+            .map(Term::new)
             .collect();
         Ok(Self(entries))
     }
 
-    /// Parse terms from CSV bytes. Every non-empty cell across every
-    /// row becomes a term, and each term remembers the (0-based)
-    /// column index it came from so a [`Dictionary`] can apply
-    /// per-column confidence overrides via
-    /// [`Dictionary::column_scores`].
+    /// Parse terms from CSV bytes. Every non-empty cell across
+    /// every row becomes a term, and each term remembers the
+    /// (0-based) column index it came from so a [`Dictionary`]
+    /// can apply per-column confidence overrides via
+    /// [`Scoring::PerColumn`].
     ///
     /// # Errors
     ///
     /// Returns a validation error when the CSV is malformed.
     ///
     /// [`Dictionary`]: crate::Dictionary
-    /// [`Dictionary::column_scores`]: crate::Dictionary::column_scores
+    /// [`Scoring::PerColumn`]: crate::Scoring::PerColumn
     pub fn from_csv(bytes: &[u8]) -> Result<Self, Error> {
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(false)
@@ -123,10 +174,8 @@ impl Terms {
             for (col_idx, cell) in row.iter().enumerate() {
                 let trimmed = cell.trim();
                 if !trimmed.is_empty() {
-                    entries.push(TermEntry {
-                        term: trimmed.to_owned(),
-                        column: u16::try_from(col_idx).unwrap_or(u16::MAX),
-                    });
+                    let column = u16::try_from(col_idx).unwrap_or(u16::MAX);
+                    entries.push(Term::new(trimmed).with_column(column));
                 }
             }
         }
@@ -136,50 +185,24 @@ impl Terms {
 
 impl From<Vec<String>> for Terms {
     fn from(terms: Vec<String>) -> Self {
-        Self(
-            terms
-                .into_iter()
-                .map(|term| TermEntry { term, column: 0 })
-                .collect(),
-        )
+        Self(terms.into_iter().map(Term::new).collect())
     }
 }
 
 impl From<&[&str]> for Terms {
     fn from(terms: &[&str]) -> Self {
-        Self(
-            terms
-                .iter()
-                .map(|s| TermEntry {
-                    term: (*s).to_owned(),
-                    column: 0,
-                })
-                .collect(),
-        )
+        Self(terms.iter().copied().map(Term::new).collect())
     }
 }
 
 impl<const N: usize> From<[&str; N]> for Terms {
     fn from(terms: [&str; N]) -> Self {
-        Self(
-            terms
-                .iter()
-                .map(|s| TermEntry {
-                    term: (*s).to_owned(),
-                    column: 0,
-                })
-                .collect(),
-        )
+        Self(terms.iter().copied().map(Term::new).collect())
     }
 }
 
 impl<const N: usize> From<[String; N]> for Terms {
     fn from(terms: [String; N]) -> Self {
-        Self(
-            terms
-                .into_iter()
-                .map(|term| TermEntry { term, column: 0 })
-                .collect(),
-        )
+        Self(terms.into_iter().map(Term::new).collect())
     }
 }

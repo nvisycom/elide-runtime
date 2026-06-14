@@ -2,10 +2,10 @@
 //! crate.
 //!
 //! Each accessor parses an asset file embedded via
-//! [`include_bytes!`] and returns a fresh [`Regex`] or
-//! [`Dictionary`]. Metadata for dictionaries (entity kind, score,
-//! context) is split into a JSON sidecar paired with a CSV / TXT
-//! term source; regex rules are self-contained JSON.
+//! [`include_str!`] and returns a fresh [`Regex`] or
+//! [`Dictionary`]. Metadata for dictionaries (entity label, score,
+//! context) is split into a TOML sidecar paired with a CSV / TXT
+//! term source; regex rules are self-contained TOML.
 //!
 //! Use [`patterns::all`] and [`dictionaries::all`] to load the
 //! complete shipped set, or pick individual accessors.

@@ -3,7 +3,8 @@
 //!
 //! Each operator recovers the original payload an [`Anonymizer<M>`]
 //! wrote. Two recovery shapes ship today (see [`Deanonymizer`]):
-//! audit-keyed (no impl yet) and self-contained ([`Decrypt`]).
+//! audit-keyed (no impl yet) and self-contained (e.g. `Decrypt`,
+//! gated behind the `encrypt` feature).
 //!
 //! [`Anonymizer<M>`]: crate::redaction::Anonymizer
 //! [`Deanonymizer<M>`]: crate::redaction::Deanonymizer

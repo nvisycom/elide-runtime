@@ -4,7 +4,7 @@
 //! Composition-time contract between an `NlpEngine` and the
 //! recognizers / enhancer that read its artifacts. Lets the engine
 //! orchestrator refuse impossible asks at construction time — e.g.
-//! wiring a lemma-aware `ContextEnhancer` to a tokenizer-only
+//! wiring a lemma-aware enhancer to a tokenizer-only
 //! engine that doesn't produce lemmas.
 //!
 //! Booleans rather than an enum because capabilities are

@@ -26,16 +26,14 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Serialization
-serde = { workspace = true, features = [] }
-schemars = { workspace = true, features = [] }
-
-# Derive macros and error handling
-derive_builder = { workspace = true, features = [] }
-thiserror = { workspace = true, features = [] }
-
 # Primitive datatypes (cheap-clone surface form on `Token`)
 hipstr = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+
+# Text processing (word-window walk for the substring fallback)
+unicode-segmentation = { workspace = true, features = [] }
 
 [dev-dependencies]
 nvisy-core = { workspace = true, features = ["test-utils"] }

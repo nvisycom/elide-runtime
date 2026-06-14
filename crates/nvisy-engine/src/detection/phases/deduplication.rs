@@ -17,11 +17,10 @@ use nvisy_toolkit::deduplication::{LayerContext, LayerPipeline, SpanSize};
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::core::PhaseContext as _;
-use crate::core::{DetectionContext, DocumentTree};
+use crate::core::{DetectionContext, DocumentTree, PhaseContext as _};
+use crate::detection::{DeduplicationParams, DetectionPlan};
 use crate::document::provenance::EntityRecord;
 use crate::modality::DocumentModality;
-use crate::detection::{DeduplicationParams, DetectionPlan};
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
@@ -73,7 +72,12 @@ impl DeduplicationPhase {
         self.run(ctx, plan, tree).await
     }
 
-    async fn run<M>(&self, ctx: &DetectionContext, plan: &DetectionPlan, tree: &mut DocumentTree<M>) -> Result<()>
+    async fn run<M>(
+        &self,
+        ctx: &DetectionContext,
+        plan: &DetectionPlan,
+        tree: &mut DocumentTree<M>,
+    ) -> Result<()>
     where
         M: DocumentModality,
         M::Location: Overlap + SpanSize,

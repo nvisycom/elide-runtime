@@ -23,11 +23,10 @@ use nvisy_core::recognition::RecognizerInput;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use tracing::Instrument;
 
-use crate::core::PhaseContext as _;
-use crate::core::{DetectionContext, DocumentTree};
+use crate::core::{DetectionContext, DocumentTree, PhaseContext as _};
+use crate::detection::DetectionPlan;
 use crate::document::{Document, Span};
 use crate::modality::{DocumentModality, ModalityBlock};
-use crate::detection::DetectionPlan;
 
 const TARGET: &str = "nvisy_engine::detection";
 

@@ -58,20 +58,24 @@ pub struct Extraction {
 
 /// Text-modality plan knobs. No tunables today; reserved for future
 /// per-call settings (e.g. whitespace normalization).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct TextPlan {}
 
 /// Tabular-modality plan knobs. No tunables today.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct TabularPlan {}
 
 /// Image-modality plan knobs. No tunables today; reserved for
 /// future OCR tuning (e.g. language hint, page subset).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ImagePlan {}
 
 /// Audio-modality plan knobs (speech-to-text).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct AudioPlan {
     /// Segment the audio by speaker identity.
     ///

@@ -5,12 +5,11 @@
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
 
-use crate::core::PhaseContext as _;
-use crate::core::{DetectionContext, DocumentTree};
+use crate::core::{DetectionContext, DocumentTree, PhaseContext as _};
+use crate::detection::DetectionPlan;
 use crate::detection::phases::deduplication::DeduplicationPhase;
 use crate::detection::phases::detection::DetectionPhase;
 use crate::detection::phases::extraction::ExtractionPhase;
-use crate::detection::DetectionPlan;
 
 const TARGET: &str = "nvisy_engine::pipeline::detection::document";
 

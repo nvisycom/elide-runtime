@@ -15,9 +15,9 @@
 mod ner;
 mod pattern;
 
+use nvisy_context::{ContextEnhancer, ContextRegistry};
 #[cfg(not(feature = "bento"))]
 use nvisy_core::Error;
-use nvisy_context::{ContextEnhancer, ContextRegistry};
 use nvisy_core::Result;
 use nvisy_core::entity::EntityLabelCatalog;
 use nvisy_core::modality::Text;

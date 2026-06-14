@@ -17,8 +17,8 @@ use uuid::Uuid;
 use super::result::{DetectionEntry, DetectionFilter, DetectionResult, DetectionSnapshot};
 use super::status::DetectionStatus;
 use crate::core::PolicyStore;
-use crate::document::provenance::AnyAudit;
 use crate::core::ingestion::ImportFile;
+use crate::document::provenance::AnyAudit;
 use crate::policy::PolicyDigest;
 
 const TARGET: &str = "nvisy_engine::detection::state";
@@ -131,7 +131,11 @@ impl DetectionState {
     /// callers).
     ///
     /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-    pub(crate) async fn snapshot(&self, actor_id: Uuid, id: Uuid) -> Result<DetectionSnapshot, Error> {
+    pub(crate) async fn snapshot(
+        &self,
+        actor_id: Uuid,
+        id: Uuid,
+    ) -> Result<DetectionSnapshot, Error> {
         let guard = self.inner.read().await;
         let Some(record) = guard.get(&id) else {
             return Err(Error::not_found(
@@ -206,7 +210,11 @@ impl DetectionState {
         })
     }
 
-    pub(crate) async fn list(&self, actor_id: Uuid, filter: DetectionFilter) -> Vec<DetectionEntry> {
+    pub(crate) async fn list(
+        &self,
+        actor_id: Uuid,
+        filter: DetectionFilter,
+    ) -> Vec<DetectionEntry> {
         let guard = self.inner.read().await;
         let mut out: Vec<DetectionEntry> = guard
             .iter()

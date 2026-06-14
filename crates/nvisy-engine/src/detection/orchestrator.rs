@@ -8,11 +8,10 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
 use super::document::DetectionDocumentPipeline;
-use crate::core::PhaseContext as _;
-use crate::core::{AnyTree, DetectionContext};
-use crate::document::provenance::AnyAudit;
 use crate::core::ingestion::{ImportFile, Importer};
+use crate::core::{AnyTree, DetectionContext, PhaseContext as _};
 use crate::detection::DetectionPlan;
+use crate::document::provenance::AnyAudit;
 
 const TARGET: &str = "nvisy_engine::pipeline::detection::orchestrator";
 

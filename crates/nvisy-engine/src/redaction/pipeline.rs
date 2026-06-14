@@ -14,13 +14,12 @@ use super::orchestrator::RedactionOrchestrator;
 use super::result::RedactionResult;
 use super::state::{RedactionRecord, RedactionState};
 use super::status::RedactionStatus;
-use crate::core::{RedactionContext, RedactionEngines, SharedData};
-use crate::document::provenance::AnyAudit;
 use crate::core::ingestion::encryption::SharedKeyProvider;
-use crate::redaction::phases::RedactionRegistries;
-use crate::redaction::RedactionConfig;
-use crate::core::RuntimeConfig;
+use crate::core::{RedactionContext, RedactionEngines, RuntimeConfig, SharedData};
 use crate::detection::DetectionState;
+use crate::document::provenance::AnyAudit;
+use crate::redaction::RedactionConfig;
+use crate::redaction::phases::RedactionRegistries;
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::redaction::pipeline";

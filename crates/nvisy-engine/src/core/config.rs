@@ -26,8 +26,7 @@
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
-use nvisy_core::Error;
-use nvisy_core::Result;
+use nvisy_core::{Error, Result};
 use nvisy_llm::backend::http::HttpConfig;
 use semver::Version;
 use serde::{Deserialize, Serialize};

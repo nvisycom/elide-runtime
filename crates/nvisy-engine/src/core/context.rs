@@ -23,8 +23,8 @@ use nvisy_toolkit::extraction::ExtractorRegistry;
 use tokio_util::sync::CancellationToken;
 
 use super::SharedData;
-use crate::redaction::phases::RedactionRegistries;
 use crate::redaction::RedactionConfig;
+use crate::redaction::phases::RedactionRegistries;
 
 /// Shared surface every phase reads from regardless of which side
 /// (detection or redaction) it runs on. Implemented by both

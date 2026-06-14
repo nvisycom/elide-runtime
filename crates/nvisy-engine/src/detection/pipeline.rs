@@ -20,12 +20,11 @@ use super::orchestrator::DetectionOrchestrator;
 use super::result::DetectionResult;
 use super::state::{DetectionRecord, DetectionState};
 use super::status::DetectionStatus;
-use crate::core::{DetectionContext, DetectionEngines, PolicyStore, SharedData};
-use crate::document::provenance::AnyAudit;
 use crate::core::ingestion::ImportFile;
 use crate::core::ingestion::encryption::SharedKeyProvider;
-use crate::core::RuntimeConfig;
+use crate::core::{DetectionContext, DetectionEngines, PolicyStore, RuntimeConfig, SharedData};
 use crate::detection::DetectionConfig;
+use crate::document::provenance::AnyAudit;
 use crate::policy::{Policy, PolicyDigest};
 use crate::registry::Registry;
 
@@ -93,8 +92,7 @@ impl DetectionPipeline {
         input.validate_actions()?;
 
         let actor_id = input.actor_id;
-        let policy_digests: Vec<PolicyDigest> =
-            input.policies.iter().map(Policy::digest).collect();
+        let policy_digests: Vec<PolicyDigest> = input.policies.iter().map(Policy::digest).collect();
         let policies = Arc::new(PolicyStore::from_policies(input.policies));
 
         self.detections

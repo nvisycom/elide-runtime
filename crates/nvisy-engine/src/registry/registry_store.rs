@@ -42,13 +42,13 @@ struct RegistryInner {
     /// `(actor_id, detection_id)`. JSON-encoded; one entry per
     /// terminal-state detection pass.
     ///
-    /// [`DetectionResult`]: crate::pipeline::detection::DetectionResult
+    /// [`DetectionResult`]: crate::detection::DetectionResult
     detections_ks: Keyspace,
     /// Persisted [`RedactionResult`]s, keyed by
     /// `(actor_id, redaction_id)`. JSON-encoded; one entry per
     /// terminal-state redaction pass.
     ///
-    /// [`RedactionResult`]: crate::pipeline::redaction::RedactionResult
+    /// [`RedactionResult`]: crate::redaction::RedactionResult
     redactions_ks: Keyspace,
 }
 
@@ -69,7 +69,7 @@ impl Registry {
         let content_ks = db.open_blob_keyspace("content")?;
         let content_meta_ks = db.open_keyspace("content_meta")?;
         let annotations_ks = db.open_keyspace("annotations")?;
-        let audits_ks = db.open_keyspace("run_outputs")?;
+        let audits_ks = db.open_keyspace("audits")?;
         let detections_ks = db.open_keyspace("detections")?;
         let redactions_ks = db.open_keyspace("redactions")?;
 
@@ -404,13 +404,13 @@ impl Registry {
     /// in-memory state only after the persisted write completes
     /// so a restart can resume from disk.
     ///
-    /// [`DetectionResult`]: crate::pipeline::detection::DetectionResult
+    /// [`DetectionResult`]: crate::detection::DetectionResult
     #[tracing::instrument(target = TARGET, name = "registry.store_detection", skip(self, detection), fields(%actor_id, %detection_id))]
     pub async fn store_detection(
         &self,
         actor_id: Uuid,
         detection_id: Uuid,
-        detection: &crate::pipeline::detection::DetectionResult,
+        detection: &crate::detection::DetectionResult,
     ) -> Result<()> {
         let key = CompositeKey::new(actor_id, detection_id);
         self.store_json(&self.inner.detections_ks, key, detection)
@@ -424,13 +424,13 @@ impl Registry {
     /// Returns the typed error from `load_json` — `NotFound`
     /// for an absent key, `Serialization` for a corrupted blob.
     ///
-    /// [`DetectionResult`]: crate::pipeline::detection::DetectionResult
+    /// [`DetectionResult`]: crate::detection::DetectionResult
     #[tracing::instrument(target = TARGET, name = "registry.load_detection", skip(self), fields(%actor_id, %detection_id))]
     pub async fn load_detection(
         &self,
         actor_id: Uuid,
         detection_id: Uuid,
-    ) -> Result<crate::pipeline::detection::DetectionResult> {
+    ) -> Result<crate::detection::DetectionResult> {
         let key = CompositeKey::new(actor_id, detection_id);
         self.load_json(&self.inner.detections_ks, key, "detection")
             .await
@@ -446,13 +446,13 @@ impl Registry {
 
     /// Persist a completed [`RedactionResult`].
     ///
-    /// [`RedactionResult`]: crate::pipeline::redaction::RedactionResult
+    /// [`RedactionResult`]: crate::redaction::RedactionResult
     #[tracing::instrument(target = TARGET, name = "registry.store_redaction", skip(self, redaction), fields(%actor_id, %redaction_id))]
     pub async fn store_redaction(
         &self,
         actor_id: Uuid,
         redaction_id: Uuid,
-        redaction: &crate::pipeline::redaction::RedactionResult,
+        redaction: &crate::redaction::RedactionResult,
     ) -> Result<()> {
         let key = CompositeKey::new(actor_id, redaction_id);
         self.store_json(&self.inner.redactions_ks, key, redaction)
@@ -463,13 +463,13 @@ impl Registry {
 
     /// Load a persisted [`RedactionResult`].
     ///
-    /// [`RedactionResult`]: crate::pipeline::redaction::RedactionResult
+    /// [`RedactionResult`]: crate::redaction::RedactionResult
     #[tracing::instrument(target = TARGET, name = "registry.load_redaction", skip(self), fields(%actor_id, %redaction_id))]
     pub async fn load_redaction(
         &self,
         actor_id: Uuid,
         redaction_id: Uuid,
-    ) -> Result<crate::pipeline::redaction::RedactionResult> {
+    ) -> Result<crate::redaction::RedactionResult> {
         let key = CompositeKey::new(actor_id, redaction_id);
         self.load_json(&self.inner.redactions_ks, key, "redaction")
             .await

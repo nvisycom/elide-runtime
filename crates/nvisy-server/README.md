@@ -11,7 +11,7 @@ auto-generated OpenAPI spec and Scalar reference UI.
 Built on Axum with Aide for OpenAPI generation and Scalar for the
 docs UI. Handlers compose into versioned route trees under
 `/api/v1` and translate request payloads into the typed
-`nvisy-engine` inputs — `NewDetection` carries inline `AnyPolicy`
+`nvisy-engine` inputs — `NewDetection` carries inline `Policy`
 bodies straight into `DetectionInput`, `NewRedaction` references a
 prior detection by id, and file routes stream raw bytes through
 the registry's content store. Middleware layers — request id

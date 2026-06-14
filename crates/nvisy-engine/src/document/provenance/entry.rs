@@ -12,6 +12,7 @@
 //! - [`EntryMetadata`] — when, correlation, optional review.
 
 use derive_builder::Builder;
+use hipstr::HipStr;
 use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,7 @@ use uuid::Uuid;
 
 use super::override_decision::RedactionDecision;
 use crate::modality::DocumentModality;
-use crate::policy::{Action, PolicyDecisionRef};
+use crate::policy::PolicyDecisionRef;
 
 /// A per-entity redaction record produced during a pipeline run.
 ///
@@ -57,10 +58,10 @@ impl<M: DocumentModality> AuditEntry<M> {
 /// What the policy evaluator chose for an entity. Immutable after
 /// evaluation; the applicator only writes to [`AuditEntry::execution`].
 ///
-/// The full [`Action<M>`] from the winning rule is carried verbatim
-/// so the audit record names the operator spec the apply phase ran
-/// (or would have run). Callers reading audits can render the
-/// operator without re-resolving the policy chain.
+/// The resolved per-entity [`ResolvedAction<M>`] is carried verbatim so
+/// the audit record names the operator the apply phase ran (or
+/// would have run). Callers reading audits can render the operator
+/// without re-resolving the policy chain.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Decision<M: DocumentModality> {
@@ -69,9 +70,43 @@ pub struct Decision<M: DocumentModality> {
     /// (e.g. the default-threshold fallback path).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy_ref: Option<PolicyDecisionRef>,
-    /// The action the matching rule picked (with its operator spec
-    /// for [`Action::Redact`]).
-    pub action: Action<M>,
+    /// The resolved per-entity action — the [`ResolvedAction::Redact`]
+    /// arm carries the single operator picked for this entity's
+    /// modality (after fallback to the deployment-wide defaults).
+    pub action: ResolvedAction<M>,
+}
+
+/// Per-entity resolved action recorded on an [`AuditEntry`].
+///
+/// Differs from the policy-side [`Action`][crate::policy::Action]:
+/// the policy author's `Redact` carries operators for every
+/// modality the rule wants to cover, but a given audit entry is
+/// always for one specific entity — so the audit-side `Redact`
+/// carries just the typed operator that got picked.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ResolvedAction<M: DocumentModality> {
+    /// Redact the entity using the named operator.
+    Redact {
+        /// Operator spec resolved for this entity's modality.
+        operator: M::Redaction,
+    },
+    /// Suppress the entity (treat as false positive). Optional
+    /// author-supplied reason rides along on the audit entry.
+    Suppress {
+        /// Reason the rule supplied for the suppression, if any.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[schemars(with = "Option<String>")]
+        reason: Option<HipStr<'static>>,
+    },
+    /// Flag the entity for human review without transforming it.
+    /// Optional severity hint rides along on the audit entry.
+    Audit {
+        /// Severity hint the rule supplied, if any.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[schemars(with = "Option<String>")]
+        severity: Option<HipStr<'static>>,
+    },
 }
 
 /// State machine for what the codec applicator did with a
@@ -129,12 +164,12 @@ pub struct EntryMetadata {
     pub correlation_id: Option<Uuid>,
     /// Provenance of the decision on this entry. `None` means
     /// the decision came from the policy chain with no override
-    /// involvement (legacy unified runs). [`Engine::redact`]
+    /// involvement (legacy unified runs). [`RedactionEngine::redact`]
     /// stamps every entry with an explicit tag — `PolicyChain`
     /// when no override touched the entity, or the matching
     /// `Override*` variant when one did.
     ///
-    /// [`Engine::redact`]: crate::pipeline::Engine::redact
+    /// [`RedactionEngine::redact`]: crate::redaction::RedactionEngine::redact
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub override_decision: Option<RedactionDecision>,
 }

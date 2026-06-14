@@ -3,11 +3,11 @@
 #![doc = include_str!("../README.md")]
 
 pub mod core;
+pub mod detection;
 pub mod document;
 pub mod modality;
-pub mod phases;
-pub mod pipeline;
 pub mod policy;
+pub mod redaction;
 pub mod registry;
 
 pub use nvisy_codec::content::{

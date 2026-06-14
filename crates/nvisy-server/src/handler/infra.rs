@@ -10,7 +10,7 @@ use aide::transform::TransformOperation;
 use axum::extract::State;
 use nvisy_core::health::{ComponentCheck, Healthcheck, ServiceStatus};
 use nvisy_engine::core::probe_all;
-use nvisy_engine::pipeline::Engine;
+use nvisy_engine::detection::DetectionEngine;
 
 use super::response::Health;
 use crate::extract::Json;
@@ -20,7 +20,7 @@ use crate::service::ServiceState;
 const TARGET: &str = "nvisy_server::infra";
 
 #[tracing::instrument(target = TARGET, skip_all)]
-async fn health_check(State(engine): State<Engine>) -> Json<Health> {
+async fn health_check(State(engine): State<DetectionEngine>) -> Json<Health> {
     let fs_status = if engine.data_dir().is_dir() {
         ServiceStatus::Healthy
     } else {

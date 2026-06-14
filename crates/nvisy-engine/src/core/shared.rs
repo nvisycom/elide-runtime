@@ -17,7 +17,7 @@ use nvisy_core::entity::EntityLabelCatalog;
 use uuid::Uuid;
 
 use super::PolicyStore;
-use crate::phases::ingestion::encryption::SharedKeyProvider;
+use crate::core::ingestion::encryption::SharedKeyProvider;
 use crate::registry::Registry;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.

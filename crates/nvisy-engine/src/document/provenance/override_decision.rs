@@ -2,7 +2,7 @@
 //! [`AuditEntry`] when a redaction pass applied a human override.
 //!
 //! The value is stamped onto [`EntryMetadata::override_decision`]
-//! during [`Engine::redact`]. Reviewers inspecting the final
+//! during [`RedactionEngine::redact`]. Reviewers inspecting the final
 //! audit can distinguish a policy-chain decision from a
 //! human-mediated one.
 //!
@@ -12,7 +12,7 @@
 //!
 //! [`AuditEntry`]: super::AuditEntry
 //! [`EntryMetadata::override_decision`]: super::EntryMetadata::override_decision
-//! [`Engine::redact`]: crate::pipeline::Engine::redact
+//! [`RedactionEngine::redact`]: crate::redaction::RedactionEngine::redact
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 /// [`RedactionOverride`] accepts.
 ///
 /// [`AuditEntry`]: super::AuditEntry
-/// [`RedactionOverride`]: crate::pipeline::redaction::RedactionOverride
+/// [`RedactionOverride`]: crate::redaction::RedactionOverride
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RedactionDecision {

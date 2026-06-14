@@ -40,12 +40,12 @@ use crate::service::ServiceState;
 /// ```
 ///
 /// Policies are not a persisted resource: the caller submits the
-/// full [`AnyPolicy`] bodies inline on `POST /api/v1/detections`.
+/// full [`Policy`] bodies inline on `POST /api/v1/detections`.
 /// The audit refers to each rule by `PolicyDecisionRef` so the
 /// caller can correlate decisions against their own copy of the
 /// policy bytes when rendering.
 ///
-/// [`AnyPolicy`]: nvisy_engine::policy::AnyPolicy
+/// [`Policy`]: nvisy_engine::policy::Policy
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(infra::health_routes())

@@ -22,10 +22,10 @@
 //! [`HipStr<'static>`]: hipstr::HipStr
 
 pub mod builtins;
+mod catalog;
 mod entity_label;
-mod entity_label_catalog;
-mod entity_label_ref;
+mod reference;
 
+pub use self::catalog::EntityLabelCatalog;
 pub use self::entity_label::EntityLabel;
-pub use self::entity_label_catalog::EntityLabelCatalog;
-pub use self::entity_label_ref::EntityLabelRef;
+pub use self::reference::EntityLabelRef;

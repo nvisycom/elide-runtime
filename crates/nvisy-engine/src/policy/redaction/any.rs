@@ -12,8 +12,8 @@
 //! { "modality": "text", "kind": "mask", ... }
 //! ```
 //!
-//! [`RedactionOverride::Replace`]: crate::pipeline::redaction::RedactionOverride::Replace
-//! [`RedactionAddEntity`]: crate::pipeline::redaction::RedactionAddEntity
+//! [`RedactionOverride::Replace`]: crate::redaction::RedactionOverride::Replace
+//! [`RedactionAddEntity`]: crate::redaction::RedactionAddEntity
 
 use nvisy_core::modality::ModalityKind;
 use schemars::JsonSchema;

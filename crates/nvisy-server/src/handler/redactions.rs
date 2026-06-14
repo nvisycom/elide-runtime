@@ -14,7 +14,7 @@ use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{Engine, RedactionFilter, RedactionSnapshot};
+use nvisy_engine::redaction::{RedactionEngine, RedactionFilter, RedactionSnapshot};
 
 use super::request::{NewRedaction, RedactionPath, RedactionQuery};
 use super::response::{Page, RedactionId, RedactionList};
@@ -27,7 +27,7 @@ const TARGET: &str = "nvisy_server::redactions";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn create_redaction(
-    State(engine): State<Engine>,
+    State(engine): State<RedactionEngine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRedaction>,
 ) -> Result<(StatusCode, Json<RedactionId>)> {
@@ -51,7 +51,7 @@ fn create_redaction_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn list_redactions(
-    State(engine): State<Engine>,
+    State(engine): State<RedactionEngine>,
     ActorId(actor_id): ActorId,
     Query(query): Query<RedactionQuery>,
 ) -> Result<Json<RedactionList>> {
@@ -76,7 +76,7 @@ fn list_redactions_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_redaction(
-    State(engine): State<Engine>,
+    State(engine): State<RedactionEngine>,
     ActorId(actor_id): ActorId,
     Path(RedactionPath { id }): Path<RedactionPath>,
 ) -> Result<Json<RedactionSnapshot>> {
@@ -98,7 +98,7 @@ fn get_redaction_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn cancel_redaction(
-    State(engine): State<Engine>,
+    State(engine): State<RedactionEngine>,
     ActorId(actor_id): ActorId,
     Path(RedactionPath { id }): Path<RedactionPath>,
 ) -> Result<StatusCode> {
@@ -115,7 +115,7 @@ fn cancel_redaction_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn delete_redaction(
-    State(engine): State<Engine>,
+    State(engine): State<RedactionEngine>,
     ActorId(actor_id): ActorId,
     Path(RedactionPath { id }): Path<RedactionPath>,
 ) -> Result<StatusCode> {
@@ -132,7 +132,7 @@ fn delete_redaction_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn delete_all_redactions(
-    State(engine): State<Engine>,
+    State(engine): State<RedactionEngine>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
     let deleted = engine.delete_all_redactions(actor_id).await;

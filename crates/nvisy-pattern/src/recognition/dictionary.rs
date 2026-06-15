@@ -6,6 +6,7 @@ use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use serde::Deserialize;
 
+use super::context::Context;
 use super::term::Term;
 
 /// Confidence policy for a [`Dictionary`]'s matches.
@@ -129,10 +130,11 @@ pub struct Dictionary {
     #[serde(default, rename = "score")]
     pub scoring: Scoring,
     /// Context keywords that lift confidence when one of them
-    /// appears near a match.
+    /// appears near a match. Either a flat list applied
+    /// regardless of language, or a per-language map.
     #[builder(default)]
     #[serde(default)]
-    pub context: Vec<String>,
+    pub context: Context,
     /// BCP-47 language tags the dictionary applies to. Empty means
     /// "any language"; otherwise the recognizer skips the
     /// dictionary when the per-call language hint is not in the
@@ -222,7 +224,7 @@ struct DictionaryMetadata {
     #[serde(default)]
     score: Option<Scoring>,
     #[serde(default)]
-    context: Option<Vec<String>>,
+    context: Option<Context>,
     #[serde(default)]
     word_boundary: Option<bool>,
 }

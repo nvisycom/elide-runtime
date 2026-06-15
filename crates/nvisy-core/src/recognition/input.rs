@@ -127,7 +127,9 @@ impl<M: Modality> RecognizerInput<M> {
     /// - An empty `allowed` list means the rule is language-agnostic
     ///   and always runs.
     /// - When `allowed` is non-empty and [`language`] is `Some(_)`,
-    ///   the rule runs only if the hint is in the list.
+    ///   the rule runs when the hint shares a primary subtag with
+    ///   any entry in `allowed` (so an `["en"]` rule fires for
+    ///   `"en-US"` and `"en-GB"` hints).
     /// - When [`language`] is `None`, the rule still runs — we can't
     ///   disprove applicability without a hint.
     ///
@@ -138,7 +140,7 @@ impl<M: Modality> RecognizerInput<M> {
             return true;
         }
         match self.language.as_ref() {
-            Some(l) => allowed.iter().any(|a| a == l),
+            Some(hint) => allowed.iter().any(|a| a.matches(hint)),
             None => true,
         }
     }

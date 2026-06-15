@@ -33,6 +33,7 @@ toml = { workspace = true, features = ["parse"] }
 
 # Derive macros and error handling
 derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["from"] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

@@ -70,7 +70,9 @@ where
         }
         let text = input.data.text.as_str();
         let tokens = input.artifacts.get::<Tokens>().map(Tokens::as_slice);
-        self.enhancer.enhance(&mut output.entities, text, tokens);
+        let language = input.language.as_ref();
+        self.enhancer
+            .enhance(&mut output.entities, text, tokens, language);
         Ok(output)
     }
 }

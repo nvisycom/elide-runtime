@@ -20,7 +20,7 @@ use std::collections::HashSet;
 
 use hipstr::HipStr;
 use nvisy_core::entity::EntityLabelRef;
-use nvisy_core::primitive::Confidence;
+use nvisy_core::primitive::{Confidence, LanguageTag};
 
 /// Default window radius in words *before* an entity match.
 /// Mirrors Presidio's `context_prefix_count = 5`.
@@ -49,6 +49,11 @@ pub struct BoostRule {
     ///
     /// [`label`]: nvisy_core::entity::Entity::label
     pub label: EntityLabelRef,
+    /// Language scope. `None` means the rule applies regardless
+    /// of the per-call language hint; `Some(lang)` means the rule
+    /// only fires when the caller's language matches, or when no
+    /// hint is set (permissive fallback).
+    pub language: Option<LanguageTag>,
     /// Keywords whose presence near a match lifts the entity's
     /// confidence. Stored as [`HipStr`] for cheap clones across
     /// per-pass rule sets.
@@ -71,8 +76,12 @@ pub struct BoostRule {
 
 impl BoostRule {
     /// Construct a rule for `label` with explicit window radii
-    /// and `boost`. Most callers want [`BoostRule::for_label`]
-    /// instead — it bakes in the default window / boost values.
+    /// and `boost`. The rule is language-agnostic; use
+    /// [`with_language`] to scope it. Most callers want
+    /// [`BoostRule::for_label`] instead — it bakes in the default
+    /// window / boost values.
+    ///
+    /// [`with_language`]: Self::with_language
     #[must_use]
     pub fn new(
         label: EntityLabelRef,
@@ -83,6 +92,7 @@ impl BoostRule {
     ) -> Self {
         Self {
             label,
+            language: None,
             keywords: keywords.into_iter().map(Into::into).collect(),
             prefix_words,
             suffix_words,
@@ -113,6 +123,36 @@ impl BoostRule {
         )
     }
 
+    /// Scope this rule to a single language.
+    ///
+    /// At apply time the rule fires only when the caller's
+    /// language hint matches `language`, or when no hint is set
+    /// (permissive fallback).
+    #[must_use]
+    pub fn with_language(mut self, language: LanguageTag) -> Self {
+        self.language = Some(language);
+        self
+    }
+
+    /// Return `true` when this rule applies under the per-call
+    /// language hint.
+    ///
+    /// - Language-agnostic rules (`self.language == None`)
+    ///   always apply.
+    /// - Language-scoped rules apply when the hint shares a
+    ///   primary subtag with the scope (so a rule scoped to
+    ///   `"en"` fires for `"en-US"` and `"en-GB"` hints), or
+    ///   when no hint is set (permissive fallback so callers
+    ///   who don't pass a language still get boosts).
+    #[must_use]
+    pub fn applies_to_language(&self, hint: Option<&LanguageTag>) -> bool {
+        match (&self.language, hint) {
+            (None, _) => true,
+            (Some(_), None) => true,
+            (Some(scope), Some(hint)) => scope.matches(hint),
+        }
+    }
+
     /// Merge `other` into this rule by extending the keyword set
     /// with any keywords not already present. Window radii and
     /// `boost` are kept from `self` — callers that need different
@@ -121,13 +161,17 @@ impl BoostRule {
     ///
     /// # Panics
     ///
-    /// Debug-asserts when the labels differ. Merging across labels
-    /// is a caller bug — rules are keyed by label and the engine
-    /// looks them up by label.
+    /// Debug-asserts when the labels or languages differ. Merging
+    /// across keys is a caller bug — rules are keyed by
+    /// `(label, language)` and the engine looks them up by both.
     pub fn merge(&mut self, other: BoostRule) {
         debug_assert_eq!(
             self.label, other.label,
             "BoostRule::merge requires matching labels",
+        );
+        debug_assert_eq!(
+            self.language, other.language,
+            "BoostRule::merge requires matching languages",
         );
         let existing: HashSet<&str> = self.keywords.iter().map(HipStr::as_str).collect();
         let additions: Vec<HipStr<'static>> = other

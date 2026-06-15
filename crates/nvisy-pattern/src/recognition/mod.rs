@@ -9,11 +9,13 @@
 //! on matches near a declared keyword.
 
 mod compiled;
+mod context;
 mod dictionary;
 mod recognizer;
 mod regex;
 mod term;
 
+pub use self::context::Context;
 pub use self::dictionary::{Dictionary, DictionaryBuilder, Scoring};
 pub use self::recognizer::{PatternRecognizer, PatternRecognizerBuilder};
 pub use self::regex::{Regex, RegexBuilder, Variant};

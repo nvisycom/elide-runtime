@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use nvisy_core::entity::{Entity, EntityLabelRef, TrailStep};
 use nvisy_core::modality::Text;
+use nvisy_core::primitive::LanguageTag;
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::matcher::KeywordMatcher;
@@ -33,28 +34,37 @@ const TRAIL_SOURCE: &str = "context";
 /// [`SubstringMatcher`]: super::SubstringMatcher
 /// [`LemmaMatcher`]: super::LemmaMatcher
 pub struct Enhancer {
-    rules: HashMap<EntityLabelRef, BoostRule>,
+    /// Rules bucketed by label. Within one bucket, each entry is
+    /// a distinct `(language)` scope; rules sharing the same
+    /// `(label, language)` are pre-merged via [`BoostRule::merge`]
+    /// at construction. Per-entity application looks up the
+    /// bucket once by label, then walks the small inner vec
+    /// filtering on the per-call language hint.
+    rules: HashMap<EntityLabelRef, Vec<BoostRule>>,
     matcher: Box<dyn KeywordMatcher>,
 }
 
 impl Enhancer {
     /// Construct from a rule iterator and matcher. Rules sharing
-    /// the same label are merged via [`BoostRule::merge`].
+    /// the same `(label, language)` are merged via
+    /// [`BoostRule::merge`]; rules with the same label but
+    /// distinct languages live as separate entries inside the
+    /// label's bucket.
     pub fn new(
         rules: impl IntoIterator<Item = BoostRule>,
         matcher: Box<dyn KeywordMatcher>,
     ) -> Self {
-        let mut map: HashMap<EntityLabelRef, BoostRule> = HashMap::new();
+        let mut buckets: HashMap<EntityLabelRef, Vec<BoostRule>> = HashMap::new();
         for rule in rules {
-            match map.get_mut(&rule.label) {
-                Some(existing) => existing.merge(rule),
-                None => {
-                    map.insert(rule.label.clone(), rule);
-                }
+            let bucket = buckets.entry(rule.label.clone()).or_default();
+            if let Some(existing) = bucket.iter_mut().find(|r| r.language == rule.language) {
+                existing.merge(rule);
+            } else {
+                bucket.push(rule);
             }
         }
         Self {
-            rules: map,
+            rules: buckets,
             matcher,
         }
     }
@@ -75,7 +85,8 @@ impl Enhancer {
     }
 
     /// Apply boost rules to `entities` in place. For each entity:
-    /// look up the rule for its label, walk a window of
+    /// walk every rule registered for its label whose language
+    /// scope applies under `language`, walk a window of
     /// `prefix_words` words before and `suffix_words` words after
     /// the entity's location, ask the matcher whether any keyword
     /// fires, and on a hit lift confidence by the rule's `boost`
@@ -87,25 +98,55 @@ impl Enhancer {
     /// against the token stream; when absent, words are derived
     /// from the source text via Unicode word segmentation.
     ///
+    /// `language` is the per-call language hint. `None` means
+    /// "unknown" — every per-language rule applies as a
+    /// permissive fallback.
+    ///
     /// [`Confidence`]: nvisy_core::primitive::Confidence
     /// [`Refinement`]: nvisy_core::entity::TrailStepKind::Refinement
-    pub fn enhance(&self, entities: &mut [Entity<Text>], text: &str, tokens: Option<&[Token]>) {
+    pub fn enhance(
+        &self,
+        entities: &mut [Entity<Text>],
+        text: &str,
+        tokens: Option<&[Token]>,
+        language: Option<&LanguageTag>,
+    ) {
         if self.rules.is_empty() {
             return;
         }
         for entity in entities {
-            self.enhance_one(entity, text, tokens);
+            self.enhance_one(entity, text, tokens, language);
         }
     }
 
-    fn enhance_one(&self, entity: &mut Entity<Text>, text: &str, tokens: Option<&[Token]>) {
-        let Some(rule) = self.rules.get(&entity.label) else {
+    fn enhance_one(
+        &self,
+        entity: &mut Entity<Text>,
+        text: &str,
+        tokens: Option<&[Token]>,
+        language: Option<&LanguageTag>,
+    ) {
+        let Some(bucket) = self.rules.get(&entity.label) else {
             return;
         };
-        if rule.keywords.is_empty() {
-            return;
+        for rule in bucket {
+            if !rule.applies_to_language(language) {
+                continue;
+            }
+            if rule.keywords.is_empty() {
+                continue;
+            }
+            self.apply_rule(entity, rule, text, tokens);
         }
+    }
 
+    fn apply_rule(
+        &self,
+        entity: &mut Entity<Text>,
+        rule: &BoostRule,
+        text: &str,
+        tokens: Option<&[Token]>,
+    ) {
         let start = entity.location.start;
         let end = entity.location.end;
 
@@ -311,7 +352,7 @@ mod tests {
         )]);
         let text = "Your SSN: 123-45-6789";
         let mut entities = vec![entity(govid_label(), 10, 21, 0.6)];
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, None, None);
         assert!(entities[0].confidence.get() > 0.6);
         assert!(
             entities[0]
@@ -326,7 +367,7 @@ mod tests {
         let enhancer = enhancer(vec![rule(govid_label(), &["social"], 0, 5, 0.2)]);
         let text = "123-45-6789 (social security number)";
         let mut entities = vec![entity(govid_label(), 0, 11, 0.6)];
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, None, None);
         assert!(
             entities[0].confidence.get() > 0.6,
             "trailing keyword within suffix window should boost",
@@ -340,7 +381,7 @@ mod tests {
         let text = "123-45-6789 (social security number)";
         let mut entities = vec![entity(govid_label(), 0, 11, 0.6)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, None, None);
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -350,7 +391,7 @@ mod tests {
         let text = "Mr. Smith is named in the report.";
         let mut entities = vec![entity(person_label(), 4, 9, 0.5)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, None, None);
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -364,7 +405,7 @@ mod tests {
         let xyz_end = xyz_start + "XYZ".len();
         let mut entities = vec![entity(govid_label(), xyz_start, xyz_end, 0.6)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, None, None);
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -373,7 +414,7 @@ mod tests {
         let enhancer = enhancer(vec![rule(govid_label(), &["here"], 5, 5, 0.9)]);
         let text = "the value is right here in plain sight";
         let mut entities = vec![entity(govid_label(), 16, 21, 0.95)];
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, None, None);
         assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
 
@@ -397,7 +438,7 @@ mod tests {
         let ssn_entity_start = ssn_only.find("123").unwrap();
         let ssn_entity_end = ssn_entity_start + "123-45-6789".len();
         let mut from_first = vec![entity(govid_label(), ssn_entity_start, ssn_entity_end, 0.6)];
-        make_enhancer().enhance(&mut from_first, ssn_only, None);
+        make_enhancer().enhance(&mut from_first, ssn_only, None, None);
         assert!(
             from_first[0].confidence.get() > 0.6,
             "keyword `ssn` from the first rule must still boost after merge",
@@ -408,7 +449,7 @@ mod tests {
         let tax_entity_start = taxid_only.find("987").unwrap();
         let tax_entity_end = tax_entity_start + "987-65-4329".len();
         let mut from_second = vec![entity(govid_label(), tax_entity_start, tax_entity_end, 0.6)];
-        make_enhancer().enhance(&mut from_second, taxid_only, None);
+        make_enhancer().enhance(&mut from_second, taxid_only, None, None);
         assert!(
             from_second[0].confidence.get() > 0.6,
             "keyword `tax id` from the second rule must still boost after merge",
@@ -423,7 +464,7 @@ mod tests {
         let entity_start = text.find("123").unwrap();
         let entity_end = entity_start + "123-45-6789".len();
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, None, None);
         assert!(
             entities[0].confidence.get() > 0.6,
             "unicode word should be reachable within 3-word prefix",
@@ -439,7 +480,7 @@ mod tests {
         let entity_end = entity_start + "123-45-6789".len();
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None);
+        enhancer.enhance(&mut entities, text, None, None);
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -453,8 +494,8 @@ mod tests {
         let text = "Your SSN: 123-45-6789";
         let mut from_none = vec![entity(govid_label(), 10, 21, 0.6)];
         let mut from_empty = vec![entity(govid_label(), 10, 21, 0.6)];
-        enhancer.enhance(&mut from_none, text, None);
-        enhancer.enhance(&mut from_empty, text, Some(&[]));
+        enhancer.enhance(&mut from_none, text, None, None);
+        enhancer.enhance(&mut from_empty, text, Some(&[]), None);
         assert_eq!(
             from_none[0].confidence.get(),
             from_empty[0].confidence.get(),
@@ -486,7 +527,7 @@ mod tests {
         ];
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, Some(&tokens));
+        enhancer.enhance(&mut entities, text, Some(&tokens), None);
         assert_eq!(
             entities[0].confidence.get(),
             before,
@@ -508,7 +549,7 @@ mod tests {
             Token::from_text("123-45-6789", 22..33),
         ];
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        enhancer.enhance(&mut entities, text, Some(&tokens));
+        enhancer.enhance(&mut entities, text, Some(&tokens), None);
         assert!(
             entities[0].confidence.get() > 0.6,
             "2-word prefix should reach the `social security` token",
@@ -537,7 +578,7 @@ mod tests {
             Token::from_text("system", 41..47),
         ];
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        enhancer.enhance(&mut entities, text, Some(&tokens));
+        enhancer.enhance(&mut entities, text, Some(&tokens), None);
         assert!(
             entities[0].confidence.get() > 0.6,
             "lemma matcher should match `run` against the `running` token's lemma",
@@ -570,7 +611,7 @@ mod tests {
             Token::from_text("document", 18..26),
         ];
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        enhancer.enhance(&mut entities, text, Some(&tokens));
+        enhancer.enhance(&mut entities, text, Some(&tokens), None);
         assert!(
             entities[0].confidence.get() > 0.6,
             "tokens that don't overlap the entity must fall back to the word window",

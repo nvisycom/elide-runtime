@@ -4,6 +4,7 @@ use aho_corasick::{AhoCorasick, MatchKind};
 use nvisy_context::{BoostRule, ContextEnhanced, Enhancer, SubstringMatcher};
 use nvisy_core::entity::{Entity, EntityLabelCatalog, EntityLabelRef};
 use nvisy_core::modality::Text;
+use nvisy_core::primitive::LanguageTag;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
 use nvisy_core::{Error, Result};
 use regex::RegexSet;
@@ -365,27 +366,53 @@ impl PatternRecognizerBuilder {
 
     /// Build the wrapping [`Enhancer`] from per-pattern and
     /// per-dictionary context keywords.
+    ///
+    /// Per-rule [`Context`] produces one [`BoostRule`] per
+    /// language scope (global rules carry
+    /// `language = None`; per-language rules carry the language
+    /// tag). The enhancer keys these by label and filters them
+    /// against the per-call language hint at apply time.
+    ///
+    /// [`Context`]: super::Context
     fn build_enhancer(&self) -> Enhancer {
         let boost_rules: Vec<BoostRule> = self
             .context_keywords()
-            .map(|(label, keywords)| BoostRule::for_label(label.clone(), keywords.iter().cloned()))
+            .map(|(label, language, keywords)| {
+                let rule = BoostRule::for_label(label.clone(), keywords.iter().cloned());
+                match language {
+                    Some(lang) => rule.with_language(lang.clone()),
+                    None => rule,
+                }
+            })
             .collect();
         Enhancer::new(boost_rules, Box::new(SubstringMatcher))
     }
 
-    /// Yield `(label, keywords)` for every pattern and dictionary
-    /// that declares a non-empty context.
-    fn context_keywords(&self) -> impl Iterator<Item = (&EntityLabelRef, &[String])> {
+    /// Yield `(label, language, keywords)` for every pattern and
+    /// dictionary that declares a non-empty context. Global
+    /// keywords carry `language = None`; per-language keywords
+    /// carry `Some(tag)`.
+    fn context_keywords(
+        &self,
+    ) -> impl Iterator<Item = (&EntityLabelRef, Option<&LanguageTag>, &[String])> {
         let pattern_keywords = self
             .patterns
             .iter()
             .filter(|p| !p.context.is_empty())
-            .map(|p| (&p.label, p.context.as_slice()));
+            .flat_map(|p| {
+                p.context
+                    .iter()
+                    .map(move |(lang, kws)| (&p.label, lang, kws))
+            });
         let dict_keywords = self
             .dictionaries
             .iter()
             .filter(|d| !d.context.is_empty())
-            .map(|d| (&d.label, d.context.as_slice()));
+            .flat_map(|d| {
+                d.context
+                    .iter()
+                    .map(move |(lang, kws)| (&d.label, lang, kws))
+            });
         pattern_keywords.chain(dict_keywords)
     }
 }
@@ -436,8 +463,11 @@ impl EntityRecognizer<Text> for PatternRecognizer {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use nvisy_core::entity::{Entity, EntityLabelRef, builtins};
     use nvisy_core::modality::{Text, TextData};
+    use nvisy_core::primitive::Confidence;
     use nvisy_core::recognition::RecognizerInput;
 
     use super::*;
@@ -491,5 +521,183 @@ mod tests {
 
         let entities = run(&recognizer, "example").await;
         assert_eq!(entities.len(), 1, "substring match must be kept");
+    }
+
+    #[test]
+    fn regex_parses_flat_context_as_global() {
+        let toml = r#"
+            name = "x"
+            label = "government_id"
+            context = ["ssn", "social security"]
+            [[variants]]
+            regex = "\\d+"
+        "#;
+        let regex = crate::Regex::from_toml(toml).expect("flat-context TOML parses");
+        assert!(matches!(regex.context, crate::Context::Global(_)));
+    }
+
+    #[test]
+    fn regex_parses_table_context_as_per_language() {
+        let toml = r#"
+            name = "x"
+            label = "payment_card"
+            [context]
+            en = ["card", "credit"]
+            es = ["tarjeta", "crédito"]
+            [[variants]]
+            regex = "\\d+"
+        "#;
+        let regex = crate::Regex::from_toml(toml).expect("table-context TOML parses");
+        let map = match regex.context {
+            crate::Context::PerLanguage(m) => m,
+            _ => panic!("expected PerLanguage"),
+        };
+        assert_eq!(map.len(), 2);
+    }
+
+    async fn run_with_language(
+        recognizer: &impl EntityRecognizer<Text>,
+        text: &str,
+        language: Option<&str>,
+    ) -> Vec<Entity<Text>> {
+        let mut input = RecognizerInput::new(TextData::new(text.to_owned()));
+        if let Some(lang) = language {
+            input = input.with_language(LanguageTag::new(lang).expect("language tag parses"));
+        }
+        recognizer
+            .recognize(&input)
+            .await
+            .expect("recognize succeeds")
+            .entities
+    }
+
+    fn per_language_credit_card_regex() -> crate::Regex {
+        let variant = crate::Variant::new(r"\b\d{16}\b")
+            .expect("variant builds")
+            .with_score(Confidence::clamped(0.5));
+        let mut context = HashMap::new();
+        context.insert(
+            LanguageTag::new("en").unwrap(),
+            vec!["credit".to_owned(), "card".to_owned()],
+        );
+        context.insert(
+            LanguageTag::new("es").unwrap(),
+            vec!["tarjeta".to_owned(), "crédito".to_owned()],
+        );
+        crate::Regex::builder()
+            .with_name("credit_card")
+            .with_label(builtins::PAYMENT_CARD.label_ref())
+            .with_context(crate::Context::PerLanguage(context))
+            .with_variants(vec![variant])
+            .build()
+            .expect("regex builds")
+    }
+
+    #[tokio::test]
+    async fn per_language_boost_fires_for_matching_language() {
+        let recognizer = PatternRecognizer::builder()
+            .with_pattern(per_language_credit_card_regex())
+            .build_context_enhanced()
+            .expect("recognizer builds");
+
+        let text = "Pay with your credit card 4111111111111111 today";
+        let entities = run_with_language(&recognizer, text, Some("en")).await;
+        let card = entities
+            .iter()
+            .find(|e| &text[e.location.start..e.location.end] == "4111111111111111")
+            .expect("card match present");
+        assert!(
+            card.confidence.get() > 0.5,
+            "English keyword `credit` should boost under en hint",
+        );
+    }
+
+    #[tokio::test]
+    async fn per_language_boost_fires_for_regional_variant() {
+        // Pattern is scoped `en`; hint is `en-US`. Primary subtag
+        // matches, so the boost must fire.
+        let recognizer = PatternRecognizer::builder()
+            .with_pattern(per_language_credit_card_regex())
+            .build_context_enhanced()
+            .expect("recognizer builds");
+
+        let text = "Pay with your credit card 4111111111111111 today";
+        let entities = run_with_language(&recognizer, text, Some("en-US")).await;
+        let card = entities
+            .iter()
+            .find(|e| &text[e.location.start..e.location.end] == "4111111111111111")
+            .expect("card match present");
+        assert!(
+            card.confidence.get() > 0.5,
+            "`en-US` hint should fire the `en`-scoped boost",
+        );
+    }
+
+    #[tokio::test]
+    async fn rule_language_filter_accepts_regional_variant() {
+        // Pattern is scoped `languages = ["en"]`; the per-call
+        // hint is `en-US`. The rule must still run.
+        let variant = crate::Variant::new(r"\b\d{3}-\d{2}-\d{4}\b")
+            .expect("variant builds")
+            .with_score(Confidence::clamped(0.5));
+        let regex = crate::Regex::builder()
+            .with_name("ssn")
+            .with_label(builtins::GOVERNMENT_ID.label_ref())
+            .with_variants(vec![variant])
+            .with_languages(vec![LanguageTag::new("en").unwrap()])
+            .build()
+            .expect("regex builds");
+
+        let recognizer = PatternRecognizer::builder()
+            .with_pattern(regex)
+            .build()
+            .expect("recognizer builds");
+
+        let entities = run_with_language(&recognizer, "SSN: 123-45-6789", Some("en-US")).await;
+        assert_eq!(
+            entities.len(),
+            1,
+            "`en`-scoped rule must run for `en-US` input",
+        );
+    }
+
+    #[tokio::test]
+    async fn per_language_boost_skipped_for_non_matching_language() {
+        let recognizer = PatternRecognizer::builder()
+            .with_pattern(per_language_credit_card_regex())
+            .build_context_enhanced()
+            .expect("recognizer builds");
+
+        // English keywords near the match, but caller asserted Spanish.
+        let text = "Pay with your credit card 4111111111111111 today";
+        let entities = run_with_language(&recognizer, text, Some("es")).await;
+        let card = entities
+            .iter()
+            .find(|e| &text[e.location.start..e.location.end] == "4111111111111111")
+            .expect("card match present");
+        assert!(
+            (card.confidence.get() - 0.5).abs() < f64::EPSILON,
+            "English keywords must not boost under es hint",
+        );
+    }
+
+    #[tokio::test]
+    async fn no_language_hint_unions_per_language_keywords() {
+        let recognizer = PatternRecognizer::builder()
+            .with_pattern(per_language_credit_card_regex())
+            .build_context_enhanced()
+            .expect("recognizer builds");
+
+        // English keyword near the match, no language hint set.
+        let text = "Pay with your credit card 4111111111111111 today";
+        let entities = run_with_language(&recognizer, text, None).await;
+        let card = entities
+            .iter()
+            .find(|e| &text[e.location.start..e.location.end] == "4111111111111111")
+            .expect("card match present");
+        assert!(
+            card.confidence.get() > 0.5,
+            "missing language hint should permit any per-language keyword to boost",
+        );
     }
 }

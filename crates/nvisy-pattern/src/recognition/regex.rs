@@ -6,6 +6,8 @@ use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::{Confidence, LanguageTag};
 use serde::Deserialize;
 
+use super::context::Context;
+
 /// One regex strategy inside a [`Regex`] rule.
 ///
 /// A variant pairs a regex source with the confidence stamped on
@@ -133,10 +135,11 @@ pub struct Regex {
     /// Entity label every variant emits.
     pub label: EntityLabelRef,
     /// Context keywords that lift confidence when one of them
-    /// appears near a match.
+    /// appears near a match. Either a flat list applied
+    /// regardless of language, or a per-language map.
     #[builder(default)]
     #[serde(default)]
-    pub context: Vec<String>,
+    pub context: Context,
     /// Regex variants. At least one is required to produce matches;
     /// the recognizer skips rules with an empty variant list.
     pub variants: Vec<Variant>,

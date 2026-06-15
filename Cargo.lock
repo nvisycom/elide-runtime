@@ -3034,6 +3034,7 @@ dependencies = [
  "async-trait",
  "csv",
  "derive_builder",
+ "derive_more",
  "nvisy-context",
  "nvisy-core",
  "regex",

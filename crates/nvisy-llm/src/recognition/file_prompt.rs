@@ -1,9 +1,9 @@
 //! [`FilePrompt`]: load a [`Prompt`] from a TOML file.
 //!
-//! Mirrors Presidio's prompt-as-data model: the user-prompt template
-//! plus the label map plus the labels-to-ignore set all live in a
-//! single TOML file. Users swap behaviour by editing the file, not
-//! by writing Rust. Templates use Jinja2 syntax via `minijinja`.
+//! Prompt-as-data shape: the user-prompt template plus the label
+//! map plus the labels-to-ignore set all live in a single TOML
+//! file. Users swap behaviour by editing the file, not by writing
+//! Rust. Templates use Jinja2 syntax via `minijinja`.
 //!
 //! # TOML schema
 //!

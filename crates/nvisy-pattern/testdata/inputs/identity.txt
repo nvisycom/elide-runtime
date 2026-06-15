@@ -3,9 +3,12 @@ PATIENT INTAKE FORM
 Full name:        Jane Smith
 Date of birth:    1985-03-14
 SSN:              123-45-6789
+ITIN:             912-71-1234
 Driver license:   D123-4567-8901
 Passport (US):    A12345678
 Mailing address:  742 Evergreen Terrace
                   Springfield, OR 97477-1234
+Provider NPI:     1234567893
+Medicare MBI:     1EG4-TE5-MK73
 
 Insurance card number on file (see attached).

@@ -6,8 +6,8 @@ Post-recognition keyword-boost enhancer for the Nvisy runtime.
 
 ## Overview
 
-Mirrors Presidio's `ContextAwareEnhancer` pattern. Every recognizer
-that wants score boosting declares a `Context` (a list of keywords
+Context-aware confidence boosting. Every recognizer that wants
+score boosting declares a `Context` (a list of keywords
 plus optional window / boost overrides), registered against the
 recognizer's name. After recognition, `ContextEnhancer` walks each
 detected `Entity<Text>`, looks the recognizer name up in the

@@ -1,6 +1,0 @@
-name = "us-drivers-license"
-label = "drivers_license"
-
-[[variants]]
-regex = "\\b[A-Z]\\d{3}-\\d{4}-\\d{4}\\b"
-score = 0.4

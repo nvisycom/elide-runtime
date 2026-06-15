@@ -50,13 +50,14 @@ where
         .insert_label(builtins::PAYMENT_CARD.label_ref(), Mask::stars())
 }
 
-/// Standard dedup params: a `0.5` confidence threshold drops the
-/// low-confidence ISO-639 short-code matches from the languages
-/// dictionary (see `assets/dictionaries/general/languages.toml`'s
-/// `column_scores`).
+/// Standard dedup params: a `0.35` confidence threshold sized
+/// for our shipped patterns' baseline (most regex-only matches
+/// land in 0.1–0.5 before context boost); a tighter threshold
+/// would drop legitimate weak-pattern matches the context layer
+/// is expected to lift.
 pub fn dedup_params() -> LayerParams {
     LayerParams {
-        confidence_threshold: Some(ConfidenceThreshold::new(0.5).unwrap()),
+        confidence_threshold: Some(ConfidenceThreshold::new(0.35).unwrap()),
         ..LayerParams::default()
     }
 }

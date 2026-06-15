@@ -7,10 +7,13 @@
 //! out structurally-suspect false positives that a regex alone
 //! can't.
 //!
-//! [`ValidatorRegistry::builtin`] ships with [`luhn`], [`iban`],
-//! [`ssn`], [`phone`], and [`date`]. Each validator is also
-//! re-exported as a free function so consumers can compose a
-//! custom registry without taking the full set.
+//! [`ValidatorRegistry::builtin`] ships universal validators
+//! ([`luhn`], [`iban`], [`phone`], [`date`]) plus jurisdiction-
+//! scoped sets re-exported from [`us`] (`"us.ssn"`,
+//! `"us.aba_routing"`, `"us.npi"`, `"us.dea_number"`) and [`uk`]
+//! (`"uk.nhs"`, `"uk.nino"`). Each validator is also re-exported
+//! as a free function so consumers can compose a custom registry
+//! without taking the full set.
 //!
 //! [`Variant`]: crate::Variant
 //! [`Regex`]: crate::Regex
@@ -19,7 +22,9 @@ mod date;
 mod iban;
 mod luhn;
 mod phone;
-mod ssn;
+
+pub mod uk;
+pub mod us;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -29,7 +34,6 @@ pub use self::date::date;
 pub use self::iban::iban;
 pub use self::luhn::luhn;
 pub use self::phone::phone;
-pub use self::ssn::ssn;
 
 /// Post-match validator returning whether a matched string is
 /// structurally valid.
@@ -74,16 +78,28 @@ impl ValidatorRegistry {
         Self::default()
     }
 
-    /// Construct a registry pre-loaded with the built-in
-    /// validators: [`luhn`], [`iban`], [`ssn`], [`phone`], [`date`].
+    /// Construct a registry pre-loaded with the shipped built-in
+    /// validators.
+    ///
+    /// Universal keys: `"luhn"`, `"iban"`, `"phone"`, `"date"`.
+    ///
+    /// US-scoped: `"us.ssn"`, `"us.aba_routing"`, `"us.npi"`,
+    /// `"us.dea_number"`.
+    ///
+    /// UK-scoped: `"uk.nhs"`, `"uk.nino"`.
     #[must_use]
     pub fn builtin() -> Self {
         Self::empty()
             .with("luhn", luhn)
             .with("iban", iban)
-            .with("ssn", ssn)
             .with("phone", phone)
             .with("date", date)
+            .with("us.ssn", us::ssn)
+            .with("us.aba_routing", us::aba_routing)
+            .with("us.npi", us::npi)
+            .with("us.dea_number", us::dea_number)
+            .with("uk.nhs", uk::nhs)
+            .with("uk.nino", uk::nino)
     }
 
     /// Register `validator` under `name`, overwriting any previous

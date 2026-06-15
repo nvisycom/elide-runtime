@@ -3,7 +3,7 @@
 use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::entity::EntityLabelRef;
-use nvisy_core::primitive::{Confidence, LanguageTag};
+use nvisy_core::primitive::{Confidence, CountryCode, LanguageTag};
 use serde::Deserialize;
 
 use super::context::Context;
@@ -92,11 +92,11 @@ fn default_score() -> Confidence {
 /// Regex detection rule: one label, optional keyword boosts, and
 /// one or more [`Variant`]s.
 ///
-/// Mirrors the Presidio "pattern recognizer" shape — several regex
-/// strategies for one entity type, plus a shared context-keyword
-/// list. Every variant emits the same [`label`]; context keywords
-/// are harvested by [`PatternRecognizer`] into a wrapping boost
-/// layer and are never read by the rule itself.
+/// A rule groups several regex strategies under a single entity
+/// type plus a shared context-keyword list. Every variant emits
+/// the same [`label`]; context keywords are harvested by
+/// [`PatternRecognizer`] into a wrapping boost layer and are
+/// never read by the rule itself.
 ///
 /// # Examples
 ///
@@ -149,6 +149,14 @@ pub struct Regex {
     #[builder(default)]
     #[serde(default)]
     pub languages: Vec<LanguageTag>,
+    /// ISO 3166-1 alpha-2 country codes the rule applies to.
+    /// Empty means "any country" — the rule fires regardless of
+    /// the per-call jurisdiction hint. Use this to scope a
+    /// pattern to specific national formats (e.g. `["US"]` for
+    /// the SSN regex).
+    #[builder(default)]
+    #[serde(default)]
+    pub countries: Vec<CountryCode>,
 }
 
 impl Regex {

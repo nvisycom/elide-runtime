@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use nvisy_core::entity::{Entity, EntityLabelRef, PatternProvenance, TrailProvenance, TrailStep};
 use nvisy_core::modality::{Text, TextLocation};
-use nvisy_core::primitive::{Confidence, LanguageTag};
+use nvisy_core::primitive::{Confidence, CountryCode, LanguageTag};
 use regex::Regex;
 
 use crate::validators::Validator;
@@ -44,6 +44,9 @@ pub(super) struct CompiledPattern {
     /// Languages the parent pattern applies to.
     /// Empty means "any language".
     pub languages: Vec<LanguageTag>,
+    /// Countries the parent pattern applies to.
+    /// Empty means "any country".
+    pub countries: Vec<CountryCode>,
 }
 
 impl CompiledPattern {
@@ -93,6 +96,9 @@ pub(super) struct CompiledDictionary {
     /// Languages this dictionary applies to. Empty means "any
     /// language".
     pub languages: Vec<LanguageTag>,
+    /// Countries this dictionary applies to. Empty means "any
+    /// country".
+    pub countries: Vec<CountryCode>,
     /// Reject matches whose immediate neighbours are word
     /// characters (alphanumeric or `_`). Mirrors regex `\b`.
     pub word_boundary: bool,

@@ -269,6 +269,7 @@ impl PatternRecognizerBuilder {
                     score: variant.score,
                     validator,
                     languages: pattern.languages.clone(),
+                    countries: pattern.countries.clone(),
                 });
             }
         }
@@ -335,6 +336,7 @@ impl PatternRecognizerBuilder {
                 term_end,
                 term_scores,
                 languages: dict.languages.clone(),
+                countries: dict.countries.clone(),
                 word_boundary: dict.word_boundary,
             });
         }
@@ -429,6 +431,9 @@ impl EntityRecognizer<Text> for PatternRecognizer {
                 if !input.applies_to_language(&pat.languages) {
                     continue;
                 }
+                if !input.applies_to_country(&pat.countries) {
+                    continue;
+                }
                 for m in pat.regex.find_iter(text) {
                     if let Some(validator) = pat.validator.as_ref()
                         && !validator.validate(m.as_str())
@@ -449,6 +454,9 @@ impl EntityRecognizer<Text> for PatternRecognizer {
                 if !input.applies_to_language(&dict.languages) {
                     continue;
                 }
+                if !input.applies_to_country(&dict.countries) {
+                    continue;
+                }
                 if dict.word_boundary && !has_word_boundaries(text, mat.start(), mat.end()) {
                     continue;
                 }
@@ -467,7 +475,7 @@ mod tests {
 
     use nvisy_core::entity::{Entity, EntityLabelRef, builtins};
     use nvisy_core::modality::{Text, TextData};
-    use nvisy_core::primitive::Confidence;
+    use nvisy_core::primitive::{Confidence, CountryCode};
     use nvisy_core::recognition::RecognizerInput;
 
     use super::*;
@@ -555,6 +563,77 @@ mod tests {
         assert_eq!(map.len(), 2);
     }
 
+    #[test]
+    fn regex_omits_countries_by_default() {
+        let toml = r#"
+            name = "x"
+            label = "government_id"
+            [[variants]]
+            regex = "\\d+"
+        "#;
+        let regex = crate::Regex::from_toml(toml).expect("TOML parses");
+        assert!(regex.countries.is_empty(), "default countries must be empty");
+    }
+
+    #[test]
+    fn regex_parses_countries_field() {
+        let toml = r#"
+            name = "ssn"
+            label = "government_id"
+            countries = ["US"]
+            [[variants]]
+            regex = "\\d+"
+        "#;
+        let regex = crate::Regex::from_toml(toml).expect("TOML parses");
+        assert_eq!(regex.countries.len(), 1);
+        assert_eq!(regex.countries[0].as_str(), "US");
+    }
+
+    #[test]
+    fn regex_parses_multiple_countries() {
+        let toml = r#"
+            name = "eu-vat"
+            label = "tax_id"
+            countries = ["de", "FR", "iT"]
+            [[variants]]
+            regex = "\\d+"
+        "#;
+        let regex = crate::Regex::from_toml(toml).expect("TOML parses");
+        assert_eq!(regex.countries.len(), 3);
+        // Construction normalises to uppercase.
+        let codes: Vec<&str> = regex.countries.iter().map(CountryCode::as_str).collect();
+        assert_eq!(codes, vec!["DE", "FR", "IT"]);
+    }
+
+    #[test]
+    fn regex_rejects_invalid_country() {
+        let toml = r#"
+            name = "x"
+            label = "government_id"
+            countries = ["XZ"]
+            [[variants]]
+            regex = "\\d+"
+        "#;
+        assert!(
+            crate::Regex::from_toml(toml).is_err(),
+            "unassigned country code must error",
+        );
+    }
+
+    #[test]
+    fn regex_builder_accepts_countries() {
+        let variant = crate::Variant::new(r"\d{3}-\d{2}-\d{4}").unwrap();
+        let regex = crate::Regex::builder()
+            .with_name("ssn")
+            .with_label(builtins::GOVERNMENT_ID.label_ref())
+            .with_variants(vec![variant])
+            .with_countries(vec![CountryCode::new("US").unwrap()])
+            .build()
+            .expect("regex builds");
+        assert_eq!(regex.countries.len(), 1);
+        assert_eq!(regex.countries[0].as_str(), "US");
+    }
+
     async fn run_with_language(
         recognizer: &impl EntityRecognizer<Text>,
         text: &str,
@@ -569,6 +648,75 @@ mod tests {
             .await
             .expect("recognize succeeds")
             .entities
+    }
+
+    async fn run_with_country(
+        recognizer: &impl EntityRecognizer<Text>,
+        text: &str,
+        country: Option<&str>,
+    ) -> Vec<Entity<Text>> {
+        let mut input = RecognizerInput::new(TextData::new(text.to_owned()));
+        if let Some(c) = country {
+            input = input.with_country(CountryCode::new(c).expect("country code parses"));
+        }
+        recognizer
+            .recognize(&input)
+            .await
+            .expect("recognize succeeds")
+            .entities
+    }
+
+    fn us_ssn_regex() -> crate::Regex {
+        let variant = crate::Variant::new(r"\b\d{3}-\d{2}-\d{4}\b")
+            .expect("variant builds")
+            .with_score(Confidence::clamped(0.5));
+        crate::Regex::builder()
+            .with_name("ssn")
+            .with_label(builtins::GOVERNMENT_ID.label_ref())
+            .with_variants(vec![variant])
+            .with_countries(vec![CountryCode::new("US").unwrap()])
+            .build()
+            .expect("regex builds")
+    }
+
+    #[tokio::test]
+    async fn country_scoped_rule_fires_under_matching_hint() {
+        let recognizer = PatternRecognizer::builder()
+            .with_pattern(us_ssn_regex())
+            .build()
+            .expect("recognizer builds");
+        let entities = run_with_country(&recognizer, "SSN: 123-45-6789", Some("US")).await;
+        assert_eq!(entities.len(), 1, "US-scoped rule must fire under US hint");
+    }
+
+    #[tokio::test]
+    async fn country_scoped_rule_skipped_under_non_matching_hint() {
+        let recognizer = PatternRecognizer::builder()
+            .with_pattern(us_ssn_regex())
+            .build()
+            .expect("recognizer builds");
+        let entities = run_with_country(&recognizer, "SSN: 123-45-6789", Some("GB")).await;
+        assert!(
+            entities.is_empty(),
+            "US-scoped rule must not fire under GB hint",
+        );
+    }
+
+    #[tokio::test]
+    async fn country_scoped_rule_fires_without_hint() {
+        // Permissive fallback: missing hint shouldn't drop the
+        // detection. Matches the existing `applies_to_language`
+        // semantic.
+        let recognizer = PatternRecognizer::builder()
+            .with_pattern(us_ssn_regex())
+            .build()
+            .expect("recognizer builds");
+        let entities = run_with_country(&recognizer, "SSN: 123-45-6789", None).await;
+        assert_eq!(
+            entities.len(),
+            1,
+            "missing country hint must permit US-scoped rule to run",
+        );
     }
 
     fn per_language_credit_card_regex() -> crate::Regex {

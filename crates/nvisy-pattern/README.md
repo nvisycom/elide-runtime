@@ -8,11 +8,11 @@ Nvisy runtime.
 ## Overview
 
 `PatternRecognizer` compiles a set of `Regex` rules (each holding
-one or more regex `Variant`s, a Presidio-shaped multi-strategy
-group) and `Dictionary` term lists into pooled scanners — one
-shared `regex::RegexSet` for the regex side and one shared
-`aho_corasick::AhoCorasick` automaton for the literal side. A
-single walk over the input runs both scanners and emits
+one or more regex `Variant`s grouped as a multi-strategy detector
+for one entity type) and `Dictionary` term lists into pooled
+scanners — one shared `regex::RegexSet` for the regex side and
+one shared `aho_corasick::AhoCorasick` automaton for the literal
+side. A single walk over the input runs both scanners and emits
 `Entity<Text>` values in modality-local byte coordinates.
 
 Rules may declare per-label context keywords. Calling

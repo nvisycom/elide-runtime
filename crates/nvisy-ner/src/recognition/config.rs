@@ -1,8 +1,8 @@
 //! [`NerModel`]: client-side NER tuning knobs.
 //!
-//! Mirrors Presidio's `NerModelConfiguration`. Applied inside
-//! [`NerRecognizer`] before entities are emitted, so backends stay
-//! dumb and label normalization is uniform across them.
+//! Applied inside [`NerRecognizer`] before entities are emitted,
+//! so backends stay dumb and label normalization is uniform
+//! across them.
 //!
 //! Construct via [`NerModel::default`] for the canonical defaults
 //! (canonical label map, no ignored labels, score = 0.85, no

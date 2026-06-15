@@ -3,7 +3,7 @@
 use derive_builder::Builder;
 use nvisy_core::Error;
 use nvisy_core::entity::EntityLabelRef;
-use nvisy_core::primitive::{Confidence, LanguageTag};
+use nvisy_core::primitive::{Confidence, CountryCode, LanguageTag};
 use serde::Deserialize;
 
 use super::context::Context;
@@ -142,6 +142,12 @@ pub struct Dictionary {
     #[builder(default)]
     #[serde(default)]
     pub languages: Vec<LanguageTag>,
+    /// ISO 3166-1 alpha-2 country codes the dictionary applies
+    /// to. Empty means "any country" — the dictionary fires
+    /// regardless of the per-call jurisdiction hint.
+    #[builder(default)]
+    #[serde(default)]
+    pub countries: Vec<CountryCode>,
     /// Require word-boundary surroundings on every match.
     ///
     /// With the default of `true`, the term `"am"` matches the
@@ -213,6 +219,12 @@ impl Dictionary {
         if let Some(wb) = metadata.word_boundary {
             builder = builder.with_word_boundary(wb);
         }
+        if let Some(languages) = metadata.languages {
+            builder = builder.with_languages(languages);
+        }
+        if let Some(countries) = metadata.countries {
+            builder = builder.with_countries(countries);
+        }
         Ok(builder)
     }
 }
@@ -227,4 +239,8 @@ struct DictionaryMetadata {
     context: Option<Context>,
     #[serde(default)]
     word_boundary: Option<bool>,
+    #[serde(default)]
+    languages: Option<Vec<LanguageTag>>,
+    #[serde(default)]
+    countries: Option<Vec<CountryCode>>,
 }

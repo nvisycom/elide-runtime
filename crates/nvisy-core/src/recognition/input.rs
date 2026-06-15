@@ -20,7 +20,7 @@ use uuid::Uuid;
 use super::Hint;
 use crate::extraction::Artifacts;
 use crate::modality::Modality;
-use crate::primitive::LanguageTag;
+use crate::primitive::{CountryCode, LanguageTag};
 
 /// Per-call input for an [`EntityRecognizer<M>`].
 ///
@@ -48,6 +48,12 @@ pub struct RecognizerInput<M: Modality> {
     ///
     /// [`language`]: Self::language
     pub candidate_languages: Vec<LanguageTag>,
+    /// Caller-asserted jurisdiction. When `Some`, recognizers
+    /// that carry per-rule `countries` scopes skip rules that
+    /// don't match. `None` means "any" — rules that declare
+    /// countries still run as a permissive fallback so callers
+    /// who don't pass a hint don't lose detections.
+    pub country: Option<CountryCode>,
     /// Uploader-supplied hint regions in modality-native coordinates.
     /// Recognizers that support hint adjudication (LLM-based NER, VLM)
     /// read this; recognizers that don't (pattern, dictionary) ignore
@@ -73,6 +79,7 @@ impl<M: Modality> RecognizerInput<M> {
             artifacts: Artifacts::new(),
             language: None,
             candidate_languages: Vec::new(),
+            country: None,
             hints: Vec::new(),
             labels: Vec::new(),
             correlation_id: None,
@@ -97,6 +104,13 @@ impl<M: Modality> RecognizerInput<M> {
     #[must_use]
     pub fn with_candidate_languages(mut self, languages: Vec<LanguageTag>) -> Self {
         self.candidate_languages = languages;
+        self
+    }
+
+    /// Set the asserted jurisdiction.
+    #[must_use]
+    pub fn with_country(mut self, country: CountryCode) -> Self {
+        self.country = Some(country);
         self
     }
 
@@ -141,6 +155,30 @@ impl<M: Modality> RecognizerInput<M> {
         }
         match self.language.as_ref() {
             Some(hint) => allowed.iter().any(|a| a.matches(hint)),
+            None => true,
+        }
+    }
+
+    /// Whether a recognizer rule scoped to `allowed` countries
+    /// should run for this call.
+    ///
+    /// - An empty `allowed` list means the rule is jurisdiction-
+    ///   agnostic and always runs.
+    /// - When `allowed` is non-empty and [`country`] is `Some(_)`,
+    ///   the rule runs only when the hint is in `allowed`.
+    /// - When [`country`] is `None`, the rule still runs — we
+    ///   can't disprove applicability without a hint, and
+    ///   silently dropping detections would surprise callers
+    ///   who simply forgot to set the field.
+    ///
+    /// [`country`]: Self::country
+    #[must_use]
+    pub fn applies_to_country(&self, allowed: &[CountryCode]) -> bool {
+        if allowed.is_empty() {
+            return true;
+        }
+        match self.country.as_ref() {
+            Some(hint) => allowed.iter().any(|a| a == hint),
             None => true,
         }
     }

@@ -45,6 +45,7 @@ uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 oxilangtag = { workspace = true, features = [] }
+celes = { workspace = true, features = [] }
 type-map = { workspace = true, features = [] }
 
 # Async runtime and parallelism

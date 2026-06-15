@@ -79,6 +79,24 @@ async fn identity_inputs_yield_expected_entities() {
         builtins::DATE_OF_BIRTH.label_ref(),
         "1985-03-14",
     );
+    assert_match(
+        &text,
+        &entities,
+        builtins::TAX_ID.label_ref(),
+        "912-71-1234",
+    );
+    assert_match(
+        &text,
+        &entities,
+        builtins::MEDICAL_ID.label_ref(),
+        "1234567893",
+    );
+    assert_match(
+        &text,
+        &entities,
+        builtins::MEDICAL_ID.label_ref(),
+        "1EG4-TE5-MK73",
+    );
 }
 
 #[tokio::test]
@@ -193,5 +211,40 @@ async fn personal_inputs_yield_expected_entities() {
             .iter()
             .any(|e| e.label == builtins::LANGUAGE.label_ref()),
         "expected at least one Language"
+    );
+}
+
+#[tokio::test]
+async fn uk_inputs_yield_expected_entities() {
+    let (text, entities) = scan(include_str!("../testdata/inputs/uk.txt")).await;
+    assert_match(
+        &text,
+        &entities,
+        builtins::MEDICAL_ID.label_ref(),
+        "943 476 5919",
+    );
+    assert_match(
+        &text,
+        &entities,
+        builtins::NATIONAL_INSURANCE_NUMBER.label_ref(),
+        "AB123456C",
+    );
+    assert_match(
+        &text,
+        &entities,
+        builtins::DRIVERS_LICENSE.label_ref(),
+        "MORGA753116SM9IJ",
+    );
+    assert_match(
+        &text,
+        &entities,
+        builtins::POSTAL_CODE.label_ref(),
+        "SW1A 2AA",
+    );
+    assert_match(
+        &text,
+        &entities,
+        builtins::LICENSE_PLATE.label_ref(),
+        "AB51 ABC",
     );
 }

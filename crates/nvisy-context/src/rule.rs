@@ -23,19 +23,16 @@ use nvisy_core::entity::EntityLabelRef;
 use nvisy_core::primitive::{Confidence, LanguageTag};
 
 /// Default window radius in words *before* an entity match.
-/// Mirrors Presidio's `context_prefix_count = 5`.
 pub const DEFAULT_PREFIX_WORDS: usize = 5;
 
 /// Default window radius in words *after* an entity match. Set
 /// equal to [`DEFAULT_PREFIX_WORDS`] so trailing context like
 /// "123-45-6789 (social security)" boosts the same as leading
-/// context. Presidio defaults `context_suffix_count` to `0`; we
-/// pick symmetric defaults because operators rarely realize the
-/// asymmetry exists, and one-sided windows surprise people.
+/// context. Asymmetric windows surprise operators who rarely
+/// realize the asymmetry exists, so we pick symmetric defaults.
 pub const DEFAULT_SUFFIX_WORDS: usize = 5;
 
-/// Default additive boost applied when a keyword fires. Matches
-/// Presidio's `context_similarity_factor = 0.35`.
+/// Default additive boost applied when a keyword fires.
 pub const DEFAULT_BOOST: f64 = 0.35;
 
 /// Per-label boost rule the [`Enhancer`] applies at runtime.

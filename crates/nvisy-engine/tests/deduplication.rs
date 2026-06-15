@@ -83,7 +83,8 @@ async fn confidence_threshold_filters() {
             .with_confidence(conf(0.5))
             .test_build(),
     ];
-    let pipeline: LayerPipeline<Text, _> = LayerPipeline::from_params(&params);
+    let pipeline: LayerPipeline<Text, _> =
+        LayerPipeline::from_params(&params).expect("pipeline builds");
     let ctx = LayerContext::new(&tree).with_correlation_id(Uuid::nil());
     let result = pipeline.run(entities, &ctx).await;
     assert_eq!(result.len(), 1);
@@ -111,7 +112,8 @@ async fn full_pipeline() {
             .with_confidence(conf(0.85))
             .test_build(),
     ];
-    let pipeline: LayerPipeline<Text, _> = LayerPipeline::from_params(&LayerParams::default());
+    let pipeline: LayerPipeline<Text, _> =
+        LayerPipeline::from_params(&LayerParams::default()).expect("pipeline builds");
     let ctx = LayerContext::new(&tree).with_correlation_id(Uuid::nil());
     let result = pipeline.run(entities, &ctx).await;
     assert_eq!(result.len(), 1);

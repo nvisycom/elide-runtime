@@ -64,6 +64,7 @@ impl Fixture {
 
         let ctx = LayerContext::<Text, _>::new(&buffer);
         let entities = LayerPipeline::<Text, _>::from_params(&dedup_params())
+            .expect("pipeline builds")
             .run(detected, &ctx)
             .await;
 
@@ -103,6 +104,7 @@ impl Fixture {
 
         let ctx = LayerContext::<Tabular, _>::new(&buffer);
         let entities = LayerPipeline::<Tabular, _>::from_params(&dedup_params())
+            .expect("pipeline builds")
             .run(detected, &ctx)
             .await;
 

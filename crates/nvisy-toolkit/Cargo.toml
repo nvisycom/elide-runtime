@@ -76,6 +76,7 @@ tracing = { workspace = true, features = [] }
 
 # Text processing (unicode-aware folding for leak detection)
 unicode-normalization = { workspace = true, features = [] }
+regex = { workspace = true, features = [] }
 
 [dev-dependencies]
 # Internal test utilities (Entity::test_builder, …).

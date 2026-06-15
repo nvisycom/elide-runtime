@@ -3091,6 +3091,7 @@ dependencies = [
  "nvisy-ocr",
  "nvisy-pattern",
  "nvisy-stt",
+ "regex",
  "schemars",
  "serde",
  "serde_json",

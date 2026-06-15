@@ -93,7 +93,7 @@ async fn main() -> Result<()> {
         ..LayerParams::default()
     };
     let ctx = LayerContext::<Text, DocumentHandle<Text>>::new(&source);
-    let dedup = LayerPipeline::<Text, DocumentHandle<Text>>::from_params(&params);
+    let dedup = LayerPipeline::<Text, DocumentHandle<Text>>::from_params(&params)?;
 
     let before = entities.len();
     let entities = dedup.run(entities, &ctx).await;

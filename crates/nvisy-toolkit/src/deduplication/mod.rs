@@ -30,7 +30,9 @@
 //! 1. **Calibrate** raw confidence scores per-recognizer.
 //! 2. **Filter** by allowed kinds + confidence floor.
 //! 3. **Fuse** co-referent entities into one (group + combine).
-//! 4. **Resolve conflicts** between different kinds on the same span.
+//! 4. **Suppress** entities whose matched text is on a
+//!    caller-supplied allow list.
+//! 5. **Resolve conflicts** between different kinds on the same span.
 //!
 //! Operators can swap steps, drop steps, or insert their own custom
 //! [`Layer`] impls by building the pipeline manually with
@@ -40,6 +42,7 @@ pub mod calibrate;
 pub mod filter;
 pub mod fuse;
 pub mod resolve;
+pub mod suppress;
 
 mod layer;
 mod params;

@@ -17,11 +17,10 @@ use nvisy_toolkit::deduplication::{LayerContext, LayerPipeline, SpanSize};
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::core::PhaseContext as _;
-use crate::core::{DetectionContext, DocumentTree};
+use crate::core::{DetectionContext, DocumentTree, PhaseContext as _};
+use crate::detection::{DeduplicationParams, DetectionPlan};
 use crate::document::provenance::EntityRecord;
 use crate::modality::DocumentModality;
-use crate::detection::{DeduplicationParams, DetectionPlan};
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
@@ -73,7 +72,12 @@ impl DeduplicationPhase {
         self.run(ctx, plan, tree).await
     }
 
-    async fn run<M>(&self, ctx: &DetectionContext, plan: &DetectionPlan, tree: &mut DocumentTree<M>) -> Result<()>
+    async fn run<M>(
+        &self,
+        ctx: &DetectionContext,
+        plan: &DetectionPlan,
+        tree: &mut DocumentTree<M>,
+    ) -> Result<()>
     where
         M: DocumentModality,
         M::Location: Overlap + SpanSize,
@@ -116,7 +120,7 @@ where
     // rewrap without losing audit state.
     let records = mem::take(&mut tree.root.audit.records);
     let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
-    let pipeline: LayerPipeline<M, _> = LayerPipeline::from_params(dedup);
+    let pipeline: LayerPipeline<M, _> = LayerPipeline::from_params(dedup)?;
     let ctx = LayerContext::new(&*tree).with_correlation_id(run_id);
     let deduped = pipeline.run(entities, &ctx).await;
     tree.root.audit.records = deduped.into_iter().map(EntityRecord::new).collect();

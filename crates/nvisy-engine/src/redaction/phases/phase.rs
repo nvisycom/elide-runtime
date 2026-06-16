@@ -14,8 +14,7 @@
 use nvisy_core::Result;
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 
-use crate::core::PhaseContext as _;
-use crate::core::{DocumentTree, RedactionContext};
+use crate::core::{DocumentTree, PhaseContext as _, RedactionContext};
 use crate::redaction::phases::registries::RedactionRegistries;
 use crate::redaction::phases::run_redaction;
 use crate::redaction::{RedactionConfig, RedactionPlan};

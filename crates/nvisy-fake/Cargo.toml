@@ -26,14 +26,14 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Fake data generation
-fake = { workspace = true, features = [] }
+# Primitive datatypes (UUIDv4 for fake `DeviceId`)
+uuid = { workspace = true, features = ["v4"] }
 
-# Async runtime
+# Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
 
-# UUIDs for fake DeviceId
-uuid = { workspace = true, features = ["v4"] }
+# Utilities
+fake = { workspace = true, features = [] }
 
 [dev-dependencies]
 nvisy-core = { workspace = true, features = ["test-utils"] }

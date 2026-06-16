@@ -1,19 +1,22 @@
 //! Shared recognizer + redaction registry constructors and dedup
 //! params used by every codec E2E test.
 
+use nvisy_context::ContextEnhanced;
 use nvisy_core::entity::builtins;
 use nvisy_core::modality::Modality;
 use nvisy_core::primitive::ConfidenceThreshold;
-use nvisy_pattern::{PatternRecognizer, PatternRegistry};
+use nvisy_pattern::PatternRecognizer;
 use nvisy_toolkit::deduplication::LayerParams;
 use nvisy_toolkit::redaction::anonymizer::{Mask, Replace};
 use nvisy_toolkit::redaction::{Anonymizer, RedactionRegistry};
 
-/// Build the shipped pattern recognizer from every built-in pattern.
-pub fn shipped_recognizer() -> PatternRecognizer {
+/// Build the shipped pattern recognizer from every built-in
+/// pattern + dictionary, wrapped in its [`ContextEnhanced`] layer.
+pub fn shipped_recognizer() -> ContextEnhanced<PatternRecognizer> {
     PatternRecognizer::builder()
-        .with_registry(PatternRegistry::builtin())
-        .build()
+        .with_builtin_patterns()
+        .with_builtin_dictionaries()
+        .build_context_enhanced()
         .expect("shipped recognizer builds")
 }
 
@@ -47,13 +50,14 @@ where
         .insert_label(builtins::PAYMENT_CARD.label_ref(), Mask::stars())
 }
 
-/// Standard dedup params: a `0.5` confidence threshold drops the
-/// low-confidence ISO-639 short-code matches from the languages
-/// dictionary (see `assets/dictionaries/general/languages.toml`'s
-/// `column_scores`).
+/// Standard dedup params: a `0.35` confidence threshold sized
+/// for our shipped patterns' baseline (most regex-only matches
+/// land in 0.1–0.5 before context boost); a tighter threshold
+/// would drop legitimate weak-pattern matches the context layer
+/// is expected to lift.
 pub fn dedup_params() -> LayerParams {
     LayerParams {
-        confidence_threshold: Some(ConfidenceThreshold::new(0.5).unwrap()),
+        confidence_threshold: Some(ConfidenceThreshold::new(0.35).unwrap()),
         ..LayerParams::default()
     }
 }

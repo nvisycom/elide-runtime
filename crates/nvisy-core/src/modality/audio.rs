@@ -2,6 +2,8 @@
 //! [`AudioData`] per-call payload, and [`AudioExtraction`] provenance
 //! enum.
 
+use std::cmp::Ordering;
+
 use bytes::Bytes;
 use hipstr::HipStr;
 use schemars::JsonSchema;
@@ -60,14 +62,14 @@ impl Eq for AudioLocation {}
 impl Ord for AudioLocation {
     /// Lex order over `(time_span.start_us, time_span.end_us)`.
     /// `speaker_id` and `audio_id` are ignored.
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         (self.time_span.start_us, self.time_span.end_us)
             .cmp(&(other.time_span.start_us, other.time_span.end_us))
     }
 }
 
 impl PartialOrd for AudioLocation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }

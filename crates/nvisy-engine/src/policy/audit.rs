@@ -15,7 +15,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Payload for the `audit` action.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AuditAction {
     /// Severity hint propagated into the audit entry — e.g.

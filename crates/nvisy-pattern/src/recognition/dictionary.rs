@@ -1,40 +1,113 @@
 //! [`Dictionary`]: literal-term detection rule.
-//!
-//! A dictionary scans for a fixed list of literal strings using an
-//! Aho-Corasick automaton. Compared with [`Pattern`], a dictionary
-//! has no regex engine, no validator, and a single shared confidence
-//! score applied to every match.
-//!
-//! Construct via:
-//!
-//! - [`Dictionary::builder`] — chainable, ground-up
-//! - [`Dictionary::from_toml`] — self-contained TOML
-//!
-//! Term sources are first-class — see [`Terms`] for
-//! [`from_text`] and
-//! [`from_csv`] constructors. The builder's
-//! [`with_terms`] setter accepts
-//! anything convertible to [`Terms`].
-//!
-//! [`Pattern`]: crate::Pattern
-//! [`Terms`]: crate::Terms
-//! [`from_text`]: crate::Terms::from_text
-//! [`from_csv`]: crate::Terms::from_csv
-//! [`with_terms`]: DictionaryBuilder::with_terms
 
 use derive_builder::Builder;
 use nvisy_core::Error;
-use nvisy_core::context::Context;
 use nvisy_core::entity::EntityLabelRef;
-use nvisy_core::primitive::{Confidence, LanguageTag};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use nvisy_core::primitive::{Confidence, CountryCode, LanguageTag};
+use serde::Deserialize;
 
-use super::terms::Terms;
+use super::context::Context;
+use super::term::Term;
+
+/// Confidence policy for a [`Dictionary`]'s matches.
+///
+/// Either every term gets the same score ([`Uniform`]), or scores
+/// vary by CSV source column ([`PerColumn`]). The untagged serde
+/// representation accepts a bare number for the uniform case and
+/// an array for the per-column case:
+///
+/// ```toml
+/// score = 0.9              # Uniform
+/// score = [0.85, 0.30]     # PerColumn
+/// ```
+///
+/// [`Uniform`]: Scoring::Uniform
+/// [`PerColumn`]: Scoring::PerColumn
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum Scoring {
+    /// One confidence stamped on every match — the common case.
+    Uniform(Confidence),
+    /// Per-column confidence vector. Entry `i` is the score for
+    /// terms loaded from CSV column `i`. A term from a column past
+    /// the end of this vector causes a recognizer-build error, so
+    /// callers must declare one score per source column.
+    PerColumn(Vec<Confidence>),
+}
+
+impl Scoring {
+    /// Return `Ok(())` when the policy can resolve a score for at
+    /// least one input.
+    ///
+    /// [`PerColumn`] with an empty vector can never resolve and is
+    /// rejected here; the recognizer surfaces the error at build
+    /// time.
+    ///
+    /// # Errors
+    ///
+    /// Returns a human-readable reason when the policy is invalid.
+    ///
+    /// [`PerColumn`]: Self::PerColumn
+    pub fn validate(&self) -> Result<(), &'static str> {
+        match self {
+            Self::Uniform(_) => Ok(()),
+            Self::PerColumn(scores) if scores.is_empty() => {
+                Err("PerColumn scoring with no scores can never resolve")
+            }
+            Self::PerColumn(_) => Ok(()),
+        }
+    }
+
+    /// Resolve a score for the given source `column`.
+    ///
+    /// [`Uniform`] ignores `column` and always returns its score;
+    /// [`PerColumn`] returns the entry at `column`, or `None` when
+    /// `column` is `None` or out of range. Callers decide the
+    /// fall-back policy (per-term override, hard error, …).
+    ///
+    /// [`Uniform`]: Self::Uniform
+    /// [`PerColumn`]: Self::PerColumn
+    #[must_use]
+    pub fn get(&self, column: Option<u16>) -> Option<Confidence> {
+        match self {
+            Self::Uniform(s) => Some(*s),
+            Self::PerColumn(scores) => column.and_then(|c| scores.get(c as usize).copied()),
+        }
+    }
+}
+
+impl Default for Scoring {
+    fn default() -> Self {
+        Self::Uniform(Confidence::MAX)
+    }
+}
 
 /// Literal-term detection rule.
-#[derive(Debug, Clone, PartialEq, Builder)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+///
+/// Scans for a fixed list of literals using a shared Aho-Corasick
+/// automaton. Unlike [`Regex`], a dictionary has no regex engine,
+/// no validator, and a [`Scoring`] policy shared across its terms.
+///
+/// # Examples
+///
+/// ```
+/// use nvisy_core::entity::builtins;
+/// use nvisy_pattern::{Dictionary, Term};
+///
+/// let dictionary = Dictionary::builder()
+///     .with_name("nationalities")
+///     .with_label(builtins::NATIONALITY.label_ref())
+///     .with_terms(vec![
+///         Term::new("German"),
+///         Term::new("French"),
+///         Term::new("Italian"),
+///     ])
+///     .build()
+///     .expect("nationalities dictionary builds");
+/// ```
+///
+/// [`Regex`]: crate::Regex
+#[derive(Debug, Clone, PartialEq, Builder, Deserialize)]
 #[builder(
     name = "DictionaryBuilder",
     pattern = "owned",
@@ -42,53 +115,49 @@ use super::terms::Terms;
     build_fn(error = "Error")
 )]
 pub struct Dictionary {
-    /// Human-readable identifier (e.g. `"nationalities"`).
+    /// Human-readable identifier surfaced in trail provenance
+    /// (e.g. `"nationalities"`).
     pub name: String,
     /// Entity label every match emits.
     pub label: EntityLabelRef,
-    /// Literal terms to scan for. The recognizer compiles these into
-    /// an Aho-Corasick automaton at build time.
-    pub terms: Terms,
-    /// Confidence score stamped on every match before any boost.
-    #[builder(default = "Confidence::MAX")]
-    pub score: Confidence,
-    /// Optional context keywords carried through to emitted entities
-    /// for a downstream enhancer to apply boosts.
+    /// Literal terms to scan for. Compiled into the shared
+    /// Aho-Corasick automaton at recognizer-build time.
+    pub terms: Vec<Term>,
+    /// Confidence policy resolved against each term at
+    /// recognizer-build time. Defaults to [`Scoring::Uniform`]
+    /// with [`Confidence::MAX`].
     #[builder(default)]
-    #[serde(default, skip_serializing_if = "context_is_default")]
+    #[serde(default, rename = "score")]
+    pub scoring: Scoring,
+    /// Context keywords that lift confidence when one of them
+    /// appears near a match. Either a flat list applied
+    /// regardless of language, or a per-language map.
+    #[builder(default)]
+    #[serde(default)]
     pub context: Context,
-    /// Languages the dictionary applies to (BCP-47 tags). An empty
-    /// list (the default) means the dictionary applies regardless of
-    /// language; otherwise the recognizer skips this dictionary when
-    /// the per-call language hint is set to a tag not in this list.
+    /// BCP-47 language tags the dictionary applies to. Empty means
+    /// "any language"; otherwise the recognizer skips the
+    /// dictionary when the per-call language hint is not in the
+    /// list.
     #[builder(default)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[schemars(with = "Vec<String>")]
+    #[serde(default)]
     pub languages: Vec<LanguageTag>,
-    /// Require word-boundary surroundings on every match. With the
-    /// default of `true`, a term `"am"` matches the word `"am"` but
-    /// not the `"am"` inside `"example"`. Word characters are
-    /// alphanumerics and `_` (Unicode-aware). Set to `false` for
-    /// dictionaries that genuinely want substring matching (e.g.
-    /// scanning for embedded credentials inside arbitrary tokens).
+    /// ISO 3166-1 alpha-2 country codes the dictionary applies
+    /// to. Empty means "any country" — the dictionary fires
+    /// regardless of the per-call jurisdiction hint.
+    #[builder(default)]
+    #[serde(default)]
+    pub countries: Vec<CountryCode>,
+    /// Require word-boundary surroundings on every match.
+    ///
+    /// With the default of `true`, the term `"am"` matches the
+    /// word `"am"` but not the `"am"` inside `"example"`. Word
+    /// characters are Unicode alphanumerics and `_`. Set to
+    /// `false` to allow substring matches (e.g. scanning for
+    /// embedded credentials).
     #[builder(default = "true")]
     #[serde(default = "default_word_boundary")]
     pub word_boundary: bool,
-    /// Per-column confidence overrides for terms loaded from a
-    /// multi-column CSV. `column_scores[i]` is the confidence
-    /// stamped on every term whose source column was `i`; terms
-    /// from a column past the end of this vec fall back to the
-    /// dictionary's default `score`. Useful when one column
-    /// carries unambiguous long-form names (`English`, `Spanish`)
-    /// and another carries short codes (`en`, `es`) that collide
-    /// with common words.
-    ///
-    /// Empty (the default) means "use `score` for every match",
-    /// preserving the historical behaviour of single-confidence
-    /// dictionaries.
-    #[builder(default)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub column_scores: Vec<Confidence>,
 }
 
 fn default_word_boundary() -> bool {
@@ -96,16 +165,18 @@ fn default_word_boundary() -> bool {
 }
 
 impl Dictionary {
-    /// Start a chainable builder. Required fields: `name`,
-    /// `label`, `terms`.
+    /// Start a chainable builder.
+    ///
+    /// Required fields: `name`, `label`, `terms`.
     #[must_use]
     pub fn builder() -> DictionaryBuilder {
         DictionaryBuilder::default()
     }
 
-    /// Parse a self-contained dictionary from a TOML string. The
-    /// TOML must include a `terms` field; for metadata-only TOML
-    /// paired with a separate term source, use
+    /// Parse a self-contained dictionary from a TOML source.
+    ///
+    /// The TOML must include a `terms` field; for metadata-only
+    /// TOML paired with a separate term source, use
     /// [`metadata_from_toml`] instead.
     ///
     /// # Errors
@@ -119,15 +190,11 @@ impl Dictionary {
             .map_err(|e| Error::validation(format!("dictionary TOML: {e}"), "nvisy-pattern"))
     }
 
-    /// Parse the metadata fields of a dictionary from TOML (no
-    /// `terms` required) and return a seeded builder. The caller is
-    /// expected to chain
-    /// [`with_terms`] before
-    /// [`build`].
+    /// Parse dictionary metadata from a sidecar TOML source.
     ///
-    /// Useful when shipped or user-supplied dictionaries split
-    /// metadata into a TOML sidecar and store the actual terms as
-    /// CSV / TXT.
+    /// The returned [`DictionaryBuilder`] is seeded with every
+    /// field except `terms`; callers chain [`with_terms`] (e.g.
+    /// loaded from a paired CSV/TXT) before [`build`].
     ///
     /// # Errors
     ///
@@ -143,8 +210,8 @@ impl Dictionary {
         let mut builder = Dictionary::builder()
             .with_name(metadata.name)
             .with_label(metadata.label);
-        if let Some(score) = metadata.score {
-            builder = builder.with_score(score);
+        if let Some(scoring) = metadata.score {
+            builder = builder.with_scoring(scoring);
         }
         if let Some(context) = metadata.context {
             builder = builder.with_context(context);
@@ -152,29 +219,28 @@ impl Dictionary {
         if let Some(wb) = metadata.word_boundary {
             builder = builder.with_word_boundary(wb);
         }
-        if let Some(cs) = metadata.column_scores {
-            builder = builder.with_column_scores(cs);
+        if let Some(languages) = metadata.languages {
+            builder = builder.with_languages(languages);
+        }
+        if let Some(countries) = metadata.countries {
+            builder = builder.with_countries(countries);
         }
         Ok(builder)
     }
 }
 
-/// Wire shape for the dictionary metadata sidecar TOML — every
-/// field [`Dictionary`] carries except `terms`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct DictionaryMetadata {
     name: String,
     label: EntityLabelRef,
     #[serde(default)]
-    score: Option<Confidence>,
+    score: Option<Scoring>,
     #[serde(default)]
     context: Option<Context>,
     #[serde(default)]
     word_boundary: Option<bool>,
     #[serde(default)]
-    column_scores: Option<Vec<Confidence>>,
-}
-
-fn context_is_default(ctx: &Context) -> bool {
-    ctx.is_empty() && ctx.window.is_none() && ctx.boost.is_none()
+    languages: Option<Vec<LanguageTag>>,
+    #[serde(default)]
+    countries: Option<Vec<CountryCode>>,
 }

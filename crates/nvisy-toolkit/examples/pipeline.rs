@@ -26,7 +26,7 @@ use nvisy_core::modality::{Text, TextData};
 use nvisy_core::primitive::ConfidenceThreshold;
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_core::redaction::RedactAt;
-use nvisy_pattern::{PatternRecognizer, PatternRegistry};
+use nvisy_pattern::PatternRecognizer;
 use nvisy_toolkit::deduplication::{LayerContext, LayerParams, LayerPipeline};
 use nvisy_toolkit::detection::RecognizerRegistry;
 use nvisy_toolkit::redaction::RedactionRegistry;
@@ -54,8 +54,9 @@ async fn main() -> Result<()> {
     // services. Add NER / LLM recognizers with extra
     // `.with_recognizer(...)` calls.
     let pattern = PatternRecognizer::builder()
-        .with_registry(PatternRegistry::builtin())
-        .build()?;
+        .with_builtin_patterns()
+        .with_builtin_dictionaries()
+        .build_context_enhanced()?;
     let detection = RecognizerRegistry::new().with_recognizer(pattern);
 
     let input = RecognizerInput::new(TextData::new(SAMPLE.to_owned()));
@@ -92,7 +93,7 @@ async fn main() -> Result<()> {
         ..LayerParams::default()
     };
     let ctx = LayerContext::<Text, DocumentHandle<Text>>::new(&source);
-    let dedup = LayerPipeline::<Text, DocumentHandle<Text>>::from_params(&params);
+    let dedup = LayerPipeline::<Text, DocumentHandle<Text>>::from_params(&params)?;
 
     let before = entities.len();
     let entities = dedup.run(entities, &ctx).await;

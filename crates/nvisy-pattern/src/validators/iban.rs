@@ -1,13 +1,13 @@
-//! IBAN checksum validator (ISO 13616).
-//!
-//! Rearranges the IBAN so the country code and check digits move to the
-//! end, converts letters to numbers (A=10 … Z=35), and verifies that
-//! the resulting number mod 97 equals 1.
+//! ISO 13616 IBAN checksum validator.
 
-/// Return `true` if `value` passes the ISO 13616 mod-97 IBAN check.
+/// Return `true` if `value` passes the ISO 13616 mod-97 IBAN
+/// checksum.
 ///
-/// Whitespace and dashes are stripped before validation.
-pub fn validate_iban(value: &str) -> bool {
+/// Whitespace and dashes are stripped before validation. The
+/// country code and check digits are moved to the end, letters
+/// are converted to numbers (`A`=10 … `Z`=35), and the result is
+/// accepted when `mod 97 == 1`.
+pub fn iban(value: &str) -> bool {
     let cleaned: String = value
         .chars()
         .filter(|c| !c.is_ascii_whitespace() && *c != '-')
@@ -53,31 +53,31 @@ mod tests {
     #[test]
     fn valid_ibans() {
         // GB, DE, FR examples from Wikipedia.
-        assert!(validate_iban("GB29 NWBK 6016 1331 9268 19"));
-        assert!(validate_iban("DE89370400440532013000"));
-        assert!(validate_iban("FR76 3000 6000 0112 3456 7890 189"));
+        assert!(iban("GB29 NWBK 6016 1331 9268 19"));
+        assert!(iban("DE89370400440532013000"));
+        assert!(iban("FR76 3000 6000 0112 3456 7890 189"));
     }
 
     #[test]
     fn invalid_check_digits() {
-        assert!(!validate_iban("GB29 NWBK 6016 1331 9268 18"));
-        assert!(!validate_iban("DE00370400440532013000"));
+        assert!(!iban("GB29 NWBK 6016 1331 9268 18"));
+        assert!(!iban("DE00370400440532013000"));
     }
 
     #[test]
     fn too_short() {
-        assert!(!validate_iban("GB29"));
-        assert!(!validate_iban(""));
+        assert!(!iban("GB29"));
+        assert!(!iban(""));
     }
 
     #[test]
     fn non_alphanumeric() {
-        assert!(!validate_iban("GB29!NWBK60161331926819"));
+        assert!(!iban("GB29!NWBK60161331926819"));
     }
 
     #[test]
     fn strips_whitespace_and_dashes() {
-        assert!(validate_iban("GB29-NWBK-6016-1331-9268-19"));
-        assert!(validate_iban("  GB29 NWBK 6016 1331 9268 19  "));
+        assert!(iban("GB29-NWBK-6016-1331-9268-19"));
+        assert!(iban("  GB29 NWBK 6016 1331 9268 19  "));
     }
 }

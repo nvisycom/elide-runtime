@@ -1,19 +1,22 @@
-//! Recognition primitives — the rule shapes ([`Regex`],
-//! [`Dictionary`]), their building blocks ([`Terms`] plus
-//! [`Context`] from `nvisy-core`),
-//! the [`PatternRegistry`] that bundles them, and the runtime
-//! [`PatternRecognizer`] that compiles them into pooled scanners.
+//! Recognition primitives.
 //!
-//! [`Context`]: nvisy_core::context::Context
+//! Holds the rule shapes ([`Regex`] + its [`Variant`]s,
+//! [`Dictionary`]), their building blocks ([`Term`]), and the
+//! runtime [`PatternRecognizer`] that compiles them into pooled
+//! scanners. Per-rule and per-dictionary `context` keyword lists
+//! are harvested by [`PatternRecognizerBuilder::build_context_enhanced`]
+//! into a wrapping `ContextEnhanced` layer that lifts confidence
+//! on matches near a declared keyword.
 
+mod compiled;
+mod context;
 mod dictionary;
 mod recognizer;
-mod regex_rule;
-mod registry;
-mod terms;
+mod regex;
+mod term;
 
-pub use self::dictionary::{Dictionary, DictionaryBuilder};
+pub use self::context::Context;
+pub use self::dictionary::{Dictionary, DictionaryBuilder, Scoring};
 pub use self::recognizer::{PatternRecognizer, PatternRecognizerBuilder};
-pub use self::regex_rule::{Regex, RegexBuilder};
-pub use self::registry::PatternRegistry;
-pub use self::terms::Terms;
+pub use self::regex::{Regex, RegexBuilder, Variant};
+pub use self::term::Term;

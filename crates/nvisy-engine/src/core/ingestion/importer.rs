@@ -31,15 +31,15 @@ use nvisy_core::entity::{Annotation, LabelAnnotation};
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
 use nvisy_core::{Error, Result};
 
+use crate::core::ingestion::compression::CompressionService;
+use crate::core::ingestion::encryption::{CryptoService, EncryptedContent};
+use crate::core::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 use crate::core::{AnyTree, DocumentTree, SharedData};
 use crate::document::{AnyAnnotations, Document};
 use crate::modality::{
     AudioExtraction, AudioMetadata, DocumentModality, ImageExtraction, ImageMetadata,
     TabularExtraction, TabularMetadata, TextExtraction, TextMetadata,
 };
-use crate::core::ingestion::compression::CompressionService;
-use crate::core::ingestion::encryption::{CryptoService, EncryptedContent};
-use crate::core::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 

@@ -29,6 +29,9 @@ mod tabular;
 #[cfg(feature = "internal_text")]
 mod text;
 
+use std::any::type_name;
+use std::fmt;
+
 use derive_more::From;
 #[cfg(feature = "internal_audio")]
 use nvisy_core::modality::Audio;
@@ -226,11 +229,11 @@ impl<M: Modality> DocumentHandle<M> {
     }
 }
 
-impl<M: Modality> std::fmt::Debug for DocumentHandle<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<M: Modality> fmt::Debug for DocumentHandle<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DocumentHandle")
             .field("format_id", &self.format_id)
-            .field("modality", &std::any::type_name::<M>())
+            .field("modality", &type_name::<M>())
             .finish()
     }
 }

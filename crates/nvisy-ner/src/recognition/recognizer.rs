@@ -36,12 +36,8 @@ use crate::backend::{NerBackend, NerRequest, RawNerSpan};
     build_fn(error = "Error", name = "try_build", private)
 )]
 pub struct NerRecognizer {
-    /// Recognizer name. Surfaced in trail provenance and used as
-    /// the key the [`ContextEnhancer`] looks up to find the
-    /// recognizer's [`default_context`].
-    ///
-    /// [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
-    /// [`default_context`]: NerModel::default_context
+    /// Recognizer name. Surfaced in trail provenance on every
+    /// emitted entity.
     name: String,
     /// Backend that turns `(text, kinds)` into raw spans. Required.
     /// Set via [`with_engine`], which accepts any concrete

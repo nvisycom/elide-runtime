@@ -7,7 +7,7 @@ mod shipped;
 pub mod validators;
 
 pub use self::recognition::{
-    Dictionary, DictionaryBuilder, PatternRecognizer, PatternRecognizerBuilder, PatternRegistry,
-    Regex, RegexBuilder, Terms,
+    Context, Dictionary, DictionaryBuilder, PatternRecognizer, PatternRecognizerBuilder, Regex,
+    RegexBuilder, Scoring, Term, Variant,
 };
 pub use self::shipped::{dictionaries, patterns};

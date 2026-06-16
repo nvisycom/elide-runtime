@@ -24,24 +24,32 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
+nvisy-context = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
 
-# (De)serialization
-csv = { workspace = true, features = [] }
+# Serialization
 serde = { workspace = true, features = [] }
 toml = { workspace = true, features = ["parse"] }
-schemars = { workspace = true, features = [] }
 
-# Derive macros
+# Derive macros and error handling
 derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["from"] }
 
-# Pattern matching
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+
+# Text processing (regex + Aho-Corasick literal matching)
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
 
-# Async trait sugar
-async-trait = { workspace = true, features = [] }
+# Tabular document parsing (dictionary loading from CSV)
+csv = { workspace = true, features = [] }
+
+# Base58Check decoder for the crypto.btc validator
+bs58 = { workspace = true, features = ["check"] }
+
+# Region-aware phone-number parsing for the phone validator
+phonenumber = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
-type-map = { workspace = true, features = [] }

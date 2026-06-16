@@ -14,18 +14,17 @@ use std::sync::Arc;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{
-    Audio, AudioLocation, Image, ImageLocation, Overlap, Tabular, TabularLocation, Text, TextData,
-    TextLocation,
+    Audio, AudioLocation, Image, ImageLocation, Modality, Overlap, Tabular, TabularLocation, Text,
+    TextData, TextLocation,
 };
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_toolkit::detection::RecognizerRegistry;
 use tracing::Instrument;
 
-use crate::core::PhaseContext as _;
-use crate::core::{DetectionContext, DocumentTree};
+use crate::core::{DetectionContext, DocumentTree, PhaseContext as _};
+use crate::detection::DetectionPlan;
 use crate::document::{Document, Span};
 use crate::modality::{DocumentModality, ModalityBlock};
-use crate::detection::DetectionPlan;
 
 const TARGET: &str = "nvisy_engine::detection";
 
@@ -34,7 +33,9 @@ const TARGET: &str = "nvisy_engine::detection";
 ///
 /// Holds an `Arc<RecognizerRegistry>` so the registry is shared
 /// cheaply across per-document phases without cloning the
-/// underlying recognizer lists.
+/// underlying recognizer lists. Recognizers own any post-detection
+/// work they need (boosting, dedup, validation) — the engine just
+/// orchestrates the registry.
 ///
 /// [`EntityRecord`]: crate::document::provenance::EntityRecord
 pub struct DetectionPhase {
@@ -236,7 +237,7 @@ pub trait LiftFromBlock: DocumentModality + Sized {
         spans: &[Span<Self>],
         start: usize,
         end: usize,
-    ) -> Option<<Self as nvisy_core::modality::Modality>::Location>;
+    ) -> Option<<Self as Modality>::Location>;
 }
 
 impl LiftFromBlock for Text {

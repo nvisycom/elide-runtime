@@ -7,6 +7,7 @@
 //! `nvisy_toolkit::extraction::ocr::backend::NoopBackend`, etc. are
 //! all reachable here.
 
+use nvisy_ocr::backend::OcrResponse;
 pub use nvisy_ocr::*;
 
 /// Output shape produced by every image-modality extractor.
@@ -17,4 +18,4 @@ pub use nvisy_ocr::*;
 /// rather than hiding behind generics.
 ///
 /// [`OcrResponse`]: nvisy_ocr::backend::OcrResponse
-pub type ImageExtractorOutput = nvisy_ocr::backend::OcrResponse;
+pub type ImageExtractorOutput = OcrResponse;

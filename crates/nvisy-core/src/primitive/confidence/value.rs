@@ -1,6 +1,7 @@
 //! [`Confidence`] — a validated `[0.0, 1.0]` confidence score.
 
 use schemars::JsonSchema;
+use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// A confidence score in the closed range `[0.0, 1.0]`.
@@ -43,7 +44,7 @@ impl<'de> Deserialize<'de> for Confidence {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = f64::deserialize(deserializer)?;
         Self::new(value).ok_or_else(|| {
-            serde::de::Error::custom(format!(
+            DeError::custom(format!(
                 "confidence {value} out of range [0.0, 1.0] or non-finite"
             ))
         })

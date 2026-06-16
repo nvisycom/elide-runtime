@@ -29,13 +29,21 @@ use crate::content::{ContentData, ContentSource};
 ///
 /// `data` is the per-modality wire payload; `location` is the
 /// coordinate the handler will accept in [`Handler::read`] /
-/// [`Handler::redact`] to address the same chunk again.
+/// [`Handler::redact`] to address the same chunk again. `hints`
+/// carries out-of-band context strings the chunk's structural
+/// neighbours surface — CSV/XLSX column headers, JSON object
+/// keys, HTML parent-element text — for downstream context-aware
+/// recognizers; handlers without such metadata leave it empty.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk<M: Modality> {
     /// Coordinate addressing this chunk inside the handler.
     pub location: M::Location,
     /// Wire payload at the chunk's location.
     pub data: M::Data,
+    /// Out-of-band context strings recognizers should treat as
+    /// in-context (column headers, parent element text, …).
+    /// Empty when the handler has no such metadata to surface.
+    pub hints: Vec<String>,
 }
 
 /// Per-modality capability trait every format handler implements.

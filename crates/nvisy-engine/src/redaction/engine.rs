@@ -26,11 +26,11 @@ use super::result::RedactionResult;
 use super::state::RedactionState;
 use super::status::RedactionStatus;
 use super::{RedactionEntry, RedactionFilter, RedactionInput, RedactionSnapshot};
-use crate::core::ingestion::encryption::SharedKeyProvider;
-use crate::redaction::phases::RedactionRegistries;
 use crate::core::RuntimeConfig;
-use crate::redaction::RedactionConfig;
+use crate::core::ingestion::encryption::SharedKeyProvider;
 use crate::detection::{DetectionEngine, DetectionState};
+use crate::redaction::RedactionConfig;
+use crate::redaction::phases::RedactionRegistries;
 use crate::registry::Registry;
 
 /// Shared inner state for a [`RedactionEngine`], held behind an
@@ -91,13 +91,7 @@ impl RedactionEngine {
     /// [`DetectionState`]: crate::detection::DetectionState
     /// [`shutdown`]: Self::shutdown
     pub fn from_detection(detection: &DetectionEngine) -> Self {
-        let redaction_config = Arc::new(
-            detection
-                .config()
-                .redaction
-                .clone()
-                .unwrap_or_default(),
-        );
+        let redaction_config = Arc::new(detection.config().redaction.clone().unwrap_or_default());
         Self {
             inner: Arc::new(RedactionInner {
                 runtime_config: detection.config().clone(),

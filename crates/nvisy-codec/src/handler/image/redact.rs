@@ -6,6 +6,7 @@
 //! the [`ImageOps`] trait in [`super::image_ops`].
 
 use image::DynamicImage;
+use image::imageops::FilterType;
 use nvisy_core::primitive::BoundingBox;
 use nvisy_core::redaction::ImageReplacement;
 
@@ -47,11 +48,8 @@ pub(crate) fn apply(
                     return;
                 }
             };
-            let resized = replacement_img.resize_exact(
-                region.width,
-                region.height,
-                image::imageops::FilterType::Lanczos3,
-            );
+            let resized =
+                replacement_img.resize_exact(region.width, region.height, FilterType::Lanczos3);
             image::imageops::overlay(img, &resized, region.x as i64, region.y as i64);
         }
     }

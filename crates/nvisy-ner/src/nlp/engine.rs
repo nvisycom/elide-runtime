@@ -1,26 +1,22 @@
 //! [`NlpEngine`]: the producer-side trait that builds the
 //! shared-NLP-pass [`TypeMap`] for one or more texts.
 //!
-//! Engines stamp typed enrichment entries —
-//! [`LanguageDetections`] and [`Tokens`] — into the returned
-//! `TypeMap`. An orchestrator that wants shared NLP runs
-//! `process` once per scan, wraps the result in [`Artifacts`], and
-//! attaches it to each [`RecognizerInput`] via
+//! Engines stamp typed enrichment entries (`LanguageDetections`
+//! today; token artifacts when the upstream service supports
+//! them) into the returned `TypeMap`. An orchestrator that wants
+//! shared NLP runs `process` once per scan, wraps the result in
+//! [`Artifacts`], and attaches it to each [`RecognizerInput`] via
 //! [`RecognizerInput::with_artifacts`].
 //!
-//! [`LanguageDetections`]: nvisy_core::primitive::LanguageDetections
-//! [`Tokens`]: nvisy_core::context::Tokens
 //! [`Artifacts`]: nvisy_core::extraction::Artifacts
 //! [`RecognizerInput`]: nvisy_core::recognition::RecognizerInput
 //! [`RecognizerInput::with_artifacts`]: nvisy_core::recognition::RecognizerInput::with_artifacts
 //!
 //! Pluggable so different deployment shapes (pure language
-//! detection, hosted full-NLP service, future in-process model) can
-//! be wired interchangeably. The orchestrator calls `process` (or
-//! `process_batch`) once per scan; recognizers and the
-//! [`ContextEnhancer`] borrow the resulting map by reference.
-//!
-//! [`ContextEnhancer`]: nvisy_core::context::ContextEnhancer
+//! detection, hosted full-NLP service, future in-process model)
+//! can be wired interchangeably. The orchestrator calls `process`
+//! (or `process_batch`) once per scan; recognizers and the
+//! keyword-boost enhancer borrow the resulting map by reference.
 
 use nvisy_core::Result;
 use nvisy_core::primitive::LanguageTag;

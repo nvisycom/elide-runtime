@@ -71,7 +71,8 @@ impl RecognizerRegistryExt for RecognizerRegistry {
     {
         let mut out = Vec::new();
         while let Some(chunk) = handler.next_chunk().await? {
-            let input = RecognizerInput::new(chunk.data.clone().into());
+            let input = RecognizerInput::new(chunk.data.clone().into())
+                .with_context_hints(chunk.hints.clone());
             let text_entities = self.run::<Text>(input).await?;
             for text_entity in text_entities {
                 let Some(loc) = handler

@@ -22,6 +22,7 @@
 //! [`Format::loader`]: super::Format::loader
 //! [`FormatId`]: super::FormatId
 
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use nvisy_core::Error;
@@ -100,7 +101,7 @@ where
 {
     Arc::new(LoaderAdapter {
         loader,
-        _phantom: std::marker::PhantomData,
+        _phantom: PhantomData,
     })
 }
 
@@ -109,7 +110,7 @@ where
 /// [`erase`]; not part of the public API.
 struct LoaderAdapter<M: Modality, L: Loader<M>> {
     loader: L,
-    _phantom: std::marker::PhantomData<fn() -> M>,
+    _phantom: PhantomData<fn() -> M>,
 }
 
 #[async_trait::async_trait]

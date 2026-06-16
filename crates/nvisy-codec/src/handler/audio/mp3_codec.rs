@@ -16,12 +16,13 @@
 //! redaction of MP3 streams. Callers wanting bit-perfect preservation
 //! of unredacted regions should not round-trip.
 
-use std::io::Cursor;
+use std::io::{Cursor, ErrorKind as IoErrorKind};
 
 use bytes::Bytes;
 use mp3lame_encoder::{Builder, FlushNoGap, InterleavedPcm, MonoPcm};
 use nvisy_core::Error;
-use symphonia::core::audio::{Audio as _, GenericAudioBufferRef};
+use symphonia::core::audio::conv::{ConvertibleSample, FromSample};
+use symphonia::core::audio::{Audio as _, AudioBuffer, GenericAudioBufferRef};
 use symphonia::core::codecs::audio::AudioDecoderOptions;
 use symphonia::core::errors::Error as SymError;
 use symphonia::core::formats::probe::Hint;
@@ -139,9 +140,7 @@ pub(super) fn decode_to_pcm(bytes: &Bytes) -> Result<DecodedMp3, Error> {
         let packet = match reader.next_packet() {
             Ok(Some(p)) => p,
             Ok(None) => break,
-            Err(SymError::IoError(io_err))
-                if io_err.kind() == std::io::ErrorKind::UnexpectedEof =>
-            {
+            Err(SymError::IoError(io_err)) if io_err.kind() == IoErrorKind::UnexpectedEof => {
                 break;
             }
             Err(e) => {
@@ -198,14 +197,12 @@ fn append_interleaved_f32(
     channels: usize,
     out: &mut Vec<f32>,
 ) {
-    use symphonia::core::audio::conv::ConvertibleSample;
-
     fn extend<S: ConvertibleSample + Copy>(
-        buf: &symphonia::core::audio::AudioBuffer<S>,
+        buf: &AudioBuffer<S>,
         channels: usize,
         out: &mut Vec<f32>,
     ) where
-        f32: symphonia::core::audio::conv::FromSample<S>,
+        f32: FromSample<S>,
     {
         let frames = buf.frames();
         out.reserve(frames * channels);
@@ -213,7 +210,7 @@ fn append_interleaved_f32(
             for ch in 0..channels {
                 let plane = buf.plane(ch).expect("plane for known channel index");
                 let sample = plane[frame];
-                out.push(<f32 as symphonia::core::audio::conv::FromSample<S>>::from_sample(sample));
+                out.push(<f32 as FromSample<S>>::from_sample(sample));
             }
         }
     }

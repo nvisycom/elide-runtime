@@ -7,21 +7,21 @@
 use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::Agent;
 #[cfg(feature = "anthropic-claude")]
-use rig::providers::anthropic;
+use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
 #[cfg(feature = "google-gemini")]
-use rig::providers::gemini;
-use rig::providers::ollama;
+use rig::providers::gemini::completion::CompletionModel as GeminiCompletionModel;
+use rig::providers::ollama::CompletionModel as OllamaCompletionModel;
 #[cfg(feature = "openai-gpt")]
-use rig::providers::openai;
+use rig::providers::openai::completion::CompletionModel as OpenAiCompletionModel;
 
 pub(super) enum RigInner {
     #[cfg(feature = "openai-gpt")]
-    OpenAi(Agent<openai::completion::CompletionModel<ClientWithMiddleware>>),
+    OpenAi(Agent<OpenAiCompletionModel<ClientWithMiddleware>>),
     #[cfg(feature = "anthropic-claude")]
-    Anthropic(Agent<anthropic::completion::CompletionModel<ClientWithMiddleware>>),
+    Anthropic(Agent<AnthropicCompletionModel<ClientWithMiddleware>>),
     #[cfg(feature = "google-gemini")]
-    Gemini(Agent<gemini::completion::CompletionModel<ClientWithMiddleware>>),
-    Ollama(Agent<ollama::CompletionModel<ClientWithMiddleware>>),
+    Gemini(Agent<GeminiCompletionModel<ClientWithMiddleware>>),
+    Ollama(Agent<OllamaCompletionModel<ClientWithMiddleware>>),
 }
 
 macro_rules! dispatch {

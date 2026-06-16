@@ -1,4 +1,4 @@
-//! [`EntityRecognizer<M>`]: the Presidio-style entity-detection trait.
+//! [`EntityRecognizer<M>`]: the entity-detection trait.
 //!
 //! Every detector that emits [`Entity<M>`] for some modality `M`
 //! implements this trait — pattern recognizers, NER bento clients,

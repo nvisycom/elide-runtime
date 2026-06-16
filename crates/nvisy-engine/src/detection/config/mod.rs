@@ -9,6 +9,11 @@
 //! currently wired — those modules are parked pending rework to
 //! implement [`EntityRecognizer<M>`] directly.
 //!
+//! Each recognizer owns its own post-recognition processing
+//! (boosting, deduplication-within-recognizer, validation post-pass).
+//! The engine orchestrates recognizers; it does not orchestrate
+//! recognizer-internal phases.
+//!
 //! [`RecognizerRegistry`]: nvisy_toolkit::detection::RecognizerRegistry
 //! [`EntityRecognizer<M>`]: nvisy_core::recognition::EntityRecognizer
 
@@ -24,7 +29,7 @@ use nvisy_ner::NerRecognizer;
 use nvisy_ner::backend::NoopBackend;
 #[cfg(feature = "bento")]
 use nvisy_ner::backend::{BentoBackend, BentoParams};
-use nvisy_pattern::{PatternRecognizer, PatternRegistry};
+use nvisy_pattern::PatternRecognizer;
 use nvisy_toolkit::detection::RecognizerRegistry;
 
 pub use self::ner::{NerBackend, NerDetection};
@@ -76,36 +81,32 @@ impl DetectionConfig {
 
         let pattern_cfg = self.pattern.clone().unwrap_or_default();
         if pattern_cfg.enabled {
-            let pattern_registry = PatternRegistry::builtin().filter_by_catalog(catalog);
-            if !pattern_registry.is_empty() {
-                let recognizer = PatternRecognizer::builder()
-                    .with_registry(pattern_registry)
-                    .build()?;
-                reg = reg.with_recognizer::<Text>(recognizer);
+            let builder = PatternRecognizer::builder()
+                .with_builtin_patterns()
+                .with_builtin_dictionaries()
+                .filter_by_catalog(catalog);
+            if !builder.is_empty() {
+                reg = reg.with_recognizer::<Text>(builder.build_context_enhanced()?);
             }
         }
 
         if let Some(ner_cfg) = self.ner.as_ref().filter(|c| c.enabled) {
             let supported_labels = catalog.iter().map(|l| l.label_ref()).collect::<Vec<_>>();
-            reg = match &ner_cfg.backend {
-                NerBackend::Noop => {
-                    let recognizer = NerRecognizer::builder()
-                        .with_name(NER_RECOGNIZER_NAME)
-                        .with_engine(NoopBackend)
-                        .with_supported_labels(supported_labels)
-                        .build()?;
-                    reg.with_recognizer::<Text>(recognizer)
-                }
+            let recognizer = match &ner_cfg.backend {
+                NerBackend::Noop => NerRecognizer::builder()
+                    .with_name(NER_RECOGNIZER_NAME)
+                    .with_engine(NoopBackend)
+                    .with_supported_labels(supported_labels)
+                    .build()?,
 
                 #[cfg(feature = "bento")]
                 NerBackend::Bento { base_url } => {
                     let backend = BentoBackend::new(BentoParams::new(base_url.clone()))?;
-                    let recognizer = NerRecognizer::builder()
+                    NerRecognizer::builder()
                         .with_name(NER_RECOGNIZER_NAME)
                         .with_engine(backend)
                         .with_supported_labels(supported_labels)
-                        .build()?;
-                    reg.with_recognizer::<Text>(recognizer)
+                        .build()?
                 }
 
                 #[cfg(not(feature = "bento"))]
@@ -116,6 +117,7 @@ impl DetectionConfig {
                     ));
                 }
             };
+            reg = reg.with_recognizer::<Text>(recognizer);
         }
 
         Ok(reg)

@@ -10,7 +10,7 @@
 //! `label_map` / `labels_to_ignore` policy on the lift side.
 
 use nvisy_core::entity::{EntityLabelRef, builtins};
-use nvisy_core::modality::{ImageData, ImageLocation, TextData, TextLocation};
+use nvisy_core::modality::{Image, ImageData, ImageLocation, Text, TextData, TextLocation};
 use nvisy_core::primitive::{BoundingBox, Dimensions};
 use nvisy_core::recognition::{Hint, RecognizerInput};
 use nvisy_llm::backend::LlmResponse;
@@ -20,15 +20,14 @@ const VLM_TOML: &str = include_str!("../testdata/prompts/vlm.toml");
 
 #[test]
 fn text_prompt_renders_template_and_lifts_entities() {
-    let prompt =
-        FilePrompt::<nvisy_core::modality::Text>::from_toml(NER_TOML).expect("ner.toml parses");
+    let prompt = FilePrompt::<Text>::from_toml(NER_TOML).expect("ner.toml parses");
 
     // Realistic doc text. Hint coordinates pick out "Alice Carter".
     let body = "From: Alice Carter <alice.carter@acme.test>\nSubject: hello";
     let alice_start = body.find("Alice Carter").expect("alice substring");
     let alice_end = alice_start + "Alice Carter".len();
 
-    let hint = Hint::<nvisy_core::modality::Text>::new(TextLocation::new(alice_start, alice_end))
+    let hint = Hint::<Text>::new(TextLocation::new(alice_start, alice_end))
         .with_name("uploader-alice")
         .with_label(builtins::PERSON_NAME.label_ref());
 
@@ -94,14 +93,13 @@ fn text_prompt_renders_template_and_lifts_entities() {
 
 #[test]
 fn image_prompt_renders_template_and_lifts_entities() {
-    let prompt =
-        FilePrompt::<nvisy_core::modality::Image>::from_toml(VLM_TOML).expect("vlm.toml parses");
+    let prompt = FilePrompt::<Image>::from_toml(VLM_TOML).expect("vlm.toml parses");
 
     // Tiny PNG-shaped payload — the prompt only base64-encodes it.
     let bytes = b"\x89PNG\r\n\x1a\nfake-image-bytes".to_vec();
     let dims = Dimensions::new(640, 480);
 
-    let hint = Hint::<nvisy_core::modality::Image>::new(ImageLocation::new(BoundingBox::new(
+    let hint = Hint::<Image>::new(ImageLocation::new(BoundingBox::new(
         10.0, 20.0, 100.0, 50.0,
     )))
     .with_name("uploader-face")

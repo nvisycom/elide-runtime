@@ -1,21 +1,17 @@
-//! Luhn checksum validator.
-//!
-//! Implements the [Luhn algorithm] used to validate credit/debit card
-//! numbers and other identification numbers. Only digits, spaces, and
-//! dashes are accepted as input: any other character causes the check
-//! to fail.
-//!
-//! [Luhn algorithm]: https://en.wikipedia.org/wiki/Luhn_algorithm
+//! Luhn checksum validator for credit-card and similar identifier
+//! numbers.
 
-/// Return `true` if `num` passes the Luhn checksum.
+/// Return `true` if `num` passes the [Luhn algorithm] checksum.
 ///
 /// Spaces and dashes are stripped before validation, so
 /// `"4539 1488 0343 6467"`, `"4539-1488-0343-6467"`, and
-/// `"4539148803436467"` are all equivalent.
+/// `"4539148803436467"` are equivalent inputs.
 ///
-/// Returns `false` if the input is empty or contains characters other
-/// than digits, spaces, and dashes.
-pub fn luhn_check(num: &str) -> bool {
+/// Returns `false` when the input is empty or contains any
+/// character other than digits, spaces, and dashes.
+///
+/// [Luhn algorithm]: https://en.wikipedia.org/wiki/Luhn_algorithm
+pub fn luhn(num: &str) -> bool {
     if num.is_empty() {
         return false;
     }
@@ -56,41 +52,41 @@ mod tests {
 
     #[test]
     fn valid_card_numbers() {
-        assert!(luhn_check("4539 1488 0343 6467"));
-        assert!(luhn_check("4539148803436467"));
-        assert!(luhn_check("4539-1488-0343-6467"));
+        assert!(luhn("4539 1488 0343 6467"));
+        assert!(luhn("4539148803436467"));
+        assert!(luhn("4539-1488-0343-6467"));
     }
 
     #[test]
     fn invalid_card_numbers() {
-        assert!(!luhn_check("4539 1488 0343 6466"));
-        assert!(!luhn_check("1234567890123456"));
+        assert!(!luhn("4539 1488 0343 6466"));
+        assert!(!luhn("1234567890123456"));
     }
 
     #[test]
     fn empty_input() {
-        assert!(!luhn_check(""));
+        assert!(!luhn(""));
     }
 
     #[test]
     fn non_digit_input() {
-        assert!(!luhn_check("abcdef"));
+        assert!(!luhn("abcdef"));
     }
 
     #[test]
     fn mixed_alpha_digit_rejected() {
-        assert!(!luhn_check("45abc39"));
-        assert!(!luhn_check("4539 14X8 0343 6467"));
+        assert!(!luhn("45abc39"));
+        assert!(!luhn("4539 14X8 0343 6467"));
     }
 
     #[test]
     fn single_zero() {
-        assert!(luhn_check("0"));
+        assert!(luhn("0"));
     }
 
     #[test]
     fn only_separators_rejected() {
-        assert!(!luhn_check("   "));
-        assert!(!luhn_check("---"));
+        assert!(!luhn("   "));
+        assert!(!luhn("---"));
     }
 }

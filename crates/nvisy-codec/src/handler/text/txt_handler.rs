@@ -84,6 +84,7 @@ impl Handler<Text> for TxtHandler {
                 ..Default::default()
             },
             data: TextData::from(line.as_str()),
+            hints: Vec::new(),
         }))
     }
 

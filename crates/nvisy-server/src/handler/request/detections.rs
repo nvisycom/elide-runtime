@@ -13,7 +13,7 @@ use crate::handler::request::pagination::Pagination;
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewDetection {
-    /// Policies to apply, in precedence order 
+    /// Policies to apply, in precedence order
     /// (index 0 is highest precedence).
     pub policies: Vec<Policy>,
     /// Content sources to ingest at the start of the pass.

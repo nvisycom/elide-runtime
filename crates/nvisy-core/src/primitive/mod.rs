@@ -8,16 +8,18 @@
 //!   ([`LanguageTag`], [`LanguageDetection`]).
 //! - `rendering` — output-side knobs ([`Color`], [`Dpi`]).
 //!
-//! [`TimeSpan`] is the single root-level primitive — temporal
-//! intervals don't have any companion types worth grouping yet.
+//! Root-level primitives: [`CountryCode`] (ISO 3166-1 alpha-2),
+//! [`TimeSpan`] (temporal intervals).
 
 mod confidence;
+mod country;
 mod geometry;
 mod language;
 mod rendering;
 mod time_span;
 
 pub use self::confidence::{Confidence, ConfidenceThreshold};
+pub use self::country::CountryCode;
 pub use self::geometry::{
     BoundingBox, Dimensions, IBoundingBox, NormalizedBoundingBox, Polygon, Vertex,
 };

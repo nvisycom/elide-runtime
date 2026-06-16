@@ -36,24 +36,21 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
+# Primitive datatypes (UUIDv7 for per-call request IDs from the
+# Bento backend; behind the `bento` feature gate at use sites).
+uuid = { workspace = true, features = ["v4", "v7"] }
+bytes = { workspace = true, features = [] }
+
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
 futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt"] }
 
-# BentoML inference client (feature-gated)
-bentoml = { workspace = true, optional = true }
-
-# Primitive datatypes (UUIDv7 for per-call request IDs from the
-# Bento backend; behind the `bento` feature gate at use sites).
-uuid = { workspace = true, features = ["v4", "v7"] }
-
-# Encoding
-base64 = { workspace = true, features = [] }
-bytes = { workspace = true, features = [] }
-
 # Observability
 tracing = { workspace = true, features = [] }
+
+# AI / LLM frameworks (feature-gated)
+bentoml = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

@@ -99,9 +99,11 @@ fn build_items(dom: &Html, loader: &HtmlLoader) -> Vec<RedactableItem> {
         match node.value() {
             Node::Text(t) => {
                 if !skip_text_under(node) {
+                    let hints = sibling_text_hint(node, &t.text);
                     items.push(RedactableItem {
                         kind: RedactableKind::TextNode { index: text_index },
                         value: t.text.to_string(),
+                        hints,
                     });
                 }
                 text_index += 1;
@@ -112,6 +114,7 @@ fn build_items(dom: &Html, loader: &HtmlLoader) -> Vec<RedactableItem> {
                         index: comment_index,
                     },
                     value: c.comment.to_string(),
+                    hints: Vec::new(),
                 });
                 comment_index += 1;
             }
@@ -131,6 +134,7 @@ fn build_items(dom: &Html, loader: &HtmlLoader) -> Vec<RedactableItem> {
                             },
                         },
                         value: val.to_string(),
+                        hints: Vec::new(),
                     });
                 }
 
@@ -154,6 +158,7 @@ fn build_items(dom: &Html, loader: &HtmlLoader) -> Vec<RedactableItem> {
                             target,
                         },
                         value: body,
+                        hints: Vec::new(),
                     });
                 }
 
@@ -164,6 +169,92 @@ fn build_items(dom: &Html, loader: &HtmlLoader) -> Vec<RedactableItem> {
     }
 
     items
+}
+
+/// Collect the surrounding-text content of the text node's
+/// nearest block-level ancestor as a single hint string.
+///
+/// Used by [`build_items`] to surface the surrounding sentence
+/// (`"the payment card 4111… is on file"`) as an out-of-band
+/// hint when a text node sits inside an inline wrapper
+/// (`<code>4111…</code>`) that splits the prose into multiple
+/// chunks. The walk targets the nearest *block* ancestor
+/// (`<p>`, `<div>`, `<li>`, `<td>`, `<th>`, `<h1>`–`<h6>`,
+/// `<blockquote>`, `<dt>`, `<dd>`) — stopping at the immediate
+/// inline parent would yield only the chunk's own text.
+///
+/// `own_text` is excluded so the hint doesn't echo the node's
+/// own bytes. Returns an empty `Vec` when no useful surrounding
+/// text exists (no block ancestor, or the ancestor contains
+/// only this text).
+fn sibling_text_hint(text_node: NodeRef<'_, Node>, own_text: &str) -> Vec<String> {
+    let Some(ancestor) = nearest_block_ancestor(text_node) else {
+        return Vec::new();
+    };
+    let mut buf = String::new();
+    for descendant in ancestor.descendants() {
+        if let Node::Text(t) = descendant.value() {
+            let chunk = t.text.as_ref();
+            if chunk == own_text {
+                continue;
+            }
+            if !buf.is_empty() {
+                buf.push(' ');
+            }
+            buf.push_str(chunk);
+        }
+    }
+    let trimmed = buf.trim();
+    if trimmed.is_empty() {
+        Vec::new()
+    } else {
+        vec![trimmed.to_owned()]
+    }
+}
+
+/// Walk parents until we hit a block-level element (or root).
+/// Used to find the "sentence boundary" around an inline text
+/// node so the hint covers the full prose around an inline
+/// wrapper like `<code>` or `<span>`.
+fn nearest_block_ancestor(text_node: NodeRef<'_, Node>) -> Option<NodeRef<'_, Node>> {
+    let mut current = text_node.parent();
+    while let Some(node) = current {
+        if let Node::Element(e) = node.value()
+            && is_block_element(e.name.local.as_ref())
+        {
+            return Some(node);
+        }
+        current = node.parent();
+    }
+    None
+}
+
+fn is_block_element(name: &str) -> bool {
+    matches!(
+        name,
+        "p" | "div"
+            | "li"
+            | "td"
+            | "th"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "blockquote"
+            | "dt"
+            | "dd"
+            | "section"
+            | "article"
+            | "aside"
+            | "header"
+            | "footer"
+            | "main"
+            | "nav"
+            | "figcaption"
+            | "caption"
+    )
 }
 
 /// Don't emit text-node items for text that lives directly inside

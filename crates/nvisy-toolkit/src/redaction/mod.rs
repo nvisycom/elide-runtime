@@ -26,12 +26,10 @@
 //! built-in (constructed inline) or a `Custom(AnonymizerId<M>)`
 //! (looked up in the registry).
 //!
-//! [`Replace`]: anonymizer::Replace
-//! [`Mask`]: anonymizer::Mask
-//! [`Hash`]: anonymizer::Hash
-//! [`Redact`]: anonymizer::Redact
-//! [`Keep`]: anonymizer::Keep
-//! [`Encrypt`]: anonymizer::Encrypt
+//! [`Anonymizer<M>`]: Anonymizer
+//! [`Deanonymizer<M>`]: Deanonymizer
+//! [`AnonymizerId<M>`]: AnonymizerId
+//! [`RedactionRegistry<M>`]: RedactionRegistry
 
 mod id;
 mod registry;

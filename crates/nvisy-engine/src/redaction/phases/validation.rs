@@ -20,8 +20,7 @@ use nvisy_toolkit::validation::{
 };
 use tracing::Instrument;
 
-use crate::core::PhaseContext as _;
-use crate::core::{DocumentTree, RedactionContext};
+use crate::core::{DocumentTree, PhaseContext as _, RedactionContext};
 use crate::document::Document;
 use crate::modality::DocumentModality;
 use crate::redaction::RedactionPlan;

@@ -63,6 +63,12 @@ pub struct RedactableItem {
     /// Text-node text, comment body, attribute value, or script /
     /// style element text.
     pub value: String,
+    /// Out-of-band context strings surfaced from the item's
+    /// structural neighbours — currently the parent element's
+    /// concatenated text content minus this item's own text.
+    /// Empty for items without useful surrounding context (e.g.
+    /// items whose parent element only contains the item itself).
+    pub hints: Vec<String>,
 }
 
 /// Where a [`RedactableItem`] lives inside the parsed HTML
@@ -150,7 +156,9 @@ impl Handler<Text> for HtmlHandler {
         let i = self.cursor;
         let start = self.item_starts[i];
         let end = self.item_starts[i + 1];
-        let value = &self.data.items[i].value;
+        let item = &self.data.items[i];
+        let value = &item.value;
+        let hints = item.hints.clone();
         self.cursor += 1;
         Ok(Some(Chunk {
             location: TextLocation {
@@ -159,6 +167,7 @@ impl Handler<Text> for HtmlHandler {
                 ..Default::default()
             },
             data: TextData::from(value.as_str()),
+            hints,
         }))
     }
 

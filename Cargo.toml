@@ -5,6 +5,7 @@ resolver = "3"
 members = [
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
+    "./crates/nvisy-context",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
     "./crates/nvisy-fake",
@@ -37,44 +38,22 @@ documentation = "https://docs.rs/nvisy-runtime"
 
 # Internal crates
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
+nvisy-context = { path = "./crates/nvisy-context", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-fake = { path = "./crates/nvisy-fake", version = "0.1.0" }
 nvisy-llm = { path = "./crates/nvisy-llm", version = "0.1.0" }
-nvisy-stt = { path = "./crates/nvisy-stt", version = "0.1.0" }
-nvisy-toolkit = { path = "./crates/nvisy-toolkit", version = "0.1.0" }
 nvisy-ner = { path = "./crates/nvisy-ner", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
+nvisy-stt = { path = "./crates/nvisy-stt", version = "0.1.0" }
+nvisy-toolkit = { path = "./crates/nvisy-toolkit", version = "0.1.0" }
 
-# Inference & AI frameworks
-bentoml = { version = "0.5", default-features = false, features = ["rustls-tls", "tracing"] }
-rig = { version = "0.38", features = [], default-features = false }
-
-# HTTP client and middleware
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "multipart"] }
-reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
-reqwest-retry = { version = "0.9", features = [] }
-reqwest-tracing = { version = "0.7", features = [] }
-
-# Async runtime and parallelism
-tokio = { version = "1.50", features = [] }
-tokio-util = { version = "0.7", features = [] }
-futures = { version = "0.3", features = [] }
-async-trait = { version = "0.1", features = [] }
-rayon = { version = "1.10", features = [] }
-
-# Observability
-tracing = { version = "0.1", features = ["attributes"] }
-tracing-subscriber = { version = "0.3", features = [] }
-
-# (De)serialization
+# Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
-serde_with = { version = "3.18", features = [] }
 schemars = { version = "1.0", features = ["uuid1", "bytes1"] }
-csv = { version = "1.0", features = [] }
 toml = { version = "1.1", features = [] }
 minijinja = { version = "2.5", features = [] }
 
@@ -92,38 +71,48 @@ hipstr = { version = "0.8", features = ["serde"] }
 jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
 oxilangtag = { version = "0.1", features = ["serde"] }
+celes = { version = "2.8", features = [] }
 humantime = { version = "2.1", features = [] }
 humantime-serde = { version = "1.1", features = [] }
 type-map = { version = "0.5", features = [] }
 
 # Encoding and hashing
 base64 = { version = "0.22", features = [] }
+hex = { version = "0.4", features = [] }
 sha2 = { version = "0.11", features = [] }
 aes-gcm = { version = "0.10", features = [] }
-hmac = { version = "0.13", features = [] }
-hex = { version = "0.4", features = [] }
 
-# Pattern matching
+# Async runtime and parallelism
+tokio = { version = "1.50", features = [] }
+tokio-util = { version = "0.7", features = [] }
+futures = { version = "0.3", features = [] }
+async-trait = { version = "0.1", features = [] }
+rayon = { version = "1.10", features = [] }
+
+# Observability
+tracing = { version = "0.1", features = ["attributes"] }
+tracing-subscriber = { version = "0.3", features = [] }
+
+# Text processing (pattern matching, language detection, unicode)
 regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1.0", features = [] }
-smallvec = { version = "1.13", features = [] }
-
-# Language detection and text segmentation
 lingua = { version = "1.8", default-features = false, features = ["english"] }
-stop-words = { version = "0.10", features = ["iso"] }
 unicode-segmentation = { version = "1.13", features = [] }
 unicode-normalization = { version = "0.1", features = [] }
 
-# PDF processing (parsing, text extraction, page-to-image rendering)
-lopdf = { version = "0.41", features = [] }
-pdfium-render = { version = "0.9", features = [] }
+# Checksum / encoding
+bs58 = { version = "0.5", features = ["check"] }
+phonenumber = { version = "0.3", default-features = false }
 
-# Document parsing
+# Tabular document parsing
+csv = { version = "1.0", features = [] }
+calamine = { version = "0.35", features = [] }
+
+# Rich-document parsing (HTML, PDF)
 scraper = { version = "0.27", features = [] }
 ego-tree = { version = "0.11", features = [] }
-calamine = { version = "0.35", features = [] }
-zip = { version = "8.4", features = [] }
-quick-xml = { version = "0.40", features = [] }
+lopdf = { version = "0.41", features = [] }
+pdfium-render = { version = "0.9", features = [] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
@@ -134,27 +123,30 @@ hound = { version = "3.5", features = [] }
 symphonia = { version = "0.6", default-features = false, features = ["wav", "pcm", "mp3"] }
 mp3lame-encoder = { version = "0.2", features = [] }
 
-# CLI
-clap = { version = "4.6", features = [] }
+# AI / LLM frameworks
+bentoml = { version = "0.5", default-features = false, features = ["rustls-tls", "tracing"] }
+rig = { version = "0.38", features = [], default-features = false }
 
-# HTTP server
+# HTTP client and middleware
+reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
+reqwest-retry = { version = "0.9", features = [] }
+reqwest-tracing = { version = "0.7", features = [] }
+
+# HTTP server and middleware
 axum = { version = "0.8", features = [] }
 aide = { version = "0.16.0-alpha.2", features = [] }
 tower = { version = "0.5", features = [] }
 tower-http = { version = "0.6", features = [] }
 
-# Filesystem traversal
-walkdir = { version = "2.5", features = [] }
+# CLI
+clap = { version = "4.6", features = [] }
 
-# Storage, file detection, and asset embedding
+# Storage and file-type detection
 fjall = { version = "3.1", features = [] }
-include_dir = { version = "0.7", features = [] }
 infer = { version = "0.19", features = [] }
 
 # Utilities
 validator = { version = "0.20", features = ["derive"] }
 rand = { version = "0.10", features = [] }
 tempfile = { version = "3.27", features = [] }
-
-# Fake data generation
 fake = { version = "5.1", features = [] }

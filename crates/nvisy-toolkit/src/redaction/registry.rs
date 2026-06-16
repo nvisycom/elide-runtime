@@ -37,6 +37,7 @@
 //! [`Anonymizer<M>`]: super::Anonymizer
 
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::Result;
@@ -214,8 +215,8 @@ impl<M: Modality> Clone for RedactionRegistry<M> {
     }
 }
 
-impl<M: Modality> std::fmt::Debug for RedactionRegistry<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<M: Modality> fmt::Debug for RedactionRegistry<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RedactionRegistry")
             .field("labels", &self.by_label.len())
             .field("ids", &self.by_id.len())

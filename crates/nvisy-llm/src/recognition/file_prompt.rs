@@ -1,9 +1,9 @@
 //! [`FilePrompt`]: load a [`Prompt`] from a TOML file.
 //!
-//! Mirrors Presidio's prompt-as-data model: the user-prompt template
-//! plus the label map plus the labels-to-ignore set all live in a
-//! single TOML file. Users swap behaviour by editing the file, not
-//! by writing Rust. Templates use Jinja2 syntax via `minijinja`.
+//! Prompt-as-data shape: the user-prompt template plus the label
+//! map plus the labels-to-ignore set all live in a single TOML
+//! file. Users swap behaviour by editing the file, not by writing
+//! Rust. Templates use Jinja2 syntax via `minijinja`.
 //!
 //! # TOML schema
 //!
@@ -48,7 +48,7 @@ use std::path::Path;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use minijinja::{Environment, context};
-use nvisy_core::entity::Entity;
+use nvisy_core::entity::{Entity, EntityLabelRef};
 use nvisy_core::modality::{Image, Text};
 use nvisy_core::recognition::{LabelMap, RecognizerInput};
 use nvisy_core::{Error, Result};
@@ -114,10 +114,7 @@ impl<M> FilePrompt<M> {
         let mut label_map = LabelMap::new();
         if let Some(entries) = parsed.label_map {
             for (model_label, entity_label) in entries {
-                label_map = label_map.with_entry(
-                    model_label,
-                    nvisy_core::entity::EntityLabelRef::from(entity_label),
-                );
+                label_map = label_map.with_entry(model_label, EntityLabelRef::from(entity_label));
             }
         }
 

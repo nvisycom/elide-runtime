@@ -1,6 +1,7 @@
 //! LLM providers that do not require an API key.
 
 use reqwest_middleware::ClientWithMiddleware;
+use rig::client::Nothing;
 use rig::providers::ollama;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,9 +25,7 @@ impl UnauthenticatedProvider {
         &self,
         http: ClientWithMiddleware,
     ) -> Result<ollama::Client<ClientWithMiddleware>, Error> {
-        let mut b = ollama::Client::builder()
-            .api_key(rig::client::Nothing)
-            .http_client(http);
+        let mut b = ollama::Client::builder().api_key(Nothing).http_client(http);
         if let Some(url) = &self.base_url {
             b = b.base_url(url);
         }

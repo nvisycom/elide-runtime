@@ -1,17 +1,18 @@
 //! [`LayerParams`]: the per-call knob bag that drives the
 //! canonical deduplication recipe.
 //!
-//! Bundles every per-layer setting the four-step recipe needs
+//! Bundles every per-layer setting the five-step recipe needs
 //! ([`CalibrationMap`], filtering thresholds + allowed kinds,
 //! [`DeduplicationStrategy`], [`GroupingCriteria`],
-//! [`ConflictResolution`]) into a single deserialisable shape
-//! callers set once per request.
+//! [`SuppressionParams`], [`ConflictResolution`]) into a single
+//! deserialisable shape callers set once per request.
 //! [`LayerPipeline::from_params`] reads it and assembles the
-//! four-step pipeline.
+//! five-step pipeline.
 //!
 //! [`CalibrationMap`]: super::calibrate::CalibrationMap
 //! [`DeduplicationStrategy`]: super::fuse::DeduplicationStrategy
 //! [`GroupingCriteria`]: super::fuse::GroupingCriteria
+//! [`SuppressionParams`]: super::suppress::SuppressionParams
 //! [`ConflictResolution`]: super::resolve::ConflictResolution
 //! [`LayerPipeline::from_params`]: super::pipeline::LayerPipeline::from_params
 
@@ -23,8 +24,9 @@ use serde::{Deserialize, Serialize};
 use super::calibrate::CalibrationMap;
 use super::fuse::{DeduplicationStrategy, GroupingCriteria};
 use super::resolve::ConflictResolution;
+use super::suppress::SuppressionParams;
 
-/// Configuration for the deduplication pipeline's four-step recipe.
+/// Configuration for the deduplication pipeline's five-step recipe.
 ///
 /// Owns the sole confidence threshold in the pipeline: detection
 /// layers and recognizers do not filter on confidence themselves —
@@ -56,6 +58,11 @@ pub struct LayerParams {
     /// group.
     #[serde(default)]
     pub strategy: DeduplicationStrategy,
+    /// Allow-list inputs consumed by [`SuppressionLayer`].
+    ///
+    /// [`SuppressionLayer`]: super::suppress::SuppressionLayer
+    #[serde(default, skip_serializing_if = "SuppressionParams::is_empty")]
+    pub suppression: SuppressionParams,
     /// How to resolve conflicts when different entity kinds overlap
     /// the same span.
     #[serde(default)]

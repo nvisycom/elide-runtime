@@ -20,7 +20,7 @@ use uuid::Uuid;
 use super::Hint;
 use crate::extraction::Artifacts;
 use crate::modality::Modality;
-use crate::primitive::LanguageTag;
+use crate::primitive::{CountryCode, LanguageTag};
 
 /// Per-call input for an [`EntityRecognizer<M>`].
 ///
@@ -48,6 +48,12 @@ pub struct RecognizerInput<M: Modality> {
     ///
     /// [`language`]: Self::language
     pub candidate_languages: Vec<LanguageTag>,
+    /// Caller-asserted jurisdiction. When `Some`, recognizers
+    /// that carry per-rule `countries` scopes skip rules that
+    /// don't match. `None` means "any" — rules that declare
+    /// countries still run as a permissive fallback so callers
+    /// who don't pass a hint don't lose detections.
+    pub country: Option<CountryCode>,
     /// Uploader-supplied hint regions in modality-native coordinates.
     /// Recognizers that support hint adjudication (LLM-based NER, VLM)
     /// read this; recognizers that don't (pattern, dictionary) ignore
@@ -58,6 +64,14 @@ pub struct RecognizerInput<M: Modality> {
     /// behavior for domain-specific terms; those that don't ignore the
     /// field.
     pub labels: Vec<String>,
+    /// Out-of-band context strings the caller wants treated as
+    /// in-context for confidence boosting (e.g. the column header
+    /// of a CSV cell, the JSON object key of a string value, the
+    /// log field name a value sits under). Recognizers that run a
+    /// context enhancer feed these to the enhancer alongside the
+    /// in-text word window; recognizers without an enhancer ignore
+    /// the field.
+    pub context_hints: Vec<String>,
     /// Correlation UUID propagated through the tracing span for this
     /// call. Recognizer bodies do not read this directly; it's set
     /// on the span by the caller.
@@ -73,8 +87,10 @@ impl<M: Modality> RecognizerInput<M> {
             artifacts: Artifacts::new(),
             language: None,
             candidate_languages: Vec::new(),
+            country: None,
             hints: Vec::new(),
             labels: Vec::new(),
+            context_hints: Vec::new(),
             correlation_id: None,
         }
     }
@@ -100,6 +116,13 @@ impl<M: Modality> RecognizerInput<M> {
         self
     }
 
+    /// Set the asserted jurisdiction.
+    #[must_use]
+    pub fn with_country(mut self, country: CountryCode) -> Self {
+        self.country = Some(country);
+        self
+    }
+
     /// Attach uploader-supplied hint regions.
     #[must_use]
     pub fn with_hints(mut self, hints: Vec<Hint<M>>) -> Self {
@@ -111,6 +134,14 @@ impl<M: Modality> RecognizerInput<M> {
     #[must_use]
     pub fn with_labels(mut self, labels: Vec<String>) -> Self {
         self.labels = labels;
+        self
+    }
+
+    /// Attach out-of-band context hint strings (column headers,
+    /// JSON keys, …) the enhancer should treat as in-context.
+    #[must_use]
+    pub fn with_context_hints(mut self, hints: Vec<String>) -> Self {
+        self.context_hints = hints;
         self
     }
 
@@ -127,7 +158,9 @@ impl<M: Modality> RecognizerInput<M> {
     /// - An empty `allowed` list means the rule is language-agnostic
     ///   and always runs.
     /// - When `allowed` is non-empty and [`language`] is `Some(_)`,
-    ///   the rule runs only if the hint is in the list.
+    ///   the rule runs when the hint shares a primary subtag with
+    ///   any entry in `allowed` (so an `["en"]` rule fires for
+    ///   `"en-US"` and `"en-GB"` hints).
     /// - When [`language`] is `None`, the rule still runs — we can't
     ///   disprove applicability without a hint.
     ///
@@ -138,7 +171,31 @@ impl<M: Modality> RecognizerInput<M> {
             return true;
         }
         match self.language.as_ref() {
-            Some(l) => allowed.iter().any(|a| a == l),
+            Some(hint) => allowed.iter().any(|a| a.matches(hint)),
+            None => true,
+        }
+    }
+
+    /// Whether a recognizer rule scoped to `allowed` countries
+    /// should run for this call.
+    ///
+    /// - An empty `allowed` list means the rule is jurisdiction-
+    ///   agnostic and always runs.
+    /// - When `allowed` is non-empty and [`country`] is `Some(_)`,
+    ///   the rule runs only when the hint is in `allowed`.
+    /// - When [`country`] is `None`, the rule still runs — we
+    ///   can't disprove applicability without a hint, and
+    ///   silently dropping detections would surprise callers
+    ///   who simply forgot to set the field.
+    ///
+    /// [`country`]: Self::country
+    #[must_use]
+    pub fn applies_to_country(&self, allowed: &[CountryCode]) -> bool {
+        if allowed.is_empty() {
+            return true;
+        }
+        match self.country.as_ref() {
+            Some(hint) => allowed.iter().any(|a| a == hint),
             None => true,
         }
     }

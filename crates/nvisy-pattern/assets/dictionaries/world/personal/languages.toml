@@ -1,0 +1,7 @@
+name = "languages"
+label = "language"
+
+# column 0 = long-form names (`English`, `Spanish`, ...)
+# column 1 = ISO 639-1 codes (`en`, `es`, ...)
+# column 2 = alternate long-form names (`Farsi` for Persian)
+score = [0.85, 0.30, 0.85]

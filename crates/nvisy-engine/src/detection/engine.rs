@@ -23,8 +23,8 @@ use super::result::DetectionResult;
 use super::state::DetectionState;
 use super::status::DetectionStatus;
 use super::{DetectionEntry, DetectionFilter, DetectionInput, DetectionSnapshot};
-use crate::core::ingestion::encryption::SharedKeyProvider;
 use crate::core::RuntimeConfig;
+use crate::core::ingestion::encryption::SharedKeyProvider;
 use crate::detection::{DetectionConfig, ExtractionConfig};
 use crate::registry::Registry;
 

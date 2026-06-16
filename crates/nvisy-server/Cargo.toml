@@ -50,33 +50,29 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-engine = { workspace = true, features = [] }
 
-# Async runtime
-futures = { workspace = true, features = [] }
-
-# HTTP server
-axum = { workspace = true, features = ["json", "multipart", "tokio"] }
-aide = { workspace = true, features = ["axum", "axum-json", "axum-query", "scalar", "macros"] }
-tower = { workspace = true, features = ["util", "timeout"] }
-tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "sensitive-headers", "catch-panic", "util"] }
-
-# (De)serialization
+# Serialization
 serde = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 humantime-serde = { workspace = true, features = [] }
 
-# Encoding and hashing
-base64 = { workspace = true, features = [] }
-
-# Derive macros
+# Derive macros and error handling
 derive_more = { workspace = true, features = ["deref", "display"] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
-semver = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+futures = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
+
+# HTTP server and middleware
+axum = { workspace = true, features = ["json", "multipart", "tokio"] }
+aide = { workspace = true, features = ["axum", "axum-json", "axum-query", "scalar", "macros"] }
+tower = { workspace = true, features = ["util", "timeout"] }
+tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "sensitive-headers", "catch-panic", "util"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

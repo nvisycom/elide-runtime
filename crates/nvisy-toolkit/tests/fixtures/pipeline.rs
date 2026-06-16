@@ -6,6 +6,7 @@
 //! writes the redacted output next to the fixture as
 //! `{stem}.redacted.{ext}` for human inspection.
 
+use std::path::Path;
 use std::str::from_utf8;
 
 use nvisy_codec::{CodecRegistry, DocumentHandle};
@@ -64,6 +65,7 @@ impl Fixture {
 
         let ctx = LayerContext::<Text, _>::new(&buffer);
         let entities = LayerPipeline::<Text, _>::from_params(&dedup_params())
+            .expect("pipeline builds")
             .run(detected, &ctx)
             .await;
 
@@ -103,6 +105,7 @@ impl Fixture {
 
         let ctx = LayerContext::<Tabular, _>::new(&buffer);
         let entities = LayerPipeline::<Tabular, _>::from_params(&dedup_params())
+            .expect("pipeline builds")
             .run(detected, &ctx)
             .await;
 
@@ -128,7 +131,7 @@ impl Fixture {
     /// for human inspection. Gitignored under
     /// `**/testdata/**/*.redacted.*`.
     fn write_redacted_artifact(&self, redacted: &str) {
-        let path = std::path::Path::new(self.path);
+        let path = Path::new(self.path);
         let stem = path
             .file_stem()
             .and_then(|s| s.to_str())

@@ -1,13 +1,11 @@
 //! [`AggregationStrategy`] and [`AlignmentMode`]: policies for
 //! collapsing per-token NER predictions into entity spans.
 //!
-//! Mirror the equivalent knobs on Presidio's
-//! `NerModelConfiguration`. The producer engine may apply them
-//! server-side (the Bento `inference-gliner` already returns
-//! aggregated spans), in which case the consumer-side knobs are
-//! advisory; or the producer may emit unaggregated
-//! token-classification output, in which case [`NerRecognizer`]
-//! applies them itself.
+//! The producer engine may apply them server-side (the Bento
+//! `inference-gliner` already returns aggregated spans), in which
+//! case the consumer-side knobs are advisory; or the producer may
+//! emit unaggregated token-classification output, in which case
+//! [`NerRecognizer`] applies them itself.
 //!
 //! [`NerRecognizer`]: super::NerRecognizer
 

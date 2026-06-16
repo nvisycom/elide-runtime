@@ -2,6 +2,7 @@
 
 use nvisy_core::{Error as CoreError, ErrorKind as CoreErrorKind};
 use rig::completion::{CompletionError, PromptError, StructuredOutputError};
+use rig::http_client::Error as HttpClientError;
 
 /// Internal error type for LLM provider interactions.
 ///
@@ -13,7 +14,7 @@ use rig::completion::{CompletionError, PromptError, StructuredOutputError};
 pub(crate) enum Error {
     /// An HTTP / network error from the LLM provider.
     #[error("HTTP error: {0}")]
-    Http(rig::http_client::Error),
+    Http(HttpClientError),
 
     /// A JSON (de)serialization error.
     #[error("JSON error: {0}")]

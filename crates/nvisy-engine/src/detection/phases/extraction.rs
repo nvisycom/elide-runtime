@@ -27,10 +27,10 @@ use nvisy_ocr::types::RawOcrBlock;
 use nvisy_toolkit::extraction::{Extractor, ExtractorRegistry, ImageExtractorOutput};
 use tracing::Instrument;
 
-use crate::core::{DocumentTree, DetectionContext};
+use crate::core::{DetectionContext, DocumentTree};
+use crate::detection::{DetectionPlan, Extraction};
 use crate::document::{Block, Document, Span};
 use crate::modality::{ImageBlock, TabularBlock, TextBlock, TextContent};
-use crate::detection::{DetectionPlan, Extraction};
 
 const TARGET: &str = "nvisy_engine::extraction";
 

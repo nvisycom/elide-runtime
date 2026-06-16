@@ -1,24 +1,25 @@
-//! End-to-end: load user-supplied rules from the on-disk wire shape
-//! (`testdata/patterns/*.toml`, `testdata/dictionaries/*.{toml,csv}`)
-//! through [`Regex::from_toml`], [`Dictionary::metadata_from_toml`],
-//! and [`Terms::from_csv`], mix them with shipped patterns, and
+//! End-to-end: load user-supplied patterns from the on-disk wire
+//! shape (`testdata/patterns/*.toml`,
+//! `testdata/dictionaries/*.{toml,csv}`) through
+//! [`Regex::from_toml`], [`Dictionary::metadata_from_toml`], and
+//! [`Term::from_csv`], mix them with shipped patterns, and
 //! confirm a real internal-handoff document yields the custom
 //! entities.
 
 use nvisy_core::entity::builtins;
 use nvisy_core::modality::TextData;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput};
-use nvisy_pattern::{Dictionary, PatternRecognizer, PatternRegistry, Regex, Terms};
+use nvisy_pattern::{Dictionary, PatternRecognizer, Regex, Term};
 
 #[tokio::test]
 async fn user_toml_rules_load_and_detect() {
     let employee_id = Regex::from_toml(include_str!("../testdata/patterns/employee_id.toml"))
         .expect("employee_id.toml parses");
-    let product_code_regex =
+    let product_code_pattern =
         Regex::from_toml(include_str!("../testdata/patterns/product_codes.toml"))
             .expect("product_codes.toml parses");
 
-    let terms = Terms::from_csv(include_bytes!("../testdata/dictionaries/product_codes.csv"))
+    let terms = Term::from_csv(include_str!("../testdata/dictionaries/product_codes.csv"))
         .expect("product_codes.csv parses");
     let product_code_dict =
         Dictionary::metadata_from_toml(include_str!("../testdata/dictionaries/product_codes.toml"))
@@ -30,16 +31,13 @@ async fn user_toml_rules_load_and_detect() {
     // 4 rows × 3 columns; every non-empty cell becomes a term.
     assert_eq!(product_code_dict.terms.len(), 12);
 
-    // Mix user rules with shipped (so the input also sees email etc.).
-    let registry = PatternRegistry::new()
-        .with_pattern(employee_id)
-        .with_pattern(product_code_regex)
-        .with_dictionary(product_code_dict)
-        .with_builtin_patterns();
-
+    // Mix user patterns with shipped (so the input also sees email etc.).
     let recognizer = PatternRecognizer::builder()
-        .with_registry(registry)
-        .build()
+        .with_pattern(employee_id)
+        .with_pattern(product_code_pattern)
+        .with_dictionary(product_code_dict)
+        .with_builtin_patterns()
+        .build_context_enhanced()
         .expect("recognizer builds");
 
     let text = include_str!("../testdata/inputs/internal.txt");
@@ -82,12 +80,12 @@ async fn user_toml_rules_load_and_detect() {
         "expected dictionary alias/full-name hit, got {emp_hits:?}"
     );
 
-    // Shipped email pattern fires too — proves user + shipped coexist.
+    // Shipped email regex fires too — proves user + shipped coexist.
     assert!(
         entities
             .iter()
             .any(|e| e.label == builtins::EMAIL_ADDRESS.label_ref()
                 && &text[e.location.start..e.location.end] == "counsel@example.com"),
-        "expected shipped email pattern to fire alongside user rules"
+        "expected shipped email regex to fire alongside user rules"
     );
 }

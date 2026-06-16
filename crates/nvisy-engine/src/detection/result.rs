@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::status::DetectionStatus;
-use crate::document::provenance::AnyAudit;
 use crate::core::ingestion::ImportFile;
+use crate::document::provenance::AnyAudit;
 use crate::policy::PolicyDigest;
 
 /// Immutable artifact produced by one detection pass.

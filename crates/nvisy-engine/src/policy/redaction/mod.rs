@@ -24,8 +24,8 @@ mod image;
 mod tabular;
 mod text;
 
-pub use nvisy_toolkit::redaction::anonymizer::HashAlgorithm;
 use nvisy_core::modality::{Audio, Image, Tabular, Text};
+pub use nvisy_toolkit::redaction::anonymizer::HashAlgorithm;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

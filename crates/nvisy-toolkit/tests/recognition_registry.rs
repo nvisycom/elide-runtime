@@ -22,7 +22,7 @@
 
 use std::env;
 
-use nvisy_core::entity::Entity;
+use nvisy_core::entity::{Entity, EntityLabelCatalog};
 use nvisy_core::modality::{Text, TextData};
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_llm::backend::rig::RigBackend;
@@ -30,7 +30,7 @@ use nvisy_llm::provider::LlmProvider;
 use nvisy_llm::{DefaultPrompt, LlmRecognizer};
 use nvisy_ner::NerRecognizer;
 use nvisy_ner::backend::{BentoBackend, BentoParams};
-use nvisy_pattern::{PatternRecognizer, PatternRegistry};
+use nvisy_pattern::PatternRecognizer;
 use nvisy_toolkit::detection::RecognizerRegistry;
 
 /// Sample text that triggers all three recognizers:
@@ -46,9 +46,10 @@ fn env_or(key: &str, default: &str) -> String {
 
 fn build_registry() -> RecognizerRegistry {
     let pattern = PatternRecognizer::builder()
-        .with_registry(PatternRegistry::builtin())
-        .build()
-        .expect("pattern recognizer builds from builtin registry");
+        .with_builtin_patterns()
+        .with_builtin_dictionaries()
+        .build_context_enhanced()
+        .expect("pattern recognizer builds from builtin set");
 
     let bento_url = env_or("NVISY_BENTO_URL", "http://localhost:3000");
     let bento_backend = BentoBackend::new(BentoParams::new(bento_url)).expect("bento backend init");
@@ -56,7 +57,7 @@ fn build_registry() -> RecognizerRegistry {
         .with_name("ner")
         .with_engine(bento_backend)
         .with_supported_labels(
-            nvisy_core::entity::EntityLabelCatalog::with_builtins()
+            EntityLabelCatalog::with_builtins()
                 .iter()
                 .map(|l| l.label_ref())
                 .collect::<Vec<_>>(),

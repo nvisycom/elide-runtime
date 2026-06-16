@@ -118,7 +118,10 @@ fn action_redact_round_trips_through_json() {
         ..Default::default()
     });
     let json = serde_json::to_string(&action).expect("serialize");
-    assert!(json.contains("\"redact\""), "expected redact tag, got {json}");
+    assert!(
+        json.contains("\"redact\""),
+        "expected redact tag, got {json}"
+    );
     assert!(
         json.contains("\"text\""),
         "expected text operator, got {json}"

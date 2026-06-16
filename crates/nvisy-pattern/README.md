@@ -2,20 +2,42 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Built-in patterns, dictionaries, and validators for PII/PHI detection in the
+Regex and dictionary recognizers for PII / PHI detection in the
 Nvisy runtime.
 
 ## Overview
 
-A pre-compiled pattern engine for PII/PHI detection. Each scan runs
-regex (`RegexSet`-prefiltered), dictionary lookup (Aho-Corasick),
-and deny-list injection. Built-in patterns and dictionaries live as
-JSON under `assets/` and are embedded at compile time.
+`PatternRecognizer` compiles a set of `Regex` rules (each holding
+one or more regex `Variant`s grouped as a multi-strategy detector
+for one entity type) and `Dictionary` term lists into pooled
+scanners — one shared `regex::RegexSet` for the regex side and
+one shared `aho_corasick::AhoCorasick` automaton for the literal
+side. A single walk over the input runs both scanners and emits
+`Entity<Text>` values in modality-local byte coordinates.
 
-Per-scan inputs (allow / deny lists, context-keyword hints,
-caller-supplied ad-hoc patterns) flow through `PatternContext` without
-rebuilding the engine. Regex patterns can opt into post-match
-validation by name (e.g. `"luhn"`, `"ssn"`, `"iban"`).
+Rules may declare per-label context keywords. Calling
+`build_context_enhanced()` wraps the recognizer in a
+`nvisy_context::ContextEnhanced` layer that lifts confidence on
+matches whose neighbourhood contains a declared keyword;
+`build()` returns the bare recognizer.
+
+The built-in pattern + dictionary set lives as TOML under
+`assets/` and is embedded at compile time. The recognizer's
+builder accepts both built-ins and user-supplied rules:
+
+```rust
+use nvisy_pattern::PatternRecognizer;
+
+let recognizer = PatternRecognizer::builder()
+    .with_builtin_patterns()
+    .with_builtin_dictionaries()
+    .build()
+    .expect("built-in recognizer builds");
+```
+
+Regex variants can opt into a post-match validator by name
+(`"luhn"`, `"ssn"`, `"iban"`, `"phone"`, `"date"`); custom
+validators can be registered via `ValidatorRegistry::with`.
 
 ## Documentation
 

@@ -16,7 +16,7 @@
 //! [`ApiRouter`]: aide::axum::ApiRouter
 
 use aide::axum::ApiRouter;
-use aide::openapi::{OpenApi, Tag};
+use aide::openapi::{Info, OpenApi, Tag};
 use aide::scalar::Scalar;
 use aide::transform::TransformOpenApi;
 use axum::routing::get;
@@ -105,7 +105,7 @@ async fn serve_spec(Extension(api): Extension<OpenApi>) -> Json<OpenApi> {
 /// Takes ownership of `config` so it can set string fields on the spec
 /// without lifetime issues from the `finish_api_with` closure.
 fn api_docs(mut api: TransformOpenApi<'_>, config: OpenApiConfig) -> TransformOpenApi<'_> {
-    api.inner_mut().info = aide::openapi::Info {
+    api.inner_mut().info = Info {
         title: config.title,
         version: config.version,
         description: config.description,

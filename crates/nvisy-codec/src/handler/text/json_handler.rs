@@ -62,6 +62,11 @@ pub(super) struct Leaf {
     /// `"…"` with `\\` / `\"` escapes; for [`LeafKind::Scalar`]
     /// it is the bare literal.
     pub serialized: String,
+    /// Out-of-band context strings (currently the enclosing
+    /// object key) surfaced to recognizers as hints; empty for
+    /// keys and for value leaves outside any object (e.g. a
+    /// top-level scalar).
+    pub hints: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,6 +134,7 @@ impl Handler<Text> for JsonHandler {
                         ..Default::default()
                     },
                     data: TextData::from(leaf.value.as_str()),
+                    hints: leaf.hints.clone(),
                 }));
             }
         }
@@ -379,7 +385,7 @@ fn value_to_source_offset(leaf: &Leaf, slot_start: usize, value_offset: usize) -
 /// well-formed JSON.
 pub(super) fn parse_slots(src: &str) -> Result<Vec<Slot>, Error> {
     let mut p = SlotParser::new(src);
-    p.parse_value()?;
+    p.parse_value(None)?;
     p.flush_passthrough();
     p.consume_whitespace();
     p.flush_passthrough();
@@ -452,18 +458,24 @@ impl<'a> SlotParser<'a> {
         Ok(())
     }
 
-    fn parse_value(&mut self) -> Result<(), Error> {
+    fn parse_value(&mut self, key_context: Option<&str>) -> Result<(), Error> {
         self.consume_whitespace();
         match self.peek() {
             Some(b'{') => self.parse_object(),
-            Some(b'[') => self.parse_array(),
+            Some(b'[') => self.parse_array(key_context),
             Some(b'"') => {
-                let leaf = self.parse_string_leaf(LeafKind::StringValue)?;
+                let mut leaf = self.parse_string_leaf(LeafKind::StringValue)?;
+                if let Some(k) = key_context {
+                    leaf.hints.push(k.to_owned());
+                }
                 self.push_leaf(leaf);
                 Ok(())
             }
             Some(b't') | Some(b'f') | Some(b'n') | Some(b'-') | Some(b'0'..=b'9') => {
-                let leaf = self.parse_scalar()?;
+                let mut leaf = self.parse_scalar()?;
+                if let Some(k) = key_context {
+                    leaf.hints.push(k.to_owned());
+                }
                 self.push_leaf(leaf);
                 Ok(())
             }
@@ -488,10 +500,11 @@ impl<'a> SlotParser<'a> {
         loop {
             self.consume_whitespace();
             let key = self.parse_string_leaf(LeafKind::Key)?;
+            let key_value = key.value.clone();
             self.push_leaf(key);
             self.consume_whitespace();
             self.consume_punct(b':')?;
-            self.parse_value()?;
+            self.parse_value(Some(&key_value))?;
             self.consume_whitespace();
             match self.peek() {
                 Some(b',') => {
@@ -511,7 +524,7 @@ impl<'a> SlotParser<'a> {
         }
     }
 
-    fn parse_array(&mut self) -> Result<(), Error> {
+    fn parse_array(&mut self, key_context: Option<&str>) -> Result<(), Error> {
         self.consume_punct(b'[')?;
         self.consume_whitespace();
         if self.peek() == Some(b']') {
@@ -519,7 +532,10 @@ impl<'a> SlotParser<'a> {
             return Ok(());
         }
         loop {
-            self.parse_value()?;
+            // Array elements inherit the containing object key as
+            // their hint — `{"cards": ["4111…", "5555…"]}` should
+            // treat both PANs as living under `cards`.
+            self.parse_value(key_context)?;
             self.consume_whitespace();
             match self.peek() {
                 Some(b',') => {
@@ -558,6 +574,7 @@ impl<'a> SlotParser<'a> {
                         kind,
                         value,
                         serialized,
+                        hints: Vec::new(),
                     });
                 }
                 Some(b'\\') => {
@@ -639,6 +656,7 @@ impl<'a> SlotParser<'a> {
             kind: LeafKind::Scalar,
             value: literal.clone(),
             serialized: literal,
+            hints: Vec::new(),
         })
     }
 }

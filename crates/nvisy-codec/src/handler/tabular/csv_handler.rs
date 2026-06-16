@@ -113,9 +113,10 @@ impl Handler<Tabular> for CsvHandler {
         };
         let cell = self.cell_at(row, col).expect("bounds checked above");
         let data = TextData::from(cell.to_owned());
+        let hints = location.column_name.iter().cloned().collect();
 
         self.cursor.col += 1;
-        Ok(Some(Chunk { location, data }))
+        Ok(Some(Chunk { location, data, hints }))
     }
 
     fn lift_chunk(

@@ -195,6 +195,7 @@ impl Handler<Text> for PdfHandler {
                 ..Default::default()
             },
             data: TextData::from(text.as_str()),
+            hints: Vec::new(),
         }))
     }
 

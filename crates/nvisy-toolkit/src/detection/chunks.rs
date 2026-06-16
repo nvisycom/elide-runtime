@@ -72,7 +72,7 @@ impl RecognizerRegistryExt for RecognizerRegistry {
         let mut out = Vec::new();
         while let Some(chunk) = handler.next_chunk().await? {
             let input = RecognizerInput::new(chunk.data.clone().into())
-                .with_context_hints(M::chunk_hints(&chunk.location));
+                .with_context_hints(chunk.hints.clone());
             let text_entities = self.run::<Text>(input).await?;
             for text_entity in text_entities {
                 let Some(loc) = handler
@@ -109,20 +109,6 @@ pub trait LiftedFromText: Modality + Sized {
     /// against the source bytes of a chunk, plus the pre-lifted
     /// location, and produce a `Self`-modality entity.
     fn from_text(text_entity: Entity<Text>, location: Self::Location) -> Entity<Self>;
-
-    /// Out-of-band context strings the recognizer should treat
-    /// as in-context for a chunk at `location`. Surfaces handler
-    /// metadata that doesn't live inside the chunk's payload —
-    /// notably the column header of a CSV/XLSX cell, which lifts
-    /// confidence on a low-base-score regex match the way the
-    /// surrounding sentence would in plain text.
-    ///
-    /// Default returns an empty `Vec`; modalities whose chunks
-    /// don't carry out-of-band metadata (`Text`, image regions,
-    /// audio segments) keep that default.
-    fn chunk_hints(_location: &Self::Location) -> Vec<String> {
-        Vec::new()
-    }
 }
 
 impl LiftedFromText for Text {
@@ -147,9 +133,5 @@ impl LiftedFromText for Tabular {
             builder = builder.with_language(language);
         }
         builder.build().expect("entity reshape")
-    }
-
-    fn chunk_hints(location: &TabularLocation) -> Vec<String> {
-        location.column_name.iter().cloned().collect()
     }
 }

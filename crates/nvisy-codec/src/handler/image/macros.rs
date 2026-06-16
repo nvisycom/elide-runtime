@@ -105,6 +105,7 @@ macro_rules! impl_image_handler {
                 Ok(Some($crate::Chunk {
                     location,
                     data,
+                    hints: ::std::vec::Vec::new(),
                 }))
             }
 

@@ -219,10 +219,10 @@ fn sibling_text_hint(text_node: NodeRef<'_, Node>, own_text: &str) -> Vec<String
 fn nearest_block_ancestor(text_node: NodeRef<'_, Node>) -> Option<NodeRef<'_, Node>> {
     let mut current = text_node.parent();
     while let Some(node) = current {
-        if let Node::Element(e) = node.value() {
-            if is_block_element(e.name.local.as_ref()) {
-                return Some(node);
-            }
+        if let Node::Element(e) = node.value()
+            && is_block_element(e.name.local.as_ref())
+        {
+            return Some(node);
         }
         current = node.parent();
     }

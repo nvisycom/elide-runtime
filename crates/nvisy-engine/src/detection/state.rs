@@ -5,6 +5,7 @@
 //! that's frozen into a [`DetectionResult`] once the pass reaches
 //! a terminal state.
 
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -222,7 +223,7 @@ impl DetectionState {
             .filter(|(_, r)| filter.status.is_none_or(|s| r.status == s))
             .map(|(id, r)| r.to_entry(*id))
             .collect();
-        out.sort_by_key(|e| std::cmp::Reverse(e.created_at));
+        out.sort_by_key(|e| Reverse(e.created_at));
         out
     }
 

@@ -108,7 +108,11 @@ impl Handler<Audio> for Mp3Handler {
         let location = AudioLocation::new(TimeSpan::new(0, duration_us));
         let data = AudioData::new(self.bytes.clone()).with_filename(self.filename.clone());
         self.yielded = true;
-        Ok(Some(Chunk { location, data, hints: Vec::new() }))
+        Ok(Some(Chunk {
+            location,
+            data,
+            hints: Vec::new(),
+        }))
     }
 
     async fn read(&self, _location: &AudioLocation) -> Result<Option<AudioData>, Error> {

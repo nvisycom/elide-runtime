@@ -49,18 +49,22 @@ mod params;
 mod pipeline;
 mod span_size;
 
+#[cfg(test)]
+use std::marker::PhantomData;
+
+#[cfg(test)]
+use nvisy_core::extraction::TextAt;
+#[cfg(test)]
+use nvisy_core::modality::Modality;
+
 pub use self::layer::{Layer, LayerContext};
 pub use self::params::LayerParams;
 pub use self::pipeline::LayerPipeline;
 pub use self::span_size::SpanSize;
 
 #[cfg(test)]
-pub(crate) fn test_resolver<M: nvisy_core::modality::Modality>()
--> Box<dyn nvisy_core::extraction::TextAt<M>> {
-    use nvisy_core::extraction::TextAt;
-    use nvisy_core::modality::Modality;
-
-    struct Noop<M>(std::marker::PhantomData<M>);
+pub(crate) fn test_resolver<M: Modality>() -> Box<dyn TextAt<M>> {
+    struct Noop<M>(PhantomData<M>);
 
     #[async_trait::async_trait]
     impl<M: Modality> TextAt<M> for Noop<M> {
@@ -69,5 +73,5 @@ pub(crate) fn test_resolver<M: nvisy_core::modality::Modality>()
         }
     }
 
-    Box::new(Noop::<M>(std::marker::PhantomData))
+    Box::new(Noop::<M>(PhantomData))
 }

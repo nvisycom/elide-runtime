@@ -15,6 +15,7 @@ mod config;
 mod middleware;
 
 use nvisy_core::{Error, Result};
+use reqwest_middleware::reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 
 pub use self::config::HttpConfig;
@@ -45,7 +46,7 @@ pub fn build_http_client(config: &HttpConfig) -> Result<ClientWithMiddleware> {
 
     let policy = backoff_policy(config.max_retries);
 
-    let client = reqwest_middleware::reqwest::Client::builder()
+    let client = Client::builder()
         .timeout(config.timeout)
         .connect_timeout(config.connect_timeout)
         .pool_idle_timeout(config.idle_timeout)

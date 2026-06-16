@@ -23,11 +23,7 @@ pub fn nhs(value: &str) -> bool {
     if digits.len() != 10 {
         return false;
     }
-    let total: u32 = digits
-        .iter()
-        .zip((1..=10).rev())
-        .map(|(d, w)| d * w)
-        .sum();
+    let total: u32 = digits.iter().zip((1..=10).rev()).map(|(d, w)| d * w).sum();
     total.is_multiple_of(11)
 }
 

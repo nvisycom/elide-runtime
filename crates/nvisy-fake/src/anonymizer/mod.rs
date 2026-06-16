@@ -1,6 +1,7 @@
 //! [`Fake`]: text-modality [`Anonymizer`] that swaps detected
 //! entities for plausible fake values.
 
+use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -43,8 +44,8 @@ pub struct Fake {
     seed: u64,
 }
 
-impl std::fmt::Debug for Fake {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Fake {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Fake")
             .field("default_language", &self.default_language)
             .field("seed", &self.seed)
@@ -224,6 +225,8 @@ mod tests {
     use std::collections::HashSet;
 
     use nvisy_core::entity::{EntityLabelRef, builtins};
+    use nvisy_core::modality::TabularLocation;
+    use nvisy_core::primitive::Confidence;
     use nvisy_core::redaction::Anonymizer as _;
     use nvisy_toolkit::redaction::anonymizer::{Mask, Replace};
 
@@ -359,7 +362,7 @@ mod tests {
         let op = fake();
         let entity = Entity::<Tabular>::builder()
             .with_label(builtins::PERSON_NAME.label_ref())
-            .with_location(nvisy_core::modality::TabularLocation {
+            .with_location(TabularLocation {
                 row_index: 0u32,
                 column_index: 0u32,
                 start_offset: None,
@@ -367,7 +370,7 @@ mod tests {
                 column_name: None,
                 sheet_name: None,
             })
-            .with_confidence(nvisy_core::primitive::Confidence::clamped(1.0))
+            .with_confidence(Confidence::clamped(1.0))
             .build()
             .unwrap();
         let out = op.apply(&entity, &TextData::new("alice")).await.unwrap();

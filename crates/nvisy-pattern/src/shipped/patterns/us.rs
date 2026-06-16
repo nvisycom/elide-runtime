@@ -1,7 +1,6 @@
 //! United States — patterns scoped to US jurisdictional formats.
 
-use crate::Regex;
-use crate::__shipped_pattern as shipped_pattern;
+use crate::{__shipped_pattern as shipped_pattern, Regex};
 
 shipped_pattern!(
     /// US bank routing numbers (ABA RTN, mod-10 validated).

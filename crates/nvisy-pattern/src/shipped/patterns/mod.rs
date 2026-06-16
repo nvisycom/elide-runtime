@@ -86,7 +86,11 @@ mod tests {
     fn us_patterns_are_country_scoped_to_us() {
         for pattern in us::all() {
             assert_eq!(
-                pattern.countries.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
                 vec!["US"],
                 "US-scoped pattern `{}` must declare countries = [US]",
                 pattern.name,
@@ -98,7 +102,11 @@ mod tests {
     fn uk_patterns_are_country_scoped_to_gb() {
         for pattern in uk::all() {
             assert_eq!(
-                pattern.countries.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
                 vec!["GB"],
                 "UK-scoped pattern `{}` must declare countries = [GB]",
                 pattern.name,

@@ -1,7 +1,6 @@
 //! Universal dictionaries — apply regardless of jurisdiction.
 
-use crate::Dictionary;
-use crate::__shipped_dictionary as shipped_dictionary;
+use crate::{__shipped_dictionary as shipped_dictionary, Dictionary};
 
 shipped_dictionary!(
     /// Cryptocurrency names and ticker symbols (BTC, Bitcoin, ETH,

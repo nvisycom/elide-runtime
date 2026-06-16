@@ -14,9 +14,10 @@
 //!    handful of national-format numbers than mislabel card and
 //!    account numbers as phones.
 
+use std::str::FromStr;
+
 use phonenumber::country::Id;
 use phonenumber::parse;
-use std::str::FromStr;
 
 use super::ValidationContext;
 

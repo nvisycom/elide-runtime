@@ -47,7 +47,7 @@ pub mod validation;
 
 use nvisy_codec::content::ContentDescriptor;
 use nvisy_core::Result;
-use nvisy_core::entity::is_excluded;
+use nvisy_core::entity::{EntityLabelCatalog, is_excluded};
 use nvisy_core::extraction::{DataAt, TextAt};
 use nvisy_core::modality::Overlap;
 use nvisy_core::primitive::ConfidenceThreshold;
@@ -77,7 +77,7 @@ pub(crate) async fn run_redaction<M>(
     tree: &mut DocumentTree<M>,
     descriptor: &ContentDescriptor,
     policies: &PolicyStore,
-    catalog: &nvisy_core::entity::EntityLabelCatalog,
+    catalog: &EntityLabelCatalog,
     default_operators: &ModalityRedactions,
     registry: &RedactionRegistry<M>,
 ) -> Result<()>

@@ -22,6 +22,7 @@ mod request;
 mod response;
 
 use aide::axum::ApiRouter;
+use axum::http::Uri;
 
 pub use self::error::{Error, ErrorKind, Result};
 use crate::service::ServiceState;
@@ -68,7 +69,7 @@ fn v1_routes() -> ApiRouter<ServiceState> {
 ///
 /// Returns 404 with guidance pointing to the current API version
 /// for `/api/*` paths.
-async fn api_version_fallback(uri: axum::http::Uri) -> Result<()> {
+async fn api_version_fallback(uri: Uri) -> Result<()> {
     let path = uri.path();
     if path.starts_with("/api/") {
         Err(ErrorKind::NotFound.with_message(format!(

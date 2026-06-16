@@ -31,6 +31,7 @@ pub mod us;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::primitive::{CountryCode, LanguageTag};
@@ -173,8 +174,8 @@ impl ValidatorRegistry {
     }
 }
 
-impl std::fmt::Debug for ValidatorRegistry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for ValidatorRegistry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let names: Vec<&str> = self.table.keys().map(AsRef::as_ref).collect();
         f.debug_struct("ValidatorRegistry")
             .field("validators", &names)

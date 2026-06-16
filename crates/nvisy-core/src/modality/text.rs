@@ -2,6 +2,7 @@
 //! [`TextData`] per-call payload, and [`TextExtraction`] provenance
 //! enum.
 
+use std::cmp::Ordering;
 use std::ops::Range;
 
 use derive_more::{AsRef, Deref, Display, From};
@@ -122,13 +123,13 @@ impl TextLocation {
 impl Ord for TextLocation {
     /// Lex order over `(start, end)`. `context` and `page_number`
     /// are ignored.
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         (self.start, self.end).cmp(&(other.start, other.end))
     }
 }
 
 impl PartialOrd for TextLocation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }

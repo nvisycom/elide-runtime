@@ -2,8 +2,7 @@
 //!
 //! See `assets/NOTICE.md` for third-party attribution.
 
-use crate::Regex;
-use crate::__shipped_pattern as shipped_pattern;
+use crate::{__shipped_pattern as shipped_pattern, Regex};
 
 shipped_pattern!(
     /// UK NHS numbers (10-digit, mod-11 validated).

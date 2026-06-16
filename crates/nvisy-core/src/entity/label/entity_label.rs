@@ -26,6 +26,8 @@
 //! [`description`]: EntityLabel::description
 //! [`tags`]: EntityLabel::tags
 
+use std::fmt;
+
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -126,9 +128,9 @@ impl AsRef<str> for EntityLabel {
     }
 }
 
-impl std::fmt::Display for EntityLabel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.name, f)
+impl fmt::Display for EntityLabel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.name, f)
     }
 }
 

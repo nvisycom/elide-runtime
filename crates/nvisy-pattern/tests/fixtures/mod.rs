@@ -28,12 +28,7 @@ pub async fn scan(text: &str) -> (String, Vec<Entity<Text>>) {
 }
 
 #[track_caller]
-pub fn assert_match(
-    text: &str,
-    entities: &[Entity<Text>],
-    label: EntityLabelRef,
-    needle: &str,
-) {
+pub fn assert_match(text: &str, entities: &[Entity<Text>], label: EntityLabelRef, needle: &str) {
     let hit = entities
         .iter()
         .any(|e| e.label == label && &text[e.location.start..e.location.end] == needle);
@@ -52,9 +47,6 @@ pub fn assert_label_present(entities: &[Entity<Text>], label: EntityLabelRef) {
     assert!(
         entities.iter().any(|e| e.label == label),
         "expected at least one {label:?} entity; got labels: {:?}",
-        entities
-            .iter()
-            .map(|e| e.label.clone())
-            .collect::<Vec<_>>()
+        entities.iter().map(|e| e.label.clone()).collect::<Vec<_>>()
     );
 }

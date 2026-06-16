@@ -14,8 +14,8 @@ use std::sync::Arc;
 use nvisy_core::Result;
 use nvisy_core::entity::Entity;
 use nvisy_core::modality::{
-    Audio, AudioLocation, Image, ImageLocation, Overlap, Tabular, TabularLocation, Text, TextData,
-    TextLocation,
+    Audio, AudioLocation, Image, ImageLocation, Modality, Overlap, Tabular, TabularLocation, Text,
+    TextData, TextLocation,
 };
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_toolkit::detection::RecognizerRegistry;
@@ -237,7 +237,7 @@ pub trait LiftFromBlock: DocumentModality + Sized {
         spans: &[Span<Self>],
         start: usize,
         end: usize,
-    ) -> Option<<Self as nvisy_core::modality::Modality>::Location>;
+    ) -> Option<<Self as Modality>::Location>;
 }
 
 impl LiftFromBlock for Text {

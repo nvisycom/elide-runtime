@@ -6,15 +6,14 @@ use std::collections::HashMap;
 use nvisy_core::entity::{Entity, EntityLabelRef, TrailStep};
 use nvisy_core::modality::Text;
 
+use crate::io::Token;
 use crate::matching::KeywordMatcher;
 use crate::rule::BoostRule;
-use crate::io::Token;
 
 mod context;
 mod window;
 
 pub use self::context::Context;
-
 use self::window::{slice_tokens_around, token_span, word_window};
 
 /// Source name stamped onto refinement [`TrailStep`]s the
@@ -482,10 +481,7 @@ mod tests {
             "out-of-band hint matching a rule keyword must boost",
         );
         assert!(
-            entities[0]
-                .trail
-                .iter()
-                .any(|s| s.source == "context-hint"),
+            entities[0].trail.iter().any(|s| s.source == "context-hint"),
             "trail step must record the hint-source provenance",
         );
     }

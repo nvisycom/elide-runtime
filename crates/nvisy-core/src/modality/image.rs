@@ -2,6 +2,8 @@
 //! [`ImageData`] per-call payload, and [`ImageExtraction`] provenance
 //! enum.
 
+use std::cmp::Ordering;
+
 use bytes::Bytes;
 use hipstr::HipStr;
 use schemars::JsonSchema;
@@ -73,7 +75,7 @@ impl PartialOrd for ImageLocation {
     /// `width`. Float fields compare via [`f64::total_cmp`]. `Ord`
     /// is not implemented — `f64` is not `Eq`, so a total order
     /// can't be promised at the trait level.
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let bb = &self.bounding_box;
         let ob = &other.bounding_box;
         Some(

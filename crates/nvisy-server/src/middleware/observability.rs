@@ -12,7 +12,7 @@
 
 use axum::Router;
 use axum::http::header;
-use tower_http::classify::SharedClassifier;
+use tower_http::classify::{ServerErrorsAsFailures, SharedClassifier};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::{self, TraceLayer};
@@ -55,7 +55,7 @@ where
 }
 
 /// Builds the [`TraceLayer`] with structured spans and callbacks.
-fn trace_layer() -> TraceLayer<SharedClassifier<tower_http::classify::ServerErrorsAsFailures>> {
+fn trace_layer() -> TraceLayer<SharedClassifier<ServerErrorsAsFailures>> {
     TraceLayer::new_for_http()
         .make_span_with(
             trace::DefaultMakeSpan::new()

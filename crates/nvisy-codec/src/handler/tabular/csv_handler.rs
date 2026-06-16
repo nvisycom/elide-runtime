@@ -116,7 +116,11 @@ impl Handler<Tabular> for CsvHandler {
         let hints = location.column_name.iter().cloned().collect();
 
         self.cursor.col += 1;
-        Ok(Some(Chunk { location, data, hints }))
+        Ok(Some(Chunk {
+            location,
+            data,
+            hints,
+        }))
     }
 
     fn lift_chunk(

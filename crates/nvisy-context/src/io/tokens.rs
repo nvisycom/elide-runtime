@@ -31,6 +31,7 @@
 //! engine.
 
 use std::ops::Range;
+use std::{slice, vec};
 
 use hipstr::HipStr;
 
@@ -144,7 +145,7 @@ impl Tokens {
     }
 
     /// Iterate tokens in source order.
-    pub fn iter(&self) -> std::slice::Iter<'_, Token> {
+    pub fn iter(&self) -> slice::Iter<'_, Token> {
         self.0.iter()
     }
 }
@@ -156,7 +157,7 @@ impl FromIterator<Token> for Tokens {
 }
 
 impl IntoIterator for Tokens {
-    type IntoIter = std::vec::IntoIter<Token>;
+    type IntoIter = vec::IntoIter<Token>;
     type Item = Token;
 
     fn into_iter(self) -> Self::IntoIter {

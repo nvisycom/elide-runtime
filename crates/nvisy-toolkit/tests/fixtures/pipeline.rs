@@ -6,6 +6,7 @@
 //! writes the redacted output next to the fixture as
 //! `{stem}.redacted.{ext}` for human inspection.
 
+use std::path::Path;
 use std::str::from_utf8;
 
 use nvisy_codec::{CodecRegistry, DocumentHandle};
@@ -130,7 +131,7 @@ impl Fixture {
     /// for human inspection. Gitignored under
     /// `**/testdata/**/*.redacted.*`.
     fn write_redacted_artifact(&self, redacted: &str) {
-        let path = std::path::Path::new(self.path);
+        let path = Path::new(self.path);
         let stem = path
             .file_stem()
             .and_then(|s| s.to_str())

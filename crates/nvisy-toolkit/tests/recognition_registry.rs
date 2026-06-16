@@ -22,7 +22,7 @@
 
 use std::env;
 
-use nvisy_core::entity::Entity;
+use nvisy_core::entity::{Entity, EntityLabelCatalog};
 use nvisy_core::modality::{Text, TextData};
 use nvisy_core::recognition::RecognizerInput;
 use nvisy_llm::backend::rig::RigBackend;
@@ -57,7 +57,7 @@ fn build_registry() -> RecognizerRegistry {
         .with_name("ner")
         .with_engine(bento_backend)
         .with_supported_labels(
-            nvisy_core::entity::EntityLabelCatalog::with_builtins()
+            EntityLabelCatalog::with_builtins()
                 .iter()
                 .map(|l| l.label_ref())
                 .collect::<Vec<_>>(),

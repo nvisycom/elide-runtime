@@ -1,5 +1,6 @@
 //! Volatile in-memory state for active redaction passes.
 
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -115,7 +116,7 @@ impl RedactionState {
             .filter(|(_, r)| filter.detection_id.is_none_or(|d| r.detection_id == d))
             .map(|(id, r)| r.to_entry(*id))
             .collect();
-        out.sort_by_key(|e| std::cmp::Reverse(e.created_at));
+        out.sort_by_key(|e| Reverse(e.created_at));
         out
     }
 

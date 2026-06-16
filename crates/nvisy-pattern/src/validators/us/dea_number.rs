@@ -28,7 +28,10 @@ pub fn dea_number(value: &str) -> bool {
     if !first.is_ascii_alphabetic() || !second.is_ascii_alphabetic() {
         return false;
     }
-    let digits: Vec<u32> = chars.map(|c| c.to_digit(10)).collect::<Option<Vec<_>>>().unwrap_or_default();
+    let digits: Vec<u32> = chars
+        .map(|c| c.to_digit(10))
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default();
     if digits.len() != 7 {
         return false;
     }

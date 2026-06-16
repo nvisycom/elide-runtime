@@ -3,6 +3,8 @@
 use std::borrow::Cow;
 use std::{error, fmt, result};
 
+use aide::generate::GenContext;
+use aide::openapi::{Operation, Response as OpenApiResponse, StatusCode};
 use axum::response::{IntoResponse, Response};
 
 use super::http_kind::ErrorKind;
@@ -205,16 +207,16 @@ impl<'a> aide::OperationOutput for Error<'a> {
     type Inner = ErrorResponse<'static>;
 
     fn operation_response(
-        ctx: &mut aide::generate::GenContext,
-        operation: &mut aide::openapi::Operation,
-    ) -> Option<aide::openapi::Response> {
+        ctx: &mut GenContext,
+        operation: &mut Operation,
+    ) -> Option<OpenApiResponse> {
         axum::Json::<ErrorResponse<'static>>::operation_response(ctx, operation)
     }
 
     fn inferred_responses(
-        _ctx: &mut aide::generate::GenContext,
-        _operation: &mut aide::openapi::Operation,
-    ) -> Vec<(Option<aide::openapi::StatusCode>, aide::openapi::Response)> {
+        _ctx: &mut GenContext,
+        _operation: &mut Operation,
+    ) -> Vec<(Option<StatusCode>, OpenApiResponse)> {
         Vec::new()
     }
 }

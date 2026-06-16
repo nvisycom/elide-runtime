@@ -17,11 +17,12 @@
 //! [`SharedData`]: super::SharedData
 //! [`ModalityRedactions::operator_for`]: crate::policy::redaction::ModalityRedactions::operator_for
 
+use std::fmt;
 use std::sync::Arc;
 
 use hipstr::HipStr;
 use nvisy_codec::content::ContentDescriptor;
-use nvisy_core::entity::Entity;
+use nvisy_core::entity::{Entity, EntityLabelCatalog};
 
 use crate::modality::DocumentModality;
 use crate::policy::redaction::{ModalityRedactions, ProjectRedaction};
@@ -53,8 +54,8 @@ impl PolicyStore {
     /// validated at detection-time submission.
     ///
     /// [`EntityLabelCatalog`]: nvisy_core::entity::EntityLabelCatalog
-    pub(crate) fn catalog(&self) -> nvisy_core::entity::EntityLabelCatalog {
-        let mut catalog = nvisy_core::entity::EntityLabelCatalog::new();
+    pub(crate) fn catalog(&self) -> EntityLabelCatalog {
+        let mut catalog = EntityLabelCatalog::new();
         for p in &self.policies {
             for l in &p.labels {
                 catalog.insert(l.clone());
@@ -88,7 +89,7 @@ impl PolicyStore {
     pub(crate) fn resolve<M: DocumentModality + ProjectRedaction>(
         &self,
         entity: &Entity<M>,
-        catalog: &nvisy_core::entity::EntityLabelCatalog,
+        catalog: &EntityLabelCatalog,
         default_operators: &ModalityRedactions,
         document_labels: &[&str],
         descriptor: &ContentDescriptor,
@@ -117,8 +118,8 @@ impl PolicyStore {
     }
 }
 
-impl std::fmt::Debug for PolicyStore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for PolicyStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PolicyStore")
             .field("count", &self.policies.len())
             .finish()
@@ -197,7 +198,7 @@ fn decide<M: DocumentModality + ProjectRedaction>(
 fn rule_matches<M: DocumentModality>(
     rule: &PolicyRule,
     entity: &Entity<M>,
-    catalog: &nvisy_core::entity::EntityLabelCatalog,
+    catalog: &EntityLabelCatalog,
     document_labels: &[&str],
     descriptor: &ContentDescriptor,
 ) -> bool {
@@ -255,7 +256,7 @@ mod tests {
         let store = PolicyStore::default();
         let entity = Entity::<Text>::test_builder(0, 4).test_build();
         let descriptor = ContentDescriptor::new();
-        let catalog = nvisy_core::entity::EntityLabelCatalog::new();
+        let catalog = EntityLabelCatalog::new();
         let defaults = ModalityRedactions::default();
         assert!(matches!(
             store.resolve::<Text>(&entity, &catalog, &defaults, &[], &descriptor),

@@ -17,8 +17,6 @@ use nvisy_core::{Error as CoreError, Result};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::{AssistantContent, Completion, CompletionModel, Message};
-#[cfg(feature = "google-gemini")]
-use rig::providers::gemini;
 
 pub use self::config::LlmConfig;
 pub use self::context::ContextWindow;
@@ -193,9 +191,7 @@ impl RigBackendBuilder {
             #[cfg(feature = "google-gemini")]
             LlmProvider::Gemini(p) => {
                 let client = p.gemini_client(http).map_err(crate::error::convert)?;
-                // rig-core 0.31: Gemini's Capabilities doesn't propagate H,
-                // so CompletionClient is unavailable for non-default H.
-                let model = gemini::completion::CompletionModel::new(client, p.model.as_str());
+                let model = client.completion_model(p.model.as_str());
                 RigInner::Gemini(build_agent(model, &config, preamble))
             }
             LlmProvider::Ollama(p) => {

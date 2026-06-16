@@ -1,6 +1,8 @@
 //! [`Tabular`] modality marker, [`TabularLocation`] coordinate type,
 //! and the [`TabularExtraction`] provenance enum.
 
+use std::cmp::Ordering;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -79,7 +81,7 @@ impl Ord for TabularLocation {
     /// start_offset, end_offset)`. Absent intra-cell offsets sort
     /// as `0` / `usize::MAX` respectively so a whole-cell location
     /// brackets any sub-cell range. `column_name` is ignored.
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         let (s1, e1) = self.cell_range();
         let (s2, e2) = other.cell_range();
         (&self.sheet_name, self.row_index, self.column_index, s1, e1).cmp(&(
@@ -93,7 +95,7 @@ impl Ord for TabularLocation {
 }
 
 impl PartialOrd for TabularLocation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }

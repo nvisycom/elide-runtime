@@ -576,7 +576,10 @@ mod tests {
             regex = "\\d+"
         "#;
         let regex = crate::Regex::from_toml(toml).expect("TOML parses");
-        assert!(regex.countries.is_empty(), "default countries must be empty");
+        assert!(
+            regex.countries.is_empty(),
+            "default countries must be empty"
+        );
     }
 
     #[test]

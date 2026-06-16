@@ -1,7 +1,6 @@
 //! Universal patterns — apply regardless of jurisdiction.
 
-use crate::Regex;
-use crate::__shipped_pattern as shipped_pattern;
+use crate::{__shipped_pattern as shipped_pattern, Regex};
 
 shipped_pattern!(
     /// Email address (RFC-loose).

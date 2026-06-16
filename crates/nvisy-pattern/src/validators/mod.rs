@@ -13,10 +13,17 @@
 //! `"us.aba_routing"`, `"us.npi"`, `"us.dea_number"`,
 //! `"us.postal_code"`), [`uk`]
 //! (`"uk.nhs"`, `"uk.nino"`, `"uk.driving_licence"`,
-//! `"uk.vehicle_registration"`), and [`de`] (`"de.bsnr"`,
+//! `"uk.vehicle_registration"`), [`de`] (`"de.bsnr"`,
 //! `"de.lanr"`, `"de.passport"`, `"de.id_card"`,
 //! `"de.health_insurance"`, `"de.social_security"`,
-//! `"de.tax_id"`, `"de.vat_id"`, `"de.plz"`). Each validator is also
+//! `"de.tax_id"`, `"de.vat_id"`, `"de.plz"`), [`es`]
+//! (`"es.nif"`, `"es.nie"`, `"es.cif"`), [`it`]
+//! (`"it.fiscal_code"`, `"it.vat_code"`), [`pl`]
+//! (`"pl.pesel"`, `"pl.nip"`, `"pl.regon"`), [`au`]
+//! (`"au.abn"`, `"au.acn"`, `"au.medicare"`, `"au.tfn"`), [`ca`]
+//! (`"ca.sin"`), [`fi`] (`"fi.hetu"`), and [`se`]
+//! (`"se.personnummer"`, `"se.organisationsnummer"`).
+//! Each validator is also
 //! re-exported as a free function so consumers can compose a
 //! custom registry without taking the full set.
 //!
@@ -29,7 +36,14 @@ mod iban;
 mod luhn;
 mod phone;
 
+pub mod au;
+pub mod ca;
 pub mod de;
+pub mod es;
+pub mod fi;
+pub mod it;
+pub mod pl;
+pub mod se;
 pub mod uk;
 pub mod us;
 
@@ -125,6 +139,22 @@ impl ValidatorRegistry {
     /// `"de.id_card"`, `"de.health_insurance"`,
     /// `"de.social_security"`, `"de.tax_id"`, `"de.vat_id"`,
     /// `"de.plz"`.
+    ///
+    /// ES-scoped: `"es.nif"`, `"es.nie"`, `"es.cif"`.
+    ///
+    /// IT-scoped: `"it.fiscal_code"`, `"it.vat_code"`.
+    ///
+    /// PL-scoped: `"pl.pesel"`, `"pl.nip"`, `"pl.regon"`.
+    ///
+    /// AU-scoped: `"au.abn"`, `"au.acn"`, `"au.medicare"`,
+    /// `"au.tfn"`.
+    ///
+    /// CA-scoped: `"ca.sin"`.
+    ///
+    /// FI-scoped: `"fi.hetu"`.
+    ///
+    /// SE-scoped: `"se.personnummer"`,
+    /// `"se.organisationsnummer"`.
     #[must_use]
     pub fn builtin() -> Self {
         Self::empty()
@@ -151,6 +181,22 @@ impl ValidatorRegistry {
             .with_simple("de.tax_id", de::tax_id)
             .with_simple("de.vat_id", de::vat_id)
             .with_simple("de.plz", de::plz)
+            .with_simple("es.nif", es::nif)
+            .with_simple("es.nie", es::nie)
+            .with_simple("es.cif", es::cif)
+            .with_simple("it.fiscal_code", it::fiscal_code)
+            .with_simple("it.vat_code", it::vat_code)
+            .with_simple("pl.pesel", pl::pesel)
+            .with_simple("pl.nip", pl::nip)
+            .with_simple("pl.regon", pl::regon)
+            .with_simple("au.abn", au::abn)
+            .with_simple("au.acn", au::acn)
+            .with_simple("au.medicare", au::medicare)
+            .with_simple("au.tfn", au::tfn)
+            .with_simple("ca.sin", ca::sin)
+            .with_simple("fi.hetu", fi::hetu)
+            .with_simple("se.personnummer", se::personnummer)
+            .with_simple("se.organisationsnummer", se::organisationsnummer)
     }
 
     /// Register a context-aware `validator` under `name`,

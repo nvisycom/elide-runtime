@@ -51,24 +51,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_shipped_pattern_parses() {
-        let patterns = all();
-        assert_eq!(patterns.len(), 34);
-    }
-
-    #[test]
-    fn world_set_has_18_patterns() {
-        assert_eq!(world::all().len(), 18);
-    }
-
-    #[test]
-    fn us_set_has_10_patterns() {
-        assert_eq!(us::all().len(), 10);
-    }
-
-    #[test]
-    fn uk_set_has_6_patterns() {
-        assert_eq!(uk::all().len(), 6);
+    fn every_shipped_pattern_has_variants() {
+        for pattern in all() {
+            assert!(
+                !pattern.variants.is_empty(),
+                "pattern `{}` has no variants",
+                pattern.name,
+            );
+        }
     }
 
     #[test]

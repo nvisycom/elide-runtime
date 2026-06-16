@@ -100,6 +100,10 @@ lingua = { version = "1.8", default-features = false, features = ["english"] }
 unicode-segmentation = { version = "1.13", features = [] }
 unicode-normalization = { version = "0.1", features = [] }
 
+# Checksum / encoding
+bs58 = { version = "0.5", features = ["check"] }
+phonenumber = { version = "0.3", default-features = false }
+
 # Tabular document parsing
 csv = { version = "1.0", features = [] }
 calamine = { version = "0.35", features = [] }

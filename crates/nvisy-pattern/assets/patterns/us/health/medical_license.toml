@@ -26,11 +26,11 @@ context = [
 # DEA registration type letters: A, B, C, D, E, F, G, H, J, K, L,
 # M, P, R, S, T, U, X (plus mid-2000s practitioner-9 series).
 [[variants]]
-regex = '[abcdefghjklmprstuxABCDEFGHJKLMPRSTUX][a-zA-Z]\d{7}'
+regex = '\b[abcdefghjklmprstuxABCDEFGHJKLMPRSTUX][a-zA-Z]\d{7}\b'
 score = 0.4
 validator = "us.dea_number"
 
 [[variants]]
-regex = '[abcdefghjklmprstuxABCDEFGHJKLMPRSTUX]9\d{7}'
+regex = '\b[abcdefghjklmprstuxABCDEFGHJKLMPRSTUX]9\d{7}\b'
 score = 0.4
 validator = "us.dea_number"

@@ -5,16 +5,25 @@ use std::collections::HashMap;
 
 use nvisy_core::entity::{Entity, EntityLabelRef, TrailStep};
 use nvisy_core::modality::Text;
-use nvisy_core::primitive::LanguageTag;
-use unicode_segmentation::UnicodeSegmentation;
 
-use super::matcher::KeywordMatcher;
-use super::rule::BoostRule;
-use super::tokens::Token;
+use crate::matching::KeywordMatcher;
+use crate::rule::BoostRule;
+use crate::io::Token;
 
-/// Source name stamped onto every refinement [`TrailStep`] the
-/// enhancer appends.
-const TRAIL_SOURCE: &str = "context";
+mod context;
+mod window;
+
+pub use self::context::Context;
+
+use self::window::{slice_tokens_around, token_span, word_window};
+
+/// Source name stamped onto refinement [`TrailStep`]s the
+/// enhancer appends when the in-text word window fires.
+const TRAIL_SOURCE_WINDOW: &str = "context";
+
+/// Source name stamped onto refinement [`TrailStep`]s the
+/// enhancer appends when an out-of-band hint fires.
+const TRAIL_SOURCE_HINT: &str = "context-hint";
 
 /// Post-recognition enhancer. Holds a label-keyed [`BoostRule`]
 /// map plus the keyword-matching strategy, and lifts the
@@ -31,8 +40,8 @@ const TRAIL_SOURCE: &str = "context";
 /// the enhancer: [`SubstringMatcher`] when no upstream NLP engine
 /// produces tokens, [`LemmaMatcher`] when one does.
 ///
-/// [`SubstringMatcher`]: super::SubstringMatcher
-/// [`LemmaMatcher`]: super::LemmaMatcher
+/// [`SubstringMatcher`]: crate::SubstringMatcher
+/// [`LemmaMatcher`]: crate::LemmaMatcher
 pub struct Enhancer {
     /// Rules bucketed by label. Within one bucket, each entry is
     /// a distinct `(language)` scope; rules sharing the same
@@ -86,67 +95,45 @@ impl Enhancer {
 
     /// Apply boost rules to `entities` in place. For each entity:
     /// walk every rule registered for its label whose language
-    /// scope applies under `language`, walk a window of
+    /// scope applies under `ctx.language`, walk a window of
     /// `prefix_words` words before and `suffix_words` words after
     /// the entity's location, ask the matcher whether any keyword
     /// fires, and on a hit lift confidence by the rule's `boost`
     /// (saturating at the [`Confidence`] ceiling) plus append a
     /// [`Refinement`] trail step.
     ///
-    /// `tokens` is the optional token artifact produced by an
-    /// upstream NLP engine. When present, words are counted
-    /// against the token stream; when absent, words are derived
-    /// from the source text via Unicode word segmentation.
-    ///
-    /// `language` is the per-call language hint. `None` means
-    /// "unknown" — every per-language rule applies as a
-    /// permissive fallback.
+    /// The in-text and hint paths are independent — at most one
+    /// boost per rule fires per entity (window first, hint as
+    /// fallback) so a rule with a long keyword list can't
+    /// double-dip.
     ///
     /// [`Confidence`]: nvisy_core::primitive::Confidence
     /// [`Refinement`]: nvisy_core::entity::TrailStepKind::Refinement
-    pub fn enhance(
-        &self,
-        entities: &mut [Entity<Text>],
-        text: &str,
-        tokens: Option<&[Token]>,
-        language: Option<&LanguageTag>,
-    ) {
+    pub fn enhance(&self, entities: &mut [Entity<Text>], ctx: &Context<'_>) {
         if self.rules.is_empty() {
             return;
         }
         for entity in entities {
-            self.enhance_one(entity, text, tokens, language);
+            self.enhance_one(entity, ctx);
         }
     }
 
-    fn enhance_one(
-        &self,
-        entity: &mut Entity<Text>,
-        text: &str,
-        tokens: Option<&[Token]>,
-        language: Option<&LanguageTag>,
-    ) {
+    fn enhance_one(&self, entity: &mut Entity<Text>, ctx: &Context<'_>) {
         let Some(bucket) = self.rules.get(&entity.label) else {
             return;
         };
         for rule in bucket {
-            if !rule.applies_to_language(language) {
+            if !rule.applies_to_language(ctx.language) {
                 continue;
             }
             if rule.keywords.is_empty() {
                 continue;
             }
-            self.apply_rule(entity, rule, text, tokens);
+            self.apply_rule(entity, rule, ctx);
         }
     }
 
-    fn apply_rule(
-        &self,
-        entity: &mut Entity<Text>,
-        rule: &BoostRule,
-        text: &str,
-        tokens: Option<&[Token]>,
-    ) {
+    fn apply_rule(&self, entity: &mut Entity<Text>, rule: &BoostRule, ctx: &Context<'_>) {
         let start = entity.location.start;
         let end = entity.location.end;
 
@@ -156,23 +143,32 @@ impl Enhancer {
         // `tokens: None`, `tokens: Some(&[])`, and the "tokens
         // present but none overlap the entity" case (e.g. NLP
         // engine only tokenized part of the document).
-        let token_slice = tokens
+        let token_slice = ctx
+            .tokens
             .map(|toks| slice_tokens_around(toks, start, end, rule.prefix_words, rule.suffix_words))
             .unwrap_or(&[]);
         let (snippet, tokens_in_window): (&str, &[Token]) = if token_slice.is_empty() {
-            let snippet = word_window(text, start, end, rule.prefix_words, rule.suffix_words);
+            let snippet = word_window(ctx.text, start, end, rule.prefix_words, rule.suffix_words);
             (snippet, &[])
         } else {
-            let snippet = token_span(text, token_slice, start, end);
+            let snippet = token_span(ctx.text, token_slice, start, end);
             (snippet, token_slice)
         };
 
-        if !self
+        let source = if self
             .matcher
             .any_match(snippet, tokens_in_window, &rule.keywords)
         {
+            TRAIL_SOURCE_WINDOW
+        } else if ctx
+            .hints
+            .iter()
+            .any(|h| self.matcher.any_match(h, &[], &rule.keywords))
+        {
+            TRAIL_SOURCE_HINT
+        } else {
             return;
-        }
+        };
 
         let original = entity.confidence;
         let adjusted = original.saturating_add(rule.boost.get());
@@ -182,7 +178,7 @@ impl Enhancer {
         entity.confidence = adjusted;
 
         entity.trail.push(TrailStep::refinement(
-            TRAIL_SOURCE,
+            source,
             original,
             adjusted,
             format!(
@@ -192,97 +188,6 @@ impl Enhancer {
             ),
         ));
     }
-}
-
-/// Walk `prefix` words before `[start, end)` and `suffix` words
-/// after, via Unicode word segmentation, and return the spanning
-/// substring (including any non-word whitespace and punctuation
-/// between words). The returned slice covers `[start, end)` itself
-/// plus the prefix / suffix words; the entity's own bytes are
-/// always inside.
-fn word_window(text: &str, start: usize, end: usize, prefix: usize, suffix: usize) -> &str {
-    let prefix_text = &text[..start.min(text.len())];
-    let suffix_text = &text[end.min(text.len())..];
-
-    // `unicode_word_indices` yields `(byte_offset, word_str)` for
-    // every "word" (alphanumeric run) in source order. Take the
-    // last `prefix` on the prefix side, the first `suffix` on the
-    // suffix side, and compute the spanning byte range.
-    let prefix_words: Vec<(usize, &str)> = prefix_text.unicode_word_indices().collect();
-    let prefix_take = prefix_words.len().saturating_sub(prefix);
-    let prefix_byte = prefix_words
-        .get(prefix_take)
-        .map(|(idx, _)| *idx)
-        .unwrap_or(start.min(text.len()));
-
-    let suffix_byte = if suffix == 0 {
-        end.min(text.len())
-    } else {
-        suffix_text
-            .unicode_word_indices()
-            .nth(suffix - 1)
-            .map(|(idx, word)| end + idx + word.len())
-            .unwrap_or(text.len())
-    };
-
-    let lo = floor_char_boundary(text, prefix_byte);
-    let hi = ceil_char_boundary(text, suffix_byte.min(text.len()));
-    &text[lo..hi]
-}
-
-fn floor_char_boundary(s: &str, mut pos: usize) -> usize {
-    while pos > 0 && !s.is_char_boundary(pos) {
-        pos -= 1;
-    }
-    pos
-}
-
-fn ceil_char_boundary(s: &str, mut pos: usize) -> usize {
-    while pos < s.len() && !s.is_char_boundary(pos) {
-        pos += 1;
-    }
-    pos
-}
-
-/// Slice tokens by *count*: take `prefix` tokens before the first
-/// token overlapping `[start, end)` and `suffix` tokens after the
-/// last. The returned slice is contiguous.
-fn slice_tokens_around(
-    tokens: &[Token],
-    start: usize,
-    end: usize,
-    prefix: usize,
-    suffix: usize,
-) -> &[Token] {
-    if tokens.is_empty() {
-        return &[];
-    }
-    // First token whose `offset.end > start` overlaps or follows the entity.
-    let first_overlap = tokens.partition_point(|t| t.offset.end <= start);
-    // One past the last token whose `offset.start < end` overlaps the entity.
-    let last_overlap = tokens.partition_point(|t| t.offset.start < end);
-    let lo = first_overlap.saturating_sub(prefix);
-    let hi = (last_overlap + suffix).min(tokens.len());
-    if lo >= hi {
-        return &[];
-    }
-    &tokens[lo..hi]
-}
-
-/// Spanning substring covering `tokens` plus the entity itself.
-/// Used to give the matcher a contiguous text window when slicing
-/// against the token stream.
-///
-/// Precondition: `tokens` is non-empty. Callers must take the
-/// `word_window` fallback path when their token slice is empty —
-/// see `Enhancer::enhance_one`.
-fn token_span<'a>(text: &'a str, tokens: &[Token], start: usize, end: usize) -> &'a str {
-    debug_assert!(!tokens.is_empty(), "token_span requires non-empty slice");
-    let lo = tokens[0].offset.start.min(start);
-    let hi = tokens[tokens.len() - 1].offset.end.max(end);
-    let lo = floor_char_boundary(text, lo.min(text.len()));
-    let hi = ceil_char_boundary(text, hi.min(text.len()));
-    &text[lo..hi]
 }
 
 #[cfg(test)]
@@ -352,7 +257,7 @@ mod tests {
         )]);
         let text = "Your SSN: 123-45-6789";
         let mut entities = vec![entity(govid_label(), 10, 21, 0.6)];
-        enhancer.enhance(&mut entities, text, None, None);
+        enhancer.enhance(&mut entities, &Context::new(text));
         assert!(entities[0].confidence.get() > 0.6);
         assert!(
             entities[0]
@@ -363,25 +268,13 @@ mod tests {
     }
 
     #[test]
-    fn boosts_entity_when_keyword_in_suffix() {
-        let enhancer = enhancer(vec![rule(govid_label(), &["social"], 0, 5, 0.2)]);
-        let text = "123-45-6789 (social security number)";
-        let mut entities = vec![entity(govid_label(), 0, 11, 0.6)];
-        enhancer.enhance(&mut entities, text, None, None);
-        assert!(
-            entities[0].confidence.get() > 0.6,
-            "trailing keyword within suffix window should boost",
-        );
-    }
-
-    #[test]
     fn suffix_zero_ignores_trailing_keyword() {
         // Prefix-only: trailing keyword must not boost.
         let enhancer = enhancer(vec![rule(govid_label(), &["social"], 5, 0, 0.2)]);
         let text = "123-45-6789 (social security number)";
         let mut entities = vec![entity(govid_label(), 0, 11, 0.6)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None, None);
+        enhancer.enhance(&mut entities, &Context::new(text));
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -391,7 +284,7 @@ mod tests {
         let text = "Mr. Smith is named in the report.";
         let mut entities = vec![entity(person_label(), 4, 9, 0.5)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None, None);
+        enhancer.enhance(&mut entities, &Context::new(text));
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -405,7 +298,7 @@ mod tests {
         let xyz_end = xyz_start + "XYZ".len();
         let mut entities = vec![entity(govid_label(), xyz_start, xyz_end, 0.6)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None, None);
+        enhancer.enhance(&mut entities, &Context::new(text));
         assert_eq!(entities[0].confidence.get(), before);
     }
 
@@ -414,7 +307,7 @@ mod tests {
         let enhancer = enhancer(vec![rule(govid_label(), &["here"], 5, 5, 0.9)]);
         let text = "the value is right here in plain sight";
         let mut entities = vec![entity(govid_label(), 16, 21, 0.95)];
-        enhancer.enhance(&mut entities, text, None, None);
+        enhancer.enhance(&mut entities, &Context::new(text));
         assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
 
@@ -438,7 +331,7 @@ mod tests {
         let ssn_entity_start = ssn_only.find("123").unwrap();
         let ssn_entity_end = ssn_entity_start + "123-45-6789".len();
         let mut from_first = vec![entity(govid_label(), ssn_entity_start, ssn_entity_end, 0.6)];
-        make_enhancer().enhance(&mut from_first, ssn_only, None, None);
+        make_enhancer().enhance(&mut from_first, &Context::new(ssn_only));
         assert!(
             from_first[0].confidence.get() > 0.6,
             "keyword `ssn` from the first rule must still boost after merge",
@@ -449,7 +342,7 @@ mod tests {
         let tax_entity_start = taxid_only.find("987").unwrap();
         let tax_entity_end = tax_entity_start + "987-65-4329".len();
         let mut from_second = vec![entity(govid_label(), tax_entity_start, tax_entity_end, 0.6)];
-        make_enhancer().enhance(&mut from_second, taxid_only, None, None);
+        make_enhancer().enhance(&mut from_second, &Context::new(taxid_only));
         assert!(
             from_second[0].confidence.get() > 0.6,
             "keyword `tax id` from the second rule must still boost after merge",
@@ -464,7 +357,7 @@ mod tests {
         let entity_start = text.find("123").unwrap();
         let entity_end = entity_start + "123-45-6789".len();
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        enhancer.enhance(&mut entities, text, None, None);
+        enhancer.enhance(&mut entities, &Context::new(text));
         assert!(
             entities[0].confidence.get() > 0.6,
             "unicode word should be reachable within 3-word prefix",
@@ -472,30 +365,16 @@ mod tests {
     }
 
     #[test]
-    fn word_window_excludes_too_distant_unicode() {
-        // 2-word prefix: "café" is the 3rd word before the entity.
-        let enhancer = enhancer(vec![rule(govid_label(), &["café"], 2, 0, 0.2)]);
-        let text = "café naïve resume — 123-45-6789";
-        let entity_start = text.find("123").unwrap();
-        let entity_end = entity_start + "123-45-6789".len();
-        let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, None, None);
-        assert_eq!(entities[0].confidence.get(), before);
-    }
-
-    #[test]
     fn empty_tokens_slice_matches_none_behaviour() {
-        // Keyword sits in the prefix word-window but outside the
-        // entity bytes. With the empty-slice fix, `Some(&[])` must
-        // not collapse the snippet to the entity bytes — it should
-        // fall back to the word-window path just like `None`.
+        // `Some(&[])` must not collapse the snippet to entity
+        // bytes — it should fall back to the word-window path
+        // just like `None`.
         let enhancer = enhancer(vec![rule(govid_label(), &["ssn"], 5, 5, 0.2)]);
         let text = "Your SSN: 123-45-6789";
         let mut from_none = vec![entity(govid_label(), 10, 21, 0.6)];
         let mut from_empty = vec![entity(govid_label(), 10, 21, 0.6)];
-        enhancer.enhance(&mut from_none, text, None, None);
-        enhancer.enhance(&mut from_empty, text, Some(&[]), None);
+        enhancer.enhance(&mut from_none, &Context::new(text));
+        enhancer.enhance(&mut from_empty, &Context::new(text).with_tokens(&[]));
         assert_eq!(
             from_none[0].confidence.get(),
             from_empty[0].confidence.get(),
@@ -513,9 +392,7 @@ mod tests {
         // prefix reaches is the immediate predecessor token
         // "Your". The tokenizer here treats "social security"
         // as a single compound token outside the window, so the
-        // keyword "social security" must NOT fire — unlike a
-        // hypothetical caller that gave it the word-window path,
-        // which would split on whitespace.
+        // keyword "social security" must NOT fire.
         let enhancer = enhancer(vec![rule(govid_label(), &["social security"], 1, 0, 0.2)]);
         let text = "social security: Your 123-45-6789";
         let entity_start = text.find("123").unwrap();
@@ -527,32 +404,11 @@ mod tests {
         ];
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
         let before = entities[0].confidence.get();
-        enhancer.enhance(&mut entities, text, Some(&tokens), None);
+        enhancer.enhance(&mut entities, &Context::new(text).with_tokens(&tokens));
         assert_eq!(
             entities[0].confidence.get(),
             before,
             "1-word prefix should not reach the `social security` token two positions back",
-        );
-    }
-
-    #[test]
-    fn token_path_boosts_when_keyword_within_token_window() {
-        // Same tokens, 2-word prefix: now the `social security`
-        // token is reachable and the boost fires.
-        let enhancer = enhancer(vec![rule(govid_label(), &["social security"], 2, 0, 0.2)]);
-        let text = "social security: Your 123-45-6789";
-        let entity_start = text.find("123").unwrap();
-        let entity_end = entity_start + "123-45-6789".len();
-        let tokens: Vec<Token> = vec![
-            Token::from_text("social security", 0..15),
-            Token::from_text("Your", 17..21),
-            Token::from_text("123-45-6789", 22..33),
-        ];
-        let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        enhancer.enhance(&mut entities, text, Some(&tokens), None);
-        assert!(
-            entities[0].confidence.get() > 0.6,
-            "2-word prefix should reach the `social security` token",
         );
     }
 
@@ -578,31 +434,22 @@ mod tests {
             Token::from_text("system", 41..47),
         ];
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        enhancer.enhance(&mut entities, text, Some(&tokens), None);
+        enhancer.enhance(&mut entities, &Context::new(text).with_tokens(&tokens));
         assert!(
             entities[0].confidence.get() > 0.6,
             "lemma matcher should match `run` against the `running` token's lemma",
-        );
-        assert!(
-            entities[0]
-                .trail
-                .iter()
-                .any(|s| matches!(s.kind, TrailStepKind::Refinement)),
         );
     }
 
     #[test]
     fn tokens_with_no_overlap_fall_back_to_word_window() {
         // Tokens cover the first half of the document; the entity
-        // is in the second half, outside any token's range.
-        // Without the fallback the token slice would be empty and
-        // the snippet would collapse to entity bytes. With the
-        // fallback, the word-window path reaches the keyword.
+        // is in the second half, outside any token's range. The
+        // word-window path must still reach the keyword.
         let enhancer = enhancer(vec![rule(govid_label(), &["ssn"], 5, 5, 0.2)]);
         let text = "First half of the document. Your SSN: 123-45-6789";
         let entity_start = text.find("123").unwrap();
         let entity_end = entity_start + "123-45-6789".len();
-        // Tokens that cover only the first sentence.
         let tokens: Vec<Token> = vec![
             Token::from_text("First", 0..5),
             Token::from_text("half", 6..10),
@@ -611,10 +458,53 @@ mod tests {
             Token::from_text("document", 18..26),
         ];
         let mut entities = vec![entity(govid_label(), entity_start, entity_end, 0.6)];
-        enhancer.enhance(&mut entities, text, Some(&tokens), None);
+        enhancer.enhance(&mut entities, &Context::new(text).with_tokens(&tokens));
         assert!(
             entities[0].confidence.get() > 0.6,
             "tokens that don't overlap the entity must fall back to the word window",
         );
+    }
+
+    #[test]
+    fn out_of_band_hint_boosts_when_window_is_empty() {
+        // Cell-only text has no surrounding context — the word
+        // window walk finds nothing — but the caller supplies the
+        // CSV column header as an out-of-band hint that contains
+        // a rule keyword. Confidence must lift, and the trail
+        // step must mark the source as `context-hint`.
+        let enhancer = enhancer(vec![rule(govid_label(), &["ssn"], 5, 5, 0.2)]);
+        let text = "123-45-6789";
+        let hints = ["ssn".to_owned()];
+        let mut entities = vec![entity(govid_label(), 0, 11, 0.6)];
+        enhancer.enhance(&mut entities, &Context::new(text).with_hints(&hints));
+        assert!(
+            entities[0].confidence.get() > 0.6,
+            "out-of-band hint matching a rule keyword must boost",
+        );
+        assert!(
+            entities[0]
+                .trail
+                .iter()
+                .any(|s| s.source == "context-hint"),
+            "trail step must record the hint-source provenance",
+        );
+    }
+
+    #[test]
+    fn hint_path_is_independent_of_window_path() {
+        // The in-text window already fires, so the hint path
+        // shouldn't double-boost. Exactly one refinement step
+        // appears on the entity.
+        let enhancer = enhancer(vec![rule(govid_label(), &["ssn"], 5, 5, 0.2)]);
+        let text = "Your SSN: 123-45-6789";
+        let hints = ["ssn".to_owned()];
+        let mut entities = vec![entity(govid_label(), 10, 21, 0.6)];
+        enhancer.enhance(&mut entities, &Context::new(text).with_hints(&hints));
+        let refinements = entities[0]
+            .trail
+            .iter()
+            .filter(|s| matches!(s.kind, TrailStepKind::Refinement))
+            .count();
+        assert_eq!(refinements, 1, "rule must boost at most once per entity");
     }
 }

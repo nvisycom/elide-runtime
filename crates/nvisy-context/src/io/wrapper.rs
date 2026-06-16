@@ -22,7 +22,8 @@ use nvisy_core::Result;
 use nvisy_core::modality::Text;
 use nvisy_core::recognition::{EntityRecognizer, RecognizerInput, RecognizerOutput};
 
-use super::{Enhancer, Tokens};
+use super::Tokens;
+use crate::{Context, Enhancer};
 
 /// Wraps an [`EntityRecognizer<Text>`] with a post-recognition
 /// [`Enhancer`] pass. Implements [`EntityRecognizer<Text>`] so
@@ -68,11 +69,14 @@ where
         if self.enhancer.is_empty() {
             return Ok(output);
         }
-        let text = input.data.text.as_str();
-        let tokens = input.artifacts.get::<Tokens>().map(Tokens::as_slice);
-        let language = input.language.as_ref();
-        self.enhancer
-            .enhance(&mut output.entities, text, tokens, language);
+        let mut ctx = Context::new(input.data.text.as_str()).with_hints(&input.context_hints);
+        if let Some(tokens) = input.artifacts.get::<Tokens>() {
+            ctx = ctx.with_tokens(tokens.as_slice());
+        }
+        if let Some(language) = input.language.as_ref() {
+            ctx = ctx.with_language(language);
+        }
+        self.enhancer.enhance(&mut output.entities, &ctx);
         Ok(output)
     }
 }

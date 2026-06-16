@@ -13,7 +13,7 @@ use super::compiled::{CompiledDictionary, CompiledPattern, has_word_boundaries};
 use super::dictionary::Dictionary;
 use super::regex::Regex;
 use crate::shipped;
-use crate::validators::ValidatorRegistry;
+use crate::validators::{ValidationContext, ValidatorRegistry};
 
 /// Runtime text recognizer composed of a regex pool and an
 /// Aho-Corasick automaton.
@@ -434,9 +434,13 @@ impl EntityRecognizer<Text> for PatternRecognizer {
                 if !input.applies_to_country(&pat.countries) {
                     continue;
                 }
+                let ctx = ValidationContext {
+                    country: input.country,
+                    language: input.language.clone(),
+                };
                 for m in pat.regex.find_iter(text) {
                     if let Some(validator) = pat.validator.as_ref()
-                        && !validator.validate(m.as_str())
+                        && !validator.validate(m.as_str(), &ctx)
                     {
                         continue;
                     }

@@ -3,13 +3,11 @@
 #![doc = include_str!("../README.md")]
 
 mod enhancer;
-mod matcher;
+mod io;
+mod matching;
 mod rule;
-mod tokens;
-mod wrapper;
 
-pub use self::enhancer::Enhancer;
-pub use self::matcher::{KeywordMatcher, LemmaMatcher, SubstringMatcher};
+pub use self::enhancer::{Context, Enhancer};
+pub use self::io::{ContextEnhanced, Token, Tokens};
+pub use self::matching::{KeywordMatcher, LemmaMatcher, SubstringMatcher};
 pub use self::rule::{BoostRule, DEFAULT_BOOST, DEFAULT_PREFIX_WORDS, DEFAULT_SUFFIX_WORDS};
-pub use self::tokens::{Token, Tokens};
-pub use self::wrapper::ContextEnhanced;

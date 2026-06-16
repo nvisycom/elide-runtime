@@ -29,6 +29,7 @@ context = [
 [[variants]]
 regex = '\b[A-HJ-PR-Y][A-HJ-PR-Y](?:0[1-9]|[1-7][0-9])[- ]?[A-HJ-PR-Z]{3}\b'
 score = 0.3
+validator = "uk.vehicle_registration"
 
 [[variants]]
 regex = '\b[A-HJ-NPR-TV-Y]\d{1,3}[- ]?[A-HJ-PR-Y][A-HJ-PR-Z]{2}\b'

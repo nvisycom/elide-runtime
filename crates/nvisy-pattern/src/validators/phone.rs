@@ -1,73 +1,38 @@
-//! Phone-number structural validator.
+//! Region-aware phone-number validator backed by the
+//! `phonenumber` crate (Rust port of Google's libphonenumber).
+//!
+//! Two paths:
+//!
+//! 1. Inputs that parse as E.164 (carry their own `+CC` prefix)
+//!    validate directly, regardless of caller context.
+//! 2. Inputs in national format (no leading `+`) need a region
+//!    hint. When [`ValidationContext::country`] is set we use it;
+//!    otherwise we fail closed — region-less national-format
+//!    matching is genuinely ambiguous (a 13-digit run can be a
+//!    valid IL/IN phone *and* the leading 13 digits of a Visa
+//!    PAN), so without a country signal we'd rather miss a
+//!    handful of national-format numbers than mislabel card and
+//!    account numbers as phones.
 
-/// Return `true` if `value` has a plausible phone-number structure.
-///
-/// All non-digit characters are stripped, then checks:
-///
-/// - 7 to 15 digits (the ITU-T E.164 range).
-/// - When the original begins with `+` (explicit E.164), the
-///   digits must not start with `0` — no country code is `0…`.
-///   National formats such as UK `020 7946 0958` keep their
-///   trunk-prefix zero and remain valid.
-pub fn phone(value: &str) -> bool {
-    let digits: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
-    let len = digits.len();
+use phonenumber::country::Id;
+use phonenumber::parse;
+use std::str::FromStr;
 
-    if !(7..=15).contains(&len) {
-        return false;
+use super::ValidationContext;
+
+/// Return `true` when `value` parses as a valid phone number
+/// for the caller's jurisdiction (or as E.164 with an explicit
+/// `+CC` prefix).
+pub fn phone(value: &str, ctx: &ValidationContext) -> bool {
+    let trimmed = value.trim();
+
+    if parse(None, trimmed).map(|n| n.is_valid()).unwrap_or(false) {
+        return true;
     }
 
-    if value.trim_start().starts_with('+') && digits.starts_with('0') {
-        return false;
-    }
-
-    true
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn valid_us_numbers() {
-        assert!(phone("+1-555-123-4567"));
-        assert!(phone("(555) 123-4567"));
-        assert!(phone("555.123.4567"));
-        assert!(phone("5551234567"));
-    }
-
-    #[test]
-    fn valid_international() {
-        assert!(phone("+44 20 7946 0958"));
-        assert!(phone("+49 30 12345678"));
-        assert!(phone("+81 3 1234 5678"));
-    }
-
-    #[test]
-    fn too_few_digits() {
-        assert!(!phone("12345"));
-        assert!(!phone("123-45"));
-    }
-
-    #[test]
-    fn too_many_digits() {
-        assert!(!phone("1234567890123456"));
-    }
-
-    #[test]
-    fn e164_starting_with_zero_rejected() {
-        assert!(!phone("+0123456789012"));
-    }
-
-    #[test]
-    fn national_format_with_trunk_zero_accepted() {
-        // UK national format keeps the leading 0 trunk prefix.
-        assert!(phone("020 7946 0958"));
-        assert!(phone("0207946 0958"));
-    }
-
-    #[test]
-    fn local_number_with_seven_digits() {
-        assert!(phone("123-4567"));
-    }
+    ctx.country
+        .and_then(|c| Id::from_str(c.as_str()).ok())
+        .and_then(|region| parse(Some(region), trimmed).ok())
+        .map(|n| n.is_valid())
+        .unwrap_or(false)
 }

@@ -45,5 +45,11 @@ aho-corasick = { workspace = true, features = [] }
 # Tabular document parsing (dictionary loading from CSV)
 csv = { workspace = true, features = [] }
 
+# Base58Check decoder for the crypto.btc validator
+bs58 = { workspace = true, features = ["check"] }
+
+# Region-aware phone-number parsing for the phone validator
+phonenumber = { workspace = true }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

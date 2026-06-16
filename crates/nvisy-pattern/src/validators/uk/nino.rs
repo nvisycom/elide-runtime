@@ -6,9 +6,14 @@
 /// Return `true` when `value`'s leading two-letter prefix is not
 /// a reserved NINO prefix.
 ///
-/// Reserved prefixes (case-insensitive): `BG`, `GB`, `NK`, `KN`,
-/// `NT`, `TN`, `ZZ`. The check is structural only — it does not
-/// confirm the trailing suffix letter or any HMRC issuance state.
+/// Reserved prefixes (case-insensitive):
+///
+/// - Whole pair: `BG`, `GB`, `NK`, `KN`, `NT`, `TN`, `ZZ`.
+/// - First letter `O` (HMRC reserved; not blocked by the regex
+///   character class, which spans `j-p`).
+///
+/// The check is structural only — it does not confirm the
+/// trailing suffix letter or any HMRC issuance state.
 pub fn nino(value: &str) -> bool {
     let prefix: String = value
         .chars()
@@ -19,6 +24,9 @@ pub fn nino(value: &str) -> bool {
         return false;
     }
     let upper = prefix.to_ascii_uppercase();
+    if upper.starts_with('O') {
+        return false;
+    }
     !matches!(
         upper.as_str(),
         "BG" | "GB" | "NK" | "KN" | "NT" | "TN" | "ZZ"
@@ -53,5 +61,11 @@ mod tests {
     fn rejects_non_alpha_prefix() {
         assert!(!nino("12345678A"));
         assert!(!nino(""));
+    }
+
+    #[test]
+    fn rejects_o_at_position_zero() {
+        assert!(!nino("OA123456A"));
+        assert!(!nino("oa123456A"));
     }
 }

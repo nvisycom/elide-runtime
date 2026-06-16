@@ -11,6 +11,7 @@
 //! [`Regex`]: crate::Regex
 //! [`PatternRecognizer::build`]: crate::PatternRecognizer
 
+pub mod de;
 pub mod uk;
 pub mod us;
 pub mod world;
@@ -43,6 +44,7 @@ pub fn all() -> Vec<Regex> {
     let mut out = world::all();
     out.extend(us::all());
     out.extend(uk::all());
+    out.extend(de::all());
     out
 }
 
@@ -99,6 +101,22 @@ mod tests {
                     .collect::<Vec<_>>(),
                 vec!["GB"],
                 "UK-scoped pattern `{}` must declare countries = [GB]",
+                pattern.name,
+            );
+        }
+    }
+
+    #[test]
+    fn de_patterns_are_country_scoped_to_de() {
+        for pattern in de::all() {
+            assert_eq!(
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["DE"],
+                "DE-scoped pattern `{}` must declare countries = [DE]",
                 pattern.name,
             );
         }

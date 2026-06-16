@@ -11,11 +11,14 @@
 //! ([`luhn`], [`iban`], [`phone`], [`date`], [`btc`]) plus
 //! jurisdiction-scoped sets re-exported from [`us`] (`"us.ssn"`,
 //! `"us.aba_routing"`, `"us.npi"`, `"us.dea_number"`,
-//! `"us.postal_code"`) and [`uk`]
+//! `"us.postal_code"`), [`uk`]
 //! (`"uk.nhs"`, `"uk.nino"`, `"uk.driving_licence"`,
-//! `"uk.vehicle_registration"`). Each validator is also re-exported
-//! as a free function so consumers can compose a custom registry
-//! without taking the full set.
+//! `"uk.vehicle_registration"`), and [`de`] (`"de.bsnr"`,
+//! `"de.lanr"`, `"de.passport"`, `"de.id_card"`,
+//! `"de.health_insurance"`, `"de.social_security"`,
+//! `"de.tax_id"`, `"de.vat_id"`, `"de.plz"`). Each validator is also
+//! re-exported as a free function so consumers can compose a
+//! custom registry without taking the full set.
 //!
 //! [`Variant`]: crate::Variant
 //! [`Regex`]: crate::Regex
@@ -26,6 +29,7 @@ mod iban;
 mod luhn;
 mod phone;
 
+pub mod de;
 pub mod uk;
 pub mod us;
 
@@ -51,7 +55,7 @@ pub use self::phone::phone;
 /// guessing across a fixed fallback set. Validators that don't
 /// need either field can ignore it via `_ctx`.
 ///
-/// [`RecognizerInput`]: crate::recognition::RecognizerInput
+/// [`RecognizerInput`]: nvisy_core::recognition::RecognizerInput
 #[derive(Debug, Clone, Default)]
 pub struct ValidationContext {
     /// ISO 3166-1 alpha-2 jurisdiction associated with the input,
@@ -116,6 +120,11 @@ impl ValidatorRegistry {
     ///
     /// UK-scoped: `"uk.nhs"`, `"uk.nino"`,
     /// `"uk.driving_licence"`, `"uk.vehicle_registration"`.
+    ///
+    /// DE-scoped: `"de.bsnr"`, `"de.lanr"`, `"de.passport"`,
+    /// `"de.id_card"`, `"de.health_insurance"`,
+    /// `"de.social_security"`, `"de.tax_id"`, `"de.vat_id"`,
+    /// `"de.plz"`.
     #[must_use]
     pub fn builtin() -> Self {
         Self::empty()
@@ -133,6 +142,15 @@ impl ValidatorRegistry {
             .with_simple("uk.nino", uk::nino)
             .with_simple("uk.driving_licence", uk::driving_licence)
             .with_simple("uk.vehicle_registration", uk::vehicle_registration)
+            .with_simple("de.bsnr", de::bsnr)
+            .with_simple("de.lanr", de::lanr)
+            .with_simple("de.passport", de::passport)
+            .with_simple("de.id_card", de::id_card)
+            .with_simple("de.health_insurance", de::health_insurance)
+            .with_simple("de.social_security", de::social_security)
+            .with_simple("de.tax_id", de::tax_id)
+            .with_simple("de.vat_id", de::vat_id)
+            .with_simple("de.plz", de::plz)
     }
 
     /// Register a context-aware `validator` under `name`,

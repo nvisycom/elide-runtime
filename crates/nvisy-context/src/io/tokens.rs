@@ -106,7 +106,7 @@ impl Token {
 /// borrows the underlying slice via [`as_slice`] and walks it by
 /// count when scoring the entity's neighbourhood.
 ///
-/// [`Enhancer`]: super::Enhancer
+/// [`Enhancer`]: crate::Enhancer
 /// [`as_slice`]: Tokens::as_slice
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Tokens(Vec<Token>);

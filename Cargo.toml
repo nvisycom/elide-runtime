@@ -102,6 +102,7 @@ unicode-normalization = { version = "0.1", features = [] }
 
 # Checksum / encoding
 bs58 = { version = "0.5", features = ["check"] }
+iban_validate = { version = "5.0" }
 phonenumber = { version = "0.3", default-features = false }
 
 # Tabular document parsing

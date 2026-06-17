@@ -11,7 +11,10 @@
 const CONTROL_TABLE: &[u8; 31] = b"0123456789ABCDEFHJKLMNPRSTUVWXY";
 
 fn is_separator(c: char) -> bool {
-    matches!(c, '+' | '-' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'Y' | 'X' | 'W' | 'V' | 'U')
+    matches!(
+        c,
+        '+' | '-' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'Y' | 'X' | 'W' | 'V' | 'U'
+    )
 }
 
 /// Return `true` when `value` is a valid 11-character HETU.

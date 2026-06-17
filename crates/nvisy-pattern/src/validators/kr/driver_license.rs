@@ -7,18 +7,15 @@
 //! structural + region-code validation is performed here.
 
 const REGION_CODES: &[&str] = &[
-    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25",
-    "26", "28",
+    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26",
+    "28",
 ];
 
 /// Return `true` when `value` is a 12-digit Korean driver
 /// license number with a valid region code. Hyphen and space
 /// separators are stripped before validation.
 pub fn driver_license(value: &str) -> bool {
-    let digits: String = value
-        .chars()
-        .filter(|c| c.is_ascii_digit())
-        .collect();
+    let digits: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
     let extras = value
         .chars()
         .filter(|c| !c.is_ascii_digit() && !c.is_ascii_whitespace() && *c != '-')

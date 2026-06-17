@@ -10,10 +10,7 @@ use super::super::verhoeff::verhoeff;
 /// Whitespace and `-`/`:` separators are stripped before
 /// validation.
 pub fn aadhaar(value: &str) -> bool {
-    let digits: String = value
-        .chars()
-        .filter(|c| c.is_ascii_digit())
-        .collect();
+    let digits: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
     let extras = value
         .chars()
         .filter(|c| !c.is_ascii_digit() && !c.is_ascii_whitespace() && *c != '-' && *c != ':')

@@ -48,12 +48,7 @@ async fn builtin_finance() {
 #[tokio::test]
 async fn builtin_contact() {
     let (text, entities) = scan(include_str!("../testdata/inputs/es/contact.txt")).await;
-    assert_match(
-        &text,
-        &entities,
-        builtins::POSTAL_CODE.label_ref(),
-        "28013",
-    );
+    assert_match(&text, &entities, builtins::POSTAL_CODE.label_ref(), "28013");
     // English-language nationality dictionary stays silent on a
     // Spanish document — assert it didn't fire.
     assert!(

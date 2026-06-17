@@ -20,12 +20,7 @@ async fn builtin_identity() {
         builtins::GOVERNMENT_ID.label_ref(),
         "2341 2341 2346",
     );
-    assert_match(
-        &text,
-        &entities,
-        builtins::TAX_ID.label_ref(),
-        "ABCPK1234E",
-    );
+    assert_match(&text, &entities, builtins::TAX_ID.label_ref(), "ABCPK1234E");
     assert_match(
         &text,
         &entities,
@@ -49,12 +44,7 @@ async fn builtin_finance() {
         builtins::TAX_ID.label_ref(),
         "27AAAPL1234C1ZE",
     );
-    assert_match(
-        &text,
-        &entities,
-        builtins::TAX_ID.label_ref(),
-        "AAAPL1234C",
-    );
+    assert_match(&text, &entities, builtins::TAX_ID.label_ref(), "AAAPL1234C");
 }
 
 #[tokio::test]

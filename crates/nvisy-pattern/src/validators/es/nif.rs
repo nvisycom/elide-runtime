@@ -27,11 +27,7 @@ pub fn nif(value: &str) -> bool {
     if !letter.is_ascii_uppercase() {
         return false;
     }
-    let number: u64 = digits
-        .iter()
-        .collect::<String>()
-        .parse()
-        .unwrap_or(0);
+    let number: u64 = digits.iter().collect::<String>().parse().unwrap_or(0);
     LETTERS[(number % 23) as usize] as char == letter
 }
 

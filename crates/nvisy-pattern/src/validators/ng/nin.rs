@@ -8,10 +8,7 @@ use super::super::verhoeff::verhoeff;
 
 /// Return `true` when `value` is a valid 11-digit NIN.
 pub fn nin(value: &str) -> bool {
-    let digits: String = value
-        .chars()
-        .filter(|c| c.is_ascii_digit())
-        .collect();
+    let digits: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
     let extras = value
         .chars()
         .filter(|c| !c.is_ascii_digit() && !c.is_ascii_whitespace() && *c != '-')

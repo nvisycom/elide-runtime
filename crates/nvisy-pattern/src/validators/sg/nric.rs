@@ -23,7 +23,11 @@ const WEIGHTS: [u32; 7] = [2, 7, 6, 5, 4, 3, 2];
 
 /// Return `true` when `value` is a valid 9-character NRIC/FIN.
 pub fn nric(value: &str) -> bool {
-    let chars: Vec<char> = value.trim().chars().map(|c| c.to_ascii_uppercase()).collect();
+    let chars: Vec<char> = value
+        .trim()
+        .chars()
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
     if chars.len() != 9 {
         return false;
     }

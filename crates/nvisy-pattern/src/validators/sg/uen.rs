@@ -22,9 +22,9 @@ const FORMAT_C_ALPHABET: &str = "ABCDEFGHJKLMNPQRSTUVWX0123456789";
 
 const FORMAT_C_PREFIXES: &str = "TSR";
 const FORMAT_C_ENTITY_TYPES: &[&str] = &[
-    "LP", "LL", "FC", "PF", "RF", "MQ", "MM", "NB", "CC", "CS", "MB", "FM", "GS", "DP", "CP",
-    "NR", "CM", "CD", "MD", "HS", "VH", "CH", "MH", "CL", "XL", "CX", "HC", "RP", "TU", "TC",
-    "FB", "FN", "PA", "PB", "SS", "MC", "SM", "GA", "GB",
+    "LP", "LL", "FC", "PF", "RF", "MQ", "MM", "NB", "CC", "CS", "MB", "FM", "GS", "DP", "CP", "NR",
+    "CM", "CD", "MD", "HS", "VH", "CH", "MH", "CL", "XL", "CX", "HC", "RP", "TU", "TC", "FB", "FN",
+    "PA", "PB", "SS", "MC", "SM", "GA", "GB",
 ];
 
 /// Return `true` when `value` is a valid UEN in any of the three

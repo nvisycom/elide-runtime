@@ -26,11 +26,6 @@ async fn builtin_identity() {
 #[tokio::test]
 async fn builtin_contact() {
     let (text, entities) = scan(include_str!("../testdata/inputs/tr/contact.txt")).await;
-    assert_match(
-        &text,
-        &entities,
-        builtins::POSTAL_CODE.label_ref(),
-        "34000",
-    );
+    assert_match(&text, &entities, builtins::POSTAL_CODE.label_ref(), "34000");
     assert_label_present(&entities, builtins::POSTAL_CODE.label_ref());
 }

@@ -1979,6 +1979,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "iban_validate"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f695c602ee9bb55c4100c3e50559461ea3f49ca0d543cf770720af8165dc756"
+dependencies = [
+ "arrayvec",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3131,6 +3140,7 @@ dependencies = [
  "csv",
  "derive_builder",
  "derive_more",
+ "iban_validate",
  "nvisy-context",
  "nvisy-core",
  "phonenumber",

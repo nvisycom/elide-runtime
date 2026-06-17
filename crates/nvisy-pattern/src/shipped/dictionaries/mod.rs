@@ -1,15 +1,23 @@
 //! Built-in [`Dictionary`]s, embedded at compile time.
 //!
-//! Accessors are grouped by region — `world::*` for universal
-//! dictionaries; future country-specific dictionaries land in
-//! `<country>::*` sub-modules. Each pairs a TOML metadata sidecar
-//! (`assets/dictionaries/<region>/<domain>/*.toml`) with a term
-//! source (`*.csv` for multi-column lists, `*.txt` for one-per-line),
-//! merging them via [`Dictionary::metadata_from_toml`] +
-//! [`crate::Term::from_csv`] / [`crate::Term::from_text`].
+//! Accessors are grouped by *scope*:
+//!
+//! - `world::*` — universal: brand names, ISO codes (crypto,
+//!   currencies) that work in any language.
+//! - `<lang>::*` — locale-specific: terms written in `<lang>`
+//!   that translate when the document language changes
+//!   (`en::nationalities`, future `fr::nationalites`, etc.).
+//!
+//! Each pairs a TOML metadata sidecar
+//! (`assets/dictionaries/<scope>/<domain>/*.toml`) with a term
+//! source (`*.csv` for multi-column lists, `*.txt` for
+//! one-per-line), merging them via
+//! [`Dictionary::metadata_from_toml`] + [`crate::Term::from_csv`] /
+//! [`crate::Term::from_text`].
 //!
 //! [`Dictionary`]: crate::Dictionary
 
+pub mod en;
 pub mod world;
 
 use crate::Dictionary;
@@ -51,10 +59,12 @@ macro_rules! __shipped_dictionary {
 }
 
 /// Every built-in dictionary shipped by this crate, regardless of
-/// region.
+/// scope.
 #[must_use]
 pub fn all() -> Vec<Dictionary> {
-    world::all()
+    let mut dicts = world::all();
+    dicts.extend(en::all());
+    dicts
 }
 
 #[cfg(test)]
@@ -63,15 +73,8 @@ mod tests {
 
     #[test]
     fn every_shipped_dictionary_parses() {
-        let dicts = all();
-        assert_eq!(dicts.len(), 5);
-        for dict in &dicts {
+        for dict in all() {
             assert!(!dict.terms.is_empty(), "{} has no terms", dict.name);
         }
-    }
-
-    #[test]
-    fn world_set_has_5_dictionaries() {
-        assert_eq!(world::all().len(), 5);
     }
 }

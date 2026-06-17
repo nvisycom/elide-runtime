@@ -81,6 +81,7 @@ label!(pub SIGNATURE, "signature","Handwritten signature.", ["visual", "pii"]);
 label!(pub LOGO, "logo","Brand or organisation logo.", ["visual"]);
 label!(pub BARCODE, "barcode","Barcode or QR code.", ["visual"]);
 label!(pub ORGANIZATION_NAME, "organization_name","Organization or company name.", ["organization"]);
+label!(pub COMPANY_ID, "company_id","Public company-registry identifier (Handelsregisternummer, Companies House number, etc.).", ["organization"]);
 label!(pub DEPARTMENT_NAME, "department_name","Department or business-unit name.", ["organization"]);
 label!(pub FACILITY_NAME, "facility_name","Physical facility or location name.", ["organization"]);
 label!(pub CASE_NUMBER, "case_number","Case, matter, or docket number.", ["organization"]);
@@ -150,6 +151,7 @@ pub(super) static BUILT_INS: &[&LazyLock<EntityLabel>] = &[
     &LOGO,
     &BARCODE,
     &ORGANIZATION_NAME,
+    &COMPANY_ID,
     &DEPARTMENT_NAME,
     &FACILITY_NAME,
     &CASE_NUMBER,

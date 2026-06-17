@@ -38,17 +38,16 @@ derive_more = { workspace = true, features = ["from"] }
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
 
-# Text processing (regex + Aho-Corasick literal matching)
+# Text processing
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
 
-# Tabular document parsing (dictionary loading from CSV)
+# Tabular document parsing
 csv = { workspace = true, features = [] }
 
-# Base58Check decoder for the crypto.btc validator
+# Checksum / encoding
 bs58 = { workspace = true, features = ["check"] }
-
-# Region-aware phone-number parsing for the phone validator
+iban_validate = { workspace = true }
 phonenumber = { workspace = true }
 
 [dev-dependencies]

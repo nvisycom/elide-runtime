@@ -4,7 +4,7 @@
 //! ≥ 2 (UIDAI reserves 0xx and 1xx); the number must not be a
 //! palindrome; Verhoeff checksum over all 12 digits.
 
-use super::verhoeff::verhoeff;
+use super::super::verhoeff::verhoeff;
 
 /// Return `true` when `value` is a valid 12-digit Aadhaar.
 /// Whitespace and `-`/`:` separators are stripped before

@@ -36,6 +36,7 @@ mod date;
 mod iban;
 mod luhn;
 mod phone;
+mod verhoeff;
 
 pub mod au;
 pub mod ca;
@@ -45,8 +46,12 @@ pub mod fi;
 pub mod r#in;
 pub mod it;
 pub mod kr;
+pub mod ng;
 pub mod pl;
 pub mod se;
+pub mod sg;
+pub mod th;
+pub mod tr;
 pub mod uk;
 pub mod us;
 
@@ -163,6 +168,14 @@ impl ValidatorRegistry {
     ///
     /// KR-scoped: `"kr.rrn"`, `"kr.frn"`, `"kr.brn"`,
     /// `"kr.driver_license"`.
+    ///
+    /// SG-scoped: `"sg.nric"`, `"sg.uen"`.
+    ///
+    /// TR-scoped: `"tr.tckn"`.
+    ///
+    /// NG-scoped: `"ng.nin"`.
+    ///
+    /// TH-scoped: `"th.national_id"`.
     #[must_use]
     pub fn builtin() -> Self {
         Self::empty()
@@ -212,6 +225,11 @@ impl ValidatorRegistry {
             .with_simple("kr.frn", kr::frn)
             .with_simple("kr.brn", kr::brn)
             .with_simple("kr.driver_license", kr::driver_license)
+            .with_simple("sg.nric", sg::nric)
+            .with_simple("sg.uen", sg::uen)
+            .with_simple("tr.tckn", tr::tckn)
+            .with_simple("ng.nin", ng::nin)
+            .with_simple("th.national_id", th::national_id)
     }
 
     /// Register a context-aware `validator` under `name`,

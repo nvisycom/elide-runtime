@@ -8,7 +8,6 @@
 mod aadhaar;
 mod gstin;
 mod pan;
-mod verhoeff;
 
 pub use self::aadhaar::aadhaar;
 pub use self::gstin::gstin;

@@ -19,8 +19,12 @@ pub mod fi;
 pub mod r#in;
 pub mod it;
 pub mod kr;
+pub mod ng;
 pub mod pl;
 pub mod se;
+pub mod sg;
+pub mod th;
+pub mod tr;
 pub mod uk;
 pub mod us;
 pub mod world;
@@ -63,6 +67,10 @@ pub fn all() -> Vec<Regex> {
     out.extend(se::all());
     out.extend(r#in::all());
     out.extend(kr::all());
+    out.extend(sg::all());
+    out.extend(tr::all());
+    out.extend(ng::all());
+    out.extend(th::all());
     out
 }
 
@@ -279,6 +287,70 @@ mod tests {
                     .collect::<Vec<_>>(),
                 vec!["KR"],
                 "KR-scoped pattern `{}` must declare countries = [KR]",
+                pattern.name,
+            );
+        }
+    }
+
+    #[test]
+    fn sg_patterns_are_country_scoped_to_sg() {
+        for pattern in sg::all() {
+            assert_eq!(
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["SG"],
+                "SG-scoped pattern `{}` must declare countries = [SG]",
+                pattern.name,
+            );
+        }
+    }
+
+    #[test]
+    fn tr_patterns_are_country_scoped_to_tr() {
+        for pattern in tr::all() {
+            assert_eq!(
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["TR"],
+                "TR-scoped pattern `{}` must declare countries = [TR]",
+                pattern.name,
+            );
+        }
+    }
+
+    #[test]
+    fn ng_patterns_are_country_scoped_to_ng() {
+        for pattern in ng::all() {
+            assert_eq!(
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["NG"],
+                "NG-scoped pattern `{}` must declare countries = [NG]",
+                pattern.name,
+            );
+        }
+    }
+
+    #[test]
+    fn th_patterns_are_country_scoped_to_th() {
+        for pattern in th::all() {
+            assert_eq!(
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["TH"],
+                "TH-scoped pattern `{}` must declare countries = [TH]",
                 pattern.name,
             );
         }

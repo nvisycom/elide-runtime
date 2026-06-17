@@ -1,8 +1,8 @@
 //! Verhoeff checksum tables and helper.
 //!
 //! Verhoeff is a dihedral-group-based checksum that detects all
-//! transposition errors. Indian Aadhaar uses it as the final
-//! digit of the 12-digit identifier.
+//! single-digit and most transposition errors. Used by Indian
+//! Aadhaar and Nigerian NIN.
 
 const D: [[u32; 10]; 10] = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],

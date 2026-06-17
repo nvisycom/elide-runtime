@@ -21,11 +21,12 @@
 //! (`"it.fiscal_code"`, `"it.vat_code"`), [`pl`]
 //! (`"pl.pesel"`, `"pl.nip"`, `"pl.regon"`), [`au`]
 //! (`"au.abn"`, `"au.acn"`, `"au.medicare"`, `"au.tfn"`), [`ca`]
-//! (`"ca.sin"`), [`fi`] (`"fi.hetu"`), and [`se`]
-//! (`"se.personnummer"`, `"se.organisationsnummer"`).
-//! Each validator is also
-//! re-exported as a free function so consumers can compose a
-//! custom registry without taking the full set.
+//! (`"ca.sin"`), [`fi`] (`"fi.hetu"`), [`se`]
+//! (`"se.personnummer"`, `"se.organisationsnummer"`), and the
+//! India module (`"in.aadhaar"`, `"in.pan"`, `"in.gstin"`).
+//! Each validator is also re-exported as a free function so
+//! consumers can compose a custom registry without taking the
+//! full set.
 //!
 //! [`Variant`]: crate::Variant
 //! [`Regex`]: crate::Regex
@@ -41,7 +42,9 @@ pub mod ca;
 pub mod de;
 pub mod es;
 pub mod fi;
+pub mod r#in;
 pub mod it;
+pub mod kr;
 pub mod pl;
 pub mod se;
 pub mod uk;
@@ -155,6 +158,11 @@ impl ValidatorRegistry {
     ///
     /// SE-scoped: `"se.personnummer"`,
     /// `"se.organisationsnummer"`.
+    ///
+    /// IN-scoped: `"in.aadhaar"`, `"in.pan"`, `"in.gstin"`.
+    ///
+    /// KR-scoped: `"kr.rrn"`, `"kr.frn"`, `"kr.brn"`,
+    /// `"kr.driver_license"`.
     #[must_use]
     pub fn builtin() -> Self {
         Self::empty()
@@ -197,6 +205,13 @@ impl ValidatorRegistry {
             .with_simple("fi.hetu", fi::hetu)
             .with_simple("se.personnummer", se::personnummer)
             .with_simple("se.organisationsnummer", se::organisationsnummer)
+            .with_simple("in.aadhaar", r#in::aadhaar)
+            .with_simple("in.pan", r#in::pan)
+            .with_simple("in.gstin", r#in::gstin)
+            .with_simple("kr.rrn", kr::rrn)
+            .with_simple("kr.frn", kr::frn)
+            .with_simple("kr.brn", kr::brn)
+            .with_simple("kr.driver_license", kr::driver_license)
     }
 
     /// Register a context-aware `validator` under `name`,

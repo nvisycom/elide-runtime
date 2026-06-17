@@ -16,7 +16,9 @@ pub mod ca;
 pub mod de;
 pub mod es;
 pub mod fi;
+pub mod r#in;
 pub mod it;
+pub mod kr;
 pub mod pl;
 pub mod se;
 pub mod uk;
@@ -59,6 +61,8 @@ pub fn all() -> Vec<Regex> {
     out.extend(ca::all());
     out.extend(fi::all());
     out.extend(se::all());
+    out.extend(r#in::all());
+    out.extend(kr::all());
     out
 }
 
@@ -243,6 +247,38 @@ mod tests {
                     .collect::<Vec<_>>(),
                 vec!["SE"],
                 "SE-scoped pattern `{}` must declare countries = [SE]",
+                pattern.name,
+            );
+        }
+    }
+
+    #[test]
+    fn in_patterns_are_country_scoped_to_in() {
+        for pattern in r#in::all() {
+            assert_eq!(
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["IN"],
+                "IN-scoped pattern `{}` must declare countries = [IN]",
+                pattern.name,
+            );
+        }
+    }
+
+    #[test]
+    fn kr_patterns_are_country_scoped_to_kr() {
+        for pattern in kr::all() {
+            assert_eq!(
+                pattern
+                    .countries
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["KR"],
+                "KR-scoped pattern `{}` must declare countries = [KR]",
                 pattern.name,
             );
         }

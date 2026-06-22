@@ -29,6 +29,9 @@ default = []
 test-utils = []
 
 [dependencies]
+# Elide toolkit (upstream)
+elide-core = { workspace = true, features = ["serde"] }
+
 # Serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }

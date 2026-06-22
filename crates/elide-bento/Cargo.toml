@@ -1,0 +1,45 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "elide-bento"
+description = "Shared BentoML HTTP client for elide backends (NER, OCR)"
+keywords = ["elide", "bento", "bentoml", "ner", "ocr"]
+categories = ["api-bindings"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Elide toolkit (upstream)
+elide-core = { workspace = true, features = [] }
+
+# Async runtime
+async-trait = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+# Error handling
+thiserror = { workspace = true, features = [] }
+
+# URL parsing
+url = "2.5"
+
+# BentoML client
+bentoml = { workspace = true, default-features = false, features = ["rustls-tls", "tracing"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }

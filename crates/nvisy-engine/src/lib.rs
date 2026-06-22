@@ -6,7 +6,6 @@ pub mod core;
 pub mod detection;
 pub mod document;
 pub mod modality;
-pub mod policy;
 pub mod redaction;
 pub mod registry;
 

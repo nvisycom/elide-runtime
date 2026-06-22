@@ -3,19 +3,12 @@
 [workspace]
 resolver = "3"
 members = [
+    "./crates/elide-bento",
+    "./crates/elide-fake",
     "./crates/nvisy-cli",
-    "./crates/nvisy-codec",
-    "./crates/nvisy-context",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
-    "./crates/nvisy-fake",
-    "./crates/nvisy-llm",
-    "./crates/nvisy-ner",
-    "./crates/nvisy-ocr",
-    "./crates/nvisy-pattern",
     "./crates/nvisy-server",
-    "./crates/nvisy-stt",
-    "./crates/nvisy-toolkit",
 ]
 
 [workspace.package]
@@ -41,23 +34,18 @@ elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-fe
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main" }
 elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
+# Runtime-owned elide extensions
+elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }
+elide-fake = { path = "./crates/elide-fake", version = "0.1.0" }
+
 # Internal crates
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
-nvisy-fake = { path = "./crates/nvisy-fake", version = "0.1.0" }
-nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
-nvisy-stt = { path = "./crates/nvisy-stt", version = "0.1.0" }
 
-# Internal crates being deleted: kept here as path-deps so consumer
-# manifests (nvisy-server/cli/fake/ocr/stt/toolkit) parse during the
-# migration. Each entry leaves with its consumer's migration task.
-nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
-nvisy-context = { path = "./crates/nvisy-context", version = "0.1.0" }
+# Internal crate being deleted: kept here as a path-dep so consumer
+# manifests (nvisy-engine/server/cli) parse during the migration.
+# Leaves the workspace once engine's source no longer imports it.
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
-nvisy-llm = { path = "./crates/nvisy-llm", version = "0.1.0" }
-nvisy-ner = { path = "./crates/nvisy-ner", version = "0.1.0" }
-nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
-nvisy-toolkit = { path = "./crates/nvisy-toolkit", version = "0.1.0" }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

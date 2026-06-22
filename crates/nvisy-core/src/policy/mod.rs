@@ -22,11 +22,12 @@ mod selector;
 mod suppress;
 
 use derive_builder::Builder;
-use elide_core::entity::Label;
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+
+use crate::schema::LabelSchema;
 
 pub use self::audit::AuditAction;
 pub use self::condition::Condition;
@@ -81,8 +82,7 @@ pub struct Policy {
     /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[schemars(with = "Vec<crate::schema::LabelSchema>")]
-    pub labels: Vec<Label>,
+    pub labels: Vec<LabelSchema>,
     /// Ordered list of rules. First matching rule wins.
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

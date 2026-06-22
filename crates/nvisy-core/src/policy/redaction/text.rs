@@ -26,9 +26,10 @@
 //! [`Keep`]: elide::redaction::operators::Keep
 //! [`OperatorId`]: elide_core::redaction::OperatorId
 
-use elide_core::redaction::OperatorId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::schema::OperatorIdSchema;
 
 /// SHA-2 variant for the [`TextRedaction::Hash`] operator.
 ///
@@ -91,8 +92,7 @@ pub enum TextRedaction {
     /// Look up a deployment-registered custom operator by id.
     Custom {
         /// Id under which the operator was registered.
-        #[schemars(with = "crate::schema::OperatorIdSchema")]
-        id: OperatorId,
+        id: OperatorIdSchema,
     },
 }
 

@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::coordinates::GeoCoordinate;
-use crate::primitive::Polygon;
+use crate::schema::PolygonSchema;
 
 /// A geographic bounding box defined by its south-west and north-east corners.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
@@ -51,7 +51,7 @@ pub enum GeoShape {
     /// Arbitrary polygon defined by vertices.
     Polygon {
         /// Boundary vertices in order (x = lng, y = lat).
-        boundary: Polygon,
+        boundary: PolygonSchema,
     },
 }
 
@@ -85,7 +85,7 @@ impl RegionData {
     }
 
     /// Create a polygon region.
-    pub fn from_polygon(boundary: Polygon) -> Self {
+    pub fn from_polygon(boundary: PolygonSchema) -> Self {
         Self {
             region: GeoShape::Polygon { boundary },
             name: None,

@@ -30,10 +30,6 @@ mod image;
 mod tabular;
 mod text;
 
-use elide_core::modality::audio::Audio;
-use elide_core::modality::image::Image;
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -47,10 +43,11 @@ pub use self::text::{HashAlgorithm, TextRedaction};
 ///
 /// A single rule can name an operator for every modality the
 /// workspace supports. At apply time the redaction phase picks the
-/// operator matching the entity's modality via
-/// [`ModalityRedactions::operator_for`]; modalities the rule didn't
-/// cover fall through to the deployment-wide default, and entities
-/// with no operator from either source are skipped.
+/// operator matching the entity's modality (engine reads the right
+/// field directly — `redactions.text.as_ref()` etc.); modalities
+/// the rule didn't cover fall through to the deployment-wide
+/// default, and entities with no operator from either source are
+/// skipped.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ModalityRedactions {
@@ -79,58 +76,6 @@ impl ModalityRedactions {
             && self.image.is_none()
             && self.audio.is_none()
     }
-
-    /// Borrow the operator spec for modality `M`, if one is set.
-    ///
-    /// The apply phase uses this to pick the right operator for an
-    /// entity. Returns `None` when this rule didn't cover the
-    /// modality.
-    #[must_use]
-    pub fn operator_for<M: PolicyModality>(&self) -> Option<&M::Redaction> {
-        M::project(self)
-    }
-}
-
-/// Runtime-side extension of [`elide_core::modality::Modality`] that
-/// pairs each modality with the policy redaction spec it can carry.
-///
-/// One impl per modality elide ships. Not extensible by downstream
-/// crates today; when user-defined modalities land in elide, this is
-/// the seam to widen.
-pub trait PolicyModality: elide_core::modality::Modality {
-    /// The policy spec enum a `redact` rule names for this modality.
-    type Redaction;
-
-    /// Borrow this modality's operator spec out of `redactions`.
-    fn project(redactions: &ModalityRedactions) -> Option<&Self::Redaction>;
-}
-
-impl PolicyModality for Text {
-    type Redaction = TextRedaction;
-    fn project(r: &ModalityRedactions) -> Option<&Self::Redaction> {
-        r.text.as_ref()
-    }
-}
-
-impl PolicyModality for Tabular {
-    type Redaction = TabularRedaction;
-    fn project(r: &ModalityRedactions) -> Option<&Self::Redaction> {
-        r.tabular.as_ref()
-    }
-}
-
-impl PolicyModality for Image {
-    type Redaction = ImageRedaction;
-    fn project(r: &ModalityRedactions) -> Option<&Self::Redaction> {
-        r.image.as_ref()
-    }
-}
-
-impl PolicyModality for Audio {
-    type Redaction = AudioRedaction;
-    fn project(r: &ModalityRedactions) -> Option<&Self::Redaction> {
-        r.audio.as_ref()
-    }
 }
 
 #[cfg(test)]
@@ -150,19 +95,5 @@ mod tests {
             ..Default::default()
         };
         assert!(!r.is_empty());
-    }
-
-    #[test]
-    fn operator_for_text_round_trips() {
-        let r = ModalityRedactions {
-            text: Some(TextRedaction::Hash {
-                algorithm: HashAlgorithm::Sha256,
-                salt: None,
-            }),
-            ..Default::default()
-        };
-        let op = r.operator_for::<Text>().expect("text operator set");
-        assert!(matches!(op, TextRedaction::Hash { .. }));
-        assert!(r.operator_for::<Image>().is_none());
     }
 }

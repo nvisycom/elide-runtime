@@ -3,8 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::ContentSource;
-use crate::primitive::BoundingBox;
+use crate::ContentSource;
+use crate::schema::BoundingBoxSchema;
 
 /// Reference handwritten signature for verification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -14,7 +14,7 @@ pub struct SignatureData {
     pub image_source: ContentSource,
     /// Bounding box of the signature within the image.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub region: Option<BoundingBox>,
+    pub region: Option<BoundingBoxSchema>,
     /// Identity of the signer this signature belongs to.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_id: Option<String>,

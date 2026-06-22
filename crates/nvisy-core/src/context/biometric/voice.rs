@@ -3,8 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::ContentSource;
-use crate::primitive::TimeSpan;
+use crate::ContentSource;
+use crate::schema::TimeSpanSchema;
 
 /// Reference voice data for speaker identification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -14,7 +14,7 @@ pub struct VoiceData {
     pub audio_source: ContentSource,
     /// Segment within the audio used for enrollment.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub segment: Option<TimeSpan>,
+    pub segment: Option<TimeSpanSchema>,
     /// Base64-encoded speaker embedding / voiceprint.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub template: Option<String>,
@@ -35,7 +35,7 @@ impl VoiceData {
     }
 
     /// Set the enrollment segment.
-    pub fn with_segment(mut self, segment: TimeSpan) -> Self {
+    pub fn with_segment(mut self, segment: TimeSpanSchema) -> Self {
         self.segment = Some(segment);
         self
     }

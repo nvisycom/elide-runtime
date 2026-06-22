@@ -2,8 +2,8 @@
 
 [package]
 name = "nvisy-engine"
-description = "Whole-document carrier + pipeline orchestrator for Nvisy: Document<M>, Audit, Policy, ingestion, the document runner"
-keywords = ["nvisy", "document", "pipeline", "orchestrator"]
+description = "Runtime adapter over elide: Policy compile, multi-tenant registry, request orchestration"
+keywords = ["nvisy", "engine", "elide", "redaction"]
 categories = ["data-structures", "concurrency"]
 readme = "README.md"
 
@@ -20,7 +20,6 @@ documentation = { workspace = true }
 
 [features]
 default = ["tabular", "image", "audio"]
-test-utils = ["dep:tempfile"]
 
 tabular = ["elide/codec-tabular"]
 image = ["elide/codec-image"]
@@ -31,57 +30,20 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+# Internal crates
+nvisy-core = { workspace = true, features = [] }
+
 # Elide toolkit (upstream)
 elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "serde"] }
-elide-core = { workspace = true, features = [] }
+elide-core = { workspace = true, features = ["serde", "image", "audio", "tabular"] }
 elide-llm = { workspace = true, features = ["openai-gpt", "anthropic-claude", "google-gemini"] }
 
-# Serialization
-serde = { workspace = true, features = [] }
-serde_json = { workspace = true, features = [] }
-schemars = { workspace = true, features = [] }
-toml = { workspace = true, features = [] }
-humantime-serde = { workspace = true, features = [] }
-
-# Derive macros and error handling
-anyhow = { workspace = true, features = [] }
-derive_builder = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator"] }
-strum = { workspace = true, features = [] }
+# Derive macros
+derive_more = { workspace = true, features = ["as_ref", "deref", "from"] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
-hipstr = { workspace = true, features = [] }
-jiff = { workspace = true, features = [] }
-semver = { workspace = true, features = ["serde"] }
 
-# Encoding and hashing
-base64 = { workspace = true, features = [] }
-aes-gcm = { workspace = true, features = [] }
-
-# Async runtime and parallelism
-async-trait = { workspace = true, features = [] }
-futures = { workspace = true, features = [] }
-tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
-tokio-util = { workspace = true, features = [] }
-
-# Observability
-tracing = { workspace = true, features = [] }
-
-# Storage and file-type detection
+# Multi-tenant storage
 fjall = { workspace = true, features = [] }
-
-# Utilities
-validator = { workspace = true, features = [] }
-rand = { workspace = true, features = [] }
-tempfile = { workspace = true, features = [], optional = true }
-
-[dev-dependencies]
-nvisy-engine = { path = ".", features = ["test-utils"] }
-elide-core = { workspace = true, features = [] }
-elide = { workspace = true, features = ["codec", "codec-txt", "codec-csv", "pattern", "ner", "llm", "serde"] }
-tempfile = { workspace = true, features = [] }
-
-[package.metadata.cargo-machete]
-ignored = ["humantime-serde"]

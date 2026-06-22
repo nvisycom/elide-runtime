@@ -6,9 +6,10 @@
 //! modalities. Only [`TabularRedaction::Custom`] is implementable
 //! today.
 
-use elide_core::redaction::OperatorId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::schema::OperatorIdSchema;
 
 /// Operator spec a `redact` tabular rule carries.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,7 +19,6 @@ pub enum TabularRedaction {
     /// Reserved for a future tabular registry; not invokable today.
     Custom {
         /// Id under which the operator would be registered.
-        #[schemars(with = "crate::schema::OperatorIdSchema")]
-        id: OperatorId,
+        id: OperatorIdSchema,
     },
 }

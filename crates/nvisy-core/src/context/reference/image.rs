@@ -3,8 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::ContentSource;
-use crate::primitive::BoundingBox;
+use crate::ContentSource;
+use crate::schema::BoundingBoxSchema;
 
 /// Reference image for object/scene matching.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -14,5 +14,5 @@ pub struct ImageData {
     pub image_source: ContentSource,
     /// Optional sub-region within the image.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub region: Option<BoundingBox>,
+    pub region: Option<BoundingBoxSchema>,
 }

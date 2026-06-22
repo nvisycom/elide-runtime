@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::primitive::Vertex;
+use crate::schema::PointSchema;
 
 /// A geographic coordinate (latitude/longitude).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
@@ -21,9 +21,9 @@ impl GeoCoordinate {
         Self { lat, lng }
     }
 
-    /// Convert to a [`Vertex`] for polygon operations.
-    pub fn to_vertex(self) -> Vertex {
-        Vertex {
+    /// Convert to a [`PointSchema`] for polygon operations.
+    pub fn to_point(self) -> PointSchema {
+        PointSchema {
             x: self.lng,
             y: self.lat,
         }

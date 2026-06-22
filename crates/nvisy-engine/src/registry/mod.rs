@@ -1,17 +1,16 @@
-//! Actor-scoped content and audit storage backed by fjall.
+//! Multi-tenant registry utilities backed by [`fjall`].
 //!
-//! The [`Registry`] stores content blobs, content metadata,
-//! annotations, audits, and detection / redaction results. All
-//! entries are actor-scoped via a composite key. Policies are NOT
-//! persisted — they are submitted inline on every detection input
-//! and snapshotted onto the in-memory detection record.
+//! Only the primitives — [`CompositeKey`] actor scoping, [`fjall`]
+//! extension traits, paged iteration — survive the engine rebuild;
+//! the higher-level content / audit stores will be redesigned around
+//! whatever request / result types engine ends up exposing.
 
 mod composite_key;
-mod content_handle;
 mod fjall_ext;
 mod paged;
-mod registry_store;
 
-pub use self::content_handle::ContentHandle;
-pub use self::paged::PagedResult;
-pub use self::registry_store::Registry;
+pub(crate) use self::composite_key::CompositeKey;
+pub(crate) use self::fjall_ext::{
+    FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found,
+};
+pub(crate) use self::paged::PagedResult;

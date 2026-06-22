@@ -126,7 +126,7 @@ mp3lame-encoder = { version = "0.2", features = [] }
 
 # AI / LLM frameworks
 bentoml = { version = "0.5", default-features = false, features = ["rustls-tls", "tracing"] }
-rig = { version = "0.38", features = [], default-features = false }
+rig = { version = "0.39", features = [], default-features = false }
 
 # HTTP client and middleware
 reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }

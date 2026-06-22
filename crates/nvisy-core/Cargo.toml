@@ -29,8 +29,11 @@ default = []
 test-utils = []
 
 [dependencies]
-# Elide toolkit (upstream)
-elide-core = { workspace = true, features = ["serde"] }
+# Elide toolkit (upstream). default-features off skips the
+# recognition/codec crates; we keep just operators + Analyzer +
+# Anonymizer + dedup layers + core re-exports.
+elide = { workspace = true, default-features = false, features = ["serde"] }
+elide-core = { workspace = true, features = ["serde", "image", "audio", "tabular"] }
 
 # Serialization
 serde = { workspace = true, features = [] }
@@ -44,12 +47,13 @@ derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "d
 strum = { workspace = true, features = [] }
 
 # Primitive datatypes
-uuid = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v7"] }
 bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 oxilangtag = { workspace = true, features = [] }
 celes = { workspace = true, features = [] }
 type-map = { workspace = true, features = [] }
+semver = { workspace = true, features = ["serde"] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

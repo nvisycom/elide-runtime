@@ -1,13 +1,5 @@
 //! [`AuditAction`]: payload of an [`Action::Audit`] rule.
 //!
-//! Flags entities that need extra human attention without
-//! transforming them. The detection pass already produces an
-//! audit entry per matched entity; this action tags those entries
-//! with a severity hint so downstream review tooling can prioritise
-//! them. Designed as a struct (not a unit type) so future fields
-//! (`category`, `notify`, `reviewer`, …) can land without a
-//! wire-break.
-//!
 //! [`Action::Audit`]: super::rule::Action::Audit
 
 use hipstr::HipStr;

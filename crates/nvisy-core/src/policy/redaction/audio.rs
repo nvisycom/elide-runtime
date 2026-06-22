@@ -1,16 +1,13 @@
 //! [`AudioRedaction`]: the operator spec an audio-modality policy
 //! rule carries.
 //!
-//! The toolkit ships no built-in audio operators yet, so the only
-//! variant today is [`AudioRedaction::Custom`] — deployments
-//! register their own audio anonymisers (silence, white-noise,
-//! beep, …) on the [`RedactionRegistry<Audio>`] and reference them
-//! by id.
-//!
-//! [`RedactionRegistry<Audio>`]: nvisy_toolkit::redaction::RedactionRegistry
+//! Elide ships [`elide::redaction::operators::Silence`] when the
+//! `audio` feature is enabled, but it is not part of the policy wire
+//! vocabulary — the spec stays at [`AudioRedaction::Custom`] so the
+//! wire format does not bake a build-time feature into the schema.
+//! Deployments wire `Silence` (or anything else) via [`OperatorId`].
 
-use nvisy_core::modality::Audio;
-use nvisy_toolkit::redaction::AnonymizerId;
+use elide_core::redaction::OperatorId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,10 +18,8 @@ use serde::{Deserialize, Serialize};
 pub enum AudioRedaction {
     /// Look up a deployment-registered custom operator by id.
     Custom {
-        /// Id under which the operator was registered in the
-        /// [`RedactionRegistry<Audio>`].
-        ///
-        /// [`RedactionRegistry<Audio>`]: nvisy_toolkit::redaction::RedactionRegistry
-        id: AnonymizerId<Audio>,
+        /// Id under which the operator was registered.
+        #[schemars(with = "crate::schema::OperatorIdSchema")]
+        id: OperatorId,
     },
 }

@@ -22,8 +22,8 @@ mod selector;
 mod suppress;
 
 use derive_builder::Builder;
+use elide_core::entity::Label;
 use hipstr::HipStr;
-use nvisy_core::entity::EntityLabel;
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -39,8 +39,8 @@ pub use self::suppress::SuppressAction;
 /// A named, versioned governance policy.
 ///
 /// Identified by [`name`] + [`version`]; the name must be unique
-/// within a single [`DetectionInput::policies`] submission. Held as
-/// a [`HipStr<'static>`] so per-decision audit stamps and per-run
+/// within a single detection submission. Held as a
+/// [`HipStr<'static>`] so per-decision audit stamps and per-run
 /// snapshots share refcounts rather than allocating.
 ///
 /// Modality is not part of the type. Each rule's action carries
@@ -49,8 +49,7 @@ pub use self::suppress::SuppressAction;
 ///
 /// [`name`]: Self::name
 /// [`version`]: Self::version
-/// [`DetectionInput::policies`]: crate::detection::DetectionInput::policies
-/// [`ModalityRedactions`]: crate::policy::redaction::ModalityRedactions
+/// [`ModalityRedactions`]: self::redaction::ModalityRedactions
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "PolicyBuilder",
@@ -74,15 +73,16 @@ pub struct Policy {
     /// Entity labels this policy operates over. Every label name a
     /// [`PolicyRule::selector`] references must appear here. The
     /// engine unions every submitted policy's `labels` into a
-    /// per-request [`EntityLabelCatalog`] used to drive recognizer
+    /// per-request [`LabelCatalog`] used to drive recognizer
     /// dispatch and tag-based selector matching. Two policies
     /// declaring the same label name with different
     /// `(description, tags)` are a conflict and fail the request.
     ///
-    /// [`EntityLabelCatalog`]: nvisy_core::entity::EntityLabelCatalog
+    /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub labels: Vec<EntityLabel>,
+    #[schemars(with = "Vec<crate::schema::LabelSchema>")]
+    pub labels: Vec<Label>,
     /// Ordered list of rules. First matching rule wins.
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -138,7 +138,7 @@ pub struct PolicyDigest {
 }
 
 /// Reference to the specific rule (or fallback) that produced a
-/// decision, stamped onto every policy-driven [`AuditEntry`].
+/// decision, stamped onto every policy-driven audit entry.
 ///
 /// Names map back into the [`Policy`] / [`PolicyRule`] structures
 /// the caller submitted. `rule_name` is `None` when the producing
@@ -148,7 +148,6 @@ pub struct PolicyDigest {
 /// Both fields hold [`HipStr<'static>`] clones so audit-heavy passes
 /// share refcounts rather than allocating per-entity.
 ///
-/// [`AuditEntry`]: crate::document::provenance::AuditEntry
 /// [`default_action`]: Policy::default_action
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

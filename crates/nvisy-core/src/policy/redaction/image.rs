@@ -1,16 +1,12 @@
 //! [`ImageRedaction`]: the operator spec an image-modality policy
 //! rule carries.
 //!
-//! The toolkit ships no built-in image operators yet, so the only
-//! variant today is [`ImageRedaction::Custom`] — deployments
-//! register their own image anonymisers (blur, pixelate,
-//! blackbox, …) on the [`RedactionRegistry<Image>`] and reference
-//! them by id.
-//!
-//! [`RedactionRegistry<Image>`]: nvisy_toolkit::redaction::RedactionRegistry
+//! Elide ships no built-in image operators today, so the only
+//! variant is [`ImageRedaction::Custom`] — deployments register
+//! their own image operators (blur, pixelate, blackbox, …) and
+//! reference them by [`OperatorId`].
 
-use nvisy_core::modality::Image;
-use nvisy_toolkit::redaction::AnonymizerId;
+use elide_core::redaction::OperatorId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,10 +17,8 @@ use serde::{Deserialize, Serialize};
 pub enum ImageRedaction {
     /// Look up a deployment-registered custom operator by id.
     Custom {
-        /// Id under which the operator was registered in the
-        /// [`RedactionRegistry<Image>`].
-        ///
-        /// [`RedactionRegistry<Image>`]: nvisy_toolkit::redaction::RedactionRegistry
-        id: AnonymizerId<Image>,
+        /// Id under which the operator was registered.
+        #[schemars(with = "crate::schema::OperatorIdSchema")]
+        id: OperatorId,
     },
 }

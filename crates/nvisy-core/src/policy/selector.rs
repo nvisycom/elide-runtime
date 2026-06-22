@@ -1,12 +1,11 @@
 //! Entity selection criteria for policy rules.
 
+use elide_core::entity::{Entity, LabelCatalog, LabelRef};
+use elide_core::modality::Modality;
+use elide_core::primitive::ConfidenceThreshold;
 use hipstr::HipStr;
-use nvisy_core::entity::{Entity, EntityLabelCatalog, EntityLabelRef};
-use nvisy_core::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::modality::DocumentModality;
 
 /// Criteria for selecting which entities a policy rule applies to.
 ///
@@ -20,7 +19,8 @@ pub struct EntitySelector {
     /// Specific entity labels this selector matches. Empty means
     /// all labels.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub labels: Vec<EntityLabelRef>,
+    #[schemars(with = "Vec<String>")]
+    pub labels: Vec<LabelRef>,
     /// Tags this selector matches. An entity matches when its
     /// label — looked up in the per-request catalog — carries any
     /// of the listed tags. Labels not registered in the catalog
@@ -35,6 +35,7 @@ pub struct EntitySelector {
     /// threshold are not matched. `None` means no threshold
     /// (matches any confidence).
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<f32>")]
     pub confidence_threshold: Option<ConfidenceThreshold>,
 }
 
@@ -44,20 +45,16 @@ impl EntitySelector {
         Self::default()
     }
 
-    /// Returns `true` if the given entity matches this selector,
-    /// resolving tag-based filters against `catalog`.
-    pub fn matches<M: DocumentModality>(
-        &self,
-        entity: &Entity<M>,
-        catalog: &EntityLabelCatalog,
-    ) -> bool {
+    /// Returns `true` if `entity` matches this selector, resolving
+    /// tag-based filters against `catalog`.
+    pub fn matches<M: Modality>(&self, entity: &Entity<M>, catalog: &LabelCatalog) -> bool {
         if let Some(threshold) = self.confidence_threshold
-            && !threshold.admits(entity.confidence)
+            && !threshold.passes(entity.confidence)
         {
             return false;
         }
         if !self.tags.is_empty() {
-            let Some(catalog_entry) = catalog.lookup(entity.label.as_str()) else {
+            let Some(catalog_entry) = catalog.get(&entity.label) else {
                 return false;
             };
             if !self.tags.iter().any(|t| catalog_entry.has_tag(t)) {

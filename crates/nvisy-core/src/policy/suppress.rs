@@ -1,9 +1,5 @@
 //! [`SuppressAction`]: payload of an [`Action::Suppress`] rule.
 //!
-//! Today carries an optional `reason` string that surfaces in the
-//! audit entry. Designed as a struct (not a unit type) so future
-//! fields (`expires`, `severity`, …) can land without a wire-break.
-//!
 //! [`Action::Suppress`]: super::rule::Action::Suppress
 
 use hipstr::HipStr;

@@ -1,37 +1,51 @@
 //! [`TextRedaction`]: the operator spec a text-modality policy rule
 //! carries.
 //!
-//! Built-in variants ([`Replace`], [`Mask`], [`Hash`],
-//! [`Redact`], [`Keep`]) are instantiated per-call from the
-//! params on the variant — no registry round-trip.
-//! [`TextRedaction::Custom`] names a deployment-registered operator
-//! looked up in the [`RedactionRegistry<Text>`] at apply time.
+//! Spec types — the serialisable, author-facing wire shape. The
+//! engine compiles each variant into the matching
+//! [`elide::redaction::operators`] instance at apply time.
+//!
+//! Built-in variants ([`Replace`], [`Mask`], [`Hash`], [`Erase`],
+//! [`Keep`]) ship in elide. [`TextRedaction::Custom`] names a
+//! deployment-registered operator looked up by [`OperatorId`].
 //!
 //! ## Why no `Encrypt` variant?
 //!
-//! [`Encrypt`] needs 32 bytes of raw key material plus an
-//! [`Aes256Gcm`] instance. Putting either in a TOML / JSON wire
-//! shape is unsafe (key leakage in version control, log dumps) and
-//! awkward (binary blobs in declarative config). Deployments that
-//! want reversible AES-256-GCM redaction build an [`Encrypt`] in
-//! Rust code, register it as a custom anonymizer on the
-//! [`RedactionRegistry<Text>`], and reference it from policy with
-//! `{ kind = "custom", id = "..." }`.
+//! Reversible AES-256-GCM needs 32 bytes of raw key material plus an
+//! `Aes256Gcm` instance. Putting either in a TOML / JSON wire shape
+//! is unsafe (key leakage in version control, log dumps) and awkward
+//! (binary blobs in declarative config). Deployments that want
+//! reversible AES-256-GCM redaction build an encrypt operator in
+//! Rust code, register it via [`OperatorId`], and reference it from
+//! policy with `{ kind = "custom", id = "..." }`.
 //!
-//! [`Replace`]: nvisy_toolkit::redaction::anonymizer::Replace
-//! [`Mask`]: nvisy_toolkit::redaction::anonymizer::Mask
-//! [`Hash`]: nvisy_toolkit::redaction::anonymizer::Hash
-//! [`Redact`]: nvisy_toolkit::redaction::anonymizer::Redact
-//! [`Keep`]: nvisy_toolkit::redaction::anonymizer::Keep
-//! [`Encrypt`]: nvisy_toolkit::redaction::anonymizer::Encrypt
-//! [`Aes256Gcm`]: https://docs.rs/aes-gcm
-//! [`RedactionRegistry<Text>`]: nvisy_toolkit::redaction::RedactionRegistry
+//! [`Replace`]: elide::redaction::operators::Replace
+//! [`Mask`]: elide::redaction::operators::Mask
+//! [`Hash`]: elide::redaction::operators::Hash
+//! [`Erase`]: elide::redaction::operators::Erase
+//! [`Keep`]: elide::redaction::operators::Keep
+//! [`OperatorId`]: elide_core::redaction::OperatorId
 
-use nvisy_core::modality::Text;
-use nvisy_toolkit::redaction::AnonymizerId;
-use nvisy_toolkit::redaction::anonymizer::HashAlgorithm;
+use elide_core::redaction::OperatorId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+/// SHA-2 variant for the [`TextRedaction::Hash`] operator.
+///
+/// Spec mirror of [`elide::redaction::operators::HashAlgorithm`]; the
+/// engine maps between the two at compile time. Local copy so the
+/// wire format owns its vocabulary (the upstream enum is not
+/// serialisable today).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HashAlgorithm {
+    /// SHA-256 — 32-byte digest, 64-char hex.
+    #[default]
+    Sha256,
+    /// SHA-512 — 64-byte digest, 128-char hex.
+    Sha512,
+}
 
 /// Operator spec a `redact` text rule carries.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,10 +53,9 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TextRedaction {
     /// Substitute the span with a fixed template. Supports
-    /// `{entity_kind}` / `{value}` placeholders. Default template
-    /// is `[{entity_kind}]`.
+    /// `{label}` / `{value}` / `{coref}` placeholders.
     Replace {
-        /// Template string. Default `[{entity_kind}]`.
+        /// Template string. Default `[{label}]`.
         #[serde(default = "default_replace_template")]
         template: String,
     },
@@ -72,21 +85,19 @@ pub enum TextRedaction {
         salt: Option<String>,
     },
     /// Delete the matched span entirely.
-    Redact,
+    Erase,
     /// Pass the value through unchanged.
     Keep,
     /// Look up a deployment-registered custom operator by id.
     Custom {
-        /// Id under which the operator was registered in the
-        /// [`RedactionRegistry<Text>`].
-        ///
-        /// [`RedactionRegistry<Text>`]: nvisy_toolkit::redaction::RedactionRegistry
-        id: AnonymizerId<Text>,
+        /// Id under which the operator was registered.
+        #[schemars(with = "crate::schema::OperatorIdSchema")]
+        id: OperatorId,
     },
 }
 
 fn default_replace_template() -> String {
-    "[{entity_kind}]".to_string()
+    "[{label}]".to_string()
 }
 
 fn default_mask_char() -> char {

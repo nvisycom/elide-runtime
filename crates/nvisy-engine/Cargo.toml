@@ -19,34 +19,22 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio", "rich"]
+default = ["tabular", "image", "audio"]
 test-utils = ["dep:tempfile"]
 
-tabular = ["nvisy-codec/tabular"]
-image = ["nvisy-codec/image"]
-audio = ["nvisy-codec/audio"]
-rich = ["image", "nvisy-codec/rich"]
-
-openai = ["nvisy-llm/openai-gpt"]
-anthropic = ["nvisy-llm/anthropic-claude"]
-google = ["nvisy-llm/google-gemini"]
-
-bento = ["nvisy-toolkit/bento", "nvisy-ner/bento", "nvisy-ocr/bento"]
+tabular = ["elide/codec-tabular"]
+image = ["elide/codec-image"]
+audio = ["elide/codec-audio"]
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-# Internal crates
-nvisy-codec = { workspace = true, features = ["text"] }
-nvisy-core = { workspace = true, features = [] }
-nvisy-llm = { workspace = true, features = [] }
-nvisy-ner = { workspace = true, features = [] }
-nvisy-ocr = { workspace = true, features = [] }
-nvisy-pattern = { workspace = true, features = [] }
-nvisy-stt = { workspace = true, features = [] }
-nvisy-toolkit = { workspace = true, features = [] }
+# Elide toolkit (upstream)
+elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "serde"] }
+elide-core = { workspace = true, features = [] }
+elide-llm = { workspace = true, features = ["openai-gpt", "anthropic-claude", "google-gemini"] }
 
 # Serialization
 serde = { workspace = true, features = [] }
@@ -91,8 +79,8 @@ tempfile = { workspace = true, features = [], optional = true }
 
 [dev-dependencies]
 nvisy-engine = { path = ".", features = ["test-utils"] }
-nvisy-core = { workspace = true, features = ["test-utils"] }
-nvisy-codec = { workspace = true, features = ["txt", "csv", "test-utils"] }
+elide-core = { workspace = true, features = [] }
+elide = { workspace = true, features = ["codec", "codec-txt", "codec-csv", "pattern", "ner", "llm", "serde"] }
 tempfile = { workspace = true, features = [] }
 
 [package.metadata.cargo-machete]

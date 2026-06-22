@@ -36,18 +36,27 @@ documentation = "https://docs.rs/nvisy-runtime"
 #
 # See for more details: https://github.com/rust-lang/cargo/issues/11329
 
+# Elide toolkit (upstream)
+elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-core = { git = "https://github.com/nvisycom/elide", branch = "main" }
+elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+
 # Internal crates
+nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-fake = { path = "./crates/nvisy-fake", version = "0.1.0" }
+nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
+nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
+nvisy-stt = { path = "./crates/nvisy-stt", version = "0.1.0" }
+
+# Internal crates being deleted: kept here as path-deps so consumer
+# manifests (nvisy-server/cli/fake/ocr/stt/toolkit) parse during the
+# migration. Each entry leaves with its consumer's migration task.
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
 nvisy-context = { path = "./crates/nvisy-context", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
-nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
-nvisy-fake = { path = "./crates/nvisy-fake", version = "0.1.0" }
 nvisy-llm = { path = "./crates/nvisy-llm", version = "0.1.0" }
 nvisy-ner = { path = "./crates/nvisy-ner", version = "0.1.0" }
-nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
-nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
-nvisy-stt = { path = "./crates/nvisy-stt", version = "0.1.0" }
 nvisy-toolkit = { path = "./crates/nvisy-toolkit", version = "0.1.0" }
 
 # Serialization

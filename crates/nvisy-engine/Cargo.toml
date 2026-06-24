@@ -33,17 +33,30 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Elide toolkit (upstream)
-elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "serde"] }
+# Elide toolkit (upstream). `mock` pulls the no-op NER/LLM backends
+# the analyzer compile uses for `NerBackendSpec::Mock` /
+# `LlmBackendSpec::Mock`; real LLM providers land when key-provider
+# wiring lands.
+elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "mock", "serde"] }
 elide-core = { workspace = true, features = ["serde", "image", "audio", "tabular"] }
-elide-llm = { workspace = true, features = ["openai-gpt", "anthropic-claude", "google-gemini"] }
+
+# Recognition-side elide crates not re-exported through the elide
+# umbrella the way the recognizer crates are (`elide::recognition::*`
+# is the natural reach for those). `elide-ocr` is the OCR enricher
+# layer engine wires from the image-modality compile path.
+elide-ocr = { workspace = true, features = ["mock"] }
+
+# Runtime-owned elide extensions
+elide-bento = { workspace = true, features = ["ner", "ocr"] }
 
 # Derive macros
 derive_more = { workspace = true, features = ["as_ref", "deref", "from"] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
-bytes = { workspace = true, features = [] }
+
+# Async runtime
+tokio = { workspace = true, features = ["rt", "macros"] }
 
 # Multi-tenant storage
 fjall = { workspace = true, features = [] }

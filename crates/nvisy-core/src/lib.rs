@@ -3,6 +3,7 @@
 #![doc = include_str!("../README.md")]
 
 pub mod context;
+pub mod plan;
 pub mod policy;
 pub mod schema;
 pub mod service;

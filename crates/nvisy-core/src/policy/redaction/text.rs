@@ -1,41 +1,32 @@
 //! [`TextRedaction`]: the operator spec a text-modality policy rule
 //! carries.
 //!
-//! Spec types — the serialisable, author-facing wire shape. The
-//! engine compiles each variant into the matching
-//! [`elide::redaction::operators`] instance at apply time.
+//! Each variant mirrors an elide built-in operator the engine
+//! constructs at apply time:
 //!
-//! Built-in variants ([`Replace`], [`Mask`], [`Hash`], [`Erase`],
-//! [`Keep`]) ship in elide. [`TextRedaction::Custom`] names a
-//! deployment-registered operator looked up by [`OperatorId`].
+//! - [`TextRedaction::Erase`] → [`elide::redaction::operators::Erase`]
+//! - [`TextRedaction::Keep`] → [`elide::redaction::operators::Keep`]
+//! - [`TextRedaction::Mask`] → [`elide::redaction::operators::Mask`]
+//! - [`TextRedaction::Replace`] → [`elide::redaction::operators::Replace`]
+//! - [`TextRedaction::Hash`] → [`elide::redaction::operators::Hash`]
+//! - [`TextRedaction::Pseudonymize`] →
+//!   [`elide::redaction::operators::Pseudonymize`]
+//! - [`TextRedaction::Encrypt`] →
+//!   [`elide::redaction::operators::Encrypt`] (engine wires the
+//!   per-tenant key provider)
 //!
-//! ## Why no `Encrypt` variant?
-//!
-//! Reversible AES-256-GCM needs 32 bytes of raw key material plus an
-//! `Aes256Gcm` instance. Putting either in a TOML / JSON wire shape
-//! is unsafe (key leakage in version control, log dumps) and awkward
-//! (binary blobs in declarative config). Deployments that want
-//! reversible AES-256-GCM redaction build an encrypt operator in
-//! Rust code, register it via [`OperatorId`], and reference it from
-//! policy with `{ kind = "custom", id = "..." }`.
-//!
-//! [`Replace`]: elide::redaction::operators::Replace
-//! [`Mask`]: elide::redaction::operators::Mask
-//! [`Hash`]: elide::redaction::operators::Hash
-//! [`Erase`]: elide::redaction::operators::Erase
-//! [`Keep`]: elide::redaction::operators::Keep
-//! [`OperatorId`]: elide_core::redaction::OperatorId
+//! No `Custom` escape hatch — every operator the wire format admits
+//! is predefined. New built-ins land in elide first, then surface
+//! here as new variants.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::OperatorIdSchema;
-
 /// SHA-2 variant for the [`TextRedaction::Hash`] operator.
 ///
-/// Spec mirror of [`elide::redaction::operators::HashAlgorithm`]; the
-/// engine maps between the two at compile time. Local copy so the
-/// wire format owns its vocabulary (the upstream enum is not
+/// Spec mirror of elide's [`elide::redaction::operators::HashAlgorithm`];
+/// the engine maps between the two at compile time. Local copy so
+/// the wire format owns its vocabulary (the upstream enum is not
 /// serialisable today).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -53,13 +44,10 @@ pub enum HashAlgorithm {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TextRedaction {
-    /// Substitute the span with a fixed template. Supports
-    /// `{label}` / `{value}` / `{coref}` placeholders.
-    Replace {
-        /// Template string. Default `[{label}]`.
-        #[serde(default = "default_replace_template")]
-        template: String,
-    },
+    /// Delete the matched span entirely.
+    Erase,
+    /// Pass the value through unchanged.
+    Keep,
     /// Character-replacement masking. Leaves `keep_prefix` leading
     /// and `keep_suffix` trailing characters visible; masks the
     /// rest with `mask_char`.
@@ -76,6 +64,13 @@ pub enum TextRedaction {
         #[serde(default, skip_serializing_if = "is_zero")]
         keep_suffix: usize,
     },
+    /// Substitute the span with a fixed template. Supports
+    /// `{label}` / `{value}` / `{coref}` placeholders.
+    Replace {
+        /// Template string. Default `[{label}]`.
+        #[serde(default = "default_replace_template")]
+        template: String,
+    },
     /// One-way SHA-2 hash with optional salt.
     Hash {
         /// SHA-256 (default) or SHA-512.
@@ -85,15 +80,18 @@ pub enum TextRedaction {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         salt: Option<String>,
     },
-    /// Delete the matched span entirely.
-    Erase,
-    /// Pass the value through unchanged.
-    Keep,
-    /// Look up a deployment-registered custom operator by id.
-    Custom {
-        /// Id under which the operator was registered.
-        id: OperatorIdSchema,
-    },
+    /// Vault-backed pseudonym: every mention of the same entity
+    /// reads the same surrogate. The engine wires a per-request
+    /// vault + the default [`RandomToken`] generator.
+    ///
+    /// [`RandomToken`]: elide::redaction::generator::RandomToken
+    Pseudonymize,
+    /// Reversible AES-256-GCM ciphertext. The engine wires the
+    /// per-tenant [`KeyProvider`] so raw key material never lives in
+    /// serialised policy.
+    ///
+    /// [`KeyProvider`]: elide::redaction::key_provider::KeyProvider
+    Encrypt,
 }
 
 fn default_replace_template() -> String {

@@ -32,7 +32,11 @@ documentation = "https://docs.rs/nvisy-runtime"
 # Elide toolkit (upstream)
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main" }
-elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+# `elide-ner` + `elide-ocr` are pulled directly only by `elide-bento`, which
+# implements the per-backend traits these crates export. Engine and other
+# consumers reach the same types through `elide::recognition::{ner, ocr}`.
+elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Runtime-owned elide extensions
 elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }

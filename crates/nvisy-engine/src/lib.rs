@@ -17,6 +17,8 @@
 //!   primitives ([`fjall`] keyspaces keyed by
 //!   `[actor_id | resource_id]`).
 
+mod engine;
+
 pub mod analyzer;
 pub mod anonymizer;
 pub mod registry;
@@ -24,3 +26,7 @@ pub mod registry;
 pub mod contexts;
 pub mod policies;
 pub mod runs;
+
+pub use self::contexts::ContextRegistry;
+pub use self::engine::EngineHandle;
+pub use self::policies::PolicyRegistry;

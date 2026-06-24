@@ -1,9 +1,10 @@
 //! Run lifecycle orchestration: [`start`] persists inputs +
-//! Queued per-doc rows, fans the analyzer out across documents,
-//! and transitions the run to [`RunState::AwaitingReview`].
-//! [`apply`] is still a scaffold (per-doc apply lands in E3.I).
+//! Queued per-doc rows and fans the analyzer out across documents
+//! to flip the run into [`RunState::AwaitingReview`]. [`apply`]
+//! runs the per-doc anonymizer pass to flip the run into
+//! [`RunState::Applied`] or [`RunState::PartiallyApplied`].
 //!
-//! Fan-out shape:
+//! Fan-out shape (shared by analyze and apply):
 //!
 //! - [`futures::stream::iter`] over the per-doc workload,
 //!   capped at [`Run::concurrency`] in-flight by
@@ -16,20 +17,21 @@
 //!   [`RunDocState::AwaitingReview`].
 //!
 //! Stream-based concurrency (not [`tokio::task::JoinSet`]) is
-//! deliberate: each per-doc future borrows the codec registry +
-//! analyzer spec, and `JoinSet::spawn` would force them to
-//! `'static`. The stream combinator keeps the borrows live for
-//! free.
+//! deliberate: each per-doc future borrows the [`EngineHandle`]
+//! and the analyzer spec, and `JoinSet::spawn` would force them
+//! to `'static`. The stream combinator keeps the borrows live
+//! for free.
+//!
+//! [`EngineHandle`]: crate::EngineHandle
 
 use std::time::Duration;
 
-use elide::codec::FormatRegistry;
 use futures::StreamExt;
 use jiff::Timestamp;
 use nvisy_core::Result;
 use uuid::Uuid;
 
-use crate::registry::RegistryHandle;
+use crate::{EngineHandle, PolicyRegistry};
 
 use super::filter::{DocumentFacts, merge_metadata};
 use super::input::StartBatch;
@@ -63,8 +65,7 @@ const PER_DOC_TIMEOUT: Duration = Duration::from_secs(120);
 /// Returns the new run id; the per-doc results are queryable via
 /// [`super::get_doc`].
 pub async fn start(
-    handle: &RegistryHandle,
-    formats: &FormatRegistry,
+    engine: &EngineHandle,
     actor_id: Uuid,
     batch: StartBatch,
 ) -> Result<Uuid> {
@@ -77,12 +78,13 @@ pub async fn start(
     // header lands. `modality` defaults to Text and gets corrected
     // once the codec resolves; `body` stays empty until analyze
     // finishes.
+    let registry = engine.registry();
     let mut document_ids = Vec::with_capacity(batch.documents.len());
     for doc in &batch.documents {
         let doc_id = Uuid::now_v7();
         document_ids.push(doc_id);
 
-        put_input(handle, actor_id, run_id, doc_id, doc.bytes.clone()).await?;
+        put_input(registry, actor_id, run_id, doc_id, doc.bytes.clone()).await?;
 
         let modality = ModalityKind::Text;
         let document = RunDocument {
@@ -95,7 +97,7 @@ pub async fn start(
             body: DocBody::empty(modality),
             has_artifact: false,
         };
-        put_doc(handle, actor_id, run_id, &document).await?;
+        put_doc(registry, actor_id, run_id, &document).await?;
     }
 
     let run = Run {
@@ -110,19 +112,16 @@ pub async fn start(
         analyzer: batch.analyzer,
         concurrency,
     };
-    put_header(handle, actor_id, &run).await?;
+    put_header(registry, actor_id, &run).await?;
 
-    fanout_analyze(
-        handle,
-        formats,
-        actor_id,
-        run_id,
-        &document_ids,
-        &batch.documents,
-        &run.analyzer,
-        concurrency,
-    )
-    .await?;
+    let work = document_ids
+        .iter()
+        .zip(batch.documents.iter())
+        .map(|(doc_id, doc)| analyze_one_doc(engine, actor_id, run_id, *doc_id, doc, &run.analyzer));
+    futures::stream::iter(work)
+        .buffer_unordered(concurrency)
+        .for_each(|()| async {})
+        .await;
 
     // All per-doc rows have settled in their terminal analyze
     // state (AwaitingReview / Failed / TimedOut); flip the header
@@ -130,66 +129,33 @@ pub async fn start(
     let mut header = run;
     header.state = RunState::AwaitingReview;
     header.updated_at = Timestamp::now();
-    put_header(handle, actor_id, &header).await?;
+    put_header(registry, actor_id, &header).await?;
 
     Ok(run_id)
-}
-
-/// Drive the per-doc analyze fan-out as a bounded-concurrency
-/// stream.
-///
-/// One per-doc future per `(doc_id, document)` pair; the stream
-/// caps in-flight work at `concurrency`. Each future:
-///   1. flips the per-doc state to Analyzing,
-///   2. calls the pipeline under a hard timeout,
-///   3. writes the per-doc row with the resolved state.
-///
-/// Per-doc failures are recorded in fjall, not returned — the
-/// outer Result only fails on infrastructure-level errors.
-async fn fanout_analyze(
-    handle: &RegistryHandle,
-    formats: &FormatRegistry,
-    actor_id: Uuid,
-    run_id: Uuid,
-    document_ids: &[Uuid],
-    documents: &[super::input::DocumentInput],
-    spec: &nvisy_core::plan::AnalyzerSpec,
-    concurrency: usize,
-) -> Result<()> {
-    let work = document_ids.iter().zip(documents.iter()).map(|(doc_id, doc)| {
-        analyze_one_doc(handle, formats, actor_id, run_id, *doc_id, doc, spec)
-    });
-
-    futures::stream::iter(work)
-        .buffer_unordered(concurrency)
-        .for_each(|()| async {})
-        .await;
-
-    Ok(())
 }
 
 /// One per-doc unit of the analyze fan-out. Owns the lifecycle
 /// transitions for one row; never returns an error (failures
 /// land in the row's state).
 async fn analyze_one_doc(
-    handle: &RegistryHandle,
-    formats: &FormatRegistry,
+    engine: &EngineHandle,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
     doc: &super::input::DocumentInput,
     spec: &nvisy_core::plan::AnalyzerSpec,
 ) {
-    mark_analyzing(handle, actor_id, run_id, doc_id).await;
+    let registry = engine.registry();
+    mark_analyzing(registry, actor_id, run_id, doc_id).await;
 
-    let analyze = analyze_document(formats, doc.bytes.clone(), &doc.extension, spec);
+    let analyze = analyze_document(engine.formats(), doc.bytes.clone(), &doc.extension, spec);
     let outcome = match tokio::time::timeout(PER_DOC_TIMEOUT, analyze).await {
         Ok(Ok(outcome)) => Ok(outcome),
         Ok(Err(err)) => Err(DocFailure::Failed(err.to_string())),
         Err(_) => Err(DocFailure::TimedOut),
     };
 
-    write_outcome(handle, actor_id, run_id, doc_id, outcome).await;
+    write_outcome(registry, actor_id, run_id, doc_id, outcome).await;
 }
 
 enum DocFailure {
@@ -198,24 +164,24 @@ enum DocFailure {
 }
 
 async fn mark_analyzing(
-    handle: &RegistryHandle,
+    registry: &crate::registry::RegistryHandle,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
 ) {
-    let Ok(mut doc) = get_doc(handle, actor_id, run_id, doc_id).await else { return };
+    let Ok(mut doc) = get_doc(registry, actor_id, run_id, doc_id).await else { return };
     doc.state = RunDocState::Analyzing;
-    let _ = put_doc(handle, actor_id, run_id, &doc).await;
+    let _ = put_doc(registry, actor_id, run_id, &doc).await;
 }
 
 async fn write_outcome(
-    handle: &RegistryHandle,
+    registry: &crate::registry::RegistryHandle,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
     outcome: std::result::Result<super::pipeline::AnalyzeOutcome, DocFailure>,
 ) {
-    let Ok(mut doc) = get_doc(handle, actor_id, run_id, doc_id).await else { return };
+    let Ok(mut doc) = get_doc(registry, actor_id, run_id, doc_id).await else { return };
     match outcome {
         Ok(out) => {
             doc.modality = out.modality;
@@ -229,7 +195,7 @@ async fn write_outcome(
             doc.state = RunDocState::TimedOut;
         }
     }
-    let _ = put_doc(handle, actor_id, run_id, &doc).await;
+    let _ = put_doc(registry, actor_id, run_id, &doc).await;
 }
 
 /// Apply a run.
@@ -241,13 +207,9 @@ async fn write_outcome(
 /// and rewrites the header to [`RunState::Applied`] (every doc
 /// applied) or [`RunState::PartiallyApplied`] (at least one
 /// failed).
-pub async fn apply(
-    handle: &RegistryHandle,
-    formats: &FormatRegistry,
-    actor_id: Uuid,
-    run_id: Uuid,
-) -> Result<()> {
-    let mut run = get_header(handle, actor_id, run_id).await?;
+pub async fn apply(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+    let registry = engine.registry();
+    let mut run = get_header(registry, actor_id, run_id).await?;
     if !matches!(run.state, RunState::AwaitingReview) {
         return Err(nvisy_core::Error::conflict(
             format!(
@@ -261,20 +223,23 @@ pub async fn apply(
     // Resolve every referenced policy up-front. Apply needs the
     // full set so each per-doc task can filter by
     // `Policy::applies_when` against that doc's facts.
-    let policies = resolve_policies(handle, actor_id, &run.policy_refs).await?;
+    let policies = resolve_policies(registry, actor_id, &run.policy_refs).await?;
 
-    let outcomes = fanout_apply(
-        handle,
-        formats,
-        actor_id,
-        run_id,
-        &run.document_ids,
-        &run.metadata,
-        &run.analyzer,
-        &policies,
-        run.concurrency,
-    )
-    .await;
+    let work = run.document_ids.iter().map(|doc_id| {
+        apply_one_doc(
+            engine,
+            actor_id,
+            run_id,
+            *doc_id,
+            &run.metadata,
+            &run.analyzer,
+            &policies,
+        )
+    });
+    let outcomes: Vec<bool> = futures::stream::iter(work)
+        .buffer_unordered(run.concurrency)
+        .collect()
+        .await;
 
     let all_applied = outcomes.iter().all(|ok| *ok);
     run.state = if all_applied {
@@ -283,7 +248,7 @@ pub async fn apply(
         RunState::PartiallyApplied
     };
     run.updated_at = Timestamp::now();
-    put_header(handle, actor_id, &run).await?;
+    put_header(registry, actor_id, &run).await?;
     Ok(())
 }
 
@@ -292,54 +257,23 @@ pub async fn apply(
 /// call (the per-doc filter operates on the full set; a missing
 /// policy can't be silently dropped).
 async fn resolve_policies(
-    handle: &RegistryHandle,
+    registry: &crate::registry::RegistryHandle,
     actor_id: Uuid,
     refs: &[super::state::ResourceRef],
 ) -> Result<Vec<nvisy_core::policy::Policy>> {
     let mut out = Vec::with_capacity(refs.len());
     for r in refs {
-        let policy = crate::policies::get(handle, actor_id, r.id, r.version.clone()).await?;
+        let policy = registry.get_policy(actor_id, r.id, r.version.clone()).await?;
         out.push(policy);
     }
     Ok(out)
-}
-
-async fn fanout_apply(
-    handle: &RegistryHandle,
-    formats: &FormatRegistry,
-    actor_id: Uuid,
-    run_id: Uuid,
-    document_ids: &[Uuid],
-    request_metadata: &std::collections::HashMap<String, String>,
-    spec: &nvisy_core::plan::AnalyzerSpec,
-    policies: &[nvisy_core::policy::Policy],
-    concurrency: usize,
-) -> Vec<bool> {
-    let work = document_ids.iter().map(|doc_id| {
-        apply_one_doc(
-            handle,
-            formats,
-            actor_id,
-            run_id,
-            *doc_id,
-            request_metadata,
-            spec,
-            policies,
-        )
-    });
-
-    futures::stream::iter(work)
-        .buffer_unordered(concurrency)
-        .collect::<Vec<bool>>()
-        .await
 }
 
 /// One per-doc unit of the apply fan-out. Returns `true` on
 /// success, `false` when any step failed (failures land in the
 /// row's state; the boolean only drives the header transition).
 async fn apply_one_doc(
-    handle: &RegistryHandle,
-    formats: &FormatRegistry,
+    engine: &EngineHandle,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
@@ -347,7 +281,8 @@ async fn apply_one_doc(
     spec: &nvisy_core::plan::AnalyzerSpec,
     policies: &[nvisy_core::policy::Policy],
 ) -> bool {
-    let Ok(mut doc) = get_doc(handle, actor_id, run_id, doc_id).await else {
+    let registry = engine.registry();
+    let Ok(mut doc) = get_doc(registry, actor_id, run_id, doc_id).await else {
         return false;
     };
     // Only apply rows that finished analyze. Failed / TimedOut /
@@ -356,11 +291,11 @@ async fn apply_one_doc(
         return matches!(doc.state, RunDocState::Applied);
     }
 
-    let Ok(bytes) = get_input(handle, actor_id, run_id, doc_id).await else {
+    let Ok(bytes) = get_input(registry, actor_id, run_id, doc_id).await else {
         doc.state = RunDocState::Failed {
             reason: "input bytes missing from run_inputs keyspace".into(),
         };
-        let _ = put_doc(handle, actor_id, run_id, &doc).await;
+        let _ = put_doc(registry, actor_id, run_id, &doc).await;
         return false;
     };
 
@@ -370,26 +305,34 @@ async fn apply_one_doc(
         metadata: &merged,
     };
 
-    let outcome =
-        apply_document(formats, bytes, &doc.extension, spec, policies, &facts, &doc.body).await;
+    let outcome = apply_document(
+        engine.formats(),
+        bytes,
+        &doc.extension,
+        spec,
+        policies,
+        &facts,
+        &doc.body,
+    )
+    .await;
 
     match outcome {
         Ok(out) => {
-            if put_artifact(handle, actor_id, run_id, doc_id, out.bytes).await.is_err() {
+            if put_artifact(registry, actor_id, run_id, doc_id, out.bytes).await.is_err() {
                 doc.state = RunDocState::Failed {
                     reason: "writing redacted artifact failed".into(),
                 };
-                let _ = put_doc(handle, actor_id, run_id, &doc).await;
+                let _ = put_doc(registry, actor_id, run_id, &doc).await;
                 return false;
             }
             doc.has_artifact = true;
             doc.state = RunDocState::Applied;
-            let _ = put_doc(handle, actor_id, run_id, &doc).await;
+            let _ = put_doc(registry, actor_id, run_id, &doc).await;
             true
         }
         Err(err) => {
             doc.state = RunDocState::Failed { reason: err.to_string() };
-            let _ = put_doc(handle, actor_id, run_id, &doc).await;
+            let _ = put_doc(registry, actor_id, run_id, &doc).await;
             false
         }
     }
@@ -406,14 +349,15 @@ async fn apply_one_doc(
 ///
 /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
 pub async fn override_entity(
-    handle: &RegistryHandle,
+    engine: &EngineHandle,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
     entity_id: Uuid,
     action: nvisy_core::policy::RuleAction,
 ) -> Result<()> {
-    let mut doc = super::persist::get_doc(handle, actor_id, run_id, doc_id).await?;
+    let registry = engine.registry();
+    let mut doc = super::persist::get_doc(registry, actor_id, run_id, doc_id).await?;
     let found = patch_override(&mut doc.body, entity_id, action);
     if !found {
         return Err(nvisy_core::Error::not_found(
@@ -421,7 +365,7 @@ pub async fn override_entity(
             "runs::override_entity",
         ));
     }
-    super::persist::put_doc(handle, actor_id, run_id, &doc).await
+    super::persist::put_doc(registry, actor_id, run_id, &doc).await
 }
 
 fn patch_override(

@@ -4,7 +4,6 @@
 resolver = "3"
 members = [
     "./crates/elide-bento",
-    "./crates/elide-fake",
     "./crates/nvisy-cli",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
@@ -40,7 +39,6 @@ elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", defaul
 
 # Runtime-owned elide extensions
 elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }
-elide-fake = { path = "./crates/elide-fake", version = "0.1.0" }
 
 # Internal crates
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }

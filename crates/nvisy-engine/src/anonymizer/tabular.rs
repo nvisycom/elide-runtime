@@ -1,4 +1,5 @@
-//! Compile [`TabularRedaction`] specs to elide tabular operators.
+//! Compile tabular-modality rules to elide operators + attach to
+//! an [`Anonymizer<Tabular>`].
 //!
 //! Tabular shares the [`TextBacked`] vocabulary with text plus the
 //! structural [`DropRow`] / [`DropColumn`] operators.
@@ -13,69 +14,101 @@ use elide::redaction::operators::{
 };
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::tabular::Tabular;
-use elide_core::redaction::Attribution;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::policy::redaction::{HashAlgorithm as PolicyHashAlgorithm, TabularRedaction};
-use nvisy_core::policy::{Action, EntitySelector, Policy};
+use nvisy_core::policy::{Policy, Rule, RuleAction};
 
-use super::selector::{attach, default_attribution, rule_attribution};
+use uuid::Uuid;
 
-/// Compile every tabular-rule across `policies` into a
+use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
+
+/// Compile every tabular-applicable rule across `policies` into a
 /// tabular-modality anonymizer.
 pub fn compile_tabular(
     policies: &[Policy],
     catalog: LabelCatalog,
 ) -> Result<Anonymizer<Tabular>, Error> {
-    let mut anonymizer = Anonymizer::<Tabular>::new().with_catalog(catalog);
+    let anonymizer = Anonymizer::<Tabular>::new().with_catalog(catalog);
+    attach_policies_tabular(anonymizer, policies.iter())
+}
+
+/// Attach every tabular-applicable rule from `policies` onto an
+/// already-constructed anonymizer. Takes an iterator so the
+/// apply pipeline can pre-filter by [`Policy::applies_when`]
+/// without cloning.
+///
+/// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+pub(crate) fn attach_policies_tabular<'a>(
+    mut anonymizer: Anonymizer<Tabular>,
+    policies: impl Iterator<Item = &'a Policy>,
+) -> Result<Anonymizer<Tabular>, Error> {
     for policy in policies {
         for rule in &policy.rules {
-            if !rule.enabled {
-                continue;
-            }
-            let Action::Redact(redactions) = &rule.action else {
+            let RuleAction::Redact(redactions) = &rule.action else {
                 continue;
             };
             let Some(spec) = &redactions.tabular else {
                 continue;
             };
-            anonymizer = attach_tabular(
-                anonymizer,
-                &rule.selector,
-                spec,
-                rule_attribution(policy, rule),
-            )?;
+            anonymizer = attach_rule(anonymizer, policy, rule, spec)?;
         }
-        if let Some(Action::Redact(redactions)) = &policy.default_action
+        if let Some(RuleAction::Redact(redactions)) = &policy.fallback
             && let Some(spec) = &redactions.tabular
         {
-            anonymizer = attach_tabular_fallback(anonymizer, spec, default_attribution(policy))?;
+            anonymizer = attach_fallback(anonymizer, policy, spec)?;
         }
     }
     Ok(anonymizer)
 }
 
-fn attach_tabular(
+/// Attach a reviewer override for one entity. No-op when the
+/// override is not a tabular-modality `Redact`.
+pub(crate) fn attach_override_tabular(
     anonymizer: Anonymizer<Tabular>,
-    selector: &EntitySelector,
-    spec: &TabularRedaction,
-    attribution: Attribution,
+    entity_id: Uuid,
+    action: &RuleAction,
 ) -> Result<Anonymizer<Tabular>, Error> {
+    let RuleAction::Redact(redactions) = action else {
+        return Ok(anonymizer);
+    };
+    let Some(spec) = &redactions.tabular else {
+        return Ok(anonymizer);
+    };
     Ok(match build(spec)? {
-        TabularOp::Erase => attach(anonymizer, selector, Erase, attribution),
-        TabularOp::Keep => attach(anonymizer, selector, Keep, attribution),
-        TabularOp::Mask(op) => attach(anonymizer, selector, op, attribution),
-        TabularOp::Replace(op) => attach(anonymizer, selector, op, attribution),
-        TabularOp::Hash(op) => attach(anonymizer, selector, op, attribution),
-        TabularOp::DropRow => attach(anonymizer, selector, DropRow, attribution),
-        TabularOp::DropColumn => attach(anonymizer, selector, DropColumn, attribution),
+        TabularOp::Erase => attach_override(anonymizer, entity_id, Erase),
+        TabularOp::Keep => attach_override(anonymizer, entity_id, Keep),
+        TabularOp::Mask(op) => attach_override(anonymizer, entity_id, op),
+        TabularOp::Replace(op) => attach_override(anonymizer, entity_id, op),
+        TabularOp::Hash(op) => attach_override(anonymizer, entity_id, op),
+        TabularOp::DropRow => attach_override(anonymizer, entity_id, DropRow),
+        TabularOp::DropColumn => attach_override(anonymizer, entity_id, DropColumn),
     })
 }
 
-fn attach_tabular_fallback(
+fn attach_rule(
     anonymizer: Anonymizer<Tabular>,
+    policy: &Policy,
+    rule: &Rule,
     spec: &TabularRedaction,
-    attribution: Attribution,
 ) -> Result<Anonymizer<Tabular>, Error> {
+    let attribution = rule_attribution(policy, rule);
+    Ok(match build(spec)? {
+        TabularOp::Erase => attach(anonymizer, &rule.predicate, Erase, attribution),
+        TabularOp::Keep => attach(anonymizer, &rule.predicate, Keep, attribution),
+        TabularOp::Mask(op) => attach(anonymizer, &rule.predicate, op, attribution),
+        TabularOp::Replace(op) => attach(anonymizer, &rule.predicate, op, attribution),
+        TabularOp::Hash(op) => attach(anonymizer, &rule.predicate, op, attribution),
+        TabularOp::DropRow => attach(anonymizer, &rule.predicate, DropRow, attribution),
+        TabularOp::DropColumn => attach(anonymizer, &rule.predicate, DropColumn, attribution),
+    })
+}
+
+fn attach_fallback(
+    anonymizer: Anonymizer<Tabular>,
+    policy: &Policy,
+    spec: &TabularRedaction,
+) -> Result<Anonymizer<Tabular>, Error> {
+    let attribution = fallback_attribution(policy);
     Ok(match build(spec)? {
         TabularOp::Erase => anonymizer.with_fallback(Erase).because(attribution),
         TabularOp::Keep => anonymizer.with_fallback(Keep).because(attribution),

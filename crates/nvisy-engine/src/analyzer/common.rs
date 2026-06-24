@@ -29,7 +29,7 @@ use nvisy_core::plan::{
 
 /// Build the per-request label catalog from `spec`. Engine does not
 /// pre-seed builtins; the caller picks.
-pub(super) fn build_catalog(spec: &AnalyzerSpec) -> LabelCatalog {
+pub(crate) fn build_catalog(spec: &AnalyzerSpec) -> LabelCatalog {
     let mut catalog = LabelCatalog::new();
     for label in &spec.label_catalog {
         catalog.insert(label.clone().into());

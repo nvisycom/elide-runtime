@@ -1,70 +1,101 @@
-//! Compile [`ImageRedaction`] specs to elide image operators.
+//! Compile image-modality rules to elide operators + attach to an
+//! [`Anonymizer<Image>`].
 
 use elide::Anonymizer;
 use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
 use elide_core::Error;
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::image::Image;
-use elide_core::redaction::Attribution;
 use nvisy_core::policy::redaction::ImageRedaction;
-use nvisy_core::policy::{Action, EntitySelector, Policy};
+use nvisy_core::policy::{Policy, Rule, RuleAction};
 
-use super::selector::{attach, default_attribution, rule_attribution};
+use uuid::Uuid;
 
-/// Compile every image-rule across `policies` into an image-modality
-/// anonymizer.
+use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
+
+/// Compile every image-applicable rule across `policies` into an
+/// image-modality anonymizer.
 pub fn compile_image(
     policies: &[Policy],
     catalog: LabelCatalog,
 ) -> Result<Anonymizer<Image>, Error> {
-    let mut anonymizer = Anonymizer::<Image>::new().with_catalog(catalog);
+    let anonymizer = Anonymizer::<Image>::new().with_catalog(catalog);
+    Ok(attach_policies_image(anonymizer, policies.iter()))
+}
+
+/// Attach every image-applicable rule from `policies` onto an
+/// already-constructed anonymizer. Takes an iterator so the
+/// apply pipeline can pre-filter by [`Policy::applies_when`]
+/// without cloning.
+///
+/// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+pub(crate) fn attach_policies_image<'a>(
+    mut anonymizer: Anonymizer<Image>,
+    policies: impl Iterator<Item = &'a Policy>,
+) -> Anonymizer<Image> {
     for policy in policies {
         for rule in &policy.rules {
-            if !rule.enabled {
-                continue;
-            }
-            let Action::Redact(redactions) = &rule.action else {
+            let RuleAction::Redact(redactions) = &rule.action else {
                 continue;
             };
             let Some(spec) = &redactions.image else {
                 continue;
             };
-            anonymizer = attach_image(
-                anonymizer,
-                &rule.selector,
-                spec,
-                rule_attribution(policy, rule),
-            );
+            anonymizer = attach_rule(anonymizer, policy, rule, spec);
         }
-        if let Some(Action::Redact(redactions)) = &policy.default_action
+        if let Some(RuleAction::Redact(redactions)) = &policy.fallback
             && let Some(spec) = &redactions.image
         {
-            anonymizer = attach_image_fallback(anonymizer, spec, default_attribution(policy));
+            anonymizer = attach_fallback(anonymizer, policy, spec);
         }
     }
-    Ok(anonymizer)
+    anonymizer
 }
 
-fn attach_image(
+/// Attach a reviewer override for one entity. No-op when the
+/// override is not an image-modality `Redact`.
+pub(crate) fn attach_override_image(
     anonymizer: Anonymizer<Image>,
-    selector: &EntitySelector,
-    spec: &ImageRedaction,
-    attribution: Attribution,
+    entity_id: Uuid,
+    action: &RuleAction,
 ) -> Anonymizer<Image> {
+    let RuleAction::Redact(redactions) = action else {
+        return anonymizer;
+    };
+    let Some(spec) = &redactions.image else {
+        return anonymizer;
+    };
     match build(spec) {
-        ImageOp::Erase => attach(anonymizer, selector, Erase, attribution),
-        ImageOp::Keep => attach(anonymizer, selector, Keep, attribution),
-        ImageOp::Blur(op) => attach(anonymizer, selector, op, attribution),
-        ImageOp::Pixelate(op) => attach(anonymizer, selector, op, attribution),
-        ImageOp::Blackbox(op) => attach(anonymizer, selector, op, attribution),
+        ImageOp::Erase => attach_override(anonymizer, entity_id, Erase),
+        ImageOp::Keep => attach_override(anonymizer, entity_id, Keep),
+        ImageOp::Blur(op) => attach_override(anonymizer, entity_id, op),
+        ImageOp::Pixelate(op) => attach_override(anonymizer, entity_id, op),
+        ImageOp::Blackbox(op) => attach_override(anonymizer, entity_id, op),
     }
 }
 
-fn attach_image_fallback(
+fn attach_rule(
     anonymizer: Anonymizer<Image>,
+    policy: &Policy,
+    rule: &Rule,
     spec: &ImageRedaction,
-    attribution: Attribution,
 ) -> Anonymizer<Image> {
+    let attribution = rule_attribution(policy, rule);
+    match build(spec) {
+        ImageOp::Erase => attach(anonymizer, &rule.predicate, Erase, attribution),
+        ImageOp::Keep => attach(anonymizer, &rule.predicate, Keep, attribution),
+        ImageOp::Blur(op) => attach(anonymizer, &rule.predicate, op, attribution),
+        ImageOp::Pixelate(op) => attach(anonymizer, &rule.predicate, op, attribution),
+        ImageOp::Blackbox(op) => attach(anonymizer, &rule.predicate, op, attribution),
+    }
+}
+
+fn attach_fallback(
+    anonymizer: Anonymizer<Image>,
+    policy: &Policy,
+    spec: &ImageRedaction,
+) -> Anonymizer<Image> {
+    let attribution = fallback_attribution(policy);
     match build(spec) {
         ImageOp::Erase => anonymizer.with_fallback(Erase).because(attribution),
         ImageOp::Keep => anonymizer.with_fallback(Keep).because(attribution),

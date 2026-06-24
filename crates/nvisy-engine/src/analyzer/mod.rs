@@ -33,3 +33,5 @@ pub use self::audio::compile_audio;
 pub use self::image::compile_image;
 pub use self::tabular::compile_tabular;
 pub use self::text::compile_text;
+
+pub(crate) use self::common::build_catalog;

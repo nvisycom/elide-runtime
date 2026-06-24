@@ -53,10 +53,29 @@ elide-bento = { workspace = true, features = ["ner", "ocr"] }
 derive_more = { workspace = true, features = ["as_ref", "deref", "from"] }
 
 # Primitive datatypes
-uuid = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v7"] }
+semver = { workspace = true, features = ["serde"] }
+hipstr = { workspace = true, features = ["serde"] }
+jiff = { workspace = true, features = ["serde"] }
+bytes = { workspace = true, features = [] }
+serde = { workspace = true, features = ["derive"] }
 
-# Async runtime
-tokio = { workspace = true, features = ["rt", "macros"] }
+# Async runtime — `time` powers the per-doc timeout wrapping the
+# analyze fan-out. We do **not** depend on `rt`/`spawn`-style
+# concurrency: the engine drives concurrent analyzes via
+# `futures::stream::buffer_unordered` so the surrounding borrows
+# of the codec registry + analyzer spec can stay non-`'static`.
+tokio = { workspace = true, features = ["macros", "time"] }
+
+# Concurrent stream combinators for the analyze fan-out.
+# `stream::iter(...).buffer_unordered(N)` is the engine's
+# non-spawn concurrency primitive — caps in-flight work at N
+# while keeping every per-doc future borrowing the codec
+# registry + spec for free.
+futures = { workspace = true, features = ["std"] }
 
 # Multi-tenant storage
 fjall = { workspace = true, features = [] }
+
+# Resource serialisation (policy / context / run blobs in fjall)
+serde_json = { workspace = true, features = [] }

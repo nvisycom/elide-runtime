@@ -1,69 +1,99 @@
-//! Compile [`AudioRedaction`] specs to elide audio operators.
+//! Compile audio-modality rules to elide operators + attach to an
+//! [`Anonymizer<Audio>`].
 
 use elide::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
 use elide_core::Error;
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::audio::Audio;
-use elide_core::redaction::Attribution;
 use nvisy_core::policy::redaction::AudioRedaction;
-use nvisy_core::policy::{Action, EntitySelector, Policy};
+use nvisy_core::policy::{Policy, Rule, RuleAction};
 
-use super::selector::{attach, default_attribution, rule_attribution};
+use uuid::Uuid;
 
-/// Compile every audio-rule across `policies` into an audio-modality
-/// anonymizer.
+use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
+
+/// Compile every audio-applicable rule across `policies` into an
+/// audio-modality anonymizer.
 pub fn compile_audio(
     policies: &[Policy],
     catalog: LabelCatalog,
 ) -> Result<Anonymizer<Audio>, Error> {
-    let mut anonymizer = Anonymizer::<Audio>::new().with_catalog(catalog);
+    let anonymizer = Anonymizer::<Audio>::new().with_catalog(catalog);
+    Ok(attach_policies_audio(anonymizer, policies.iter()))
+}
+
+/// Attach every audio-applicable rule from `policies` onto an
+/// already-constructed anonymizer. Takes an iterator so the
+/// apply pipeline can pre-filter by [`Policy::applies_when`]
+/// without cloning.
+///
+/// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+pub(crate) fn attach_policies_audio<'a>(
+    mut anonymizer: Anonymizer<Audio>,
+    policies: impl Iterator<Item = &'a Policy>,
+) -> Anonymizer<Audio> {
     for policy in policies {
         for rule in &policy.rules {
-            if !rule.enabled {
-                continue;
-            }
-            let Action::Redact(redactions) = &rule.action else {
+            let RuleAction::Redact(redactions) = &rule.action else {
                 continue;
             };
             let Some(spec) = &redactions.audio else {
                 continue;
             };
-            anonymizer = attach_audio(
-                anonymizer,
-                &rule.selector,
-                spec,
-                rule_attribution(policy, rule),
-            );
+            anonymizer = attach_rule(anonymizer, policy, rule, spec);
         }
-        if let Some(Action::Redact(redactions)) = &policy.default_action
+        if let Some(RuleAction::Redact(redactions)) = &policy.fallback
             && let Some(spec) = &redactions.audio
         {
-            anonymizer = attach_audio_fallback(anonymizer, spec, default_attribution(policy));
+            anonymizer = attach_fallback(anonymizer, policy, spec);
         }
     }
-    Ok(anonymizer)
+    anonymizer
 }
 
-fn attach_audio(
+/// Attach a reviewer override for one entity. No-op when the
+/// override is not an audio-modality `Redact`.
+pub(crate) fn attach_override_audio(
     anonymizer: Anonymizer<Audio>,
-    selector: &EntitySelector,
-    spec: &AudioRedaction,
-    attribution: Attribution,
+    entity_id: Uuid,
+    action: &RuleAction,
 ) -> Anonymizer<Audio> {
+    let RuleAction::Redact(redactions) = action else {
+        return anonymizer;
+    };
+    let Some(spec) = &redactions.audio else {
+        return anonymizer;
+    };
     match build(spec) {
-        AudioOp::Erase => attach(anonymizer, selector, Erase, attribution),
-        AudioOp::Keep => attach(anonymizer, selector, Keep, attribution),
-        AudioOp::Silence => attach(anonymizer, selector, Silence, attribution),
-        AudioOp::Beep(op) => attach(anonymizer, selector, op, attribution),
+        AudioOp::Erase => attach_override(anonymizer, entity_id, Erase),
+        AudioOp::Keep => attach_override(anonymizer, entity_id, Keep),
+        AudioOp::Silence => attach_override(anonymizer, entity_id, Silence),
+        AudioOp::Beep(op) => attach_override(anonymizer, entity_id, op),
     }
 }
 
-fn attach_audio_fallback(
+fn attach_rule(
     anonymizer: Anonymizer<Audio>,
+    policy: &Policy,
+    rule: &Rule,
     spec: &AudioRedaction,
-    attribution: Attribution,
 ) -> Anonymizer<Audio> {
+    let attribution = rule_attribution(policy, rule);
+    match build(spec) {
+        AudioOp::Erase => attach(anonymizer, &rule.predicate, Erase, attribution),
+        AudioOp::Keep => attach(anonymizer, &rule.predicate, Keep, attribution),
+        AudioOp::Silence => attach(anonymizer, &rule.predicate, Silence, attribution),
+        AudioOp::Beep(op) => attach(anonymizer, &rule.predicate, op, attribution),
+    }
+}
+
+fn attach_fallback(
+    anonymizer: Anonymizer<Audio>,
+    policy: &Policy,
+    spec: &AudioRedaction,
+) -> Anonymizer<Audio> {
+    let attribution = fallback_attribution(policy);
     match build(spec) {
         AudioOp::Erase => anonymizer.with_fallback(Erase).because(attribution),
         AudioOp::Keep => anonymizer.with_fallback(Keep).because(attribution),

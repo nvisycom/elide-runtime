@@ -13,7 +13,7 @@ use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
 use nvisy_core::{Error, ErrorKind, Result};
 use uuid::Uuid;
 
-use super::composite_key::CompositeKey;
+use super::key::CompositeKey;
 
 const COMPONENT: &str = "registry";
 

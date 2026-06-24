@@ -1,16 +1,27 @@
-//! Multi-tenant registry utilities backed by [`fjall`].
+//! Multi-tenant registry over fjall.
 //!
-//! Only the primitives — [`CompositeKey`] actor scoping, [`fjall`]
-//! extension traits, paged iteration — survive the engine rebuild;
-//! the higher-level content / audit stores will be redesigned around
-//! whatever request / result types engine ends up exposing.
+//! Three keyspace shapes, all actor-scoped:
+//!
+//! - **policies** + **contexts** keyspaces hold [`Policy`] and
+//!   [`Context`] resources versioned in place. Lookup by
+//!   `(actor_id, resource_id, version)`; latest-version lookup
+//!   range-scans by `(actor_id, resource_id)`.
+//! - **run_headers** holds short metadata blobs for each run (state,
+//!   refs to policies/contexts, timestamps). Lookup by
+//!   `(actor_id, run_id)`.
+//! - **run_docs** holds the per-document body for each run
+//!   (recognized entities + reviewer overrides + post-apply
+//!   redacted bytes/audit). Lookup by `(actor_id, run_id, doc_id)`.
+//!
+//! [`Policy`]: nvisy_core::policy::Policy
+//! [`Context`]: nvisy_core::context::Context
 
-mod composite_key;
 mod fjall_ext;
+mod handle;
+mod key;
 mod paged;
 
-pub(crate) use self::composite_key::CompositeKey;
-pub(crate) use self::fjall_ext::{
-    FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found,
-};
+pub use self::handle::RegistryHandle;
+pub(crate) use self::fjall_ext::{blocking, not_found};
+pub(crate) use self::key::{CompositeKey, TripleKey, VersionedKey};
 pub(crate) use self::paged::PagedResult;

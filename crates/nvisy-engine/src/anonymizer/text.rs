@@ -1,65 +1,104 @@
-//! Compile [`TextRedaction`] specs to elide text operators.
+//! Compile text-modality rules to elide operators + attach to an
+//! [`Anonymizer<Text>`].
 
 use elide::Anonymizer;
 use elide::redaction::operators::{Erase, Hash, HashAlgorithm, Keep, Mask, Replace};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::text::Text;
-use elide_core::redaction::Attribution;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::policy::redaction::{HashAlgorithm as PolicyHashAlgorithm, TextRedaction};
-use nvisy_core::policy::{Action, EntitySelector, Policy};
+use nvisy_core::policy::{Policy, Rule, RuleAction};
 
-use super::selector::{attach, default_attribution, rule_attribution};
+use uuid::Uuid;
 
-/// Compile every text-rule across `policies` into a text-modality
-/// anonymizer. Walks policies in precedence order and rules in
-/// declared order; every attached rule stamps an
-/// [`Attribution`] that flows onto each redaction's provenance.
+use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
+
+/// Compile every text-applicable rule across `policies` into a
+/// text-modality anonymizer. Walks policies in precedence order
+/// and rules in declared order; the first matching rule wins per
+/// entity at apply time.
 pub fn compile_text(policies: &[Policy], catalog: LabelCatalog) -> Result<Anonymizer<Text>, Error> {
-    let mut anonymizer = Anonymizer::<Text>::new().with_catalog(catalog);
+    let anonymizer = Anonymizer::<Text>::new().with_catalog(catalog);
+    attach_policies_text(anonymizer, policies.iter())
+}
+
+/// Attach every text-applicable rule from `policies` onto an
+/// already-constructed anonymizer. The apply pipeline calls this
+/// after layering per-entity override rules so the overrides
+/// keep first-match precedence. Takes an iterator (not a slice)
+/// so callers can pre-filter by [`Policy::applies_when`] without
+/// cloning the policy set.
+///
+/// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+pub(crate) fn attach_policies_text<'a>(
+    mut anonymizer: Anonymizer<Text>,
+    policies: impl Iterator<Item = &'a Policy>,
+) -> Result<Anonymizer<Text>, Error> {
     for policy in policies {
         for rule in &policy.rules {
-            if !rule.enabled {
-                continue;
-            }
-            let Action::Redact(redactions) = &rule.action else {
+            let RuleAction::Redact(redactions) = &rule.action else {
                 continue;
             };
             let Some(spec) = &redactions.text else {
                 continue;
             };
-            anonymizer =
-                attach_text(anonymizer, &rule.selector, spec, rule_attribution(policy, rule))?;
+            anonymizer = attach_rule(anonymizer, policy, rule, spec)?;
         }
-        if let Some(Action::Redact(redactions)) = &policy.default_action
+        if let Some(RuleAction::Redact(redactions)) = &policy.fallback
             && let Some(spec) = &redactions.text
         {
-            anonymizer = attach_text_fallback(anonymizer, spec, default_attribution(policy))?;
+            anonymizer = attach_fallback(anonymizer, policy, spec)?;
         }
     }
     Ok(anonymizer)
 }
 
-fn attach_text(
+/// Attach a reviewer override for one entity. The override only
+/// applies to `RuleAction::Redact` with a text-modality spec —
+/// other action shapes (or non-text overrides) are no-ops at the
+/// per-modality dispatch boundary.
+pub(crate) fn attach_override_text(
     anonymizer: Anonymizer<Text>,
-    selector: &EntitySelector,
-    spec: &TextRedaction,
-    attribution: Attribution,
+    entity_id: Uuid,
+    action: &RuleAction,
 ) -> Result<Anonymizer<Text>, Error> {
+    let RuleAction::Redact(redactions) = action else {
+        return Ok(anonymizer);
+    };
+    let Some(spec) = &redactions.text else {
+        return Ok(anonymizer);
+    };
     Ok(match build(spec)? {
-        TextOp::Erase => attach(anonymizer, selector, Erase, attribution),
-        TextOp::Keep => attach(anonymizer, selector, Keep, attribution),
-        TextOp::Mask(op) => attach(anonymizer, selector, op, attribution),
-        TextOp::Replace(op) => attach(anonymizer, selector, op, attribution),
-        TextOp::Hash(op) => attach(anonymizer, selector, op, attribution),
+        TextOp::Erase => attach_override(anonymizer, entity_id, Erase),
+        TextOp::Keep => attach_override(anonymizer, entity_id, Keep),
+        TextOp::Mask(op) => attach_override(anonymizer, entity_id, op),
+        TextOp::Replace(op) => attach_override(anonymizer, entity_id, op),
+        TextOp::Hash(op) => attach_override(anonymizer, entity_id, op),
     })
 }
 
-fn attach_text_fallback(
+fn attach_rule(
     anonymizer: Anonymizer<Text>,
+    policy: &Policy,
+    rule: &Rule,
     spec: &TextRedaction,
-    attribution: Attribution,
 ) -> Result<Anonymizer<Text>, Error> {
+    let attribution = rule_attribution(policy, rule);
+    Ok(match build(spec)? {
+        TextOp::Erase => attach(anonymizer, &rule.predicate, Erase, attribution),
+        TextOp::Keep => attach(anonymizer, &rule.predicate, Keep, attribution),
+        TextOp::Mask(op) => attach(anonymizer, &rule.predicate, op, attribution),
+        TextOp::Replace(op) => attach(anonymizer, &rule.predicate, op, attribution),
+        TextOp::Hash(op) => attach(anonymizer, &rule.predicate, op, attribution),
+    })
+}
+
+fn attach_fallback(
+    anonymizer: Anonymizer<Text>,
+    policy: &Policy,
+    spec: &TextRedaction,
+) -> Result<Anonymizer<Text>, Error> {
+    let attribution = fallback_attribution(policy);
     Ok(match build(spec)? {
         TextOp::Erase => anonymizer.with_fallback(Erase).because(attribution),
         TextOp::Keep => anonymizer.with_fallback(Keep).because(attribution),
@@ -69,10 +108,11 @@ fn attach_text_fallback(
     })
 }
 
-/// Discriminated builder result so [`attach`] / [`Anonymizer::with_fallback`]
-/// can attach the right concrete operator type. We can't return
-/// `Box<dyn Operator<_>>` because [`Anonymizer::with_label`] takes
-/// `O: Operator<M> + 'static` by value.
+/// Discriminated builder result so [`attach`] /
+/// [`Anonymizer::with_fallback`] can attach the right concrete
+/// operator type. We can't return `Box<dyn Operator<_>>` because
+/// [`Anonymizer::with_label`] takes `O: Operator<M> + 'static` by
+/// value.
 enum TextOp {
     Erase,
     Keep,

@@ -208,10 +208,18 @@ impl DocBody {
     /// the moment the run starts.
     pub fn empty(modality: ModalityKind) -> Self {
         match modality {
-            ModalityKind::Text => Self::Text { entities: Vec::new() },
-            ModalityKind::Tabular => Self::Tabular { entities: Vec::new() },
-            ModalityKind::Image => Self::Image { entities: Vec::new() },
-            ModalityKind::Audio => Self::Audio { entities: Vec::new() },
+            ModalityKind::Text => Self::Text {
+                entities: Vec::new(),
+            },
+            ModalityKind::Tabular => Self::Tabular {
+                entities: Vec::new(),
+            },
+            ModalityKind::Image => Self::Image {
+                entities: Vec::new(),
+            },
+            ModalityKind::Audio => Self::Audio {
+                entities: Vec::new(),
+            },
         }
     }
 }

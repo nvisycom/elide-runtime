@@ -27,7 +27,16 @@ pub enum EnricherSpec {
 }
 
 /// Spec for the language-detection enricher.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "camelCase")]
 pub struct LanguageEnricherSpec {
     /// Minimum confidence the detector must report before a

@@ -17,7 +17,6 @@ use elide_core::modality::tabular::Tabular;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::policy::redaction::{HashAlgorithm as PolicyHashAlgorithm, TabularRedaction};
 use nvisy_core::policy::{Policy, Rule, RuleAction};
-
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};

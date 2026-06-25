@@ -20,9 +20,7 @@ use super::scope::compile_scope;
 
 /// Compile `spec` into a tabular-modality analyzer + its compiled
 /// [`Scope`].
-pub fn compile_tabular(
-    spec: &AnalyzerSpec,
-) -> Result<(Analyzer<Tabular>, Scope<Tabular>), Error> {
+pub fn compile_tabular(spec: &AnalyzerSpec) -> Result<(Analyzer<Tabular>, Scope<Tabular>), Error> {
     let scope = compile_scope::<Tabular>(&spec.scope)?;
     let catalog = build_catalog(spec);
     let mut analyzer = Analyzer::<Tabular>::new();

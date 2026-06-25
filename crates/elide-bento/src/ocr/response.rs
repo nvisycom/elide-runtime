@@ -96,7 +96,9 @@ impl WireOcrResponse {
             .into_iter()
             .flat_map(|page| {
                 let page_number = page.page_number;
-                page.blocks.into_iter().map(move |block| block.decode(page_number))
+                page.blocks
+                    .into_iter()
+                    .map(move |block| block.decode(page_number))
             })
             .collect();
         OcrResponse::new(blocks)

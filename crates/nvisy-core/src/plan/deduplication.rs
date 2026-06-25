@@ -53,7 +53,17 @@ impl CalibrationMap {
 }
 
 /// Strategy the fuse layer uses to combine overlapping entities.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 pub enum FusionStrategySpec {
     /// Keep the entity with the highest confidence.
@@ -68,7 +78,17 @@ pub enum FusionStrategySpec {
 
 /// Strategy the resolve layer uses to break ties when several
 /// entities cover the same span.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ResolutionStrategySpec {
     /// Keep the highest-confidence entity.

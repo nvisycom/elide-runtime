@@ -20,7 +20,16 @@ pub enum RecognizerSpec {
 }
 
 /// Spec for the elide-pattern recognizer.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternRecognizerSpec {
     /// Load every pattern + dictionary shipped with elide-pattern.

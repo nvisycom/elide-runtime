@@ -170,12 +170,7 @@ impl PolicyRegistry for RegistryHandle {
         .await
     }
 
-    async fn delete_policy(
-        &self,
-        actor_id: Uuid,
-        policy_id: Uuid,
-        version: Version,
-    ) -> Result<()> {
+    async fn delete_policy(&self, actor_id: Uuid, policy_id: Uuid, version: Version) -> Result<()> {
         let key = VersionedKey::new(actor_id, policy_id, &version);
         let policies = self.policies().clone();
         blocking(move || {

@@ -17,8 +17,8 @@ use elide_core::{Error, ErrorKind};
 use elide_ocr::OcrEnricher;
 use elide_ocr::backend::MockBackend as MockOcrBackend;
 use nvisy_core::plan::{
-    AnalyzerSpec, EnricherSpec, LlmBackendSpec, LlmRecognizerSpec, OcrBackendSpec,
-    OcrEnricherSpec, RecognizerSpec,
+    AnalyzerSpec, EnricherSpec, LlmBackendSpec, LlmRecognizerSpec, OcrBackendSpec, OcrEnricherSpec,
+    RecognizerSpec,
 };
 
 use super::common::{attach_dedup, attach_enricher, attach_ner, attach_pattern, build_catalog};
@@ -26,9 +26,7 @@ use super::scope::compile_scope;
 
 /// Compile `spec` into an image-modality analyzer + its compiled
 /// [`Scope`].
-pub fn compile_image(
-    spec: &AnalyzerSpec,
-) -> Result<(Analyzer<Image>, Scope<Image>), Error> {
+pub fn compile_image(spec: &AnalyzerSpec) -> Result<(Analyzer<Image>, Scope<Image>), Error> {
     let scope = compile_scope::<Image>(&spec.scope)?;
     let catalog = build_catalog(spec);
     let mut analyzer = Analyzer::<Image>::new();
@@ -53,10 +51,7 @@ pub fn compile_image(
     Ok((analyzer, scope))
 }
 
-fn attach_ocr(
-    analyzer: Analyzer<Image>,
-    spec: &OcrEnricherSpec,
-) -> Result<Analyzer<Image>, Error> {
+fn attach_ocr(analyzer: Analyzer<Image>, spec: &OcrEnricherSpec) -> Result<Analyzer<Image>, Error> {
     let enricher = match &spec.backend {
         OcrBackendSpec::Mock => OcrEnricher::new(MockOcrBackend),
         OcrBackendSpec::Bento { base_url, model } => {

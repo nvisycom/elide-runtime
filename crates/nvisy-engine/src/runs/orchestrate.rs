@@ -31,17 +31,14 @@ use jiff::Timestamp;
 use nvisy_core::Result;
 use uuid::Uuid;
 
-use crate::{EngineHandle, PolicyRegistry};
-
 use super::filter::{DocumentFacts, merge_metadata};
 use super::input::StartBatch;
 use super::persist::{
     get_doc, get_header, get_input, put_artifact, put_doc, put_header, put_input,
 };
 use super::pipeline::{analyze_document, apply_document};
-use super::state::{
-    DocBody, ModalityKind, Run, RunDocState, RunDocument, RunState,
-};
+use super::state::{DocBody, ModalityKind, Run, RunDocState, RunDocument, RunState};
+use crate::{EngineHandle, PolicyRegistry};
 
 /// Default per-run concurrency cap when the caller's
 /// [`StartBatch::concurrency`] is `None`.
@@ -64,11 +61,7 @@ const PER_DOC_TIMEOUT: Duration = Duration::from_secs(120);
 ///
 /// Returns the new run id; the per-doc results are queryable via
 /// [`super::get_doc`].
-pub async fn start(
-    engine: &EngineHandle,
-    actor_id: Uuid,
-    batch: StartBatch,
-) -> Result<Uuid> {
+pub async fn start(engine: &EngineHandle, actor_id: Uuid, batch: StartBatch) -> Result<Uuid> {
     let run_id = Uuid::now_v7();
     let now = Timestamp::now();
     let concurrency = batch.concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
@@ -117,7 +110,9 @@ pub async fn start(
     let work = document_ids
         .iter()
         .zip(batch.documents.iter())
-        .map(|(doc_id, doc)| analyze_one_doc(engine, actor_id, run_id, *doc_id, doc, &run.analyzer));
+        .map(|(doc_id, doc)| {
+            analyze_one_doc(engine, actor_id, run_id, *doc_id, doc, &run.analyzer)
+        });
     futures::stream::iter(work)
         .buffer_unordered(concurrency)
         .for_each(|()| async {})
@@ -169,7 +164,9 @@ async fn mark_analyzing(
     run_id: Uuid,
     doc_id: Uuid,
 ) {
-    let Ok(mut doc) = get_doc(registry, actor_id, run_id, doc_id).await else { return };
+    let Ok(mut doc) = get_doc(registry, actor_id, run_id, doc_id).await else {
+        return;
+    };
     doc.state = RunDocState::Analyzing;
     let _ = put_doc(registry, actor_id, run_id, &doc).await;
 }
@@ -181,7 +178,9 @@ async fn write_outcome(
     doc_id: Uuid,
     outcome: std::result::Result<super::pipeline::AnalyzeOutcome, DocFailure>,
 ) {
-    let Ok(mut doc) = get_doc(registry, actor_id, run_id, doc_id).await else { return };
+    let Ok(mut doc) = get_doc(registry, actor_id, run_id, doc_id).await else {
+        return;
+    };
     match outcome {
         Ok(out) => {
             doc.modality = out.modality;
@@ -263,7 +262,9 @@ async fn resolve_policies(
 ) -> Result<Vec<nvisy_core::policy::Policy>> {
     let mut out = Vec::with_capacity(refs.len());
     for r in refs {
-        let policy = registry.get_policy(actor_id, r.id, r.version.clone()).await?;
+        let policy = registry
+            .get_policy(actor_id, r.id, r.version.clone())
+            .await?;
         out.push(policy);
     }
     Ok(out)
@@ -318,7 +319,10 @@ async fn apply_one_doc(
 
     match outcome {
         Ok(out) => {
-            if put_artifact(registry, actor_id, run_id, doc_id, out.bytes).await.is_err() {
+            if put_artifact(registry, actor_id, run_id, doc_id, out.bytes)
+                .await
+                .is_err()
+            {
                 doc.state = RunDocState::Failed {
                     reason: "writing redacted artifact failed".into(),
                 };
@@ -331,7 +335,9 @@ async fn apply_one_doc(
             true
         }
         Err(err) => {
-            doc.state = RunDocState::Failed { reason: err.to_string() };
+            doc.state = RunDocState::Failed {
+                reason: err.to_string(),
+            };
             let _ = put_doc(registry, actor_id, run_id, &doc).await;
             false
         }

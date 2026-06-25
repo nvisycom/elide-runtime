@@ -15,9 +15,8 @@
 //! artifact.
 
 use bytes::Bytes;
-use elide::Analyzer;
-use elide::Anonymizer;
 use elide::codec::{DocumentHandle, FormatRegistry};
+use elide::{Analyzer, Anonymizer};
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
 use elide_core::modality::audio::Audio;
@@ -29,14 +28,13 @@ use nvisy_core::plan::AnalyzerSpec;
 use nvisy_core::policy::Policy;
 use nvisy_core::{Error, Result};
 
+use super::filter::{DocumentFacts, policy_applies};
+use super::state::{DocBody, EntityRecord, ModalityKind};
 use crate::analyzer::{build_catalog, compile_audio, compile_image, compile_tabular, compile_text};
 use crate::anonymizer::{
     attach_override_audio, attach_override_image, attach_override_tabular, attach_override_text,
     attach_policies_audio, attach_policies_image, attach_policies_tabular, attach_policies_text,
 };
-
-use super::filter::{DocumentFacts, policy_applies};
-use super::state::{DocBody, EntityRecord, ModalityKind};
 
 const COMPONENT: &str = "runs::pipeline";
 
@@ -62,13 +60,13 @@ pub(super) async fn analyze_document(
     extension: &str,
     spec: &AnalyzerSpec,
 ) -> Result<AnalyzeOutcome> {
-    let handle = registry
-        .decode(bytes, extension)
-        .await
-        .map_err(|err| Error::validation(
+    let handle = registry.decode(bytes, extension).await.map_err(|err| {
+        Error::validation(
             format!("codec decode failed for extension {extension:?}"),
             COMPONENT,
-        ).with_source(err))?;
+        )
+        .with_source(err)
+    })?;
 
     if handle.is::<Text>() {
         let typed = handle
@@ -79,7 +77,10 @@ pub(super) async fn analyze_document(
         let body = DocBody::Text {
             entities: entities.into_iter().map(EntityRecord::new).collect(),
         };
-        return Ok(AnalyzeOutcome { modality: ModalityKind::Text, body });
+        return Ok(AnalyzeOutcome {
+            modality: ModalityKind::Text,
+            body,
+        });
     }
 
     if handle.is::<Tabular>() {
@@ -91,7 +92,10 @@ pub(super) async fn analyze_document(
         let body = DocBody::Tabular {
             entities: entities.into_iter().map(EntityRecord::new).collect(),
         };
-        return Ok(AnalyzeOutcome { modality: ModalityKind::Tabular, body });
+        return Ok(AnalyzeOutcome {
+            modality: ModalityKind::Tabular,
+            body,
+        });
     }
 
     if handle.is::<Image>() {
@@ -103,7 +107,10 @@ pub(super) async fn analyze_document(
         let body = DocBody::Image {
             entities: entities.into_iter().map(EntityRecord::new).collect(),
         };
-        return Ok(AnalyzeOutcome { modality: ModalityKind::Image, body });
+        return Ok(AnalyzeOutcome {
+            modality: ModalityKind::Image,
+            body,
+        });
     }
 
     if handle.is::<Audio>() {
@@ -115,7 +122,10 @@ pub(super) async fn analyze_document(
         let body = DocBody::Audio {
             entities: entities.into_iter().map(EntityRecord::new).collect(),
         };
-        return Ok(AnalyzeOutcome { modality: ModalityKind::Audio, body });
+        return Ok(AnalyzeOutcome {
+            modality: ModalityKind::Audio,
+            body,
+        });
     }
 
     Err(Error::validation(
@@ -150,8 +160,7 @@ fn modality_mismatch_err(expected: &'static str) -> Error {
 /// (e.g. unsupported recognizer for the modality), so they map
 /// to `Validation`.
 fn compile_err(err: elide::Error) -> Error {
-    Error::validation(format!("analyzer compile failed: {err}"), COMPONENT)
-        .with_source(err)
+    Error::validation(format!("analyzer compile failed: {err}"), COMPONENT).with_source(err)
 }
 
 /// Outcome of applying redactions to one document.
@@ -181,13 +190,13 @@ pub(super) async fn apply_document(
     facts: &DocumentFacts<'_>,
     body: &DocBody,
 ) -> Result<ApplyOutcome> {
-    let handle = registry
-        .decode(bytes, extension)
-        .await
-        .map_err(|err| Error::validation(
+    let handle = registry.decode(bytes, extension).await.map_err(|err| {
+        Error::validation(
             format!("codec decode failed for extension {extension:?}"),
             COMPONENT,
-        ).with_source(err))?;
+        )
+        .with_source(err)
+    })?;
 
     let scoped = || policies.iter().filter(|p| policy_applies(p, facts));
 
@@ -236,8 +245,8 @@ fn build_text_anonymizer<'a>(
     let mut anonymizer = Anonymizer::<Text>::new().with_catalog(catalog);
     for record in entities {
         if let Some(action) = &record.r#override {
-            anonymizer = attach_override_text(anonymizer, record.entity.id, action)
-                .map_err(compile_err)?;
+            anonymizer =
+                attach_override_text(anonymizer, record.entity.id, action).map_err(compile_err)?;
         }
     }
     attach_policies_text(anonymizer, policies).map_err(compile_err)
@@ -307,8 +316,8 @@ where
         .await
         .map_err(|err| Error::internal("anonymize failed", COMPONENT).with_source(err))?;
 
-    let content = handle
-        .encode()
-        .map_err(|err| Error::internal("post-anonymize encode failed", COMPONENT).with_source(err))?;
+    let content = handle.encode().map_err(|err| {
+        Error::internal("post-anonymize encode failed", COMPONENT).with_source(err)
+    })?;
     Ok(content.into_bytes())
 }

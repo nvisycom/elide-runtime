@@ -109,10 +109,7 @@ where
 
 /// Append the deduplication layers: calibrate → fuse → resolve →
 /// filter. Calibrate is skipped when the calibration map is empty.
-pub(super) fn attach_dedup<M>(
-    mut analyzer: Analyzer<M>,
-    spec: &DeduplicationSpec,
-) -> Analyzer<M>
+pub(super) fn attach_dedup<M>(mut analyzer: Analyzer<M>, spec: &DeduplicationSpec) -> Analyzer<M>
 where
     M: elide_core::modality::Modality,
 {

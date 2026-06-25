@@ -9,6 +9,5 @@ pub mod schema;
 pub mod service;
 pub mod source;
 
-pub use self::source::ContentSource;
-
 pub use self::service::{Error, ErrorKind, Result};
+pub use self::source::ContentSource;

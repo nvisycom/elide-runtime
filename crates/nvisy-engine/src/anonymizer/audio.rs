@@ -8,7 +8,6 @@ use elide_core::entity::LabelCatalog;
 use elide_core::modality::audio::Audio;
 use nvisy_core::policy::redaction::AudioRedaction;
 use nvisy_core::policy::{Policy, Rule, RuleAction};
-
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};

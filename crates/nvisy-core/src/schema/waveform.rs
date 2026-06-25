@@ -11,7 +11,17 @@ use serde::{Deserialize, Serialize};
 /// Tone shape for the [`AudioRedaction::Beep`] operator.
 ///
 /// [`AudioRedaction::Beep`]: crate::policy::redaction::AudioRedaction::Beep
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Default,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[schemars(rename = "Waveform")]
 pub enum WaveformSchema {

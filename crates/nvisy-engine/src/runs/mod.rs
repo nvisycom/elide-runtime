@@ -23,6 +23,6 @@ pub use self::input::{DocumentInput, StartBatch};
 pub use self::orchestrate::{apply, override_entity, start};
 pub use self::persist::{get_artifact, get_doc, get_header};
 pub use self::state::{
-    DocBody, EntityRecord, FailureReason, ModalityKind, ResourceRef, Run, RunDocState,
-    RunDocument, RunState,
+    DocBody, EntityRecord, FailureReason, ModalityKind, ResourceRef, Run, RunDocState, RunDocument,
+    RunState,
 };

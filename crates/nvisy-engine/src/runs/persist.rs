@@ -15,9 +15,8 @@ use bytes::Bytes;
 use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
-use crate::registry::{CompositeKey, RegistryHandle, TripleKey, blocking, not_found};
-
 use super::state::{Run, RunDocument};
+use crate::registry::{CompositeKey, RegistryHandle, TripleKey, blocking, not_found};
 
 const COMPONENT: &str = "runs::persist";
 const KIND_RUN: &str = "run";
@@ -25,11 +24,7 @@ const KIND_DOC: &str = "run_document";
 
 /// Write the run header at `(actor_id, run.id)`. Overwrites any
 /// existing header (state transitions go through this).
-pub(crate) async fn put_header(
-    handle: &RegistryHandle,
-    actor_id: Uuid,
-    run: &Run,
-) -> Result<()> {
+pub(crate) async fn put_header(handle: &RegistryHandle, actor_id: Uuid, run: &Run) -> Result<()> {
     let key = CompositeKey::new(actor_id, run.id);
     let value = serde_json::to_vec(run)?;
     let headers = handle.run_headers().clone();
@@ -41,11 +36,7 @@ pub(crate) async fn put_header(
 }
 
 /// Read the run header at `(actor_id, run_id)`.
-pub async fn get_header(
-    handle: &RegistryHandle,
-    actor_id: Uuid,
-    run_id: Uuid,
-) -> Result<Run> {
+pub async fn get_header(handle: &RegistryHandle, actor_id: Uuid, run_id: Uuid) -> Result<Run> {
     let key = CompositeKey::new(actor_id, run_id);
     let headers = handle.run_headers().clone();
     blocking(move || {

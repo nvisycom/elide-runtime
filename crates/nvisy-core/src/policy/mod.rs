@@ -38,7 +38,6 @@ pub use self::redaction::AnyRedaction;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::rule::{Rule, RuleAction};
 pub use self::suppress::SuppressAction;
-
 use crate::schema::LabelSchema;
 
 /// A named, versioned governance policy.

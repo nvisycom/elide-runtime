@@ -13,9 +13,7 @@ use elide::recognition::llm::LlmRecognizer;
 use elide_core::modality::text::Text;
 use elide_core::recognition::Scope;
 use elide_core::{Error, ErrorKind};
-use nvisy_core::plan::{
-    AnalyzerSpec, LlmBackendSpec, LlmRecognizerSpec, RecognizerSpec,
-};
+use nvisy_core::plan::{AnalyzerSpec, LlmBackendSpec, LlmRecognizerSpec, RecognizerSpec};
 
 use super::common::{attach_dedup, attach_enricher, attach_ner, attach_pattern, build_catalog};
 use super::scope::compile_scope;
@@ -49,10 +47,7 @@ pub fn compile_text(spec: &AnalyzerSpec) -> Result<(Analyzer<Text>, Scope<Text>)
     Ok((analyzer, scope))
 }
 
-fn attach_llm(
-    analyzer: Analyzer<Text>,
-    spec: &LlmRecognizerSpec,
-) -> Result<Analyzer<Text>, Error> {
+fn attach_llm(analyzer: Analyzer<Text>, spec: &LlmRecognizerSpec) -> Result<Analyzer<Text>, Error> {
     let mut builder = LlmRecognizer::<Text>::builder().with_name(spec.name.clone());
     match &spec.backend {
         LlmBackendSpec::Mock => {

@@ -21,9 +21,7 @@ use super::scope::compile_scope;
 
 /// Compile `spec` into an audio-modality analyzer + its compiled
 /// [`Scope`].
-pub fn compile_audio(
-    spec: &AnalyzerSpec,
-) -> Result<(Analyzer<Audio>, Scope<Audio>), Error> {
+pub fn compile_audio(spec: &AnalyzerSpec) -> Result<(Analyzer<Audio>, Scope<Audio>), Error> {
     let scope = compile_scope::<Audio>(&spec.scope)?;
     let catalog = build_catalog(spec);
     let mut analyzer = Analyzer::<Audio>::new();

@@ -101,9 +101,7 @@ where
         Predicate::TagOneOf { tags } if tags.len() == 1 => {
             anonymizer.with_tag(tags[0].clone(), operator)
         }
-        other => {
-            anonymizer.with_catalog_predicate(compile_predicate::<M>(other.clone()), operator)
-        }
+        other => anonymizer.with_catalog_predicate(compile_predicate::<M>(other.clone()), operator),
     };
     anonymizer.because(attribution)
 }

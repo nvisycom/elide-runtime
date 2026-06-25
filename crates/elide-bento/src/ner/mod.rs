@@ -57,10 +57,7 @@ impl BentoNer {
     /// override.
     ///
     /// [`with_default_threshold`]: Self::with_default_threshold
-    pub fn new(
-        base_url: impl Into<String>,
-        model_id: impl Into<HipStr<'static>>,
-    ) -> Result<Self> {
+    pub fn new(base_url: impl Into<String>, model_id: impl Into<HipStr<'static>>) -> Result<Self> {
         let client = Client::builder()
             .with_base_url(base_url)
             .build()
@@ -116,9 +113,9 @@ impl NerBackend for BentoNer {
     async fn recognize(&self, request: NerRequest<'_>) -> Result<NerResponse> {
         let responses = self.post_recognize(&[request]).await?;
         let mut iter = responses.into_iter();
-        let response = iter.next().ok_or_else(|| {
-            BentoError::Protocol("bento ner returned an empty batch".into())
-        })?;
+        let response = iter
+            .next()
+            .ok_or_else(|| BentoError::Protocol("bento ner returned an empty batch".into()))?;
         if iter.next().is_some() {
             return Err(BentoError::Protocol(
                 "bento ner returned more responses than requests".into(),

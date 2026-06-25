@@ -63,10 +63,7 @@ impl BentoOcr {
     /// [`with_default_threshold`] to override.
     ///
     /// [`with_default_threshold`]: Self::with_default_threshold
-    pub fn new(
-        base_url: impl Into<String>,
-        model_id: impl Into<HipStr<'static>>,
-    ) -> Result<Self> {
+    pub fn new(base_url: impl Into<String>, model_id: impl Into<HipStr<'static>>) -> Result<Self> {
         let client = Client::builder()
             .with_base_url(base_url)
             .build()
@@ -98,7 +95,10 @@ impl OcrBackend for BentoOcr {
     }
 
     async fn recognize(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
-        let body = vec![WireOcrRequest::from_request(&request, self.default_threshold)];
+        let body = vec![WireOcrRequest::from_request(
+            &request,
+            self.default_threshold,
+        )];
         let mut endpoint = self.endpoint.clone();
         if let Some(id) = request.correlation_id {
             endpoint = endpoint.with_request_id(id.to_string());
@@ -108,9 +108,9 @@ impl OcrBackend for BentoOcr {
             .await
             .map_err(BentoError::Transport)?;
         let mut iter = responses.into_iter();
-        let response = iter.next().ok_or_else(|| {
-            BentoError::Protocol("bento ocr returned an empty batch".into())
-        })?;
+        let response = iter
+            .next()
+            .ok_or_else(|| BentoError::Protocol("bento ocr returned an empty batch".into()))?;
         if iter.next().is_some() {
             return Err(BentoError::Protocol(
                 "bento ocr returned more responses than requests".into(),

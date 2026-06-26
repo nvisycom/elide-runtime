@@ -17,10 +17,10 @@ use super::fjall_ext::FjallDatabaseExt;
 /// Keyspace name constants. Each is one logical resource class.
 const KS_POLICIES: &str = "policies";
 const KS_CONTEXTS: &str = "contexts";
+const KS_FILES_METADATA: &str = "files_metadata";
+const KS_FILES_CONTENT: &str = "files_content";
 const KS_RUN_HEADERS: &str = "run_headers";
 const KS_RUN_DOCS: &str = "run_docs";
-const KS_RUN_ARTIFACTS: &str = "run_artifacts";
-const KS_RUN_INPUTS: &str = "run_inputs";
 
 /// Cheaply-cloneable handle over the engine's fjall keyspaces.
 #[derive(Clone)]
@@ -32,10 +32,10 @@ struct RegistryInner {
     db: Database,
     policies: Keyspace,
     contexts: Keyspace,
+    files_metadata: Keyspace,
+    files_content: Keyspace,
     run_headers: Keyspace,
     run_docs: Keyspace,
-    run_artifacts: Keyspace,
-    run_inputs: Keyspace,
 }
 
 impl RegistryHandle {
@@ -46,19 +46,19 @@ impl RegistryHandle {
         let db = Database::open_at(path)?;
         let policies = db.open_blob_keyspace(KS_POLICIES)?;
         let contexts = db.open_blob_keyspace(KS_CONTEXTS)?;
+        let files_metadata = db.open_keyspace(KS_FILES_METADATA)?;
+        let files_content = db.open_blob_keyspace(KS_FILES_CONTENT)?;
         let run_headers = db.open_keyspace(KS_RUN_HEADERS)?;
         let run_docs = db.open_blob_keyspace(KS_RUN_DOCS)?;
-        let run_artifacts = db.open_blob_keyspace(KS_RUN_ARTIFACTS)?;
-        let run_inputs = db.open_blob_keyspace(KS_RUN_INPUTS)?;
         Ok(Self {
             inner: Arc::new(RegistryInner {
                 db,
                 policies,
                 contexts,
+                files_metadata,
+                files_content,
                 run_headers,
                 run_docs,
-                run_artifacts,
-                run_inputs,
             }),
         })
     }
@@ -75,6 +75,24 @@ impl RegistryHandle {
         &self.inner.contexts
     }
 
+    /// Keyspace for [`FileMetadata`] blobs — small JSON
+    /// descriptors keyed by `(actor_id, file_id)`. Plain
+    /// keyspace (no blob separation) because the bodies are
+    /// tiny; range-scan for `list_files` is cheap.
+    ///
+    /// [`FileMetadata`]: nvisy_core::FileMetadata
+    pub(crate) fn files_metadata(&self) -> &Keyspace {
+        &self.inner.files_metadata
+    }
+
+    /// Keyspace for raw file bytes keyed by `(actor_id,
+    /// file_id)`. Blob-separated — files routinely run from
+    /// kilobytes to many megabytes and the bytes are only
+    /// loaded when the caller asks for `GET /files/{id}/content`.
+    pub(crate) fn files_content(&self) -> &Keyspace {
+        &self.inner.files_content
+    }
+
     /// Keyspace for [`Run`] headers — short metadata blobs holding
     /// run state + per-policy / per-context refs.
     ///
@@ -85,30 +103,18 @@ impl RegistryHandle {
 
     /// Keyspace for per-document run bodies — one entry per
     /// `(actor_id, run_id, doc_id)` carrying that document's
-    /// recognized entities + reviewer overrides. The body does
-    /// **not** carry the post-apply redacted bytes; those live in
-    /// [`run_artifacts`](Self::run_artifacts) so this body stays
-    /// JSON-cheap to load for review surfaces.
+    /// recognized entities + reviewer overrides. Bytes (both
+    /// input and post-apply redacted output) live in the
+    /// [`files_metadata`](Self::files_metadata) /
+    /// [`files_content`](Self::files_content) keyspaces; the
+    /// row's [`RunDocument::input_file_id`] and
+    /// [`output_file_id`](RunDocument::output_file_id) point at
+    /// them.
+    ///
+    /// [`RunDocument::input_file_id`]: super::super::runs::RunDocument::input_file_id
+    /// [`output_file_id`]: super::super::runs::RunDocument::output_file_id
     pub(crate) fn run_docs(&self) -> &Keyspace {
         &self.inner.run_docs
-    }
-
-    /// Keyspace for per-document post-apply artifacts (the
-    /// redacted file bytes). One entry per
-    /// `(actor_id, run_id, doc_id)` containing raw bytes. Blob-
-    /// separated; lazily loaded only when the caller asks for the
-    /// redacted output.
-    pub(crate) fn run_artifacts(&self) -> &Keyspace {
-        &self.inner.run_artifacts
-    }
-
-    /// Keyspace for original per-document input bytes. One entry
-    /// per `(actor_id, run_id, doc_id)` containing raw bytes. The
-    /// caller hands input bytes once at [`start`](super::super::runs::start);
-    /// apply re-reads them from here (the codec needs the
-    /// original bytes to re-decode).
-    pub(crate) fn run_inputs(&self) -> &Keyspace {
-        &self.inner.run_inputs
     }
 
     /// Flush all pending writes to disk. The engine HTTP layer

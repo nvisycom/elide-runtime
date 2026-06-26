@@ -9,12 +9,21 @@
 //!   keyspace under [`TripleKey(actor_id, run_id, doc_id)`]. Its
 //!   [`body`](RunDocument::body) carries the recognized entities +
 //!   reviewer overrides.
-//! - The post-apply redacted bytes live in a third keyspace
-//!   (`run_artifacts`) so the body stays cheap to load for review
-//!   surfaces.
+//!
+//! Bytes (input + redacted output) are **not** persisted in run
+//! keyspaces. Inputs live in the [`crate::FileRegistry`] before
+//! the run starts; redacted outputs land back in the same files
+//! keyspace via [`FileRegistry::put_file`] stamped with a
+//! [`FileLineage::RedactedFrom`] so they're traceable back to
+//! the run + source file. A [`RunDocument`] tracks both id sides
+//! via [`input_file_id`](RunDocument::input_file_id) +
+//! [`output_file_id`](RunDocument::output_file_id).
 //!
 //! [`CompositeKey(actor_id, run_id)`]: crate::registry::CompositeKey
 //! [`TripleKey(actor_id, run_id, doc_id)`]: crate::registry::TripleKey
+//! [`FileRegistry`]: crate::FileRegistry
+//! [`FileRegistry::put_file`]: crate::FileRegistry::put_file
+//! [`FileLineage::RedactedFrom`]: nvisy_core::FileLineage::RedactedFrom
 
 use std::collections::HashMap;
 
@@ -89,7 +98,7 @@ pub struct Run {
     /// UUIDv7 timestamp of the most recent state transition.
     pub updated_at: Timestamp,
     /// Policies the caller submitted, as resource refs. Loaded
-    /// from [`crate::policies`] at start time; stable for the
+    /// from [`crate::keyspace::policy`] at start time; stable for the
     /// lifetime of the run.
     pub policy_refs: Vec<ResourceRef>,
     /// Contexts the caller submitted, as resource refs.
@@ -130,21 +139,23 @@ pub struct ResourceRef {
 pub struct RunDocument {
     /// Engine-minted UUIDv7 at start time.
     pub id: Uuid,
-    /// File extension the codec registry resolves on (set from
-    /// [`DocumentInput::extension`] at start time).
+    /// Id of the input file this doc analyses. Persisted on the
+    /// row so apply (run separately, potentially after a process
+    /// restart) can re-resolve the bytes via
+    /// [`FileRegistry::get_file_bytes`] without re-deriving from
+    /// the run header's `document_ids`.
     ///
-    /// [`DocumentInput::extension`]: super::input::DocumentInput::extension
-    pub extension: String,
-    /// Caller-supplied descriptor labels (drive
-    /// [`DocumentPredicate::HasLabel`] gating).
+    /// [`FileRegistry::get_file_bytes`]: crate::FileRegistry::get_file_bytes
+    pub input_file_id: Uuid,
+    /// Id of the redacted output file, when apply succeeded for
+    /// this doc. `None` pre-apply and on per-doc failure. Lookup
+    /// via [`FileRegistry::get_file_bytes`]; the metadata blob's
+    /// [`lineage`](nvisy_core::FileMetadata::lineage) field
+    /// points back at this run.
     ///
-    /// [`DocumentPredicate::HasLabel`]: nvisy_core::policy::DocumentPredicate::HasLabel
-    pub descriptor_labels: Vec<String>,
-    /// Caller-supplied descriptor metadata (drive
-    /// [`DocumentPredicate::HasMetadata`] gating).
-    ///
-    /// [`DocumentPredicate::HasMetadata`]: nvisy_core::policy::DocumentPredicate::HasMetadata
-    pub descriptor_metadata: HashMap<String, String>,
+    /// [`FileRegistry::get_file_bytes`]: crate::FileRegistry::get_file_bytes
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_file_id: Option<Uuid>,
     /// State of the per-doc lifecycle.
     pub state: RunDocState,
     /// The modality elide's codec resolved this doc to; pins the
@@ -152,11 +163,6 @@ pub struct RunDocument {
     pub modality: ModalityKind,
     /// Per-modality recognized entities + reviewer overrides.
     pub body: DocBody,
-    /// `true` when the post-apply redacted bytes for this doc
-    /// exist under `(actor_id, run_id, doc_id)` in the
-    /// `run_artifacts` keyspace.
-    #[serde(default)]
-    pub has_artifact: bool,
 }
 
 /// Discriminator for the modality the codec resolved a document

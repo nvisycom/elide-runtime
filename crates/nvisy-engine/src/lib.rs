@@ -7,26 +7,27 @@
 //! service:
 //!
 //! - [`analyzer`] compiles a request's recognition plan into an
-//!   [`elide::Analyzer`] (placeholder; lands as the detection
-//!   surface grows).
+//!   [`elide::Analyzer`] per modality.
 //! - [`anonymizer`] compiles a request's [`nvisy_core::policy::Policy`]
 //!   set into an [`elide::Anonymizer`] per modality, stamping each
 //!   resolved decision with the policy + rule provenance the audit
 //!   trail requires.
-//! - [`registry`] is the multi-tenant, actor-scoped storage
-//!   primitives ([`fjall`] keyspaces keyed by
-//!   `[actor_id | resource_id]`).
+//! - [`registry`] holds the multi-tenant, actor-scoped storage
+//!   primitives ([`fjall`] keyspaces keyed by `[actor_id | …]`).
+//! - [`keyspace`] hosts the user-owned resource CRUD —
+//!   [`PolicyRegistry`], [`FileRegistry`], [`ContextRegistry`] —
+//!   all extension traits on [`registry::RegistryHandle`].
+//! - [`runs`] is the orchestrator over the engine-managed run
+//!   lifecycle, with its persistence trait kept `pub(crate)` so
+//!   external code can't write malformed runs.
 
 mod engine;
 
 pub mod analyzer;
 pub mod anonymizer;
+pub mod keyspace;
 pub mod registry;
-
-pub mod contexts;
-pub mod policies;
 pub mod runs;
 
-pub use self::contexts::ContextRegistry;
 pub use self::engine::EngineHandle;
-pub use self::policies::PolicyRegistry;
+pub use self::keyspace::{ContextRegistry, FileDescriptor, FileRegistry, PolicyRegistry};

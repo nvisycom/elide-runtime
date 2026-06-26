@@ -4,18 +4,21 @@
 //! `routes_v1()` function that returns relative-path `ApiRouter`
 //! fragments. These are nested under `/api/v1` by [`routes`].
 //!
-//! The top-level [`routes()`] function assembles all versions plus
-//! unversioned routes (health, docs) into a single router.
+//! The top-level [`routes()`] function assembles all versions
+//! plus unversioned routes (health, docs) into a single router.
 //!
-//! Request and response types live in the `request` and `response`
-//! submodules. [`Error`], [`ErrorKind`], and [`Result`] are re-exported for
-//! use by middleware and extractors.
+//! Request and response types live in the `request` and
+//! `response` submodules. [`Error`], [`ErrorKind`], and
+//! [`Result`] are re-exported for use by middleware and
+//! extractors.
 
 pub mod error;
 
+mod contexts;
 mod detections;
 mod files;
 mod infra;
+mod policies;
 mod redactions;
 
 mod request;
@@ -27,26 +30,29 @@ use axum::http::Uri;
 pub use self::error::{Error, ErrorKind, Result};
 use crate::service::ServiceState;
 
-/// Build the complete route tree with versioned API and unversioned infra routes.
+/// Build the complete route tree.
 ///
 /// # Route structure
 ///
 /// ```text
-/// /health                                  (unversioned)
-/// /api/v1/files[/{id}]                     (DELETE /files removes every file)
-/// /api/v1/detections[/{id}[/cancel]]       (DELETE /detections removes every finished detection)
-/// /api/v1/redactions[/{id}[/cancel]]       (DELETE /redactions removes every finished redaction)
-/// /api/v1/openapi.json                     (added by OpenAPI middleware)
-/// /docs                                    (added by OpenAPI middleware)
+/// /health                                       (unversioned)
+/// /api/v1/files[/{id}[/content]]
+/// /api/v1/policies[/{id}[/{version}|latest]]
+/// /api/v1/contexts[/{id}[/{version}|latest]]
+/// /api/v1/detections[/{id}[/cancel]]
+/// /api/v1/redactions[/{id}]
+/// /api/v1/openapi.json                          (added by OpenAPI middleware)
+/// /docs                                         (added by OpenAPI middleware)
 /// ```
 ///
-/// Policies are not a persisted resource: the caller submits the
-/// full [`Policy`] bodies inline on `POST /api/v1/detections`.
-/// The audit refers to each rule by `PolicyDecisionRef` so the
-/// caller can correlate decisions against their own copy of the
-/// policy bytes when rendering.
+/// `/detections` and `/redactions` are filtered views of one
+/// underlying run keyspace: a redaction id equals the
+/// detection id it was applied from. Bytes (uploads and
+/// redacted outputs) flow through `/files`; redacted files
+/// carry [`FileLineage::RedactedFrom`] so the run that
+/// produced them is traceable.
 ///
-/// [`Policy`]: nvisy_engine::policy::Policy
+/// [`FileLineage::RedactedFrom`]: nvisy_core::FileLineage::RedactedFrom
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(infra::health_routes())
@@ -55,20 +61,17 @@ pub fn routes() -> ApiRouter<ServiceState> {
 }
 
 /// All v1 API routes (nested under `/api/v1` by [`routes`]).
-///
-/// When a new API version is introduced, a parallel `v2_routes()`
-/// function can compose a different set of handlers under `/api/v2`.
 fn v1_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(files::routes_v1())
+        .merge(policies::routes_v1())
+        .merge(contexts::routes_v1())
         .merge(detections::routes_v1())
         .merge(redactions::routes_v1())
 }
 
-/// Catch-all for unmatched paths.
-///
-/// Returns 404 with guidance pointing to the current API version
-/// for `/api/*` paths.
+/// Catch-all for unmatched paths. Returns 404 with guidance
+/// pointing to the current API version for `/api/*` paths.
 async fn api_version_fallback(uri: Uri) -> Result<()> {
     let path = uri.path();
     if path.starts_with("/api/") {

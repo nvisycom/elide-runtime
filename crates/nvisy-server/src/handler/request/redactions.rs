@@ -1,53 +1,38 @@
 //! Request bodies for `/redactions` endpoints.
 
-use nvisy_engine::core::ingestion::ExportFile;
-use nvisy_engine::redaction::{RedactionInput, RedactionOverride, RedactionPlan, RedactionStatus};
+use nvisy_core::policy::RuleAction;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::handler::request::pagination::Pagination;
-
-/// Body for `POST /redactions`.
+/// Body for `POST /redactions`. References a prior detection
+/// (the same run id) and optionally carries reviewer overrides
+/// to apply per-entity before the redaction runs.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewRedaction {
-    /// Detection pass this redaction targets.
+    /// Detection (run) to apply. The redaction reuses the same
+    /// underlying run; the resulting redaction id equals
+    /// [`detection_id`](Self::detection_id).
     pub detection_id: Uuid,
-    /// Per-entity decision overrides.
+    /// Per-entity decision overrides. Applied in order before
+    /// the redaction fan-out; an override on an entity id that
+    /// doesn't exist in the run returns `NotFound`.
     #[serde(default)]
-    pub overrides: Vec<RedactionOverride>,
-    /// Per-phase behaviour knobs (validation thresholds etc.).
-    #[serde(default)]
-    pub plan: RedactionPlan,
-    /// Sinks to write redacted content to.
-    #[serde(default)]
-    pub exports: Vec<ExportFile>,
+    pub overrides: Vec<NewOverride>,
 }
 
-impl NewRedaction {
-    pub fn into_engine_input(self, actor_id: Uuid) -> RedactionInput {
-        RedactionInput {
-            actor_id,
-            detection_id: self.detection_id,
-            overrides: self.overrides,
-            plan: self.plan,
-            exports: self.exports,
-        }
-    }
-}
-
-/// Query parameters for `GET /redactions`.
-#[derive(Debug, Deserialize, JsonSchema)]
+/// One reviewer override: a per-entity action decided before
+/// the redaction runs. The server loops these into
+/// [`nvisy_engine::runs::override_entity`] before the apply
+/// transition.
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct RedactionQuery {
-    /// Optional status filter.
-    #[serde(default)]
-    pub status: Option<RedactionStatus>,
-    /// Optional filter: only redactions for this detection.
-    #[serde(default)]
-    pub detection_id: Option<Uuid>,
-    /// Pagination knobs.
-    #[serde(flatten)]
-    pub pagination: Pagination,
+pub struct NewOverride {
+    /// Document id within the run.
+    pub doc_id: Uuid,
+    /// Entity id within the document.
+    pub entity_id: Uuid,
+    /// The action to apply.
+    pub action: RuleAction,
 }

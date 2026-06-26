@@ -37,6 +37,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-engine = { workspace = true, features = [] }
 
+# Upstream elide — server consumes modality + entity types
+# directly when rendering wire responses. Default features
+# off so server picks per-modality codec features explicitly
+# via its own `tabular` / `image` / `audio` flags.
+elide-core = { workspace = true, features = ["tabular", "image", "audio"] }
+
 # Serialization
 serde = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
@@ -48,6 +54,7 @@ derive_more = { workspace = true, features = ["deref", "display"] }
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
+semver = { workspace = true, features = ["serde"] }
 
 # Async runtime and parallelism
 futures = { workspace = true, features = [] }

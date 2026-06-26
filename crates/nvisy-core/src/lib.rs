@@ -3,11 +3,13 @@
 #![doc = include_str!("../README.md")]
 
 pub mod context;
+pub mod file;
 pub mod plan;
 pub mod policy;
 pub mod schema;
 pub mod service;
 pub mod source;
 
+pub use self::file::{FileLineage, FileMetadata};
 pub use self::service::{Error, ErrorKind, Result};
 pub use self::source::ContentSource;

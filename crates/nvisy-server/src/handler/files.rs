@@ -1,33 +1,17 @@
-//! File upload, download, list, and deletion handlers.
-//!
-//! | Method   | Path                              | Description                                |
-//! |----------|-----------------------------------|--------------------------------------------|
-//! | `POST`   | `/files`                          | Upload raw bytes (octet-stream)            |
-//! | `GET`    | `/files`                          | List uploaded files (paginated metadata)   |
-//! | `GET`    | `/files/{id}`                     | Get file metadata (descriptor + digest)    |
-//! | `GET`    | `/files/{id}/content`             | Download raw bytes (octet-stream)          |
-//! | `GET`    | `/files/{id}/annotations`         | Read the annotation overlay                |
-//! | `PUT`    | `/files/{id}/annotations`         | Replace the annotation overlay             |
-//! | `DELETE` | `/files/{id}`                     | Delete a single file (cascades annotations)|
-//! | `DELETE` | `/files`                          | Delete all files                           |
-//!
-//! Paths are relative — the version prefix (e.g. `/api/v1`) is
-//! applied by the version module.
+//! File upload / download / list / delete handlers.
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::{delete_with, get_with, post_with, put_with};
+use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::body::{Body, Bytes};
+use axum::body::Bytes;
 use axum::extract::{Query, State};
-use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
-use axum::response::{IntoResponse, Response};
-use nvisy_engine::document::AnyAnnotations;
-use nvisy_engine::registry::Registry;
-use nvisy_engine::{Content, ContentData, ContentDescriptor};
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::response::Response;
+use nvisy_engine::{EngineHandle, FileDescriptor, FileRegistry};
 
-use super::error::Result;
-use super::request::{ContentPath, MAX_PAGE_LIMIT, Pagination};
-use super::response::{FileId, FileList, FileMetadata, Page};
+use super::error::{ErrorKind, Result};
+use super::request::{FilePath, FileQuery};
+use super::response::{FileId, FileMetadataResponse, Page};
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
@@ -36,38 +20,44 @@ const TARGET: &str = "nvisy_server::files";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn upload_file(
-    State(registry): State<Registry>,
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<(StatusCode, Json<FileId>)> {
     let size = body.len();
-    let content_data = ContentData::from(body);
-
-    let mut descriptor = ContentDescriptor::new();
-    if let Some(mime) = headers
+    let filename = parse_filename(&headers);
+    let content_type = headers
         .get(header::CONTENT_TYPE)
         .and_then(|h| h.to_str().ok())
-    {
-        descriptor.content_type = Some(mime.to_owned());
-    }
-    if let Some(name) = headers
-        .get(header::CONTENT_DISPOSITION)
-        .and_then(|h| h.to_str().ok())
-        .and_then(parse_disposition_filename)
-    {
-        descriptor.filename = Some(name.into());
-    }
+        .map(|s| s.to_owned().into());
+    let extension = filename
+        .as_deref()
+        .and_then(filename_extension)
+        .ok_or_else(|| {
+            ErrorKind::BadRequest.with_message(
+                "cannot derive file extension; supply a `Content-Disposition: \
+                 attachment; filename=\"…\"` header with an extension",
+            )
+        })?
+        .to_owned()
+        .into();
 
-    let content = Content::with_descriptor(content_data, descriptor);
-    let id = registry
-        .register_content(actor_id, content, None)
-        .await?
-        .content_source()
-        .as_uuid();
+    let descriptor = FileDescriptor {
+        filename: filename.map(Into::into),
+        content_type,
+        extension,
+        lineage: None,
+        descriptor_labels: Vec::new(),
+        descriptor_metadata: std::collections::HashMap::new(),
+    };
 
-    tracing::info!(target: TARGET, %id, size, "file uploaded");
-    Ok((StatusCode::CREATED, Json(FileId { id })))
+    let metadata = engine
+        .registry()
+        .put_file(actor_id, descriptor, body)
+        .await?;
+    tracing::info!(target: TARGET, id = %metadata.id, size, "file uploaded");
+    Ok((StatusCode::CREATED, Json(FileId { id: metadata.id })))
 }
 
 fn upload_file_docs(op: TransformOperation) -> TransformOperation {
@@ -77,180 +67,110 @@ fn upload_file_docs(op: TransformOperation) -> TransformOperation {
         .description(
             "Accepts raw bytes as the request body. `Content-Type` carries the \
              caller-supplied MIME hint; `Content-Disposition` carries the original \
-             filename (e.g. `attachment; filename=\"scan.pdf\"`). Annotations are \
-             attached separately via `PUT /files/{id}/annotations`.",
+             filename (e.g. `attachment; filename=\"scan.pdf\"`). The extension \
+             the codec resolves on is derived from the filename.",
         )
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
-async fn get_file_metadata(
-    State(registry): State<Registry>,
+async fn get_file(
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
-    Path(ContentPath { id }): Path<ContentPath>,
-) -> Result<Json<FileMetadata>> {
-    let handle = registry.read_content(actor_id, id).await?;
-    let record = handle.record().await?;
-    Ok(Json(FileMetadata {
-        id,
-        descriptor: record.descriptor,
-        digest: record.digest,
-    }))
+    Path(FilePath { id }): Path<FilePath>,
+) -> Result<Json<FileMetadataResponse>> {
+    let metadata = engine.registry().get_file(actor_id, id).await?;
+    Ok(Json(metadata))
 }
 
-fn get_file_metadata_docs(op: TransformOperation) -> TransformOperation {
-    op.id("getFileMetadata")
-        .tag("files")
-        .summary("Get file metadata")
-        .description(
-            "Returns the file's caller-supplied descriptor + registry-computed \
-             digest. Annotations live at `GET /files/{id}/annotations`; bytes at \
-             `GET /files/{id}/content`.",
-        )
+fn get_file_docs(op: TransformOperation) -> TransformOperation {
+    op.id("getFile").tag("files").summary("Get file metadata")
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
-async fn download_file_content(
-    State(registry): State<Registry>,
+async fn get_file_content(
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
-    Path(ContentPath { id }): Path<ContentPath>,
+    Path(FilePath { id }): Path<FilePath>,
 ) -> Result<Response> {
-    let handle = registry.read_content(actor_id, id).await?;
-    let data = handle.content_data().await?;
-    let record = handle.record().await?;
-    let size = data.size();
-    tracing::debug!(target: TARGET, size, "file content downloaded");
+    let metadata = engine.registry().get_file(actor_id, id).await?;
+    let bytes = engine.registry().get_file_bytes(actor_id, id).await?;
 
-    let content_type = record
-        .content_type()
-        .and_then(|s| HeaderValue::from_str(s).ok())
-        .unwrap_or_else(|| HeaderValue::from_static("application/octet-stream"));
-
-    let mut response = (StatusCode::OK, Body::from(data.as_bytes().to_vec())).into_response();
-    response
-        .headers_mut()
-        .insert(header::CONTENT_TYPE, content_type);
-    if let Some(name) = record.filename_lossy()
-        && let Ok(disposition) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\""))
+    let mut response = Response::new(axum::body::Body::from(bytes));
+    if let Some(ct) = metadata.content_type.as_ref()
+        && let Ok(value) = ct.as_str().parse()
     {
-        response
-            .headers_mut()
-            .insert(header::CONTENT_DISPOSITION, disposition);
+        response.headers_mut().insert(header::CONTENT_TYPE, value);
+    }
+    if let Some(name) = metadata.filename.as_ref() {
+        let disposition = format!("attachment; filename=\"{}\"", name.as_str());
+        if let Ok(value) = disposition.parse() {
+            response
+                .headers_mut()
+                .insert(header::CONTENT_DISPOSITION, value);
+        }
     }
     Ok(response)
 }
 
-fn download_file_content_docs(op: TransformOperation) -> TransformOperation {
-    op.id("downloadFileContent")
+fn get_file_content_docs(op: TransformOperation) -> TransformOperation {
+    op.id("getFileContent")
         .tag("files")
-        .summary("Download raw file bytes")
+        .summary("Download file bytes")
         .description(
-            "Returns the file's raw bytes. `Content-Type` carries the best-available \
-             MIME (caller-supplied, then sniffed); `Content-Disposition` carries the \
-             original filename when known.",
-        )
-}
-
-#[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
-async fn get_file_annotations(
-    State(registry): State<Registry>,
-    ActorId(actor_id): ActorId,
-    Path(ContentPath { id }): Path<ContentPath>,
-) -> Result<Json<AnyAnnotations>> {
-    let annotations = registry.load_annotations(actor_id, id).await?;
-    Ok(Json(annotations))
-}
-
-fn get_file_annotations_docs(op: TransformOperation) -> TransformOperation {
-    op.id("getFileAnnotations")
-        .tag("files")
-        .summary("Read the file's annotation overlay")
-        .description(
-            "Returns the per-modality annotation buckets (`text`, `tabular`, \
-             `image`, `audio`) plus document-level `labels`. Returns an empty \
-             overlay when nothing has been set.",
-        )
-}
-
-#[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
-async fn put_file_annotations(
-    State(registry): State<Registry>,
-    ActorId(actor_id): ActorId,
-    Path(ContentPath { id }): Path<ContentPath>,
-    Json(annotations): Json<AnyAnnotations>,
-) -> Result<StatusCode> {
-    registry
-        .store_annotations(actor_id, id, &annotations)
-        .await?;
-    tracing::info!(target: TARGET, "file annotations updated");
-    Ok(StatusCode::NO_CONTENT)
-}
-
-fn put_file_annotations_docs(op: TransformOperation) -> TransformOperation {
-    op.id("putFileAnnotations")
-        .tag("files")
-        .summary("Replace the file's annotation overlay")
-        .description(
-            "Replaces the stored annotations with the request body. Idempotent: \
-             PUT with an empty object clears all hints. Annotations attached \
-             here are picked up by every subsequent detection / redaction pass \
-             that references this content.",
+            "Returns the raw bytes of the file with the upload's `Content-Type` \
+             and a `Content-Disposition` carrying the original filename.",
         )
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn list_files(
-    State(registry): State<Registry>,
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
-    Query(pagination): Query<Pagination>,
-) -> Result<Json<FileList>> {
-    let limit = pagination.limit.min(MAX_PAGE_LIMIT);
-    let paged = registry
-        .list_content_with_record(actor_id, pagination.offset, limit)
-        .await?;
-    let page = Page::from_paged(paged, &pagination, |(id, record)| FileMetadata {
-        id,
-        descriptor: record.descriptor,
-        digest: record.digest,
-    });
-    tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "files listed");
-    Ok(Json(page))
+    Query(query): Query<FileQuery>,
+) -> Result<Json<Page<FileMetadataResponse>>> {
+    let items = engine.registry().list_files(actor_id).await?;
+    Ok(Json(Page::paginate(items, &query.pagination)))
 }
 
 fn list_files_docs(op: TransformOperation) -> TransformOperation {
     op.id("listFiles")
         .tag("files")
-        .summary("List stored files")
+        .summary("List files")
         .description(
-            "Paginated metadata listing. Each entry has the same shape as \
-             `GET /files/{id}`. Annotations are not included.",
+            "Returns metadata for every file the actor owns, including redacted \
+             outputs (recognisable by `lineage`). Bytes are not loaded; fetch via \
+             `GET /files/{id}/content` when needed.",
         )
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn delete_file(
-    State(registry): State<Registry>,
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
-    Path(ContentPath { id }): Path<ContentPath>,
+    Path(FilePath { id }): Path<FilePath>,
 ) -> Result<StatusCode> {
-    registry.unregister_content(actor_id, id).await?;
-    tracing::info!(target: TARGET, "file deleted");
+    engine.registry().delete_file(actor_id, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 fn delete_file_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteFile")
         .tag("files")
-        .summary("Delete an uploaded file")
-        .description("Removes the file and cascades to its annotations.")
+        .summary("Delete a file")
+        .description(
+            "Removes the file's bytes + metadata. Does not cascade — runs that \
+             referenced the file remain (their `inputFileId` will resolve to a \
+             missing file on subsequent apply).",
+        )
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn delete_all_files(
-    State(registry): State<Registry>,
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
-    let deleted = registry.unregister_all_content(actor_id).await?;
-    tracing::info!(target: TARGET, deleted, "all files deleted");
+    let removed = engine.registry().delete_all_files(actor_id).await?;
+    tracing::info!(target: TARGET, removed, "all files deleted");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -258,91 +178,52 @@ fn delete_all_files_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteAllFiles")
         .tag("files")
         .summary("Delete every file for the actor")
-        .description("Removes every file plus its annotations.")
 }
 
 pub fn routes_v1() -> ApiRouter<ServiceState> {
-    let read_routes = ApiRouter::new()
+    let read = ApiRouter::new()
         .api_route("/files", get_with(list_files, list_files_docs))
-        .api_route(
-            "/files/{id}",
-            get_with(get_file_metadata, get_file_metadata_docs),
-        )
+        .api_route("/files/{id}", get_with(get_file, get_file_docs))
         .api_route(
             "/files/{id}/content",
-            get_with(download_file_content, download_file_content_docs),
-        )
-        .api_route(
-            "/files/{id}/annotations",
-            get_with(get_file_annotations, get_file_annotations_docs),
+            get_with(get_file_content, get_file_content_docs),
         )
         .with_timeout(DEFAULT_READ_TIMEOUT);
 
-    let write_routes = ApiRouter::new()
+    let write = ApiRouter::new()
         .api_route(
             "/files",
             post_with(upload_file, upload_file_docs)
                 .delete_with(delete_all_files, delete_all_files_docs),
         )
         .api_route("/files/{id}", delete_with(delete_file, delete_file_docs))
-        .api_route(
-            "/files/{id}/annotations",
-            put_with(put_file_annotations, put_file_annotations_docs),
-        )
         .with_timeout(DEFAULT_WRITE_TIMEOUT);
 
-    read_routes.merge(write_routes)
+    read.merge(write)
 }
 
 /// Parse the `filename="..."` value out of a `Content-Disposition`
-/// header. Accepts both quoted and unquoted forms, returns `None`
-/// when the header doesn't carry one.
-fn parse_disposition_filename(header_value: &str) -> Option<String> {
-    for part in header_value.split(';').map(str::trim) {
-        if let Some(rest) = part
-            .strip_prefix("filename=")
-            .or_else(|| part.strip_prefix("filename*="))
-        {
+/// header. Accepts quoted and unquoted forms.
+fn parse_filename(headers: &HeaderMap) -> Option<String> {
+    let raw = headers
+        .get(header::CONTENT_DISPOSITION)
+        .and_then(|h| h.to_str().ok())?;
+    for part in raw.split(';') {
+        let part = part.trim();
+        if let Some(rest) = part.strip_prefix("filename=") {
             let unquoted = rest.trim_matches('"');
-            if !unquoted.is_empty() {
-                return Some(unquoted.to_owned());
-            }
+            return Some(unquoted.to_owned());
         }
     }
     None
 }
 
-#[cfg(test)]
-mod tests {
-    use super::parse_disposition_filename;
-
-    #[test]
-    fn quoted_filename() {
-        assert_eq!(
-            parse_disposition_filename("attachment; filename=\"scan.pdf\""),
-            Some("scan.pdf".to_owned())
-        );
+/// Extract the lowercase extension from a filename. `report.pdf`
+/// → `Some("pdf")`; `noext` → `None`.
+fn filename_extension(name: &str) -> Option<&str> {
+    let idx = name.rfind('.')?;
+    if idx == 0 || idx + 1 >= name.len() {
+        return None;
     }
-
-    #[test]
-    fn unquoted_filename() {
-        assert_eq!(
-            parse_disposition_filename("attachment; filename=scan.pdf"),
-            Some("scan.pdf".to_owned())
-        );
-    }
-
-    #[test]
-    fn no_filename() {
-        assert_eq!(parse_disposition_filename("attachment"), None);
-        assert_eq!(parse_disposition_filename("inline"), None);
-    }
-
-    #[test]
-    fn empty_filename() {
-        assert_eq!(
-            parse_disposition_filename("attachment; filename=\"\""),
-            None
-        );
-    }
+    Some(&name[idx + 1..])
 }

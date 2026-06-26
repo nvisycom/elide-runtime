@@ -59,6 +59,7 @@ hipstr = { workspace = true, features = ["serde"] }
 jiff = { workspace = true, features = ["serde"] }
 bytes = { workspace = true, features = [] }
 serde = { workspace = true, features = ["derive"] }
+sha2 = { workspace = true, features = [] }
 
 # Async runtime — `time` powers the per-doc timeout wrapping the
 # analyze fan-out. We do **not** depend on `rt`/`spawn`-style

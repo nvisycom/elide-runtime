@@ -2,9 +2,9 @@
 
 use std::collections::HashMap;
 
-use bytes::Bytes;
 use nvisy_core::plan::AnalyzerSpec;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use super::state::ResourceRef;
 
@@ -13,8 +13,8 @@ use super::state::ResourceRef;
 #[serde(rename_all = "camelCase")]
 pub struct StartBatch {
     /// Policies to apply, by `(id, version)`. Engine resolves
-    /// each against [`crate::policies::get`]; missing refs fail
-    /// the start call with [`ErrorKind::NotFound`].
+    /// each against [`crate::PolicyRegistry::get_policy`]; missing
+    /// refs fail the start call with [`ErrorKind::NotFound`].
     ///
     /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
     pub policy_refs: Vec<ResourceRef>,
@@ -22,7 +22,12 @@ pub struct StartBatch {
     /// as [`policy_refs`](Self::policy_refs).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_refs: Vec<ResourceRef>,
-    /// Input documents.
+    /// Input documents — each is a file id previously uploaded
+    /// via [`crate::FileRegistry::put_file`]. Engine resolves
+    /// every id at start time; missing files fail the call with
+    /// [`ErrorKind::NotFound`].
+    ///
+    /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
     pub documents: Vec<DocumentInput>,
     /// Per-request metadata merged with each document's
     /// descriptor at [`DocumentPredicate::HasMetadata`] evaluation
@@ -42,27 +47,16 @@ pub struct StartBatch {
     pub concurrency: Option<usize>,
 }
 
-/// One input document handed to [`crate::runs::start`].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// One input document handed to [`crate::runs::start`]. Files
+/// are uploaded once via [`crate::FileRegistry`]; runs reference
+/// them by id and inherit their extension + descriptor labels +
+/// metadata.
+///
+/// [`crate::FileRegistry`]: crate::FileRegistry
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentInput {
-    /// Raw bytes. Engine hands these to the elide codec at
-    /// analyze time.
-    pub bytes: Bytes,
-    /// File extension the codec registry resolves on (e.g.
-    /// `"txt"`, `"pdf"`, `"png"`). Case-insensitive, no leading
-    /// dot.
-    pub extension: String,
-    /// Doc-level labels that gate
-    /// [`DocumentPredicate::HasLabel`] policies. Caller authors
-    /// these at upload time.
-    ///
-    /// [`DocumentPredicate::HasLabel`]: nvisy_core::policy::DocumentPredicate::HasLabel
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub descriptor_labels: Vec<String>,
-    /// Doc-level metadata that gates
-    /// [`DocumentPredicate::HasMetadata`] policies, merged with
-    /// the per-request [`StartBatch::metadata`].
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub descriptor_metadata: HashMap<String, String>,
+    /// File the run analyses + redacts. Must exist under
+    /// `(actor_id, file_id)` in the engine's files keyspace.
+    pub file_id: Uuid,
 }

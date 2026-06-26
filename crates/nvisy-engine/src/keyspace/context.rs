@@ -1,7 +1,7 @@
 //! Context resource API over the engine's fjall registry.
 //!
 //! Surfaced as the [`ContextRegistry`] extension trait on
-//! [`RegistryHandle`]. Mirrors [`crate::policies::PolicyRegistry`]
+//! [`RegistryHandle`]. Mirrors [`super::policy::PolicyRegistry`]
 //! in shape: contexts are immutable per
 //! `(actor_id, context_id, version)`. To "edit" a context, write
 //! a new version. The keyspace stores every version side-by-side

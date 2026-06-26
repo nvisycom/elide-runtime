@@ -33,36 +33,11 @@ impl CompositeKey {
         Self(key)
     }
 
-    /// Recover the actor UUID from the leading 16 bytes.
-    pub fn actor_id(&self) -> Uuid {
-        let mut b = [0u8; 16];
-        b.copy_from_slice(&self.0[..16]);
-        Uuid::from_bytes(b)
-    }
-
-    /// Recover the resource UUID from the trailing 16 bytes.
-    pub fn resource_id(&self) -> Uuid {
-        let mut b = [0u8; 16];
-        b.copy_from_slice(&self.0[16..]);
-        Uuid::from_bytes(b)
-    }
-
     /// Prefix bytes for "every resource of `actor`": 16 bytes.
     /// Use with `Keyspace::prefix` to range over every entry an
     /// actor owns in a 2-component keyspace.
     pub fn actor_prefix(actor_id: Uuid) -> [u8; 16] {
         *actor_id.as_bytes()
-    }
-
-    /// Read the resource id (bytes 16..32) from a full
-    /// composite-key byte slice.
-    pub fn resource_id_from_bytes(bytes: &[u8]) -> Option<Uuid> {
-        if bytes.len() < 32 {
-            return None;
-        }
-        let mut b = [0u8; 16];
-        b.copy_from_slice(&bytes[16..32]);
-        Some(Uuid::from_bytes(b))
     }
 }
 

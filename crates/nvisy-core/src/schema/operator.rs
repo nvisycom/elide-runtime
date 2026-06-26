@@ -1,11 +1,11 @@
 //! [`OperatorIdSchema`]: wire shape for
-//! [`elide_core::redaction::OperatorId`].
+//! [`elide_core::operator::OperatorId`].
 
-use elide_core::redaction::OperatorId;
+use elide_core::operator::OperatorId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Wire-shape proxy for [`elide_core::redaction::OperatorId`].
+/// Wire-shape proxy for [`elide_core::operator::OperatorId`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[schemars(rename = "OperatorId")]

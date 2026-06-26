@@ -1,7 +1,7 @@
 //! Compile image-modality rules to elide operators + attach to an
 //! [`Anonymizer<Image>`].
 
-use elide::Anonymizer;
+use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
 use elide_core::Error;
 use elide_core::entity::LabelCatalog;

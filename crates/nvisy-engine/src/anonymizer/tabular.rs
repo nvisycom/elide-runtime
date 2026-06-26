@@ -8,14 +8,12 @@
 //! [`DropRow`]: elide::redaction::operators::DropRow
 //! [`DropColumn`]: elide::redaction::operators::DropColumn
 
-use elide::Anonymizer;
-use elide::redaction::operators::{
-    DropColumn, DropRow, Erase, Hash, HashAlgorithm, Keep, Mask, Replace,
-};
+use elide::redaction::Anonymizer;
+use elide::redaction::operators::{DropColumn, DropRow, Erase, Keep, Mask, Replace, Sha2Hash};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::tabular::Tabular;
 use elide_core::{Error, ErrorKind};
-use nvisy_core::policy::redaction::{HashAlgorithm as PolicyHashAlgorithm, TabularRedaction};
+use nvisy_core::policy::redaction::TabularRedaction;
 use nvisy_core::policy::{Policy, Rule, RuleAction};
 use uuid::Uuid;
 
@@ -124,7 +122,7 @@ enum TabularOp {
     Keep,
     Mask(Mask),
     Replace(Replace),
-    Hash(Hash),
+    Hash(Sha2Hash),
     DropRow,
     DropColumn,
 }
@@ -146,7 +144,7 @@ fn build(spec: &TabularRedaction) -> Result<TabularOp, Error> {
             TabularOp::Replace(Replace::new(template.clone()))
         }
         TabularRedaction::Hash { algorithm, salt } => {
-            let mut op = Hash::new(map_hash_algorithm(*algorithm));
+            let mut op = Sha2Hash::new((*algorithm).into());
             if let Some(s) = salt {
                 op = op.with_salt(s.as_bytes().to_vec());
             }
@@ -157,13 +155,6 @@ fn build(spec: &TabularRedaction) -> Result<TabularOp, Error> {
         TabularRedaction::Pseudonymize => return Err(stateful_not_wired("pseudonymize")),
         TabularRedaction::Encrypt => return Err(stateful_not_wired("encrypt")),
     })
-}
-
-fn map_hash_algorithm(spec: PolicyHashAlgorithm) -> HashAlgorithm {
-    match spec {
-        PolicyHashAlgorithm::Sha256 => HashAlgorithm::Sha256,
-        PolicyHashAlgorithm::Sha512 => HashAlgorithm::Sha512,
-    }
 }
 
 fn stateful_not_wired(operator: &'static str) -> Error {

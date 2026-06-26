@@ -1,5 +1,5 @@
-//! Compile a [`nvisy_core::plan::AnalyzerSpec`] into an
-//! [`elide::Analyzer`] per modality at request time.
+//! Compile a [`nvisy_core::plan::AnalyzerParams`] into an
+//! [`elide::detection::Analyzer`] per modality at request time.
 //!
 //! Symmetric with [`crate::anonymizer`]: the spec is pure data
 //! (recognizer + enricher + dedup + scope choices); engine walks
@@ -19,8 +19,8 @@
 //! LLM is per-modality typed in elide and requires an `LlmModality`
 //! impl, which today exists only for Text + Image.
 //!
-//! [`Analyzer`]: elide::Analyzer
-//! [`AnalyzerSpec`]: nvisy_core::plan::AnalyzerSpec
+//! [`Analyzer`]: elide::detection::Analyzer
+//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
 
 mod audio;
 mod common;

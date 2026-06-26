@@ -160,7 +160,7 @@ async fn analyze_one_doc(
     run_id: Uuid,
     doc_id: Uuid,
     input_file_id: Uuid,
-    spec: nvisy_core::plan::AnalyzerSpec,
+    spec: nvisy_core::plan::AnalyzerParams,
 ) {
     let registry = engine.registry();
     mark_analyzing(registry, actor_id, run_id, doc_id).await;
@@ -431,7 +431,7 @@ async fn apply_one_doc(
     run_id: Uuid,
     doc_id: Uuid,
     request_metadata: std::collections::HashMap<String, String>,
-    spec: nvisy_core::plan::AnalyzerSpec,
+    spec: nvisy_core::plan::AnalyzerParams,
     policies: std::sync::Arc<Vec<nvisy_core::policy::Policy>>,
 ) -> bool {
     let registry = engine.registry();

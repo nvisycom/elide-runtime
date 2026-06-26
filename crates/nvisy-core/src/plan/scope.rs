@@ -8,18 +8,10 @@ use crate::schema::LanguageTagSchema;
 
 /// Per-request scope assertions. Engine threads these into every
 /// recognizer's [`elide::recognition::Scope`].
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ScopeSpec {
+pub struct ScopeParams {
     /// BCP 47 language tags the caller asserts (or has detected
     /// upstream). Each becomes an asserted [`Language`] in the
     /// recognizer context.

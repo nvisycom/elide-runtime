@@ -18,15 +18,16 @@
 //! `policy_id` from the policy's UUID, `reason` from the rule's
 //! UUID (or `None` for the policy fallback).
 //!
-//! [`Anonymizer`]: elide::Anonymizer
+//! [`Anonymizer`]: elide::redaction::Anonymizer
 //! [`Rule`]: nvisy_core::policy::Rule
 //! [`Predicate`]: nvisy_core::policy::Predicate
-//! [`Attribution`]: elide_core::redaction::Attribution
+//! [`Attribution`]: elide_core::entity::provenance::Attribution
 
-use elide::Anonymizer;
+use elide::redaction::Anonymizer;
+use elide_core::entity::provenance::Attribution;
 use elide_core::entity::{Entity, LabelCatalog, LabelRef};
 use elide_core::modality::Modality;
-use elide_core::redaction::{Attribution, Operator};
+use elide_core::operator::Operator;
 use nvisy_core::policy::{Policy, Predicate, Rule};
 use uuid::Uuid;
 
@@ -112,7 +113,7 @@ where
 /// [`Predicate::TagOneOf`] resolves correctly even inside
 /// composites ([`All`] / [`Any`] / [`Not`]).
 ///
-/// [`Anonymizer::with_catalog_predicate`]: elide::Anonymizer::with_catalog_predicate
+/// [`Anonymizer::with_catalog_predicate`]: elide::redaction::Anonymizer::with_catalog_predicate
 /// [`All`]: Predicate::All
 /// [`Any`]: Predicate::Any
 /// [`Not`]: Predicate::Not

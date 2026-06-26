@@ -30,6 +30,7 @@ test-utils = []
 
 [dependencies]
 # Framework
+elide = { workspace = true, features = ["image", "audio", "tabular", "serde", "sha2"] }
 elide-core = { workspace = true, features = ["serde", "image", "audio", "tabular"] }
 
 # Serialization

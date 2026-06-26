@@ -14,20 +14,20 @@ use serde::{Deserialize, Serialize};
 /// canonical order: calibrate → fuse → resolve → filter.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct DeduplicationSpec {
+pub struct DeduplicationParams {
     /// Per-recognizer confidence weights. An empty map skips the
     /// calibrate layer.
     #[serde(default, skip_serializing_if = "CalibrationMap::is_empty")]
     pub calibration: CalibrationMap,
     /// How overlapping entities are fused into one. Defaults to
-    /// [`FusionStrategySpec::MaxConfidence`].
+    /// [`FusionStrategyParams::MaxConfidence`].
     #[serde(default)]
-    pub fusion: FusionStrategySpec,
+    pub fusion: FusionStrategyParams,
     /// How an entity's identity is resolved when several remain
     /// after fusion. Defaults to
-    /// [`ResolutionStrategySpec::HighestConfidence`].
+    /// [`ResolutionStrategyParams::HighestConfidence`].
     #[serde(default)]
-    pub resolution: ResolutionStrategySpec,
+    pub resolution: ResolutionStrategyParams,
     /// Minimum confidence the filter layer admits. `None` falls
     /// back to elide's `ConfidenceThreshold::BASELINE` at compile
     /// time.
@@ -65,7 +65,7 @@ impl CalibrationMap {
     JsonSchema
 )]
 #[serde(rename_all = "snake_case")]
-pub enum FusionStrategySpec {
+pub enum FusionStrategyParams {
     /// Keep the entity with the highest confidence.
     #[default]
     MaxConfidence,
@@ -90,7 +90,7 @@ pub enum FusionStrategySpec {
     JsonSchema
 )]
 #[serde(rename_all = "snake_case")]
-pub enum ResolutionStrategySpec {
+pub enum ResolutionStrategyParams {
     /// Keep the highest-confidence entity.
     #[default]
     HighestConfidence,

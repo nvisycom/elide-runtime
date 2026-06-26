@@ -34,10 +34,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 
 # Elide toolkit (upstream). `mock` pulls the no-op NER/LLM backends
-# the analyzer compile uses for `NerBackendSpec::Mock` /
-# `LlmBackendSpec::Mock`; real LLM providers land when key-provider
+# the analyzer compile uses for `NerBackendParams::Mock` /
+# `LlmBackendParams::Mock`; real LLM providers land when key-provider
 # wiring lands.
-elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "mock", "serde"] }
+elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "mock", "serde", "sha2"] }
 elide-core = { workspace = true, features = ["serde", "image", "audio", "tabular"] }
 
 # Recognition-side elide crates not re-exported through the elide
@@ -45,6 +45,7 @@ elide-core = { workspace = true, features = ["serde", "image", "audio", "tabular
 # is the natural reach for those). `elide-ocr` is the OCR enricher
 # layer engine wires from the image-modality compile path.
 elide-ocr = { workspace = true, features = ["mock"] }
+elide-stt = { workspace = true, features = ["mock"] }
 
 # Runtime-owned elide extensions
 elide-bento = { workspace = true, features = ["ner", "ocr"] }

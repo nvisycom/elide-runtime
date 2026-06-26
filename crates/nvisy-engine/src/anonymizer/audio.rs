@@ -1,7 +1,7 @@
 //! Compile audio-modality rules to elide operators + attach to an
 //! [`Anonymizer<Audio>`].
 
-use elide::Anonymizer;
+use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
 use elide_core::Error;
 use elide_core::entity::LabelCatalog;

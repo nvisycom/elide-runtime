@@ -11,7 +11,7 @@
 
 use elide_core::modality::image::{ImageLocation, LayoutBlock, LayoutWord};
 use elide_core::primitive::{BoundingBox, Confidence, Point};
-use elide_ocr::backend::OcrResponse;
+use elide_ocr::OcrResponse;
 use serde::Deserialize;
 
 /// Incoming per-call response body element.

@@ -27,7 +27,7 @@ default = ["ner", "ocr"]
 ## Ship the NER backend (implements `elide_ner::backend::NerBackend`
 ## against the `nvisy-inference-ner` BentoML service).
 ner = ["dep:elide-ner"]
-## Ship the OCR backend (implements `elide_ocr::backend::OcrBackend`
+## Ship the OCR backend (implements `elide_ocr::OcrBackend`
 ## against the `nvisy-inference-ocr` BentoML service).
 ocr = ["dep:elide-ocr", "dep:base64", "elide-core/image"]
 

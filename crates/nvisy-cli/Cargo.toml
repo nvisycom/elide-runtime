@@ -38,7 +38,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Internal crates
-nvisy-engine = { workspace = true, features = [] }
+nvisy-core = { workspace = true, features = [] }
 nvisy-server = { workspace = true, features = [] }
 
 # Serialization

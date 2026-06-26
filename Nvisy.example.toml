@@ -1,13 +1,11 @@
 # Nvisy configuration
 #
-# Copy to Nvisy.toml (or run `make generate-config`), then edit as needed.
-# The server loads Nvisy.toml by default; override with --config or NVISY_CONFIG.
+# Copy to Nvisy.toml (or run `make generate-config`), then edit as
+# needed. The server loads Nvisy.toml by default; override with
+# --config or NVISY_CONFIG.
 #
-# All sections are optional: omitted sections use runtime defaults.
+# All sections are optional: omitted sections use server defaults.
 
-version = "0.1.0"
-
-# Server binding and storage.
 # CLI flags (--host, --port, --data-dir) override these.
 [server]
 host = "0.0.0.0"
@@ -24,107 +22,68 @@ body_limit_mb = 4
 request_timeout = "5m"
 cors = { allowed_origins = ["*"], max_age = "1h" }
 
-# Engine-level resource limits and shared infrastructure.
-[engine]
+# The deployment default for AnalyzerParams. Requests carry
+# per-field `analyzer` overrides on top of this default (inherit
+# the slot, replace it, remove it from an optional slot, or patch
+# a list with extend + remove selectors). Omit the whole
+# [analyzer] section and the server falls back to the type-level
+# default — no recognizers, no enrichers, default dedup + scope,
+# empty catalog — useful for tests, not useful in production.
 
-# Run-level resource limits.
-[engine.limits]
-concurrency = 4              # max parallel documents in flight
-run_timeout = "60s"
+# Caller-asserted scope threaded into every recognizer's context.
+# Add languages and country codes the analyzer should consider
+# (empty = no restriction).
+[analyzer.scope]
+languages = []
+jurisdictions = []
 
-# Shared HTTP client for all downstream provider calls.
-[engine.http]
-max_retries = 3
-timeout = "120s"
-connect_timeout = "10s"
-idle_timeout = "90s"
+# Deduplication pipeline applied after recognition:
+# calibrate → fuse → resolve → filter.
+[analyzer.deduplication]
+fusion = "max_confidence"        # max_confidence | mean | noisy_or
+resolution = "highest_confidence" # highest_confidence | longest_span
+min_confidence = 0.7              # filter threshold, 0.0..=1.0
 
-# Extraction registry.
-#
-# Each opted-in `[extraction.*]` section is built once at server
-# startup. Set `enabled = false` to keep the config but skip
-# construction and dispatch. The pipeline `Extraction` step carries
-# per-call flags only.
+# Per-request label catalog. Entries are LabelSchema records:
+# { name, description?, tags?, metadata? }. The server unions
+# every submitted policy's labels with this catalog at request
+# time; entries here are the baseline.
+# [[analyzer.label_catalog]]
+# name = "email_address"
+# description = "RFC 5322 email"
+# tags = ["pii", "contact"]
 
-# Extraction: OCR (optical character recognition, images only).
-[extraction.ocr]
-enabled = true
+# Pattern recognizer: at-most-one per analyzer. Loads every
+# shipped pattern + dictionary and wraps the recognizer in
+# elide's context-boost layer.
+[analyzer.recognizers.pattern]
+builtins = true
+context_enhanced = true
 
-[extraction.ocr.backend]
-kind = "bento"
-base_url = "http://localhost:3001"
+# NER recognizer list. Each entry needs a unique `name`; multiple
+# entries run in parallel (e.g. one English model, one Spanish).
+# [[analyzer.recognizers.ner]]
+# name = "default_ner"
+# backend = { kind = "mock" }
+# # backend = { kind = "bento", base_url = "http://localhost:3000", model = "..." }
 
-# Extraction: STT (speech-to-text, audio only).
-[extraction.stt]
-enabled = true
+# LLM recognizer list. Same shape; backend chooses provider.
+# [[analyzer.recognizers.llm]]
+# name = "default_llm"
+# backend = { kind = "mock" }
 
-[extraction.stt.backend]
-kind = "noop"
+# Language enricher (writes the document's detected languages
+# into the recognizer context, driving jurisdiction-aware
+# dispatch). At-most-one per analyzer.
+# [analyzer.enrichers.language]
+# min_confidence = 0.6              # 0.0..=1.0; None lets the engine choose
 
-# Detection: pattern-based (regex + dictionary + checksum).
-# Optional section — pattern detection runs by default. Include this
-# block to narrow it (named patterns, tag filters) or to disable it
-# entirely with `enabled = false`.
-[detection.pattern]
-enabled = true
-patterns = [] # empty = all built-in patterns
+# OCR enricher (image modality only). At-most-one per analyzer.
+# [analyzer.enrichers.ocr]
+# backend = { kind = "mock" }
+# # backend = { kind = "bento", base_url = "http://localhost:3001", model = "..." }
 
-# Detection: NER (named entity recognition).
-[detection.ner]
-enabled = true
-
-[detection.ner.backend]
-kind = "bento"
-base_url = "http://localhost:3000"
-
-# Detection: LLM (large language model).
-[detection.llm]
-enabled = true
-unresolved_policy = "drop" # drop | first-match
-
-[detection.llm.provider]
-kind = "open-ai"
-api_key = "sk-example-replace-me"
-model = "gpt-4o"
-
-[detection.llm.detect]
-enabled = true
-temperature = 0.1
-max_tokens = 4096
-max_retries = 3
-# context_window = { ... }   # optional, for chunking large inputs
-# preamble = "..."           # optional, overrides the agent's default system prompt
-
-[detection.llm.verify]
-enabled = true
-temperature = 0.1
-max_tokens = 4096
-max_retries = 3
-# context_window = { ... }
-# preamble = "..."
-
-# Detection: VLM (vision-language model, images only).
-[detection.vlm]
-enabled = true
-
-[detection.vlm.provider]
-kind = "open-ai"
-api_key = "sk-example-replace-me"
-model = "gpt-4o"
-
-[detection.vlm.detect]
-enabled = true
-temperature = 0.1
-max_tokens = 4096
-max_retries = 3
-
-[detection.vlm.verify]
-enabled = true
-temperature = 0.1
-max_tokens = 4096
-max_retries = 3
-
-# Redaction params.
-[redaction]
-confidence_threshold = 0.5
-process_metadata = false
+# STT enricher (audio modality only). At-most-one per analyzer.
+# [analyzer.enrichers.stt]
+# backend = { kind = "mock" }
+# # backend = { kind = "bento", base_url = "http://localhost:3002", model = "..." }

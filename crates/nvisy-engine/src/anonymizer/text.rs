@@ -1,12 +1,12 @@
 //! Compile text-modality rules to elide operators + attach to an
 //! [`Anonymizer<Text>`].
 
-use elide::Anonymizer;
-use elide::redaction::operators::{Erase, Hash, HashAlgorithm, Keep, Mask, Replace};
+use elide::redaction::Anonymizer;
+use elide::redaction::operators::{Erase, Keep, Mask, Replace, Sha2Hash};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind};
-use nvisy_core::policy::redaction::{HashAlgorithm as PolicyHashAlgorithm, TextRedaction};
+use nvisy_core::policy::redaction::TextRedaction;
 use nvisy_core::policy::{Policy, Rule, RuleAction};
 use uuid::Uuid;
 
@@ -117,7 +117,7 @@ enum TextOp {
     Keep,
     Mask(Mask),
     Replace(Replace),
-    Hash(Hash),
+    Hash(Sha2Hash),
 }
 
 fn build(spec: &TextRedaction) -> Result<TextOp, Error> {
@@ -135,7 +135,7 @@ fn build(spec: &TextRedaction) -> Result<TextOp, Error> {
         ),
         TextRedaction::Replace { template } => TextOp::Replace(Replace::new(template.clone())),
         TextRedaction::Hash { algorithm, salt } => {
-            let mut op = Hash::new(map_hash_algorithm(*algorithm));
+            let mut op = Sha2Hash::new((*algorithm).into());
             if let Some(s) = salt {
                 op = op.with_salt(s.as_bytes().to_vec());
             }
@@ -148,13 +148,6 @@ fn build(spec: &TextRedaction) -> Result<TextOp, Error> {
             return Err(stateful_not_wired("encrypt", "key provider"));
         }
     })
-}
-
-fn map_hash_algorithm(spec: PolicyHashAlgorithm) -> HashAlgorithm {
-    match spec {
-        PolicyHashAlgorithm::Sha256 => HashAlgorithm::Sha256,
-        PolicyHashAlgorithm::Sha512 => HashAlgorithm::Sha512,
-    }
 }
 
 fn stateful_not_wired(operator: &'static str, infrastructure: &'static str) -> Error {

@@ -39,13 +39,10 @@ async fn run() -> anyhow::Result<()> {
     tracing::info!(
         target: TARGET,
         binary = env!("CARGO_PKG_VERSION"),
-        config = %config.runtime.version,
         "starting nvisy",
     );
-    let AppConfig {
-        server, runtime, ..
-    } = config;
-    let state = ServiceState::new(runtime, server.data_dir.clone()).await?;
+    let AppConfig { server, analyzer } = config;
+    let state = ServiceState::new(server.data_dir.clone(), analyzer).await?;
     let router = create_router(&server, state);
     server::run(&server, router).await
 }

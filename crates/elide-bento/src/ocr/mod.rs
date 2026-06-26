@@ -1,4 +1,4 @@
-//! [`BentoOcr`]: an [`elide_ocr::backend::OcrBackend`] backed by the
+//! [`BentoOcr`]: an [`elide_ocr::OcrBackend`] backed by the
 //! `nvisy-inference-ocr` BentoML service.
 //!
 //! Wire contract: `POST /recognize` accepts a batched list of
@@ -27,7 +27,7 @@ mod response;
 use bentoml::{Client, Endpoint};
 use elide_core::Result;
 use elide_core::entity::provenance::ModelEvent;
-use elide_ocr::backend::{OcrBackend, OcrRequest, OcrResponse};
+use elide_ocr::{OcrBackend, OcrRequest, OcrResponse};
 use hipstr::HipStr;
 
 use self::request::WireOcrRequest;

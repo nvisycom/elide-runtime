@@ -2,7 +2,7 @@
 //!
 //! - [`analyze_document`] decodes bytes, resolves modality,
 //!   compiles the per-modality analyzer from the
-//!   [`AnalyzerSpec`], recognizes entities, and wraps them in a
+//!   [`AnalyzerParams`], recognizes entities, and wraps them in a
 //!   [`DocBody`].
 //! - [`apply_document`] decodes bytes again, layers reviewer
 //!   overrides on top of the policy-driven anonymizer, applies
@@ -16,7 +16,8 @@
 
 use bytes::Bytes;
 use elide::codec::{DocumentHandle, FormatRegistry};
-use elide::{Analyzer, Anonymizer};
+use elide::detection::Analyzer;
+use elide::redaction::Anonymizer;
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
 use elide_core::modality::audio::Audio;
@@ -24,7 +25,7 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use elide_core::recognition::Scope;
-use nvisy_core::plan::AnalyzerSpec;
+use nvisy_core::plan::AnalyzerParams;
 use nvisy_core::policy::Policy;
 use nvisy_core::{Error, Result};
 
@@ -58,7 +59,7 @@ pub(super) async fn analyze_document(
     registry: &FormatRegistry,
     bytes: Bytes,
     extension: &str,
-    spec: &AnalyzerSpec,
+    spec: &AnalyzerParams,
 ) -> Result<AnalyzeOutcome> {
     let handle = registry.decode(bytes, extension).await.map_err(|err| {
         Error::validation(
@@ -179,13 +180,13 @@ pub(super) struct ApplyOutcome {
 /// override). `policies` is the full resolved policy set; the
 /// pipeline filters to those whose [`Policy::applies_when`]
 /// holds against `facts` (the merged descriptor + per-request
-/// metadata). `spec` is the same [`AnalyzerSpec`] that drove
+/// metadata). `spec` is the same [`AnalyzerParams`] that drove
 /// analyze — needed for the label catalog.
 pub(super) async fn apply_document(
     registry: &FormatRegistry,
     bytes: Bytes,
     extension: &str,
-    spec: &AnalyzerSpec,
+    spec: &AnalyzerParams,
     policies: &[Policy],
     facts: &DocumentFacts<'_>,
     body: &DocBody,
@@ -237,7 +238,7 @@ pub(super) async fn apply_document(
 }
 
 fn build_text_anonymizer<'a>(
-    spec: &AnalyzerSpec,
+    spec: &AnalyzerParams,
     policies: impl Iterator<Item = &'a Policy>,
     entities: &[EntityRecord<Text>],
 ) -> Result<Anonymizer<Text>> {
@@ -253,7 +254,7 @@ fn build_text_anonymizer<'a>(
 }
 
 fn build_tabular_anonymizer<'a>(
-    spec: &AnalyzerSpec,
+    spec: &AnalyzerParams,
     policies: impl Iterator<Item = &'a Policy>,
     entities: &[EntityRecord<Tabular>],
 ) -> Result<Anonymizer<Tabular>> {
@@ -269,7 +270,7 @@ fn build_tabular_anonymizer<'a>(
 }
 
 fn build_image_anonymizer<'a>(
-    spec: &AnalyzerSpec,
+    spec: &AnalyzerParams,
     policies: impl Iterator<Item = &'a Policy>,
     entities: &[EntityRecord<Image>],
 ) -> Anonymizer<Image> {
@@ -284,7 +285,7 @@ fn build_image_anonymizer<'a>(
 }
 
 fn build_audio_anonymizer<'a>(
-    spec: &AnalyzerSpec,
+    spec: &AnalyzerParams,
     policies: impl Iterator<Item = &'a Policy>,
     entities: &[EntityRecord<Audio>],
 ) -> Anonymizer<Audio> {

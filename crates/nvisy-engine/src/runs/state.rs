@@ -34,7 +34,7 @@ use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use hipstr::HipStr;
 use jiff::Timestamp;
-use nvisy_core::plan::AnalyzerSpec;
+use nvisy_core::plan::AnalyzerParams;
 use nvisy_core::policy::RuleAction;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -115,7 +115,7 @@ pub struct Run {
     /// per modality at analyze time. Persisted on the header so
     /// apply (run separately, potentially after a process restart)
     /// can re-resolve the same recognition shape.
-    pub analyzer: AnalyzerSpec,
+    pub analyzer: AnalyzerParams,
     /// Cap on how many per-doc analyses run concurrently. Honoured
     /// by both analyze and apply.
     pub concurrency: usize,

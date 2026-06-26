@@ -1,7 +1,7 @@
 //! Composable, entity-level predicates for [`Rule::predicate`].
 //!
 //! Each variant is serialisable. Engine compiles a `Predicate` into
-//! a closure passed to [`elide::Anonymizer::with_catalog_predicate`]
+//! a closure passed to [`elide::redaction::Anonymizer::with_catalog_predicate`]
 //! (or routed to [`with_label`] / [`with_tag`] fast paths for the
 //! degenerate single-label / single-tag shapes). Leaf variants
 //! inspect entity facts (label, tag, confidence, coref); the
@@ -9,8 +9,8 @@
 //! algebra over them.
 //!
 //! [`Rule::predicate`]: super::Rule::predicate
-//! [`with_label`]: elide::Anonymizer::with_label
-//! [`with_tag`]: elide::Anonymizer::with_tag
+//! [`with_label`]: elide::redaction::Anonymizer::with_label
+//! [`with_tag`]: elide::redaction::Anonymizer::with_tag
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

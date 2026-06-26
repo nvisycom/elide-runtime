@@ -18,10 +18,10 @@
 //! compiles down to the same fast path.
 //!
 //! [`Policy`]: super::Policy
-//! [`Anonymizer`]: elide::Anonymizer
-//! [`Anonymizer::with_label`]: elide::Anonymizer::with_label
-//! [`Anonymizer::with_tag`]: elide::Anonymizer::with_tag
-//! [`Anonymizer::with_catalog_predicate`]: elide::Anonymizer::with_catalog_predicate
+//! [`Anonymizer`]: elide::redaction::Anonymizer
+//! [`Anonymizer::with_label`]: elide::redaction::Anonymizer::with_label
+//! [`Anonymizer::with_tag`]: elide::redaction::Anonymizer::with_tag
+//! [`Anonymizer::with_catalog_predicate`]: elide::redaction::Anonymizer::with_catalog_predicate
 
 use hipstr::HipStr;
 use schemars::JsonSchema;
@@ -46,7 +46,7 @@ pub struct Rule {
     /// [`Attribution::reason`] so reviewers can trace back which
     /// rule fired.
     ///
-    /// [`Attribution::reason`]: elide_core::redaction::Attribution::reason
+    /// [`Attribution::reason`]: elide_core::entity::provenance::Attribution::reason
     pub id: Uuid,
     /// Human-readable name. Display-only — does not key anything.
     #[schemars(with = "String")]

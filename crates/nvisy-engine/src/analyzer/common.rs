@@ -9,11 +9,11 @@
 //! `LlmModality` trait) and the per-modality rejection of unwired
 //! spec variants.
 
-use elide::Analyzer;
-use elide::deduplication::calibrate::{CalibrateLayer, CalibrationMap as ElideCalibrationMap};
-use elide::deduplication::filter::FilterLayer;
-use elide::deduplication::fuse::{FuseLayer, MaxConfidence, Mean, NoisyOr};
-use elide::deduplication::resolve::{HighestConfidence, LongestSpan, ResolveLayer};
+use elide::detection::Analyzer;
+use elide::detection::calibrate::{CalibrateLayer, CalibrationMap as ElideCalibrationMap};
+use elide::detection::filter::FilterLayer;
+use elide::detection::fuse::{FuseLayer, MaxConfidence, Mean, NoisyOr};
+use elide::detection::resolve::{HighestConfidence, LongestSpan, ResolveLayer};
 use elide::recognition::ner::NerRecognizer;
 use elide::recognition::pattern::PatternRecognizer;
 use elide_bento::BentoNer;
@@ -23,13 +23,13 @@ use elide_core::primitive::ConfidenceThreshold;
 use elide_core::recognition::Recognizer;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::{
-    AnalyzerSpec, DeduplicationSpec, EnricherSpec, FusionStrategySpec, NerBackendSpec,
-    NerRecognizerSpec, PatternRecognizerSpec, ResolutionStrategySpec,
+    AnalyzerParams, DeduplicationParams, FusionStrategyParams, NerBackendParams,
+    NerRecognizerParams, PatternRecognizerParams, ResolutionStrategyParams,
 };
 
 /// Build the per-request label catalog from `spec`. Engine does not
 /// pre-seed builtins; the caller picks.
-pub(crate) fn build_catalog(spec: &AnalyzerSpec) -> LabelCatalog {
+pub(crate) fn build_catalog(spec: &AnalyzerParams) -> LabelCatalog {
     let mut catalog = LabelCatalog::new();
     for label in &spec.label_catalog {
         catalog.insert(label.clone().into());
@@ -37,28 +37,20 @@ pub(crate) fn build_catalog(spec: &AnalyzerSpec) -> LabelCatalog {
     catalog
 }
 
-/// Modality-generic enricher attach: handles the variants that
-/// apply to every modality. Variants that are modality-specific
-/// (e.g. `Ocr` on Image) are rejected here; the per-modality
-/// compile function intercepts them before delegating.
-pub(super) fn attach_enricher<M>(
-    _analyzer: Analyzer<M>,
-    spec: &EnricherSpec,
-) -> Result<Analyzer<M>, Error>
+/// Reject the language enricher: `elide-ner/lingua` wiring isn't
+/// exposed through the compile surface yet. Per-modality compile
+/// fns call this when they see `params.enrichers.language` set
+/// (every modality supports language detection in principle, but
+/// no modality currently has the backend wired).
+pub(super) fn reject_language_enricher<M>() -> Result<Analyzer<M>, Error>
 where
     M: elide_core::modality::Modality,
 {
-    match spec {
-        EnricherSpec::Language(_) => Err(Error::new(
-            ErrorKind::Validation,
-            "analyzer compile: language enricher needs elide-ner/lingua wiring; \
-             not exposed through the compile surface yet",
-        )),
-        EnricherSpec::Ocr(_) => Err(Error::new(
-            ErrorKind::Validation,
-            "analyzer compile: OCR enricher is only valid on the image modality",
-        )),
-    }
+    Err(Error::new(
+        ErrorKind::Validation,
+        "analyzer compile: language enricher needs elide-ner/lingua wiring; \
+         not exposed through the compile surface yet",
+    ))
 }
 
 /// Attach a [`PatternRecognizer`] built from `spec`. The same
@@ -67,7 +59,7 @@ where
 /// uniform across modalities.
 pub(super) fn attach_pattern<M>(
     analyzer: Analyzer<M>,
-    spec: &PatternRecognizerSpec,
+    spec: &PatternRecognizerParams,
 ) -> Result<Analyzer<M>, Error>
 where
     M: TextRecognizable,
@@ -89,7 +81,7 @@ where
 /// modality-generic for any `M: TextRecognizable`.
 pub(super) fn attach_ner<M>(
     analyzer: Analyzer<M>,
-    spec: &NerRecognizerSpec,
+    spec: &NerRecognizerParams,
 ) -> Result<Analyzer<M>, Error>
 where
     M: TextRecognizable,
@@ -97,10 +89,10 @@ where
 {
     let mut builder = NerRecognizer::builder().with_name(spec.name.clone());
     match &spec.backend {
-        NerBackendSpec::Mock => {
+        NerBackendParams::Mock => {
             builder = builder.with_mock_backend();
         }
-        NerBackendSpec::Bento { base_url, model } => {
+        NerBackendParams::Bento { base_url, model } => {
             builder = builder.with_backend(BentoNer::new(base_url.clone(), model.clone())?);
         }
     }
@@ -109,7 +101,7 @@ where
 
 /// Append the deduplication layers: calibrate → fuse → resolve →
 /// filter. Calibrate is skipped when the calibration map is empty.
-pub(super) fn attach_dedup<M>(mut analyzer: Analyzer<M>, spec: &DeduplicationSpec) -> Analyzer<M>
+pub(super) fn attach_dedup<M>(mut analyzer: Analyzer<M>, spec: &DeduplicationParams) -> Analyzer<M>
 where
     M: elide_core::modality::Modality,
 {
@@ -122,16 +114,18 @@ where
     }
 
     analyzer = match spec.fusion {
-        FusionStrategySpec::MaxConfidence => analyzer.with_layer(FuseLayer::new(MaxConfidence)),
-        FusionStrategySpec::Mean => analyzer.with_layer(FuseLayer::new(Mean)),
-        FusionStrategySpec::NoisyOr => analyzer.with_layer(FuseLayer::new(NoisyOr)),
+        FusionStrategyParams::MaxConfidence => analyzer.with_layer(FuseLayer::new(MaxConfidence)),
+        FusionStrategyParams::Mean => analyzer.with_layer(FuseLayer::new(Mean)),
+        FusionStrategyParams::NoisyOr => analyzer.with_layer(FuseLayer::new(NoisyOr)),
     };
 
     analyzer = match spec.resolution {
-        ResolutionStrategySpec::HighestConfidence => {
+        ResolutionStrategyParams::HighestConfidence => {
             analyzer.with_layer(ResolveLayer::new(HighestConfidence))
         }
-        ResolutionStrategySpec::LongestSpan => analyzer.with_layer(ResolveLayer::new(LongestSpan)),
+        ResolutionStrategyParams::LongestSpan => {
+            analyzer.with_layer(ResolveLayer::new(LongestSpan))
+        }
     };
 
     let threshold = match spec.min_confidence {

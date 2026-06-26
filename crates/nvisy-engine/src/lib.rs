@@ -7,9 +7,9 @@
 //! service:
 //!
 //! - [`analyzer`] compiles a request's recognition plan into an
-//!   [`elide::Analyzer`] per modality.
+//!   [`elide::detection::Analyzer`] per modality.
 //! - [`anonymizer`] compiles a request's [`nvisy_core::policy::Policy`]
-//!   set into an [`elide::Anonymizer`] per modality, stamping each
+//!   set into an [`elide::redaction::Anonymizer`] per modality, stamping each
 //!   resolved decision with the policy + rule provenance the audit
 //!   trail requires.
 //! - [`registry`] holds the multi-tenant, actor-scoped storage

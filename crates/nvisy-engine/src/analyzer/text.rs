@@ -1,21 +1,23 @@
-//! Compile the text-applicable parts of [`AnalyzerSpec`] into an
-//! [`elide::Analyzer<Text>`].
+//! Compile the text-applicable parts of [`AnalyzerParams`] into an
+//! [`elide::detection::Analyzer<Text>`].
 //!
 //! Text supports the full recognizer set: Pattern, NER, and LLM.
-//! Real LLM providers + custom prompts and the NER bento backend
-//! return a `Validation` error today (their infrastructure is not
+//! Real LLM providers + custom prompts return a `Validation`
+//! error today (their credential / rate-limit wiring is not
 //! exposed through the compile surface yet).
 //!
-//! [`AnalyzerSpec`]: nvisy_core::plan::AnalyzerSpec
+//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
 
-use elide::Analyzer;
+use elide::detection::Analyzer;
 use elide::recognition::llm::LlmRecognizer;
 use elide_core::modality::text::Text;
 use elide_core::recognition::Scope;
 use elide_core::{Error, ErrorKind};
-use nvisy_core::plan::{AnalyzerSpec, LlmBackendSpec, LlmRecognizerSpec, RecognizerSpec};
+use nvisy_core::plan::{AnalyzerParams, LlmBackendParams, LlmRecognizerParams};
 
-use super::common::{attach_dedup, attach_enricher, attach_ner, attach_pattern, build_catalog};
+use super::common::{
+    attach_dedup, attach_ner, attach_pattern, build_catalog, reject_language_enricher,
+};
 use super::scope::compile_scope;
 
 /// Compile `spec` into a text-modality analyzer + its compiled
@@ -25,21 +27,38 @@ use super::scope::compile_scope;
 /// (elide's `Analyzer::analyze` takes `&Scope` per-call, not at
 /// build time); the caller pairs them: `analyzer.analyze(data,
 /// &scope)`.
-pub fn compile_text(spec: &AnalyzerSpec) -> Result<(Analyzer<Text>, Scope<Text>), Error> {
+pub fn compile_text(spec: &AnalyzerParams) -> Result<(Analyzer<Text>, Scope<Text>), Error> {
     let scope = compile_scope::<Text>(&spec.scope)?;
     let catalog = build_catalog(spec);
     let mut analyzer = Analyzer::<Text>::new();
 
-    for enricher in &spec.enrichers {
-        analyzer = attach_enricher(analyzer, enricher)?;
+    // Enrichers: language is the only text-applicable kind; OCR
+    // / STT are modality-specific (image / audio).
+    if spec.enrichers.language.is_some() {
+        analyzer = reject_language_enricher::<Text>()?;
+    }
+    if spec.enrichers.ocr.is_some() {
+        return Err(Error::new(
+            ErrorKind::Validation,
+            "analyzer compile: OCR enricher is only valid on the image modality",
+        ));
+    }
+    if spec.enrichers.stt.is_some() {
+        return Err(Error::new(
+            ErrorKind::Validation,
+            "analyzer compile: STT enricher is only valid on the audio modality",
+        ));
     }
 
-    for recognizer in &spec.recognizers {
-        analyzer = match recognizer {
-            RecognizerSpec::Pattern(p) => attach_pattern(analyzer, p)?,
-            RecognizerSpec::Ner(n) => attach_ner(analyzer, n)?,
-            RecognizerSpec::Llm(l) => attach_llm(analyzer, l)?,
-        };
+    // Recognizers: pattern (at-most-one), ner (list), llm (list).
+    if let Some(pattern) = &spec.recognizers.pattern {
+        analyzer = attach_pattern(analyzer, pattern)?;
+    }
+    for ner in &spec.recognizers.ner {
+        analyzer = attach_ner(analyzer, ner)?;
+    }
+    for llm in &spec.recognizers.llm {
+        analyzer = attach_llm(analyzer, llm)?;
     }
 
     analyzer = attach_dedup(analyzer, &spec.deduplication);
@@ -47,15 +66,18 @@ pub fn compile_text(spec: &AnalyzerSpec) -> Result<(Analyzer<Text>, Scope<Text>)
     Ok((analyzer, scope))
 }
 
-fn attach_llm(analyzer: Analyzer<Text>, spec: &LlmRecognizerSpec) -> Result<Analyzer<Text>, Error> {
+fn attach_llm(
+    analyzer: Analyzer<Text>,
+    spec: &LlmRecognizerParams,
+) -> Result<Analyzer<Text>, Error> {
     let mut builder = LlmRecognizer::<Text>::builder().with_name(spec.name.clone());
     match &spec.backend {
-        LlmBackendSpec::Mock => {
+        LlmBackendParams::Mock => {
             builder = builder.with_mock_backend();
         }
-        LlmBackendSpec::Openai { .. }
-        | LlmBackendSpec::Anthropic { .. }
-        | LlmBackendSpec::Google { .. } => {
+        LlmBackendParams::Openai { .. }
+        | LlmBackendParams::Anthropic { .. }
+        | LlmBackendParams::Google { .. } => {
             return Err(Error::new(
                 ErrorKind::Validation,
                 "analyzer compile: real LLM providers need engine-side credential + \

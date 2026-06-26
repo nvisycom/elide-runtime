@@ -8,26 +8,27 @@
 //! - [`TextRedaction::Keep`] → [`elide::redaction::operators::Keep`]
 //! - [`TextRedaction::Mask`] → [`elide::redaction::operators::Mask`]
 //! - [`TextRedaction::Replace`] → [`elide::redaction::operators::Replace`]
-//! - [`TextRedaction::Hash`] → [`elide::redaction::operators::Hash`]
+//! - [`TextRedaction::Hash`] → [`elide::redaction::operators::Sha2Hash`]
 //! - [`TextRedaction::Pseudonymize`] →
 //!   [`elide::redaction::operators::Pseudonymize`]
 //! - [`TextRedaction::Encrypt`] →
-//!   [`elide::redaction::operators::Encrypt`] (engine wires the
+//!   [`elide::redaction::operators::AesEncrypt`] (engine wires the
 //!   per-tenant key provider)
 //!
 //! No `Custom` escape hatch — every operator the wire format admits
 //! is predefined. New built-ins land in elide first, then surface
 //! here as new variants.
 
+use elide::redaction::operators::Sha2Algorithm;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// SHA-2 variant for the [`TextRedaction::Hash`] operator.
 ///
-/// Spec mirror of elide's [`elide::redaction::operators::HashAlgorithm`];
-/// the engine maps between the two at compile time. Local copy so
-/// the wire format owns its vocabulary (the upstream enum is not
-/// serialisable today).
+/// Spec mirror of elide's [`Sha2Algorithm`]; the [`From`] impl below
+/// keeps the wire vocabulary independent of upstream's serde gating.
+///
+/// [`Sha2Algorithm`]: elide::redaction::operators::Sha2Algorithm
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -37,6 +38,15 @@ pub enum HashAlgorithm {
     Sha256,
     /// SHA-512 — 64-byte digest, 128-char hex.
     Sha512,
+}
+
+impl From<HashAlgorithm> for Sha2Algorithm {
+    fn from(value: HashAlgorithm) -> Self {
+        match value {
+            HashAlgorithm::Sha256 => Sha2Algorithm::Sha256,
+            HashAlgorithm::Sha512 => Sha2Algorithm::Sha512,
+        }
+    }
 }
 
 /// Operator spec a `redact` text rule carries.

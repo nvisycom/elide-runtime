@@ -1,5 +1,5 @@
 //! Compile a [`nvisy_core::policy::Policy`] set into an
-//! [`elide::Anonymizer`] per modality at request time.
+//! [`elide::redaction::Anonymizer`] per modality at request time.
 //!
 //! Policy specs are serialisable and modality-agnostic; elide's
 //! [`Anonymizer<M>`] is a runtime, modality-typed value that drives

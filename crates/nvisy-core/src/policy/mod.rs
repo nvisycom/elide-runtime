@@ -15,7 +15,7 @@
 //! reviewers can trace any redaction back to the exact rule that
 //! fired.
 //!
-//! [`Attribution`]: elide_core::redaction::Attribution
+//! [`Attribution`]: elide_core::entity::provenance::Attribution
 
 mod audit;
 mod document;
@@ -54,7 +54,7 @@ pub struct Policy {
     /// [`Attribution::policy_id`] so reviewers can find this
     /// policy from any redaction it drove.
     ///
-    /// [`Attribution::policy_id`]: elide_core::redaction::Attribution::policy_id
+    /// [`Attribution::policy_id`]: elide_core::entity::provenance::Attribution::policy_id
     pub id: Uuid,
     /// Human-readable name. Display-only — does not key anything.
     #[schemars(with = "String")]

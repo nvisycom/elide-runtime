@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_core::plan::AnalyzerSpec;
+use nvisy_core::plan::AnalyzerParams;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -39,8 +39,8 @@ pub struct StartBatch {
     pub metadata: HashMap<String, String>,
     /// Recognition plan — which recognizers + enrichers run, the
     /// dedup pipeline, the request scope. Engine compiles this
-    /// into an [`elide::Analyzer`] per modality at start time.
-    pub analyzer: AnalyzerSpec,
+    /// into an [`elide::detection::Analyzer`] per modality at start time.
+    pub analyzer: AnalyzerParams,
     /// Cap on per-doc analyses + applies running concurrently.
     /// `None` falls back to a sensible default at start time.
     #[serde(default, skip_serializing_if = "Option::is_none")]

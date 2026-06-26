@@ -22,7 +22,7 @@
 //! [`Hash`]: elide::redaction::operators::Hash
 //! [`Erase`]: elide::redaction::operators::Erase
 //! [`Keep`]: elide::redaction::operators::Keep
-//! [`Operator<M>`]: elide_core::redaction::Operator
+//! [`Operator<M>`]: elide_core::operator::Operator
 
 mod any;
 mod audio;

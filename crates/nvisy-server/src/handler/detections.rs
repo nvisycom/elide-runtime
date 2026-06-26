@@ -27,11 +27,12 @@ const TARGET: &str = "nvisy_server::detections";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn create_detection(
-    State(engine): State<EngineHandle>,
+    State(state): State<ServiceState>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewDetection>,
 ) -> Result<(StatusCode, Json<DetectionId>)> {
-    let id = runs::start(&engine, actor_id, req.into_engine_input()).await?;
+    let batch = req.into_engine_input(state.analyzer_default());
+    let id = runs::start(state.engine(), actor_id, batch).await?;
     tracing::info!(target: TARGET, %id, "detection started");
     Ok((StatusCode::ACCEPTED, Json(DetectionId { id })))
 }

@@ -1,8 +1,7 @@
 //! Fjall extension traits and async helpers for the registry module.
 //!
-//! [`FjallKeyspaceExt`] and [`FjallDatabaseExt`] wrap raw fjall
-//! operations with [`CompositeKey`] support and consistent error
-//! mapping to [`Error`].
+//! [`FjallDatabaseExt`] wraps raw fjall database operations with
+//! consistent error mapping to [`Error`].
 //!
 //! [`Error`]: nvisy_core::Error
 
@@ -13,75 +12,7 @@ use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
 use nvisy_core::{Error, ErrorKind, Result};
 use uuid::Uuid;
 
-use super::key::CompositeKey;
-
 const COMPONENT: &str = "registry";
-
-/// Extension trait for fjall [`Keyspace`] with consistent error mapping.
-///
-/// Wraps raw fjall operations to accept [`CompositeKey`] and return
-/// [`Result`] with standardized error context.
-///
-/// [`Result`]: nvisy_core::Result
-pub(crate) trait FjallKeyspaceExt {
-    /// Insert a value at the given composite key.
-    fn put(&self, key: CompositeKey, value: &[u8]) -> Result<()>;
-    /// Read the value at a key, returning `None` if absent.
-    fn get_bytes(&self, key: CompositeKey) -> Result<Option<Vec<u8>>>;
-    /// Remove the entry at a key.
-    fn delete(&self, key: CompositeKey) -> Result<()>;
-    /// Check whether a key exists.
-    fn exists(&self, key: CompositeKey) -> Result<bool>;
-    /// List all resource UUIDs for the given actor (sorted).
-    fn resource_ids(&self, actor_id: Uuid) -> Result<Vec<Uuid>>;
-    /// Collect all composite keys sharing the given byte prefix.
-    fn prefix_keys(&self, prefix: &[u8]) -> Result<Vec<CompositeKey>>;
-}
-
-impl FjallKeyspaceExt for Keyspace {
-    fn put(&self, key: CompositeKey, value: &[u8]) -> Result<()> {
-        self.insert(*key, value)
-            .map_err(|err| fjall_err("failed to write entry", err))
-    }
-
-    fn get_bytes(&self, key: CompositeKey) -> Result<Option<Vec<u8>>> {
-        self.get(*key)
-            .map(|opt| opt.map(|guard| guard.to_vec()))
-            .map_err(|err| fjall_err("failed to read entry", err))
-    }
-
-    fn delete(&self, key: CompositeKey) -> Result<()> {
-        self.remove(*key)
-            .map_err(|err| fjall_err("failed to remove entry", err))
-    }
-
-    fn exists(&self, key: CompositeKey) -> Result<bool> {
-        self.contains_key(*key)
-            .map_err(|err| fjall_err("failed to check key", err))
-    }
-
-    fn resource_ids(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
-        let keys = self.prefix_keys(actor_id.as_bytes())?;
-        let mut ids: Vec<Uuid> = keys.iter().map(|k| k.resource_id()).collect();
-        ids.sort();
-        Ok(ids)
-    }
-
-    fn prefix_keys(&self, prefix: &[u8]) -> Result<Vec<CompositeKey>> {
-        self.prefix(prefix)
-            .map(|guard| {
-                let key = guard
-                    .key()
-                    .map_err(|err| fjall_err("failed to iterate keyspace", err))?;
-                let bytes: [u8; 32] = key.as_ref().try_into().map_err(|_| {
-                    Error::new(ErrorKind::Internal, "unexpected key length")
-                        .with_component(COMPONENT)
-                })?;
-                Ok(CompositeKey::from(bytes))
-            })
-            .collect()
-    }
-}
 
 /// Extension trait for fjall [`Database`] with consistent error mapping.
 ///

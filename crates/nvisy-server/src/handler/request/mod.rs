@@ -6,6 +6,7 @@
 //! [`Deserialize`]: serde::Deserialize
 //! [`JsonSchema`]: schemars::JsonSchema
 
+pub mod analyzer;
 mod contexts;
 mod detections;
 mod files;

@@ -8,12 +8,9 @@
 //! backend uses entities only and ignores the rest. Per-call
 //! correlation IDs propagate as `x-request-id` headers when set.
 //!
-//! Layout:
-//!
-//! - [`mod@request`] — outgoing wire shapes (`WireNerRequest`,
-//!   `WireSchema`, `WireEntitySpec`).
-//! - [`mod@response`] — incoming wire shapes (`WireNerResponse`,
-//!   `WireEntity`) plus the [`response::decode`] helper.
+//! Wire types live in the private `request` (outgoing) and
+//! `response` (incoming) submodules; only the public
+//! [`BentoNer`] backend is part of this crate's API.
 
 mod request;
 mod response;

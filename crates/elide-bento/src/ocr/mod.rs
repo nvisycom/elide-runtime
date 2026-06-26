@@ -11,12 +11,9 @@
 //! [`LayoutWord`] regardless of its parent `Line`. Per-call
 //! correlation IDs propagate as `x-request-id` headers when set.
 //!
-//! Layout:
-//!
-//! - [`mod@request`] — outgoing wire shapes (`WireOcrRequest`).
-//! - [`mod@response`] — incoming wire shapes (`WireOcrResponse`,
-//!   `WirePage`, `WireBlock`, `WireLine`, `WireWord`,
-//!   `WireBoundingBox`) plus the [`response::decode`] helper.
+//! Wire types live in the private `request` (outgoing) and
+//! `response` (incoming) submodules; only the public
+//! [`BentoOcr`] backend is part of this crate's API.
 //!
 //! [`LayoutBlock`]: elide_core::modality::image::LayoutBlock
 //! [`LayoutWord`]: elide_core::modality::image::LayoutWord

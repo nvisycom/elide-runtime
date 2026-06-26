@@ -96,11 +96,9 @@ pub enum TextRedaction {
     ///
     /// [`RandomToken`]: elide::redaction::generator::RandomToken
     Pseudonymize,
-    /// Reversible AES-256-GCM ciphertext. The engine wires the
-    /// per-tenant [`KeyProvider`] so raw key material never lives in
-    /// serialised policy.
-    ///
-    /// [`KeyProvider`]: elide::redaction::key_provider::KeyProvider
+    /// Reversible AES-256-GCM ciphertext. The engine supplies the
+    /// per-tenant AES key at construction so raw key material never
+    /// lives in serialised policy.
     Encrypt,
 }
 

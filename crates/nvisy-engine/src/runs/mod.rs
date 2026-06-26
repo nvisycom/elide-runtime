@@ -5,7 +5,7 @@
 //!
 //! - [`start`] — submit a batch, mints a run id, fans the
 //!   analyzer out, lands in [`RunState::AwaitingReview`].
-//! - [`get_header`] / [`get_doc`] / [`get_artifact`] — read.
+//! - [`get`] / [`get_doc`] — read the run header / a per-doc body.
 //! - [`list`] — list every run for an actor.
 //! - [`override_entity`] — reviewer flips a per-entity decision
 //!   before apply.

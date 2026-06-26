@@ -301,12 +301,10 @@ pub async fn apply(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Resul
     Ok(())
 }
 
-/// Read the run header at `(actor_id, run_id)`. Public
-/// read-side counterpart to the `pub(crate)`
-/// [`RunRegistry::get_run`]; external API consumers reach run
-/// state through this rather than the persistence trait.
-///
-/// [`RunRegistry::get_run`]: super::persist::RunRegistry::get_run
+/// Read the run header at `(actor_id, run_id)`. Public read-side
+/// counterpart to the `pub(crate)` `RunRegistry::get_run`;
+/// external API consumers reach run state through this rather than
+/// the persistence trait.
 pub async fn get(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<Run> {
     engine.registry().get_run(actor_id, run_id).await
 }

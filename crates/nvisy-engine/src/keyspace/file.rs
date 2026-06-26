@@ -8,8 +8,9 @@
 //! A file is a `(metadata, bytes)` pair: the bytes live in a
 //! blob-separated `files_content` keyspace; the metadata
 //! ([`FileMetadata`]) lives in a small JSON `files_metadata`
-//! keyspace. The split lets [`list_files`] enumerate every file
-//! for an actor without paying the cost of loading the bytes.
+//! keyspace. The split lets [`FileRegistry::list_files`] enumerate
+//! every file for an actor without paying the cost of loading the
+//! bytes.
 //!
 //! Writes are content-first, metadata-second. A failure between
 //! the two leaves orphan bytes (garbage-collectable later by a

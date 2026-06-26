@@ -2,11 +2,11 @@
 //!
 //! Three resource families, all keyed by `(actor_id, …)`:
 //!
-//! - [`policy`] — versioned [`Policy`] blobs keyed by
+//! - [`mod@policy`] — versioned [`Policy`] blobs keyed by
 //!   `(actor_id, policy_id, version)`. Immutable per
 //!   `(id, version)`; "edit" by writing a new version.
-//! - [`context`] — versioned [`Context`] blobs, same shape.
-//! - [`file`] — opaque `(metadata, bytes)` pair keyed by
+//! - [`mod@context`] — versioned [`Context`] blobs, same shape.
+//! - [`mod@file`] — opaque `(metadata, bytes)` pair keyed by
 //!   `(actor_id, file_id)`. Metadata + content live in
 //!   separate keyspaces so `list_files` is cheap; bytes are
 //!   loaded on demand.

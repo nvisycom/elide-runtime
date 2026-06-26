@@ -107,9 +107,7 @@ pub struct Run {
     /// document's descriptor at policy-evaluation time).
     pub metadata: HashMap<String, String>,
     /// One entry per input document; the body lives in `run_docs`
-    /// under [`TripleKey(actor_id, run_id, doc_id)`].
-    ///
-    /// [`TripleKey(actor_id, run_id, doc_id)`]: crate::registry::TripleKey
+    /// under a `(actor_id, run_id, doc_id)` triple key.
     pub document_ids: Vec<Uuid>,
     /// Recognition plan the caller supplied — engine compiles it
     /// per modality at analyze time. Persisted on the header so

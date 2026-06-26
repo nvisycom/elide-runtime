@@ -19,7 +19,7 @@
 //!
 //! [`Replace`]: elide::redaction::operators::Replace
 //! [`Mask`]: elide::redaction::operators::Mask
-//! [`Hash`]: elide::redaction::operators::Hash
+//! [`Hash`]: elide::redaction::operators::Sha2Hash
 //! [`Erase`]: elide::redaction::operators::Erase
 //! [`Keep`]: elide::redaction::operators::Keep
 //! [`Operator<M>`]: elide_core::operator::Operator

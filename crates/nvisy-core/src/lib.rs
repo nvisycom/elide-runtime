@@ -2,13 +2,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-pub mod entity;
-pub mod extraction;
-pub mod health;
-pub mod modality;
-pub mod primitive;
-pub mod recognition;
-pub mod redaction;
+pub mod context;
+pub mod file;
+pub mod plan;
+pub mod policy;
+pub mod schema;
+pub mod service;
+pub mod source;
 
-mod error;
-pub use self::error::{Error, ErrorKind, Result};
+pub use self::file::{FileLineage, FileMetadata};
+pub use self::service::{Error, ErrorKind, Result};
+pub use self::source::ContentSource;

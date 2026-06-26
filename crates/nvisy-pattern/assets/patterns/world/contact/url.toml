@@ -1,6 +1,0 @@
-name = "url"
-label = "url"
-
-[[variants]]
-regex = "\\bhttps?://[^\\s/$.?#][^\\s]*\\b"
-score = 0.5

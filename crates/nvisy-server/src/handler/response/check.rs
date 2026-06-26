@@ -1,7 +1,7 @@
 //! Health response body.
 
 use jiff::Timestamp;
-use nvisy_core::health::{ComponentCheck, ServiceStatus};
+use nvisy_core::service::health::{ComponentCheck, ServiceStatus};
 use schemars::JsonSchema;
 use serde::Serialize;
 

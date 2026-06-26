@@ -1,8 +1,0 @@
-Fahrzeug im Bestand:
-
-  Marke / Modell:          BMW 3er
-  Amtliches Kennzeichen:   B-AB 1234
-  Fahrzeugschein:          vorhanden
-  HU gültig:               ja
-
-Die Versicherung ist auf das oben eingetragene Kennzeichen zu buchen.

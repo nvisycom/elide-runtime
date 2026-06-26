@@ -1,73 +1,63 @@
 //! Application state and dependency injection.
 //!
-//! [`ServiceState`] holds both [`DetectionEngine`] and
-//! [`RedactionEngine`]. The redaction engine is constructed from
-//! the detection engine via
-//! [`RedactionEngine::from_detection`][rfd] so they share the
-//! same registry, runtime config, optional key provider, and an
-//! in-memory `DetectionState` read-handle for the
-//! detect→redact handoff.
-//!
-//! Individual handlers extract whichever engine they need through
-//! `FromRef`.
-//!
-//! [rfd]: nvisy_engine::redaction::RedactionEngine::from_detection
+//! [`ServiceState`] wraps the single [`EngineHandle`] every
+//! handler needs plus the deployment's default
+//! [`AnalyzerParams`]. Cheaply cloneable (the engine handle is
+//! `Arc`-backed and the analyzer spec is shared via `Arc`), so
+//! per-HTTP-request handlers get a clone via `FromRef` without
+//! coordinating lifetime.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nvisy_core::Result;
-use nvisy_engine::core::RuntimeConfig;
-use nvisy_engine::detection::DetectionEngine;
-use nvisy_engine::redaction::RedactionEngine;
-use nvisy_engine::registry::Registry;
+use nvisy_core::plan::AnalyzerParams;
+use nvisy_engine::EngineHandle;
 
-/// Shared application state threaded through all handlers.
+/// Shared application state threaded through every handler.
 #[must_use = "state does nothing unless you use it"]
 #[derive(Clone)]
 pub struct ServiceState {
-    detection: DetectionEngine,
-    redaction: RedactionEngine,
+    engine: EngineHandle,
+    data_dir: PathBuf,
+    analyzer_default: Arc<AnalyzerParams>,
 }
 
 impl ServiceState {
-    /// Creates a new service state from a resolved [`RuntimeConfig`]
-    /// and data directory.
-    ///
-    /// Async because engine construction may download model
-    /// artifacts on first use. The redaction engine is constructed
-    /// from the detection engine so they share the underlying
-    /// registry, runtime config, and key provider.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the registry database cannot be opened.
-    pub async fn new(config: RuntimeConfig, data_dir: PathBuf) -> Result<Self> {
-        let detection = DetectionEngine::open(data_dir, config).await?;
-        let redaction = RedactionEngine::from_detection(&detection);
+    /// Open the engine database under `data_dir`. The deployment's
+    /// default analyzer is whatever the caller passes — typically
+    /// the `[analyzer]` section of `Nvisy.toml`, or
+    /// [`AnalyzerParams::default()`] when the section is absent
+    /// (degenerate: no recognizers, no enrichers — runs that omit
+    /// `analyzer` overrides will detect nothing).
+    pub async fn new(data_dir: PathBuf, analyzer_default: AnalyzerParams) -> Result<Self> {
+        let engine = EngineHandle::open(&data_dir)?;
         Ok(Self {
-            detection,
-            redaction,
+            engine,
+            data_dir,
+            analyzer_default: Arc::new(analyzer_default),
         })
     }
 
-    /// Returns the data directory path.
+    /// The engine handle every handler reaches for.
+    pub fn engine(&self) -> &EngineHandle {
+        &self.engine
+    }
+
+    /// The data directory the engine database lives under.
     pub fn data_dir(&self) -> &Path {
-        self.detection.data_dir()
+        &self.data_dir
+    }
+
+    /// The deployment's default [`AnalyzerParams`]. Requests that
+    /// inherit any analyzer field resolve against this.
+    pub fn analyzer_default(&self) -> &AnalyzerParams {
+        &self.analyzer_default
     }
 }
 
-macro_rules! impl_di {
-    ($($extract:expr => $t:ty),+ $(,)?) => {$(
-        impl axum::extract::FromRef<ServiceState> for $t {
-            fn from_ref(state: &ServiceState) -> Self {
-                $extract(state)
-            }
-        }
-    )+};
+impl axum::extract::FromRef<ServiceState> for EngineHandle {
+    fn from_ref(state: &ServiceState) -> Self {
+        state.engine.clone()
+    }
 }
-
-impl_di!(
-    |s: &ServiceState| s.detection.clone() => DetectionEngine,
-    |s: &ServiceState| s.redaction.clone() => RedactionEngine,
-    |s: &ServiceState| s.detection.registry().clone() => Registry,
-);

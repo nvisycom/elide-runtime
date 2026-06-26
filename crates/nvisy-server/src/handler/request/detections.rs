@@ -1,36 +1,60 @@
 //! Request bodies for `/detections` endpoints.
 
-use nvisy_engine::core::ingestion::ImportFile;
-use nvisy_engine::detection::{DetectionInput, DetectionPlan, DetectionStatus};
-use nvisy_engine::policy::Policy;
+use std::collections::HashMap;
+
+use nvisy_core::plan::AnalyzerParams;
+use nvisy_engine::runs::{DocumentInput, StartBatch};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::handler::request::pagination::Pagination;
+use super::analyzer::AnalyzerOverrides;
+use super::pagination::Pagination;
+use super::refs::ResourceRef;
 
-/// Body for `POST /detections`.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+/// Body for `POST /detections`. Documents are file ids
+/// previously uploaded via `POST /files`; the server resolves
+/// them at start time.
+///
+/// The `analyzer` field carries per-request *overrides* on top
+/// of the deployment's default [`AnalyzerParams`] — clients that
+/// omit it inherit the default. See [`AnalyzerOverrides`] for the
+/// per-field merge semantics.
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(default, rename_all = "camelCase")]
 pub struct NewDetection {
-    /// Policies to apply, in precedence order
-    /// (index 0 is highest precedence).
-    pub policies: Vec<Policy>,
-    /// Content sources to ingest at the start of the pass.
-    pub imports: Vec<ImportFile>,
-    /// Per-phase behaviour knobs.
-    #[serde(default)]
-    pub plan: DetectionPlan,
+    /// Policies to apply, in precedence order.
+    pub policy_refs: Vec<ResourceRef>,
+    /// Contexts to apply.
+    pub context_refs: Vec<ResourceRef>,
+    /// File ids to analyze. Must exist for the calling actor.
+    pub documents: Vec<Uuid>,
+    /// Per-request metadata merged with each document's
+    /// descriptor at policy-evaluation time.
+    pub metadata: HashMap<String, String>,
+    /// Analyzer overrides. Field-by-field merge into the
+    /// deployment default; omitted fields inherit the default.
+    pub analyzer: AnalyzerOverrides,
+    /// Per-doc concurrency cap. `None` for the engine default.
+    pub concurrency: Option<usize>,
 }
 
 impl NewDetection {
-    /// Project the request into the typed engine input.
-    pub fn into_engine_input(self, actor_id: Uuid) -> DetectionInput {
-        DetectionInput {
-            actor_id,
-            policies: self.policies,
-            imports: self.imports,
-            plan: self.plan,
+    /// Project the request into the typed engine input,
+    /// resolving the analyzer params against the server's
+    /// configured default.
+    pub fn into_engine_input(self, analyzer_default: &AnalyzerParams) -> StartBatch {
+        StartBatch {
+            policy_refs: self.policy_refs.into_iter().map(Into::into).collect(),
+            context_refs: self.context_refs.into_iter().map(Into::into).collect(),
+            documents: self
+                .documents
+                .into_iter()
+                .map(|file_id| DocumentInput { file_id })
+                .collect(),
+            metadata: self.metadata,
+            analyzer: self.analyzer.resolve(analyzer_default),
+            concurrency: self.concurrency,
         }
     }
 }
@@ -39,9 +63,6 @@ impl NewDetection {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DetectionQuery {
-    /// Optional status filter.
-    #[serde(default)]
-    pub status: Option<DetectionStatus>,
     /// Pagination knobs.
     #[serde(flatten)]
     pub pagination: Pagination,

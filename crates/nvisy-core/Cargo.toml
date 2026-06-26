@@ -29,6 +29,10 @@ default = []
 test-utils = []
 
 [dependencies]
+# Framework
+elide = { workspace = true, features = ["image", "audio", "tabular", "serde", "sha2"] }
+elide-core = { workspace = true, features = ["serde", "image", "audio", "tabular"] }
+
 # Serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
@@ -41,12 +45,10 @@ derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "d
 strum = { workspace = true, features = [] }
 
 # Primitive datatypes
-uuid = { workspace = true, features = [] }
-bytes = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v7"] }
 hipstr = { workspace = true, features = [] }
-oxilangtag = { workspace = true, features = [] }
-celes = { workspace = true, features = [] }
-type-map = { workspace = true, features = [] }
+jiff = { workspace = true, features = ["serde"] }
+semver = { workspace = true, features = ["serde"] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

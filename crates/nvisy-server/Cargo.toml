@@ -19,7 +19,7 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio", "rich"]
+default = ["tabular", "image", "audio"]
 
 ## Tabular modality — csv, xlsx.
 tabular = ["nvisy-engine/tabular"]
@@ -27,19 +27,6 @@ tabular = ["nvisy-engine/tabular"]
 image = ["nvisy-engine/image"]
 ## Audio modality — wav, mp3.
 audio = ["nvisy-engine/audio"]
-## Rich-document modality — pdf, docx.
-rich = ["nvisy-engine/rich"]
-
-## Enable all OpenAI providers (GPT, Whisper STT).
-openai = ["nvisy-engine/openai"]
-## Enable Anthropic Claude completion provider.
-anthropic = ["nvisy-engine/anthropic"]
-## Enable Google Gemini.
-google = ["nvisy-engine/google"]
-
-## Enable the externalized BentoML backends (NER + OCR) — forwards
-## to `nvisy-engine/bento`.
-bento = ["nvisy-engine/bento"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -49,6 +36,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-engine = { workspace = true, features = [] }
+
+# Upstream elide — server consumes modality + entity types
+# directly when rendering wire responses. Default features
+# off so server picks per-modality codec features explicitly
+# via its own `tabular` / `image` / `audio` flags.
+elide-core = { workspace = true, features = ["tabular", "image", "audio"] }
 
 # Serialization
 serde = { workspace = true, features = [] }
@@ -61,6 +54,7 @@ derive_more = { workspace = true, features = ["deref", "display"] }
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
+semver = { workspace = true, features = ["serde"] }
 
 # Async runtime and parallelism
 futures = { workspace = true, features = [] }

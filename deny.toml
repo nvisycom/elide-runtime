@@ -23,6 +23,7 @@ private = { ignore = false, registries = [] }
 unused-allowed-license = "warn"
 
 allow = [
+    "0BSD",
     "MIT",
     "MIT-0",
     "Apache-2.0",
@@ -36,9 +37,6 @@ allow = [
     "BSL-1.0",
     "CC0-1.0",
     "Zlib",
-    "OpenSSL",
-    "bzip2-1.0.6",
-    "CDLA-Permissive-2.0",
 ]
 
 exceptions = [
@@ -74,4 +72,6 @@ allow-wildcard-paths = true
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+# elide is consumed straight from the in-house GitHub mirror until its
+# crates publish to crates.io. Scoped to this single repo on purpose.
+allow-git = ["https://github.com/nvisycom/elide"]

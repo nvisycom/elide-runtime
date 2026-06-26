@@ -1,17 +1,27 @@
-//! Actor-scoped content and audit storage backed by fjall.
+//! Multi-tenant registry over fjall.
 //!
-//! The [`Registry`] stores content blobs, content metadata,
-//! annotations, audits, and detection / redaction results. All
-//! entries are actor-scoped via a composite key. Policies are NOT
-//! persisted — they are submitted inline on every detection input
-//! and snapshotted onto the in-memory detection record.
+//! Three keyspace shapes, all actor-scoped:
+//!
+//! - **policies** + **contexts** keyspaces hold [`Policy`] and
+//!   [`Context`] resources versioned in place. Lookup by
+//!   `(actor_id, resource_id, version)`; latest-version lookup
+//!   range-scans by `(actor_id, resource_id)`.
+//! - **run_headers** holds short metadata blobs for each run (state,
+//!   refs to policies/contexts, timestamps). Lookup by
+//!   `(actor_id, run_id)`.
+//! - **run_docs** holds the per-document body for each run
+//!   (recognized entities + reviewer overrides + post-apply
+//!   redacted bytes/audit). Lookup by `(actor_id, run_id, doc_id)`.
+//!
+//! [`Policy`]: nvisy_core::policy::Policy
+//! [`Context`]: nvisy_core::context::Context
 
-mod composite_key;
-mod content_handle;
 mod fjall_ext;
+mod handle;
+mod key;
 mod paged;
-mod registry_store;
 
-pub use self::content_handle::ContentHandle;
+pub(crate) use self::fjall_ext::{blocking, not_found};
+pub use self::handle::RegistryHandle;
+pub(crate) use self::key::{CompositeKey, TripleKey, VersionedKey};
 pub use self::paged::PagedResult;
-pub use self::registry_store::Registry;

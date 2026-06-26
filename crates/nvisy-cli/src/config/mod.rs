@@ -1,8 +1,8 @@
 //! CLI configuration management.
 //!
-//! TOML file is the source of truth; CLI flags override a small set
-//! of network / lifecycle fields. The resolved [`AppConfig`] is what
-//! the rest of the binary consumes.
+//! TOML file is the source of truth; CLI flags override a small
+//! set of network / lifecycle fields. The resolved [`AppConfig`]
+//! is what the rest of the binary consumes.
 //!
 //! # Architecture
 //!
@@ -11,12 +11,20 @@
 //! └── Overrides     thin CLI overlay applied to ServerConfig
 //!
 //! AppConfig (TOML)
-//! ├── server: ServerConfig            [server] + nested .observability / .middleware
-//! └── runtime: RuntimeConfig          [engine], [extraction.*], [detection.*], [redaction]
+//! └── server: ServerConfig            [server] + nested .observability / .middleware
 //! ```
 //!
-//! [`Cli::load`] reads the file, merges CLI overrides, and returns
-//! the resolved [`AppConfig`].
+//! There is no engine config section. Recognizer / analyzer /
+//! anonymizer settings travel per-request inside
+//! [`AnalyzerParams`] on `POST /detections`; the server just
+//! orchestrates and persists. The only server-side
+//! engine-shaped setting is the data directory, which lives on
+//! [`ServerConfig`].
+//!
+//! [`Cli::load`] reads the file, merges CLI overrides, and
+//! returns the resolved [`AppConfig`].
+//!
+//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
 
 pub mod middleware;
 pub mod observability;
@@ -29,7 +37,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use clap::{Args, Parser};
-use nvisy_engine::core::RuntimeConfig;
+use nvisy_core::plan::AnalyzerParams;
 use serde::Deserialize;
 
 pub use self::server::ServerConfig;
@@ -91,39 +99,32 @@ impl Overrides {
     }
 }
 
-/// Resolved top-level configuration: server settings + engine
-/// subsystem settings, all merged from TOML + CLI overrides.
-///
-/// `deny_unknown_fields` catches typos at the top level (e.g.
-/// `[serer]` instead of `[server]`). Each nested struct denies
-/// unknown fields too so typos inside a section also fail loudly.
+/// Resolved top-level configuration: server settings + the
+/// deployment's default [`AnalyzerParams`], merged from TOML +
+/// CLI overrides.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct AppConfig {
     /// Server, observability, and middleware configuration.
     #[serde(default)]
     pub server: ServerConfig,
-    /// Engine and provider subsystem settings. Flattened so its
-    /// sections (`[engine]`, `[extraction.*]`, ...) sit at the
-    /// TOML root alongside `[server]`. The top-level `version`
-    /// key the TOML carries is consumed here by `RuntimeConfig`.
-    #[serde(flatten)]
-    pub runtime: RuntimeConfig,
+    /// Default analyzer spec the server applies to every
+    /// request that doesn't override its analyzer fields.
+    /// Empty when the `[analyzer]` section is absent —
+    /// requests then have to ship a complete spec or get
+    /// "nothing detects" semantics.
+    #[serde(default)]
+    pub analyzer: AnalyzerParams,
 }
 
 impl Cli {
-    /// Read the TOML file, apply CLI overrides, run runtime
-    /// validation, and return the resolved [`AppConfig`].
+    /// Read the TOML file, apply CLI overrides, return the
+    /// resolved [`AppConfig`].
     ///
-    /// Missing TOML file resolves to defaults (everything from CLI
-    /// + built-ins).
+    /// Missing TOML file resolves to defaults (everything from
+    /// CLI + built-ins).
     pub fn load(self) -> anyhow::Result<AppConfig> {
         let mut config = read_toml(&self.config)?;
         self.overrides.merge_into(&mut config.server);
-        config.runtime.resolve_env();
-        config
-            .runtime
-            .validate()
-            .map_err(|e| anyhow::anyhow!("invalid configuration: {}", e.message()))?;
         Ok(config)
     }
 }
@@ -145,8 +146,8 @@ mod tests {
 
     use super::*;
 
-    /// `Nvisy.example.toml` is the source of truth for the documented
-    /// schema. If it stops parsing, the docs lie.
+    /// `Nvisy.example.toml` is the source of truth for the
+    /// documented schema. If it stops parsing, the docs lie.
     #[test]
     fn example_toml_parses() {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -154,20 +155,7 @@ mod tests {
             .join("Nvisy.example.toml");
         let contents = fs::read_to_string(&path).expect("Nvisy.example.toml exists");
         let config: AppConfig = toml::from_str(&contents).expect("Nvisy.example.toml parses");
-
-        assert!(config.runtime.engine.is_some(), "[engine] should be set");
-        assert!(
-            config.runtime.extraction.is_some(),
-            "[extraction.*] should be set"
-        );
-        assert!(
-            config.runtime.detection.is_some(),
-            "[detection.*] should be set"
-        );
-        assert!(
-            config.runtime.redaction.is_some(),
-            "[redaction] should be set"
-        );
+        assert_eq!(config.server.port, 8080);
     }
 
     #[test]

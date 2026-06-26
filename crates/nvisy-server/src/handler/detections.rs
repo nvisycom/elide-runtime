@@ -1,25 +1,25 @@
-//! Detection-pass HTTP handlers.
+//! Detection-side handlers — the "find entities" half of the
+//! run lifecycle.
 //!
-//! | Method   | Path                       | Description                          |
-//! |----------|----------------------------|--------------------------------------|
-//! | `POST`   | `/detections`              | Submit a detection pass              |
-//! | `GET`    | `/detections`              | List detections (filterable)         |
-//! | `GET`    | `/detections/{id}`         | Get a detection snapshot             |
-//! | `POST`   | `/detections/{id}/cancel`  | Cancel an in-progress detection      |
-//! | `DELETE` | `/detections/{id}`         | Delete a finished detection          |
-//! | `DELETE` | `/detections`              | Delete all finished detections       |
+//! `POST /detections` starts a run from already-uploaded file
+//! ids. `GET /detections/{id}` returns the full run state
+//! (header + every per-document body inline); the response
+//! shape covers any [`RunState`] — clients filter on
+//! [`state`](super::response::RunStateDto) to render the
+//! detection vs redaction view of the same underlying run.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::detection::{DetectionEngine, DetectionFilter, DetectionSnapshot};
+use futures::future;
+use nvisy_engine::{EngineHandle, runs};
 
+use super::error::Result;
 use super::request::{DetectionPath, DetectionQuery, NewDetection};
-use super::response::{DetectionId, DetectionList, Page};
+use super::response::{DetectionId, Page, RunResponse};
 use crate::extract::{ActorId, Json, Path};
-use crate::handler::error::Result;
 use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
@@ -27,120 +27,104 @@ const TARGET: &str = "nvisy_server::detections";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn create_detection(
-    State(engine): State<DetectionEngine>,
+    State(state): State<ServiceState>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewDetection>,
 ) -> Result<(StatusCode, Json<DetectionId>)> {
-    let input = req.into_engine_input(actor_id);
-    let id = engine.detect(input).await?;
-    tracing::info!(target: TARGET, %id, "detection pass submitted");
+    let batch = req.into_engine_input(state.analyzer_default());
+    let id = runs::start(state.engine(), actor_id, batch).await?;
+    tracing::info!(target: TARGET, %id, "detection started");
     Ok((StatusCode::ACCEPTED, Json(DetectionId { id })))
 }
 
 fn create_detection_docs(op: TransformOperation) -> TransformOperation {
     op.id("createDetection")
         .tag("detections")
-        .summary("Submit a detection pass")
+        .summary("Start a detection run")
         .description(
-            "Runs imports → extraction → recognition → deduplication → policy \
-             evaluation. Stops before applying any redaction; the result audit \
-             holds the policy chain's pending decisions for review before a \
-             matching redaction pass.",
+            "Runs the analyzer fan-out across the referenced files. Stops at \
+             `AwaitingReview`; the matching `POST /redactions` carries reviewer \
+             overrides and transitions to `Applied` / `PartiallyApplied`.",
         )
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn list_detections(
-    State(engine): State<DetectionEngine>,
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
     Query(query): Query<DetectionQuery>,
-) -> Result<Json<DetectionList>> {
-    let filter = DetectionFilter {
-        status: query.status,
-    };
-    let entries = engine.list_detections(actor_id, filter).await;
-    let page = Page::paginate(entries, &query.pagination);
-    Ok(Json(page))
+) -> Result<Json<Page<RunResponse>>> {
+    let runs_list = runs::list(&engine, actor_id).await;
+    let assembled = assemble_runs(&engine, actor_id, runs_list).await;
+    Ok(Json(Page::paginate(assembled, &query.pagination)))
 }
 
 fn list_detections_docs(op: TransformOperation) -> TransformOperation {
     op.id("listDetections")
         .tag("detections")
-        .summary("List detections")
-        .description("Returns detection passes for the caller, optionally filtered by status.")
+        .summary("List runs")
+        .description("Returns every run for the actor, with per-document bodies inlined.")
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_detection(
-    State(engine): State<DetectionEngine>,
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
-) -> Result<Json<DetectionSnapshot>> {
-    let snapshot = engine.get_detection(actor_id, id).await?;
-    Ok(Json(snapshot))
+) -> Result<Json<RunResponse>> {
+    let run = runs::get(&engine, actor_id, id).await?;
+    let docs = fetch_docs(&engine, actor_id, &run).await;
+    Ok(Json(RunResponse::assemble(run, docs)))
 }
 
 fn get_detection_docs(op: TransformOperation) -> TransformOperation {
     op.id("getDetection")
         .tag("detections")
-        .summary("Get a detection snapshot")
-        .description(
-            "Returns the detection pass snapshot. Once the pass reaches a \
-             terminal state with at least one audit, the snapshot's `result` \
-             field carries the immutable `DetectionResult` a redaction pass \
-             references.",
-        )
+        .summary("Get the full run state")
+        .description("Returns the run header + every per-document body inline.")
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn cancel_detection(
-    State(engine): State<DetectionEngine>,
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<StatusCode> {
-    engine.cancel_detection(actor_id, id).await?;
+    runs::cancel(&engine, actor_id, id).await?;
     Ok(StatusCode::ACCEPTED)
 }
 
 fn cancel_detection_docs(op: TransformOperation) -> TransformOperation {
     op.id("cancelDetection")
         .tag("detections")
-        .summary("Cancel an in-progress detection")
-        .description("Triggers cooperative cancellation at the next yield point.")
+        .summary("Mark a run as cancelled")
+        .description(
+            "Sets the run header to `Failed` with `reason = \"cancelled\"`. Only \
+             valid from `Analyzing` / `AwaitingReview`. In-flight per-doc fan-out \
+             tasks are not interrupted today; cooperative cancellation needs a \
+             `CancellationToken` plumbed through the pipeline.",
+        )
 }
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn delete_detection(
-    State(engine): State<DetectionEngine>,
+    State(engine): State<EngineHandle>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<StatusCode> {
-    engine.delete_detection(actor_id, id).await?;
+    runs::delete(&engine, actor_id, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 fn delete_detection_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteDetection")
         .tag("detections")
-        .summary("Delete a finished detection")
-        .description("Removes the in-memory record and cascades to the persisted result.")
-}
-
-#[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
-async fn delete_all_detections(
-    State(engine): State<DetectionEngine>,
-    ActorId(actor_id): ActorId,
-) -> Result<StatusCode> {
-    let deleted = engine.delete_all_detections(actor_id).await;
-    tracing::info!(target: TARGET, deleted, "all finished detections deleted");
-    Ok(StatusCode::NO_CONTENT)
-}
-
-fn delete_all_detections_docs(op: TransformOperation) -> TransformOperation {
-    op.id("deleteAllDetections")
-        .tag("detections")
-        .summary("Delete all finished detections")
-        .description("Active passes are preserved.")
+        .summary("Delete a run")
+        .description(
+            "Removes the run header + per-doc bodies. Does **not** cascade to \
+             input or redacted output files — files are first-class resources \
+             and survive their producing run.",
+        )
 }
 
 pub fn routes_v1() -> ApiRouter<ServiceState> {
@@ -158,8 +142,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
     let write = ApiRouter::new()
         .api_route(
             "/detections",
-            post_with(create_detection, create_detection_docs)
-                .delete_with(delete_all_detections, delete_all_detections_docs),
+            post_with(create_detection, create_detection_docs),
         )
         .api_route(
             "/detections/{id}",
@@ -172,4 +155,39 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
         .with_timeout(DEFAULT_WRITE_TIMEOUT);
 
     read.merge(write)
+}
+
+/// Fetch every per-doc row for one run, concurrently. Failures
+/// on individual rows are dropped — the run header already
+/// records per-doc state, and a missing row means the run was
+/// concurrently deleted underneath us.
+pub(super) async fn fetch_docs(
+    engine: &EngineHandle,
+    actor_id: uuid::Uuid,
+    run: &nvisy_engine::runs::Run,
+) -> Vec<nvisy_engine::runs::RunDocument> {
+    let lookups = run
+        .document_ids
+        .iter()
+        .map(|doc_id| runs::get_doc(engine, actor_id, run.id, *doc_id));
+    future::join_all(lookups)
+        .await
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+        .collect()
+}
+
+/// Assemble [`RunResponse`]s for many runs by fetching per-doc
+/// rows concurrently per run.
+async fn assemble_runs(
+    engine: &EngineHandle,
+    actor_id: uuid::Uuid,
+    runs_list: Vec<nvisy_engine::runs::Run>,
+) -> Vec<RunResponse> {
+    let mut out = Vec::with_capacity(runs_list.len());
+    for run in runs_list {
+        let docs = fetch_docs(engine, actor_id, &run).await;
+        out.push(RunResponse::assemble(run, docs));
+    }
+    out
 }

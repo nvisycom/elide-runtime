@@ -1,16 +1,14 @@
 //! Health handler.
 //!
-//! | Method | Path          | Description                          |
-//! |--------|---------------|--------------------------------------|
-//! | `GET`  | `/health`     | Liveness probe (unversioned)         |
+//! | Method | Path     | Description           |
+//! |--------|----------|-----------------------|
+//! | `GET`  | `/health`| Liveness probe        |
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_core::health::{ComponentCheck, Healthcheck, ServiceStatus};
-use nvisy_engine::core::probe_all;
-use nvisy_engine::detection::DetectionEngine;
+use nvisy_core::service::health::{ComponentCheck, ServiceStatus};
 
 use super::response::Health;
 use crate::extract::Json;
@@ -20,21 +18,17 @@ use crate::service::ServiceState;
 const TARGET: &str = "nvisy_server::infra";
 
 #[tracing::instrument(target = TARGET, skip_all)]
-async fn health_check(State(engine): State<DetectionEngine>) -> Json<Health> {
-    let fs_status = if engine.data_dir().is_dir() {
+async fn health_check(State(state): State<ServiceState>) -> Json<Health> {
+    let fs_status = if state.data_dir().is_dir() {
         ServiceStatus::Healthy
     } else {
         ServiceStatus::Unhealthy
     };
-
-    let mut checks = vec![ComponentCheck::new("filesystem", fs_status)];
-    checks.extend(probe_all([engine.registry() as &dyn Healthcheck]).await);
-
+    let checks = vec![ComponentCheck::new("filesystem", fs_status)];
     let overall = roll_up(&checks);
     if overall != ServiceStatus::Healthy {
         tracing::warn!(target: TARGET, ?overall, "health check degraded or unhealthy");
     }
-    tracing::debug!(target: TARGET, ?overall, "health check");
 
     Json(Health {
         status: overall,
@@ -60,9 +54,8 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
         .tag("infra")
         .summary("Liveness probe")
         .description(
-            "Checks that the server is running, the data directory is accessible, \
-             and the registry is operational. Returns 200 with an overall status \
-             and per-component checks.",
+            "Checks that the server is running and the data directory is accessible. \
+             Returns 200 with an overall status and per-component checks.",
         )
 }
 

@@ -23,6 +23,7 @@ private = { ignore = false, registries = [] }
 unused-allowed-license = "warn"
 
 allow = [
+    "0BSD",
     "MIT",
     "MIT-0",
     "Apache-2.0",

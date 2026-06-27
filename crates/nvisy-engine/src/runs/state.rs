@@ -28,6 +28,7 @@
 use std::collections::HashMap;
 
 use elide_core::entity::Entity;
+use elide_core::modality::Modality;
 use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
@@ -237,7 +238,7 @@ impl DocBody {
 #[serde(rename_all = "camelCase")]
 #[serde(bound = "M::Location: Serialize + for<'a> Deserialize<'a>, \
                   M::Data: Serialize + for<'a> Deserialize<'a>")]
-pub struct EntityRecord<M: elide_core::modality::Modality> {
+pub struct EntityRecord<M: Modality> {
     /// The elide entity, as recognition produced it.
     pub entity: Entity<M>,
     /// Reviewer-supplied override. `None` means "use the policy's
@@ -247,7 +248,7 @@ pub struct EntityRecord<M: elide_core::modality::Modality> {
     pub r#override: Option<RuleAction>,
 }
 
-impl<M: elide_core::modality::Modality> EntityRecord<M> {
+impl<M: Modality> EntityRecord<M> {
     /// New record over `entity`, no override.
     pub fn new(entity: Entity<M>) -> Self {
         Self {

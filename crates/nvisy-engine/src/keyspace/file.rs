@@ -34,6 +34,7 @@
 //!   every file for an actor.
 
 use std::collections::HashMap;
+use std::error::Error as StdError;
 
 use bytes::Bytes;
 use hipstr::HipStr;
@@ -279,6 +280,6 @@ fn hex_sha256(bytes: &[u8]) -> HipStr<'static> {
     HipStr::from(out)
 }
 
-fn fjall_err(err: impl std::error::Error + Send + Sync + 'static) -> Error {
+fn fjall_err(err: impl StdError + Send + Sync + 'static) -> Error {
     Error::internal("fjall operation failed", COMPONENT).with_source(err)
 }

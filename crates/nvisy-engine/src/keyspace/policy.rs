@@ -24,6 +24,8 @@
 //! - [`delete_policy`](PolicyRegistry::delete_policy) — remove
 //!   one specific version.
 
+use std::error::Error as StdError;
+
 use nvisy_core::policy::Policy;
 use nvisy_core::{Error, Result};
 use semver::Version;
@@ -184,6 +186,6 @@ impl PolicyRegistry for RegistryHandle {
     }
 }
 
-fn fjall_err(err: impl std::error::Error + Send + Sync + 'static) -> Error {
+fn fjall_err(err: impl StdError + Send + Sync + 'static) -> Error {
     Error::internal("fjall operation failed", COMPONENT).with_source(err)
 }

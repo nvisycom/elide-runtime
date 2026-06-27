@@ -11,29 +11,16 @@
 use elide::detection::Analyzer;
 use elide::recognition::llm::LlmRecognizer;
 use elide_core::modality::text::Text;
-use elide_core::recognition::Scope;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::{AnalyzerParams, LlmBackendParams, LlmRecognizerParams};
 
-use super::common::{
-    attach_dedup, attach_ner, attach_pattern, build_catalog, reject_language_enricher,
-};
-use super::scope::compile_scope;
+use super::common::{attach_dedup, attach_ner, attach_pattern, reject_language_enricher};
 
-/// Compile `spec` into a text-modality analyzer + its compiled
-/// [`Scope`].
-///
-/// The returned scope is **not** attached to the analyzer
-/// (elide's `Analyzer::analyze` takes `&Scope` per-call, not at
-/// build time); the caller pairs them: `analyzer.analyze(data,
-/// &scope)`.
-pub fn compile_text(spec: &AnalyzerParams) -> Result<(Analyzer<Text>, Scope<Text>), Error> {
-    let scope = compile_scope::<Text>(&spec.scope)?;
-    let catalog = build_catalog(spec);
+/// Compile `spec` into a text-modality [`Analyzer`]. Scope is
+/// built separately and lives on the orchestrator.
+pub(crate) fn compile_text(spec: &AnalyzerParams) -> Result<Analyzer<Text>, Error> {
     let mut analyzer = Analyzer::<Text>::new();
 
-    // Enrichers: language is the only text-applicable kind; OCR
-    // / STT are modality-specific (image / audio).
     if spec.enrichers.language.is_some() {
         analyzer = reject_language_enricher::<Text>()?;
     }
@@ -50,7 +37,6 @@ pub fn compile_text(spec: &AnalyzerParams) -> Result<(Analyzer<Text>, Scope<Text
         ));
     }
 
-    // Recognizers: pattern (at-most-one), ner (list), llm (list).
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern)?;
     }
@@ -61,9 +47,7 @@ pub fn compile_text(spec: &AnalyzerParams) -> Result<(Analyzer<Text>, Scope<Text
         analyzer = attach_llm(analyzer, llm)?;
     }
 
-    analyzer = attach_dedup(analyzer, &spec.deduplication);
-    let _ = catalog; // catalog wiring lands when selectors learn to tag-match upstream
-    Ok((analyzer, scope))
+    Ok(attach_dedup(analyzer, &spec.deduplication))
 }
 
 fn attach_llm(

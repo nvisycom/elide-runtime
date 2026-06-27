@@ -7,7 +7,7 @@ use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::http::StatusCode;
 use nvisy_core::context::Context;
-use nvisy_engine::{ContextRegistry, EngineHandle};
+use nvisy_engine::{ContextRegistry, Engine};
 
 use super::error::Result;
 use super::request::{ContextIdPath, ContextVersionPath, NewContext};
@@ -20,7 +20,7 @@ const TARGET: &str = "nvisy_server::contexts";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn put_context(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(NewContext(context)): Json<NewContext>,
 ) -> Result<(StatusCode, Json<ContextSummary>)> {
@@ -42,7 +42,7 @@ fn put_context_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %version, %actor_id))]
 async fn get_context(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContextVersionPath { id, version }): Path<ContextVersionPath>,
 ) -> Result<Json<Context>> {
@@ -58,7 +58,7 @@ fn get_context_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_latest_context(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContextIdPath { id }): Path<ContextIdPath>,
 ) -> Result<Json<Context>> {
@@ -74,7 +74,7 @@ fn get_latest_context_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn list_contexts(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
 ) -> Result<Json<Vec<ContextSummary>>> {
     let paged = engine.registry().list_contexts(actor_id).await?;
@@ -94,7 +94,7 @@ fn list_contexts_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %version, %actor_id))]
 async fn delete_context(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContextVersionPath { id, version }): Path<ContextVersionPath>,
 ) -> Result<StatusCode> {

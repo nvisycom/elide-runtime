@@ -1,41 +1,45 @@
-//! Per-document analyze + apply pipelines.
+//! Per-document analyze + apply over the engine's [`Orchestrator`].
 //!
-//! - [`analyze_document`] decodes bytes, resolves modality,
-//!   compiles the per-modality analyzer from the
-//!   [`AnalyzerParams`], recognizes entities, and wraps them in a
-//!   [`DocBody`].
-//! - [`apply_document`] decodes bytes again, layers reviewer
-//!   overrides on top of the policy-driven anonymizer, applies
-//!   it to the persisted entities, and returns the redacted
-//!   bytes.
+//! - [`analyze_document`] decodes bytes, hands the
+//!   [`UntypedDocumentHandle`] to [`Engine::analyze`], and projects
+//!   the returned [`elide::Report`] onto the persisted [`DocBody`]
+//!   shape (body entities only — container parts are detected by
+//!   the orchestrator but not yet captured in the persisted body;
+//!   a future schema bump will retain them).
+//! - [`apply_document`] decodes bytes again, rebuilds an
+//!   [`elide::Report`] from the persisted body entities, and
+//!   delegates to [`Engine::anonymize_with`] with the reviewer
+//!   overrides extracted from the body's records. The encoded
+//!   bytes are read back from the document handle and returned.
 //!
-//! Pure functions over the elide toolkit; no fjall I/O. The
+//! Pure functions over [`Engine`]; no fjall I/O. The run
 //! orchestrator in [`super::orchestrate`] drives them as a
-//! bounded-concurrency stream and persists the resulting body /
-//! artifact.
+//! bounded-concurrency stream and persists their inputs/outputs.
+//!
+//! [`Engine`]: crate::Engine
+//! [`Engine::analyze`]: crate::Engine::analyze
+//! [`Engine::anonymize_with`]: crate::Engine::anonymize_with
+//! [`Orchestrator`]: elide::Orchestrator
+//! [`UntypedDocumentHandle`]: elide::codec::UntypedDocumentHandle
+
+use std::mem;
 
 use bytes::Bytes;
-use elide::codec::{DocumentHandle, FormatRegistry};
-use elide::detection::Analyzer;
-use elide::redaction::Anonymizer;
+use elide::codec::UntypedDocumentHandle;
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
 use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use elide_core::recognition::Scope;
 use nvisy_core::plan::AnalyzerParams;
-use nvisy_core::policy::Policy;
+use nvisy_core::policy::{Policy, RuleAction};
 use nvisy_core::{Error, Result};
+use uuid::Uuid;
 
 use super::filter::{DocumentFacts, policy_applies};
 use super::state::{DocBody, EntityRecord, ModalityKind};
-use crate::analyzer::{build_catalog, compile_audio, compile_image, compile_tabular, compile_text};
-use crate::anonymizer::{
-    attach_override_audio, attach_override_image, attach_override_tabular, attach_override_text,
-    attach_policies_audio, attach_policies_image, attach_policies_tabular, attach_policies_text,
-};
+use crate::Engine;
 
 const COMPONENT: &str = "runs::pipeline";
 
@@ -43,147 +47,99 @@ const COMPONENT: &str = "runs::pipeline";
 pub(super) struct AnalyzeOutcome {
     /// Modality elide's codec resolved the bytes to.
     pub modality: ModalityKind,
-    /// Recognized entities, wrapped in [`EntityRecord`] for
+    /// Recognized body entities, wrapped in [`EntityRecord`] for
     /// persistence (no overrides set yet — those flow through the
     /// reviewer surface).
     pub body: DocBody,
 }
 
-/// Decode `bytes` via `registry`, resolve the modality, compile
-/// the per-modality analyzer from `spec`, recognize entities,
-/// return them in the modality-specific [`DocBody`] variant.
+/// Decode `bytes`, drive [`Engine::analyze`], project the body
+/// entities of the returned [`elide::Report`] onto the persisted
+/// [`DocBody`].
+///
+/// Container-part entities (PDF embedded images, archive members,
+/// …) are detected by the orchestrator but discarded at the
+/// persistence boundary today; following slices will evolve
+/// [`DocBody`] to retain them.
 ///
 /// `extension` is the codec discriminator (case-insensitive, no
 /// leading dot) — e.g. `"txt"`, `"csv"`, `"png"`, `"wav"`.
 pub(super) async fn analyze_document(
-    registry: &FormatRegistry,
+    engine: &Engine,
     bytes: Bytes,
     extension: &str,
     spec: &AnalyzerParams,
 ) -> Result<AnalyzeOutcome> {
-    let handle = registry.decode(bytes, extension).await.map_err(|err| {
-        Error::validation(
-            format!("codec decode failed for extension {extension:?}"),
-            COMPONENT,
-        )
-        .with_source(err)
-    })?;
+    let mut handle = decode(engine, bytes, extension).await?;
+    let mut report = engine.analyze(&mut handle, spec).await?;
 
-    if handle.is::<Text>() {
-        let typed = handle
-            .into::<Text>()
-            .map_err(|_| modality_mismatch_err("Text"))?;
-        let (analyzer, scope) = compile_text(spec).map_err(compile_err)?;
-        let entities = recognize::<Text>(analyzer, scope, typed).await?;
-        let body = DocBody::Text {
-            entities: entities.into_iter().map(EntityRecord::new).collect(),
-        };
+    // The orchestrator decided which pipeline matched the body
+    // (one of Text / Tabular / Image / Audio) — recover that by
+    // peeking at the report's body entity slot for each modality.
+    if let Some(entities) = report.entities::<Text>().map(mem::take) {
         return Ok(AnalyzeOutcome {
             modality: ModalityKind::Text,
-            body,
+            body: DocBody::Text {
+                entities: entities.into_iter().map(EntityRecord::new).collect(),
+            },
         });
     }
-
-    if handle.is::<Tabular>() {
-        let typed = handle
-            .into::<Tabular>()
-            .map_err(|_| modality_mismatch_err("Tabular"))?;
-        let (analyzer, scope) = compile_tabular(spec).map_err(compile_err)?;
-        let entities = recognize::<Tabular>(analyzer, scope, typed).await?;
-        let body = DocBody::Tabular {
-            entities: entities.into_iter().map(EntityRecord::new).collect(),
-        };
+    if let Some(entities) = report.entities::<Tabular>().map(mem::take) {
         return Ok(AnalyzeOutcome {
             modality: ModalityKind::Tabular,
-            body,
+            body: DocBody::Tabular {
+                entities: entities.into_iter().map(EntityRecord::new).collect(),
+            },
         });
     }
-
-    if handle.is::<Image>() {
-        let typed = handle
-            .into::<Image>()
-            .map_err(|_| modality_mismatch_err("Image"))?;
-        let (analyzer, scope) = compile_image(spec).map_err(compile_err)?;
-        let entities = recognize::<Image>(analyzer, scope, typed).await?;
-        let body = DocBody::Image {
-            entities: entities.into_iter().map(EntityRecord::new).collect(),
-        };
+    if let Some(entities) = report.entities::<Image>().map(mem::take) {
         return Ok(AnalyzeOutcome {
             modality: ModalityKind::Image,
-            body,
+            body: DocBody::Image {
+                entities: entities.into_iter().map(EntityRecord::new).collect(),
+            },
         });
     }
-
-    if handle.is::<Audio>() {
-        let typed = handle
-            .into::<Audio>()
-            .map_err(|_| modality_mismatch_err("Audio"))?;
-        let (analyzer, scope) = compile_audio(spec).map_err(compile_err)?;
-        let entities = recognize::<Audio>(analyzer, scope, typed).await?;
-        let body = DocBody::Audio {
-            entities: entities.into_iter().map(EntityRecord::new).collect(),
-        };
+    if let Some(entities) = report.entities::<Audio>().map(mem::take) {
         return Ok(AnalyzeOutcome {
             modality: ModalityKind::Audio,
-            body,
+            body: DocBody::Audio {
+                entities: entities.into_iter().map(EntityRecord::new).collect(),
+            },
         });
     }
 
     Err(Error::validation(
-        format!("codec resolved {extension:?} to an unsupported modality"),
-        COMPONENT,
-    ))
-}
-
-async fn recognize<M: Modality>(
-    analyzer: Analyzer<M>,
-    scope: Scope<M>,
-    mut handle: DocumentHandle<M>,
-) -> Result<Vec<Entity<M>>> {
-    analyzer
-        .analyze_stream(&mut handle, &scope)
-        .await
-        .map_err(|err| Error::internal("analyzer fanout failed", COMPONENT).with_source(err))
-}
-
-fn modality_mismatch_err(expected: &'static str) -> Error {
-    Error::internal(
         format!(
-            "codec advertised modality {expected} but downcast failed — \
-             elide handle::is/into mismatch"
+            "codec resolved {extension:?} to a modality the orchestrator \
+             has no pipeline for"
         ),
         COMPONENT,
-    )
-}
-
-/// Translate an `elide::Error` from a `compile_*` call into the
-/// runtime's error type. Compile failures are caller-driven
-/// (e.g. unsupported recognizer for the modality), so they map
-/// to `Validation`.
-fn compile_err(err: elide::Error) -> Error {
-    Error::validation(format!("analyzer compile failed: {err}"), COMPONENT).with_source(err)
+    ))
 }
 
 /// Outcome of applying redactions to one document.
 pub(super) struct ApplyOutcome {
     /// Encoded bytes of the redacted document, ready to persist
-    /// in the `run_artifacts` keyspace.
+    /// via the [`FileRegistry`] as a new output file.
+    ///
+    /// [`FileRegistry`]: crate::FileRegistry
     pub bytes: Bytes,
 }
 
-/// Re-decode `bytes`, layer reviewer overrides + applicable
-/// policies into a per-modality anonymizer, apply it, re-encode,
-/// return the redacted bytes.
+/// Re-decode `bytes`, rebuild an [`elide::Report`] from the
+/// persisted body entities, drive [`Engine::anonymize_with`] with
+/// the reviewer overrides extracted from the body's records, and
+/// return the re-encoded redacted bytes.
 ///
-/// `entities` is the persisted recognition output (one
-/// [`EntityRecord`] per entity, possibly carrying a reviewer
-/// override). `policies` is the full resolved policy set; the
-/// pipeline filters to those whose [`Policy::applies_when`]
-/// holds against `facts` (the merged descriptor + per-request
-/// metadata). `spec` is the same [`AnalyzerParams`] that drove
-/// analyze — needed for the label catalog.
+/// `policies` is the full resolved policy set; pre-filtered to
+/// those whose [`Policy::applies_when`] holds against `facts`.
+/// `spec` is the same [`AnalyzerParams`] that drove analyze —
+/// needed for the label catalog. `body` is the persisted
+/// recognition output for this doc; reviewer overrides ride on
+/// its [`EntityRecord`]s.
 pub(super) async fn apply_document(
-    registry: &FormatRegistry,
+    engine: &Engine,
     bytes: Bytes,
     extension: &str,
     spec: &AnalyzerParams,
@@ -191,134 +147,109 @@ pub(super) async fn apply_document(
     facts: &DocumentFacts<'_>,
     body: &DocBody,
 ) -> Result<ApplyOutcome> {
-    let handle = registry.decode(bytes, extension).await.map_err(|err| {
-        Error::validation(
-            format!("codec decode failed for extension {extension:?}"),
+    let mut handle = decode(engine, bytes, extension).await?;
+    let scoped: Vec<Policy> = policies
+        .iter()
+        .filter(|p| policy_applies(p, facts))
+        .cloned()
+        .collect();
+
+    let (modality, report, overrides) = match body {
+        DocBody::Text { entities } => (
+            ModalityKind::Text,
+            build_report::<Text>(entities),
+            collect_overrides(entities),
+        ),
+        DocBody::Tabular { entities } => (
+            ModalityKind::Tabular,
+            build_report::<Tabular>(entities),
+            collect_overrides(entities),
+        ),
+        DocBody::Image { entities } => (
+            ModalityKind::Image,
+            build_report::<Image>(entities),
+            collect_overrides(entities),
+        ),
+        DocBody::Audio { entities } => (
+            ModalityKind::Audio,
+            build_report::<Audio>(entities),
+            collect_overrides(entities),
+        ),
+    };
+
+    engine
+        .anonymize_with(&mut handle, spec, &scoped, modality, &overrides, report)
+        .await?;
+
+    encode_redacted(handle, modality)
+}
+
+/// Rebuild a body-only [`elide::Report`] from the persisted
+/// per-entity records. The entities are cloned out (the persisted
+/// body is the source of truth for re-apply idempotency).
+fn build_report<M>(records: &[EntityRecord<M>]) -> elide::Report
+where
+    M: Modality + 'static,
+    Vec<Entity<M>>: elide::EntityGroup,
+    Entity<M>: Clone,
+{
+    let entities: Vec<Entity<M>> = records.iter().map(|r| r.entity.clone()).collect();
+    elide::Report::new().insert_body::<M>(entities)
+}
+
+fn collect_overrides<M: Modality>(records: &[EntityRecord<M>]) -> Vec<(Uuid, RuleAction)> {
+    records
+        .iter()
+        .filter_map(|r| r.r#override.as_ref().map(|a| (r.entity.id, a.clone())))
+        .collect()
+}
+
+/// After `anonymize_with` mutated `handle` in place, recover the
+/// typed handle for the doc's body modality and re-encode it.
+/// `handle` was a typed `DocumentHandle<M>` before being erased;
+/// the apply-time re-encode needs the typed form because
+/// [`elide::codec::DocumentHandle::encode`] is per-modality.
+fn encode_redacted(handle: UntypedDocumentHandle, modality: ModalityKind) -> Result<ApplyOutcome> {
+    match modality {
+        ModalityKind::Text => encode_typed::<Text>(handle, "Text"),
+        ModalityKind::Tabular => encode_typed::<Tabular>(handle, "Tabular"),
+        ModalityKind::Image => encode_typed::<Image>(handle, "Image"),
+        ModalityKind::Audio => encode_typed::<Audio>(handle, "Audio"),
+    }
+}
+
+fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<ApplyOutcome>
+where
+    M: Modality,
+{
+    let typed = handle.into::<M>().map_err(|_| {
+        Error::internal(
+            format!(
+                "post-apply re-encode: handle is not {name} — orchestrator \
+                 returned a handle of a different modality than analyze \
+                 recorded"
+            ),
             COMPONENT,
         )
-        .with_source(err)
     })?;
-
-    let scoped = || policies.iter().filter(|p| policy_applies(p, facts));
-
-    match body {
-        DocBody::Text { entities } => {
-            let typed = handle
-                .into::<Text>()
-                .map_err(|_| modality_mismatch_err("Text"))?;
-            let anonymizer = build_text_anonymizer(spec, scoped(), entities)?;
-            let bytes = run_anonymize::<Text>(anonymizer, typed, entities).await?;
-            Ok(ApplyOutcome { bytes })
-        }
-        DocBody::Tabular { entities } => {
-            let typed = handle
-                .into::<Tabular>()
-                .map_err(|_| modality_mismatch_err("Tabular"))?;
-            let anonymizer = build_tabular_anonymizer(spec, scoped(), entities)?;
-            let bytes = run_anonymize::<Tabular>(anonymizer, typed, entities).await?;
-            Ok(ApplyOutcome { bytes })
-        }
-        DocBody::Image { entities } => {
-            let typed = handle
-                .into::<Image>()
-                .map_err(|_| modality_mismatch_err("Image"))?;
-            let anonymizer = build_image_anonymizer(spec, scoped(), entities);
-            let bytes = run_anonymize::<Image>(anonymizer, typed, entities).await?;
-            Ok(ApplyOutcome { bytes })
-        }
-        DocBody::Audio { entities } => {
-            let typed = handle
-                .into::<Audio>()
-                .map_err(|_| modality_mismatch_err("Audio"))?;
-            let anonymizer = build_audio_anonymizer(spec, scoped(), entities);
-            let bytes = run_anonymize::<Audio>(anonymizer, typed, entities).await?;
-            Ok(ApplyOutcome { bytes })
-        }
-    }
+    let content = typed
+        .encode()
+        .map_err(|err| Error::internal("post-apply encode failed", COMPONENT).with_source(err))?;
+    Ok(ApplyOutcome {
+        bytes: content.into_bytes(),
+    })
 }
 
-fn build_text_anonymizer<'a>(
-    spec: &AnalyzerParams,
-    policies: impl Iterator<Item = &'a Policy>,
-    entities: &[EntityRecord<Text>],
-) -> Result<Anonymizer<Text>> {
-    let catalog = build_catalog(spec);
-    let mut anonymizer = Anonymizer::<Text>::new().with_catalog(catalog);
-    for record in entities {
-        if let Some(action) = &record.r#override {
-            anonymizer =
-                attach_override_text(anonymizer, record.entity.id, action).map_err(compile_err)?;
-        }
-    }
-    attach_policies_text(anonymizer, policies).map_err(compile_err)
-}
-
-fn build_tabular_anonymizer<'a>(
-    spec: &AnalyzerParams,
-    policies: impl Iterator<Item = &'a Policy>,
-    entities: &[EntityRecord<Tabular>],
-) -> Result<Anonymizer<Tabular>> {
-    let catalog = build_catalog(spec);
-    let mut anonymizer = Anonymizer::<Tabular>::new().with_catalog(catalog);
-    for record in entities {
-        if let Some(action) = &record.r#override {
-            anonymizer = attach_override_tabular(anonymizer, record.entity.id, action)
-                .map_err(compile_err)?;
-        }
-    }
-    attach_policies_tabular(anonymizer, policies).map_err(compile_err)
-}
-
-fn build_image_anonymizer<'a>(
-    spec: &AnalyzerParams,
-    policies: impl Iterator<Item = &'a Policy>,
-    entities: &[EntityRecord<Image>],
-) -> Anonymizer<Image> {
-    let catalog = build_catalog(spec);
-    let mut anonymizer = Anonymizer::<Image>::new().with_catalog(catalog);
-    for record in entities {
-        if let Some(action) = &record.r#override {
-            anonymizer = attach_override_image(anonymizer, record.entity.id, action);
-        }
-    }
-    attach_policies_image(anonymizer, policies)
-}
-
-fn build_audio_anonymizer<'a>(
-    spec: &AnalyzerParams,
-    policies: impl Iterator<Item = &'a Policy>,
-    entities: &[EntityRecord<Audio>],
-) -> Anonymizer<Audio> {
-    let catalog = build_catalog(spec);
-    let mut anonymizer = Anonymizer::<Audio>::new().with_catalog(catalog);
-    for record in entities {
-        if let Some(action) = &record.r#override {
-            anonymizer = attach_override_audio(anonymizer, record.entity.id, action);
-        }
-    }
-    attach_policies_audio(anonymizer, policies)
-}
-
-async fn run_anonymize<M>(
-    anonymizer: Anonymizer<M>,
-    mut handle: DocumentHandle<M>,
-    entities: &[EntityRecord<M>],
-) -> Result<Bytes>
-where
-    M: Modality + Clone,
-{
-    // elide's `anonymize` takes `&mut [Entity<M>]` and updates
-    // provenance in place; we clone the entities out of the
-    // persisted records since the persisted body is the
-    // source of truth for the next call (idempotent apply).
-    let mut working: Vec<Entity<M>> = entities.iter().map(|r| r.entity.clone()).collect();
-    anonymizer
-        .anonymize(&mut handle, &mut working)
+async fn decode(engine: &Engine, bytes: Bytes, extension: &str) -> Result<UntypedDocumentHandle> {
+    engine
+        .formats()
+        .decode(bytes, extension)
         .await
-        .map_err(|err| Error::internal("anonymize failed", COMPONENT).with_source(err))?;
-
-    let content = handle.encode().map_err(|err| {
-        Error::internal("post-anonymize encode failed", COMPONENT).with_source(err)
-    })?;
-    Ok(content.into_bytes())
+        .map_err(|err| {
+            Error::validation(
+                format!("codec decode failed for extension {extension:?}"),
+                COMPONENT,
+            )
+            .with_source(err)
+        })
 }

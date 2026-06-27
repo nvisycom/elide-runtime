@@ -3,24 +3,12 @@
 
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
-use elide_core::Error;
-use elide_core::entity::LabelCatalog;
 use elide_core::modality::image::Image;
 use nvisy_core::policy::redaction::ImageRedaction;
 use nvisy_core::policy::{Policy, Rule, RuleAction};
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
-
-/// Compile every image-applicable rule across `policies` into an
-/// image-modality anonymizer.
-pub fn compile_image(
-    policies: &[Policy],
-    catalog: LabelCatalog,
-) -> Result<Anonymizer<Image>, Error> {
-    let anonymizer = Anonymizer::<Image>::new().with_catalog(catalog);
-    Ok(attach_policies_image(anonymizer, policies.iter()))
-}
 
 /// Attach every image-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the

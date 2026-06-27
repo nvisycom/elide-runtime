@@ -1,6 +1,6 @@
 //! Application state and dependency injection.
 //!
-//! [`ServiceState`] wraps the single [`EngineHandle`] every
+//! [`ServiceState`] wraps the single [`Engine`] every
 //! handler needs plus the deployment's default
 //! [`AnalyzerParams`]. Cheaply cloneable (the engine handle is
 //! `Arc`-backed and the analyzer spec is shared via `Arc`), so
@@ -12,13 +12,13 @@ use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_core::plan::AnalyzerParams;
-use nvisy_engine::EngineHandle;
+use nvisy_engine::Engine;
 
 /// Shared application state threaded through every handler.
 #[must_use = "state does nothing unless you use it"]
 #[derive(Clone)]
 pub struct ServiceState {
-    engine: EngineHandle,
+    engine: Engine,
     data_dir: PathBuf,
     analyzer_default: Arc<AnalyzerParams>,
 }
@@ -31,7 +31,7 @@ impl ServiceState {
     /// (degenerate: no recognizers, no enrichers — runs that omit
     /// `analyzer` overrides will detect nothing).
     pub async fn new(data_dir: PathBuf, analyzer_default: AnalyzerParams) -> Result<Self> {
-        let engine = EngineHandle::open(&data_dir)?;
+        let engine = Engine::open(&data_dir)?;
         Ok(Self {
             engine,
             data_dir,
@@ -40,7 +40,7 @@ impl ServiceState {
     }
 
     /// The engine handle every handler reaches for.
-    pub fn engine(&self) -> &EngineHandle {
+    pub fn engine(&self) -> &Engine {
         &self.engine
     }
 
@@ -56,7 +56,7 @@ impl ServiceState {
     }
 }
 
-impl axum::extract::FromRef<ServiceState> for EngineHandle {
+impl axum::extract::FromRef<ServiceState> for Engine {
     fn from_ref(state: &ServiceState) -> Self {
         state.engine.clone()
     }

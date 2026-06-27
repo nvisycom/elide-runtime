@@ -13,7 +13,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::http::StatusCode;
-use nvisy_engine::{EngineHandle, runs};
+use nvisy_engine::{Engine, runs};
 
 use super::detections::fetch_docs;
 use super::error::Result;
@@ -27,7 +27,7 @@ const TARGET: &str = "nvisy_server::redactions";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn create_redaction(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRedaction>,
 ) -> Result<(StatusCode, Json<RedactionResult>)> {
@@ -98,7 +98,7 @@ fn create_redaction_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_redaction(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(RedactionPath { id }): Path<RedactionPath>,
 ) -> Result<Json<RunResponse>> {

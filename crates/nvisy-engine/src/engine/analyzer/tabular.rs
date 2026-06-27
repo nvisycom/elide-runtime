@@ -11,22 +11,13 @@
 
 use elide::detection::Analyzer;
 use elide_core::modality::tabular::Tabular;
-use elide_core::recognition::Scope;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::AnalyzerParams;
 
-use super::common::{
-    attach_dedup, attach_ner, attach_pattern, build_catalog, reject_language_enricher,
-};
-use super::scope::compile_scope;
+use super::common::{attach_dedup, attach_ner, attach_pattern, reject_language_enricher};
 
-/// Compile `spec` into a tabular-modality analyzer + its
-/// compiled [`Scope`].
-pub fn compile_tabular(
-    spec: &AnalyzerParams,
-) -> Result<(Analyzer<Tabular>, Scope<Tabular>), Error> {
-    let scope = compile_scope::<Tabular>(&spec.scope)?;
-    let catalog = build_catalog(spec);
+/// Compile `spec` into a tabular-modality [`Analyzer`].
+pub(crate) fn compile_tabular(spec: &AnalyzerParams) -> Result<Analyzer<Tabular>, Error> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
     if spec.enrichers.language.is_some() {
@@ -59,7 +50,5 @@ pub fn compile_tabular(
         ));
     }
 
-    analyzer = attach_dedup(analyzer, &spec.deduplication);
-    let _ = catalog;
-    Ok((analyzer, scope))
+    Ok(attach_dedup(analyzer, &spec.deduplication))
 }

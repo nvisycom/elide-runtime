@@ -23,28 +23,39 @@
 //!   [`RunDocState::AwaitingReview`].
 //!
 //! Stream-based concurrency (not [`tokio::task::JoinSet`]) is
-//! deliberate: each per-doc future borrows the [`EngineHandle`]
+//! deliberate: each per-doc future borrows the [`Engine`]
 //! and the analyzer spec, and `JoinSet::spawn` would force them
 //! to `'static`. The stream combinator keeps the borrows live
 //! for free.
 //!
-//! [`EngineHandle`]: crate::EngineHandle
+//! [`Engine`]: crate::Engine
 
+use std::collections::HashMap;
+use std::result::Result as StdResult;
+use std::sync::Arc;
 use std::time::Duration;
 
-use futures::StreamExt;
+use bytes::Bytes;
+use elide_core::modality::Modality;
+use futures::{StreamExt, stream};
 use jiff::Timestamp;
 use nvisy_core::file::FileMetadata;
-use nvisy_core::{FileLineage, Result};
+use nvisy_core::plan::AnalyzerParams;
+use nvisy_core::policy::{Policy, RuleAction};
+use nvisy_core::{Error, FileLineage, Result};
+use tokio::time::timeout;
 use uuid::Uuid;
 
 use super::filter::{DocumentFacts, merge_metadata};
 use super::input::StartBatch;
 use super::persist::RunRegistry;
-use super::pipeline::{analyze_document, apply_document};
-use super::state::{DocBody, ModalityKind, Run, RunDocState, RunDocument, RunState};
+use super::pipeline::{AnalyzeOutcome, analyze_document, apply_document};
+use super::state::{
+    DocBody, EntityRecord, ModalityKind, ResourceRef, Run, RunDocState, RunDocument, RunState,
+};
 use crate::keyspace::FileDescriptor;
-use crate::{EngineHandle, FileRegistry, PolicyRegistry};
+use crate::registry::RegistryHandle;
+use crate::{Engine, FileRegistry, PolicyRegistry};
 
 /// Default per-run concurrency cap when the caller's
 /// [`StartBatch::concurrency`] is `None`.
@@ -67,7 +78,7 @@ const PER_DOC_TIMEOUT: Duration = Duration::from_secs(120);
 ///
 /// Returns the new run id; the per-doc results are queryable via
 /// [`super::get_doc`].
-pub async fn start(engine: &EngineHandle, actor_id: Uuid, batch: StartBatch) -> Result<Uuid> {
+pub async fn start(engine: &Engine, actor_id: Uuid, batch: StartBatch) -> Result<Uuid> {
     let run_id = Uuid::now_v7();
     let now = Timestamp::now();
     let concurrency = batch.concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
@@ -130,7 +141,7 @@ pub async fn start(engine: &EngineHandle, actor_id: Uuid, batch: StartBatch) -> 
             analyzer_spec.clone(),
         )
     });
-    futures::stream::iter(work)
+    stream::iter(work)
         .buffer_unordered(concurrency)
         .for_each(|()| async {})
         .await;
@@ -155,20 +166,20 @@ pub async fn start(engine: &EngineHandle, actor_id: Uuid, batch: StartBatch) -> 
 /// outer `runs::start` future composable with handler-level
 /// `Send + 'static` bounds.
 async fn analyze_one_doc(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
     input_file_id: Uuid,
-    spec: nvisy_core::plan::AnalyzerParams,
+    spec: AnalyzerParams,
 ) {
     let registry = engine.registry();
     mark_analyzing(registry, actor_id, run_id, doc_id).await;
 
     let outcome = match load_input(registry, actor_id, input_file_id).await {
         Ok((file, bytes)) => {
-            let analyze = analyze_document(engine.formats(), bytes, file.extension.as_str(), &spec);
-            match tokio::time::timeout(PER_DOC_TIMEOUT, analyze).await {
+            let analyze = analyze_document(engine, bytes, file.extension.as_str(), &spec);
+            match timeout(PER_DOC_TIMEOUT, analyze).await {
                 Ok(Ok(outcome)) => Ok(outcome),
                 Ok(Err(err)) => Err(DocFailure::Failed(err.to_string())),
                 Err(_) => Err(DocFailure::TimedOut),
@@ -184,10 +195,10 @@ async fn analyze_one_doc(
 /// reads (metadata then content) because the file API splits
 /// them across keyspaces.
 async fn load_input(
-    registry: &crate::registry::RegistryHandle,
+    registry: &RegistryHandle,
     actor_id: Uuid,
     file_id: Uuid,
-) -> Result<(FileMetadata, bytes::Bytes)> {
+) -> Result<(FileMetadata, Bytes)> {
     let file = registry.get_file(actor_id, file_id).await?;
     let bytes = registry.get_file_bytes(actor_id, file_id).await?;
     Ok((file, bytes))
@@ -198,12 +209,7 @@ enum DocFailure {
     TimedOut,
 }
 
-async fn mark_analyzing(
-    registry: &crate::registry::RegistryHandle,
-    actor_id: Uuid,
-    run_id: Uuid,
-    doc_id: Uuid,
-) {
+async fn mark_analyzing(registry: &RegistryHandle, actor_id: Uuid, run_id: Uuid, doc_id: Uuid) {
     let Ok(mut doc) = registry.get_run_doc(actor_id, run_id, doc_id).await else {
         return;
     };
@@ -212,11 +218,11 @@ async fn mark_analyzing(
 }
 
 async fn write_outcome(
-    registry: &crate::registry::RegistryHandle,
+    registry: &RegistryHandle,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
-    outcome: std::result::Result<super::pipeline::AnalyzeOutcome, DocFailure>,
+    outcome: StdResult<AnalyzeOutcome, DocFailure>,
 ) {
     let Ok(mut doc) = registry.get_run_doc(actor_id, run_id, doc_id).await else {
         return;
@@ -246,11 +252,11 @@ async fn write_outcome(
 /// and rewrites the header to [`RunState::Applied`] (every doc
 /// applied) or [`RunState::PartiallyApplied`] (at least one
 /// failed).
-pub async fn apply(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+pub async fn apply(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
     let registry = engine.registry();
     let mut run = registry.get_run(actor_id, run_id).await?;
     if !matches!(run.state, RunState::AwaitingReview) {
-        return Err(nvisy_core::Error::conflict(
+        return Err(Error::conflict(
             format!(
                 "run {run_id} is in state {:?}; apply only valid from AwaitingReview",
                 run.state,
@@ -262,8 +268,7 @@ pub async fn apply(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Resul
     // Resolve every referenced policy up-front. Apply needs the
     // full set so each per-doc task can filter by
     // `Policy::applies_when` against that doc's facts.
-    let policies =
-        std::sync::Arc::new(resolve_policies(registry, actor_id, &run.policy_refs).await?);
+    let policies = Arc::new(resolve_policies(registry, actor_id, &run.policy_refs).await?);
 
     // Materialise doc ids as owned `Copy` values; clone the
     // shared inputs (analyzer spec + metadata + Arc<policies>)
@@ -282,10 +287,10 @@ pub async fn apply(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Resul
             doc_id,
             request_metadata.clone(),
             analyzer_spec.clone(),
-            std::sync::Arc::clone(&policies),
+            Arc::clone(&policies),
         )
     });
-    let outcomes: Vec<bool> = futures::stream::iter(work)
+    let outcomes: Vec<bool> = stream::iter(work)
         .buffer_unordered(concurrency)
         .collect()
         .await;
@@ -305,13 +310,13 @@ pub async fn apply(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Resul
 /// counterpart to the `pub(crate)` `RunRegistry::get_run`;
 /// external API consumers reach run state through this rather than
 /// the persistence trait.
-pub async fn get(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<Run> {
+pub async fn get(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<Run> {
     engine.registry().get_run(actor_id, run_id).await
 }
 
 /// Read a per-doc body at `(actor_id, run_id, doc_id)`.
 pub async fn get_doc(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
@@ -326,7 +331,7 @@ pub async fn get_doc(
 /// filter by [`RunState`] (e.g. the HTTP layer's `/detections`
 /// view shows non-applied runs, `/redactions` shows applied
 /// runs).
-pub async fn list(engine: &EngineHandle, actor_id: Uuid) -> Vec<Run> {
+pub async fn list(engine: &Engine, actor_id: Uuid) -> Vec<Run> {
     engine
         .registry()
         .list_runs(actor_id)
@@ -350,13 +355,13 @@ pub async fn list(engine: &EngineHandle, actor_id: Uuid) -> Vec<Run> {
 ///
 /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
 /// [`tokio_util::sync::CancellationToken`]: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
-pub async fn cancel(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+pub async fn cancel(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
     let registry = engine.registry();
     let mut run = registry.get_run(actor_id, run_id).await?;
     match run.state {
         RunState::Analyzing | RunState::AwaitingReview => {}
         ref other => {
-            return Err(nvisy_core::Error::conflict(
+            return Err(Error::conflict(
                 format!(
                     "run {run_id} is in state {other:?}; cancel only valid from Analyzing or AwaitingReview"
                 ),
@@ -386,7 +391,7 @@ pub async fn cancel(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Resu
 /// next list scan.
 ///
 /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-pub async fn delete(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+pub async fn delete(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
     let registry = engine.registry();
     // Surface a clean NotFound when the run doesn't exist instead
     // of silently succeeding.
@@ -400,10 +405,10 @@ pub async fn delete(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Resu
 /// call (the per-doc filter operates on the full set; a missing
 /// policy can't be silently dropped).
 async fn resolve_policies(
-    registry: &crate::registry::RegistryHandle,
+    registry: &RegistryHandle,
     actor_id: Uuid,
-    refs: &[super::state::ResourceRef],
-) -> Result<Vec<nvisy_core::policy::Policy>> {
+    refs: &[ResourceRef],
+) -> Result<Vec<Policy>> {
     let mut out = Vec::with_capacity(refs.len());
     for r in refs {
         let policy = registry
@@ -424,13 +429,13 @@ async fn resolve_policies(
 /// future composable with handler-level `Send + 'static`
 /// bounds.
 async fn apply_one_doc(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
-    request_metadata: std::collections::HashMap<String, String>,
-    spec: nvisy_core::plan::AnalyzerParams,
-    policies: std::sync::Arc<Vec<nvisy_core::policy::Policy>>,
+    request_metadata: HashMap<String, String>,
+    spec: AnalyzerParams,
+    policies: Arc<Vec<Policy>>,
 ) -> bool {
     let registry = engine.registry();
     let Ok(mut doc) = registry.get_run_doc(actor_id, run_id, doc_id).await else {
@@ -460,7 +465,7 @@ async fn apply_one_doc(
     };
 
     let outcome = apply_document(
-        engine.formats(),
+        engine,
         input_bytes,
         input_file.extension.as_str(),
         &spec,
@@ -544,18 +549,18 @@ fn redacted_filename(name: &str) -> String {
 ///
 /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
 pub async fn override_entity(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
     entity_id: Uuid,
-    action: nvisy_core::policy::RuleAction,
+    action: RuleAction,
 ) -> Result<()> {
     let registry = engine.registry();
     let mut doc = registry.get_run_doc(actor_id, run_id, doc_id).await?;
     let found = patch_override(&mut doc.body, entity_id, action);
     if !found {
-        return Err(nvisy_core::Error::not_found(
+        return Err(Error::not_found(
             format!("entity {entity_id} not found in run {run_id} doc {doc_id}"),
             "runs::override_entity",
         ));
@@ -563,11 +568,7 @@ pub async fn override_entity(
     registry.put_run_doc(actor_id, run_id, &doc).await
 }
 
-fn patch_override(
-    body: &mut DocBody,
-    entity_id: Uuid,
-    action: nvisy_core::policy::RuleAction,
-) -> bool {
+fn patch_override(body: &mut DocBody, entity_id: Uuid, action: RuleAction) -> bool {
     match body {
         DocBody::Text { entities } => patch_each(entities, entity_id, action),
         DocBody::Tabular { entities } => patch_each(entities, entity_id, action),
@@ -576,10 +577,10 @@ fn patch_override(
     }
 }
 
-fn patch_each<M: elide_core::modality::Modality>(
-    entities: &mut [super::state::EntityRecord<M>],
+fn patch_each<M: Modality>(
+    entities: &mut [EntityRecord<M>],
     entity_id: Uuid,
-    action: nvisy_core::policy::RuleAction,
+    action: RuleAction,
 ) -> bool {
     for record in entities.iter_mut() {
         if record.entity.id == entity_id {

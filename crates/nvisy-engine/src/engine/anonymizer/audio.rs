@@ -3,24 +3,12 @@
 
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
-use elide_core::Error;
-use elide_core::entity::LabelCatalog;
 use elide_core::modality::audio::Audio;
 use nvisy_core::policy::redaction::AudioRedaction;
 use nvisy_core::policy::{Policy, Rule, RuleAction};
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
-
-/// Compile every audio-applicable rule across `policies` into an
-/// audio-modality anonymizer.
-pub fn compile_audio(
-    policies: &[Policy],
-    catalog: LabelCatalog,
-) -> Result<Anonymizer<Audio>, Error> {
-    let anonymizer = Anonymizer::<Audio>::new().with_catalog(catalog);
-    Ok(attach_policies_audio(anonymizer, policies.iter()))
-}
 
 /// Attach every audio-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the

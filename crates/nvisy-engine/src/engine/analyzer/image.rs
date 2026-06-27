@@ -12,23 +12,16 @@ use elide::detection::Analyzer;
 use elide::recognition::llm::LlmRecognizer;
 use elide_bento::BentoOcr;
 use elide_core::modality::image::Image;
-use elide_core::recognition::Scope;
 use elide_core::{Error, ErrorKind};
 use elide_ocr::{MockBackend as MockOcrBackend, OcrEnricher};
 use nvisy_core::plan::{
     AnalyzerParams, LlmBackendParams, LlmRecognizerParams, OcrBackendParams, OcrEnricherParams,
 };
 
-use super::common::{
-    attach_dedup, attach_ner, attach_pattern, build_catalog, reject_language_enricher,
-};
-use super::scope::compile_scope;
+use super::common::{attach_dedup, attach_ner, attach_pattern, reject_language_enricher};
 
-/// Compile `spec` into an image-modality analyzer + its compiled
-/// [`Scope`].
-pub fn compile_image(spec: &AnalyzerParams) -> Result<(Analyzer<Image>, Scope<Image>), Error> {
-    let scope = compile_scope::<Image>(&spec.scope)?;
-    let catalog = build_catalog(spec);
+/// Compile `spec` into an image-modality [`Analyzer`].
+pub(crate) fn compile_image(spec: &AnalyzerParams) -> Result<Analyzer<Image>, Error> {
     let mut analyzer = Analyzer::<Image>::new();
 
     if spec.enrichers.language.is_some() {
@@ -54,9 +47,7 @@ pub fn compile_image(spec: &AnalyzerParams) -> Result<(Analyzer<Image>, Scope<Im
         analyzer = attach_llm(analyzer, llm)?;
     }
 
-    analyzer = attach_dedup(analyzer, &spec.deduplication);
-    let _ = catalog;
-    Ok((analyzer, scope))
+    Ok(attach_dedup(analyzer, &spec.deduplication))
 }
 
 fn attach_ocr(

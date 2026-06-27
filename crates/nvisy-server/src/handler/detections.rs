@@ -14,7 +14,7 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use futures::future;
-use nvisy_engine::{EngineHandle, runs};
+use nvisy_engine::{Engine, runs};
 
 use super::error::Result;
 use super::request::{DetectionPath, DetectionQuery, NewDetection};
@@ -50,7 +50,7 @@ fn create_detection_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn list_detections(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Query(query): Query<DetectionQuery>,
 ) -> Result<Json<Page<RunResponse>>> {
@@ -68,7 +68,7 @@ fn list_detections_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_detection(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<Json<RunResponse>> {
@@ -86,7 +86,7 @@ fn get_detection_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn cancel_detection(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<StatusCode> {
@@ -108,7 +108,7 @@ fn cancel_detection_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn delete_detection(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<StatusCode> {
@@ -162,7 +162,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
 /// records per-doc state, and a missing row means the run was
 /// concurrently deleted underneath us.
 pub(super) async fn fetch_docs(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: uuid::Uuid,
     run: &nvisy_engine::runs::Run,
 ) -> Vec<nvisy_engine::runs::RunDocument> {
@@ -180,7 +180,7 @@ pub(super) async fn fetch_docs(
 /// Assemble [`RunResponse`]s for many runs by fetching per-doc
 /// rows concurrently per run.
 async fn assemble_runs(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: uuid::Uuid,
     runs_list: Vec<nvisy_engine::runs::Run>,
 ) -> Vec<RunResponse> {

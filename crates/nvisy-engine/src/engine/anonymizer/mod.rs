@@ -40,11 +40,7 @@ mod selector;
 mod tabular;
 mod text;
 
-pub use self::audio::compile_audio;
 pub(crate) use self::audio::{attach_override_audio, attach_policies_audio};
-pub use self::image::compile_image;
 pub(crate) use self::image::{attach_override_image, attach_policies_image};
-pub use self::tabular::compile_tabular;
 pub(crate) use self::tabular::{attach_override_tabular, attach_policies_tabular};
-pub use self::text::compile_text;
 pub(crate) use self::text::{attach_override_text, attach_policies_text};

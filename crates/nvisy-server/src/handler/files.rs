@@ -7,7 +7,7 @@ use axum::body::Bytes;
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::Response;
-use nvisy_engine::{EngineHandle, FileDescriptor, FileRegistry};
+use nvisy_engine::{Engine, FileDescriptor, FileRegistry};
 
 use super::error::{ErrorKind, Result};
 use super::request::{FilePath, FileQuery};
@@ -20,7 +20,7 @@ const TARGET: &str = "nvisy_server::files";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn upload_file(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     headers: HeaderMap,
     body: Bytes,
@@ -74,7 +74,7 @@ fn upload_file_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_file(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(FilePath { id }): Path<FilePath>,
 ) -> Result<Json<FileMetadataResponse>> {
@@ -88,7 +88,7 @@ fn get_file_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_file_content(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(FilePath { id }): Path<FilePath>,
 ) -> Result<Response> {
@@ -124,7 +124,7 @@ fn get_file_content_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn list_files(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Query(query): Query<FileQuery>,
 ) -> Result<Json<Page<FileMetadataResponse>>> {
@@ -145,7 +145,7 @@ fn list_files_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn delete_file(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(FilePath { id }): Path<FilePath>,
 ) -> Result<StatusCode> {
@@ -166,7 +166,7 @@ fn delete_file_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn delete_all_files(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
     let removed = engine.registry().delete_all_files(actor_id).await?;

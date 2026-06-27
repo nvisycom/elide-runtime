@@ -6,7 +6,7 @@ use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::http::StatusCode;
 use nvisy_core::policy::Policy;
-use nvisy_engine::{EngineHandle, PolicyRegistry};
+use nvisy_engine::{Engine, PolicyRegistry};
 
 use super::error::Result;
 use super::request::{NewPolicy, PolicyIdPath, PolicyVersionPath};
@@ -19,7 +19,7 @@ const TARGET: &str = "nvisy_server::policies";
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn put_policy(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(NewPolicy(policy)): Json<NewPolicy>,
 ) -> Result<(StatusCode, Json<PolicySummary>)> {
@@ -45,7 +45,7 @@ fn put_policy_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %version, %actor_id))]
 async fn get_policy(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(PolicyVersionPath { id, version }): Path<PolicyVersionPath>,
 ) -> Result<Json<Policy>> {
@@ -61,7 +61,7 @@ fn get_policy_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %actor_id))]
 async fn get_latest_policy(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(PolicyIdPath { id }): Path<PolicyIdPath>,
 ) -> Result<Json<Policy>> {
@@ -77,7 +77,7 @@ fn get_latest_policy_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%actor_id))]
 async fn list_policies(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
 ) -> Result<Json<Vec<PolicySummary>>> {
     let paged = engine.registry().list_policies(actor_id).await?;
@@ -97,7 +97,7 @@ fn list_policies_docs(op: TransformOperation) -> TransformOperation {
 
 #[tracing::instrument(target = TARGET, skip_all, fields(%id, %version, %actor_id))]
 async fn delete_policy(
-    State(engine): State<EngineHandle>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(PolicyVersionPath { id, version }): Path<PolicyVersionPath>,
 ) -> Result<StatusCode> {

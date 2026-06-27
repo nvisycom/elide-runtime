@@ -6,28 +6,23 @@
 //! long-running, multi-tenant, multi-document, two-phase redaction
 //! service:
 //!
-//! - [`analyzer`] compiles a request's recognition plan into an
-//!   [`elide::detection::Analyzer`] per modality.
-//! - [`anonymizer`] compiles a request's [`nvisy_core::policy::Policy`]
-//!   set into an [`elide::redaction::Anonymizer`] per modality, stamping each
-//!   resolved decision with the policy + rule provenance the audit
-//!   trail requires.
+//! - [`Engine`] bundles persistence + codec registry + the
+//!   per-request orchestrator constructor (analyze and apply on
+//!   one document).
 //! - [`registry`] holds the multi-tenant, actor-scoped storage
 //!   primitives ([`fjall`] keyspaces keyed by `[actor_id | …]`).
 //! - [`keyspace`] hosts the user-owned resource CRUD —
 //!   [`PolicyRegistry`], [`FileRegistry`], [`ContextRegistry`] —
 //!   all extension traits on [`registry::RegistryHandle`].
-//! - [`runs`] is the orchestrator over the engine-managed run
-//!   lifecycle, with its persistence trait kept `pub(crate)` so
-//!   external code can't write malformed runs.
+//! - [`runs`] is the multi-doc batched run orchestrator on top of
+//!   the per-document verbs, with its persistence trait kept
+//!   `pub(crate)` so external code can't write malformed runs.
 
 mod engine;
 
-pub mod analyzer;
-pub mod anonymizer;
 pub mod keyspace;
 pub mod registry;
 pub mod runs;
 
-pub use self::engine::EngineHandle;
+pub use self::engine::Engine;
 pub use self::keyspace::{ContextRegistry, FileDescriptor, FileRegistry, PolicyRegistry};

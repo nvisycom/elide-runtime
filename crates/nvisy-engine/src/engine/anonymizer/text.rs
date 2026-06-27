@@ -3,7 +3,6 @@
 
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Erase, Keep, Mask, Replace, Sha2Hash};
-use elide_core::entity::LabelCatalog;
 use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::policy::redaction::TextRedaction;
@@ -11,15 +10,6 @@ use nvisy_core::policy::{Policy, Rule, RuleAction};
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
-
-/// Compile every text-applicable rule across `policies` into a
-/// text-modality anonymizer. Walks policies in precedence order
-/// and rules in declared order; the first matching rule wins per
-/// entity at apply time.
-pub fn compile_text(policies: &[Policy], catalog: LabelCatalog) -> Result<Anonymizer<Text>, Error> {
-    let anonymizer = Anonymizer::<Text>::new().with_catalog(catalog);
-    attach_policies_text(anonymizer, policies.iter())
-}
 
 /// Attach every text-applicable rule from `policies` onto an
 /// already-constructed anonymizer. The apply pipeline calls this

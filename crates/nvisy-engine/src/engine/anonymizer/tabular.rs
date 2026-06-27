@@ -10,7 +10,6 @@
 
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow, Erase, Keep, Mask, Replace, Sha2Hash};
-use elide_core::entity::LabelCatalog;
 use elide_core::modality::tabular::Tabular;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::policy::redaction::TabularRedaction;
@@ -18,16 +17,6 @@ use nvisy_core::policy::{Policy, Rule, RuleAction};
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
-
-/// Compile every tabular-applicable rule across `policies` into a
-/// tabular-modality anonymizer.
-pub fn compile_tabular(
-    policies: &[Policy],
-    catalog: LabelCatalog,
-) -> Result<Anonymizer<Tabular>, Error> {
-    let anonymizer = Anonymizer::<Tabular>::new().with_catalog(catalog);
-    attach_policies_tabular(anonymizer, policies.iter())
-}
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the

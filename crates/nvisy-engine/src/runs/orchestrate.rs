@@ -23,12 +23,12 @@
 //!   [`RunDocState::AwaitingReview`].
 //!
 //! Stream-based concurrency (not [`tokio::task::JoinSet`]) is
-//! deliberate: each per-doc future borrows the [`EngineHandle`]
+//! deliberate: each per-doc future borrows the [`Engine`]
 //! and the analyzer spec, and `JoinSet::spawn` would force them
 //! to `'static`. The stream combinator keeps the borrows live
 //! for free.
 //!
-//! [`EngineHandle`]: crate::EngineHandle
+//! [`Engine`]: crate::Engine
 
 use std::time::Duration;
 
@@ -44,7 +44,7 @@ use super::persist::RunRegistry;
 use super::pipeline::{analyze_document, apply_document};
 use super::state::{DocBody, ModalityKind, Run, RunDocState, RunDocument, RunState};
 use crate::keyspace::FileDescriptor;
-use crate::{EngineHandle, FileRegistry, PolicyRegistry};
+use crate::{Engine, FileRegistry, PolicyRegistry};
 
 /// Default per-run concurrency cap when the caller's
 /// [`StartBatch::concurrency`] is `None`.
@@ -67,7 +67,7 @@ const PER_DOC_TIMEOUT: Duration = Duration::from_secs(120);
 ///
 /// Returns the new run id; the per-doc results are queryable via
 /// [`super::get_doc`].
-pub async fn start(engine: &EngineHandle, actor_id: Uuid, batch: StartBatch) -> Result<Uuid> {
+pub async fn start(engine: &Engine, actor_id: Uuid, batch: StartBatch) -> Result<Uuid> {
     let run_id = Uuid::now_v7();
     let now = Timestamp::now();
     let concurrency = batch.concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
@@ -155,7 +155,7 @@ pub async fn start(engine: &EngineHandle, actor_id: Uuid, batch: StartBatch) -> 
 /// outer `runs::start` future composable with handler-level
 /// `Send + 'static` bounds.
 async fn analyze_one_doc(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
@@ -167,7 +167,7 @@ async fn analyze_one_doc(
 
     let outcome = match load_input(registry, actor_id, input_file_id).await {
         Ok((file, bytes)) => {
-            let analyze = analyze_document(engine.formats(), bytes, file.extension.as_str(), &spec);
+            let analyze = analyze_document(engine, bytes, file.extension.as_str(), &spec);
             match tokio::time::timeout(PER_DOC_TIMEOUT, analyze).await {
                 Ok(Ok(outcome)) => Ok(outcome),
                 Ok(Err(err)) => Err(DocFailure::Failed(err.to_string())),
@@ -246,7 +246,7 @@ async fn write_outcome(
 /// and rewrites the header to [`RunState::Applied`] (every doc
 /// applied) or [`RunState::PartiallyApplied`] (at least one
 /// failed).
-pub async fn apply(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+pub async fn apply(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
     let registry = engine.registry();
     let mut run = registry.get_run(actor_id, run_id).await?;
     if !matches!(run.state, RunState::AwaitingReview) {
@@ -305,13 +305,13 @@ pub async fn apply(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Resul
 /// counterpart to the `pub(crate)` `RunRegistry::get_run`;
 /// external API consumers reach run state through this rather than
 /// the persistence trait.
-pub async fn get(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<Run> {
+pub async fn get(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<Run> {
     engine.registry().get_run(actor_id, run_id).await
 }
 
 /// Read a per-doc body at `(actor_id, run_id, doc_id)`.
 pub async fn get_doc(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
@@ -326,7 +326,7 @@ pub async fn get_doc(
 /// filter by [`RunState`] (e.g. the HTTP layer's `/detections`
 /// view shows non-applied runs, `/redactions` shows applied
 /// runs).
-pub async fn list(engine: &EngineHandle, actor_id: Uuid) -> Vec<Run> {
+pub async fn list(engine: &Engine, actor_id: Uuid) -> Vec<Run> {
     engine
         .registry()
         .list_runs(actor_id)
@@ -350,7 +350,7 @@ pub async fn list(engine: &EngineHandle, actor_id: Uuid) -> Vec<Run> {
 ///
 /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
 /// [`tokio_util::sync::CancellationToken`]: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
-pub async fn cancel(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+pub async fn cancel(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
     let registry = engine.registry();
     let mut run = registry.get_run(actor_id, run_id).await?;
     match run.state {
@@ -386,7 +386,7 @@ pub async fn cancel(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Resu
 /// next list scan.
 ///
 /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-pub async fn delete(engine: &EngineHandle, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+pub async fn delete(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
     let registry = engine.registry();
     // Surface a clean NotFound when the run doesn't exist instead
     // of silently succeeding.
@@ -424,7 +424,7 @@ async fn resolve_policies(
 /// future composable with handler-level `Send + 'static`
 /// bounds.
 async fn apply_one_doc(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
@@ -460,7 +460,7 @@ async fn apply_one_doc(
     };
 
     let outcome = apply_document(
-        engine.formats(),
+        engine,
         input_bytes,
         input_file.extension.as_str(),
         &spec,
@@ -544,7 +544,7 @@ fn redacted_filename(name: &str) -> String {
 ///
 /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
 pub async fn override_entity(
-    engine: &EngineHandle,
+    engine: &Engine,
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,

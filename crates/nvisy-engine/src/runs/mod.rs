@@ -19,9 +19,9 @@
 //! Symmetric with [`crate::keyspace`]: all
 //! engine state lives in fjall keyspaces on the shared
 //! [`RegistryHandle`]; entry points read/write through the
-//! [`EngineHandle`] that wraps it.
+//! [`Engine`] that wraps it.
 //!
-//! [`EngineHandle`]: crate::EngineHandle
+//! [`Engine`]: crate::Engine
 //! [`RegistryHandle`]: crate::registry::RegistryHandle
 
 mod filter;

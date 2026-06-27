@@ -128,8 +128,15 @@ impl EnricherOverrides {
 }
 
 /// Per-field override for a scalar (single-value) field.
+///
+/// Renamed in the generated schema to `{T}Override` so each
+/// monomorphisation gets a distinct, descriptive schema name
+/// (`DeduplicationParamsOverride`, `ScopeParamsOverride`, …)
+/// instead of `schemars`'s numeric collision fallback
+/// (`ScalarOverride`, `ScalarOverride2`, `ScalarOverride3`, …).
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case")]
+#[schemars(rename = "{T}Override")]
 pub enum ScalarOverride<T> {
     /// Use the server default's value for this field.
     #[default]
@@ -167,8 +174,14 @@ impl<T: Clone> ScalarOverride<T> {
 }
 
 /// Per-field override for a collection (`Vec<T>`) field.
+///
+/// Renamed in the generated schema to `{T}CollectionOverride` so
+/// each monomorphisation gets a distinct, descriptive schema name
+/// (the selector type `S` is always determined by `T`, so it does
+/// not need to appear in the name).
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case")]
+#[schemars(rename = "{T}CollectionOverride")]
 pub enum CollectionOverride<T, S> {
     /// Use the server default's collection.
     #[default]

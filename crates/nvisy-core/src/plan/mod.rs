@@ -23,6 +23,7 @@
 mod analyzer;
 pub mod deduplication;
 pub mod enricher;
+pub mod label;
 pub mod recognizer;
 pub mod scope;
 
@@ -34,6 +35,7 @@ pub use self::enricher::{
     EnricherParams, LanguageEnricherParams, OcrBackendParams, OcrEnricherParams, SttBackendParams,
     SttEnricherParams,
 };
+pub use self::label::LabelCatalogParams;
 pub use self::recognizer::{
     LlmBackendParams, LlmRecognizerParams, NerBackendParams, NerRecognizerParams,
     PatternRecognizerParams, RecognizerParams,

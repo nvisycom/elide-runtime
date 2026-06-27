@@ -10,6 +10,7 @@ use std::path::Path;
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
 use nvisy_core::{Error, ErrorKind, Result};
+use tokio::task;
 use uuid::Uuid;
 
 const COMPONENT: &str = "registry";
@@ -66,7 +67,7 @@ where
     F: FnOnce() -> Result<T> + Send + 'static,
     T: Send + 'static,
 {
-    tokio::task::spawn_blocking(f).await.map_err(|err| {
+    task::spawn_blocking(f).await.map_err(|err| {
         Error::new(ErrorKind::Internal, "blocking task panicked")
             .with_component(COMPONENT)
             .with_source(err)

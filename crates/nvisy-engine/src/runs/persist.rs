@@ -24,6 +24,8 @@
 //! [`CompositeKey(actor, run)`]: crate::registry::CompositeKey
 //! [`TripleKey(actor, run, doc)`]: crate::registry::TripleKey
 
+use std::error::Error as StdError;
+
 use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
@@ -183,6 +185,6 @@ impl RunRegistry for RegistryHandle {
     }
 }
 
-fn fjall_err(err: impl std::error::Error + Send + Sync + 'static) -> Error {
+fn fjall_err(err: impl StdError + Send + Sync + 'static) -> Error {
     Error::internal("fjall operation failed", COMPONENT).with_source(err)
 }

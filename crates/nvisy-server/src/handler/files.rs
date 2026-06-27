@@ -1,9 +1,11 @@
 //! File upload / download / list / delete handlers.
 
+use std::collections::HashMap;
+
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::body::Bytes;
+use axum::body::{Body, Bytes};
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::Response;
@@ -49,7 +51,7 @@ async fn upload_file(
         extension,
         lineage: None,
         descriptor_labels: Vec::new(),
-        descriptor_metadata: std::collections::HashMap::new(),
+        descriptor_metadata: HashMap::new(),
     };
 
     let metadata = engine
@@ -95,7 +97,7 @@ async fn get_file_content(
     let metadata = engine.registry().get_file(actor_id, id).await?;
     let bytes = engine.registry().get_file_bytes(actor_id, id).await?;
 
-    let mut response = Response::new(axum::body::Body::from(bytes));
+    let mut response = Response::new(Body::from(bytes));
     if let Some(ct) = metadata.content_type.as_ref()
         && let Ok(value) = ct.as_str().parse()
     {

@@ -219,8 +219,7 @@ impl Engine {
         let text_anonymizer =
             attach_policies_text(text_anonymizer, policies.iter()).map_err(compile_err)?;
 
-        let mut tabular_anonymizer =
-            Anonymizer::<Tabular>::new().with_catalog(catalog.clone());
+        let mut tabular_anonymizer = Anonymizer::<Tabular>::new().with_catalog(catalog.clone());
         for (id, action) in body_overrides(ModalityKind::Tabular) {
             tabular_anonymizer =
                 attach_override_tabular(tabular_anonymizer, *id, action).map_err(compile_err)?;

@@ -8,6 +8,8 @@
 //! so old runs can replay against the exact bytes they were
 //! submitted under.
 
+use std::error::Error as StdError;
+
 use nvisy_core::context::Context;
 use nvisy_core::{Error, Result};
 use semver::Version;
@@ -169,6 +171,6 @@ impl ContextRegistry for RegistryHandle {
     }
 }
 
-fn fjall_err(err: impl std::error::Error + Send + Sync + 'static) -> Error {
+fn fjall_err(err: impl StdError + Send + Sync + 'static) -> Error {
     Error::internal("fjall operation failed", COMPONENT).with_source(err)
 }

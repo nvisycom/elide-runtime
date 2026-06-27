@@ -1,10 +1,10 @@
 //! Compile a [`nvisy_core::plan::ScopeParams`] into an
 //! [`elide::recognition::Scope`].
 
-use elide_core::Error;
 use elide_core::entity::LabelCatalog;
 use elide_core::primitive::{CountryCode, Language, LanguageTag};
 use elide_core::recognition::Scope;
+use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::ScopeParams;
 
 /// Translate `params` into an [`elide::recognition::Scope`],
@@ -23,7 +23,7 @@ pub(crate) fn compile_scope(params: &ScopeParams, catalog: LabelCatalog) -> Resu
     for code in &params.jurisdictions {
         let country = CountryCode::from_alpha2(code).map_err(|e| {
             Error::new(
-                elide_core::ErrorKind::Validation,
+                ErrorKind::Validation,
                 format!("scope: jurisdiction `{code}`: {e}"),
             )
         })?;

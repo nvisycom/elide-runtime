@@ -81,3 +81,8 @@ fjall = { workspace = true, features = [] }
 
 # Resource serialisation (policy / context / run blobs in fjall)
 serde_json = { workspace = true, features = [] }
+
+# Structured logging — used inline at warn/error points where the
+# engine wants to surface a non-fatal anomaly to operators (unknown
+# builtin label name in a catalog request, etc.).
+tracing = { workspace = true, features = [] }

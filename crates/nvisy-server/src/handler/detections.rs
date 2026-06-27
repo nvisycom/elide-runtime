@@ -14,7 +14,9 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use futures::future;
+use nvisy_engine::runs::{Run, RunDocument};
 use nvisy_engine::{Engine, runs};
+use uuid::Uuid;
 
 use super::error::Result;
 use super::request::{DetectionPath, DetectionQuery, NewDetection};
@@ -161,11 +163,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
 /// on individual rows are dropped — the run header already
 /// records per-doc state, and a missing row means the run was
 /// concurrently deleted underneath us.
-pub(super) async fn fetch_docs(
-    engine: &Engine,
-    actor_id: uuid::Uuid,
-    run: &nvisy_engine::runs::Run,
-) -> Vec<nvisy_engine::runs::RunDocument> {
+pub(super) async fn fetch_docs(engine: &Engine, actor_id: Uuid, run: &Run) -> Vec<RunDocument> {
     let lookups = run
         .document_ids
         .iter()
@@ -173,17 +171,13 @@ pub(super) async fn fetch_docs(
     future::join_all(lookups)
         .await
         .into_iter()
-        .filter_map(std::result::Result::ok)
+        .filter_map(|r| r.ok())
         .collect()
 }
 
 /// Assemble [`RunResponse`]s for many runs by fetching per-doc
 /// rows concurrently per run.
-async fn assemble_runs(
-    engine: &Engine,
-    actor_id: uuid::Uuid,
-    runs_list: Vec<nvisy_engine::runs::Run>,
-) -> Vec<RunResponse> {
+async fn assemble_runs(engine: &Engine, actor_id: Uuid, runs_list: Vec<Run>) -> Vec<RunResponse> {
     let mut out = Vec::with_capacity(runs_list.len());
     for run in runs_list {
         let docs = fetch_docs(engine, actor_id, &run).await;

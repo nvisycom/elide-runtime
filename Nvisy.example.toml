@@ -44,14 +44,17 @@ fusion = "max_confidence"        # max_confidence | mean | noisy_or
 resolution = "highest_confidence" # highest_confidence | longest_span
 min_confidence = 0.7              # filter threshold, 0.0..=1.0
 
-# Per-request label catalog. Entries are LabelSchema records:
-# { name, description?, tags?, metadata? }. The server unions
-# every submitted policy's labels with this catalog at request
-# time; entries here are the baseline.
-# [[analyzer.label_catalog]]
-# name = "email_address"
-# description = "RFC 5322 email"
-# tags = ["pii", "contact"]
+# Per-request label catalog. Two sources union into one catalog at
+# compile time: `builtins` (names from `elide-core`'s shipped
+# builtin set; unknown names warn and are skipped) and `custom`
+# (inline LabelSchema records, `{ name, description?, tags?,
+# metadata? }`). Requests can scalar-replace this wholesale; left
+# empty here, no labels are in scope until the request sets them.
+# [analyzer.label_catalog]
+# builtins = ["email_address", "phone_number", "credit_card"]
+# # [[analyzer.label_catalog.custom]]
+# # name = "internal_employee_id"
+# # tags = ["pii"]
 
 # Pattern recognizer: at-most-one per analyzer. Loads every
 # shipped pattern + dictionary and wraps the recognizer in

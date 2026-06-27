@@ -26,22 +26,20 @@
 //!   patch semantics.
 //! - `enrichers` ([`EnricherOverrides`]): nested struct, each
 //!   slot at-most-one (scalar). Slots: `language`, `ocr`, `stt`.
-//! - `deduplication`, `scope`: scalars.
-//! - `labelCatalog`: collection keyed by label name.
+//! - `deduplication`, `scope`, `labelCatalog`: scalars.
 
 use nvisy_core::plan::{
-    AnalyzerParams, DeduplicationParams, EnricherParams, LanguageEnricherParams,
-    LlmRecognizerParams, NerRecognizerParams, OcrEnricherParams, PatternRecognizerParams,
-    RecognizerParams, ScopeParams, SttEnricherParams,
+    AnalyzerParams, DeduplicationParams, EnricherParams, LabelCatalogParams,
+    LanguageEnricherParams, LlmRecognizerParams, NerRecognizerParams, OcrEnricherParams,
+    PatternRecognizerParams, RecognizerParams, ScopeParams, SttEnricherParams,
 };
-use nvisy_core::schema::LabelSchema;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 /// Per-request analyzer params. Every field defaults to
 /// [`ScalarOverride::Inherit`] / [`CollectionOverride::Inherit`];
 /// the request may set any subset.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerOverrides {
     /// Per-kind recognizer overrides.
@@ -56,21 +54,10 @@ pub struct AnalyzerOverrides {
     /// Caller-asserted scope. Scalar — replace or inherit.
     #[serde(default)]
     pub scope: ScalarOverride<ScopeParams>,
-    /// Per-request label catalog.
+    /// Per-request label catalog (builtins + custom). Scalar —
+    /// replace or inherit the deployment default wholesale.
     #[serde(default)]
-    pub label_catalog: CollectionOverride<LabelSchema, LabelSelector>,
-}
-
-impl Default for AnalyzerOverrides {
-    fn default() -> Self {
-        Self {
-            recognizers: RecognizerOverrides::default(),
-            enrichers: EnricherOverrides::default(),
-            deduplication: ScalarOverride::Inherit,
-            scope: ScalarOverride::Inherit,
-            label_catalog: CollectionOverride::Inherit,
-        }
-    }
+    pub label_catalog: ScalarOverride<LabelCatalogParams>,
 }
 
 impl AnalyzerOverrides {
@@ -82,9 +69,7 @@ impl AnalyzerOverrides {
             enrichers: self.enrichers.resolve(&default.enrichers),
             deduplication: self.deduplication.resolve(&default.deduplication),
             scope: self.scope.resolve(&default.scope),
-            label_catalog: self
-                .label_catalog
-                .resolve(&default.label_catalog, label_matches),
+            label_catalog: self.label_catalog.resolve(&default.label_catalog),
         }
     }
 }
@@ -92,7 +77,7 @@ impl AnalyzerOverrides {
 /// Per-kind overrides on the recognizer slots of
 /// [`RecognizerParams`]. Pattern is scalar (at-most-one); NER
 /// and LLM are collections.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognizerOverrides {
     /// Pattern recognizer slot. Scalar.
@@ -104,16 +89,6 @@ pub struct RecognizerOverrides {
     /// LLM recognizer list. Selectors match by `name`.
     #[serde(default)]
     pub llm: CollectionOverride<LlmRecognizerParams, LlmSelector>,
-}
-
-impl Default for RecognizerOverrides {
-    fn default() -> Self {
-        Self {
-            pattern: ScalarOverride::Inherit,
-            ner: CollectionOverride::Inherit,
-            llm: CollectionOverride::Inherit,
-        }
-    }
 }
 
 impl RecognizerOverrides {
@@ -128,7 +103,7 @@ impl RecognizerOverrides {
 
 /// Per-kind overrides on the enricher slots of
 /// [`EnricherParams`]. Every kind is scalar (at-most-one).
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EnricherOverrides {
     /// Language enricher slot.
@@ -140,16 +115,6 @@ pub struct EnricherOverrides {
     /// STT enricher slot (audio modality only).
     #[serde(default)]
     pub stt: ScalarOverride<SttEnricherParams>,
-}
-
-impl Default for EnricherOverrides {
-    fn default() -> Self {
-        Self {
-            language: ScalarOverride::Inherit,
-            ocr: ScalarOverride::Inherit,
-            stt: ScalarOverride::Inherit,
-        }
-    }
 }
 
 impl EnricherOverrides {
@@ -263,23 +228,10 @@ pub struct LlmSelector {
     pub name: String,
 }
 
-/// Selector for [`CollectionOverride::Patch::remove`] on the
-/// `labelCatalog` field. Labels are keyed by `name`.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct LabelSelector {
-    /// Label name to match.
-    pub name: String,
-}
-
 fn ner_matches(sel: &NerSelector, spec: &NerRecognizerParams) -> bool {
     sel.name == spec.name
 }
 
 fn llm_matches(sel: &LlmSelector, spec: &LlmRecognizerParams) -> bool {
     sel.name == spec.name
-}
-
-fn label_matches(sel: &LabelSelector, label: &LabelSchema) -> bool {
-    sel.name == label.name
 }

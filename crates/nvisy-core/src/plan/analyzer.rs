@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use super::deduplication::DeduplicationParams;
 use super::enricher::EnricherParams;
+use super::label::LabelCatalogParams;
 use super::recognizer::RecognizerParams;
 use super::scope::ScopeParams;
-use crate::schema::LabelSchema;
 
 /// Full description of how to build an analyzer for one
 /// request.
@@ -38,8 +38,13 @@ pub struct AnalyzerParams {
     /// Threaded into every recognizer's context.
     #[serde(default)]
     pub scope: ScopeParams,
-    /// Per-request entity-label catalog. Drives tag-based
-    /// selector matching downstream in the anonymizer compile.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub label_catalog: Vec<LabelSchema>,
+    /// Per-request entity-label catalog: builtins selected by
+    /// name + custom inline schemas. Drives both what the
+    /// analyzer is asked to emit (via [`Scope::with_catalog`]
+    /// at compile time) and tag-based selector matching in the
+    /// anonymizer.
+    ///
+    /// [`Scope::with_catalog`]: elide::recognition::Scope::with_catalog
+    #[serde(default)]
+    pub label_catalog: LabelCatalogParams,
 }

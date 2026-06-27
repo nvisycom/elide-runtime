@@ -22,6 +22,8 @@
 //! [`Orchestrator`]: elide::Orchestrator
 //! [`UntypedDocumentHandle`]: elide::codec::UntypedDocumentHandle
 
+use std::mem;
+
 use bytes::Bytes;
 use elide::codec::UntypedDocumentHandle;
 use elide_core::entity::Entity;
@@ -74,7 +76,7 @@ pub(super) async fn analyze_document(
     // The orchestrator decided which pipeline matched the body
     // (one of Text / Tabular / Image / Audio) — recover that by
     // peeking at the report's body entity slot for each modality.
-    if let Some(entities) = report.entities::<Text>().map(std::mem::take) {
+    if let Some(entities) = report.entities::<Text>().map(mem::take) {
         return Ok(AnalyzeOutcome {
             modality: ModalityKind::Text,
             body: DocBody::Text {
@@ -82,7 +84,7 @@ pub(super) async fn analyze_document(
             },
         });
     }
-    if let Some(entities) = report.entities::<Tabular>().map(std::mem::take) {
+    if let Some(entities) = report.entities::<Tabular>().map(mem::take) {
         return Ok(AnalyzeOutcome {
             modality: ModalityKind::Tabular,
             body: DocBody::Tabular {
@@ -90,7 +92,7 @@ pub(super) async fn analyze_document(
             },
         });
     }
-    if let Some(entities) = report.entities::<Image>().map(std::mem::take) {
+    if let Some(entities) = report.entities::<Image>().map(mem::take) {
         return Ok(AnalyzeOutcome {
             modality: ModalityKind::Image,
             body: DocBody::Image {
@@ -98,7 +100,7 @@ pub(super) async fn analyze_document(
             },
         });
     }
-    if let Some(entities) = report.entities::<Audio>().map(std::mem::take) {
+    if let Some(entities) = report.entities::<Audio>().map(mem::take) {
         return Ok(AnalyzeOutcome {
             modality: ModalityKind::Audio,
             body: DocBody::Audio {
@@ -238,11 +240,7 @@ where
     })
 }
 
-async fn decode(
-    engine: &Engine,
-    bytes: Bytes,
-    extension: &str,
-) -> Result<UntypedDocumentHandle> {
+async fn decode(engine: &Engine, bytes: Bytes, extension: &str) -> Result<UntypedDocumentHandle> {
     engine
         .formats()
         .decode(bytes, extension)

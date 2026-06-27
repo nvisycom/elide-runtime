@@ -9,16 +9,19 @@
 //! `LlmModality` trait) and the per-modality rejection of unwired
 //! spec variants.
 
+use std::sync::OnceLock;
+
 use elide::detection::Analyzer;
 use elide::detection::calibrate::{CalibrateLayer, CalibrationMap as ElideCalibrationMap};
 use elide::detection::filter::FilterLayer;
 use elide::detection::fuse::{FuseLayer, MaxConfidence, Mean, NoisyOr};
 use elide::detection::resolve::{HighestConfidence, LongestSpan, ResolveLayer};
+use elide::recognition::context::Enhanced;
 use elide::recognition::ner::NerRecognizer;
 use elide::recognition::pattern::PatternRecognizer;
 use elide_bento::BentoNer;
-use elide_core::entity::LabelCatalog;
-use elide_core::modality::TextRecognizable;
+use elide_core::entity::{LabelCatalog, LabelRef};
+use elide_core::modality::{Modality, TextRecognizable};
 use elide_core::primitive::ConfidenceThreshold;
 use elide_core::recognition::Recognizer;
 use elide_core::{Error, ErrorKind};
@@ -27,11 +30,49 @@ use nvisy_core::plan::{
     NerRecognizerParams, PatternRecognizerParams, ResolutionStrategyParams,
 };
 
-/// Build the per-request label catalog from `spec`. Engine does not
-/// pre-seed builtins; the caller picks.
+/// The full builtin label catalog from `elide-core`, built once
+/// and reused for every request. [`LabelCatalog::with_builtins`]
+/// walks `BUILT_INS` and clones every label — cheap once, wasteful
+/// per-request.
+fn builtin_catalog() -> &'static LabelCatalog {
+    static BUILTINS: OnceLock<LabelCatalog> = OnceLock::new();
+    BUILTINS.get_or_init(LabelCatalog::with_builtins)
+}
+
+/// Build the per-request label catalog from `spec`.
+///
+/// Engine does not pre-seed builtins; the caller picks. Two sources
+/// union into one catalog:
+///
+/// - [`builtins`](nvisy_core::plan::LabelCatalogParams::builtins) —
+///   each name is looked up against the cached full builtin
+///   catalog; unknown names warn and are skipped (typos shouldn't
+///   fail the request).
+/// - [`custom`](nvisy_core::plan::LabelCatalogParams::custom) —
+///   inserted as-is; names that collide with a builtin replace it
+///   (matches [`LabelCatalog::insert`] semantics: last write wins).
+///
+/// [`LabelCatalog::with_builtins`]: elide_core::entity::LabelCatalog::with_builtins
+/// [`LabelCatalog::insert`]: elide_core::entity::LabelCatalog::insert
 pub(crate) fn build_catalog(spec: &AnalyzerParams) -> LabelCatalog {
     let mut catalog = LabelCatalog::new();
-    for label in &spec.label_catalog {
+    let builtins = builtin_catalog();
+    for name in &spec.label_catalog.builtins {
+        let label_ref = LabelRef::new(name.clone());
+        match builtins.get(&label_ref) {
+            Some(label) => {
+                catalog.insert(label.clone());
+            }
+            None => {
+                tracing::warn!(
+                    target: "engine::analyzer",
+                    label = %name,
+                    "unknown builtin label name in catalog request; skipping",
+                );
+            }
+        }
+    }
+    for label in &spec.label_catalog.custom {
         catalog.insert(label.clone().into());
     }
     catalog
@@ -44,7 +85,7 @@ pub(crate) fn build_catalog(spec: &AnalyzerParams) -> LabelCatalog {
 /// no modality currently has the backend wired).
 pub(super) fn reject_language_enricher<M>() -> Result<Analyzer<M>, Error>
 where
-    M: elide_core::modality::Modality,
+    M: Modality,
 {
     Err(Error::new(
         ErrorKind::Validation,
@@ -64,7 +105,7 @@ pub(super) fn attach_pattern<M>(
 where
     M: TextRecognizable,
     PatternRecognizer: Recognizer<M> + 'static,
-    elide::recognition::context::Enhanced<PatternRecognizer>: Recognizer<M> + 'static,
+    Enhanced<PatternRecognizer>: Recognizer<M> + 'static,
 {
     let mut builder = PatternRecognizer::builder();
     if spec.builtins {
@@ -103,7 +144,7 @@ where
 /// filter. Calibrate is skipped when the calibration map is empty.
 pub(super) fn attach_dedup<M>(mut analyzer: Analyzer<M>, spec: &DeduplicationParams) -> Analyzer<M>
 where
-    M: elide_core::modality::Modality,
+    M: Modality,
 {
     if !spec.calibration.is_empty() {
         let mut map = ElideCalibrationMap::new();

@@ -14,8 +14,9 @@ use std::sync::OnceLock;
 use elide::detection::Analyzer;
 use elide::detection::calibrate::{CalibrateLayer, CalibrationMap as ElideCalibrationMap};
 use elide::detection::filter::FilterLayer;
-use elide::detection::fuse::{FuseLayer, MaxConfidence, Mean, NoisyOr};
-use elide::detection::resolve::{HighestConfidence, LongestSpan, ResolveLayer};
+use elide::detection::reconcile::scoring::{Max, NoisyOr};
+use elide::detection::reconcile::tiebreaker::{HighestConfidence, LongestSpan};
+use elide::detection::reconcile::{Merging, ReconcileLayer, Structural};
 use elide::recognition::context::Enhanced;
 use elide::recognition::ner::NerRecognizer;
 use elide::recognition::pattern::PatternRecognizer;
@@ -26,8 +27,8 @@ use elide_core::primitive::ConfidenceThreshold;
 use elide_core::recognition::Recognizer;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::{
-    AnalyzerParams, DeduplicationParams, FusionStrategyParams, NerBackendParams,
-    NerRecognizerParams, PatternRecognizerParams, ResolutionStrategyParams,
+    AnalyzerParams, DeduplicationParams, MergingStrategyParams, NerBackendParams,
+    NerRecognizerParams, PatternRecognizerParams, TiebreakerParams,
 };
 
 /// The full builtin label catalog from `elide-core`, built once
@@ -140,8 +141,10 @@ where
     Ok(analyzer.with_recognizer(builder.build()?))
 }
 
-/// Append the deduplication layers: calibrate → fuse → resolve →
-/// filter. Calibrate is skipped when the calibration map is empty.
+/// Append the deduplication layers: calibrate → reconcile
+/// (merging same-label overlaps) → reconcile (tiebreaking
+/// cross-label overlaps) → filter. Calibrate is skipped when the
+/// calibration map is empty.
 pub(super) fn attach_dedup<M>(mut analyzer: Analyzer<M>, spec: &DeduplicationParams) -> Analyzer<M>
 where
     M: Modality,
@@ -154,19 +157,22 @@ where
         analyzer = analyzer.with_layer(CalibrateLayer::new(map));
     }
 
-    analyzer = match spec.fusion {
-        FusionStrategyParams::MaxConfidence => analyzer.with_layer(FuseLayer::new(MaxConfidence)),
-        FusionStrategyParams::Mean => analyzer.with_layer(FuseLayer::new(Mean)),
-        FusionStrategyParams::NoisyOr => analyzer.with_layer(FuseLayer::new(NoisyOr)),
+    analyzer = match spec.merging {
+        MergingStrategyParams::Max => {
+            analyzer.with_layer(ReconcileLayer::same_label(Merging::new(Max)))
+        }
+        MergingStrategyParams::NoisyOr => {
+            analyzer.with_layer(ReconcileLayer::same_label(Merging::new(NoisyOr)))
+        }
     };
 
-    analyzer = match spec.resolution {
-        ResolutionStrategyParams::HighestConfidence => {
-            analyzer.with_layer(ResolveLayer::new(HighestConfidence))
-        }
-        ResolutionStrategyParams::LongestSpan => {
-            analyzer.with_layer(ResolveLayer::new(LongestSpan))
-        }
+    analyzer = match spec.tiebreaker {
+        TiebreakerParams::HighestConfidence => analyzer.with_layer(ReconcileLayer::cross_label(
+            Structural::standard().with_tiebreaker(HighestConfidence),
+        )),
+        TiebreakerParams::LongestSpan => analyzer.with_layer(ReconcileLayer::cross_label(
+            Structural::standard().with_tiebreaker(LongestSpan),
+        )),
     };
 
     let threshold = match spec.min_confidence {

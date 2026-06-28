@@ -29,7 +29,7 @@ pub mod scope;
 
 pub use self::analyzer::AnalyzerParams;
 pub use self::deduplication::{
-    CalibrationMap, DeduplicationParams, FusionStrategyParams, ResolutionStrategyParams,
+    CalibrationMap, DeduplicationParams, MergingStrategyParams, TiebreakerParams,
 };
 pub use self::enricher::{
     EnricherParams, LanguageEnricherParams, OcrBackendParams, OcrEnricherParams, SttBackendParams,

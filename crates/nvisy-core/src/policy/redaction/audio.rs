@@ -15,10 +15,9 @@
 //!   overlays a tone over the interval — the broadcast-bleep
 //!   treatment.
 
+use elide_core::modality::audio::Waveform;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::schema::WaveformSchema;
 
 /// Operator spec a `redact` audio rule carries.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -44,8 +43,8 @@ pub enum AudioRedaction {
         #[serde(default = "default_beep_amplitude")]
         amplitude: f32,
         /// Tone shape. Default sine.
-        #[serde(default)]
-        waveform: WaveformSchema,
+        #[serde(default = "default_beep_waveform")]
+        waveform: Waveform,
     },
 }
 
@@ -55,4 +54,8 @@ fn default_beep_hz() -> f32 {
 
 fn default_beep_amplitude() -> f32 {
     0.5
+}
+
+fn default_beep_waveform() -> Waveform {
+    Waveform::Sine
 }

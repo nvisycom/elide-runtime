@@ -3,13 +3,14 @@
 use std::collections::HashMap;
 
 use nvisy_core::plan::AnalyzerParams;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::state::ResourceRef;
 
 /// Per-call input to [`crate::runs::start`].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StartBatch {
     /// Policies to apply, by `(id, version)`. Engine resolves
@@ -53,7 +54,7 @@ pub struct StartBatch {
 /// metadata.
 ///
 /// [`crate::FileRegistry`]: crate::FileRegistry
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentInput {
     /// File the run analyses + redacts. Must exist under

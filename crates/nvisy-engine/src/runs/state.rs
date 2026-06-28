@@ -37,12 +37,13 @@ use hipstr::HipStr;
 use jiff::Timestamp;
 use nvisy_core::plan::AnalyzerParams;
 use nvisy_core::policy::RuleAction;
+use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Top-level state of one run.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum RunState {
     /// Analyze phase is in flight (or queued).
@@ -63,7 +64,7 @@ pub enum RunState {
 }
 
 /// State of one document inside a run.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum RunDocState {
     /// Awaiting its turn on the analyze semaphore.
@@ -86,7 +87,7 @@ pub enum RunDocState {
 
 /// Run header — short metadata blob persisted under
 /// `(actor_id, run_id)`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Run {
     /// Stable identifier. Engine-minted UUIDv7 at start time so
@@ -95,8 +96,10 @@ pub struct Run {
     /// Run state.
     pub state: RunState,
     /// UUIDv7 timestamp the run was started.
+    #[schemars(with = "String")]
     pub started_at: Timestamp,
     /// UUIDv7 timestamp of the most recent state transition.
+    #[schemars(with = "String")]
     pub updated_at: Timestamp,
     /// Policies the caller submitted, as resource refs. Loaded
     /// from [`crate::keyspace::policy`] at start time; stable for the
@@ -121,7 +124,7 @@ pub struct Run {
 }
 
 /// Reference to a stored policy / context resource.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceRef {
     /// Resource UUID.
@@ -133,7 +136,7 @@ pub struct ResourceRef {
 
 /// One document inside a run — the per-doc body persisted under
 /// `(actor_id, run_id, doc_id)`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RunDocument {
     /// Engine-minted UUIDv7 at start time.
@@ -166,7 +169,7 @@ pub struct RunDocument {
 
 /// Discriminator for the modality the codec resolved a document
 /// to. Pinned at decode time inside [`RunDocument::modality`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ModalityKind {
     /// `Text` modality.
@@ -182,7 +185,7 @@ pub enum ModalityKind {
 /// Per-modality body: the entities recognized in this doc plus
 /// any reviewer overrides. Tagged by `modality` so the read side
 /// can pick the right variant from the JSON.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum DocBody {
     /// Text entities.
@@ -231,13 +234,15 @@ impl DocBody {
 
 /// One recognized entity plus the optional reviewer override.
 ///
-/// The serde bound mirrors elide's [`Entity<M>`]: serialization
-/// needs `M::Location` and `M::Data` (de)serializable, which all
-/// four modalities elide ships satisfy under the `serde` feature.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// The bound mirrors elide's [`Entity<M>`]: serialization needs
+/// `M::Location` and `M::Data` (de)serializable, and JsonSchema
+/// derivation needs them schema-able. All four modalities elide
+/// ships satisfy these under the `serde` + `schema` features.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[serde(bound = "M::Location: Serialize + for<'a> Deserialize<'a>, \
                   M::Data: Serialize + for<'a> Deserialize<'a>")]
+#[schemars(bound = "M::Location: JsonSchema, M::Data: JsonSchema")]
 pub struct EntityRecord<M: Modality> {
     /// The elide entity, as recognition produced it.
     pub entity: Entity<M>,

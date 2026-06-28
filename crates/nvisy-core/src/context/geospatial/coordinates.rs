@@ -1,9 +1,8 @@
 //! Geographic coordinate primitives.
 
+use elide_core::primitive::Point;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::schema::PointSchema;
 
 /// A geographic coordinate (latitude/longitude).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
@@ -21,9 +20,9 @@ impl GeoCoordinate {
         Self { lat, lng }
     }
 
-    /// Convert to a [`PointSchema`] for polygon operations.
-    pub fn to_point(self) -> PointSchema {
-        PointSchema {
+    /// Convert to a [`Point`] for polygon operations.
+    pub fn to_point(self) -> Point {
+        Point {
             x: self.lng,
             y: self.lat,
         }

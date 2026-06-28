@@ -106,6 +106,6 @@ fn build(spec: &ImageRedaction) -> ImageOp {
         ImageRedaction::Keep => ImageOp::Keep,
         ImageRedaction::Blur { sigma } => ImageOp::Blur(Blur::new(*sigma)),
         ImageRedaction::Pixelate { block_size } => ImageOp::Pixelate(Pixelate::new(*block_size)),
-        ImageRedaction::Blackbox { color } => ImageOp::Blackbox(Blackbox::new((*color).into())),
+        ImageRedaction::Blackbox { color } => ImageOp::Blackbox(Blackbox::new(*color)),
     }
 }

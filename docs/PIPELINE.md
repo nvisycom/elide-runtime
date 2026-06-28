@@ -1,434 +1,232 @@
-# The Two-Phase Pipeline
+# The Runtime Pipeline
 
 ## Abstract
 
-Automated removal of sensitive content from heterogeneous documents
-is conventionally treated as a single end-to-end transformation:
-bytes in, redacted bytes out. This document describes an
-alternative architecture in which the act of *identifying*
-sensitive content and the act of *acting on* it are realised as
-two distinct phases joined by an immutable, durable artifact. The
-two phases have different cost structures, different failure
-modes, and different review requirements. Coupling them, as a
-conventional one-shot pipeline does, forces the worst
-characteristics of each onto the other. Separating them yields a
-system in which detection can be cached, redaction can be reviewed
-before any byte is mutated, and failures localise to a single side
-of the boundary.
+This paper describes the per-request workload the runtime drives over the
+toolkit. The toolkit itself performs detection and redaction on one document at
+a time; the runtime turns each call into a _run_ — a batched, durable, two-phase
+lifecycle over many documents, governed by persisted policy, gated by reviewer
+overrides, and tracked through explicit per-document states. What the toolkit
+decides is in scope for [its own documentation series][elide-docs]. This paper
+covers what the runtime adds: the lifecycle, the artifact, the governance
+plumbing, and the failure semantics that come with operating the toolkit at
+scale.
 
-## 1. Problem framing
+## 1. The unit of work
 
-A redaction system performs two qualitatively different workloads
-back to back.
+The runtime's unit of work is the _run_. A run is one submission of a batch of
+files by one actor, processed against a fixed snapshot of policies and contexts
+the actor has previously persisted. Files are not uploaded as part of the run;
+they are uploaded once into the actor's file space and referenced by id.
+Policies and contexts likewise are addressed by `(id, version)` and resolved
+against the persisted snapshot at the moment the run starts. The run thereafter
+is a closed object: every input it operates on, every governance choice that
+applies to it, and every output it produces are linked together by the run's
+identifier.
 
-The first workload is *recognition*. For each piece of input
-content, the system must enumerate every span, region, or interval
-that is sensitive — typically by composing rule-based matchers with
-statistical and generative models, often running expensive inference
-over images, audio, or long text. Recognition is computationally
-heavy, model-dependent, non-deterministic in the small, and
-characterised by tail-latency rather than throughput. A single
-document may pass through several recognisers; some may time out;
-some may produce overlapping or contradictory findings; all of them
-have measurable error rates.
+A run carries an explicit lifecycle state. It begins in _Analyzing_, transitions
+to _AwaitingReview_ once detection has finished for every input that did not
+fail or time out, becomes _Applied_ or _PartiallyApplied_ when reviewer
+overrides have been resolved and the redactions written, and lands in _Failed_
+if it could not produce any reviewable output. Each input document inside the
+run has its own per-document state on the same axis: a document that timed out
+during detection is not retried by the run's apply phase; a document whose apply
+succeeded carries the output file id forward; a document whose apply failed
+leaves its detection artifact intact for re-driving once the operator condition
+is resolved.
 
-The second workload is *application*. Given that a span of text or
-a region of an image is sensitive, the system must execute a
-transformation against it — masking, replacing, pseudonymising,
-blurring, silencing — and re-emit the document in its original
-format. This work is light on CPU but heavy on destructive writes:
-it permanently mutates content in a way that cannot be undone
-without re-deriving the document from the original. A wrong
-recognition decision propagated into application is observable only
-as missing or corrupted content.
-
-Bundling these workloads into a single operation couples failures
-that should fail independently. A transient recogniser timeout
-aborts the redaction. A misconfigured operator destroys content
-that recognition already correctly identified. A reviewer who
-notices a probable false positive has no opportunity to intervene;
-the bytes are already gone. Re-running on the same input re-incurs
-the cost of recognition even when only the operator policy
-changed. These problems are not specific to any particular
-implementation; they follow from treating recognition and
-application as a single atomic step.
+The runtime fans the per-document work out under a caller-bounded concurrency
+cap, with a per-document timeout. A single slow document does not stall its run;
+it lands in _TimedOut_ and the rest of the batch settles. A single failed
+document does not poison its run; it lands in _Failed_ with a reason and the
+rest of the batch settles. The run header reports the aggregate at the end.
 
 ## 2. The two-phase split
 
-The architecture under discussion realises recognition and
-application as two distinct phases. Each is invoked separately;
-each produces a durable, addressable artifact; each can be observed
-and managed in isolation.
+The runtime separates detection from application into two distinct phases joined
+by a durable artifact. The toolkit alone could fuse the two — its `Orchestrator`
+exposes a single-call `anonymize` shorthand — but the runtime never uses that
+path. Every run produces a detection artifact, persists it, and only then admits
+reviewer overrides and runs apply against the persisted result.
 
 ```
-                    +-----------------------+
-   raw content ---> |   DETECTION PHASE     |
-                    |  ingest -> extract    |
-                    |  -> recognise -> dedup|
-                    +-----------+-----------+
-                                |
-                                v
-                  +----------------------------+
-                  |   DETECTION ARTIFACT       |
-                  |  (immutable, addressable)  |
-                  |  - typed entity records    |
-                  |  - per-entity provenance   |
-                  |  - per-entity decision     |
-                  |  - stable entity ids       |
-                  +----+--------------+--------+
-                       |              |
-            overrides  |              |
-            (optional) v              v  (replay, n times)
-                  +-------------------------+
-                  |   REDACTION PHASE       |
-                  | resolve -> apply ->     |
-                  |   encode -> audit       |
-                  +-----+-------------+-----+
-                        |             |
-                        v             v
-                 rewritten        audit
-                 content          trail
+    per-doc input file
+          |
+          v
++----------------------+         +-------------------+
+|   ANALYZE PHASE      |  -----> |  RUN DOCUMENT     |
+|   (per-document)     |         |  (persisted)      |
+|   - decode bytes     |         |  - body modality  |
+|   - run orchestrator |         |  - per-entity     |
+|     against scope    |         |    findings       |
+|   - record findings  |         |  - provenance     |
++----------------------+         |  - (optional)     |
+                                 |    overrides      |
+                                 +---------+---------+
+                                           |
+                               override    |
+                               (optional)  |
+                                           v
+                               +-----------------------+
+                               |   APPLY PHASE         |
+                               |   (per-document)      |
+                               |   - resolve policies  |
+                               |     applicable to doc |
+                               |   - layer overrides   |
+                               |     ahead of policy   |
+                               |   - run orchestrator  |
+                               |     in apply mode     |
+                               |   - persist output    |
+                               |     as a new file     |
+                               +-----------+-----------+
+                                           |
+                                           v
+                                    output file
+                                    + run document
+                                      updated state
 ```
 
-The artifact at the centre is the load-bearing element. It is
-typed, exhaustive over the recognised entity set, and never
-mutated in place. Each entry within it carries enough provenance
-to reconstruct, after the fact, which recognition strategy
-produced the entry, what confidence was assigned to it, and which
-decision rule selected the transformation that would be applied.
+The artifact at the centre is the run document. It is per-input, durable, and
+carries the toolkit's findings in the toolkit's own shape; the runtime persists
+it unmodified. Three properties of this split deserve naming.
 
-Three properties of this split deserve explicit attention.
+**Reviewability before mutation.** The analyze phase touches no original
+content; it writes findings, not redactions. A reviewer can read the persisted
+findings, override any per-entity decision, and trigger apply only after the
+override set is acceptable. The toolkit's detection-and-application primitive is
+not bypassed; it is just split across two callable points joined by storage.
 
-**Replayability.** Because detection produces a durable artifact,
-the same recognition output can drive multiple application passes
-— one for previewing, another for archival, another for analytics —
-without re-paying the cost of recognition. The artifact also
-becomes a useful object in its own right: it can be compared
-across recogniser versions, measured for precision and recall, and
-shipped to a reviewer without exposing transformed content.
+**Replayability.** Because the detection artifact is durable, apply can be
+re-run against the same artifact with a different policy snapshot or a different
+override set. The cost of detection is paid once; the cost of trying alternative
+redaction outcomes is paid as many times as the operator chooses.
 
-**Reviewability before mutation.** Because application is a
-separate phase, the artifact can be inspected, modified, or
-partially rejected before any byte of underlying content has been
-touched. This is the difference between a compliance system that
-can defend its decisions and one that has already irreversibly
-acted on them. In regulated domains the former is a precondition
-for deployment.
+**Failure localisation.** Detection failure cannot corrupt content; apply
+failure cannot poison the detection artifact. A failure in either phase is
+recoverable by retrying that phase against the artifact that survives the
+boundary.
 
-**Failure localisation.** Recogniser failure cannot corrupt
-content; application failure cannot poison the recognition cache.
-A failure in either phase is recoverable by retrying *that phase*
-against a known-good artifact at the boundary.
+## 3. Files as the input/output interface
 
-The trade-off is honest: this architecture requires the system to
-manage more state. The detection artifact is a first-class entity
-with its own identity, lifecycle, retention policy, and access
-controls.
+The runtime's only interface for content is the file. A caller uploads each
+input file once, receives a file id, and from that point on references content
+exclusively by id. Runs reference input files by id; reviewers download input
+files by id; apply writes the redacted output as a new file and records its id
+on the run document.
 
-## 3. Inside the detection phase
+This choice keeps content out of the run boundary. A run header carries no bytes
+— it carries references. The same input file may participate in many runs; a
+redacted output file is itself a first- class object that survives its producing
+run; the runtime can be restarted, queried, or migrated without re-uploading
+content. The lineage between input and output is recorded on the output file's
+metadata as a `RedactedFrom { run_id, source_file_id }` stamp, so that a
+redacted artifact carries its provenance explicitly.
 
-The detection phase is itself a small pipeline. Conceptually it
-moves through four stages.
+A consequence worth naming: cancelling or deleting a run does not cascade to the
+files it referenced. Files are owned by the actor's file space and outlive any
+individual run they participated in.
 
-```
-   raw bytes
-       |
-       v
-  +----------+    +-----------+   +-------------+   +------------+
-  | INGEST   | -> | EXTRACT   |-> | RECOGNISE   |-> | DEDUPLICATE|
-  | (decode  |    | (OCR,     |   | (rule +     |   | (threshold,|
-  |  to a    |    |  ASR,     |   |  statistic +|   |  overlap,  |
-  |  typed   |    |  structure|   |  generative,|   |  fusion)   |
-  |  handle) |    |  parsing) |   |  in parallel|   |            |
-  +----------+    +-----------+   +-------------+   +------------+
-                                                          |
-                                                          v
-                                                  detection artifact
-```
+## 4. The artifact and override identity
 
-**Ingestion** is format-specific decode. Heterogeneous input bytes
-(documents, images, audio, structured records) become typed
-in-memory handles. The handle's type encodes the modality;
-downstream stages can rely on that typing rather than re-inspecting
-raw bytes.
+The run document's persisted shape is the toolkit's `Report` extended with a
+per-entity override slot. The runtime never invents an entity: every entry in
+the artifact came from a toolkit recognizer. What the runtime adds is the seam
+on which a reviewer can attach a decision without rewriting the artifact.
 
-**Extraction** derives a scannable payload from modalities where
-sensitivity exists in non-textual content but is most reliably
-identified in textual form: optical character recognition for
-images, transcription for audio, structure parsing for layout-rich
-documents. Extraction does not erase the original modality; the
-typed handle retains the underlying pixels or samples so that
-later phases can act on them.
+Override identity is the entity id the toolkit minted at detection time. Two
+consequences:
 
-**Recognition** is pluralistic and parallel. Multiple recognition
-strategies run side by side: deterministic patterns with checksum
-validation; statistical models for named entity recognition over
-text; generative models for context-sensitive identification;
-vision models for face and document detection. Each strategy
-operates over the appropriate payload (raw text, transcript,
-extracted layout, pixels, samples). Each emits candidate entities
-with a confidence score and a record of which strategy produced
-the candidate.
+- _Per-mention granularity is preserved._ A reviewer can override one occurrence
+  of an entity while leaving another in the same document alone. The toolkit's
+  view of which mentions are coreferent is a model output the runtime exposes;
+  it is never a constraint the runtime imposes on review.
+- _Overrides become diffable._ A set of overrides against a fixed detection
+  artifact is fully determined. It can be stored, versioned, inspected, and
+  replayed.
 
-**Deduplication** converges the candidate set into a stable entity
-set. It is a layered pipeline, not a single step:
+If a reviewer wishes to operate at a coarser granularity than a single entity,
+the runtime permits that intent to be expressed as a batch of per-mention
+overrides — but it does not allow the runtime itself to quietly fan a single
+override out to multiple mentions. The explicit form is recoverable; the
+implicit form is not.
 
-1. *Threshold filtering.* Candidates whose confidence falls
-   below the configured threshold for their entity type are
-   discarded. Different categories may admit different
-   thresholds.
-2. *Overlap resolution.* Where candidates overlap in
-   modality-appropriate space (character ranges, pixel regions,
-   time intervals), the system selects a winner according to a
-   declared precedence — typically favouring higher confidence
-   or more specific categorisation.
-3. *Fusion.* Candidates from different strategies that
-   describe the same underlying entity are merged. The merged
-   entity inherits the union of its sources' provenance, so a
-   later reader can see that, for example, the same span was
-   independently flagged by a regex and by a model.
+## 5. Policy and context resolution
 
-The output of detection is the immutable artifact described
-above: a typed record of every surviving entity, with provenance,
-confidence, and decision rationale. The artifact also stores
-enough identifying information about the original content (by
-reference, not by value) for the application phase to re-acquire
-it.
+A run carries references to the policies and contexts the actor wants applied.
+Each reference is an `(id, version)` pair. The runtime resolves every reference
+at start time against the actor's persisted resources; a missing or revoked
+resource fails the run before any detection runs, not silently mid-flight. The
+resolved snapshot is stable for the run's lifetime: a policy edit after start
+does not retroactively change a run already in progress, and re-running an apply
+months later against the same artifact produces the same decisions if the same
+`(id, version)` pairs still resolve.
 
-## 4. Inside the redaction phase
+Policies are scope-gated. A policy may declare a `applies_when` document
+predicate; the runtime evaluates this predicate against each input document's
+metadata + the run's per-call metadata, and skips policies whose predicate is
+false for that document. The remaining policies for a document drive its apply
+pass. The reviewer's overrides sit _in front of_ the policy chain — a per-entity
+override fires before the per-label/per-tag policy rules. This is intentional:
+the human reviewer is the senior decision-maker, and the audit reads in that
+order.
 
-The redaction phase consumes a detection artifact and produces two
-outputs: rewritten content in the original format, and an audit
-trail describing what happened. Like detection it decomposes into
-conceptual stages.
+Contexts are referenceable but the runtime does not impose interpretation. A
+recognizer that wants context-dependent behaviour can consult the resolved
+context set by id; the runtime delivers the set, not the interpretation. Context
+content is owned by the actor; versioning protects long-lived runs from drift.
 
-```
-   detection artifact
-       +  optional overrides
-       |
-       v
-  +--------------+   +-----------+   +-----------+   +----------+
-  | RESOLVE      |-> | APPLY     |-> | ENCODE    |-> | AUDIT    |
-  | (artifact +  |   | (per-     |   | (handle - |   | (per-    |
-  |  overrides   |   |  entity   |   |  >        |   |  entity  |
-  |  -> decision |   |  operator |   |  original |   |  outcome |
-  |  set)        |   |  on typed |   |  format)  |   |  record) |
-  |              |   |  handle)  |   |           |   |          |
-  +--------------+   +-----------+   +-----------+   +----------+
-                                                          |
-                                                          v
-                                                   rewritten content
-                                                       +  audit
-```
+## 6. Per-document failure and cancellation
 
-**Override resolution** combines the detection artifact with any
-overrides supplied by a human reviewer or an external policy
-system, producing a final decision set. Overrides express intent
-at the granularity of a single entity: accept the recogniser's
-choice as-is; reject it (so that the entity will not be
-transformed); replace the chosen operator with a different one;
-or insert an entity that recognition missed. Each form of
-override is recorded in the eventual audit trail as a distinct
-provenance value, so a reader can later tell which decisions
-originated with the recognisers, which were affirmed by a
-reviewer, and which were authored by a reviewer.
+Both phases are long-running and both must be observable and recoverable. The
+runtime's two-phase split makes the failure model explicit.
 
-**Application** executes the chosen transformation for each
-surviving entity against the typed handle that was re-derived
-from the original content. Each operator is paired with its
-modality: text spans are replaced in text handles, pixel regions
-are mutated in image handles, sample intervals in audio handles,
-cells in tabular handles. Operators are byte-level primitives
-within their modality, but the dispatch is not byte-level: it is
-done once, on modality, at the entry to this stage. (Section 5
-treats this point in its own right.)
+**Per-document failure.** A recognizer error, a timeout, or an apply operator
+error fails one document, not its run. The document lands in _Failed_ or
+_TimedOut_ with a reason recorded on its row. The run continues; aggregate state
+at end-of-phase is _PartiallyApplied_ if any document failed apply, or _Applied_
+if all succeeded. A failed document's artifact (if it reached one) is preserved
+so the operator can investigate without re-running detection.
 
-**Encoding** re-serialises the mutated handle back into the
-document's original format. A redacted document remains the same
-kind of artifact it was: a PDF stays a PDF, an image stays an
-image, a tabular file stays tabular. Encoding is the inverse of
-ingestion and is the point at which mutation becomes visible to
-the outside world.
+**Cancellation.** A run in _Analyzing_ or _AwaitingReview_ may be cancelled by
+the operator. Cancellation is a header transition to _Failed_ with
+`reason = "cancelled"`. The runtime today does not interrupt per-document
+futures already in flight; those complete their current step and write into
+per-document rows under a header that has moved on. Cooperative interruption —
+threading a cancellation token through the per-document loops — is a future
+slice; the audit currently records the header transition explicitly so a reader
+can distinguish a cancelled run from a failed one.
 
-**Audit** records, per entity, what happened: whether the entity
-was applied, suppressed by override, or failed to apply. The
-audit is not a side effect; it is one of the two first-class
-outputs of the phase. Section 6 develops its semantics.
+**Delete.** Deleting a run removes the header and every per-document row owned
+by the run. Input and output files are not cascaded — they are first-class
+resources outside any one run. A delete on an active run is permitted;
+per-document tasks that complete after the delete write into a keyspace that no
+longer has a header and are reaped on the next list scan.
 
-## 5. Per-modality dispatch
+## 7. What this architecture buys
 
-Once the ingestion stage has produced a typed handle, the rest of
-the pipeline avoids repeatedly asking "what kind of content is
-this?". Dispatch on modality happens once, at the boundary into
-each downstream stage, after which each branch operates
-monomorphically — text operators see only text handles, image
-operators see only image handles, and so on. The byte-level
-mutation primitives at the leaves of the system are not modality-
-agnostic; they are specific to their modality and statically
-paired with it.
+It is worth stating plainly what the runtime adds on top of the toolkit and what
+it costs.
 
-This is more than stylistic. Errors in modality pairing surface
-early: an operator intended for one modality cannot be issued
-against another; the mismatch is rejected before any byte is
-touched, not silently absorbed into an unreachable code path.
-Reasoning about each branch is local: a change to image redaction
-does not require revisiting the text path. And the hot path
-inside a branch is straight-line work on bytes of known shape,
-without per-entity type interrogation.
+The runtime delivers _governance_: a place to put policies and contexts that
+outlive any single call, a snapshot mechanism that freezes them per-run, and a
+multi-tenant scope that keeps actors isolated. The toolkit cannot do any of
+these, by deliberate design.
 
-The dispatch boundary is therefore a load-bearing architectural
-element, not an incidental implementation detail. Adding a new
-modality requires a new ingestion path, a new branch of the
-dispatch, and a new family of operators — but no modification to
-existing branches.
+The runtime delivers _review_: a callable boundary at which a human can read
+findings, override per-entity decisions, and trigger apply only when the
+override set is acceptable. The toolkit's single-call shorthand is not used; the
+runtime always exposes the seam.
 
-## 6. Audit trail semantics
+The runtime delivers _operational visibility_: a per-document state machine that
+records exactly what happened, an aggregate run state that summarises it, an
+audit row per entity that connects machine finding to policy decision to
+reviewer override. The toolkit emits its own per-entity provenance; the runtime
+composes that provenance with the governance trail the toolkit does not see.
 
-Every entity that survives to the application phase produces an
-audit entry. The entry records two things distinctly.
+The price is the state the runtime must manage. Files, policies, contexts, runs,
+per-document rows, output files — each is a first- class persisted object with
+identity, lifecycle, and access scope. The runtime owns this management
+explicitly rather than handing it off; that is the cost of being the layer
+between an SDK consumer and the toolkit.
 
-The first is the *decision*: which recogniser or rule produced
-the entity, what confidence was attached, which operator the
-recognition phase selected, and whether an override modified that
-selection. The five decision provenances are *recogniser-only*,
-*recogniser plus reviewer acceptance*, *recogniser plus reviewer
-rejection*, *recogniser plus reviewer replacement*, and
-*reviewer-authored insertion*. Each is recorded explicitly. A
-reader of the audit trail can therefore distinguish, for any
-redaction, whether it originated with a machine, was affirmed by a
-human, was modified by a human, or was authored by a human.
-
-The second is the *execution*: whether the chosen transformation
-was actually applied, was suppressed (because an override said so),
-or failed (because the operator itself errored). The decision and
-the execution are independent: a decision can be made and not
-executed; an execution can succeed or fail without changing the
-decision that selected it.
-
-The audit is the runtime's authoritative log of what happened. It
-is append-only and tamper-evident; it accompanies the rewritten
-content as a co-equal output of the phase.
-
-## 7. Override target identity
-
-A subtle problem appears as soon as detection and application are
-separated: how does an override say which entity it refers to?
-
-A reviewer cannot reference an entity by its content — two entities
-may have the same surface text but represent different referents,
-and entity sets are not stable across recognition runs. A reviewer
-cannot reference an entity by its position alone, because
-applying earlier overrides may shift the positions of later
-entities. A reviewer cannot reference an entity by a recogniser-
-internal model identifier, because the recogniser set may change.
-
-The system's answer is that each surviving entity is assigned a
-stable identifier at the moment it is written into the detection
-artifact. The identifier is a per-mention value: distinct
-occurrences of the same underlying entity receive distinct
-identifiers. Overrides reference that identifier and only that
-identifier.
-
-Two consequences are worth naming.
-
-- *Per-mention granularity is preserved.* A reviewer can reject one
-  occurrence of an entity while accepting another. The
-  recogniser's view of which mentions are coreferent is treated as
-  a model output, not as a constraint on review.
-- *Overrides become diffable.* A set of overrides against a fixed
-  detection artifact is fully determined: it can be stored,
-  versioned, replayed, and compared. There is no implicit
-  dependency on the recognition run that produced the entities,
-  beyond the artifact's own identity.
-
-If a reviewer wishes to operate at the coreference-group level,
-the system permits expressing that intent as a batch of per-
-mention overrides — but it does not allow the system itself to
-quietly fan a single override out to multiple mentions. The
-explicit form is recoverable; the implicit form is not.
-
-## 8. Cancellation and failure
-
-Both phases are long-running and both must be cancellable.
-Cancellation is cooperative: each phase checks at well-defined
-boundaries whether it has been asked to stop, and additionally at
-each yielded await point inside long-running inner loops.
-
-For *detection*, the boundaries are the transitions between its
-stages — between extraction and recognition, between recognition
-and deduplication — together with the cancellation checks inside
-extractor and recogniser loops. Cancellation observed during
-detection produces no persisted artifact. The phase either
-completes and writes a complete artifact, or it does not. Partial
-artifacts are not durable, by construction; this is the
-consistency point that makes detection cacheable and replayable.
-
-For *redaction*, the boundaries are the transitions between
-override resolution, application, encoding, and audit emission.
-Cancellation observed inside application across multiple documents
-is the harder case. Some documents may already have been encoded
-and emitted before the cancellation lands; those bytes are not
-rolled back, because the encoding step is the moment at which the
-operation becomes externally visible and durable. The audit
-records, per document, whether the document completed or was
-aborted. A reviewer reading the audit after a cancellation sees
-exactly which documents were redacted before the cancellation
-landed and which were not. The system therefore prefers honest
-partial visibility over the illusion of atomicity it cannot
-provide.
-
-Failure modes are handled analogously. A recogniser that errors on
-one input does not abort detection on the others; the artifact
-records which inputs succeeded. An operator that errors on one
-entity does not abort application of the others; the audit records
-which entities applied and which failed. Where the artifact
-references content that has since been deleted (because retention
-policy expired it between phases), the application phase fails
-loudly rather than silently producing degraded output.
-
-## 9. What this architecture buys
-
-It is worth stating plainly what the two-phase split delivers and
-what it costs, by contrast with two alternative architectures.
-
-*Against a single-pipeline system* — one in which ingestion,
-recognition, and application are fused into a single end-to-end
-transformation — the two-phase split delivers:
-
-- the ability to review recognition output before any byte is
-  mutated;
-- the ability to derive multiple application outputs from one
-  recognition run, at the cost of one recognition and several
-  cheap applications;
-- explicit, independent failure semantics for the recognition and
-  application halves;
-- a recognition output that can be cached, replayed, evaluated,
-  and compared as a first-class object.
-
-*Against an unstructured detect-then-redact system* — one in which
-recognition writes loose findings into some shared store and
-application reads them back — the two-phase split delivers:
-
-- a typed, addressable artifact that is the only contract between
-  the phases, eliminating the ambient-state coupling that such
-  systems typically develop;
-- a stable per-entity identifier scheme that makes overrides
-  diffable;
-- a clear locus for retention and access control (the artifact
-  itself), rather than a sprawl of intermediate state to be
-  governed individually.
-
-The price the system pays for these properties is the artifact
-itself. Recognition output is now a durable, retained object with
-its own identity and its own lifecycle. The system must manage
-it: store it, retrieve it, expire it, access-control it, and
-reason about its relationship to the originating content. That is
-real engineering cost, not negligible, and not free in storage.
-
-In the domains the system targets — where a single incorrect
-redaction is a compliance event, where regulators may demand to
-see the basis of a decision years after it was made, and where
-the alternative is irreversible destruction of content based on
-unreviewed model output — the cost is the right one to pay. The
-two-phase split is not an optimisation. It is a design decision
-about which failures the system is permitted to have.
+[elide-docs]: https://github.com/nvisycom/elide/tree/main/docs

@@ -3,14 +3,13 @@
 use std::collections::HashMap;
 
 use nvisy_core::plan::AnalyzerParams;
-use nvisy_engine::runs::{DocumentInput, StartBatch};
+use nvisy_engine::runs::{DocumentInput, ResourceRef, StartBatch};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use super::analyzer::AnalyzerOverrides;
 use super::pagination::Pagination;
-use super::refs::ResourceRef;
 
 /// Body for `POST /detections`. Documents are file ids
 /// previously uploaded via `POST /files`; the server resolves
@@ -45,8 +44,8 @@ impl NewDetection {
     /// configured default.
     pub fn into_engine_input(self, analyzer_default: &AnalyzerParams) -> StartBatch {
         StartBatch {
-            policy_refs: self.policy_refs.into_iter().map(Into::into).collect(),
-            context_refs: self.context_refs.into_iter().map(Into::into).collect(),
+            policy_refs: self.policy_refs,
+            context_refs: self.context_refs,
             documents: self
                 .documents
                 .into_iter()

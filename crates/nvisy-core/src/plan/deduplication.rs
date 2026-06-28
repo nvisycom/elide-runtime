@@ -1,9 +1,10 @@
 //! Dedup-pipeline specs.
 //!
-//! Mirrors elide's [`Calibrate → Fuse → Resolve → Filter`] layers.
-//! Each component is parameterised by a serialisable strategy enum;
-//! engine maps each spec variant to the matching elide strategy at
-//! compile time.
+//! Mirrors elide's `calibrate → reconcile → filter` layers. The
+//! reconcile stage runs twice with different configurations —
+//! once over same-label overlaps (merging) and once over
+//! cross-label overlaps (tiebreaking) — each parameterised by a
+//! serialisable strategy enum.
 
 use std::collections::HashMap;
 
@@ -11,7 +12,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Dedup pipeline applied after recognition. Layers run in the
-/// canonical order: calibrate → fuse → resolve → filter.
+/// canonical order: calibrate → reconcile (merging) → reconcile
+/// (tiebreaking) → filter.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeduplicationParams {
@@ -19,15 +21,14 @@ pub struct DeduplicationParams {
     /// calibrate layer.
     #[serde(default, skip_serializing_if = "CalibrationMap::is_empty")]
     pub calibration: CalibrationMap,
-    /// How overlapping entities are fused into one. Defaults to
-    /// [`FusionStrategyParams::MaxConfidence`].
+    /// How same-label overlapping findings are merged into one.
+    /// Defaults to [`MergingStrategyParams::Max`].
     #[serde(default)]
-    pub fusion: FusionStrategyParams,
-    /// How an entity's identity is resolved when several remain
-    /// after fusion. Defaults to
-    /// [`ResolutionStrategyParams::HighestConfidence`].
+    pub merging: MergingStrategyParams,
+    /// How cross-label overlaps pick a winner. Defaults to
+    /// [`TiebreakerParams::HighestConfidence`].
     #[serde(default)]
-    pub resolution: ResolutionStrategyParams,
+    pub tiebreaker: TiebreakerParams,
     /// Minimum confidence the filter layer admits. `None` falls
     /// back to elide's `ConfidenceThreshold::BASELINE` at compile
     /// time.
@@ -52,7 +53,8 @@ impl CalibrationMap {
     }
 }
 
-/// Strategy the fuse layer uses to combine overlapping entities.
+/// Strategy the merging reconciler uses to combine same-label
+/// overlapping findings into one entity.
 #[derive(
     Debug,
     Clone,
@@ -65,19 +67,17 @@ impl CalibrationMap {
     JsonSchema
 )]
 #[serde(rename_all = "snake_case")]
-pub enum FusionStrategyParams {
-    /// Keep the entity with the highest confidence.
+pub enum MergingStrategyParams {
+    /// Take the maximum confidence across the cluster.
     #[default]
-    MaxConfidence,
-    /// Arithmetic mean of overlapping confidences.
-    Mean,
+    Max,
     /// Probabilistic noisy-or combination — treats recognizers as
     /// independent evidence sources.
     NoisyOr,
 }
 
-/// Strategy the resolve layer uses to break ties when several
-/// entities cover the same span.
+/// Tiebreaker the structural reconciler uses to pick a winner
+/// when overlapping entities carry different labels.
 #[derive(
     Debug,
     Clone,
@@ -90,7 +90,7 @@ pub enum FusionStrategyParams {
     JsonSchema
 )]
 #[serde(rename_all = "snake_case")]
-pub enum ResolutionStrategyParams {
+pub enum TiebreakerParams {
     /// Keep the highest-confidence entity.
     #[default]
     HighestConfidence,

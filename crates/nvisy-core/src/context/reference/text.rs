@@ -1,9 +1,8 @@
 //! Text reference data for direct comparison.
 
+use elide_core::primitive::LanguageTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::schema::LanguageTagSchema;
 
 /// A labeled text value for reference matching.
 ///
@@ -31,7 +30,7 @@ pub struct TextData {
     pub entries: Vec<TextEntry>,
     /// BCP-47 language tag for locale-sensitive matching.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub language: Option<LanguageTagSchema>,
+    pub language: Option<LanguageTag>,
 }
 
 impl TextData {
@@ -44,7 +43,7 @@ impl TextData {
     }
 
     /// Set the language for locale-sensitive matching.
-    pub fn with_language(mut self, language: LanguageTagSchema) -> Self {
+    pub fn with_language(mut self, language: LanguageTag) -> Self {
         self.language = Some(language);
         self
     }

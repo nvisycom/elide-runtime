@@ -1,16 +1,15 @@
 //! Time span reference data.
 
+use elide_core::primitive::TimeSpan;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::schema::TimeSpanSchema;
 
 /// A time span reference for matching audio/video segments.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TimeSpanData {
     /// The time interval to match.
-    pub span: TimeSpanSchema,
+    pub span: TimeSpan,
     /// Optional human-readable label (e.g. `"intro"`, `"closing remarks"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
@@ -18,7 +17,7 @@ pub struct TimeSpanData {
 
 impl TimeSpanData {
     /// Create a time span reference.
-    pub fn new(span: TimeSpanSchema) -> Self {
+    pub fn new(span: TimeSpan) -> Self {
         Self { span, label: None }
     }
 

@@ -6,7 +6,6 @@ pub mod context;
 pub mod file;
 pub mod plan;
 pub mod policy;
-pub mod schema;
 pub mod service;
 pub mod source;
 

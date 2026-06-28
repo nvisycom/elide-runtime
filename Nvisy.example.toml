@@ -38,11 +38,12 @@ languages = []
 jurisdictions = []
 
 # Deduplication pipeline applied after recognition:
-# calibrate → fuse → resolve → filter.
+# calibrate → reconcile (merging, same-label) → reconcile
+# (tiebreaking, cross-label) → filter.
 [analyzer.deduplication]
-fusion = "max_confidence"        # max_confidence | mean | noisy_or
-resolution = "highest_confidence" # highest_confidence | longest_span
-min_confidence = 0.7              # filter threshold, 0.0..=1.0
+merging = "max" # max | noisy_or
+tiebreaker = "highest_confidence" # highest_confidence | longest_span
+min_confidence = 0.7 # filter threshold, 0.0..=1.0
 
 # Per-request label catalog. Two sources union into one catalog at
 # compile time: `builtins` (names from `elide-core`'s shipped

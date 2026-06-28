@@ -1,10 +1,10 @@
 //! Voice biometric reference data.
 
+use elide_core::primitive::TimeSpan;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ContentSource;
-use crate::schema::TimeSpanSchema;
 
 /// Reference voice data for speaker identification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -14,7 +14,7 @@ pub struct VoiceData {
     pub audio_source: ContentSource,
     /// Segment within the audio used for enrollment.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub segment: Option<TimeSpanSchema>,
+    pub segment: Option<TimeSpan>,
     /// Base64-encoded speaker embedding / voiceprint.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub template: Option<String>,
@@ -35,7 +35,7 @@ impl VoiceData {
     }
 
     /// Set the enrollment segment.
-    pub fn with_segment(mut self, segment: TimeSpanSchema) -> Self {
+    pub fn with_segment(mut self, segment: TimeSpan) -> Self {
         self.segment = Some(segment);
         self
     }

@@ -12,10 +12,9 @@
 //! - [`ImageRedaction::Blackbox`] →
 //!   [`elide::redaction::operators::Blackbox`]
 
+use elide_core::primitive::Color;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::schema::ColorSchema;
 
 /// Operator spec a `redact` image rule carries.
 #[derive(Debug, Clone, PartialEq)]
@@ -44,7 +43,7 @@ pub enum ImageRedaction {
     Blackbox {
         /// Fill color the codec rasterises over the region.
         #[serde(default = "default_blackbox_color")]
-        color: ColorSchema,
+        color: Color,
     },
 }
 
@@ -56,6 +55,6 @@ fn default_pixelate_block() -> u32 {
     16
 }
 
-fn default_blackbox_color() -> ColorSchema {
-    ColorSchema { r: 0, g: 0, b: 0 }
+fn default_blackbox_color() -> Color {
+    Color::BLACK
 }

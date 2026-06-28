@@ -1,10 +1,10 @@
 //! Document template reference data.
 
+use elide_core::primitive::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ContentSource;
-use crate::schema::BoundingBoxSchema;
 
 /// Reference document template for layout/type classification.
 ///
@@ -17,7 +17,7 @@ pub struct TemplateData {
     pub image_source: ContentSource,
     /// Optional sub-region of interest within the template.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub region: Option<BoundingBoxSchema>,
+    pub region: Option<BoundingBox>,
     /// Document type label (e.g. `"passport"`, `"drivers_license"`, `"invoice"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub document_type: Option<String>,

@@ -74,7 +74,7 @@ pub(crate) fn build_catalog(spec: &AnalyzerParams) -> LabelCatalog {
         }
     }
     for label in &spec.label_catalog.custom {
-        catalog.insert(label.clone().into());
+        catalog.insert(label.clone());
     }
     catalog
 }

@@ -1,10 +1,9 @@
 //! Caller-asserted scope: languages + jurisdictions the recognizer
 //! context carries.
 
+use elide_core::primitive::LanguageTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::schema::LanguageTagSchema;
 
 /// Per-request scope assertions. Engine threads these into every
 /// recognizer's [`elide::recognition::Scope`].
@@ -18,7 +17,7 @@ pub struct ScopeParams {
     ///
     /// [`Language`]: elide_core::primitive::Language
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub languages: Vec<LanguageTagSchema>,
+    pub languages: Vec<LanguageTag>,
     /// ISO 3166-1 alpha-2 country codes the caller asserts as
     /// applicable jurisdictions. Drives jurisdiction-scoped pattern
     /// packs in elide-pattern.

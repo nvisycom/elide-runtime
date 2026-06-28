@@ -14,7 +14,6 @@ mod pagination;
 mod path;
 mod policies;
 mod redactions;
-mod refs;
 
 pub use self::contexts::NewContext;
 pub use self::detections::{DetectionQuery, NewDetection};

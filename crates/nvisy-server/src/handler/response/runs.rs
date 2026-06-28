@@ -21,10 +21,9 @@ use elide_core::modality::text::{Text, TextLocation};
 use jiff::Timestamp;
 use nvisy_core::policy::RuleAction;
 use nvisy_engine::runs::{
-    DocBody, EntityRecord, ModalityKind, Run, RunDocState, RunDocument, RunState,
+    DocBody, EntityRecord, ModalityKind, ResourceRef, Run, RunDocState, RunDocument, RunState,
 };
 use schemars::JsonSchema;
-use semver::Version;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -52,10 +51,10 @@ pub struct RunResponse {
     #[schemars(with = "String")]
     pub updated_at: Timestamp,
     /// Policies the caller submitted.
-    pub policy_refs: Vec<ResourceRefDto>,
+    pub policy_refs: Vec<ResourceRef>,
     /// Contexts the caller submitted.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub context_refs: Vec<ResourceRefDto>,
+    pub context_refs: Vec<ResourceRef>,
     /// Per-request metadata.
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub metadata: HashMap<String, String>,
@@ -81,17 +80,6 @@ pub enum RunStateDto {
     Failed,
 }
 
-/// Wire-format mirror of [`nvisy_engine::runs::ResourceRef`].
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ResourceRefDto {
-    /// Resource UUID.
-    pub id: Uuid,
-    /// Resource version.
-    #[schemars(with = "String")]
-    pub version: Version,
-}
-
 /// Wire-format mirror of [`RunDocument`]. Inlines the
 /// per-modality body so the response is one flat array of docs
 /// rather than a header + indirected fetches.
@@ -112,7 +100,7 @@ pub struct RunDocumentDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure_reason: Option<String>,
     /// Modality the codec resolved this doc to.
-    pub modality: ModalityDto,
+    pub modality: ModalityKind,
     /// Recognized entities + reviewer overrides. Variant
     /// matches [`modality`](Self::modality).
     pub body: DocBodyDto,
@@ -135,20 +123,6 @@ pub enum RunDocStateDto {
     Failed,
     /// Per-doc timeout fired.
     TimedOut,
-}
-
-/// Wire-format mirror of [`ModalityKind`].
-#[derive(Debug, Clone, Copy, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ModalityDto {
-    /// Text.
-    Text,
-    /// Tabular.
-    Tabular,
-    /// Image.
-    Image,
-    /// Audio.
-    Audio,
 }
 
 /// Per-modality body of recognized entities + reviewer
@@ -360,19 +334,10 @@ impl RunResponse {
             failure_reason,
             started_at: run.started_at,
             updated_at: run.updated_at,
-            policy_refs: run.policy_refs.into_iter().map(Into::into).collect(),
-            context_refs: run.context_refs.into_iter().map(Into::into).collect(),
+            policy_refs: run.policy_refs,
+            context_refs: run.context_refs,
             metadata: run.metadata,
             documents: documents.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<nvisy_engine::runs::ResourceRef> for ResourceRefDto {
-    fn from(r: nvisy_engine::runs::ResourceRef) -> Self {
-        ResourceRefDto {
-            id: r.id,
-            version: r.version,
         }
     }
 }
@@ -393,19 +358,8 @@ impl From<RunDocument> for RunDocumentDto {
             output_file_id: doc.output_file_id,
             state,
             failure_reason,
-            modality: doc.modality.into(),
+            modality: doc.modality,
             body: doc.body.into(),
-        }
-    }
-}
-
-impl From<ModalityKind> for ModalityDto {
-    fn from(m: ModalityKind) -> Self {
-        match m {
-            ModalityKind::Text => ModalityDto::Text,
-            ModalityKind::Tabular => ModalityDto::Tabular,
-            ModalityKind::Image => ModalityDto::Image,
-            ModalityKind::Audio => ModalityDto::Audio,
         }
     }
 }

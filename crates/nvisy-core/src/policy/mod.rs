@@ -25,6 +25,7 @@ mod retention;
 mod rule;
 mod suppress;
 
+use elide_core::entity::Label;
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use semver::Version;
@@ -38,7 +39,6 @@ pub use self::redaction::AnyRedaction;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::rule::{Rule, RuleAction};
 pub use self::suppress::SuppressAction;
-use crate::schema::LabelSchema;
 
 /// A named, versioned governance policy.
 ///
@@ -77,7 +77,7 @@ pub struct Policy {
     ///
     /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub labels: Vec<LabelSchema>,
+    pub labels: Vec<Label>,
     /// Ordered rules. First match wins within this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<Rule>,

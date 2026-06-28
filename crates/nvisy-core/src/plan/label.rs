@@ -23,10 +23,9 @@
 //! [`LabelCatalog::insert`]: elide_core::entity::LabelCatalog::insert
 //! [`Label`]: elide_core::entity::Label
 
+use elide_core::entity::Label;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::schema::LabelSchema;
 
 /// Per-request label-catalog selection. Picks builtins by name +
 /// adds inline custom schemas.
@@ -38,7 +37,7 @@ pub struct LabelCatalogParams {
     /// skipped.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub builtins: Vec<String>,
-    /// Custom label schemas defined inline by the caller.
+    /// Custom labels defined inline by the caller.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub custom: Vec<LabelSchema>,
+    pub custom: Vec<Label>,
 }

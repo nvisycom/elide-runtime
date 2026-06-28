@@ -108,7 +108,7 @@ fn build(spec: &AudioRedaction) -> AudioOp {
         } => AudioOp::Beep(
             Beep::new(*hz)
                 .with_amplitude(*amplitude)
-                .with_waveform((*waveform).into()),
+                .with_waveform(*waveform),
         ),
     }
 }

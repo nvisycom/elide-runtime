@@ -37,8 +37,8 @@ nvisy-core = { workspace = true, features = [] }
 # the analyzer compile uses for `NerBackendParams::Mock` /
 # `LlmBackendParams::Mock`; real LLM providers land when key-provider
 # wiring lands.
-elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "mock", "serde", "sha2"] }
-elide-core = { workspace = true, features = ["serde", "image", "audio", "tabular"] }
+elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "mock", "serde", "schema", "sha2"] }
+elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
 # Recognition-side elide crates not re-exported through the elide
 # umbrella the way the recognizer crates are (`elide::recognition::*`
@@ -60,6 +60,7 @@ hipstr = { workspace = true, features = ["serde"] }
 jiff = { workspace = true, features = ["serde"] }
 bytes = { workspace = true, features = [] }
 serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = ["uuid1", "semver1"] }
 sha2 = { workspace = true, features = [] }
 
 # Async runtime — `time` powers the per-doc timeout wrapping the

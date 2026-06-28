@@ -1,10 +1,10 @@
 //! Face biometric reference data.
 
+use elide_core::primitive::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ContentSource;
-use crate::schema::BoundingBoxSchema;
 
 /// Reference face data for identity matching.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -14,7 +14,7 @@ pub struct FaceData {
     pub image_source: ContentSource,
     /// Bounding box of the face within the image.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub region: Option<BoundingBoxSchema>,
+    pub region: Option<BoundingBox>,
     /// Base64-encoded face embedding / template.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub template: Option<String>,
@@ -35,7 +35,7 @@ impl FaceData {
     }
 
     /// Set the face bounding box.
-    pub fn with_region(mut self, region: BoundingBoxSchema) -> Self {
+    pub fn with_region(mut self, region: BoundingBox) -> Self {
         self.region = Some(region);
         self
     }

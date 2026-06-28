@@ -1075,7 +1075,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 [[package]]
 name = "elide"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "elide-codec",
  "elide-context",
@@ -1109,7 +1109,7 @@ dependencies = [
 [[package]]
 name = "elide-codec"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "bytes",
  "csv",
@@ -1131,7 +1131,7 @@ dependencies = [
 [[package]]
 name = "elide-context"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "elide-core",
  "hipstr",
@@ -1141,7 +1141,7 @@ dependencies = [
 [[package]]
 name = "elide-core"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "bytes",
  "celes",
@@ -1149,6 +1149,7 @@ dependencies = [
  "hipstr",
  "jiff",
  "oxilangtag",
+ "schemars",
  "serde",
  "type-map",
  "uuid",
@@ -1157,7 +1158,7 @@ dependencies = [
 [[package]]
 name = "elide-detection"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "elide-core",
  "futures",
@@ -1167,7 +1168,7 @@ dependencies = [
 [[package]]
 name = "elide-llm"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1181,12 +1182,13 @@ dependencies = [
 [[package]]
 name = "elide-ner"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "async-trait",
  "derive_builder",
  "elide-core",
  "hipstr",
+ "schemars",
  "serde",
  "uuid",
 ]
@@ -1194,7 +1196,7 @@ dependencies = [
 [[package]]
 name = "elide-ocr"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1204,7 +1206,7 @@ dependencies = [
 [[package]]
 name = "elide-orchestration"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "bytes",
  "elide-codec",
@@ -1218,7 +1220,7 @@ dependencies = [
 [[package]]
 name = "elide-pattern"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "aho-corasick",
  "bs58",
@@ -1237,7 +1239,7 @@ dependencies = [
 [[package]]
 name = "elide-redaction"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "bytes",
  "elide-core",
@@ -1251,7 +1253,7 @@ dependencies = [
 [[package]]
 name = "elide-stt"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#56f883fdbf2484378d9335b4147bfdb3e7785ab3"
+source = "git+https://github.com/nvisycom/elide?branch=main#416f31651a2eb17d1c6e17e15cf0ae5529f68ac1"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -2690,6 +2692,7 @@ dependencies = [
  "hipstr",
  "jiff",
  "nvisy-core",
+ "schemars",
  "semver",
  "serde",
  "serde_json",
@@ -3640,6 +3643,7 @@ dependencies = [
  "indexmap",
  "ref-cast",
  "schemars_derive",
+ "semver",
  "serde",
  "serde_json",
  "uuid",

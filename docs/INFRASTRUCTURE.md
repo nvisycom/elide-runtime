@@ -2,22 +2,22 @@
 
 ## Abstract
 
-This paper describes the deployment shape of the runtime and the boundary
+This paper describes the deployment shape of the Nvisy runtime and the boundary
 between concerns the runtime owns and concerns the surrounding deployment must
 provide. It is intended for platform engineers evaluating the system for
 production use. The treatment is conceptual: it addresses the structure of the
-artifact, the persistence model, the external dependencies the runtime may
-acquire, and the operational primitives it exposes. Specifics of any particular
-hosting environment are out of scope.
+deployment unit, the persistence model, the multi-tenant scoping, and the
+operational primitives the runtime exposes. Specifics of any particular hosting
+environment are out of scope.
 
-## 1. Deployment Philosophy
+## 1. Deployment philosophy
 
 The runtime ships as a single self-contained binary with embedded storage. It
-does not require a separate database, message broker, or coordination service.
-A working installation is a process and a data directory.
+does not require a separate database, message broker, or coordination service. A
+working installation is a process and a data directory.
 
-This is a deliberate choice rather than an incidental one. Privacy-sensitive
-systems benefit from minimizing the number of components that handle, observe,
+This is a deliberate choice rather than an incidental one. Privacy- sensitive
+systems benefit from minimising the number of components that handle, observe,
 or could be compelled to surrender sensitive material. Every additional
 dependency is a potential side channel: a log line in a database server, a
 message queue that retains payloads briefly, a coordination service that
@@ -25,222 +25,182 @@ participates in routing decisions. Each of these expands the trust surface that
 must be reasoned about, audited, and defended.
 
 The runtime accepts a corresponding constraint: it trades horizontal scale-out
-inside the runtime itself for trust-surface simplicity. A deployment that needs
-to spread load across multiple machines does so by running multiple independent
-runtime instances, each owning its own state, and sharding work at the
-application layer. The runtime does not coordinate among instances.
+_inside_ the runtime itself for trust-surface simplicity. A deployment that
+needs to spread load across multiple machines does so by running multiple
+independent runtime instances, each owning its own state, and sharding work at
+the layer above. The runtime does not coordinate among instances.
 
 This trade-off is suitable for the class of workloads the runtime is designed
 for. It is not suitable for workloads that require shared mutable state across
 machines.
 
-## 2. Process Model
+## 2. The deployment unit
 
-A deployment unit is one process. The process exposes a network interface for
+A deployment unit is one process. The process exposes an HTTP interface for
 programmatic access and reads from and writes to a local data directory for
 persistent state. There is no separate worker tier, no auxiliary daemon, and no
 sidecar requirement.
 
-Concurrency within the runtime is asynchronous: many requests are in flight
-inside a single process, scheduled cooperatively. Concurrency across processes
-is not provided by the runtime. A deployment that requires multiple instances
-must arrange for inputs to be partitioned externally, and each instance owns its
-partition exclusively.
+Concurrency within the unit is asynchronous: many requests are in flight inside
+a single process, scheduled cooperatively on a Tokio runtime. Per-run document
+fan-out is bounded by a caller-supplied concurrency cap with per-document
+timeouts; the runtime exposes the cap rather than choosing one for the operator.
+Concurrency across processes is not provided. A deployment that requires
+multiple instances must arrange for inputs to be partitioned externally, and
+each instance owns its partition exclusively.
 
 The process is restartable without ceremony. State that must survive a restart
-lives in the data directory; everything else is reconstructed at startup.
+lives in the data directory; everything else is reconstructed at startup. There
+is no warm cache the runtime maintains in process memory; a restart is
+operationally equivalent to a fresh start against the same data directory.
 
-## 3. State and Persistence
+## 3. The persistence model
 
-The runtime persists three categories of state.
+The runtime persists six categories of state, all in a single embedded LSM-tree
+store ([`fjall`][fjall]), each in its own keyspace keyed by the multi-tenant
+scope.
 
-**Content.** The raw bytes of ingested material, retrievable by a stable
-identifier. Content is the largest category by volume and the most sensitive by
-nature.
+**Policies.** Versioned governance documents the actor uploads. Keyed
+`(actor_id, policy_id, version)`. Immutable per key. The runtime keeps every
+version that has been written; older versions remain queryable as long as a run
+header still references them.
 
-**Decisions.** The detection and redaction artifacts produced by the processing
-pipeline: what was found, where, with what confidence, and what transformation
-was applied. Decisions are the audit substrate of the system.
+**Contexts.** Versioned reference documents the actor uploads. Identical shape
+to policies; same `(actor_id, context_id, version)` key. Mirror module, mirror
+lifecycle.
 
-**Operational metadata.** Policies, annotations, retention configurations, and
-similar control-plane state. This category is small in volume but
-high-consequence: it governs how content and decisions are produced and how
-long they are kept.
+**Files.** Two paired keyspaces: a small metadata keyspace
+(`(actor_id, file_id) → FileMetadata`) and a blob-separated content keyspace
+(`(actor_id, file_id) → bytes`). The split lets list and metadata reads be cheap
+without paying the cost of loading bytes; bytes are fetched on demand by id.
 
-All persistent state lives in an embedded ordered key-value store colocated
-with the process. The three categories occupy separate logical keyspaces. This
-separation is load-bearing: retention policies, encryption choices, and access
-patterns differ between categories, and a shared keyspace would entangle them.
+**Run headers.** One header per run, keyed `(actor_id, run_id)`. The header
+tracks lifecycle state, the policy and context snapshot, the per-doc id list,
+the analyzer plan, and the concurrency cap.
 
-The store assumes exclusive ownership of its data directory. Running two
-processes against the same data directory is unsupported and will produce
-undefined behavior. Backup procedures must respect this invariant: a consistent
-backup is one taken against a quiesced process or via a snapshot mechanism that
-the store explicitly supports.
+**Run documents.** One row per input document inside a run, keyed
+`(actor_id, run_id, doc_id)`. Carries the detection artifact (the per-modality
+entity records + reviewer overrides), the input file id, the output file id
+(once apply lands), and per-document state.
 
-## 4. External Dependencies
+Every keyspace key is prefix-scannable on the actor id. List operations within a
+tenant are O(actor's objects), not O(global), by construction. Bytes (inputs and
+outputs) live exclusively in the files keyspace; no run keyspace carries
+content.
 
-Most of the runtime is self-contained. Two recognition modes optionally extend
-the system with capabilities that exceed what a single process can reasonably
-host, and these are treated as deployment-side dependencies rather than runtime
-internals.
+## 4. Multi-tenant isolation
 
-**Named-entity recognition.** An offline model served by an external inference
-server. The server is a separate process, typically on a separate machine with
-hardware suited to model inference. The runtime communicates with it over the
-network and tolerates its absence.
+Every persisted object is scoped to an _actor_ — the multi-tenant unit of
+isolation. The actor id is the leading component of every storage key, and the
+runtime never reads or writes a key whose actor id was not supplied by the
+caller of the current request.
 
-**Generative recognition.** A large language model accessed over an API. This
-may be a hosted service or a self-operated endpoint. The runtime treats the
-endpoint as opaque: it sends prompts and consumes responses.
+Isolation is structural. The runtime's storage API takes an actor id as the
+first parameter of every method; the keyspace layout guarantees that a scan
+within an actor's prefix yields only that actor's objects. There is no per-call
+permission check that could be forgotten or bypassed because the call shape
+would not allow it.
 
-Neither dependency is required for the runtime to function. Pattern-based
-recognition operates without either. Deployments that require named-entity or
-generative recognition provision the corresponding services and configure the
-runtime to use them. The runtime adapts to whatever is available; the absence
-of an optional dependency disables the corresponding capability but does not
-prevent startup.
+What lives outside the runtime is the question of _whose actor id the caller is
+allowed to claim_. The runtime does not authenticate the caller and does not
+authorise the actor id assertion. The HTTP surface accepts the actor id from an
+upstream component — an API gateway, an IAM integration, a session middleware —
+that is responsible for binding a verified principal to the actor id it may
+operate against. The runtime trusts that binding; the deployment is responsible
+for not breaking it.
 
-This pattern preserves the single-binary philosophy: the runtime itself does
-not embed model weights or inference engines, and the operational complexity
-of running such services remains where it belongs, with the platform team.
+## 5. External dependencies
 
-## 5. Observability
+The runtime acquires no service dependencies at runtime. It loads its
+configuration from a file at startup, opens its data directory, binds its HTTP
+listener, and serves requests.
 
-The runtime emits structured tracing throughout its execution. Trace targets
-follow a uniform hierarchical convention that mirrors the system's internal
-structure, so deployments can filter traces at any level of granularity: an
-entire subsystem, a specific stage of the pipeline, or a single operation.
+Optional dependencies appear only when the operator opts into features that need
+them. Two examples in the current shape:
 
-The runtime also exposes a health endpoint that aggregates the status of each
-subsystem the deployment should care about: the embedded store, the network
-interface, and any configured inference dependencies. The endpoint reports
-which subsystems are healthy, which are degraded, and which are unreachable. A
-deployment's orchestration layer consumes this endpoint to drive readiness and
-liveness checks.
+- Recognition backends. The default deployment runs with in-process pattern and
+  dictionary recognizers and no NER or LLM. An operator who configures a NER
+  backend brings up an external inference service (e.g. a BentoML host); the
+  runtime calls it over HTTP. Without that configuration the runtime stays
+  single-process and network-isolated.
+- Observability. The runtime emits structured logs and tracing spans. A
+  deployment that wants those exported to an external collector runs the
+  collector; the runtime does not host one.
 
-Beyond these primitives, observability is a deployment concern. Log
-aggregation, metric collection, dashboarding, alerting, and incident routing
-are provided by the surrounding platform. The runtime makes no assumptions
-about which tools are used and emits its tracing in a form that standard
-collectors can consume.
+No optional dependency is required for the runtime to start, serve requests, or
+persist state. The minimum deployment is one process and one data directory.
 
-## 6. At-Rest Encryption
+## 6. Operational primitives
 
-Encryption of stored content is optional and entirely deployment-driven. The
-runtime exposes a contract for an opaque key provider; a deployment that
-requires at-rest encryption implements that contract using whatever key
-management system, hardware security module, or rotation policy is appropriate.
-The runtime itself does not manufacture, store, or rotate keys.
+The runtime exposes a small number of operational primitives the deployment is
+expected to drive.
 
-The runtime does not retain long-lived keys in process memory. A key is held
-only for the duration of a single request, then released. This limits the
-blast radius of a process compromise and aligns the runtime's behavior with
-the principle that secret material lives in the deployment's key custody
-infrastructure, not in the application that consumes it.
+**Health checks.** A liveness probe and a readiness probe over HTTP. The
+readiness probe reports per-component status — storage, codec registry, optional
+backends — so a load balancer can route around an instance whose persistence
+layer is unavailable.
 
-Deployments that do not require at-rest encryption omit the key provider
-entirely; content is stored in cleartext within the data directory, and the
-deployment relies on filesystem-level protections instead.
+**Graceful shutdown.** The HTTP layer drains in-flight requests on SIGTERM,
+flushes the persistence layer to disk, and exits. The data directory after a
+graceful shutdown is consistent and immediately re-openable.
 
-## 7. Compression
+**Backup.** The data directory is the unit of backup. A consistent snapshot is
+taken by stopping the process (or pausing writes through the operational
+interface) and copying the directory. The runtime does not ship a logical backup
+tool; a deployment that wants one runs it at the HTTP layer.
 
-Compression of stored content is similarly optional. When enabled, content is
-compressed before persistence and decompressed transparently when the pipeline
-reads it back. The choice of algorithm is deployment-configurable; the runtime
-treats the codec as a pluggable component.
+**Delete.** Per-resource delete is exposed for every persisted category. Deletes
+are not cascaded across categories: deleting a run does not delete the files it
+referenced; deleting a file does not delete the runs that referenced it. This is
+intentional — files are first-class resources, and the consequence of a stale
+reference is a clean lookup failure, not a silent corruption.
 
-Compression is a cost optimization, not a security feature. It interacts with
-at-rest encryption in the usual order: compress first, then encrypt.
+**Cancellation.** A run in progress can be cancelled by the operator.
+Cancellation is a header-level transition; in-flight per-document work continues
+until its current step completes and writes its outcome into a row under a
+header that has moved on. The audit records the cancellation explicitly so the
+partial visibility is honest rather than hidden.
 
-## 8. The Runtime / Deployment Boundary
+## 7. Scaling shape
 
-This section is the conceptual core of the paper. Privacy systems fail in
-production most often not because of defects in the runtime but because the
-boundary between runtime and deployment was implicit, and concerns landed on
-the wrong side of an unspoken line. The boundary is therefore stated
-explicitly.
+The runtime scales by sharding actors across independent instances. Each
+instance owns a data directory; each actor's data lives in exactly one instance;
+the layer above is responsible for routing an actor's request to its owning
+instance.
 
-| Concern | Owned by Runtime | Owned by Deployment |
-|---|---|---|
-| Detection, redaction, audit | yes | |
-| Format decoding, encoding, lifting | yes | |
-| Registries of recognizers, operators, policies | yes | |
-| Embedded persistence layer | yes | |
-| Network interface for programmatic access | yes | |
-| Structured tracing and health reporting | yes | |
-| Authentication of callers | | yes |
-| Authorization of operations | | yes |
-| Transport encryption (TLS termination) | | yes |
-| Backup and disaster recovery | | yes |
-| Multi-tenant isolation enforcement | | yes |
-| Log shipping and metrics aggregation | | yes |
-| Provisioning of inference services | | yes |
-| Key management and rotation | | yes |
-| Quota enforcement and rate limiting | | yes |
-| Capacity planning and horizontal sharding | | yes |
+Within a single instance, throughput is bounded by the single-process I/O
+ceiling of the embedded store and the single-process CPU ceiling of the
+recognition pipeline. Both are adequate for the workloads the runtime targets —
+bounded actor counts, batched run submissions, document-level concurrency in the
+double digits — and inadequate for workloads that need shared mutable state
+across instances or fan-out factors beyond what one process can sustain. The
+runtime does not pretend otherwise. A deployment that outgrows a single
+instance's envelope shards; a deployment whose access pattern cannot be sharded
+by actor is using the wrong tool.
 
-The runtime exposes actor-scoped namespaces in its persistence and processing
-layers, so the deployment can pass an identity through and have the runtime
-keep state separated accordingly. The runtime does not verify the identity; it
-trusts the network edge to have done so. A deployment that fails to
-authenticate at the edge effectively grants every caller every identity.
+## 8. What the deployment must provide
 
-This division is the load-bearing assumption of the architecture. Mixing the
-two sides — for instance, expecting the runtime to enforce identity, or
-expecting the deployment to manage detection policies — produces systems that
-are neither secure nor maintainable.
+The runtime provides the workload; the deployment provides the operational
+envelope. Specifically:
 
-## 9. Scaling
+- _Identity._ Authentication of the caller and binding to an actor id. The
+  runtime trusts the actor id it receives; the deployment must ensure that trust
+  is sound.
+- _Authorisation._ Per-endpoint access control, rate limits, request shaping.
+  The runtime accepts whatever the layer above forwards.
+- _Transport security._ TLS termination, client certificate validation, anything
+  that lives between the network and the runtime's HTTP interface.
+- _Retention scheduling._ The runtime exposes delete hooks per category; the
+  deployment decides the schedule.
+- _Backup, restore, and disaster recovery._ The data directory is the persistent
+  unit; the deployment owns its copy schedule and recovery procedure.
+- _Observability transport._ The runtime emits logs and spans; the deployment
+  runs the collector that ingests them.
+- _Sharding._ If the workload outgrows one instance, the deployment routes
+  actors across instances; the runtime offers no cross-instance coordination.
 
-The runtime scales vertically. Additional cores and memory allow more
-concurrent requests within a single process. The asynchronous execution model
-makes this effective up to the limits of the host.
+The line between runtime and deployment is the line between _what the workload
+requires_ and _what every workload requires_. The runtime owns the former
+exclusively and leaves the latter to the substrate that operates it.
 
-The runtime does not scale horizontally in the conventional sense. The
-embedded store assumes single-writer semantics: exactly one process owns a
-given data directory at a time. A deployment that exceeds the capacity of a
-single instance runs multiple instances, each with its own data directory, and
-partitions inputs at the application layer such that any given identity is
-served by a single instance.
-
-This is a deliberate trade-off. A single-writer architecture eliminates entire
-classes of concurrency bugs — distributed deadlocks, partial-failure
-reconciliation, split-brain conditions — that would otherwise be present in
-the data path of a privacy system. The cost is that scale-out requires
-deployment-level sharding logic. The benefit is predictability: the runtime
-behaves the same way under load as it does in isolation, and there is no
-hidden coordination protocol that can degrade in ways the deployment cannot
-observe.
-
-For workloads where this trade-off is unacceptable, the runtime is the wrong
-choice and a different system should be selected.
-
-## 10. What the Architecture Does Not Provide
-
-In the interest of accuracy, the following capabilities are explicitly out of
-scope. A deployment that needs them must build them around the runtime.
-
-- Cluster coordination among multiple runtime instances.
-- Multi-region failover or active-active replication.
-- Replicated storage at the persistence layer.
-- Service mesh integration beyond what a standard network client provides.
-- Pre-built container images, orchestrator manifests, or installation
-  automation tailored to specific platforms.
-- A user interface; all interaction is programmatic.
-- Identity provisioning, directory integration, or federated authentication.
-
-These omissions are not oversights. Each represents a category of
-functionality that varies substantially across deployments and that, if
-embedded in the runtime, would force a particular operational model on
-adopters that may not suit their environment. They belong in the layer that
-already encodes the deployment's choices about networking, identity, and
-orchestration.
-
-## 11. Closing
-
-The runtime is a process with a data directory and a network interface. The
-deployment is everything else. Drawing that line cleanly is the precondition
-for operating the system with confidence. The runtime is built on the
-assumption that the deployment will draw it; this paper exists so that
-assumption is shared.
+[fjall]: https://github.com/fjall-rs/fjall

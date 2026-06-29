@@ -28,7 +28,6 @@ mod filter;
 mod input;
 mod orchestrate;
 mod persist;
-mod pipeline;
 mod state;
 
 pub use self::input::{DocumentInput, StartBatch};

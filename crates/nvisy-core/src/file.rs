@@ -18,6 +18,7 @@
 
 use std::collections::HashMap;
 
+use bytes::Bytes;
 use hipstr::HipStr;
 use jiff::Timestamp;
 use schemars::JsonSchema;
@@ -81,6 +82,28 @@ pub struct FileMetadata {
     /// [`DocumentPredicate::HasMetadata`]: crate::policy::DocumentPredicate::HasMetadata
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub descriptor_metadata: HashMap<String, String>,
+}
+
+/// A document ready for the codec: raw bytes plus the hints the
+/// codec needs to resolve a decoder.
+///
+/// In-memory carrier — not persisted, not on the wire. Built from
+/// a [`FileMetadata`] + its bytes when the engine reads a stored
+/// file, or from an upload's body + headers at ingest.
+#[derive(Debug, Clone)]
+pub struct RawDocument {
+    /// Raw file bytes.
+    pub bytes: Bytes,
+    /// File extension the codec registry resolves on (e.g.
+    /// `"txt"`, `"pdf"`, `"png"`). Case-insensitive, no leading
+    /// dot.
+    pub extension: HipStr<'static>,
+    /// Caller-supplied MIME hint (e.g. `application/pdf`). The
+    /// codec uses [`extension`], not this; recorded for audit and
+    /// for clients that round-trip metadata.
+    ///
+    /// [`extension`]: RawDocument::extension
+    pub content_type: Option<HipStr<'static>>,
 }
 
 /// Provenance for a [`FileMetadata`]. Uploaded files carry

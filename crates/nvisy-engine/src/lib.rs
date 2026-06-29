@@ -24,5 +24,5 @@ pub mod keyspace;
 pub mod registry;
 pub mod runs;
 
-pub use self::engine::Engine;
+pub use self::engine::{AnalyzeOutcome, ApplyOutcome, Engine};
 pub use self::keyspace::{ContextRegistry, FileDescriptor, FileRegistry, PolicyRegistry};

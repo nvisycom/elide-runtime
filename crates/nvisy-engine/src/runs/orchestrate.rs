@@ -42,20 +42,19 @@ use jiff::Timestamp;
 use nvisy_core::file::FileMetadata;
 use nvisy_core::plan::AnalyzerParams;
 use nvisy_core::policy::{Policy, RuleAction};
-use nvisy_core::{Error, FileLineage, Result};
+use nvisy_core::{Error, FileLineage, RawDocument, Result};
 use tokio::time::timeout;
 use uuid::Uuid;
 
-use super::filter::{DocumentFacts, merge_metadata};
+use super::filter::{DocumentFacts, merge_metadata, policy_applies};
 use super::input::StartBatch;
 use super::persist::RunRegistry;
-use super::pipeline::{AnalyzeOutcome, analyze_document, apply_document};
 use super::state::{
     DocBody, EntityRecord, ModalityKind, ResourceRef, Run, RunDocState, RunDocument, RunState,
 };
 use crate::keyspace::FileDescriptor;
 use crate::registry::RegistryHandle;
-use crate::{Engine, FileRegistry, PolicyRegistry};
+use crate::{AnalyzeOutcome, Engine, FileRegistry, PolicyRegistry};
 
 /// Default per-run concurrency cap when the caller's
 /// [`StartBatch::concurrency`] is `None`.
@@ -178,7 +177,12 @@ async fn analyze_one_doc(
 
     let outcome = match load_input(registry, actor_id, input_file_id).await {
         Ok((file, bytes)) => {
-            let analyze = analyze_document(engine, bytes, file.extension.as_str(), &spec);
+            let document = RawDocument {
+                bytes,
+                extension: file.extension,
+                content_type: file.content_type,
+            };
+            let analyze = engine.analyze_document(document, &spec, run_id);
             match timeout(PER_DOC_TIMEOUT, analyze).await {
                 Ok(Ok(outcome)) => Ok(outcome),
                 Ok(Err(err)) => Err(DocFailure::Failed(err.to_string())),
@@ -463,17 +467,20 @@ async fn apply_one_doc(
         labels: &input_file.descriptor_labels,
         metadata: &merged,
     };
+    let scoped: Vec<Policy> = policies
+        .iter()
+        .filter(|p| policy_applies(p, &facts))
+        .cloned()
+        .collect();
 
-    let outcome = apply_document(
-        engine,
-        input_bytes,
-        input_file.extension.as_str(),
-        &spec,
-        policies.as_slice(),
-        &facts,
-        &doc.body,
-    )
-    .await;
+    let document = RawDocument {
+        bytes: input_bytes,
+        extension: input_file.extension.clone(),
+        content_type: input_file.content_type.clone(),
+    };
+    let outcome = engine
+        .apply_document(document, &spec, &scoped, &doc.body, run_id)
+        .await;
 
     match outcome {
         Ok(out) => {

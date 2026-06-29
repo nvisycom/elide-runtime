@@ -15,13 +15,15 @@
 //!
 //! ## Per-document verbs
 //!
-//! - [`Engine::analyze`] builds a [`Orchestrator`] with one
-//!   pipeline per modality + the request scope, then runs its
-//!   detection phase. Returns the editable [`Report`].
-//! - [`Engine::anonymize_with`] builds the same orchestrator with
-//!   `policies` layered onto each modality's anonymizer (plus
-//!   reviewer overrides on the body modality), then runs the
-//!   redaction phase against a (possibly edited) [`Report`].
+//! - [`Engine::analyze_document`] decodes raw bytes, builds an
+//!   [`Orchestrator`] with one pipeline per modality + the request
+//!   scope, runs detection, and projects the body entities onto
+//!   the persistence-shaped [`AnalyzeOutcome`].
+//! - [`Engine::apply_document`] decodes raw bytes again, rebuilds
+//!   a body-only [`Report`] from the persisted entities, layers
+//!   the reviewer overrides + filtered policy set onto the
+//!   modality's anonymizer, drives redaction, and returns the
+//!   re-encoded bytes via [`ApplyOutcome`].
 //!
 //! Both methods build a fresh [`Orchestrator`] per call — it is a
 //! small map of trait objects keyed by modality `TypeId`, cheap
@@ -45,28 +47,33 @@
 pub(crate) mod analyzer;
 pub(crate) mod anonymizer;
 
+use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use elide::Orchestrator;
 use elide::codec::{FormatRegistry, UntypedDocumentHandle};
 use elide::redaction::Anonymizer;
+use elide_core::entity::Entity;
+use elide_core::modality::Modality;
 use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
+use nvisy_core::RawDocument;
 use nvisy_core::plan::AnalyzerParams;
 use nvisy_core::policy::{Policy, RuleAction};
 use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
-use self::analyzer::{build_catalog, compile_audio, compile_image, compile_tabular, compile_text};
+use self::analyzer::{AnalyzerCompile, LabelCatalogCompile};
 use self::anonymizer::{
     attach_override_audio, attach_override_image, attach_override_tabular, attach_override_text,
     attach_policies_audio, attach_policies_image, attach_policies_tabular, attach_policies_text,
 };
 use crate::registry::RegistryHandle;
-use crate::runs::ModalityKind;
+use crate::runs::{DocBody, EntityRecord, ModalityKind};
 
 const COMPONENT: &str = "engine";
 
@@ -76,6 +83,25 @@ const COMPONENT: &str = "engine";
 pub struct Engine {
     registry: RegistryHandle,
     formats: Arc<FormatRegistry>,
+}
+
+/// Outcome of analyzing one document end-to-end.
+pub struct AnalyzeOutcome {
+    /// Modality elide's codec resolved the bytes to.
+    pub modality: ModalityKind,
+    /// Recognized body entities, wrapped in [`EntityRecord`] for
+    /// persistence (no overrides set yet — those flow through the
+    /// reviewer surface).
+    pub body: DocBody,
+}
+
+/// Outcome of applying redactions to one document.
+pub struct ApplyOutcome {
+    /// Encoded bytes of the redacted document, ready to persist
+    /// via the [`FileRegistry`] as a new output file.
+    ///
+    /// [`FileRegistry`]: crate::FileRegistry
+    pub bytes: Bytes,
 }
 
 impl Engine {
@@ -118,59 +144,151 @@ impl Engine {
         self.registry.sync()
     }
 
-    /// Drive [`Orchestrator::analyze`] over one handle.
+    /// Decode `document`, drive [`Orchestrator::analyze`], project
+    /// the body entities of the returned [`elide::Report`] onto
+    /// the persistence-shaped [`AnalyzeOutcome`].
     ///
-    /// Compiles the per-modality pipelines from `spec` (with
-    /// empty anonymizers — apply isn't called), registers all
-    /// four on a fresh [`Orchestrator`] alongside the request
-    /// [`Scope`], then walks `handle`'s body and any container
-    /// parts. Returns the editable [`elide::Report`].
+    /// Container-part entities (PDF embedded images, archive
+    /// members, …) are detected by the orchestrator but discarded
+    /// at the persistence boundary today; following slices will
+    /// evolve [`DocBody`] to retain them.
+    ///
+    /// `correlation_id` is server-minted (typically the run id) —
+    /// the orchestrator threads it into tracing spans on the
+    /// detection path.
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
-    /// [`Scope`]: elide::recognition::Scope
-    pub async fn analyze(
+    pub async fn analyze_document(
         &self,
-        handle: &mut UntypedDocumentHandle,
+        document: RawDocument,
         spec: &AnalyzerParams,
-    ) -> Result<elide::Report> {
-        let orchestrator = self.build_orchestrator(spec, &[], None, &[])?;
-        orchestrator.analyze(handle).await.map_err(|err| {
+        correlation_id: Uuid,
+    ) -> Result<AnalyzeOutcome> {
+        let extension = document.extension.clone();
+        let mut handle = self.decode(document).await?;
+        let orchestrator = self.build_orchestrator(spec, &[], None, &[], correlation_id)?;
+        let mut report = orchestrator.analyze(&mut handle).await.map_err(|err| {
             Error::internal("orchestrator analyze failed", COMPONENT).with_source(err)
-        })
+        })?;
+
+        // The orchestrator decided which pipeline matched the body
+        // (one of Text / Tabular / Image / Audio) — recover that by
+        // peeking at the report's body entity slot for each
+        // modality.
+        if let Some(entities) = report.entities::<Text>().map(mem::take) {
+            return Ok(AnalyzeOutcome {
+                modality: ModalityKind::Text,
+                body: DocBody::Text {
+                    entities: entities.into_iter().map(EntityRecord::new).collect(),
+                },
+            });
+        }
+        if let Some(entities) = report.entities::<Tabular>().map(mem::take) {
+            return Ok(AnalyzeOutcome {
+                modality: ModalityKind::Tabular,
+                body: DocBody::Tabular {
+                    entities: entities.into_iter().map(EntityRecord::new).collect(),
+                },
+            });
+        }
+        if let Some(entities) = report.entities::<Image>().map(mem::take) {
+            return Ok(AnalyzeOutcome {
+                modality: ModalityKind::Image,
+                body: DocBody::Image {
+                    entities: entities.into_iter().map(EntityRecord::new).collect(),
+                },
+            });
+        }
+        if let Some(entities) = report.entities::<Audio>().map(mem::take) {
+            return Ok(AnalyzeOutcome {
+                modality: ModalityKind::Audio,
+                body: DocBody::Audio {
+                    entities: entities.into_iter().map(EntityRecord::new).collect(),
+                },
+            });
+        }
+
+        Err(Error::validation(
+            format!(
+                "codec resolved {extension:?} to a modality the orchestrator \
+                 has no pipeline for"
+            ),
+            COMPONENT,
+        ))
     }
 
-    /// Drive [`Orchestrator::anonymize_with`] with a (possibly
-    /// edited) [`elide::Report`].
+    /// Re-decode `document`, rebuild a body-only [`elide::Report`]
+    /// from the persisted `body` entities, drive
+    /// [`Orchestrator::anonymize_with`] with the reviewer overrides
+    /// extracted from those entities and the caller-filtered
+    /// `policies`, and return the re-encoded redacted bytes.
     ///
-    /// Compiles the per-modality pipelines from `spec` *and*
-    /// `policies`, layering `overrides` onto the body modality
-    /// (overrides on other modalities don't apply to this doc),
-    /// registers all four on a fresh [`Orchestrator`] alongside
-    /// the request [`Scope`], and re-drives `handle` against the
-    /// report.
-    ///
-    /// `body_modality` pins which modality the overrides target —
-    /// the document has exactly one body modality, and reviewer
-    /// overrides are by definition on that body's entities.
+    /// `policies` is the policy set already filtered by
+    /// [`Policy::applies_when`] against the per-doc facts — the
+    /// engine does not re-evaluate predicates. `spec` is the same
+    /// [`AnalyzerParams`] that drove analyze (needed for the label
+    /// catalog). `correlation_id` is server-minted, threaded into
+    /// tracing spans on the redaction path.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
-    /// [`Scope`]: elide::recognition::Scope
-    pub async fn anonymize_with(
+    /// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+    pub async fn apply_document(
         &self,
-        handle: &mut UntypedDocumentHandle,
+        document: RawDocument,
         spec: &AnalyzerParams,
         policies: &[Policy],
-        body_modality: ModalityKind,
-        overrides: &[(Uuid, RuleAction)],
-        report: elide::Report,
-    ) -> Result<()> {
+        body: &DocBody,
+        correlation_id: Uuid,
+    ) -> Result<ApplyOutcome> {
+        let mut handle = self.decode(document).await?;
+        let (modality, report, overrides) = match body {
+            DocBody::Text { entities } => (
+                ModalityKind::Text,
+                build_report::<Text>(entities),
+                collect_overrides(entities),
+            ),
+            DocBody::Tabular { entities } => (
+                ModalityKind::Tabular,
+                build_report::<Tabular>(entities),
+                collect_overrides(entities),
+            ),
+            DocBody::Image { entities } => (
+                ModalityKind::Image,
+                build_report::<Image>(entities),
+                collect_overrides(entities),
+            ),
+            DocBody::Audio { entities } => (
+                ModalityKind::Audio,
+                build_report::<Audio>(entities),
+                collect_overrides(entities),
+            ),
+        };
+
         let orchestrator =
-            self.build_orchestrator(spec, policies, Some(body_modality), overrides)?;
+            self.build_orchestrator(spec, policies, Some(modality), &overrides, correlation_id)?;
         orchestrator
-            .anonymize_with(handle, report)
+            .anonymize_with(&mut handle, report)
             .await
             .map_err(|err| {
                 Error::internal("orchestrator anonymize_with failed", COMPONENT).with_source(err)
+            })?;
+
+        encode_redacted(handle, modality)
+    }
+
+    async fn decode(&self, document: RawDocument) -> Result<UntypedDocumentHandle> {
+        let RawDocument {
+            bytes, extension, ..
+        } = document;
+        self.formats
+            .decode(bytes, extension.as_str())
+            .await
+            .map_err(|err| {
+                Error::validation(
+                    format!("codec decode failed for extension {extension:?}"),
+                    COMPONENT,
+                )
+                .with_source(err)
             })
     }
 
@@ -182,26 +300,35 @@ impl Engine {
     /// layered onto that modality's anonymizer ahead of the
     /// policy chain; on the other three modalities the overrides
     /// have no effect.
+    ///
+    /// [`Scope`]: elide::recognition::Scope
     fn build_orchestrator(
         &self,
         spec: &AnalyzerParams,
         policies: &[Policy],
         body_modality: Option<ModalityKind>,
         overrides: &[(Uuid, RuleAction)],
+        correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
-        let catalog = build_catalog(spec);
-        // The wire's `scope` carries languages, jurisdictions, and
-        // labels straight from the caller; the engine overwrites
-        // the scope's `catalog` with the LabelCatalogParams
-        // resolution so request and catalog stay one source of
-        // truth.
-        let mut scope = spec.scope.clone();
-        scope.catalog = catalog.clone();
+        let catalog = spec.scope.label_catalog.compile();
+        // Assemble the orchestrator's `Scope` from the three wire
+        // knobs on `AnalyzerParams` + the caller-supplied
+        // `correlation_id` + the resolved catalog. The catalog has
+        // exactly one route (LabelCatalogParams); the correlation
+        // id is server-minted (typically the run id) and never
+        // appears on the wire shape.
+        let scope = elide::recognition::Scope {
+            languages: spec.scope.languages.clone(),
+            countries: spec.scope.countries.clone(),
+            labels: spec.scope.labels.clone(),
+            catalog: catalog.clone(),
+            correlation_id: Some(correlation_id),
+        };
 
-        let text_analyzer = compile_text(spec).map_err(compile_err)?;
-        let tabular_analyzer = compile_tabular(spec).map_err(compile_err)?;
-        let image_analyzer = compile_image(spec).map_err(compile_err)?;
-        let audio_analyzer = compile_audio(spec).map_err(compile_err)?;
+        let text_analyzer = spec.compile_text().map_err(compile_err)?;
+        let tabular_analyzer = spec.compile_tabular().map_err(compile_err)?;
+        let image_analyzer = spec.compile_image().map_err(compile_err)?;
+        let audio_analyzer = spec.compile_audio().map_err(compile_err)?;
 
         // Build each modality's anonymizer fresh: start with the
         // catalog (so `with_tag` / `with_catalog_predicate` see
@@ -250,6 +377,62 @@ impl Engine {
             .with_modality::<Image>(image_analyzer, image_anonymizer)
             .with_modality::<Audio>(audio_analyzer, audio_anonymizer))
     }
+}
+
+/// Rebuild a body-only [`elide::Report`] from the persisted
+/// per-entity records. The entities are cloned out (the persisted
+/// body is the source of truth for re-apply idempotency).
+fn build_report<M>(records: &[EntityRecord<M>]) -> elide::Report
+where
+    M: Modality + 'static,
+    Vec<Entity<M>>: elide::EntityGroup,
+    Entity<M>: Clone,
+{
+    let entities: Vec<Entity<M>> = records.iter().map(|r| r.entity.clone()).collect();
+    elide::Report::new().insert_body::<M>(entities)
+}
+
+fn collect_overrides<M: Modality>(records: &[EntityRecord<M>]) -> Vec<(Uuid, RuleAction)> {
+    records
+        .iter()
+        .filter_map(|r| r.r#override.as_ref().map(|a| (r.entity.id, a.clone())))
+        .collect()
+}
+
+/// After `anonymize_with` mutated `handle` in place, recover the
+/// typed handle for the doc's body modality and re-encode it.
+/// `handle` was a typed `DocumentHandle<M>` before being erased;
+/// the apply-time re-encode needs the typed form because
+/// [`elide::codec::DocumentHandle::encode`] is per-modality.
+fn encode_redacted(handle: UntypedDocumentHandle, modality: ModalityKind) -> Result<ApplyOutcome> {
+    match modality {
+        ModalityKind::Text => encode_typed::<Text>(handle, "Text"),
+        ModalityKind::Tabular => encode_typed::<Tabular>(handle, "Tabular"),
+        ModalityKind::Image => encode_typed::<Image>(handle, "Image"),
+        ModalityKind::Audio => encode_typed::<Audio>(handle, "Audio"),
+    }
+}
+
+fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<ApplyOutcome>
+where
+    M: Modality,
+{
+    let typed = handle.into::<M>().map_err(|_| {
+        Error::internal(
+            format!(
+                "post-apply re-encode: handle is not {name} — orchestrator \
+                 returned a handle of a different modality than analyze \
+                 recorded"
+            ),
+            COMPONENT,
+        )
+    })?;
+    let content = typed
+        .encode()
+        .map_err(|err| Error::internal("post-apply encode failed", COMPONENT).with_source(err))?;
+    Ok(ApplyOutcome {
+        bytes: content.into_bytes(),
+    })
 }
 
 /// Translate an `elide::Error` from a `compile_*` call into the

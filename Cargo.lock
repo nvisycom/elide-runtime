@@ -2749,6 +2749,7 @@ name = "nvisy-core"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "derive_builder",
  "derive_more",
  "elide",

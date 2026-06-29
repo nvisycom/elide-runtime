@@ -9,6 +9,6 @@ pub mod policy;
 pub mod service;
 pub mod source;
 
-pub use self::file::{FileLineage, FileMetadata};
+pub use self::file::{FileLineage, FileMetadata, RawDocument};
 pub use self::service::{Error, ErrorKind, Result};
 pub use self::source::ContentSource;

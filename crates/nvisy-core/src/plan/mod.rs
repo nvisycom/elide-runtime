@@ -18,10 +18,11 @@
 //! - [`label`] — per-request label catalog selection: builtins by
 //!   name + custom inline schemas.
 //!
-//! Caller-asserted scope (languages, jurisdictions, document
-//! labels) lives on [`AnalyzerParams::scope`] as an
-//! [`elide::recognition::Scope`] directly; the engine threads it
-//! through every recognizer's context at compile time.
+//! Caller-asserted scope lives under [`AnalyzerParams::scope`] —
+//! a single [`ScopeParams`] grouping `languages`, `countries`,
+//! `labels`, and `label_catalog`. The engine assembles these (plus
+//! a server-minted correlation id) into an
+//! [`elide::recognition::Scope`] at compile time.
 //!
 //! [`elide::detection::Analyzer`]: https://docs.rs/elide/latest/elide/struct.Analyzer.html
 //! [`elide::recognition::Scope`]: https://docs.rs/elide/latest/elide/recognition/struct.Scope.html
@@ -32,7 +33,7 @@ pub mod enricher;
 pub mod label;
 pub mod recognizer;
 
-pub use self::analyzer::AnalyzerParams;
+pub use self::analyzer::{AnalyzerParams, ScopeParams};
 pub use self::deduplication::{DeduplicationParams, MergingStrategyParams, TiebreakerParams};
 pub use self::enricher::{
     EnricherParams, LanguageEnricherParams, OcrBackendParams, OcrEnricherParams, SttBackendParams,

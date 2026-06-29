@@ -23,7 +23,7 @@ pub(crate) fn compile_audio(spec: &AnalyzerParams) -> Result<Analyzer<Audio>, Er
     let mut analyzer = Analyzer::<Audio>::new();
 
     if spec.enrichers.language.is_some() {
-        analyzer = reject_language_enricher::<Audio>()?;
+        analyzer = reject_language_enricher::<Audio>("audio")?;
     }
     if spec.enrichers.ocr.is_some() {
         return Err(Error::new(

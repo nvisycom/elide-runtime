@@ -28,10 +28,11 @@
 //!   slot at-most-one (scalar). Slots: `language`, `ocr`, `stt`.
 //! - `deduplication`, `scope`, `labelCatalog`: scalars.
 
+use elide_core::recognition::Scope;
 use nvisy_core::plan::{
     AnalyzerParams, DeduplicationParams, EnricherParams, LabelCatalogParams,
     LanguageEnricherParams, LlmRecognizerParams, NerRecognizerParams, OcrEnricherParams,
-    PatternRecognizerParams, RecognizerParams, ScopeParams, SttEnricherParams,
+    PatternRecognizerParams, RecognizerParams, SttEnricherParams,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -53,7 +54,7 @@ pub struct AnalyzerOverrides {
     pub deduplication: ScalarOverride<DeduplicationParams>,
     /// Caller-asserted scope. Scalar — replace or inherit.
     #[serde(default)]
-    pub scope: ScalarOverride<ScopeParams>,
+    pub scope: ScalarOverride<Scope>,
     /// Per-request label catalog (builtins + custom). Scalar —
     /// replace or inherit the deployment default wholesale.
     #[serde(default)]
@@ -131,7 +132,7 @@ impl EnricherOverrides {
 ///
 /// Renamed in the generated schema to `{T}Override` so each
 /// monomorphisation gets a distinct, descriptive schema name
-/// (`DeduplicationParamsOverride`, `ScopeParamsOverride`, …)
+/// (`DeduplicationParamsOverride`, `ScopeOverride`, …)
 /// instead of `schemars`'s numeric collision fallback
 /// (`ScalarOverride`, `ScalarOverride2`, `ScalarOverride3`, …).
 #[derive(Debug, Default, Deserialize, JsonSchema)]

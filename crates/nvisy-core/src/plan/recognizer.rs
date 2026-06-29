@@ -43,16 +43,8 @@ pub struct RecognizerParams {
 }
 
 /// Params for the `elide-pattern` recognizer.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternRecognizerParams {
     /// Load every pattern + dictionary shipped with

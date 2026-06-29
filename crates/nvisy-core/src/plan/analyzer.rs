@@ -7,7 +7,7 @@ use super::deduplication::DeduplicationParams;
 use super::enricher::EnricherParams;
 use super::label::LabelCatalogParams;
 use super::recognizer::RecognizerParams;
-use super::scope::ScopeParams;
+use elide::recognition::Scope;
 
 /// Full description of how to build an analyzer for one
 /// request.
@@ -17,7 +17,7 @@ use super::scope::ScopeParams;
 /// monomorphises each per-modality analyzer from the same
 /// params — text picks up the text-applicable recognizers,
 /// image picks up the image ones, etc.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerParams {
     /// Recognizer slots: pattern (at-most-one), ner, llm
@@ -34,10 +34,14 @@ pub struct AnalyzerParams {
     /// canonical pipeline at compile time.
     #[serde(default)]
     pub deduplication: DeduplicationParams,
-    /// Caller-asserted scope (languages, jurisdictions).
-    /// Threaded into every recognizer's context.
+    /// Caller-asserted scope: languages, jurisdictions
+    /// (`countries`), document labels, correlation id. Threaded
+    /// into every recognizer's context. The `catalog` field on the
+    /// scope is overwritten at engine compile time with the
+    /// resolved [`LabelCatalogParams`] result; callers should
+    /// leave it empty here.
     #[serde(default)]
-    pub scope: ScopeParams,
+    pub scope: Scope,
     /// Per-request entity-label catalog: builtins selected by
     /// name + custom inline schemas. Drives both what the
     /// analyzer is asked to emit (via [`Scope::with_catalog`]

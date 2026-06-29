@@ -44,7 +44,6 @@
 
 pub(crate) mod analyzer;
 pub(crate) mod anonymizer;
-pub(crate) mod scope;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -66,7 +65,6 @@ use self::anonymizer::{
     attach_override_audio, attach_override_image, attach_override_tabular, attach_override_text,
     attach_policies_audio, attach_policies_image, attach_policies_tabular, attach_policies_text,
 };
-use self::scope::compile_scope;
 use crate::registry::RegistryHandle;
 use crate::runs::ModalityKind;
 
@@ -192,7 +190,13 @@ impl Engine {
         overrides: &[(Uuid, RuleAction)],
     ) -> Result<Orchestrator<'_>> {
         let catalog = build_catalog(spec);
-        let scope = compile_scope(&spec.scope, catalog.clone()).map_err(compile_err)?;
+        // The wire's `scope` carries languages, jurisdictions, and
+        // labels straight from the caller; the engine overwrites
+        // the scope's `catalog` with the LabelCatalogParams
+        // resolution so request and catalog stay one source of
+        // truth.
+        let mut scope = spec.scope.clone();
+        scope.catalog = catalog.clone();
 
         let text_analyzer = compile_text(spec).map_err(compile_err)?;
         let tabular_analyzer = compile_tabular(spec).map_err(compile_err)?;

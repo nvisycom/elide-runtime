@@ -14,15 +14,15 @@ use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::{AnalyzerParams, LlmBackendParams, LlmRecognizerParams};
 
-use super::common::{attach_dedup, attach_ner, attach_pattern, reject_language_enricher};
+use super::common::{attach_dedup, attach_language, attach_ner, attach_pattern};
 
 /// Compile `spec` into a text-modality [`Analyzer`]. Scope is
 /// built separately and lives on the orchestrator.
 pub(crate) fn compile_text(spec: &AnalyzerParams) -> Result<Analyzer<Text>, Error> {
     let mut analyzer = Analyzer::<Text>::new();
 
-    if spec.enrichers.language.is_some() {
-        analyzer = reject_language_enricher::<Text>()?;
+    if let Some(language) = &spec.enrichers.language {
+        analyzer = attach_language(analyzer, language);
     }
     if spec.enrichers.ocr.is_some() {
         return Err(Error::new(

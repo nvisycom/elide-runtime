@@ -31,9 +31,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 # Elide toolkit (upstream)
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main" }
-# `elide-ner` + `elide-ocr` are pulled directly only by `elide-bento`, which
-# implements the per-backend traits these crates export. Engine and other
-# consumers reach the same types through `elide::recognition::{ner, ocr}`.
+# Pulled directly only by `elide-bento`, which implements the per-backend traits these crates export.
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
@@ -42,20 +40,15 @@ elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", defaul
 elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }
 
 # Internal crates
+nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
-
-# Internal crate being deleted: kept here as a path-dep so consumer
-# manifests (nvisy-engine/server/cli) parse during the migration.
-# Leaves the workspace once engine's source no longer imports it.
-nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
 schemars = { version = "1.0", features = ["uuid1", "bytes1"] }
 toml = { version = "1.1", features = [] }
-minijinja = { version = "2.5", features = [] }
 
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
@@ -70,68 +63,24 @@ bytes = { version = "1.0", features = ["serde"] }
 hipstr = { version = "0.8", features = ["serde"] }
 jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
-oxilangtag = { version = "0.1", features = ["serde"] }
-celes = { version = "2.8", features = [] }
 humantime = { version = "2.1", features = [] }
 humantime-serde = { version = "1.1", features = [] }
-type-map = { version = "0.5", features = [] }
 
 # Encoding and hashing
 base64 = { version = "0.22", features = [] }
-hex = { version = "0.4", features = [] }
 sha2 = { version = "0.11", features = [] }
-aes-gcm = { version = "0.10", features = [] }
 
 # Async runtime and parallelism
 tokio = { version = "1.50", features = [] }
-tokio-util = { version = "0.7", features = [] }
 futures = { version = "0.3", features = [] }
 async-trait = { version = "0.1", features = [] }
-rayon = { version = "1.10", features = [] }
 
 # Observability
 tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = [] }
 
-# Text processing (pattern matching, language detection, unicode)
-regex = { version = "1.0", features = [] }
-aho-corasick = { version = "1.0", features = [] }
-lingua = { version = "1.8", default-features = false, features = ["english"] }
-unicode-segmentation = { version = "1.13", features = [] }
-unicode-normalization = { version = "0.1", features = [] }
-
-# Checksum / encoding
-bs58 = { version = "0.5", features = ["check"] }
-iban_validate = { version = "5.0" }
-phonenumber = { version = "0.3", default-features = false }
-
-# Tabular document parsing
-csv = { version = "1.0", features = [] }
-calamine = { version = "0.35", features = [] }
-
-# Rich-document parsing (HTML, PDF)
-scraper = { version = "0.27", features = [] }
-ego-tree = { version = "0.11", features = [] }
-lopdf = { version = "0.41", features = [] }
-pdfium-render = { version = "0.9", features = [] }
-
-# Image processing
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
-imageproc = { version = "0.27", features = [] }
-
-# Audio processing
-hound = { version = "3.5", features = [] }
-symphonia = { version = "0.6", default-features = false, features = ["wav", "pcm", "mp3"] }
-mp3lame-encoder = { version = "0.2", features = [] }
-
 # AI / LLM frameworks
 bentoml = { version = "0.5", default-features = false, features = ["rustls-tls", "tracing"] }
-rig = { version = "0.38", features = [], default-features = false }
-
-# HTTP client and middleware
-reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
-reqwest-retry = { version = "0.9", features = [] }
-reqwest-tracing = { version = "0.7", features = [] }
 
 # HTTP server and middleware
 axum = { version = "0.8", features = [] }
@@ -144,10 +93,3 @@ clap = { version = "4.6", features = [] }
 
 # Storage and file-type detection
 fjall = { version = "3.1", features = [] }
-infer = { version = "0.19", features = [] }
-
-# Utilities
-validator = { version = "0.20", features = ["derive"] }
-rand = { version = "0.10", features = [] }
-tempfile = { version = "3.27", features = [] }
-fake = { version = "5.1", features = [] }

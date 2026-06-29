@@ -21,7 +21,7 @@ pub(crate) fn compile_tabular(spec: &AnalyzerParams) -> Result<Analyzer<Tabular>
     let mut analyzer = Analyzer::<Tabular>::new();
 
     if spec.enrichers.language.is_some() {
-        analyzer = reject_language_enricher::<Tabular>()?;
+        analyzer = reject_language_enricher::<Tabular>("tabular")?;
     }
     if spec.enrichers.ocr.is_some() {
         return Err(Error::new(

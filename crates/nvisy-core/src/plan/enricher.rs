@@ -8,6 +8,7 @@
 //!
 //! [`AnalyzerParams`]: super::AnalyzerParams
 
+use elide_core::primitive::LanguageTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -43,15 +44,23 @@ pub struct EnricherParams {
 }
 
 /// Params for the language-detection enricher.
+///
+/// Backed by [`elide_lingua::LinguaEnricher`]: the `candidates` set
+/// scopes the detector to a candidate language pool. An empty list
+/// asks lingua to consider every language compiled into its
+/// feature set.
+///
+/// [`elide_lingua::LinguaEnricher`]: https://docs.rs/elide-lingua/latest/elide_lingua/struct.LinguaEnricher.html
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LanguageEnricherParams {
-    /// Minimum confidence in `[0.0, 1.0]` the detector must
-    /// report before a language is asserted into the context.
-    /// Lower values write more languages; higher values are
-    /// stricter. `None` lets the engine pick the default.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_confidence: Option<f32>,
+    /// Candidate language pool the detector picks from. Empty means
+    /// "every language lingua was compiled with"; a non-empty list
+    /// restricts detection to those languages and is a real
+    /// speed + accuracy win when the caller knows what languages
+    /// their documents are in.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub candidates: Vec<LanguageTag>,
 }
 
 /// Params for the OCR enricher (image modality).

@@ -57,15 +57,11 @@ async fn create_redaction(
     let docs = fetch_docs(&engine, actor_id, &run).await;
     let outputs: Vec<RedactionOutput> = docs
         .into_iter()
-        .map(|d| {
-            let dto: super::response::runs::RunDocumentDto = d.into();
-            RedactionOutput {
-                doc_id: dto.id,
-                input_file_id: dto.input_file_id,
-                output_file_id: dto.output_file_id,
-                state: dto.state,
-                failure_reason: dto.failure_reason,
-            }
+        .map(|d| RedactionOutput {
+            doc_id: d.id,
+            input_file_id: d.input_file_id,
+            output_file_id: d.output_file_id,
+            state: d.state,
         })
         .collect();
 

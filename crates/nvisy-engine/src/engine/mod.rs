@@ -47,13 +47,15 @@
 pub(crate) mod analyzer;
 pub(crate) mod anonymizer;
 
+use std::any::TypeId;
+use std::collections::HashMap;
 use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
 use elide::Orchestrator;
-use elide::codec::{FormatRegistry, UntypedDocumentHandle};
+use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
 use elide::redaction::Anonymizer;
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
@@ -73,7 +75,7 @@ use self::anonymizer::{
     attach_policies_audio, attach_policies_image, attach_policies_tabular, attach_policies_text,
 };
 use crate::registry::RegistryHandle;
-use crate::runs::{DocBody, EntityRecord, ModalityKind};
+use crate::runs::{DocBody, EntityGroup, EntityRecord};
 
 const COMPONENT: &str = "engine";
 
@@ -83,16 +85,6 @@ const COMPONENT: &str = "engine";
 pub struct Engine {
     registry: RegistryHandle,
     formats: Arc<FormatRegistry>,
-}
-
-/// Outcome of analyzing one document end-to-end.
-pub struct AnalyzeOutcome {
-    /// Modality elide's codec resolved the bytes to.
-    pub modality: ModalityKind,
-    /// Recognized body entities, wrapped in [`EntityRecord`] for
-    /// persistence (no overrides set yet — those flow through the
-    /// reviewer surface).
-    pub body: DocBody,
 }
 
 /// Outcome of applying redactions to one document.
@@ -145,13 +137,12 @@ impl Engine {
     }
 
     /// Decode `document`, drive [`Orchestrator::analyze`], project
-    /// the body entities of the returned [`elide::Report`] onto
-    /// the persistence-shaped [`AnalyzeOutcome`].
+    /// the report onto the persistence-shaped [`DocBody`].
     ///
-    /// Container-part entities (PDF embedded images, archive
-    /// members, …) are detected by the orchestrator but discarded
-    /// at the persistence boundary today; following slices will
-    /// evolve [`DocBody`] to retain them.
+    /// Captures the body group *and* every container part group
+    /// (DOCX embedded images, archive members, …) the orchestrator
+    /// returned; each persisted group carries its own modality
+    /// tag via its [`EntityGroup`] variant.
     ///
     /// `correlation_id` is server-minted (typically the run id) —
     /// the orchestrator threads it into tracing spans on the
@@ -163,64 +154,68 @@ impl Engine {
         document: RawDocument,
         spec: &AnalyzerParams,
         correlation_id: Uuid,
-    ) -> Result<AnalyzeOutcome> {
+    ) -> Result<DocBody> {
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
-        let orchestrator = self.build_orchestrator(spec, &[], None, &[], correlation_id)?;
+        let orchestrator = self.build_orchestrator(spec, &[], &[], correlation_id)?;
         let mut report = orchestrator.analyze(&mut handle).await.map_err(|err| {
             Error::internal("orchestrator analyze failed", COMPONENT).with_source(err)
         })?;
 
-        // The orchestrator decided which pipeline matched the body
-        // (one of Text / Tabular / Image / Audio) — recover that by
-        // peeking at the report's body entity slot for each
-        // modality.
-        if let Some(entities) = report.entities::<Text>().map(mem::take) {
-            return Ok(AnalyzeOutcome {
-                modality: ModalityKind::Text,
-                body: DocBody::Text {
-                    entities: entities.into_iter().map(EntityRecord::new).collect(),
-                },
-            });
-        }
-        if let Some(entities) = report.entities::<Tabular>().map(mem::take) {
-            return Ok(AnalyzeOutcome {
-                modality: ModalityKind::Tabular,
-                body: DocBody::Tabular {
-                    entities: entities.into_iter().map(EntityRecord::new).collect(),
-                },
-            });
-        }
-        if let Some(entities) = report.entities::<Image>().map(mem::take) {
-            return Ok(AnalyzeOutcome {
-                modality: ModalityKind::Image,
-                body: DocBody::Image {
-                    entities: entities.into_iter().map(EntityRecord::new).collect(),
-                },
-            });
-        }
-        if let Some(entities) = report.entities::<Audio>().map(mem::take) {
-            return Ok(AnalyzeOutcome {
-                modality: ModalityKind::Audio,
-                body: DocBody::Audio {
-                    entities: entities.into_iter().map(EntityRecord::new).collect(),
-                },
-            });
+        // Walk the body modality slots in order; the first that
+        // returns Some is the body modality the orchestrator's
+        // codec resolved. `body` ends up None only if no pipeline
+        // accepted the body — defensive, since all four are wired.
+        let body_group = take_body_text(&mut report)
+            .or_else(|| take_body_tabular(&mut report))
+            .or_else(|| take_body_image(&mut report))
+            .or_else(|| take_body_audio(&mut report))
+            .ok_or_else(|| {
+                Error::validation(
+                    format!(
+                        "codec resolved {extension:?} to a modality the orchestrator \
+                         has no pipeline for"
+                    ),
+                    COMPONENT,
+                )
+            })?;
+
+        // Walk the parts in the same way: collect (id, modality)
+        // pairs first (read-borrow), then drain each part with the
+        // matching typed accessor (write-borrow).
+        let part_ids: Vec<(PartId, TypeId)> = report
+            .part_ids()
+            .map(|(id, type_id)| (id.clone(), type_id))
+            .collect();
+        let mut parts = HashMap::with_capacity(part_ids.len());
+        for (id, type_id) in part_ids {
+            let group = if type_id == TypeId::of::<Text>() {
+                take_part_text(&mut report, &id)
+            } else if type_id == TypeId::of::<Tabular>() {
+                take_part_tabular(&mut report, &id)
+            } else if type_id == TypeId::of::<Image>() {
+                take_part_image(&mut report, &id)
+            } else if type_id == TypeId::of::<Audio>() {
+                take_part_audio(&mut report, &id)
+            } else {
+                // Pipeline modality the engine doesn't model. Skip.
+                continue;
+            };
+            if let Some(group) = group {
+                parts.insert(id.as_str().to_owned(), group);
+            }
         }
 
-        Err(Error::validation(
-            format!(
-                "codec resolved {extension:?} to a modality the orchestrator \
-                 has no pipeline for"
-            ),
-            COMPONENT,
-        ))
+        Ok(DocBody {
+            body: Some(body_group),
+            parts,
+        })
     }
 
-    /// Re-decode `document`, rebuild a body-only [`elide::Report`]
-    /// from the persisted `body` entities, drive
+    /// Re-decode `document`, rebuild a multi-group [`elide::Report`]
+    /// from the persisted body + parts, drive
     /// [`Orchestrator::anonymize_with`] with the reviewer overrides
-    /// extracted from those entities and the caller-filtered
+    /// extracted from every group and the caller-filtered
     /// `policies`, and return the re-encoded redacted bytes.
     ///
     /// `policies` is the policy set already filtered by
@@ -229,6 +224,11 @@ impl Engine {
     /// [`AnalyzerParams`] that drove analyze (needed for the label
     /// catalog). `correlation_id` is server-minted, threaded into
     /// tracing spans on the redaction path.
+    ///
+    /// The body's modality (read from `body.body`'s [`EntityGroup`]
+    /// variant) pins which typed handle the post-apply re-encode
+    /// goes through — a container's body modality regardless of
+    /// how many other modalities its parts ride on.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
     /// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
@@ -240,32 +240,22 @@ impl Engine {
         body: &DocBody,
         correlation_id: Uuid,
     ) -> Result<ApplyOutcome> {
+        let body_group = body.body.as_ref().ok_or_else(|| {
+            Error::validation(
+                "apply_document: body group is missing — analyze must run first",
+                COMPONENT,
+            )
+        })?;
         let mut handle = self.decode(document).await?;
-        let (modality, report, overrides) = match body {
-            DocBody::Text { entities } => (
-                ModalityKind::Text,
-                build_report::<Text>(entities),
-                collect_overrides(entities),
-            ),
-            DocBody::Tabular { entities } => (
-                ModalityKind::Tabular,
-                build_report::<Tabular>(entities),
-                collect_overrides(entities),
-            ),
-            DocBody::Image { entities } => (
-                ModalityKind::Image,
-                build_report::<Image>(entities),
-                collect_overrides(entities),
-            ),
-            DocBody::Audio { entities } => (
-                ModalityKind::Audio,
-                build_report::<Audio>(entities),
-                collect_overrides(entities),
-            ),
-        };
+        let mut report = insert_body(elide::Report::new(), body_group);
+        let mut overrides: Vec<(Uuid, RuleAction)> = Vec::new();
+        collect_overrides_into(&mut overrides, body_group);
+        for (id, group) in &body.parts {
+            report = insert_part(report, id.as_str(), group);
+            collect_overrides_into(&mut overrides, group);
+        }
 
-        let orchestrator =
-            self.build_orchestrator(spec, policies, Some(modality), &overrides, correlation_id)?;
+        let orchestrator = self.build_orchestrator(spec, policies, &overrides, correlation_id)?;
         orchestrator
             .anonymize_with(&mut handle, report)
             .await
@@ -273,7 +263,7 @@ impl Engine {
                 Error::internal("orchestrator anonymize_with failed", COMPONENT).with_source(err)
             })?;
 
-        encode_redacted(handle, modality)
+        encode_redacted(handle, body_group)
     }
 
     async fn decode(&self, document: RawDocument) -> Result<UntypedDocumentHandle> {
@@ -296,17 +286,17 @@ impl Engine {
     /// and a request-scoped [`Scope`].
     ///
     /// `policies` is the resolved policy set (empty during
-    /// analyze). When `body_modality` is `Some`, `overrides` are
-    /// layered onto that modality's anonymizer ahead of the
-    /// policy chain; on the other three modalities the overrides
-    /// have no effect.
+    /// analyze). `overrides` are layered onto every modality's
+    /// anonymizer ahead of the policy chain — entity ids are
+    /// globally unique across body and parts, so an override
+    /// matches in exactly one pipeline (the one whose recognized
+    /// entities include that id) and is a no-op everywhere else.
     ///
     /// [`Scope`]: elide::recognition::Scope
     fn build_orchestrator(
         &self,
         spec: &AnalyzerParams,
         policies: &[Policy],
-        body_modality: Option<ModalityKind>,
         overrides: &[(Uuid, RuleAction)],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
@@ -332,18 +322,10 @@ impl Engine {
 
         // Build each modality's anonymizer fresh: start with the
         // catalog (so `with_tag` / `with_catalog_predicate` see
-        // label tags), layer reviewer overrides for the body
-        // modality only, then attach the policy chain so policy
-        // rules sit behind the overrides.
-        let body_overrides = |kind| {
-            body_modality
-                .filter(|m| *m == kind)
-                .map(|_| overrides)
-                .unwrap_or(&[][..])
-        };
-
+        // label tags), layer reviewer overrides, then attach the
+        // policy chain so policy rules sit behind the overrides.
         let mut text_anonymizer = Anonymizer::<Text>::new().with_catalog(catalog.clone());
-        for (id, action) in body_overrides(ModalityKind::Text) {
+        for (id, action) in overrides {
             text_anonymizer =
                 attach_override_text(text_anonymizer, *id, action).map_err(compile_err)?;
         }
@@ -351,7 +333,7 @@ impl Engine {
             attach_policies_text(text_anonymizer, policies.iter()).map_err(compile_err)?;
 
         let mut tabular_anonymizer = Anonymizer::<Tabular>::new().with_catalog(catalog.clone());
-        for (id, action) in body_overrides(ModalityKind::Tabular) {
+        for (id, action) in overrides {
             tabular_anonymizer =
                 attach_override_tabular(tabular_anonymizer, *id, action).map_err(compile_err)?;
         }
@@ -359,13 +341,13 @@ impl Engine {
             attach_policies_tabular(tabular_anonymizer, policies.iter()).map_err(compile_err)?;
 
         let mut image_anonymizer = Anonymizer::<Image>::new().with_catalog(catalog.clone());
-        for (id, action) in body_overrides(ModalityKind::Image) {
+        for (id, action) in overrides {
             image_anonymizer = attach_override_image(image_anonymizer, *id, action);
         }
         let image_anonymizer = attach_policies_image(image_anonymizer, policies.iter());
 
         let mut audio_anonymizer = Anonymizer::<Audio>::new().with_catalog(catalog);
-        for (id, action) in body_overrides(ModalityKind::Audio) {
+        for (id, action) in overrides {
             audio_anonymizer = attach_override_audio(audio_anonymizer, *id, action);
         }
         let audio_anonymizer = attach_policies_audio(audio_anonymizer, policies.iter());
@@ -379,24 +361,124 @@ impl Engine {
     }
 }
 
-/// Rebuild a body-only [`elide::Report`] from the persisted
-/// per-entity records. The entities are cloned out (the persisted
-/// body is the source of truth for re-apply idempotency).
-fn build_report<M>(records: &[EntityRecord<M>]) -> elide::Report
-where
-    M: Modality + 'static,
-    Vec<Entity<M>>: elide::EntityGroup,
-    Entity<M>: Clone,
-{
-    let entities: Vec<Entity<M>> = records.iter().map(|r| r.entity.clone()).collect();
-    elide::Report::new().insert_body::<M>(entities)
+/// Drain the body's entities from `report` into an
+/// [`EntityGroup`] of the `Text` variant, or `None` if the body
+/// is a different modality.
+fn take_body_text(report: &mut elide::Report) -> Option<EntityGroup> {
+    let entities = mem::take(report.entities::<Text>()?);
+    Some(EntityGroup::Text {
+        entities: entities.into_iter().map(EntityRecord::new).collect(),
+    })
 }
 
-fn collect_overrides<M: Modality>(records: &[EntityRecord<M>]) -> Vec<(Uuid, RuleAction)> {
-    records
-        .iter()
-        .filter_map(|r| r.r#override.as_ref().map(|a| (r.entity.id, a.clone())))
-        .collect()
+fn take_body_tabular(report: &mut elide::Report) -> Option<EntityGroup> {
+    let entities = mem::take(report.entities::<Tabular>()?);
+    Some(EntityGroup::Tabular {
+        entities: entities.into_iter().map(EntityRecord::new).collect(),
+    })
+}
+
+fn take_body_image(report: &mut elide::Report) -> Option<EntityGroup> {
+    let entities = mem::take(report.entities::<Image>()?);
+    Some(EntityGroup::Image {
+        entities: entities.into_iter().map(EntityRecord::new).collect(),
+    })
+}
+
+fn take_body_audio(report: &mut elide::Report) -> Option<EntityGroup> {
+    let entities = mem::take(report.entities::<Audio>()?);
+    Some(EntityGroup::Audio {
+        entities: entities.into_iter().map(EntityRecord::new).collect(),
+    })
+}
+
+fn take_part_text(report: &mut elide::Report, id: &PartId) -> Option<EntityGroup> {
+    let entities = mem::take(report.part_entities::<Text>(id)?);
+    Some(EntityGroup::Text {
+        entities: entities.into_iter().map(EntityRecord::new).collect(),
+    })
+}
+
+fn take_part_tabular(report: &mut elide::Report, id: &PartId) -> Option<EntityGroup> {
+    let entities = mem::take(report.part_entities::<Tabular>(id)?);
+    Some(EntityGroup::Tabular {
+        entities: entities.into_iter().map(EntityRecord::new).collect(),
+    })
+}
+
+fn take_part_image(report: &mut elide::Report, id: &PartId) -> Option<EntityGroup> {
+    let entities = mem::take(report.part_entities::<Image>(id)?);
+    Some(EntityGroup::Image {
+        entities: entities.into_iter().map(EntityRecord::new).collect(),
+    })
+}
+
+fn take_part_audio(report: &mut elide::Report, id: &PartId) -> Option<EntityGroup> {
+    let entities = mem::take(report.part_entities::<Audio>(id)?);
+    Some(EntityGroup::Audio {
+        entities: entities.into_iter().map(EntityRecord::new).collect(),
+    })
+}
+
+/// Insert the body group into `report` under its modality.
+fn insert_body(report: elide::Report, group: &EntityGroup) -> elide::Report {
+    match group {
+        EntityGroup::Text { entities } => report.insert_body::<Text>(clone_entities(entities)),
+        EntityGroup::Tabular { entities } => {
+            report.insert_body::<Tabular>(clone_entities(entities))
+        }
+        EntityGroup::Image { entities } => report.insert_body::<Image>(clone_entities(entities)),
+        EntityGroup::Audio { entities } => report.insert_body::<Audio>(clone_entities(entities)),
+    }
+}
+
+/// Insert one part group into `report` under its modality.
+fn insert_part(report: elide::Report, id: &str, group: &EntityGroup) -> elide::Report {
+    let part_id = PartId::from(id.to_owned());
+    match group {
+        EntityGroup::Text { entities } => {
+            report.insert_part::<Text>(part_id, clone_entities(entities))
+        }
+        EntityGroup::Tabular { entities } => {
+            report.insert_part::<Tabular>(part_id, clone_entities(entities))
+        }
+        EntityGroup::Image { entities } => {
+            report.insert_part::<Image>(part_id, clone_entities(entities))
+        }
+        EntityGroup::Audio { entities } => {
+            report.insert_part::<Audio>(part_id, clone_entities(entities))
+        }
+    }
+}
+
+fn clone_entities<M: Modality>(records: &[EntityRecord<M>]) -> Vec<Entity<M>>
+where
+    Entity<M>: Clone,
+{
+    records.iter().map(|r| r.entity.clone()).collect()
+}
+
+/// Append every reviewer override on `group` to `out`. Iterates
+/// the variant-appropriate `Vec<EntityRecord<M>>` and keeps only
+/// records whose `override` field is set.
+fn collect_overrides_into(out: &mut Vec<(Uuid, RuleAction)>, group: &EntityGroup) {
+    match group {
+        EntityGroup::Text { entities } => extend_overrides(out, entities),
+        EntityGroup::Tabular { entities } => extend_overrides(out, entities),
+        EntityGroup::Image { entities } => extend_overrides(out, entities),
+        EntityGroup::Audio { entities } => extend_overrides(out, entities),
+    }
+}
+
+fn extend_overrides<M: Modality>(
+    out: &mut Vec<(Uuid, RuleAction)>,
+    records: &[EntityRecord<M>],
+) {
+    out.extend(
+        records
+            .iter()
+            .filter_map(|r| r.r#override.as_ref().map(|a| (r.entity.id, a.clone()))),
+    );
 }
 
 /// After `anonymize_with` mutated `handle` in place, recover the
@@ -404,12 +486,12 @@ fn collect_overrides<M: Modality>(records: &[EntityRecord<M>]) -> Vec<(Uuid, Rul
 /// `handle` was a typed `DocumentHandle<M>` before being erased;
 /// the apply-time re-encode needs the typed form because
 /// [`elide::codec::DocumentHandle::encode`] is per-modality.
-fn encode_redacted(handle: UntypedDocumentHandle, modality: ModalityKind) -> Result<ApplyOutcome> {
-    match modality {
-        ModalityKind::Text => encode_typed::<Text>(handle, "Text"),
-        ModalityKind::Tabular => encode_typed::<Tabular>(handle, "Tabular"),
-        ModalityKind::Image => encode_typed::<Image>(handle, "Image"),
-        ModalityKind::Audio => encode_typed::<Audio>(handle, "Audio"),
+fn encode_redacted(handle: UntypedDocumentHandle, body: &EntityGroup) -> Result<ApplyOutcome> {
+    match body {
+        EntityGroup::Text { .. } => encode_typed::<Text>(handle, "Text"),
+        EntityGroup::Tabular { .. } => encode_typed::<Tabular>(handle, "Tabular"),
+        EntityGroup::Image { .. } => encode_typed::<Image>(handle, "Image"),
+        EntityGroup::Audio { .. } => encode_typed::<Audio>(handle, "Audio"),
     }
 }
 

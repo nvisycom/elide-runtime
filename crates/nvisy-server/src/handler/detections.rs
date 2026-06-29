@@ -4,9 +4,11 @@
 //! `POST /detections` starts a run from already-uploaded file
 //! ids. `GET /detections/{id}` returns the full run state
 //! (header + every per-document body inline); the response
-//! shape covers any [`RunState`] — clients filter on
-//! [`state`](super::response::RunStateDto) to render the
-//! detection vs redaction view of the same underlying run.
+//! shape covers any [`RunState`] — clients filter on the
+//! flattened `state` field to render the detection vs redaction
+//! view of the same underlying run.
+//!
+//! [`RunState`]: nvisy_engine::runs::RunState
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete_with, get_with, post_with};

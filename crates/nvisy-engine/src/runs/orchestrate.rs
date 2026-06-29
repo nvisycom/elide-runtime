@@ -50,11 +50,11 @@ use super::filter::{DocumentFacts, merge_metadata, policy_applies};
 use super::input::StartBatch;
 use super::persist::RunRegistry;
 use super::state::{
-    DocBody, EntityRecord, ModalityKind, ResourceRef, Run, RunDocState, RunDocument, RunState,
+    DocBody, EntityGroup, EntityRecord, ResourceRef, Run, RunDocState, RunDocument, RunState,
 };
 use crate::keyspace::FileDescriptor;
 use crate::registry::RegistryHandle;
-use crate::{AnalyzeOutcome, Engine, FileRegistry, PolicyRegistry};
+use crate::{Engine, FileRegistry, PolicyRegistry};
 
 /// Default per-run concurrency cap when the caller's
 /// [`StartBatch::concurrency`] is `None`.
@@ -84,23 +84,20 @@ pub async fn start(engine: &Engine, actor_id: Uuid, batch: StartBatch) -> Result
 
     // Mint a doc id per input and write a Queued per-doc row up
     // front so the run is fully queryable the moment the header
-    // lands. `modality` defaults to Text; the analyzer pass
-    // overwrites it once the codec resolves. `body` stays empty
-    // until analyze finishes.
+    // lands. The body is empty until analyze rewrites the row
+    // with the recognized outcome.
     let registry = engine.registry();
     let mut document_ids = Vec::with_capacity(batch.documents.len());
     for doc in &batch.documents {
         let doc_id = Uuid::now_v7();
         document_ids.push(doc_id);
 
-        let modality = ModalityKind::Text;
         let document = RunDocument {
             id: doc_id,
             input_file_id: doc.file_id,
             output_file_id: None,
             state: RunDocState::Queued,
-            modality,
-            body: DocBody::empty(modality),
+            body: DocBody::default(),
         };
         registry.put_run_doc(actor_id, run_id, &document).await?;
     }
@@ -226,15 +223,14 @@ async fn write_outcome(
     actor_id: Uuid,
     run_id: Uuid,
     doc_id: Uuid,
-    outcome: StdResult<AnalyzeOutcome, DocFailure>,
+    outcome: StdResult<DocBody, DocFailure>,
 ) {
     let Ok(mut doc) = registry.get_run_doc(actor_id, run_id, doc_id).await else {
         return;
     };
     match outcome {
-        Ok(out) => {
-            doc.modality = out.modality;
-            doc.body = out.body;
+        Ok(body) => {
+            doc.body = body;
             doc.state = RunDocState::AwaitingReview;
         }
         Err(DocFailure::Failed(reason)) => {
@@ -575,12 +571,29 @@ pub async fn override_entity(
     registry.put_run_doc(actor_id, run_id, &doc).await
 }
 
-fn patch_override(body: &mut DocBody, entity_id: Uuid, action: RuleAction) -> bool {
-    match body {
-        DocBody::Text { entities } => patch_each(entities, entity_id, action),
-        DocBody::Tabular { entities } => patch_each(entities, entity_id, action),
-        DocBody::Image { entities } => patch_each(entities, entity_id, action),
-        DocBody::Audio { entities } => patch_each(entities, entity_id, action),
+fn patch_override(doc_body: &mut DocBody, entity_id: Uuid, action: RuleAction) -> bool {
+    // Try the body first, then every part. The clone on the
+    // first call lets us pass `action` to subsequent attempts if
+    // the body misses; once any patch sticks we return.
+    if let Some(group) = doc_body.body.as_mut()
+        && patch_group(group, entity_id, action.clone())
+    {
+        return true;
+    }
+    for group in doc_body.parts.values_mut() {
+        if patch_group(group, entity_id, action.clone()) {
+            return true;
+        }
+    }
+    false
+}
+
+fn patch_group(group: &mut EntityGroup, entity_id: Uuid, action: RuleAction) -> bool {
+    match group {
+        EntityGroup::Text { entities } => patch_each(entities, entity_id, action),
+        EntityGroup::Tabular { entities } => patch_each(entities, entity_id, action),
+        EntityGroup::Image { entities } => patch_each(entities, entity_id, action),
+        EntityGroup::Audio { entities } => patch_each(entities, entity_id, action),
     }
 }
 

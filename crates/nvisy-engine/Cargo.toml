@@ -37,7 +37,7 @@ nvisy-core = { workspace = true, features = [] }
 # the analyzer compile uses for `NerBackendParams::Mock` /
 # `LlmBackendParams::Mock`; real LLM providers land when key-provider
 # wiring lands.
-elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "mock", "serde", "schema", "sha2"] }
+elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "lingua", "mock", "serde", "schema", "sha2"] }
 elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
 # Recognition-side elide crates not re-exported through the elide

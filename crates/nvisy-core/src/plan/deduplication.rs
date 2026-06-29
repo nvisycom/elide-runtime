@@ -6,15 +6,14 @@
 //! cross-label overlaps (tiebreaking) — each parameterised by a
 //! serialisable strategy enum.
 
-use std::collections::HashMap;
-
+use elide::detection::calibrate::CalibrationMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Dedup pipeline applied after recognition. Layers run in the
 /// canonical order: calibrate → reconcile (merging) → reconcile
 /// (tiebreaking) → filter.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeduplicationParams {
     /// Per-recognizer confidence weights. An empty map skips the
@@ -36,36 +35,10 @@ pub struct DeduplicationParams {
     pub min_confidence: Option<f32>,
 }
 
-/// Per-recognizer calibration weights (recognizer-name → multiplier).
-///
-/// Wire shape: `{ "pattern": 1.0, "ner": 0.85 }`. Engine builds the
-/// elide [`CalibrationMap`] from this; absent recognizers default to
-/// `1.0` (identity).
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(transparent)]
-pub struct CalibrationMap(pub HashMap<String, f64>);
-
-impl CalibrationMap {
-    /// `true` when no weights are set; engine skips the calibrate
-    /// layer in that case.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
 /// Strategy the merging reconciler uses to combine same-label
 /// overlapping findings into one entity.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MergingStrategyParams {
     /// Take the maximum confidence across the cluster.
@@ -78,17 +51,8 @@ pub enum MergingStrategyParams {
 
 /// Tiebreaker the structural reconciler uses to pick a winner
 /// when overlapping entities carry different labels.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TiebreakerParams {
     /// Keep the highest-confidence entity.

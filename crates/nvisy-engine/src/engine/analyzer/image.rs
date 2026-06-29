@@ -25,7 +25,7 @@ pub(crate) fn compile_image(spec: &AnalyzerParams) -> Result<Analyzer<Image>, Er
     let mut analyzer = Analyzer::<Image>::new();
 
     if spec.enrichers.language.is_some() {
-        analyzer = reject_language_enricher::<Image>()?;
+        analyzer = reject_language_enricher::<Image>("image")?;
     }
     if let Some(ocr) = &spec.enrichers.ocr {
         analyzer = attach_ocr(analyzer, ocr)?;

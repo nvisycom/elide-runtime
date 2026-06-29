@@ -31,11 +31,22 @@ cors = { allowed_origins = ["*"], max_age = "1h" }
 # empty catalog — useful for tests, not useful in production.
 
 # Caller-asserted scope threaded into every recognizer's context.
-# Add languages and country codes the analyzer should consider
-# (empty = no restriction).
+# The wire shape is elide's `Scope` directly: `languages` is a list
+# of structured `Language` entries (each with a `language` tag and
+# `provenance` of `"asserted"` or `"detected"`); `countries` is a
+# list of ISO 3166-1 alpha-2 country codes; `labels` are document-
+# level classification labels; `catalog` is engine-managed and
+# should be left empty here (see `[analyzer.label_catalog]` below).
 [analyzer.scope]
 languages = []
-jurisdictions = []
+countries = []
+labels = []
+# Example asserting two languages:
+# languages = [
+#   { language = "en", provenance = "asserted" },
+#   { language = "es", provenance = "asserted" },
+# ]
+# countries = ["US", "GB"]
 
 # Deduplication pipeline applied after recognition:
 # calibrate → reconcile (merging, same-label) → reconcile
@@ -78,9 +89,11 @@ context_enhanced = true
 
 # Language enricher (writes the document's detected languages
 # into the recognizer context, driving jurisdiction-aware
-# dispatch). At-most-one per analyzer.
+# dispatch). At-most-one per analyzer; text modality only.
+# `candidates` scopes the lingua detector to a candidate pool —
+# empty considers every language lingua was compiled with.
 # [analyzer.enrichers.language]
-# min_confidence = 0.6              # 0.0..=1.0; None lets the engine choose
+# candidates = ["en", "es", "fr"]
 
 # OCR enricher (image modality only). At-most-one per analyzer.
 # [analyzer.enrichers.ocr]

@@ -12,23 +12,25 @@
 use std::sync::OnceLock;
 
 use elide::detection::Analyzer;
-use elide::detection::calibrate::{CalibrateLayer, CalibrationMap as ElideCalibrationMap};
+use elide::detection::calibrate::CalibrateLayer;
 use elide::detection::filter::FilterLayer;
-use elide::detection::reconcile::scoring::{Max, NoisyOr};
+use elide::detection::reconcile::scoring::{MaxConfidence, NoisyOrConfidence};
 use elide::detection::reconcile::tiebreaker::{HighestConfidence, LongestSpan};
 use elide::detection::reconcile::{Merging, ReconcileLayer, Structural};
+use elide::enrichment::lingua::LinguaEnricher;
 use elide::recognition::context::Enhanced;
 use elide::recognition::ner::NerRecognizer;
 use elide::recognition::pattern::PatternRecognizer;
 use elide_bento::BentoNer;
 use elide_core::entity::{LabelCatalog, LabelRef};
+use elide_core::modality::text::Text;
 use elide_core::modality::{Modality, TextRecognizable};
 use elide_core::primitive::ConfidenceThreshold;
 use elide_core::recognition::Recognizer;
 use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::{
-    AnalyzerParams, DeduplicationParams, MergingStrategyParams, NerBackendParams,
-    NerRecognizerParams, PatternRecognizerParams, TiebreakerParams,
+    AnalyzerParams, DeduplicationParams, LanguageEnricherParams, MergingStrategyParams,
+    NerBackendParams, NerRecognizerParams, PatternRecognizerParams, TiebreakerParams,
 };
 
 /// The full builtin label catalog from `elide-core`, built once
@@ -79,20 +81,44 @@ pub(crate) fn build_catalog(spec: &AnalyzerParams) -> LabelCatalog {
     catalog
 }
 
-/// Reject the language enricher: `elide-ner/lingua` wiring isn't
-/// exposed through the compile surface yet. Per-modality compile
-/// fns call this when they see `params.enrichers.language` set
-/// (every modality supports language detection in principle, but
-/// no modality currently has the backend wired).
-pub(super) fn reject_language_enricher<M>() -> Result<Analyzer<M>, Error>
+/// Reject the language enricher on a modality that doesn't host
+/// it. Upstream's [`LinguaEnricher`] is `Enricher<Text>` only;
+/// the other modalities surface text indirectly (OCR / STT) and
+/// the language pass is supposed to run downstream of those, not
+/// at the modality boundary.
+///
+/// [`LinguaEnricher`]: elide::enrichment::lingua::LinguaEnricher
+pub(super) fn reject_language_enricher<M>(modality: &'static str) -> Result<Analyzer<M>, Error>
 where
     M: Modality,
 {
     Err(Error::new(
         ErrorKind::Validation,
-        "analyzer compile: language enricher needs elide-ner/lingua wiring; \
-         not exposed through the compile surface yet",
+        format!(
+            "analyzer compile: language enricher is only valid on the text \
+             modality; the {modality} modality reaches text through OCR or STT \
+             and runs lingua over that derived text instead — not exposed \
+             through the compile surface yet"
+        ),
     ))
+}
+
+/// Attach the lingua language-detection [`Enricher<Text>`] built
+/// from `spec`. An empty `candidates` list yields the
+/// unrestricted detector (every language lingua was compiled
+/// with); a non-empty list scopes detection to that pool.
+///
+/// [`Enricher<Text>`]: elide_core::recognition::Enricher
+pub(super) fn attach_language(
+    analyzer: Analyzer<Text>,
+    spec: &LanguageEnricherParams,
+) -> Analyzer<Text> {
+    let enricher = if spec.candidates.is_empty() {
+        LinguaEnricher::unrestricted()
+    } else {
+        LinguaEnricher::with_candidates(spec.candidates.iter().cloned())
+    };
+    analyzer.with_enricher(enricher)
 }
 
 /// Attach a [`PatternRecognizer`] built from `spec`. The same
@@ -150,19 +176,15 @@ where
     M: Modality,
 {
     if !spec.calibration.is_empty() {
-        let mut map = ElideCalibrationMap::new();
-        for (recognizer, weight) in &spec.calibration.0 {
-            map.insert(recognizer.clone(), *weight);
-        }
-        analyzer = analyzer.with_layer(CalibrateLayer::new(map));
+        analyzer = analyzer.with_layer(CalibrateLayer::new(spec.calibration.clone()));
     }
 
     analyzer = match spec.merging {
         MergingStrategyParams::Max => {
-            analyzer.with_layer(ReconcileLayer::same_label(Merging::new(Max)))
+            analyzer.with_layer(ReconcileLayer::same_label(Merging::new(MaxConfidence)))
         }
         MergingStrategyParams::NoisyOr => {
-            analyzer.with_layer(ReconcileLayer::same_label(Merging::new(NoisyOr)))
+            analyzer.with_layer(ReconcileLayer::same_label(Merging::new(NoisyOrConfidence)))
         }
     };
 

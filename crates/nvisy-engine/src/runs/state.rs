@@ -44,7 +44,7 @@ use uuid::Uuid;
 
 /// Top-level state of one run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "state", rename_all = "snake_case")]
+#[serde(tag = "state", rename_all = "camelCase")]
 pub enum RunState {
     /// Analyze phase is in flight (or queued).
     Analyzing,
@@ -65,7 +65,7 @@ pub enum RunState {
 
 /// State of one document inside a run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "state", rename_all = "snake_case")]
+#[serde(tag = "state", rename_all = "camelCase")]
 pub enum RunDocState {
     /// Awaiting its turn on the analyze semaphore.
     Queued,
@@ -158,7 +158,13 @@ pub struct RunDocument {
     /// [`FileRegistry::get_file_bytes`]: crate::FileRegistry::get_file_bytes
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_file_id: Option<Uuid>,
-    /// State of the per-doc lifecycle.
+    /// State of the per-doc lifecycle. Flattened — `state` and
+    /// the state-specific fields (e.g. `reason` for `failed`)
+    /// sit at the row root rather than under a nested object.
+    /// The engine type carries the flatten so the wire shape is
+    /// consistent whether the row is rendered directly or
+    /// projected through a wrapper.
+    #[serde(flatten)]
     pub state: RunDocState,
     /// Recognized entities + reviewer overrides for the body and
     /// every container part. The body's modality lives on

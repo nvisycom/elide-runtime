@@ -94,6 +94,7 @@ pub struct Engine {
 }
 
 /// Outcome of applying redactions to one document.
+#[derive(Debug, Clone)]
 pub struct ApplyOutcome {
     /// Encoded bytes of the redacted document, ready to persist
     /// via the [`FileRegistry`] as a new output file.

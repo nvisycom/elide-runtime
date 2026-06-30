@@ -19,11 +19,12 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio"]
+default = ["tabular", "image", "audio", "document"]
 
 tabular = ["elide/codec-tabular"]
 image = ["elide/codec-image"]
 audio = ["elide/codec-audio"]
+document = ["elide/codec-document"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -87,3 +88,11 @@ serde_json = { workspace = true, features = [] }
 # engine wants to surface a non-fatal anomaly to operators (unknown
 # builtin label name in a catalog request, etc.).
 tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+# Async runtime and parallelism
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# Test utilities
+tempfile = { workspace = true, features = [] }
+zip = { workspace = true }

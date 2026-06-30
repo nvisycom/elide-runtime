@@ -16,7 +16,7 @@
 //! - [`CollectionOverride<T, S>`] wraps a `Vec<T>` field. Three
 //!   variants: `Inherit`, `Replace { values }`, and
 //!   `Patch { extend, remove }` — filter the default by removing
-//!   matching items via [`S`] selectors, then append `extend`.
+//!   matching items via `S` selectors, then append `extend`.
 //!
 //! ## Wire shape per field
 //!

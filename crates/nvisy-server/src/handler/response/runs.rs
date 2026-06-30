@@ -27,9 +27,9 @@ pub struct RunResponse {
     /// detections and redactions are filtered views of the same
     /// underlying run).
     pub id: Uuid,
-    /// Top-level run state. Flattened — `state` and the
-    /// state-specific fields (e.g. `reason` for `failed`) sit at
-    /// the response root.
+    /// Top-level run state. The engine type flattens `state` and
+    /// the state-specific fields (e.g. `reason` for `failed`) onto
+    /// whatever struct holds it, so they sit at the response root.
     #[serde(flatten)]
     pub state: RunState,
     /// UUIDv7 timestamp the run was started.

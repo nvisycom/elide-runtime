@@ -1,0 +1,39 @@
+Customer Support Ticket #4821
+Opened: 2026-06-30 09:14 UTC
+Assigned to: Bob Smith (bob.smith@example.com)
+
+Summary
+-------
+Alice Johnson (alice@example.com, +1 415 555 0142) reports that her
+account was locked after three failed sign-in attempts from a
+session originating at IP 192.168.1.42. She also tried via the
+mobile app from +1 (510) 555-0199 with no success.
+
+For verification, she provided her US SSN 123-45-6789 and the
+billing card on file (Visa 4111 1111 1111 1111, expiring 12/27).
+Alternate contact is her partner, Carol Williams
+(carol.williams@example.org, +44 20 7946 0958), who can be reached
+at the UK address on file.
+
+Bank Details
+------------
+For the pending refund of GBP 248.55, route to:
+  Account holder: Alice Johnson
+  IBAN:           GB29 NWBK 6016 1331 9268 19
+  BIC:            NWBKGB2L
+  Reference:      REF-4821-REFUND
+
+Internal Notes
+--------------
+- See incident log INC-2026-0630-014 in the SIEM dashboard.
+- Reset email was sent to alice@example.com at 09:18 UTC; no
+  follow-up acknowledgement yet.
+- Escalation on-call: dave.lee@example.com (US), reach by
+  +1 415 555 0188 outside business hours.
+- Tier-2 reviewer signed off: erin.davis@example.com.
+
+Resolution
+----------
+Unlock the account, issue a refund of GBP 248.55 to the IBAN
+above, force a password reset, and email confirmation to
+alice@example.com. Close ticket once Alice confirms receipt.

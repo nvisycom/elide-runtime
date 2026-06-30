@@ -21,8 +21,8 @@ mod infra;
 mod policies;
 mod redactions;
 
-mod request;
-mod response;
+pub mod request;
+pub mod response;
 
 use aide::axum::ApiRouter;
 use axum::http::Uri;

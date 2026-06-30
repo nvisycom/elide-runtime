@@ -7,6 +7,7 @@
 //! serialisable strategy enum.
 
 use elide::detection::calibrate::CalibrationMap;
+use elide_core::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -29,10 +30,11 @@ pub struct DeduplicationParams {
     #[serde(default)]
     pub tiebreaker: TiebreakerParams,
     /// Minimum confidence the filter layer admits. `None` falls
-    /// back to elide's `ConfidenceThreshold::BASELINE` at compile
-    /// time.
+    /// back to [`ConfidenceThreshold::BASELINE`] at compile time.
+    /// Wire form is an `f32` in `0.0..=1.0`; out-of-range values
+    /// reject at deserialize, not silently clamp.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_confidence: Option<f32>,
+    pub min_confidence: Option<ConfidenceThreshold>,
 }
 
 /// Strategy the merging reconciler uses to combine same-label

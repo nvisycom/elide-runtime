@@ -35,6 +35,7 @@
 //! [`Anonymizer`]: elide::redaction::Anonymizer
 
 mod audio;
+mod dispatch;
 mod image;
 mod selector;
 mod tabular;

@@ -3,12 +3,13 @@
 
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
+use elide_core::Error;
 use elide_core::modality::audio::Audio;
-use nvisy_core::policy::redaction::AudioRedaction;
-use nvisy_core::policy::{Policy, Rule, RuleAction};
+use nvisy_core::policy::RuleAction;
+use nvisy_core::policy::redaction::{AudioRedaction, ModalityRedactions};
 use uuid::Uuid;
 
-use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
+use super::dispatch::{Target, attach_one_override, attach_policies};
 
 /// Attach every audio-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the
@@ -17,26 +18,10 @@ use super::selector::{attach, attach_override, fallback_attribution, rule_attrib
 ///
 /// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
 pub(crate) fn attach_policies_audio<'a>(
-    mut anonymizer: Anonymizer<Audio>,
-    policies: impl Iterator<Item = &'a Policy>,
-) -> Anonymizer<Audio> {
-    for policy in policies {
-        for rule in &policy.rules {
-            let RuleAction::Redact(redactions) = &rule.action else {
-                continue;
-            };
-            let Some(spec) = &redactions.audio else {
-                continue;
-            };
-            anonymizer = attach_rule(anonymizer, policy, rule, spec);
-        }
-        if let Some(RuleAction::Redact(redactions)) = &policy.fallback
-            && let Some(spec) = &redactions.audio
-        {
-            anonymizer = attach_fallback(anonymizer, policy, spec);
-        }
-    }
-    anonymizer
+    anonymizer: Anonymizer<Audio>,
+    policies: impl Iterator<Item = &'a nvisy_core::policy::Policy>,
+) -> Result<Anonymizer<Audio>, Error> {
+    attach_policies(anonymizer, policies, compile_one)
 }
 
 /// Attach a reviewer override for one entity. No-op when the
@@ -45,48 +30,23 @@ pub(crate) fn attach_override_audio(
     anonymizer: Anonymizer<Audio>,
     entity_id: Uuid,
     action: &RuleAction,
-) -> Anonymizer<Audio> {
-    let RuleAction::Redact(redactions) = action else {
-        return anonymizer;
-    };
+) -> Result<Anonymizer<Audio>, Error> {
+    attach_one_override(anonymizer, entity_id, action, compile_one)
+}
+
+fn compile_one(
+    target: Target<'_, Audio>,
+    redactions: &ModalityRedactions,
+) -> Result<Anonymizer<Audio>, Error> {
     let Some(spec) = &redactions.audio else {
-        return anonymizer;
+        return Ok(target.passthrough());
     };
-    match build(spec) {
-        AudioOp::Erase => attach_override(anonymizer, entity_id, Erase),
-        AudioOp::Keep => attach_override(anonymizer, entity_id, Keep),
-        AudioOp::Silence => attach_override(anonymizer, entity_id, Silence),
-        AudioOp::Beep(op) => attach_override(anonymizer, entity_id, op),
-    }
-}
-
-fn attach_rule(
-    anonymizer: Anonymizer<Audio>,
-    policy: &Policy,
-    rule: &Rule,
-    spec: &AudioRedaction,
-) -> Anonymizer<Audio> {
-    let attribution = rule_attribution(policy, rule);
-    match build(spec) {
-        AudioOp::Erase => attach(anonymizer, &rule.predicate, Erase, attribution),
-        AudioOp::Keep => attach(anonymizer, &rule.predicate, Keep, attribution),
-        AudioOp::Silence => attach(anonymizer, &rule.predicate, Silence, attribution),
-        AudioOp::Beep(op) => attach(anonymizer, &rule.predicate, op, attribution),
-    }
-}
-
-fn attach_fallback(
-    anonymizer: Anonymizer<Audio>,
-    policy: &Policy,
-    spec: &AudioRedaction,
-) -> Anonymizer<Audio> {
-    let attribution = fallback_attribution(policy);
-    match build(spec) {
-        AudioOp::Erase => anonymizer.with_fallback(Erase).because(attribution),
-        AudioOp::Keep => anonymizer.with_fallback(Keep).because(attribution),
-        AudioOp::Silence => anonymizer.with_fallback(Silence).because(attribution),
-        AudioOp::Beep(op) => anonymizer.with_fallback(op).because(attribution),
-    }
+    Ok(match build(spec) {
+        AudioOp::Erase => target.attach_with(Erase),
+        AudioOp::Keep => target.attach_with(Keep),
+        AudioOp::Silence => target.attach_with(Silence),
+        AudioOp::Beep(op) => target.attach_with(op),
+    })
 }
 
 enum AudioOp {

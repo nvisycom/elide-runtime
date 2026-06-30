@@ -125,9 +125,6 @@ where
         )),
     };
 
-    let threshold = match spec.min_confidence {
-        Some(v) => ConfidenceThreshold::clamped(v),
-        None => ConfidenceThreshold::BASELINE,
-    };
+    let threshold = spec.min_confidence.unwrap_or(ConfidenceThreshold::BASELINE);
     analyzer.with_layer(FilterLayer::new().with_threshold(threshold))
 }

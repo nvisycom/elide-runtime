@@ -33,6 +33,6 @@ mod state;
 pub use self::input::{DocumentInput, StartBatch};
 pub use self::orchestrate::{apply, cancel, delete, get, get_doc, list, override_entity, start};
 pub use self::state::{
-    DocBody, EntityGroup, EntityRecord, FailureReason, ResourceRef, Run, RunDocState, RunDocument,
+    DocBody, RecognizedGroup, EntityRecord, FailureReason, ResourceRef, Run, RunDocState, RunDocument,
     RunState,
 };

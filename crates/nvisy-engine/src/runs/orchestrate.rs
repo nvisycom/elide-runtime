@@ -50,7 +50,7 @@ use super::filter::{DocumentFacts, merge_metadata, policy_applies};
 use super::input::StartBatch;
 use super::persist::RunRegistry;
 use super::state::{
-    DocBody, EntityGroup, EntityRecord, ResourceRef, Run, RunDocState, RunDocument, RunState,
+    DocBody, RecognizedGroup, EntityRecord, ResourceRef, Run, RunDocState, RunDocument, RunState,
 };
 use crate::keyspace::FileDescriptor;
 use crate::registry::RegistryHandle;
@@ -572,41 +572,47 @@ pub async fn override_entity(
 }
 
 fn patch_override(doc_body: &mut DocBody, entity_id: Uuid, action: RuleAction) -> bool {
-    // Try the body first, then every part. The clone on the
-    // first call lets us pass `action` to subsequent attempts if
-    // the body misses; once any patch sticks we return.
-    if let Some(group) = doc_body.body.as_mut()
-        && patch_group(group, entity_id, action.clone())
-    {
-        return true;
-    }
-    for group in doc_body.parts.values_mut() {
-        if patch_group(group, entity_id, action.clone()) {
-            return true;
+    // Walk body then every part, return a mut reference into the
+    // matching record's override slot — at most one slot matches
+    // since entity ids are globally unique. Setting the action is
+    // one move into that slot; no clones along the way.
+    let slot = doc_body
+        .body
+        .as_mut()
+        .and_then(|g| find_override_slot(g, entity_id))
+        .or_else(|| {
+            doc_body
+                .parts
+                .values_mut()
+                .find_map(|g| find_override_slot(g, entity_id))
+        });
+    match slot {
+        Some(slot) => {
+            *slot = Some(action);
+            true
         }
+        None => false,
     }
-    false
 }
 
-fn patch_group(group: &mut EntityGroup, entity_id: Uuid, action: RuleAction) -> bool {
+fn find_override_slot(
+    group: &mut RecognizedGroup,
+    entity_id: Uuid,
+) -> Option<&mut Option<RuleAction>> {
     match group {
-        EntityGroup::Text { entities } => patch_each(entities, entity_id, action),
-        EntityGroup::Tabular { entities } => patch_each(entities, entity_id, action),
-        EntityGroup::Image { entities } => patch_each(entities, entity_id, action),
-        EntityGroup::Audio { entities } => patch_each(entities, entity_id, action),
+        RecognizedGroup::Text { entities } => find_in(entities, entity_id),
+        RecognizedGroup::Tabular { entities } => find_in(entities, entity_id),
+        RecognizedGroup::Image { entities } => find_in(entities, entity_id),
+        RecognizedGroup::Audio { entities } => find_in(entities, entity_id),
     }
 }
 
-fn patch_each<M: Modality>(
+fn find_in<M: Modality>(
     entities: &mut [EntityRecord<M>],
     entity_id: Uuid,
-    action: RuleAction,
-) -> bool {
-    for record in entities.iter_mut() {
-        if record.entity.id == entity_id {
-            record.r#override = Some(action);
-            return true;
-        }
-    }
-    false
+) -> Option<&mut Option<RuleAction>> {
+    entities
+        .iter_mut()
+        .find(|r| r.entity.id == entity_id)
+        .map(|r| &mut r.r#override)
 }

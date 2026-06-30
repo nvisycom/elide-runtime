@@ -162,7 +162,7 @@ pub struct RunDocument {
     pub state: RunDocState,
     /// Recognized entities + reviewer overrides for the body and
     /// every container part. The body's modality lives on
-    /// `body.body` (the [`EntityGroup`] variant) — apply
+    /// `body.body` (the [`RecognizedGroup`] variant) — apply
     /// re-encodes through that modality's typed handle.
     pub body: DocBody,
 }
@@ -185,13 +185,13 @@ pub struct DocBody {
     /// entities (pre-analyze, or the codec resolved the doc to a
     /// modality with no pipeline).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body: Option<EntityGroup>,
+    pub body: Option<RecognizedGroup>,
     /// One entry per container part the orchestrator surfaced.
     /// Keyed by the container-private part id (e.g. a DOCX zip
     /// entry name like `"word/media/image1.png"`); each value
     /// carries that part's modality + entities.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub parts: HashMap<String, EntityGroup>,
+    pub parts: HashMap<String, RecognizedGroup>,
 }
 
 /// A modality-tagged group of recognized entities — the unit
@@ -203,7 +203,7 @@ pub struct DocBody {
 /// as a `Vec<Entity<M>>` for the appropriate `M`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
-pub enum EntityGroup {
+pub enum RecognizedGroup {
     /// Text entities.
     Text {
         /// Recognized entities, in source-coordinate order.

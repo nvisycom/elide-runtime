@@ -6,7 +6,7 @@
 //! - [`Run`] (a metadata header) lives in the `run_headers`
 //!   keyspace under [`CompositeKey(actor_id, run_id)`].
 //! - [`RunDocument`] (one per input doc) lives in the `run_docs`
-//!   keyspace under [`TripleKey(actor_id, run_id, doc_id)`]. Its
+//!   keyspace under [`RunDocKey(actor_id, run_id, doc_id)`]. Its
 //!   [`body`](RunDocument::body) carries the recognized entities +
 //!   reviewer overrides.
 //!
@@ -20,7 +20,7 @@
 //! [`output_file_id`](RunDocument::output_file_id).
 //!
 //! [`CompositeKey(actor_id, run_id)`]: crate::registry::CompositeKey
-//! [`TripleKey(actor_id, run_id, doc_id)`]: crate::registry::TripleKey
+//! [`RunDocKey(actor_id, run_id, doc_id)`]: crate::registry::RunDocKey
 //! [`FileRegistry`]: crate::FileRegistry
 //! [`FileRegistry::put_file`]: crate::FileRegistry::put_file
 //! [`FileLineage::RedactedFrom`]: nvisy_core::FileLineage::RedactedFrom
@@ -61,6 +61,18 @@ pub enum RunState {
         /// Human-readable reason (e.g. "couldn't load policy X").
         reason: String,
     },
+}
+
+impl RunState {
+    /// Whether the run has reached a state from which it will
+    /// never transition again. Terminal runs release their
+    /// active-file references and become safe to sweep.
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::Applied | Self::PartiallyApplied | Self::Failed { .. },
+        )
+    }
 }
 
 /// State of one document inside a run.

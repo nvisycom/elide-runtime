@@ -9,7 +9,7 @@ use std::time::Duration;
 use axum_test::TestServer;
 use axum_test::http::HeaderName;
 use nvisy_core::plan::AnalyzerParams;
-use nvisy_server::{ServiceState, routes};
+use nvisy_server::{ServiceRuntime, routes};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -22,15 +22,16 @@ const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 /// Spin up a fresh server over a temp data dir. Returns the
 /// running `TestServer`, the actor id every request will assert,
 /// and the temp dir guard (drop it last to keep the dir alive).
-async fn server() -> (TestServer, Uuid, TempDir) {
+async fn server() -> (TestServer, Uuid, ServiceRuntime, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let state = ServiceState::new(dir.path().to_path_buf(), AnalyzerParams::default())
-        .await
-        .expect("service state");
-    let router = routes().with_state(state);
+    let runtime =
+        ServiceRuntime::new(dir.path().to_path_buf(), AnalyzerParams::default(), None)
+            .await
+            .expect("service runtime");
+    let router = routes().with_state(runtime.state());
     let server = TestServer::new(router.into_make_service()).expect("test server");
     let actor_id = Uuid::now_v7();
-    (server, actor_id, dir)
+    (server, actor_id, runtime, dir)
 }
 
 async fn await_review(server: &TestServer, actor_id: Uuid, run_id: Uuid) -> Value {
@@ -54,7 +55,7 @@ async fn await_review(server: &TestServer, actor_id: Uuid, run_id: Uuid) -> Valu
 
 #[tokio::test]
 async fn upload_detect_apply_download_round_trips_text_file() {
-    let (server, actor_id, _dir) = server().await;
+    let (server, actor_id, runtime, _dir) = server().await;
     let actor = HeaderName::from_static(ACTOR_HEADER);
     let source = std::str::from_utf8(SAMPLE_TXT).expect("fixture is UTF-8");
 
@@ -171,4 +172,5 @@ async fn upload_detect_apply_download_round_trips_text_file() {
         !redacted.contains(literal),
         "Erase override must remove the targeted literal `{literal}`",
     );
+    runtime.stop().await;
 }

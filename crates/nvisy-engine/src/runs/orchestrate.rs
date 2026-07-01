@@ -1,34 +1,5 @@
-//! Run lifecycle orchestration: [`start`] resolves input files,
-//! writes Queued per-doc rows, fans the analyzer out, and flips
-//! the run into [`RunState::AwaitingReview`]. [`apply`] runs the
-//! per-doc anonymizer pass, writes the redacted bytes back to
-//! the [`FileRegistry`] as new files (stamped with
-//! [`FileLineage::RedactedFrom`]), records each output's id on
-//! the per-doc row, and flips the run into [`RunState::Applied`]
-//! or [`RunState::PartiallyApplied`].
-//!
-//! [`FileRegistry`]: crate::FileRegistry
-//! [`FileLineage::RedactedFrom`]: nvisy_core::FileLineage::RedactedFrom
-//!
-//! Fan-out shape (shared by analyze and apply):
-//!
-//! - [`futures::stream::iter`] over the per-doc workload,
-//!   capped at [`Run::concurrency`] in-flight by
-//!   [`StreamExt::buffer_unordered`].
-//! - Each per-doc future is wrapped in [`tokio::time::timeout`]
-//!   so a single stuck recognizer never stalls the run.
-//! - Per-doc failures (validation, timeout) are recorded in the
-//!   per-doc [`RunDocState`]; they do not fail the run as a
-//!   whole — apply will only run for docs that reached
-//!   [`RunDocState::AwaitingReview`].
-//!
-//! Stream-based concurrency (not [`tokio::task::JoinSet`]) is
-//! deliberate: each per-doc future borrows the [`Engine`]
-//! and the analyzer spec, and `JoinSet::spawn` would force them
-//! to `'static`. The stream combinator keeps the borrows live
-//! for free.
-//!
-//! [`Engine`]: crate::Engine
+//! Run lifecycle: analyze fan-out, per-doc apply, and the state
+//! transitions between them.
 
 use std::collections::HashMap;
 use std::result::Result as StdResult;
@@ -41,7 +12,7 @@ use futures::{StreamExt, stream};
 use jiff::Timestamp;
 use nvisy_core::file::FileMetadata;
 use nvisy_core::plan::AnalyzerParams;
-use nvisy_core::policy::{Policy, RuleAction};
+use nvisy_core::policy::{Policy, Retention, RetentionScope, RuleAction, resolve_retention};
 use nvisy_core::{Error, FileLineage, RawDocument, Result};
 use tokio::time::timeout;
 use uuid::Uuid;
@@ -50,10 +21,12 @@ use super::filter::{DocumentFacts, merge_metadata, policy_applies};
 use super::input::StartBatch;
 use super::persist::RunRegistry;
 use super::state::{
-    DocBody, RecognizedGroup, EntityRecord, ResourceRef, Run, RunDocState, RunDocument, RunState,
+    DocBody, EntityRecord, RecognizedGroup, ResourceRef, Run, RunDocState, RunDocument, RunState,
 };
 use crate::keyspace::FileDescriptor;
 use crate::registry::RegistryHandle;
+use crate::retention::active_refs::ActiveFileRefRegistry;
+use crate::retention::schedule::{RetentionRecord, RetentionRegistry};
 use crate::{Engine, FileRegistry, PolicyRegistry};
 
 /// Default per-run concurrency cap when the caller's
@@ -65,131 +38,526 @@ const DEFAULT_CONCURRENCY: usize = 4;
 /// continues.
 const PER_DOC_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// Start a run.
-///
-/// Mints a UUIDv7 run id and per-doc ids, persists the input
-/// bytes together with a Queued per-doc row for every input,
-/// writes the run header in [`RunState::Analyzing`], then fans
-/// the analyzer out across docs. Each task rewrites its per-doc
-/// row with the recognized entities and new state. When the
-/// fan-out finishes, the header flips to
-/// [`RunState::AwaitingReview`].
-///
-/// Returns the new run id; the per-doc results are queryable via
-/// [`super::get_doc`].
-pub async fn start(engine: &Engine, actor_id: Uuid, batch: StartBatch) -> Result<Uuid> {
-    let run_id = Uuid::now_v7();
-    let now = Timestamp::now();
-    let concurrency = batch.concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
+impl Engine {
+    /// Start a run.
+    ///
+    /// Mints a UUIDv7 run id and per-doc ids, persists a Queued
+    /// per-doc row for every input, writes the run header in
+    /// [`RunState::Analyzing`], then fans the analyzer out across
+    /// docs. Each task rewrites its per-doc row with the
+    /// recognized entities and new state. When the fan-out
+    /// finishes, the header flips to
+    /// [`RunState::AwaitingReview`].
+    ///
+    /// Returns the new run id; the per-doc results are queryable
+    /// via [`Engine::get_run_doc`].
+    pub async fn start_run(&self, actor_id: Uuid, batch: StartBatch) -> Result<Uuid> {
+        let run_id = Uuid::now_v7();
+        let now = Timestamp::now();
+        let concurrency = batch.concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
+        let registry = self.registry();
 
-    // Mint a doc id per input and write a Queued per-doc row up
-    // front so the run is fully queryable the moment the header
-    // lands. The body is empty until analyze rewrites the row
-    // with the recognized outcome.
-    let registry = engine.registry();
-    let mut document_ids = Vec::with_capacity(batch.documents.len());
-    for doc in &batch.documents {
-        let doc_id = Uuid::now_v7();
-        document_ids.push(doc_id);
+        // Load every referenced policy up-front so we can pin the
+        // resolved retention rules onto each input file before
+        // analyze fans out. A caller who submits ZeroRetention
+        // expects the sweeper to see the row from the moment the
+        // run starts, not just after apply.
+        let policies = resolve_policies(registry, actor_id, &batch.policy_refs).await?;
+        let retention = resolve_retention(&policies);
 
-        let document = RunDocument {
-            id: doc_id,
-            input_file_id: doc.file_id,
-            output_file_id: None,
-            state: RunDocState::Queued,
-            body: DocBody::default(),
+        let mut document_ids = Vec::with_capacity(batch.documents.len());
+        for doc in &batch.documents {
+            let doc_id = Uuid::now_v7();
+            document_ids.push(doc_id);
+
+            let document = RunDocument {
+                id: doc_id,
+                input_file_id: doc.file_id,
+                output_file_id: None,
+                state: RunDocState::Queued,
+                body: DocBody::default(),
+            };
+            registry.put_run_doc(actor_id, run_id, &document).await?;
+
+            // Reverse-index the input for the sweeper's active-run
+            // gate: as long as this run's ref row exists, the
+            // sweeper defers on this file.
+            registry
+                .insert_active_ref(actor_id, doc.file_id, run_id)
+                .await?;
+
+            // Pin OriginalContent retention on the input file.
+            // No-op when the scope resolves to Indefinite or the
+            // policy set is silent on it.
+            registry
+                .pin_retention(
+                    actor_id,
+                    doc.file_id,
+                    RetentionScope::OriginalContent,
+                    &retention,
+                    run_id,
+                    now,
+                )
+                .await?;
+        }
+
+        let run = Run {
+            id: run_id,
+            state: RunState::Analyzing,
+            started_at: now,
+            updated_at: now,
+            policy_refs: batch.policy_refs,
+            context_refs: batch.context_refs,
+            metadata: batch.metadata,
+            document_ids: document_ids.clone(),
+            analyzer: batch.analyzer,
+            concurrency,
         };
-        registry.put_run_doc(actor_id, run_id, &document).await?;
+        registry.put_run(actor_id, &run).await?;
+
+        let analyze_inputs: Vec<(Uuid, Uuid)> = document_ids
+            .iter()
+            .zip(batch.documents.iter())
+            .map(|(doc_id, doc)| (*doc_id, doc.file_id))
+            .collect();
+        let analyzer_spec = Arc::new(run.analyzer.clone());
+        let work = analyze_inputs.into_iter().map(|(doc_id, file_id)| {
+            self.analyze_one_doc(actor_id, run_id, doc_id, file_id, Arc::clone(&analyzer_spec))
+        });
+        stream::iter(work)
+            .buffer_unordered(concurrency)
+            .for_each(|()| async {})
+            .await;
+
+        let mut header = run;
+        header.state = RunState::AwaitingReview;
+        header.updated_at = Timestamp::now();
+        registry.put_run(actor_id, &header).await?;
+
+        Ok(run_id)
     }
 
-    let run = Run {
-        id: run_id,
-        state: RunState::Analyzing,
-        started_at: now,
-        updated_at: now,
-        policy_refs: batch.policy_refs,
-        context_refs: batch.context_refs,
-        metadata: batch.metadata,
-        document_ids: document_ids.clone(),
-        analyzer: batch.analyzer,
-        concurrency,
-    };
-    registry.put_run(actor_id, &run).await?;
+    /// Apply a run.
+    ///
+    /// Loads the run header, verifies it is in
+    /// [`RunState::AwaitingReview`], resolves every referenced
+    /// policy, fans the per-doc anonymizer pass out under the
+    /// run's concurrency cap, persists the redacted bytes as
+    /// artifacts, and rewrites the header to
+    /// [`RunState::Applied`] (every doc applied) or
+    /// [`RunState::PartiallyApplied`] (at least one failed).
+    pub async fn apply_run(&self, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+        let registry = self.registry();
+        let mut run = registry.get_run(actor_id, run_id).await?;
+        if !matches!(run.state, RunState::AwaitingReview) {
+            return Err(Error::conflict(
+                format!(
+                    "run {run_id} is in state {:?}; apply only valid from AwaitingReview",
+                    run.state,
+                ),
+                "Engine::apply_run",
+            ));
+        }
 
-    // Materialise (doc_id, file_id) pairs as owned `Copy`
-    // tuples; closures clone the analyzer spec per item so the
-    // resulting futures hold no borrows on this stack frame —
-    // important when this future is consumed from an axum
-    // handler where the outer future must be `Send + 'static`.
-    let analyze_inputs: Vec<(Uuid, Uuid)> = document_ids
-        .iter()
-        .zip(batch.documents.iter())
-        .map(|(doc_id, doc)| (*doc_id, doc.file_id))
-        .collect();
-    let analyzer_spec = run.analyzer.clone();
-    let work = analyze_inputs.into_iter().map(|(doc_id, file_id)| {
-        analyze_one_doc(
-            engine,
-            actor_id,
-            run_id,
-            doc_id,
-            file_id,
-            analyzer_spec.clone(),
-        )
-    });
-    stream::iter(work)
-        .buffer_unordered(concurrency)
-        .for_each(|()| async {})
-        .await;
+        // Retention is re-resolved here (start also resolved it,
+        // for the input pin); the resolution is deterministic on
+        // the same policy set, so both callers converge on the
+        // same value.
+        let policies = resolve_policies(registry, actor_id, &run.policy_refs).await?;
+        let retention = resolve_retention(policies.iter());
 
-    // All per-doc rows have settled in their terminal analyze
-    // state (AwaitingReview / Failed / TimedOut); flip the header
-    // so callers see the run is ready for review.
-    let mut header = run;
-    header.state = RunState::AwaitingReview;
-    header.updated_at = Timestamp::now();
-    registry.put_run(actor_id, &header).await?;
+        let doc_ids: Vec<Uuid> = run.document_ids.clone();
+        let concurrency = run.concurrency;
+        let ctx = Arc::new(ApplyContext {
+            request_metadata: run.metadata.clone(),
+            spec: run.analyzer.clone(),
+            policies,
+            retention,
+        });
+        let work = doc_ids.iter().copied().map(|doc_id| {
+            self.apply_one_doc(actor_id, run_id, doc_id, Arc::clone(&ctx))
+        });
+        let outcomes: Vec<bool> = stream::iter(work)
+            .buffer_unordered(concurrency)
+            .collect()
+            .await;
 
-    Ok(run_id)
-}
+        self.release_active_refs(actor_id, run_id, &doc_ids).await?;
 
-/// One per-doc unit of the analyze fan-out. Owns the lifecycle
-/// transitions for one row; never returns an error (failures
-/// land in the row's state).
-///
-/// `spec` is owned (not borrowed) so the resulting future
-/// captures no references on its caller's stack — keeps the
-/// outer `runs::start` future composable with handler-level
-/// `Send + 'static` bounds.
-async fn analyze_one_doc(
-    engine: &Engine,
-    actor_id: Uuid,
-    run_id: Uuid,
-    doc_id: Uuid,
-    input_file_id: Uuid,
-    spec: AnalyzerParams,
-) {
-    let registry = engine.registry();
-    mark_analyzing(registry, actor_id, run_id, doc_id).await;
+        let all_applied = outcomes.iter().all(|ok| *ok);
+        run.state = if all_applied {
+            RunState::Applied
+        } else {
+            RunState::PartiallyApplied
+        };
+        run.updated_at = Timestamp::now();
+        registry.put_run(actor_id, &run).await?;
+        Ok(())
+    }
 
-    let outcome = match load_input(registry, actor_id, input_file_id).await {
-        Ok((file, bytes)) => {
-            let document = RawDocument {
-                bytes,
-                extension: file.extension,
-                content_type: file.content_type,
-            };
-            let analyze = engine.analyze_document(document, &spec, run_id);
-            match timeout(PER_DOC_TIMEOUT, analyze).await {
-                Ok(Ok(outcome)) => Ok(outcome),
-                Ok(Err(err)) => Err(DocFailure::Failed(err.to_string())),
-                Err(_) => Err(DocFailure::TimedOut),
+    /// Read the run header at `(actor_id, run_id)`.
+    pub async fn get_run(&self, actor_id: Uuid, run_id: Uuid) -> Result<Run> {
+        self.registry().get_run(actor_id, run_id).await
+    }
+
+    /// Read a per-doc body at `(actor_id, run_id, doc_id)`.
+    pub async fn get_run_doc(
+        &self,
+        actor_id: Uuid,
+        run_id: Uuid,
+        doc_id: Uuid,
+    ) -> Result<RunDocument> {
+        self.registry()
+            .get_run_doc(actor_id, run_id, doc_id)
+            .await
+    }
+
+    /// List every retention schedule row for a single file
+    /// (`(actor_id, file_id)`). Returns one entry per scope that
+    /// has an expiring rule (`Zero` / `Duration`); scopes with
+    /// `Indefinite` or no rule are absent (they have no row).
+    pub async fn list_retention_for_file(
+        &self,
+        actor_id: Uuid,
+        file_id: Uuid,
+    ) -> Result<Vec<RetentionRecord>> {
+        self.registry()
+            .list_retention_for_file(actor_id, file_id)
+            .await
+    }
+
+    /// Fetch one file's retention row for a specific scope, or
+    /// `None` when no row exists (the absence encodes
+    /// "indefinite" or "not yet scheduled").
+    pub async fn find_retention(
+        &self,
+        actor_id: Uuid,
+        file_id: Uuid,
+        scope: nvisy_core::policy::RetentionScope,
+    ) -> Result<Option<RetentionRecord>> {
+        self.registry()
+            .find_retention(actor_id, file_id, scope)
+            .await
+    }
+
+    /// Whether any active (non-terminal) run currently references
+    /// `(actor_id, file_id)`. The sweeper's gate; also the
+    /// integration-test read entry for asserting run-lifecycle
+    /// wiring.
+    pub async fn has_active_refs(&self, actor_id: Uuid, file_id: Uuid) -> Result<bool> {
+        self.registry().has_active_refs(actor_id, file_id).await
+    }
+
+    /// Drop every active-file-reference row belonging to
+    /// `run_id`. Harvests input file ids off the per-doc rows
+    /// (the source of truth) so a partially-failed start —
+    /// `put_run_doc` succeeded but `insert_active_ref` didn't —
+    /// still gets fully cleared. Per-doc reads that fail (e.g.
+    /// the row was manually deleted between start and now) are
+    /// skipped: the corresponding active-ref, if it exists,
+    /// will get picked up by the startup reap.
+    ///
+    /// Called at every terminal transition
+    /// ([`Engine::apply_run`], [`Engine::cancel_run`],
+    /// [`Engine::delete_run`]).
+    async fn release_active_refs(
+        &self,
+        actor_id: Uuid,
+        run_id: Uuid,
+        doc_ids: &[Uuid],
+    ) -> Result<()> {
+        let registry = self.registry();
+        let mut input_file_ids: Vec<Uuid> = Vec::with_capacity(doc_ids.len());
+        for &doc_id in doc_ids {
+            if let Ok(doc) = registry.get_run_doc(actor_id, run_id, doc_id).await {
+                input_file_ids.push(doc.input_file_id);
             }
         }
-        Err(err) => Err(DocFailure::Failed(err.to_string())),
-    };
+        registry
+            .delete_active_refs_for_run(actor_id, &input_file_ids, run_id)
+            .await
+    }
 
-    write_outcome(registry, actor_id, run_id, doc_id, outcome).await;
+    /// List every run for `actor_id`. Returns full headers;
+    /// callers filter by [`RunState`].
+    pub async fn list_runs(&self, actor_id: Uuid) -> Vec<Run> {
+        self.registry()
+            .list_runs(actor_id)
+            .await
+            .unwrap_or_default()
+    }
+
+    /// Cancel a run.
+    ///
+    /// Marks the header [`RunState::Failed`] with
+    /// `reason = "cancelled"`. Cancel is only valid from
+    /// [`RunState::Analyzing`] or [`RunState::AwaitingReview`];
+    /// calling it on a terminal run ([`RunState::Applied`] /
+    /// [`RunState::PartiallyApplied`] / [`RunState::Failed`])
+    /// returns [`ErrorKind::Conflict`].
+    ///
+    /// Cancel is a *header* operation: in-flight per-doc fan-out
+    /// tasks are not interrupted; they finish their current step
+    /// and write their outcome into a doc row no one will read.
+    /// Cooperative interruption needs a
+    /// [`tokio_util::sync::CancellationToken`] threaded through
+    /// the pipeline.
+    ///
+    /// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
+    /// [`tokio_util::sync::CancellationToken`]: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
+    pub async fn cancel_run(&self, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+        let registry = self.registry();
+        let mut run = registry.get_run(actor_id, run_id).await?;
+        match run.state {
+            RunState::Analyzing | RunState::AwaitingReview => {}
+            ref other => {
+                return Err(Error::conflict(
+                    format!(
+                        "run {run_id} is in state {other:?}; cancel only valid from Analyzing or AwaitingReview"
+                    ),
+                    "Engine::cancel_run",
+                ));
+            }
+        }
+
+        self.release_active_refs(actor_id, run_id, &run.document_ids)
+            .await?;
+
+        run.state = RunState::Failed {
+            reason: "cancelled".to_owned(),
+        };
+        run.updated_at = Timestamp::now();
+        registry.put_run(actor_id, &run).await
+    }
+
+    /// Delete a run, cascading across every run keyspace.
+    ///
+    /// Removes the header (`run_headers`) plus every per-doc
+    /// body (`run_docs`) belonging to the run. Returns
+    /// [`ErrorKind::NotFound`] when the header is missing.
+    ///
+    /// In-flight cancellation is **not** part of delete; callers
+    /// should [`Engine::cancel_run`] first when the run is still
+    /// active, then delete. Calling `delete_run` on an active
+    /// run is allowed — per-doc tasks that complete after the
+    /// delete write into keyspaces that no longer have a header,
+    /// and are reaped on the next list scan.
+    ///
+    /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
+    pub async fn delete_run(&self, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+        let registry = self.registry();
+        let header = registry.get_run(actor_id, run_id).await?;
+
+        // Release refs before dropping the per-doc bodies — the
+        // docs are the only source of truth for input_file_id
+        // and go away next.
+        self.release_active_refs(actor_id, run_id, &header.document_ids)
+            .await?;
+
+        registry.delete_run_bodies(actor_id, run_id).await?;
+        registry.delete_run(actor_id, run_id).await
+    }
+
+    /// Apply a reviewer override to one entity.
+    ///
+    /// Loads the doc body, finds the entity by id (walking the
+    /// body group and every container part), sets the override,
+    /// writes the body back. Idempotent — overriding the same
+    /// entity twice is well-defined (second write wins).
+    ///
+    /// Returns [`ErrorKind::NotFound`] when the run, doc, or
+    /// entity id is unknown.
+    ///
+    /// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
+    pub async fn override_entity(
+        &self,
+        actor_id: Uuid,
+        run_id: Uuid,
+        doc_id: Uuid,
+        entity_id: Uuid,
+        action: RuleAction,
+    ) -> Result<()> {
+        let registry = self.registry();
+        let mut doc = registry.get_run_doc(actor_id, run_id, doc_id).await?;
+        let found = patch_override(&mut doc.body, entity_id, action);
+        if !found {
+            return Err(Error::not_found(
+                format!("entity {entity_id} not found in run {run_id} doc {doc_id}"),
+                "Engine::override_entity",
+            ));
+        }
+        registry.put_run_doc(actor_id, run_id, &doc).await
+    }
+
+    /// One per-doc unit of the analyze fan-out. Owns the
+    /// lifecycle transitions for one row; never returns an error
+    /// (failures land in the row's state).
+    async fn analyze_one_doc(
+        &self,
+        actor_id: Uuid,
+        run_id: Uuid,
+        doc_id: Uuid,
+        input_file_id: Uuid,
+        spec: Arc<AnalyzerParams>,
+    ) {
+        let registry = self.registry();
+        mark_analyzing(registry, actor_id, run_id, doc_id).await;
+
+        let outcome = match load_input(registry, actor_id, input_file_id).await {
+            Ok((file, bytes)) => {
+                let document = RawDocument {
+                    bytes,
+                    extension: file.extension,
+                    content_type: file.content_type,
+                };
+                let analyze = self.analyze_document(document, &spec, run_id);
+                match timeout(PER_DOC_TIMEOUT, analyze).await {
+                    Ok(Ok(outcome)) => Ok(outcome),
+                    Ok(Err(err)) => Err(DocFailure::Failed(err.to_string())),
+                    Err(_) => Err(DocFailure::TimedOut),
+                }
+            }
+            Err(err) => Err(DocFailure::Failed(err.to_string())),
+        };
+
+        write_outcome(registry, actor_id, run_id, doc_id, outcome).await;
+    }
+
+    /// One per-doc unit of the apply fan-out. Returns `true` on
+    /// success, `false` when any step failed (failures land in
+    /// the row's state; the boolean only drives the header
+    /// transition).
+    async fn apply_one_doc(
+        &self,
+        actor_id: Uuid,
+        run_id: Uuid,
+        doc_id: Uuid,
+        ctx: Arc<ApplyContext>,
+    ) -> bool {
+        let registry = self.registry();
+        let Ok(mut doc) = registry.get_run_doc(actor_id, run_id, doc_id).await else {
+            return false;
+        };
+        if !matches!(doc.state, RunDocState::AwaitingReview) {
+            return matches!(doc.state, RunDocState::Applied);
+        }
+
+        let (input_file, input_bytes) =
+            match load_input(registry, actor_id, doc.input_file_id).await {
+                Ok(loaded) => loaded,
+                Err(err) => {
+                    doc.state = RunDocState::Failed {
+                        reason: format!("input file unavailable: {err}"),
+                    };
+                    let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
+                    return false;
+                }
+            };
+
+        let merged = merge_metadata(&input_file.descriptor_metadata, &ctx.request_metadata);
+        let facts = DocumentFacts {
+            labels: &input_file.descriptor_labels,
+            metadata: &merged,
+        };
+        let scoped: Vec<Policy> = ctx
+            .policies
+            .iter()
+            .filter(|p| policy_applies(p, &facts))
+            .cloned()
+            .collect();
+
+        let document = RawDocument {
+            bytes: input_bytes,
+            extension: input_file.extension.clone(),
+            content_type: input_file.content_type.clone(),
+        };
+        let outcome = self
+            .apply_document(document, &ctx.spec, &scoped, &doc.body, run_id)
+            .await;
+
+        match outcome {
+            Ok(out) => {
+                let descriptor = redacted_descriptor(&input_file, run_id);
+                match registry.put_file(actor_id, descriptor, out.bytes).await {
+                    Ok(output_file) => {
+                        doc.output_file_id = Some(output_file.id);
+                        doc.state = RunDocState::Applied;
+                        let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
+                        // Pin RedactedOutput retention on the
+                        // freshly stored output. Best-effort: a
+                        // write failure here does not roll back
+                        // the apply — the redaction is done, the
+                        // row is missing, the artifact just
+                        // won't be swept.
+                        if let Err(err) = registry
+                            .pin_retention(
+                                actor_id,
+                                output_file.id,
+                                RetentionScope::RedactedOutput,
+                                &ctx.retention,
+                                run_id,
+                                Timestamp::now(),
+                            )
+                            .await
+                        {
+                            tracing::warn!(
+                                target: "engine::apply",
+                                actor_id = %actor_id,
+                                run_id = %run_id,
+                                output_file_id = %output_file.id,
+                                error = %err,
+                                "failed to pin RedactedOutput retention row",
+                            );
+                        }
+                        true
+                    }
+                    Err(err) => {
+                        doc.state = RunDocState::Failed {
+                            reason: format!("writing redacted output file failed: {err}"),
+                        };
+                        let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
+                        false
+                    }
+                }
+            }
+            Err(err) => {
+                doc.state = RunDocState::Failed {
+                    reason: err.to_string(),
+                };
+                let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
+                false
+            }
+        }
+    }
+}
+
+enum DocFailure {
+    Failed(String),
+    TimedOut,
+}
+
+/// Per-run inputs shared across every doc in the apply
+/// fan-out. Materialised once by `apply_run` and passed by
+/// `Arc` to each per-doc task so the fan-out captures no
+/// borrows on its caller's stack.
+struct ApplyContext {
+    /// Per-request metadata; merged with each doc's descriptor
+    /// metadata at `Policy::applies_when` evaluation time.
+    request_metadata: HashMap<String, String>,
+    /// The recognition plan the run was started with. Threaded
+    /// into `Engine::apply_document` for the label catalog.
+    spec: AnalyzerParams,
+    /// Full resolved policy set. Each per-doc task filters this
+    /// against its own `DocumentFacts`.
+    policies: Vec<Policy>,
+    /// Strictest resolved retention per scope, from
+    /// [`resolve_retention`]. The apply path reads
+    /// [`RetentionScope::RedactedOutput`] out of this for each
+    /// output file; scopes absent from the map (no policy
+    /// governs) or resolving to `Indefinite` are no-ops.
+    ///
+    /// [`resolve_retention`]: nvisy_core::policy::resolve_retention
+    retention: HashMap<RetentionScope, Retention>,
 }
 
 /// Fetch the file metadata + bytes for one input file. Two
@@ -203,11 +571,6 @@ async fn load_input(
     let file = registry.get_file(actor_id, file_id).await?;
     let bytes = registry.get_file_bytes(actor_id, file_id).await?;
     Ok((file, bytes))
-}
-
-enum DocFailure {
-    Failed(String),
-    TimedOut,
 }
 
 async fn mark_analyzing(registry: &RegistryHandle, actor_id: Uuid, run_id: Uuid, doc_id: Uuid) {
@@ -243,167 +606,10 @@ async fn write_outcome(
     let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
 }
 
-/// Apply a run.
-///
-/// Loads the run header, verifies it is in
-/// [`RunState::AwaitingReview`], resolves every referenced
-/// policy, fans the per-doc anonymizer pass out under the run's
-/// concurrency cap, persists the redacted bytes as artifacts,
-/// and rewrites the header to [`RunState::Applied`] (every doc
-/// applied) or [`RunState::PartiallyApplied`] (at least one
-/// failed).
-pub async fn apply(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
-    let registry = engine.registry();
-    let mut run = registry.get_run(actor_id, run_id).await?;
-    if !matches!(run.state, RunState::AwaitingReview) {
-        return Err(Error::conflict(
-            format!(
-                "run {run_id} is in state {:?}; apply only valid from AwaitingReview",
-                run.state,
-            ),
-            "runs::apply",
-        ));
-    }
-
-    // Resolve every referenced policy up-front. Apply needs the
-    // full set so each per-doc task can filter by
-    // `Policy::applies_when` against that doc's facts.
-    let policies = Arc::new(resolve_policies(registry, actor_id, &run.policy_refs).await?);
-
-    // Materialise doc ids as owned `Copy` values; clone the
-    // shared inputs (analyzer spec + metadata + Arc<policies>)
-    // into each closure so the stream futures hold no borrows
-    // on this stack frame — keeps the outer apply future
-    // composable with handler-level `Send + 'static` bounds.
-    let doc_ids: Vec<Uuid> = run.document_ids.clone();
-    let request_metadata = run.metadata.clone();
-    let analyzer_spec = run.analyzer.clone();
-    let concurrency = run.concurrency;
-    let work = doc_ids.into_iter().map(|doc_id| {
-        apply_one_doc(
-            engine,
-            actor_id,
-            run_id,
-            doc_id,
-            request_metadata.clone(),
-            analyzer_spec.clone(),
-            Arc::clone(&policies),
-        )
-    });
-    let outcomes: Vec<bool> = stream::iter(work)
-        .buffer_unordered(concurrency)
-        .collect()
-        .await;
-
-    let all_applied = outcomes.iter().all(|ok| *ok);
-    run.state = if all_applied {
-        RunState::Applied
-    } else {
-        RunState::PartiallyApplied
-    };
-    run.updated_at = Timestamp::now();
-    registry.put_run(actor_id, &run).await?;
-    Ok(())
-}
-
-/// Read the run header at `(actor_id, run_id)`. Public read-side
-/// counterpart to the `pub(crate)` `RunRegistry::get_run`;
-/// external API consumers reach run state through this rather than
-/// the persistence trait.
-pub async fn get(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<Run> {
-    engine.registry().get_run(actor_id, run_id).await
-}
-
-/// Read a per-doc body at `(actor_id, run_id, doc_id)`.
-pub async fn get_doc(
-    engine: &Engine,
-    actor_id: Uuid,
-    run_id: Uuid,
-    doc_id: Uuid,
-) -> Result<RunDocument> {
-    engine
-        .registry()
-        .get_run_doc(actor_id, run_id, doc_id)
-        .await
-}
-
-/// List every run for `actor_id`. Returns full headers; callers
-/// filter by [`RunState`] (e.g. the HTTP layer's `/detections`
-/// view shows non-applied runs, `/redactions` shows applied
-/// runs).
-pub async fn list(engine: &Engine, actor_id: Uuid) -> Vec<Run> {
-    engine
-        .registry()
-        .list_runs(actor_id)
-        .await
-        .unwrap_or_default()
-}
-
-/// Cancel a run.
-///
-/// Marks the header [`RunState::Failed`] with `reason = "cancelled"`.
-/// Cancel is only valid from [`RunState::Analyzing`] or
-/// [`RunState::AwaitingReview`]; calling it on a terminal run
-/// ([`RunState::Applied`] / [`RunState::PartiallyApplied`] /
-/// [`RunState::Failed`]) returns [`ErrorKind::Conflict`].
-///
-/// Today's cancel is a *header* operation: in-flight per-doc
-/// fan-out tasks are not interrupted; they finish their current
-/// step and write their outcome into a doc row no one will read.
-/// Cooperative interruption needs a [`tokio_util::sync::CancellationToken`]
-/// threaded through the pipeline and lands as a follow-up slice.
-///
-/// [`ErrorKind::Conflict`]: nvisy_core::ErrorKind::Conflict
-/// [`tokio_util::sync::CancellationToken`]: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
-pub async fn cancel(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
-    let registry = engine.registry();
-    let mut run = registry.get_run(actor_id, run_id).await?;
-    match run.state {
-        RunState::Analyzing | RunState::AwaitingReview => {}
-        ref other => {
-            return Err(Error::conflict(
-                format!(
-                    "run {run_id} is in state {other:?}; cancel only valid from Analyzing or AwaitingReview"
-                ),
-                "runs::cancel",
-            ));
-        }
-    }
-    run.state = RunState::Failed {
-        reason: "cancelled".to_owned(),
-    };
-    run.updated_at = Timestamp::now();
-    registry.put_run(actor_id, &run).await
-}
-
-/// Delete a run, cascading across all four run keyspaces.
-///
-/// Removes the header (`run_headers`) plus every per-doc body
-/// (`run_docs`), artifact (`run_artifacts`), and input
-/// (`run_inputs`) belonging to the run. Returns
-/// [`ErrorKind::NotFound`] when the header is missing.
-///
-/// In-flight cancellation is **not** part of delete; callers
-/// should [`cancel`] first when the run is still active, then
-/// delete. Calling `delete` on an active run is allowed —
-/// per-doc tasks that complete after the delete write into
-/// keyspaces that no longer have a header, and are reaped on the
-/// next list scan.
-///
-/// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-pub async fn delete(engine: &Engine, actor_id: Uuid, run_id: Uuid) -> Result<()> {
-    let registry = engine.registry();
-    // Surface a clean NotFound when the run doesn't exist instead
-    // of silently succeeding.
-    let _header = registry.get_run(actor_id, run_id).await?;
-    registry.delete_run_bodies(actor_id, run_id).await?;
-    registry.delete_run(actor_id, run_id).await
-}
-
-/// Resolve every `(policy_id, version)` ref in the run header to
-/// its persisted [`Policy`] blob. Missing refs fail the apply
-/// call (the per-doc filter operates on the full set; a missing
-/// policy can't be silently dropped).
+/// Resolve every `(policy_id, version)` ref to its persisted
+/// [`Policy`] blob. Missing refs fail the whole call — the
+/// per-doc filter operates on the full set; a missing policy
+/// can't be silently dropped.
 async fn resolve_policies(
     registry: &RegistryHandle,
     actor_id: Uuid,
@@ -417,94 +623,6 @@ async fn resolve_policies(
         out.push(policy);
     }
     Ok(out)
-}
-
-/// One per-doc unit of the apply fan-out. Returns `true` on
-/// success, `false` when any step failed (failures land in the
-/// row's state; the boolean only drives the header transition).
-///
-/// Inputs are owned (analyzer spec, metadata, Arc-shared
-/// policy set) so the resulting future captures no references
-/// on its caller's stack — keeps the outer `runs::apply`
-/// future composable with handler-level `Send + 'static`
-/// bounds.
-async fn apply_one_doc(
-    engine: &Engine,
-    actor_id: Uuid,
-    run_id: Uuid,
-    doc_id: Uuid,
-    request_metadata: HashMap<String, String>,
-    spec: AnalyzerParams,
-    policies: Arc<Vec<Policy>>,
-) -> bool {
-    let registry = engine.registry();
-    let Ok(mut doc) = registry.get_run_doc(actor_id, run_id, doc_id).await else {
-        return false;
-    };
-    // Only apply rows that finished analyze. Failed / TimedOut /
-    // already-Applied rows pass through untouched.
-    if !matches!(doc.state, RunDocState::AwaitingReview) {
-        return matches!(doc.state, RunDocState::Applied);
-    }
-
-    let (input_file, input_bytes) = match load_input(registry, actor_id, doc.input_file_id).await {
-        Ok(loaded) => loaded,
-        Err(err) => {
-            doc.state = RunDocState::Failed {
-                reason: format!("input file unavailable: {err}"),
-            };
-            let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
-            return false;
-        }
-    };
-
-    let merged = merge_metadata(&input_file.descriptor_metadata, &request_metadata);
-    let facts = DocumentFacts {
-        labels: &input_file.descriptor_labels,
-        metadata: &merged,
-    };
-    let scoped: Vec<Policy> = policies
-        .iter()
-        .filter(|p| policy_applies(p, &facts))
-        .cloned()
-        .collect();
-
-    let document = RawDocument {
-        bytes: input_bytes,
-        extension: input_file.extension.clone(),
-        content_type: input_file.content_type.clone(),
-    };
-    let outcome = engine
-        .apply_document(document, &spec, &scoped, &doc.body, run_id)
-        .await;
-
-    match outcome {
-        Ok(out) => {
-            let descriptor = redacted_descriptor(&input_file, run_id);
-            match registry.put_file(actor_id, descriptor, out.bytes).await {
-                Ok(output_file) => {
-                    doc.output_file_id = Some(output_file.id);
-                    doc.state = RunDocState::Applied;
-                    let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
-                    true
-                }
-                Err(err) => {
-                    doc.state = RunDocState::Failed {
-                        reason: format!("writing redacted output file failed: {err}"),
-                    };
-                    let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
-                    false
-                }
-            }
-        }
-        Err(err) => {
-            doc.state = RunDocState::Failed {
-                reason: err.to_string(),
-            };
-            let _ = registry.put_run_doc(actor_id, run_id, &doc).await;
-            false
-        }
-    }
 }
 
 /// Build the descriptor for a redacted output file. Inherits
@@ -541,41 +659,9 @@ fn redacted_filename(name: &str) -> String {
     }
 }
 
-/// Apply a reviewer override to one entity.
-///
-/// Loads the doc body, finds the entity by id, sets the override,
-/// writes the body back. Idempotent — overriding the same entity
-/// twice is well-defined (second write wins).
-///
-/// Returns [`ErrorKind::NotFound`] when the run, doc, or entity
-/// id is unknown.
-///
-/// [`ErrorKind::NotFound`]: nvisy_core::ErrorKind::NotFound
-pub async fn override_entity(
-    engine: &Engine,
-    actor_id: Uuid,
-    run_id: Uuid,
-    doc_id: Uuid,
-    entity_id: Uuid,
-    action: RuleAction,
-) -> Result<()> {
-    let registry = engine.registry();
-    let mut doc = registry.get_run_doc(actor_id, run_id, doc_id).await?;
-    let found = patch_override(&mut doc.body, entity_id, action);
-    if !found {
-        return Err(Error::not_found(
-            format!("entity {entity_id} not found in run {run_id} doc {doc_id}"),
-            "runs::override_entity",
-        ));
-    }
-    registry.put_run_doc(actor_id, run_id, &doc).await
-}
-
 fn patch_override(doc_body: &mut DocBody, entity_id: Uuid, action: RuleAction) -> bool {
-    // Walk body then every part, return a mut reference into the
-    // matching record's override slot — at most one slot matches
-    // since entity ids are globally unique. Setting the action is
-    // one move into that slot; no clones along the way.
+    // Walk body then every part; at most one slot matches since
+    // entity ids are globally unique.
     let slot = doc_body
         .body
         .as_mut()

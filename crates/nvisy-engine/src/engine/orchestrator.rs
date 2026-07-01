@@ -13,6 +13,8 @@
 use elide::Orchestrator;
 use elide::codec::FormatRegistry;
 use elide::redaction::Anonymizer;
+use elide_core::entity::LabelCatalog;
+use elide_core::modality::Modality;
 use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
@@ -63,53 +65,77 @@ pub(super) fn build<'a>(
         correlation_id: Some(correlation_id),
     };
 
+    let text = assemble::<Text, _, _>(
+        &catalog,
+        overrides,
+        policies,
+        attach_override_text,
+        attach_policies_text,
+    )?;
+    let tabular = assemble::<Tabular, _, _>(
+        &catalog,
+        overrides,
+        policies,
+        attach_override_tabular,
+        attach_policies_tabular,
+    )?;
+    let image = assemble::<Image, _, _>(
+        &catalog,
+        overrides,
+        policies,
+        attach_override_image,
+        attach_policies_image,
+    )?;
+    let audio = assemble::<Audio, _, _>(
+        &catalog,
+        overrides,
+        policies,
+        attach_override_audio,
+        attach_policies_audio,
+    )?;
+
     let text_analyzer = spec.compile_text().map_err(compile_err)?;
     let tabular_analyzer = spec.compile_tabular().map_err(compile_err)?;
     let image_analyzer = spec.compile_image().map_err(compile_err)?;
     let audio_analyzer = spec.compile_audio().map_err(compile_err)?;
 
-    // Build each modality's anonymizer fresh: start with the
-    // catalog (so `with_tag` / `with_catalog_predicate` see label
-    // tags), layer reviewer overrides, then attach the policy
-    // chain so policy rules sit behind the overrides.
-    let mut text_anonymizer = Anonymizer::<Text>::new().with_catalog(catalog.clone());
-    for (id, action) in overrides {
-        text_anonymizer =
-            attach_override_text(text_anonymizer, *id, action).map_err(compile_err)?;
-    }
-    let text_anonymizer =
-        attach_policies_text(text_anonymizer, policies.iter()).map_err(compile_err)?;
-
-    let mut tabular_anonymizer = Anonymizer::<Tabular>::new().with_catalog(catalog.clone());
-    for (id, action) in overrides {
-        tabular_anonymizer =
-            attach_override_tabular(tabular_anonymizer, *id, action).map_err(compile_err)?;
-    }
-    let tabular_anonymizer =
-        attach_policies_tabular(tabular_anonymizer, policies.iter()).map_err(compile_err)?;
-
-    let mut image_anonymizer = Anonymizer::<Image>::new().with_catalog(catalog.clone());
-    for (id, action) in overrides {
-        image_anonymizer =
-            attach_override_image(image_anonymizer, *id, action).map_err(compile_err)?;
-    }
-    let image_anonymizer =
-        attach_policies_image(image_anonymizer, policies.iter()).map_err(compile_err)?;
-
-    let mut audio_anonymizer = Anonymizer::<Audio>::new().with_catalog(catalog);
-    for (id, action) in overrides {
-        audio_anonymizer =
-            attach_override_audio(audio_anonymizer, *id, action).map_err(compile_err)?;
-    }
-    let audio_anonymizer =
-        attach_policies_audio(audio_anonymizer, policies.iter()).map_err(compile_err)?;
-
     Ok(Orchestrator::new(formats)
         .with_scope(scope)
-        .with_modality::<Text>(text_analyzer, text_anonymizer)
-        .with_modality::<Tabular>(tabular_analyzer, tabular_anonymizer)
-        .with_modality::<Image>(image_analyzer, image_anonymizer)
-        .with_modality::<Audio>(audio_analyzer, audio_anonymizer))
+        .with_modality::<Text>(text_analyzer, text)
+        .with_modality::<Tabular>(tabular_analyzer, tabular)
+        .with_modality::<Image>(image_analyzer, image)
+        .with_modality::<Audio>(audio_analyzer, audio))
+}
+
+/// Assemble one modality's anonymizer: seed with the catalog,
+/// layer reviewer overrides (so overrides win over policy
+/// rules), then attach the policy chain.
+///
+/// `attach_override` and `attach_policies` are the per-modality
+/// bridges into [`super::anonymizer`] — they know which
+/// `ModalityRedactions` field to read and how to build the typed
+/// operator. This helper owns the invariant order and the error
+/// wrapping so each modality's callsite is one call.
+fn assemble<'a, M, O, P>(
+    catalog: &LabelCatalog,
+    overrides: &[(Uuid, RuleAction)],
+    policies: &'a [Policy],
+    attach_override: O,
+    attach_policies: P,
+) -> Result<Anonymizer<M>>
+where
+    M: Modality + 'static,
+    O: Fn(Anonymizer<M>, Uuid, &RuleAction) -> std::result::Result<Anonymizer<M>, elide::Error>,
+    P: FnOnce(
+        Anonymizer<M>,
+        std::slice::Iter<'a, Policy>,
+    ) -> std::result::Result<Anonymizer<M>, elide::Error>,
+{
+    let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
+    for (id, action) in overrides {
+        anonymizer = attach_override(anonymizer, *id, action).map_err(compile_err)?;
+    }
+    attach_policies(anonymizer, policies.iter()).map_err(compile_err)
 }
 
 /// Translate an `elide::Error` from a `compile_*` call into the

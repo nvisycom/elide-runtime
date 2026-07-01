@@ -6,7 +6,16 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// How long data is retained.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+///
+/// Ordered from strictest to laxest — `ZeroRetention <
+/// Duration { days: N } < Indefinite`, and within `Duration`,
+/// smaller `days` is stricter (`Duration { days: 7 } <
+/// Duration { days: 30 }`). The derived [`Ord`] reflects this:
+/// strictest-wins resolution across multiple policies is just
+/// `iter.min()`. Variant declaration order is load-bearing —
+/// don't reorder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Retention {

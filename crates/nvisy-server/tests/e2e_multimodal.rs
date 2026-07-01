@@ -11,7 +11,7 @@ use std::time::Duration;
 use axum_test::TestServer;
 use axum_test::http::HeaderName;
 use nvisy_core::plan::AnalyzerParams;
-use nvisy_server::{ServiceState, routes};
+use nvisy_server::{ServiceRuntime, routes};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -22,15 +22,16 @@ const ACTOR_HEADER: &str = "x-actor-id";
 const IMAGE_PART_ID: &str = "word/media/image1.png";
 const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
 
-async fn server() -> (TestServer, Uuid, TempDir) {
+async fn server() -> (TestServer, Uuid, ServiceRuntime, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let state = ServiceState::new(dir.path().to_path_buf(), AnalyzerParams::default())
-        .await
-        .expect("service state");
-    let router = routes().with_state(state);
+    let runtime =
+        ServiceRuntime::new(dir.path().to_path_buf(), AnalyzerParams::default(), None)
+            .await
+            .expect("service runtime");
+    let router = routes().with_state(runtime.state());
     let server = TestServer::new(router.into_make_service()).expect("test server");
     let actor_id = Uuid::now_v7();
-    (server, actor_id, dir)
+    (server, actor_id, runtime, dir)
 }
 
 fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
@@ -62,7 +63,7 @@ async fn await_review(server: &TestServer, actor_id: Uuid, run_id: Uuid) -> Valu
 
 #[tokio::test]
 async fn upload_detect_apply_download_round_trips_multimodal_docx() {
-    let (server, actor_id, _dir) = server().await;
+    let (server, actor_id, runtime, _dir) = server().await;
     let actor = HeaderName::from_static(ACTOR_HEADER);
 
     let resp = server
@@ -186,4 +187,5 @@ async fn upload_detect_apply_download_round_trips_multimodal_docx() {
         image_bytes, original_image,
         "image part must round-trip unchanged",
     );
+    runtime.stop().await;
 }

@@ -77,6 +77,7 @@ zip = { version = "2.0", default-features = false, features = ["deflate"] }
 
 # Async runtime and parallelism
 tokio = { version = "1.50", features = [] }
+tokio-util = { version = "0.7", features = [] }
 futures = { version = "0.3", features = [] }
 async-trait = { version = "0.1", features = [] }
 

@@ -1,38 +1,47 @@
 //! Run orchestrator: drives the two-phase analyze + apply
 //! lifecycle over the fjall registry.
 //!
-//! Surface, all keyed by `(actor_id, run_id)`:
+//! The public surface hangs off [`Engine`] as methods, all
+//! keyed by `(actor_id, run_id)`:
 //!
-//! - [`start`] — submit a batch, mints a run id, fans the
+//! - [`start_run`] — submit a batch, mints a run id, fans the
 //!   analyzer out, lands in [`RunState::AwaitingReview`].
-//! - [`get`] / [`get_doc`] — read the run header / a per-doc body.
-//! - [`list`] — list every run for an actor.
+//! - [`get_run`] / [`get_run_doc`] — read the run header / a
+//!   per-doc body.
+//! - [`list_runs`] — list every run for an actor.
 //! - [`override_entity`] — reviewer flips a per-entity decision
 //!   before apply.
-//! - [`apply`] — fan the anonymizer out, lands in
+//! - [`apply_run`] — fan the anonymizer out, lands in
 //!   [`RunState::Applied`] or [`RunState::PartiallyApplied`].
-//! - [`cancel`] — mark an in-flight or awaiting-review run
+//! - [`cancel_run`] — mark an in-flight or awaiting-review run
 //!   [`RunState::Failed`] with `reason = "cancelled"`.
-//! - [`delete`] — cascade-remove a run across all four
+//! - [`delete_run`] — cascade-remove a run across all run
 //!   keyspaces.
 //!
-//! Symmetric with [`crate::keyspace`]: all
-//! engine state lives in fjall keyspaces on the shared
-//! [`RegistryHandle`]; entry points read/write through the
-//! [`Engine`] that wraps it.
+//! Retention (the schedule, active-file gate, sweeper) lives in
+//! [`crate::retention`]; the run lifecycle writes into that
+//! module's keyspaces at [`start_run`] and [`apply_run`] but the
+//! sweeper concern is independent of any single run.
 //!
 //! [`Engine`]: crate::Engine
 //! [`RegistryHandle`]: crate::registry::RegistryHandle
+//! [`start_run`]: crate::Engine::start_run
+//! [`apply_run`]: crate::Engine::apply_run
+//! [`cancel_run`]: crate::Engine::cancel_run
+//! [`delete_run`]: crate::Engine::delete_run
+//! [`get_run`]: crate::Engine::get_run
+//! [`get_run_doc`]: crate::Engine::get_run_doc
+//! [`list_runs`]: crate::Engine::list_runs
+//! [`override_entity`]: crate::Engine::override_entity
 
 mod filter;
 mod input;
 mod orchestrate;
-mod persist;
+pub(crate) mod persist;
 mod state;
 
 pub use self::input::{DocumentInput, StartBatch};
-pub use self::orchestrate::{apply, cancel, delete, get, get_doc, list, override_entity, start};
 pub use self::state::{
-    DocBody, RecognizedGroup, EntityRecord, FailureReason, ResourceRef, Run, RunDocState, RunDocument,
-    RunState,
+    DocBody, EntityRecord, FailureReason, RecognizedGroup, ResourceRef, Run, RunDocState,
+    RunDocument, RunState,
 };

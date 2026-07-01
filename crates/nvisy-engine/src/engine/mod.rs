@@ -42,10 +42,14 @@
 //!
 //! ## Run lifecycle
 //!
-//! Free functions in [`super::runs`] (`start`, `apply`, `get`,
-//! `list`, `cancel`, `delete`, `override_entity`) drive the
-//! multi-doc batched run lifecycle, fanning the per-doc verbs
-//! above out under a concurrency cap with per-doc timeouts.
+//! Methods hanging off [`Engine`] itself ([`Engine::start_run`],
+//! [`Engine::apply_run`], [`Engine::get_run`], [`Engine::list_runs`],
+//! [`Engine::cancel_run`], [`Engine::delete_run`],
+//! [`Engine::override_entity`]) drive the multi-doc batched run
+//! lifecycle, fanning the per-doc verbs above out under a
+//! concurrency cap with per-doc timeouts. The bodies live in
+//! [`super::runs::orchestrate`] alongside the fjall keyspace
+//! layout they operate on.
 //!
 //! [`DocBody`]: crate::runs::DocBody
 //! [`FormatRegistry`]: elide::codec::FormatRegistry

@@ -1,8 +1,7 @@
 //! Recognizer params: per-kind slots inside an
 //! [`AnalyzerParams`].
 //!
-//! Three recognizer kinds — pattern, NER, LLM — each with its
-//! own slot on [`RecognizerParams`]:
+//! Three recognizer kinds — pattern, NER, LLM:
 //!
 //! - **Pattern** is at-most-one. Single regex/dictionary engine
 //!   per analyzer; multi-pattern means accumulating into one
@@ -11,9 +10,15 @@
 //!   versions, language-specialised models, ensemble lanes) run
 //!   in parallel; each is identified by [`name`] for
 //!   provenance.
-//! - **LLM** is a list. Multiple providers (OpenAI, Anthropic,
-//!   …) or per-label-class specialist models, identified by
-//!   [`name`].
+//! - **LLM** is a **deployment-owned lineup**. The wire only
+//!   carries a boolean toggle: `true` runs every
+//!   deployment-configured LLM recognizer whose modalities
+//!   match the analyzer, `false` skips them. Provider, model,
+//!   prompt, name, and credentials live in the deployment
+//!   config (see `nvisy-engine`'s LLM config layer). Rationale:
+//!   policies stay portable across deployments; the SaaS
+//!   operator (or sidecar user) controls which model actually
+//!   runs.
 //!
 //! [`AnalyzerParams`]: super::AnalyzerParams
 //! [`name`]: NerRecognizerParams::name
@@ -21,9 +26,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Recognizer slots an analyzer can fill. The slot name is the
-/// kind; pattern is at-most-one, NER and LLM accept many
-/// (identified by `name`).
+/// Recognizer slots an analyzer can fill. Pattern is
+/// at-most-one, NER is a list, LLM is a deployment-owned
+/// lineup gated by a boolean toggle.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognizerParams {
@@ -36,10 +41,18 @@ pub struct RecognizerParams {
     /// rest.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ner: Vec<NerRecognizerParams>,
-    /// External-backend LLM recognizers (`elide-llm`). Each
-    /// must have a unique `name`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub llm: Vec<LlmRecognizerParams>,
+    /// Run the deployment's LLM recognizer lineup. `false`
+    /// skips LLM recognition entirely; `true` attaches every
+    /// deployment-configured recognizer whose declared
+    /// modalities match the analyzer's modality. When the
+    /// deployment has no LLM recognizers configured, `true`
+    /// fails the analyzer compile with a `Validation` error.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub llm: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Params for the `elide-pattern` recognizer.
@@ -62,6 +75,10 @@ pub struct PatternRecognizerParams {
 }
 
 /// Params for one `elide-ner` recognizer instance.
+///
+/// The backend `kind` and its per-kind fields sit inline
+/// alongside `name` — no nested `backend = { ... }` table. Serde
+/// routes on `kind`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NerRecognizerParams {
@@ -71,17 +88,17 @@ pub struct NerRecognizerParams {
     /// [`RecognizerParams::ner`](super::RecognizerParams::ner)
     /// list.
     pub name: String,
-    /// Backend instantiation choice.
+    /// Backend selection + its per-kind fields, flattened onto
+    /// the recognizer's wire shape.
+    #[serde(flatten)]
     pub backend: NerBackendParams,
 }
 
 /// How to instantiate the NER backend.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum NerBackendParams {
-    /// No-op backend; emits no entities. For tests, offline
-    /// wiring, or skeleton runs.
-    Mock,
     /// BentoML-hosted NER service. Engine wires the shared
     /// `elide-bento` client; per-request URL + model come from
     /// this variant.
@@ -91,44 +108,11 @@ pub enum NerBackendParams {
         /// Model identifier the backend should target.
         model: String,
     },
-}
-
-/// Params for one `elide-llm` recognizer instance.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct LlmRecognizerParams {
-    /// Recognizer name — surfaces on the per-entity provenance
-    /// trail. Must be unique within the parent
-    /// [`RecognizerParams::llm`](super::RecognizerParams::llm)
-    /// list.
-    pub name: String,
-    /// Backend (provider) choice.
-    pub backend: LlmBackendParams,
-    /// Optional custom prompt template. `None` uses elide's
-    /// default recognition prompt.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prompt: Option<String>,
-}
-
-/// How to instantiate the LLM backend.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum LlmBackendParams {
-    /// No-op backend; emits no entities.
+    /// No-op backend; emits no entities. Test-only — the wire
+    /// only accepts `kind = "mock"` when the consuming crate
+    /// enables the `test-utils` feature.
+    #[cfg(feature = "test-utils")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
     Mock,
-    /// OpenAI GPT provider.
-    Openai {
-        /// Model identifier (e.g. `"gpt-4o-mini"`).
-        model: String,
-    },
-    /// Anthropic Claude provider.
-    Anthropic {
-        /// Model identifier (e.g. `"claude-3-5-sonnet-20241022"`).
-        model: String,
-    },
-    /// Google Gemini provider.
-    Google {
-        /// Model identifier (e.g. `"gemini-1.5-flash"`).
-        model: String,
-    },
 }
+

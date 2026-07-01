@@ -41,8 +41,12 @@ async fn run() -> anyhow::Result<()> {
         binary = env!("CARGO_PKG_VERSION"),
         "starting nvisy",
     );
-    let AppConfig { server, analyzer } = config;
-    let runtime = ServiceRuntime::new(server.data_dir.clone(), analyzer, None).await?;
+    let AppConfig {
+        server,
+        analyzer,
+        llm,
+    } = config;
+    let runtime = ServiceRuntime::new(server.data_dir.clone(), analyzer, llm, None).await?;
     let router = create_router(&server, runtime.state());
     let outcome = server::run(&server, router).await;
     runtime.stop().await;

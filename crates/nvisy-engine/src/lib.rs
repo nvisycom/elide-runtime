@@ -22,6 +22,7 @@
 //!   ([`Engine::sweep_once`] / [`Engine::start_sweeper`]).
 
 mod engine;
+mod llm;
 
 pub mod keyspace;
 pub mod registry;

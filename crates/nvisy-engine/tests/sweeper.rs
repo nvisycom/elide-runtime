@@ -42,7 +42,7 @@ fn analyzer_spec() -> AnalyzerParams {
                 context_enhanced: true,
             }),
             ner: Vec::new(),
-            llm: Vec::new(),
+            llm: false,
         },
         enrichers: nvisy_core::plan::EnricherParams::default(),
         deduplication: Default::default(),

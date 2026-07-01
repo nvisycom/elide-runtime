@@ -26,6 +26,18 @@ image = ["elide/codec-image"]
 audio = ["elide/codec-audio"]
 document = ["elide/codec-document"]
 
+## Turn on the test-only mock variants
+## (`{Ner,Ocr,Stt,Llm}BackendParams::Mock`) and the elide mock
+## backends they compile into. Off in production so `Nvisy.toml`
+## cannot ship a mock recognizer.
+test-utils = [
+    "nvisy-core/test-utils",
+    "elide/mock",
+    "elide-ocr/mock",
+    "elide-stt/mock",
+    "elide-llm/mock",
+]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -34,19 +46,23 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Elide toolkit (upstream). `mock` pulls the no-op NER/LLM backends
-# the analyzer compile uses for `NerBackendParams::Mock` /
-# `LlmBackendParams::Mock`; real LLM providers land when key-provider
-# wiring lands.
-elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "lingua", "mock", "serde", "schema", "sha2"] }
+# Elide toolkit (upstream). `mock` pulls the no-op NER stub; the LLM
+# features pull the rig backend (`llm-rig`, needed for Ollama) plus
+# the three authenticated providers.
+elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "llm-rig", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "serde", "schema", "sha2"] }
+
+# `Jinja2Prompt` loader for deployment-configured per-recognizer
+# prompt templates. Not re-exported from the elide umbrella, so
+# we depend directly.
+elide-llm = { workspace = true, features = ["jinja2"] }
 elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
 # Recognition-side elide crates not re-exported through the elide
 # umbrella the way the recognizer crates are (`elide::recognition::*`
 # is the natural reach for those). `elide-ocr` is the OCR enricher
 # layer engine wires from the image-modality compile path.
-elide-ocr = { workspace = true, features = ["mock"] }
-elide-stt = { workspace = true, features = ["mock"] }
+elide-ocr = { workspace = true, features = [] }
+elide-stt = { workspace = true, features = [] }
 
 # Runtime-owned elide extensions
 elide-bento = { workspace = true, features = ["ner", "ocr"] }
@@ -89,6 +105,13 @@ serde_json = { workspace = true, features = [] }
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
+# Turn on the test-only mock variants
+# (`{Ner,Ocr,Stt,Llm}BackendParams::Mock`) so integration tests
+# can construct a working analyzer without hitting a real Bento
+# backend or LLM provider. Off in production so `Nvisy.toml`
+# cannot ship a mock recognizer.
+nvisy-engine = { path = ".", features = ["test-utils"] }
+
 # Async runtime and parallelism
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 

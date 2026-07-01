@@ -24,7 +24,12 @@ const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 /// and the temp dir guard (drop it last to keep the dir alive).
 async fn server() -> (TestServer, Uuid, ServiceRuntime, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let runtime = ServiceRuntime::new(dir.path().to_path_buf(), AnalyzerParams::default(), None)
+    let runtime = ServiceRuntime::new(
+        dir.path().to_path_buf(),
+        AnalyzerParams::default(),
+        Default::default(),
+        None,
+    )
         .await
         .expect("service runtime");
     let router = routes().with_state(runtime.state());

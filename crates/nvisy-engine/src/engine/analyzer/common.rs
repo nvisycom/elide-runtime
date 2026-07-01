@@ -85,11 +85,26 @@ where
 {
     let mut builder = NerRecognizer::builder().with_name(spec.name.clone());
     match &spec.backend {
+        NerBackendParams::Bento { base_url, model } => {
+            builder = builder.with_backend(BentoNer::new(base_url.clone(), model.clone())?);
+        }
+        #[cfg(feature = "test-utils")]
         NerBackendParams::Mock => {
             builder = builder.with_mock_backend();
         }
-        NerBackendParams::Bento { base_url, model } => {
-            builder = builder.with_backend(BentoNer::new(base_url.clone(), model.clone())?);
+        // `NerBackendParams` is `#[non_exhaustive]`. A future
+        // variant reaching this arm should surface as a
+        // Validation error rather than silently dropping the
+        // recognizer.
+        _ => {
+            return Err(Error::new(
+                elide_core::ErrorKind::Validation,
+                format!(
+                    "NER recognizer `{}` uses a backend kind this engine binary \
+                     doesn't understand; upgrade the engine or downgrade the config",
+                    spec.name,
+                ),
+            ));
         }
     }
     Ok(analyzer.with_recognizer(builder.build()?))

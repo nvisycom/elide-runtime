@@ -22,8 +22,9 @@
 //!
 //! - `recognizers` ([`RecognizerOverrides`]): nested struct
 //!   carrying one override per kind. `pattern` is at-most-one
-//!   (scalar); `ner` and `llm` are lists with selector-based
-//!   patch semantics.
+//!   (scalar), `ner` is a list with selector-based patch
+//!   semantics, `llm` is a boolean toggle (the deployment owns
+//!   the lineup, requests only opt in or out).
 //! - `enrichers` ([`EnricherOverrides`]): nested struct, each
 //!   slot at-most-one (scalar). Slots: `language`, `ocr`, `stt`.
 //! - `deduplication`: scalar.
@@ -33,8 +34,8 @@
 use elide_core::primitive::{CountryCode, Languages};
 use nvisy_core::plan::{
     AnalyzerParams, DeduplicationParams, EnricherParams, LabelCatalogParams,
-    LanguageEnricherParams, LlmRecognizerParams, NerRecognizerParams, OcrEnricherParams,
-    PatternRecognizerParams, RecognizerParams, ScopeParams, SttEnricherParams,
+    LanguageEnricherParams, NerRecognizerParams, OcrEnricherParams, PatternRecognizerParams,
+    RecognizerParams, ScopeParams, SttEnricherParams,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -108,7 +109,8 @@ impl ScopeOverrides {
 
 /// Per-kind overrides on the recognizer slots of
 /// [`RecognizerParams`]. Pattern is scalar (at-most-one); NER
-/// and LLM are collections.
+/// is a collection; LLM is a scalar boolean toggle (the
+/// deployment owns the lineup — the request only opts in or out).
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognizerOverrides {
@@ -118,9 +120,10 @@ pub struct RecognizerOverrides {
     /// NER recognizer list. Selectors match by `name`.
     #[serde(default)]
     pub ner: CollectionOverride<NerRecognizerParams, NerSelector>,
-    /// LLM recognizer list. Selectors match by `name`.
+    /// LLM toggle. `true` attaches the deployment's configured
+    /// recognizer lineup; `false` skips LLM entirely.
     #[serde(default)]
-    pub llm: CollectionOverride<LlmRecognizerParams, LlmSelector>,
+    pub llm: ScalarOverride<bool>,
 }
 
 impl RecognizerOverrides {
@@ -128,7 +131,7 @@ impl RecognizerOverrides {
         RecognizerParams {
             pattern: self.pattern.resolve_optional(default.pattern.as_ref()),
             ner: self.ner.resolve(&default.ner, ner_matches),
-            llm: self.llm.resolve(&default.llm, llm_matches),
+            llm: self.llm.resolve(&default.llm),
         }
     }
 }
@@ -264,19 +267,6 @@ pub struct NerSelector {
     pub name: String,
 }
 
-/// Selector for [`CollectionOverride::Patch::remove`] on the
-/// `llm` list. LLM recognizers are keyed by `name`.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct LlmSelector {
-    /// LLM recognizer name to match.
-    pub name: String,
-}
-
 fn ner_matches(sel: &NerSelector, spec: &NerRecognizerParams) -> bool {
-    sel.name == spec.name
-}
-
-fn llm_matches(sel: &LlmSelector, spec: &LlmRecognizerParams) -> bool {
     sel.name == spec.name
 }

@@ -29,6 +29,10 @@ image = ["nvisy-engine/image"]
 audio = ["nvisy-engine/audio"]
 ## Document containers — docx (text body + image parts).
 document = ["nvisy-engine/document"]
+## Turn on `{Ner,Ocr,Stt,Llm}BackendParams::Mock` in the wire
+## schema. Off in production so inbound requests and `Nvisy.toml`
+## cannot ship a mock backend.
+test-utils = ["nvisy-engine/test-utils"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -71,6 +75,9 @@ tower = { workspace = true, features = ["util", "timeout"] }
 tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "sensitive-headers", "catch-panic", "util"] }
 
 [dev-dependencies]
+# Turn on the wire's Mock backend variants for e2e tests.
+nvisy-server = { path = ".", features = ["test-utils"] }
+
 # Serialization
 serde_json = { workspace = true, features = [] }
 

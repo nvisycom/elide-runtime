@@ -64,20 +64,23 @@ pub struct LanguageEnricherParams {
 }
 
 /// Params for the OCR enricher (image modality).
+///
+/// The backend `kind` and its per-kind fields sit inline — no
+/// nested `backend = { ... }` table. Serde routes on `kind`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OcrEnricherParams {
-    /// OCR backend choice.
+    /// Backend selection + its per-kind fields, flattened onto
+    /// the enricher's wire shape.
+    #[serde(flatten)]
     pub backend: OcrBackendParams,
 }
 
 /// How to instantiate the OCR backend.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum OcrBackendParams {
-    /// No-op backend; recognises no blocks. For tests, offline
-    /// wiring, or skeleton runs.
-    Mock,
     /// BentoML-hosted OCR service. Engine wires the shared
     /// `elide-bento` client; per-request URL + model come from
     /// this variant.
@@ -87,23 +90,30 @@ pub enum OcrBackendParams {
         /// Model identifier the backend should target.
         model: String,
     },
+    /// No-op backend; recognises no blocks. Test-only.
+    #[cfg(feature = "test-utils")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+    Mock,
 }
 
 /// Params for the STT enricher (audio modality).
+///
+/// The backend `kind` and its per-kind fields sit inline — no
+/// nested `backend = { ... }` table. Serde routes on `kind`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SttEnricherParams {
-    /// STT backend choice.
+    /// Backend selection + its per-kind fields, flattened onto
+    /// the enricher's wire shape.
+    #[serde(flatten)]
     pub backend: SttBackendParams,
 }
 
 /// How to instantiate the STT backend.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum SttBackendParams {
-    /// No-op backend; emits no transcript segments. For tests
-    /// and skeleton runs.
-    Mock,
     /// BentoML-hosted STT service. Per-request URL + model come
     /// from this variant. Engine wiring lands when
     /// `elide-bento` ships a `BentoStt` client.
@@ -113,4 +123,8 @@ pub enum SttBackendParams {
         /// Model identifier the backend should target.
         model: String,
     },
+    /// No-op backend; emits no transcript segments. Test-only.
+    #[cfg(feature = "test-utils")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+    Mock,
 }

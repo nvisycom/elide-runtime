@@ -94,6 +94,7 @@ const COMPONENT: &str = "engine";
 pub struct Engine {
     registry: RegistryHandle,
     formats: Arc<FormatRegistry>,
+    llm: Arc<nvisy_core::llm::LlmConfig>,
 }
 
 /// Outcome of applying redactions to one document.
@@ -109,11 +110,20 @@ pub struct ApplyOutcome {
 impl Engine {
     /// Open (or create) the engine database at `path` and pair it
     /// with elide's built-in codec set
-    /// ([`FormatRegistry::with_builtin`]).
+    /// ([`FormatRegistry::with_builtin`]) plus an empty
+    /// [`LlmConfig`]. Callers that want LLM recognition must use
+    /// [`with_llm`] instead.
+    ///
+    /// [`LlmConfig`]: nvisy_core::llm::LlmConfig
+    /// [`with_llm`]: Self::with_llm
     pub fn open(path: &Path) -> Result<Self> {
         let registry = RegistryHandle::open(path)?;
         let formats = Arc::new(FormatRegistry::with_builtin());
-        Ok(Self { registry, formats })
+        Ok(Self {
+            registry,
+            formats,
+            llm: Arc::new(nvisy_core::llm::LlmConfig::default()),
+        })
     }
 
     /// Open (or create) the engine database at `path` and pair it
@@ -125,7 +135,18 @@ impl Engine {
         Ok(Self {
             registry,
             formats: Arc::new(formats),
+            llm: Arc::new(nvisy_core::llm::LlmConfig::default()),
         })
+    }
+
+    /// Set the deployment's LLM configuration on an already-open
+    /// engine. Consumed once at boot; the analyzer compile reads
+    /// it every time a request submits
+    /// `AnalyzerParams.recognizers.llm = true`.
+    #[must_use]
+    pub fn with_llm(mut self, llm: nvisy_core::llm::LlmConfig) -> Self {
+        self.llm = Arc::new(llm);
+        self
     }
 
     /// The persistence registry. Holds the fjall keyspaces every
@@ -168,7 +189,8 @@ impl Engine {
     ) -> Result<DocBody> {
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
-        let orchestrator = orchestrator::build(&self.formats, spec, &[], &[], correlation_id)?;
+        let orchestrator =
+            orchestrator::build(&self.formats, spec, &self.llm, &[], &[], correlation_id)?;
         let mut report = orchestrator.analyze(&mut handle).await.map_err(|err| {
             Error::internal("orchestrator analyze failed", COMPONENT).with_source(err)
         })?;
@@ -268,8 +290,14 @@ impl Engine {
             collect_overrides_into(&mut overrides, group);
         }
 
-        let orchestrator =
-            orchestrator::build(&self.formats, spec, policies, &overrides, correlation_id)?;
+        let orchestrator = orchestrator::build(
+            &self.formats,
+            spec,
+            &self.llm,
+            policies,
+            &overrides,
+            correlation_id,
+        )?;
         orchestrator
             .anonymize_with(&mut handle, report)
             .await

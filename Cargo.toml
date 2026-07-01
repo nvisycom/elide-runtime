@@ -32,6 +32,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main" }
 # Pulled directly only by `elide-bento`, which implements the per-backend traits these crates export.
+elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }

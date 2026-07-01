@@ -25,12 +25,18 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 
-## Test utilities (Entity::new_test, fixture helpers, …).
+## Test utilities: fixture helpers plus test-only wire variants
+## (`NerBackendParams::Mock`, `OcrBackendParams::Mock`, `SttBackendParams::Mock`).
+## Off in production so the wire cannot accept `kind = "mock"` in
+## `Nvisy.toml`; on in `nvisy-engine`'s dev-dependencies so
+## integration tests can construct a working analyzer without
+## hitting a real Bento backend.
 test-utils = []
 
 [dependencies]
 # Framework
-elide = { workspace = true, features = ["image", "audio", "tabular", "serde", "schema", "sha2"] }
+elide = { workspace = true, features = ["image", "audio", "tabular", "llm", "llm-rig", "llm-openai", "llm-anthropic", "llm-gemini", "serde", "schema", "sha2"] }
+elide-llm = { workspace = true, features = ["rig", "openai-gpt", "anthropic-claude", "google-gemini"] }
 elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
 # Serialization

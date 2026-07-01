@@ -24,7 +24,12 @@ const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
 
 async fn server() -> (TestServer, Uuid, ServiceRuntime, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let runtime = ServiceRuntime::new(dir.path().to_path_buf(), AnalyzerParams::default(), None)
+    let runtime = ServiceRuntime::new(
+        dir.path().to_path_buf(),
+        AnalyzerParams::default(),
+        Default::default(),
+        None,
+    )
         .await
         .expect("service runtime");
     let router = routes().with_state(runtime.state());
@@ -97,7 +102,7 @@ async fn upload_detect_apply_download_round_trips_multimodal_docx() {
                 "enrichers": {
                     "ocr": {
                         "mode": "replace",
-                        "value": { "backend": { "kind": "mock" } },
+                        "value": { "kind": "mock" },
                     },
                 },
             },

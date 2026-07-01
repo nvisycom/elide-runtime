@@ -4,6 +4,7 @@
 
 pub mod context;
 pub mod file;
+pub mod llm;
 pub mod plan;
 pub mod policy;
 pub mod service;

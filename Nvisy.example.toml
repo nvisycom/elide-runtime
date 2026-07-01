@@ -63,13 +63,12 @@ min_confidence = 0.7 # filter threshold, 0.0..=1.0
 # compile time: `builtins` (names from `elide-core`'s shipped
 # builtin set; unknown names warn and are skipped) and `custom`
 # (inline LabelSchema records, `{ name, description?, tags?,
-# metadata? }`). Requests can scalar-replace this wholesale; left
-# empty here, no labels are in scope until the request sets them.
-# [analyzer.scope.label_catalog]
-# builtins = ["email_address", "phone_number", "credit_card"]
-# # [[analyzer.scope.label_catalog.custom]]
-# # name = "internal_employee_id"
-# # tags = ["pii"]
+# metadata? }`). Requests can scalar-replace this wholesale.
+[analyzer.scope.label_catalog]
+builtins = ["email_address", "phone_number", "credit_card"]
+# [[analyzer.scope.label_catalog.custom]]
+# name = "internal_employee_id"
+# tags = ["pii"]
 
 # Pattern recognizer: at-most-one per analyzer. Loads every
 # shipped pattern + dictionary and wraps the recognizer in
@@ -80,30 +79,63 @@ context_enhanced = true
 
 # NER recognizer list. Each entry needs a unique `name`; multiple
 # entries run in parallel (e.g. one English model, one Spanish).
-# [[analyzer.recognizers.ner]]
-# name = "default_ner"
-# backend = { kind = "mock" }
-# # backend = { kind = "bento", base_url = "http://localhost:3000", model = "..." }
-
-# LLM recognizer list. Same shape; backend chooses provider.
-# [[analyzer.recognizers.llm]]
-# name = "default_llm"
-# backend = { kind = "mock" }
+[[analyzer.recognizers.ner]]
+name = "default_ner"
+kind = "bento"
+base_url = "http://localhost:3000"
+model = "REPLACE_ME"
 
 # Language enricher (writes the document's detected languages
 # into the recognizer context, driving jurisdiction-aware
 # dispatch). At-most-one per analyzer; text modality only.
 # `candidates` scopes the lingua detector to a candidate pool —
 # empty considers every language lingua was compiled with.
-# [analyzer.enrichers.language]
-# candidates = ["en", "es", "fr"]
+[analyzer.enrichers.language]
+candidates = ["en", "es", "fr"]
 
 # OCR enricher (image modality only). At-most-one per analyzer.
-# [analyzer.enrichers.ocr]
-# backend = { kind = "mock" }
-# # backend = { kind = "bento", base_url = "http://localhost:3001", model = "..." }
+[analyzer.enrichers.ocr]
+kind = "bento"
+base_url = "http://localhost:3001"
+model = "REPLACE_ME"
 
 # STT enricher (audio modality only). At-most-one per analyzer.
-# [analyzer.enrichers.stt]
-# backend = { kind = "mock" }
-# # backend = { kind = "bento", base_url = "http://localhost:3002", model = "..." }
+[analyzer.enrichers.stt]
+kind = "bento"
+base_url = "http://localhost:3002"
+model = "REPLACE_ME"
+
+# LLM recognizer lineup. Each entry is one recognizer instance:
+# provider `kind` + its per-kind fields sit inline alongside
+# `name` (no nested table). Optional Jinja2 prompt and modality
+# filter follow (`modalities` defaults to `["text"]`).
+#
+# Turning `analyzer.recognizers.llm = true` on a request runs
+# every entry here whose `modalities` matches the analyzer.
+# Missing lineup + `llm = true` fails the analyzer compile with
+# a validation error.
+#
+# Supported provider `kind`s: `open-ai`, `anthropic`, `gemini`,
+# `ollama`. All except `ollama` need `api_key`; `ollama`
+# optionally takes `base_url` (default: http://localhost:11434).
+#
+# ⚠ `api_key` is a secret. Keep this example file free of real
+# keys; write real values into your deployment's `Nvisy.toml`
+# via a secrets manager (Doppler, Vault, 1Password) at deploy
+# time, and gitignore that file.
+#
+# OpenAI example (commented — needs an API key):
+# [[llm.recognizers]]
+# name = "gpt-general"
+# kind = "open-ai"
+# api_key = "REPLACE_ME"
+# model = "gpt-4o-mini"
+# modalities = ["text"]
+
+# Ollama — local, no API key. Runs against `ollama serve` at
+# http://localhost:11434 by default; override with `base_url`.
+[[llm.recognizers]]
+name = "llama-local"
+kind = "ollama"
+model = "llama3.1:8b"
+modalities = ["text"]

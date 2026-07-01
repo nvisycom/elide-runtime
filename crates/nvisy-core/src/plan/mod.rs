@@ -41,6 +41,5 @@ pub use self::enricher::{
 };
 pub use self::label::LabelCatalogParams;
 pub use self::recognizer::{
-    LlmBackendParams, LlmRecognizerParams, NerBackendParams, NerRecognizerParams,
-    PatternRecognizerParams, RecognizerParams,
+    NerBackendParams, NerRecognizerParams, PatternRecognizerParams, RecognizerParams,
 };

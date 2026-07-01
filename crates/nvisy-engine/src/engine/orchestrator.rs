@@ -19,6 +19,7 @@ use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
+use nvisy_core::llm::LlmConfig;
 use nvisy_core::plan::AnalyzerParams;
 use nvisy_core::policy::{Policy, RuleAction};
 use nvisy_core::{Error, Result};
@@ -46,6 +47,7 @@ const COMPONENT: &str = "engine::orchestrator";
 pub(super) fn build<'a>(
     formats: &'a FormatRegistry,
     spec: &AnalyzerParams,
+    llm: &LlmConfig,
     policies: &[Policy],
     overrides: &[(Uuid, RuleAction)],
     correlation_id: Uuid,
@@ -94,9 +96,9 @@ pub(super) fn build<'a>(
         attach_policies_audio,
     )?;
 
-    let text_analyzer = spec.compile_text().map_err(compile_err)?;
+    let text_analyzer = spec.compile_text(llm).map_err(compile_err)?;
     let tabular_analyzer = spec.compile_tabular().map_err(compile_err)?;
-    let image_analyzer = spec.compile_image().map_err(compile_err)?;
+    let image_analyzer = spec.compile_image(llm).map_err(compile_err)?;
     let audio_analyzer = spec.compile_audio().map_err(compile_err)?;
 
     Ok(Orchestrator::new(formats)

@@ -100,8 +100,8 @@ impl Overrides {
 }
 
 /// Resolved top-level configuration: server settings + the
-/// deployment's default [`AnalyzerParams`], merged from TOML +
-/// CLI overrides.
+/// deployment's default [`AnalyzerParams`] + the LLM lineup,
+/// merged from TOML + CLI overrides.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct AppConfig {
     /// Server, observability, and middleware configuration.
@@ -114,6 +114,12 @@ pub struct AppConfig {
     /// "nothing detects" semantics.
     #[serde(default)]
     pub analyzer: AnalyzerParams,
+    /// LLM recognizer lineup + per-provider credentials.
+    /// Empty when the `[llm]` section is absent — requests that
+    /// set `recognizers.llm = true` will then fail at compile
+    /// with a `Validation` error.
+    #[serde(default)]
+    pub llm: nvisy_core::llm::LlmConfig,
 }
 
 impl Cli {

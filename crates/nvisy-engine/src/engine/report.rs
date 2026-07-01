@@ -107,7 +107,11 @@ pub(super) fn insert_body(report: elide::Report, group: &RecognizedGroup) -> eli
 }
 
 /// Insert one part group into `report` under its modality.
-pub(super) fn insert_part(report: elide::Report, id: &str, group: &RecognizedGroup) -> elide::Report {
+pub(super) fn insert_part(
+    report: elide::Report,
+    id: &str,
+    group: &RecognizedGroup,
+) -> elide::Report {
     let part_id = PartId::from(id.to_owned());
     match group {
         RecognizedGroup::Text { entities } => {
@@ -190,4 +194,3 @@ where
         bytes: content.into_bytes(),
     })
 }
-

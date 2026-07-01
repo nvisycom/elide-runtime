@@ -61,12 +61,15 @@ impl AnalyzerCompile for AnalyzerParams {
     fn compile_text(&self) -> Result<Analyzer<Text>, Error> {
         self::text::compile(self)
     }
+
     fn compile_tabular(&self) -> Result<Analyzer<Tabular>, Error> {
         self::tabular::compile(self)
     }
+
     fn compile_image(&self) -> Result<Analyzer<Image>, Error> {
         self::image::compile(self)
     }
+
     fn compile_audio(&self) -> Result<Analyzer<Audio>, Error> {
         self::audio::compile(self)
     }

@@ -18,8 +18,8 @@ use std::time::Duration;
 
 use nvisy_core::Result;
 use nvisy_core::plan::AnalyzerParams;
-use nvisy_engine::retention::SweeperHandle;
 use nvisy_engine::Engine;
+use nvisy_engine::retention::SweeperHandle;
 
 /// Default sweeper cadence when the caller doesn't specify.
 /// Five minutes is small enough that a `ZeroRetention` policy

@@ -17,8 +17,9 @@ use std::path::PathBuf;
 use bytes::Bytes;
 use hipstr::HipStr;
 use nvisy_core::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
+use nvisy_engine::keyspace::FileDescriptor;
 use nvisy_engine::runs::{DocumentInput, StartBatch};
-use nvisy_engine::{Engine, FileRegistry, keyspace::FileDescriptor};
+use nvisy_engine::{Engine, FileRegistry};
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -116,7 +117,10 @@ async fn cancel_clears_refs_for_the_run() {
     let file = upload_txt(&engine, actor, b"Contact: alice@example.com\n").await;
     let run = start(&engine, actor, file).await;
     assert!(gate(&engine, actor, file).await, "gate on after start");
-    engine.cancel_run(actor, run).await.expect("cancel succeeds");
+    engine
+        .cancel_run(actor, run)
+        .await
+        .expect("cancel succeeds");
     assert!(!gate(&engine, actor, file).await, "gate off after cancel");
 }
 
@@ -131,7 +135,10 @@ async fn delete_run_clears_refs_before_dropping_bodies() {
     engine.cancel_run(actor, run).await.unwrap();
     // cancel already dropped the refs; re-check delete_run is
     // safe against the empty-ref case too.
-    engine.delete_run(actor, run).await.expect("delete succeeds");
+    engine
+        .delete_run(actor, run)
+        .await
+        .expect("delete succeeds");
     assert!(!gate(&engine, actor, file).await);
 }
 

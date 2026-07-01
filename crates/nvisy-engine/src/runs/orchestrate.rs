@@ -12,7 +12,7 @@ use futures::{StreamExt, stream};
 use jiff::Timestamp;
 use nvisy_core::file::FileMetadata;
 use nvisy_core::plan::AnalyzerParams;
-use nvisy_core::policy::{Policy, Retention, RetentionScope, RuleAction, resolve_retention};
+use nvisy_core::policy::{Policy, Retention, RetentionScope, RuleAction};
 use nvisy_core::{Error, FileLineage, RawDocument, Result};
 use tokio::time::timeout;
 use uuid::Uuid;
@@ -26,6 +26,7 @@ use super::state::{
 use crate::keyspace::FileDescriptor;
 use crate::registry::RegistryHandle;
 use crate::retention::active_refs::ActiveFileRefRegistry;
+use crate::retention::resolve_retention;
 use crate::retention::schedule::{RetentionRecord, RetentionRegistry};
 use crate::{Engine, FileRegistry, PolicyRegistry};
 
@@ -122,7 +123,13 @@ impl Engine {
             .collect();
         let analyzer_spec = Arc::new(run.analyzer.clone());
         let work = analyze_inputs.into_iter().map(|(doc_id, file_id)| {
-            self.analyze_one_doc(actor_id, run_id, doc_id, file_id, Arc::clone(&analyzer_spec))
+            self.analyze_one_doc(
+                actor_id,
+                run_id,
+                doc_id,
+                file_id,
+                Arc::clone(&analyzer_spec),
+            )
         });
         stream::iter(work)
             .buffer_unordered(concurrency)
@@ -174,9 +181,10 @@ impl Engine {
             policies,
             retention,
         });
-        let work = doc_ids.iter().copied().map(|doc_id| {
-            self.apply_one_doc(actor_id, run_id, doc_id, Arc::clone(&ctx))
-        });
+        let work = doc_ids
+            .iter()
+            .copied()
+            .map(|doc_id| self.apply_one_doc(actor_id, run_id, doc_id, Arc::clone(&ctx)));
         let outcomes: Vec<bool> = stream::iter(work)
             .buffer_unordered(concurrency)
             .collect()
@@ -207,9 +215,7 @@ impl Engine {
         run_id: Uuid,
         doc_id: Uuid,
     ) -> Result<RunDocument> {
-        self.registry()
-            .get_run_doc(actor_id, run_id, doc_id)
-            .await
+        self.registry().get_run_doc(actor_id, run_id, doc_id).await
     }
 
     /// List every retention schedule row for a single file

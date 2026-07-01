@@ -21,11 +21,11 @@ use elide::recognition::context::Enhanced;
 use elide::recognition::ner::NerRecognizer;
 use elide::recognition::pattern::PatternRecognizer;
 use elide_bento::BentoNer;
+use elide_core::Error;
 use elide_core::modality::text::Text;
 use elide_core::modality::{Modality, TextRecognizable};
 use elide_core::primitive::ConfidenceThreshold;
 use elide_core::recognition::Recognizer;
-use elide_core::Error;
 use nvisy_core::plan::{
     DeduplicationParams, LanguageEnricherParams, MergingStrategyParams, NerBackendParams,
     NerRecognizerParams, PatternRecognizerParams, TiebreakerParams,

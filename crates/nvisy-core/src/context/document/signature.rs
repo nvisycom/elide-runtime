@@ -3,15 +3,14 @@
 use elide_core::primitive::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::ContentSource;
+use uuid::Uuid;
 
 /// Reference handwritten signature for verification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SignatureData {
-    /// Source pointer to the reference signature image.
-    pub image_source: ContentSource,
+    /// Id of the file holding the reference signature image.
+    pub image_source: Uuid,
     /// Bounding box of the signature within the image.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<BoundingBox>,
@@ -25,7 +24,7 @@ pub struct SignatureData {
 
 impl SignatureData {
     /// Create signature data pointing at a source image.
-    pub fn new(image_source: ContentSource) -> Self {
+    pub fn new(image_source: Uuid) -> Self {
         Self {
             image_source,
             region: None,

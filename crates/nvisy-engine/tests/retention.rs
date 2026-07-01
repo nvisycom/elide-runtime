@@ -21,9 +21,10 @@ use nvisy_core::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_core::policy::{
     Policy, Predicate, Retention, RetentionPolicy, RetentionScope, Rule, RuleAction,
 };
+use nvisy_engine::keyspace::FileDescriptor;
 use nvisy_engine::retention::RetentionRecord;
 use nvisy_engine::runs::{DocumentInput, ResourceRef, StartBatch};
-use nvisy_engine::{Engine, FileRegistry, PolicyRegistry, keyspace::FileDescriptor};
+use nvisy_engine::{Engine, FileRegistry, PolicyRegistry};
 use semver::Version;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -130,19 +131,20 @@ async fn start_pins_original_content_retention_per_input_file() {
     let file_id = upload_txt(&engine, actor_id, b"Contact: alice@example.com\n").await;
 
     let before = Timestamp::now();
-    let run_id = engine.start_run(
-        actor_id,
-        StartBatch {
-            policy_refs: vec![policy_ref],
-            context_refs: Vec::new(),
-            documents: vec![DocumentInput { file_id }],
-            metadata: Default::default(),
-            analyzer: analyzer_spec(),
-            concurrency: Some(1),
-        },
-    )
-    .await
-    .expect("run starts");
+    let run_id = engine
+        .start_run(
+            actor_id,
+            StartBatch {
+                policy_refs: vec![policy_ref],
+                context_refs: Vec::new(),
+                documents: vec![DocumentInput { file_id }],
+                metadata: Default::default(),
+                analyzer: analyzer_spec(),
+                concurrency: Some(1),
+            },
+        )
+        .await
+        .expect("run starts");
     let after = Timestamp::now();
 
     let rows = engine
@@ -173,23 +175,28 @@ async fn apply_pins_redacted_output_retention_per_output_file() {
         id: policy.id,
         version: policy.version.clone(),
     };
-    engine.registry().put_policy(actor_id, &policy).await.unwrap();
+    engine
+        .registry()
+        .put_policy(actor_id, &policy)
+        .await
+        .unwrap();
 
     let file_id = upload_txt(&engine, actor_id, b"Contact: alice@example.com\n").await;
 
-    let run_id = engine.start_run(
-        actor_id,
-        StartBatch {
-            policy_refs: vec![policy_ref],
-            context_refs: Vec::new(),
-            documents: vec![DocumentInput { file_id }],
-            metadata: Default::default(),
-            analyzer: analyzer_spec(),
-            concurrency: Some(1),
-        },
-    )
-    .await
-    .unwrap();
+    let run_id = engine
+        .start_run(
+            actor_id,
+            StartBatch {
+                policy_refs: vec![policy_ref],
+                context_refs: Vec::new(),
+                documents: vec![DocumentInput { file_id }],
+                metadata: Default::default(),
+                analyzer: analyzer_spec(),
+                concurrency: Some(1),
+            },
+        )
+        .await
+        .unwrap();
 
     let before = Timestamp::now();
     engine
@@ -242,30 +249,38 @@ async fn indefinite_retention_writes_no_row() {
         id: policy.id,
         version: policy.version.clone(),
     };
-    engine.registry().put_policy(actor_id, &policy).await.unwrap();
+    engine
+        .registry()
+        .put_policy(actor_id, &policy)
+        .await
+        .unwrap();
 
     let file_id = upload_txt(&engine, actor_id, b"Contact: alice@example.com\n").await;
 
-    let run_id = engine.start_run(
-        actor_id,
-        StartBatch {
-            policy_refs: vec![policy_ref],
-            context_refs: Vec::new(),
-            documents: vec![DocumentInput { file_id }],
-            metadata: Default::default(),
-            analyzer: analyzer_spec(),
-            concurrency: Some(1),
-        },
-    )
-    .await
-    .unwrap();
+    let run_id = engine
+        .start_run(
+            actor_id,
+            StartBatch {
+                policy_refs: vec![policy_ref],
+                context_refs: Vec::new(),
+                documents: vec![DocumentInput { file_id }],
+                metadata: Default::default(),
+                analyzer: analyzer_spec(),
+                concurrency: Some(1),
+            },
+        )
+        .await
+        .unwrap();
     engine.apply_run(actor_id, run_id).await.unwrap();
 
     let doc_id = engine.get_run(actor_id, run_id).await.unwrap().document_ids[0];
     let doc = engine.get_run_doc(actor_id, run_id, doc_id).await.unwrap();
     let output_file_id = doc.output_file_id.unwrap();
 
-    let input_rows = engine.list_retention_for_file(actor_id, file_id).await.unwrap();
+    let input_rows = engine
+        .list_retention_for_file(actor_id, file_id)
+        .await
+        .unwrap();
     let output_rows = engine
         .list_retention_for_file(actor_id, output_file_id)
         .await
@@ -304,36 +319,44 @@ async fn strictest_wins_across_multiple_policies() {
         ..erase_email_with_retention()
     };
     engine.registry().put_policy(actor_id, &lax).await.unwrap();
-    engine.registry().put_policy(actor_id, &strict).await.unwrap();
+    engine
+        .registry()
+        .put_policy(actor_id, &strict)
+        .await
+        .unwrap();
 
     let file_id = upload_txt(&engine, actor_id, b"Contact: alice@example.com\n").await;
 
     let before = Timestamp::now();
-    let _run_id = engine.start_run(
-        actor_id,
-        StartBatch {
-            policy_refs: vec![
-                ResourceRef {
-                    id: lax.id,
-                    version: lax.version.clone(),
-                },
-                ResourceRef {
-                    id: strict.id,
-                    version: strict.version.clone(),
-                },
-            ],
-            context_refs: Vec::new(),
-            documents: vec![DocumentInput { file_id }],
-            metadata: Default::default(),
-            analyzer: analyzer_spec(),
-            concurrency: Some(1),
-        },
-    )
-    .await
-    .unwrap();
+    let _run_id = engine
+        .start_run(
+            actor_id,
+            StartBatch {
+                policy_refs: vec![
+                    ResourceRef {
+                        id: lax.id,
+                        version: lax.version.clone(),
+                    },
+                    ResourceRef {
+                        id: strict.id,
+                        version: strict.version.clone(),
+                    },
+                ],
+                context_refs: Vec::new(),
+                documents: vec![DocumentInput { file_id }],
+                metadata: Default::default(),
+                analyzer: analyzer_spec(),
+                concurrency: Some(1),
+            },
+        )
+        .await
+        .unwrap();
     let after = Timestamp::now();
 
-    let rows = engine.list_retention_for_file(actor_id, file_id).await.unwrap();
+    let rows = engine
+        .list_retention_for_file(actor_id, file_id)
+        .await
+        .unwrap();
     let original =
         find_scope(&rows, RetentionScope::OriginalContent).expect("OriginalContent row present");
     let seven_days = SignedDuration::from_secs(7 * 24 * 60 * 60);

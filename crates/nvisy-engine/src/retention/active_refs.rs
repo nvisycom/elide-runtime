@@ -108,12 +108,7 @@ pub(crate) struct ActiveRef {
 }
 
 impl ActiveFileRefRegistry for RegistryHandle {
-    async fn insert_active_ref(
-        &self,
-        actor_id: Uuid,
-        file_id: Uuid,
-        run_id: Uuid,
-    ) -> Result<()> {
+    async fn insert_active_ref(&self, actor_id: Uuid, file_id: Uuid, run_id: Uuid) -> Result<()> {
         let key = ActiveFileRefKey::new(actor_id, file_id, run_id);
         let ks = self.active_file_refs().clone();
         blocking(move || {
@@ -180,12 +175,7 @@ impl ActiveFileRefRegistry for RegistryHandle {
         .await
     }
 
-    async fn delete_active_ref(
-        &self,
-        actor_id: Uuid,
-        file_id: Uuid,
-        run_id: Uuid,
-    ) -> Result<()> {
+    async fn delete_active_ref(&self, actor_id: Uuid, file_id: Uuid, run_id: Uuid) -> Result<()> {
         let key = ActiveFileRefKey::new(actor_id, file_id, run_id);
         let ks = self.active_file_refs().clone();
         blocking(move || {

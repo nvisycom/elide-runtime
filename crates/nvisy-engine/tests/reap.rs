@@ -11,8 +11,9 @@ use std::path::PathBuf;
 use bytes::Bytes;
 use hipstr::HipStr;
 use nvisy_core::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
+use nvisy_engine::keyspace::FileDescriptor;
 use nvisy_engine::runs::{DocumentInput, StartBatch};
-use nvisy_engine::{Engine, FileRegistry, keyspace::FileDescriptor};
+use nvisy_engine::{Engine, FileRegistry};
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -49,7 +50,11 @@ async fn upload_txt(engine: &Engine, actor_id: Uuid) -> Uuid {
     };
     let metadata = engine
         .registry()
-        .put_file(actor_id, descriptor, Bytes::from_static(b"alice@example.com"))
+        .put_file(
+            actor_id,
+            descriptor,
+            Bytes::from_static(b"alice@example.com"),
+        )
         .await
         .expect("upload succeeds");
     metadata.id

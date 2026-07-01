@@ -24,10 +24,9 @@ const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
 
 async fn server() -> (TestServer, Uuid, ServiceRuntime, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let runtime =
-        ServiceRuntime::new(dir.path().to_path_buf(), AnalyzerParams::default(), None)
-            .await
-            .expect("service runtime");
+    let runtime = ServiceRuntime::new(dir.path().to_path_buf(), AnalyzerParams::default(), None)
+        .await
+        .expect("service runtime");
     let router = routes().with_state(runtime.state());
     let server = TestServer::new(router.into_make_service()).expect("test server");
     let actor_id = Uuid::now_v7();

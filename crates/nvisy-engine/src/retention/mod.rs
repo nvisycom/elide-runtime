@@ -29,8 +29,10 @@
 //! [`RegistryHandle`]: crate::registry::RegistryHandle
 
 pub(crate) mod active_refs;
+mod resolve;
 pub(crate) mod schedule;
 pub(crate) mod sweeper;
 
+pub use self::resolve::resolve_retention;
 pub use self::schedule::RetentionRecord;
 pub use self::sweeper::{SweepReport, SweeperHandle};

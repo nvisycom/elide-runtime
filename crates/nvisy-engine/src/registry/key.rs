@@ -199,7 +199,6 @@ impl RetentionKey {
         b.copy_from_slice(&bytes[16..32]);
         Some(Uuid::from_bytes(b))
     }
-
 }
 
 /// 48-byte active-file-reference key:

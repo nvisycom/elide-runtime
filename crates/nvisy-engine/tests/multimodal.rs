@@ -13,8 +13,8 @@ use nvisy_core::RawDocument;
 use nvisy_core::plan::{
     AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
 };
-use nvisy_core::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_core::policy::RuleAction;
+use nvisy_core::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_engine::Engine;
 use nvisy_engine::runs::{DocBody, RecognizedGroup};
 use tempfile::TempDir;
@@ -112,7 +112,10 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
     let RecognizedGroup::Text { entities } = body_group else {
         panic!("expected Text body");
     };
-    assert!(!entities.is_empty(), "fixture should carry at least one entity");
+    assert!(
+        !entities.is_empty(),
+        "fixture should carry at least one entity"
+    );
 
     let target_id = entities[0].entity.id;
     let mut body = body;
@@ -135,8 +138,8 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
         .expect("apply succeeds");
     write_artefact("sample", "docx", &outcome.bytes);
 
-    let original_body = read_zip_entry(SAMPLE_DOCX, "word/document.xml")
-        .expect("fixture has word/document.xml");
+    let original_body =
+        read_zip_entry(SAMPLE_DOCX, "word/document.xml").expect("fixture has word/document.xml");
     let redacted_body = read_zip_entry(&outcome.bytes, "word/document.xml")
         .expect("redacted docx still has word/document.xml");
     assert_ne!(

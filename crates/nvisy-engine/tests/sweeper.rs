@@ -20,8 +20,9 @@ use nvisy_core::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_core::policy::{
     Policy, Predicate, Retention, RetentionPolicy, RetentionScope, Rule, RuleAction,
 };
+use nvisy_engine::keyspace::FileDescriptor;
 use nvisy_engine::runs::{DocumentInput, ResourceRef, StartBatch};
-use nvisy_engine::{Engine, FileRegistry, PolicyRegistry, keyspace::FileDescriptor};
+use nvisy_engine::{Engine, FileRegistry, PolicyRegistry};
 use semver::Version;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -90,18 +91,18 @@ async fn upload_txt(engine: &Engine, actor_id: Uuid) -> Uuid {
     };
     let metadata = engine
         .registry()
-        .put_file(actor_id, descriptor, Bytes::from_static(b"alice@example.com"))
+        .put_file(
+            actor_id,
+            descriptor,
+            Bytes::from_static(b"alice@example.com"),
+        )
         .await
         .expect("file upload succeeds");
     metadata.id
 }
 
 async fn file_exists(engine: &Engine, actor_id: Uuid, file_id: Uuid) -> bool {
-    engine
-        .registry()
-        .get_file(actor_id, file_id)
-        .await
-        .is_ok()
+    engine.registry().get_file(actor_id, file_id).await.is_ok()
 }
 
 #[tokio::test]
@@ -124,10 +125,7 @@ async fn sweep_defers_original_content_while_run_is_active() {
     // ZeroRetention → row's deadline == pinned_at, so it's
     // instantly due. But the run is in Analyzing/AwaitingReview
     // and its active-ref row must gate the sweep.
-    let policy = policy_with_retention(
-        RetentionScope::OriginalContent,
-        Retention::ZeroRetention,
-    );
+    let policy = policy_with_retention(RetentionScope::OriginalContent, Retention::ZeroRetention);
     engine.registry().put_policy(actor, &policy).await.unwrap();
     let file = upload_txt(&engine, actor).await;
 
@@ -172,10 +170,7 @@ async fn sweep_deletes_original_content_after_run_terminates() {
     let (engine, _dir) = engine();
     let actor = Uuid::now_v7();
 
-    let policy = policy_with_retention(
-        RetentionScope::OriginalContent,
-        Retention::ZeroRetention,
-    );
+    let policy = policy_with_retention(RetentionScope::OriginalContent, Retention::ZeroRetention);
     engine.registry().put_policy(actor, &policy).await.unwrap();
     let file = upload_txt(&engine, actor).await;
     let run = engine

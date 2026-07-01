@@ -36,7 +36,7 @@ pub use self::audit::AuditAction;
 pub use self::document::DocumentPredicate;
 pub use self::predicate::Predicate;
 pub use self::redaction::AnyRedaction;
-pub use self::retention::{Retention, RetentionPolicy, RetentionScope, resolve_retention};
+pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::rule::{Rule, RuleAction};
 pub use self::suppress::SuppressAction;
 

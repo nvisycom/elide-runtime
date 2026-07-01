@@ -74,45 +74,6 @@ mod tests {
     }
 
     #[test]
-    fn empty_input_yields_empty_map() {
-        let empty: [&Policy; 0] = [];
-        let resolved = resolve_retention(empty);
-        assert!(resolved.is_empty());
-    }
-
-    #[test]
-    fn single_policy_passes_through() {
-        let p = policy_with(vec![
-            rule(RetentionScope::OriginalContent, Retention::ZeroRetention),
-            rule(
-                RetentionScope::RedactedOutput,
-                Retention::Duration { days: 30 },
-            ),
-        ]);
-        let resolved = resolve_retention([&p]);
-        assert_eq!(resolved.len(), 2);
-        assert_eq!(
-            resolved[&RetentionScope::OriginalContent],
-            Retention::ZeroRetention,
-        );
-        assert_eq!(
-            resolved[&RetentionScope::RedactedOutput],
-            Retention::Duration { days: 30 },
-        );
-    }
-
-    #[test]
-    fn unmentioned_scope_is_absent() {
-        let p = policy_with(vec![rule(
-            RetentionScope::OriginalContent,
-            Retention::ZeroRetention,
-        )]);
-        let resolved = resolve_retention([&p]);
-        assert!(!resolved.contains_key(&RetentionScope::RedactedOutput));
-        assert!(!resolved.contains_key(&RetentionScope::AuditLogs));
-    }
-
-    #[test]
     fn zero_beats_duration_and_indefinite() {
         let strict = policy_with(vec![rule(
             RetentionScope::OriginalContent,

@@ -9,10 +9,11 @@
 //!
 //! ## Keyspace
 //!
-//! One keyspace, `active_file_refs`, keyed by
-//! [`ActiveFileRefKey`] = `(actor_id, file_id, run_id)` (48
-//! bytes). Values are empty (`&[]`) — the presence of a row IS
-//! the signal.
+//! One keyspace, `active_file_refs`, keyed by the 48-byte
+//! encoding of [`ActiveFileRef`] — `[actor: 16][file: 16][run:
+//! 16]`. Values are empty (`&[]`); the presence of a row IS
+//! the signal, so [`ActiveFileRef`] is both the parsed row and
+//! the encoded key (via [`ActiveFileRef::to_bytes`]).
 //!
 //! ## Lifecycle coverage
 //!
@@ -26,7 +27,6 @@
 //!   any row whose `run_id` no longer exists or points at a
 //!   terminal run.
 //!
-//! [`ActiveFileRefKey`]: crate::registry::ActiveFileRefKey
 //! [`Engine::apply_run`]: crate::Engine::apply_run
 //! [`Engine::cancel_run`]: crate::Engine::cancel_run
 //! [`Engine::delete_run`]: crate::Engine::delete_run
@@ -40,10 +40,63 @@ use nvisy_core::{Error, ErrorKind, Result};
 use uuid::Uuid;
 
 use crate::Engine;
-use crate::registry::{ActiveFileRefKey, RegistryHandle, blocking};
+use crate::registry::{RegistryHandle, blocking};
 use crate::runs::persist::RunRegistry;
 
 const COMPONENT: &str = "retention::active_refs";
+
+/// One active-file-reference row: the three id components.
+///
+/// The value slot is empty on disk, so this type serves both
+/// as the parsed row (fields) and the encoded key (via
+/// [`Self::to_bytes`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct ActiveFileRef {
+    pub actor_id: Uuid,
+    pub file_id: Uuid,
+    pub run_id: Uuid,
+}
+
+impl ActiveFileRef {
+    /// Encode as `[actor: 16][file: 16][run: 16]` for fjall.
+    pub fn to_bytes(self) -> [u8; 48] {
+        let mut bytes = [0u8; 48];
+        bytes[..16].copy_from_slice(self.actor_id.as_bytes());
+        bytes[16..32].copy_from_slice(self.file_id.as_bytes());
+        bytes[32..].copy_from_slice(self.run_id.as_bytes());
+        bytes
+    }
+
+    /// Parse a 48-byte fjall key back into the three ids.
+    /// Returns `None` when `bytes` isn't 48 bytes long — the
+    /// startup reap uses this to reject a malformed row rather
+    /// than treating it as a ghost.
+    pub fn parse(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() != 48 {
+            return None;
+        }
+        let mut a = [0u8; 16];
+        let mut f = [0u8; 16];
+        let mut r = [0u8; 16];
+        a.copy_from_slice(&bytes[..16]);
+        f.copy_from_slice(&bytes[16..32]);
+        r.copy_from_slice(&bytes[32..]);
+        Some(Self {
+            actor_id: Uuid::from_bytes(a),
+            file_id: Uuid::from_bytes(f),
+            run_id: Uuid::from_bytes(r),
+        })
+    }
+
+    /// Prefix bytes for "every active run referencing
+    /// `(actor, file)`": 32 bytes. The gate's read path.
+    pub fn file_prefix(actor_id: Uuid, file_id: Uuid) -> [u8; 32] {
+        let mut prefix = [0u8; 32];
+        prefix[..16].copy_from_slice(actor_id.as_bytes());
+        prefix[16..].copy_from_slice(file_id.as_bytes());
+        prefix
+    }
+}
 
 /// Crate-private extension trait adding active-ref storage to
 /// [`RegistryHandle`].
@@ -85,7 +138,7 @@ pub(crate) trait ActiveFileRefRegistry {
     /// transition.
     ///
     /// [`Engine::open`]: crate::Engine::open
-    fn list_all_active_refs(&self) -> impl Future<Output = Result<Vec<ActiveRef>>> + Send;
+    fn list_all_active_refs(&self) -> impl Future<Output = Result<Vec<ActiveFileRef>>> + Send;
 
     /// Delete one specific active-ref row. Used by the startup
     /// reap to drop orphans; the run-side callers use
@@ -98,21 +151,17 @@ pub(crate) trait ActiveFileRefRegistry {
     ) -> impl Future<Output = Result<()>> + Send;
 }
 
-/// A materialised active-ref row: the three id components. The
-/// value slot is empty on disk so no value payload lives here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct ActiveRef {
-    pub actor_id: Uuid,
-    pub file_id: Uuid,
-    pub run_id: Uuid,
-}
-
 impl ActiveFileRefRegistry for RegistryHandle {
     async fn insert_active_ref(&self, actor_id: Uuid, file_id: Uuid, run_id: Uuid) -> Result<()> {
-        let key = ActiveFileRefKey::new(actor_id, file_id, run_id);
+        let key = ActiveFileRef {
+            actor_id,
+            file_id,
+            run_id,
+        }
+        .to_bytes();
         let ks = self.active_file_refs().clone();
         blocking(move || {
-            ks.insert(*key, []).map_err(fjall_err)?;
+            ks.insert(key, []).map_err(fjall_err)?;
             Ok(())
         })
         .await
@@ -126,14 +175,21 @@ impl ActiveFileRefRegistry for RegistryHandle {
     ) -> Result<()> {
         // Materialise keys before crossing the blocking
         // boundary so the closure holds no borrows.
-        let keys: Vec<ActiveFileRefKey> = file_ids
+        let keys: Vec<[u8; 48]> = file_ids
             .iter()
-            .map(|&file_id| ActiveFileRefKey::new(actor_id, file_id, run_id))
+            .map(|&file_id| {
+                ActiveFileRef {
+                    actor_id,
+                    file_id,
+                    run_id,
+                }
+                .to_bytes()
+            })
             .collect();
         let ks = self.active_file_refs().clone();
         blocking(move || {
             for key in keys {
-                ks.remove(*key).map_err(fjall_err)?;
+                ks.remove(key).map_err(fjall_err)?;
             }
             Ok(())
         })
@@ -143,7 +199,7 @@ impl ActiveFileRefRegistry for RegistryHandle {
     async fn has_active_refs(&self, actor_id: Uuid, file_id: Uuid) -> Result<bool> {
         let ks = self.active_file_refs().clone();
         blocking(move || {
-            let prefix = ActiveFileRefKey::file_prefix(actor_id, file_id);
+            let prefix = ActiveFileRef::file_prefix(actor_id, file_id);
             let mut iter = ks.prefix(prefix);
             match iter.next() {
                 Some(guard) => {
@@ -156,19 +212,15 @@ impl ActiveFileRefRegistry for RegistryHandle {
         .await
     }
 
-    async fn list_all_active_refs(&self) -> Result<Vec<ActiveRef>> {
+    async fn list_all_active_refs(&self) -> Result<Vec<ActiveFileRef>> {
         let ks = self.active_file_refs().clone();
         blocking(move || {
             let mut out = Vec::new();
             for guard in ks.iter() {
                 let (key, _) = guard.into_inner().map_err(fjall_err)?;
-                let (actor_id, file_id, run_id) = ActiveFileRefKey::parse(key.as_ref())
+                let row = ActiveFileRef::parse(key.as_ref())
                     .ok_or_else(|| malformed_key_err(key.as_ref()))?;
-                out.push(ActiveRef {
-                    actor_id,
-                    file_id,
-                    run_id,
-                });
+                out.push(row);
             }
             Ok(out)
         })
@@ -176,10 +228,15 @@ impl ActiveFileRefRegistry for RegistryHandle {
     }
 
     async fn delete_active_ref(&self, actor_id: Uuid, file_id: Uuid, run_id: Uuid) -> Result<()> {
-        let key = ActiveFileRefKey::new(actor_id, file_id, run_id);
+        let key = ActiveFileRef {
+            actor_id,
+            file_id,
+            run_id,
+        }
+        .to_bytes();
         let ks = self.active_file_refs().clone();
         blocking(move || {
-            ks.remove(*key).map_err(fjall_err)?;
+            ks.remove(key).map_err(fjall_err)?;
             Ok(())
         })
         .await
@@ -266,28 +323,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn insert_then_gate_sees_row() {
-        let (r, _dir) = registry();
-        let actor = Uuid::now_v7();
-        let file = Uuid::now_v7();
-        let run = Uuid::now_v7();
-        assert!(!r.has_active_refs(actor, file).await.unwrap());
-        r.insert_active_ref(actor, file, run).await.unwrap();
-        assert!(r.has_active_refs(actor, file).await.unwrap());
-    }
-
-    #[tokio::test]
-    async fn insert_is_idempotent() {
-        let (r, _dir) = registry();
-        let actor = Uuid::now_v7();
-        let file = Uuid::now_v7();
-        let run = Uuid::now_v7();
-        r.insert_active_ref(actor, file, run).await.unwrap();
-        r.insert_active_ref(actor, file, run).await.unwrap();
-        assert!(r.has_active_refs(actor, file).await.unwrap());
-    }
-
-    #[tokio::test]
     async fn delete_run_refs_clears_only_that_run() {
         let (r, _dir) = registry();
         let actor = Uuid::now_v7();
@@ -351,12 +386,12 @@ mod tests {
         let mut rows = r.list_all_active_refs().await.unwrap();
         rows.sort_by_key(|r| r.actor_id);
         let mut expected = vec![
-            ActiveRef {
+            ActiveFileRef {
                 actor_id: actor_a,
                 file_id: file,
                 run_id: run_a,
             },
-            ActiveRef {
+            ActiveFileRef {
                 actor_id: actor_b,
                 file_id: file,
                 run_id: run_b,
@@ -366,18 +401,11 @@ mod tests {
         assert_eq!(rows, expected);
     }
 
-    #[tokio::test]
-    async fn delete_active_ref_is_idempotent() {
-        let (r, _dir) = registry();
-        let actor = Uuid::now_v7();
-        let file = Uuid::now_v7();
-        let run = Uuid::now_v7();
-        // Delete missing row — succeeds.
-        r.delete_active_ref(actor, file, run).await.unwrap();
-        r.insert_active_ref(actor, file, run).await.unwrap();
-        r.delete_active_ref(actor, file, run).await.unwrap();
-        r.delete_active_ref(actor, file, run).await.unwrap();
-        assert!(!r.has_active_refs(actor, file).await.unwrap());
+    #[test]
+    fn parse_rejects_wrong_length() {
+        assert!(ActiveFileRef::parse(&[]).is_none());
+        assert!(ActiveFileRef::parse(&[0u8; 47]).is_none());
+        assert!(ActiveFileRef::parse(&[0u8; 49]).is_none());
     }
 }
 

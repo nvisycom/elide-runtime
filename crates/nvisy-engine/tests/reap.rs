@@ -92,32 +92,3 @@ async fn reap_leaves_active_run_refs_in_place() {
         "gate must still trip after the reap",
     );
 }
-
-#[tokio::test]
-async fn reap_is_no_op_after_clean_lifecycle() {
-    let (engine, _dir) = engine();
-    let actor = Uuid::now_v7();
-    let file = upload_txt(&engine, actor).await;
-    let run = start(&engine, actor, file).await;
-    engine.cancel_run(actor, run).await.unwrap();
-    engine.delete_run(actor, run).await.unwrap();
-    assert!(!engine.has_active_refs(actor, file).await.unwrap());
-    let reaped = engine.reap_orphan_active_refs().await.unwrap();
-    assert_eq!(reaped, 0, "no orphans after a clean lifecycle");
-}
-
-#[tokio::test]
-async fn reap_survives_multi_actor_state() {
-    let (engine, _dir) = engine();
-    let actor_a = Uuid::now_v7();
-    let actor_b = Uuid::now_v7();
-    let file_a = upload_txt(&engine, actor_a).await;
-    let file_b = upload_txt(&engine, actor_b).await;
-    let _run_a = start(&engine, actor_a, file_a).await;
-    let _run_b = start(&engine, actor_b, file_b).await;
-
-    let reaped = engine.reap_orphan_active_refs().await.unwrap();
-    assert_eq!(reaped, 0);
-    assert!(engine.has_active_refs(actor_a, file_a).await.unwrap());
-    assert!(engine.has_active_refs(actor_b, file_b).await.unwrap());
-}

@@ -19,7 +19,7 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio"]
+default = ["tabular", "image", "audio", "document"]
 
 ## Tabular modality — csv, xlsx.
 tabular = ["nvisy-engine/tabular"]
@@ -27,6 +27,8 @@ tabular = ["nvisy-engine/tabular"]
 image = ["nvisy-engine/image"]
 ## Audio modality — wav, mp3.
 audio = ["nvisy-engine/audio"]
+## Document containers — docx (text body + image parts).
+document = ["nvisy-engine/document"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -69,7 +71,22 @@ tower = { workspace = true, features = ["util", "timeout"] }
 tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "sensitive-headers", "catch-panic", "util"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt"] }
+# Serialization
+serde_json = { workspace = true, features = [] }
+
+# Primitive datatypes
+bytes = { workspace = true, features = [] }
+hipstr = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+
+# HTTP test driver
+axum-test = { workspace = true }
+
+# Test utilities
+tempfile = { workspace = true, features = [] }
+zip = { workspace = true }
 
 [package.metadata.cargo-machete]
 ignored = ["humantime-serde"]

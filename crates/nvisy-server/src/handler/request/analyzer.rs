@@ -16,7 +16,7 @@
 //! - [`CollectionOverride<T, S>`] wraps a `Vec<T>` field. Three
 //!   variants: `Inherit`, `Replace { values }`, and
 //!   `Patch { extend, remove }` — filter the default by removing
-//!   matching items via [`S`] selectors, then append `extend`.
+//!   matching items via `S` selectors, then append `extend`.
 //!
 //! ## Wire shape per field
 //!
@@ -26,13 +26,15 @@
 //!   patch semantics.
 //! - `enrichers` ([`EnricherOverrides`]): nested struct, each
 //!   slot at-most-one (scalar). Slots: `language`, `ocr`, `stt`.
-//! - `deduplication`, `scope`, `labelCatalog`: scalars.
+//! - `deduplication`: scalar.
+//! - `scope` ([`ScopeOverrides`]): nested struct, four scalars
+//!   (`languages`, `countries`, `labels`, `labelCatalog`).
 
-use elide_core::recognition::Scope;
+use elide_core::primitive::{CountryCode, Languages};
 use nvisy_core::plan::{
     AnalyzerParams, DeduplicationParams, EnricherParams, LabelCatalogParams,
     LanguageEnricherParams, LlmRecognizerParams, NerRecognizerParams, OcrEnricherParams,
-    PatternRecognizerParams, RecognizerParams, SttEnricherParams,
+    PatternRecognizerParams, RecognizerParams, ScopeParams, SttEnricherParams,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -52,13 +54,10 @@ pub struct AnalyzerOverrides {
     /// Deduplication pipeline. Scalar — replace or inherit.
     #[serde(default)]
     pub deduplication: ScalarOverride<DeduplicationParams>,
-    /// Caller-asserted scope. Scalar — replace or inherit.
+    /// Caller-asserted scope (languages, countries, labels,
+    /// label catalog).
     #[serde(default)]
-    pub scope: ScalarOverride<Scope>,
-    /// Per-request label catalog (builtins + custom). Scalar —
-    /// replace or inherit the deployment default wholesale.
-    #[serde(default)]
-    pub label_catalog: ScalarOverride<LabelCatalogParams>,
+    pub scope: ScopeOverrides,
 }
 
 impl AnalyzerOverrides {
@@ -70,6 +69,38 @@ impl AnalyzerOverrides {
             enrichers: self.enrichers.resolve(&default.enrichers),
             deduplication: self.deduplication.resolve(&default.deduplication),
             scope: self.scope.resolve(&default.scope),
+        }
+    }
+}
+
+/// Per-knob overrides on the [`ScopeParams`] slots: each is a
+/// scalar (replace or inherit).
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeOverrides {
+    /// Caller-asserted languages. Scalar — replace or inherit.
+    #[serde(default)]
+    pub languages: ScalarOverride<Languages>,
+    /// Caller-asserted jurisdictions. Scalar — replace or
+    /// inherit.
+    #[serde(default)]
+    pub countries: ScalarOverride<Vec<CountryCode>>,
+    /// Document-level classification labels. Scalar — replace or
+    /// inherit.
+    #[serde(default)]
+    pub labels: ScalarOverride<Vec<String>>,
+    /// Per-request label catalog (builtins + custom). Scalar —
+    /// replace or inherit the deployment default wholesale.
+    #[serde(default)]
+    pub label_catalog: ScalarOverride<LabelCatalogParams>,
+}
+
+impl ScopeOverrides {
+    fn resolve(self, default: &ScopeParams) -> ScopeParams {
+        ScopeParams {
+            languages: self.languages.resolve(&default.languages),
+            countries: self.countries.resolve(&default.countries),
+            labels: self.labels.resolve(&default.labels),
             label_catalog: self.label_catalog.resolve(&default.label_catalog),
         }
     }

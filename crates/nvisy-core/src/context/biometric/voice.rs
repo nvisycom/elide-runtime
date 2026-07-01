@@ -3,15 +3,14 @@
 use elide_core::primitive::TimeSpan;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::ContentSource;
+use uuid::Uuid;
 
 /// Reference voice data for speaker identification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceData {
-    /// Source pointer to the reference audio.
-    pub audio_source: ContentSource,
+    /// Id of the file holding the reference audio.
+    pub audio_source: Uuid,
     /// Segment within the audio used for enrollment.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub segment: Option<TimeSpan>,
@@ -25,7 +24,7 @@ pub struct VoiceData {
 
 impl VoiceData {
     /// Create voice data pointing at a source audio.
-    pub fn new(audio_source: ContentSource) -> Self {
+    pub fn new(audio_source: Uuid) -> Self {
         Self {
             audio_source,
             segment: None,

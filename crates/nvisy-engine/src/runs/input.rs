@@ -1,4 +1,4 @@
-//! Inputs for [`crate::runs::start`].
+//! Inputs for [`crate::Engine::start_run`].
 
 use std::collections::HashMap;
 
@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::state::ResourceRef;
 
-/// Per-call input to [`crate::runs::start`].
+/// Per-call input to [`crate::Engine::start_run`].
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StartBatch {
@@ -48,7 +48,7 @@ pub struct StartBatch {
     pub concurrency: Option<usize>,
 }
 
-/// One input document handed to [`crate::runs::start`]. Files
+/// One input document handed to [`crate::Engine::start_run`]. Files
 /// are uploaded once via [`crate::FileRegistry`]; runs reference
 /// them by id and inherit their extension + descriptor labels +
 /// metadata.

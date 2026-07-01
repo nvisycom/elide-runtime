@@ -6,6 +6,11 @@
 //! the recognizer artifacts upstream), and LLM is available
 //! image-natively for vision-language models.
 //!
+//! Modality-foreign enrichers (`language`, `stt`) on `spec` are
+//! silently ignored — those flow through the modalities they
+//! belong to when an orchestrator pipeline encounters a body or
+//! embedded part of that modality.
+//!
 //! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
 
 use elide::detection::Analyzer;
@@ -18,23 +23,14 @@ use nvisy_core::plan::{
     AnalyzerParams, LlmBackendParams, LlmRecognizerParams, OcrBackendParams, OcrEnricherParams,
 };
 
-use super::common::{attach_dedup, attach_ner, attach_pattern, reject_language_enricher};
+use super::common::{attach_dedup, attach_ner, attach_pattern};
 
 /// Compile `spec` into an image-modality [`Analyzer`].
-pub(crate) fn compile_image(spec: &AnalyzerParams) -> Result<Analyzer<Image>, Error> {
+pub(super) fn compile(spec: &AnalyzerParams) -> Result<Analyzer<Image>, Error> {
     let mut analyzer = Analyzer::<Image>::new();
 
-    if spec.enrichers.language.is_some() {
-        analyzer = reject_language_enricher::<Image>("image")?;
-    }
     if let Some(ocr) = &spec.enrichers.ocr {
         analyzer = attach_ocr(analyzer, ocr)?;
-    }
-    if spec.enrichers.stt.is_some() {
-        return Err(Error::new(
-            ErrorKind::Validation,
-            "analyzer compile: STT enricher is only valid on the audio modality",
-        ));
     }
 
     if let Some(pattern) = &spec.recognizers.pattern {

@@ -6,14 +6,14 @@
 //! `registry.get_run_doc(...)`, etc. Trait is `pub(crate)`: a run
 //! is the orchestrator's invariant, so external code should never
 //! manipulate it directly; the public surface is
-//! [`crate::runs::start`] / [`apply`](crate::runs::apply) and
-//! their siblings.
+//! [`crate::Engine::start_run`] / [`crate::Engine::apply_run`]
+//! and their siblings.
 //!
 //! Two keyspaces, both keyed by `(actor_id, run_id, …)`:
 //!
 //! - **run_headers** — [`CompositeKey(actor, run)`] holding the
 //!   [`Run`] metadata blob (state, refs, timestamps).
-//! - **run_docs** — [`TripleKey(actor, run, doc)`] holding the
+//! - **run_docs** — [`RunDocKey(actor, run, doc)`] holding the
 //!   per-document body (entities + overrides + `input_file_id`
 //!   + `output_file_id`).
 //!
@@ -22,7 +22,7 @@
 //! per-doc row points at them by id.
 //!
 //! [`CompositeKey(actor, run)`]: crate::registry::CompositeKey
-//! [`TripleKey(actor, run, doc)`]: crate::registry::TripleKey
+//! [`RunDocKey(actor, run, doc)`]: crate::registry::RunDocKey
 
 use std::error::Error as StdError;
 
@@ -30,7 +30,7 @@ use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
 use super::state::{Run, RunDocument};
-use crate::registry::{CompositeKey, RegistryHandle, TripleKey, blocking, not_found};
+use crate::registry::{CompositeKey, RegistryHandle, RunDocKey, blocking, not_found};
 
 const COMPONENT: &str = "runs::persist";
 const KIND_RUN: &str = "run";
@@ -139,7 +139,7 @@ impl RunRegistry for RegistryHandle {
     }
 
     async fn put_run_doc(&self, actor_id: Uuid, run_id: Uuid, doc: &RunDocument) -> Result<()> {
-        let key = TripleKey::new(actor_id, run_id, doc.id);
+        let key = RunDocKey::new(actor_id, run_id, doc.id);
         let value = serde_json::to_vec(doc)?;
         let docs = self.run_docs().clone();
         blocking(move || {
@@ -150,7 +150,7 @@ impl RunRegistry for RegistryHandle {
     }
 
     async fn get_run_doc(&self, actor_id: Uuid, run_id: Uuid, doc_id: Uuid) -> Result<RunDocument> {
-        let key = TripleKey::new(actor_id, run_id, doc_id);
+        let key = RunDocKey::new(actor_id, run_id, doc_id);
         let docs = self.run_docs().clone();
         blocking(move || {
             let value = docs
@@ -165,7 +165,7 @@ impl RunRegistry for RegistryHandle {
     async fn delete_run_bodies(&self, actor_id: Uuid, run_id: Uuid) -> Result<usize> {
         let docs = self.run_docs().clone();
         blocking(move || {
-            let prefix = TripleKey::ab_prefix(actor_id, run_id);
+            let prefix = RunDocKey::run_prefix(actor_id, run_id);
             // Collect first, then remove — iterating while
             // mutating a fjall keyspace is unsupported.
             let keys: Vec<Vec<u8>> = docs

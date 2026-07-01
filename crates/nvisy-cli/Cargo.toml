@@ -19,7 +19,7 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio"]
+default = ["tabular", "image", "audio", "document"]
 
 ## Tabular modality — csv, xlsx.
 tabular = ["nvisy-server/tabular"]
@@ -27,6 +27,8 @@ tabular = ["nvisy-server/tabular"]
 image = ["nvisy-server/image"]
 ## Audio modality — wav, mp3.
 audio = ["nvisy-server/audio"]
+## Document containers — docx
+document = ["nvisy-server/document"]
 
 [package.metadata.docs.rs]
 all-features = true

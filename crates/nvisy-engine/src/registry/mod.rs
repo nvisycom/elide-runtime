@@ -23,5 +23,5 @@ mod paged;
 
 pub(crate) use self::fjall_ext::{blocking, not_found};
 pub use self::handle::RegistryHandle;
-pub(crate) use self::key::{CompositeKey, TripleKey, VersionedKey};
+pub(crate) use self::key::{CompositeKey, RetentionKey, RunDocKey, VersionedKey};
 pub use self::paged::PagedResult;

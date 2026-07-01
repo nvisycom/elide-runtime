@@ -6,6 +6,11 @@
 //! error today (their credential / rate-limit wiring is not
 //! exposed through the compile surface yet).
 //!
+//! Modality-foreign enrichers (`ocr`, `stt`) on `spec` are
+//! silently ignored — those flow through the modalities they
+//! belong to when an orchestrator pipeline encounters a body or
+//! embedded part of that modality.
+//!
 //! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
 
 use elide::detection::Analyzer;
@@ -18,23 +23,11 @@ use super::common::{attach_dedup, attach_language, attach_ner, attach_pattern};
 
 /// Compile `spec` into a text-modality [`Analyzer`]. Scope is
 /// built separately and lives on the orchestrator.
-pub(crate) fn compile_text(spec: &AnalyzerParams) -> Result<Analyzer<Text>, Error> {
+pub(super) fn compile(spec: &AnalyzerParams) -> Result<Analyzer<Text>, Error> {
     let mut analyzer = Analyzer::<Text>::new();
 
     if let Some(language) = &spec.enrichers.language {
         analyzer = attach_language(analyzer, language);
-    }
-    if spec.enrichers.ocr.is_some() {
-        return Err(Error::new(
-            ErrorKind::Validation,
-            "analyzer compile: OCR enricher is only valid on the image modality",
-        ));
-    }
-    if spec.enrichers.stt.is_some() {
-        return Err(Error::new(
-            ErrorKind::Validation,
-            "analyzer compile: STT enricher is only valid on the audio modality",
-        ));
     }
 
     if let Some(pattern) = &spec.recognizers.pattern {

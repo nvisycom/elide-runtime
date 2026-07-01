@@ -3,8 +3,7 @@
 use elide_core::primitive::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::ContentSource;
+use uuid::Uuid;
 
 /// Reference document template for layout/type classification.
 ///
@@ -13,8 +12,8 @@ use crate::ContentSource;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TemplateData {
-    /// Source pointer to the reference template image.
-    pub image_source: ContentSource,
+    /// Id of the file holding the reference template image.
+    pub image_source: Uuid,
     /// Optional sub-region of interest within the template.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<BoundingBox>,
@@ -25,7 +24,7 @@ pub struct TemplateData {
 
 impl TemplateData {
     /// Create template data pointing at a source image.
-    pub fn new(image_source: ContentSource) -> Self {
+    pub fn new(image_source: Uuid) -> Self {
         Self {
             image_source,
             region: None,

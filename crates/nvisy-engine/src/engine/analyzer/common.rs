@@ -4,12 +4,11 @@
 //! `PatternRecognizer` and `NerRecognizer` are themselves
 //! modality-generic (both impl `Recognizer<M>` for any
 //! `M: TextRecognizable`), so this module hosts the pattern/NER
-//! attach + dedup + scope helpers once and lets the per-modality
-//! files specialise only LLM (which is generic over a different
-//! `LlmModality` trait) and the per-modality rejection of unwired
-//! spec variants.
-
-use std::sync::OnceLock;
+//! attach + dedup helpers once and lets the per-modality files
+//! specialise only LLM (which is generic over a different
+//! `LlmModality` trait) and the modality-specific enricher
+//! attachments (`language` for text, `ocr` for image, `stt` for
+//! audio).
 
 use elide::detection::Analyzer;
 use elide::detection::calibrate::CalibrateLayer;
@@ -22,86 +21,15 @@ use elide::recognition::context::Enhanced;
 use elide::recognition::ner::NerRecognizer;
 use elide::recognition::pattern::PatternRecognizer;
 use elide_bento::BentoNer;
-use elide_core::entity::{LabelCatalog, LabelRef};
+use elide_core::Error;
 use elide_core::modality::text::Text;
 use elide_core::modality::{Modality, TextRecognizable};
 use elide_core::primitive::ConfidenceThreshold;
 use elide_core::recognition::Recognizer;
-use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::{
-    AnalyzerParams, DeduplicationParams, LanguageEnricherParams, MergingStrategyParams,
-    NerBackendParams, NerRecognizerParams, PatternRecognizerParams, TiebreakerParams,
+    DeduplicationParams, LanguageEnricherParams, MergingStrategyParams, NerBackendParams,
+    NerRecognizerParams, PatternRecognizerParams, TiebreakerParams,
 };
-
-/// The full builtin label catalog from `elide-core`, built once
-/// and reused for every request. [`LabelCatalog::with_builtins`]
-/// walks `BUILT_INS` and clones every label — cheap once, wasteful
-/// per-request.
-fn builtin_catalog() -> &'static LabelCatalog {
-    static BUILTINS: OnceLock<LabelCatalog> = OnceLock::new();
-    BUILTINS.get_or_init(LabelCatalog::with_builtins)
-}
-
-/// Build the per-request label catalog from `spec`.
-///
-/// Engine does not pre-seed builtins; the caller picks. Two sources
-/// union into one catalog:
-///
-/// - [`builtins`](nvisy_core::plan::LabelCatalogParams::builtins) —
-///   each name is looked up against the cached full builtin
-///   catalog; unknown names warn and are skipped (typos shouldn't
-///   fail the request).
-/// - [`custom`](nvisy_core::plan::LabelCatalogParams::custom) —
-///   inserted as-is; names that collide with a builtin replace it
-///   (matches [`LabelCatalog::insert`] semantics: last write wins).
-///
-/// [`LabelCatalog::with_builtins`]: elide_core::entity::LabelCatalog::with_builtins
-/// [`LabelCatalog::insert`]: elide_core::entity::LabelCatalog::insert
-pub(crate) fn build_catalog(spec: &AnalyzerParams) -> LabelCatalog {
-    let mut catalog = LabelCatalog::new();
-    let builtins = builtin_catalog();
-    for name in &spec.label_catalog.builtins {
-        let label_ref = LabelRef::new(name.clone());
-        match builtins.get(&label_ref) {
-            Some(label) => {
-                catalog.insert(label.clone());
-            }
-            None => {
-                tracing::warn!(
-                    target: "engine::analyzer",
-                    label = %name,
-                    "unknown builtin label name in catalog request; skipping",
-                );
-            }
-        }
-    }
-    for label in &spec.label_catalog.custom {
-        catalog.insert(label.clone());
-    }
-    catalog
-}
-
-/// Reject the language enricher on a modality that doesn't host
-/// it. Upstream's [`LinguaEnricher`] is `Enricher<Text>` only;
-/// the other modalities surface text indirectly (OCR / STT) and
-/// the language pass is supposed to run downstream of those, not
-/// at the modality boundary.
-///
-/// [`LinguaEnricher`]: elide::enrichment::lingua::LinguaEnricher
-pub(super) fn reject_language_enricher<M>(modality: &'static str) -> Result<Analyzer<M>, Error>
-where
-    M: Modality,
-{
-    Err(Error::new(
-        ErrorKind::Validation,
-        format!(
-            "analyzer compile: language enricher is only valid on the text \
-             modality; the {modality} modality reaches text through OCR or STT \
-             and runs lingua over that derived text instead — not exposed \
-             through the compile surface yet"
-        ),
-    ))
-}
 
 /// Attach the lingua language-detection [`Enricher<Text>`] built
 /// from `spec`. An empty `candidates` list yields the
@@ -197,9 +125,6 @@ where
         )),
     };
 
-    let threshold = match spec.min_confidence {
-        Some(v) => ConfidenceThreshold::clamped(v),
-        None => ConfidenceThreshold::BASELINE,
-    };
+    let threshold = spec.min_confidence.unwrap_or(ConfidenceThreshold::BASELINE);
     analyzer.with_layer(FilterLayer::new().with_threshold(threshold))
 }

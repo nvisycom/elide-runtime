@@ -45,6 +45,7 @@ derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "d
 strum = { workspace = true, features = [] }
 
 # Primitive datatypes
+bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = ["v7"] }
 hipstr = { workspace = true, features = [] }
 jiff = { workspace = true, features = ["serde"] }

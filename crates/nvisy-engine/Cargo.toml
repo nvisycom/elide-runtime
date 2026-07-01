@@ -19,11 +19,12 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio"]
+default = ["tabular", "image", "audio", "document"]
 
 tabular = ["elide/codec-tabular"]
 image = ["elide/codec-image"]
 audio = ["elide/codec-audio"]
+document = ["elide/codec-document"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -63,12 +64,11 @@ serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true, features = ["uuid1", "semver1"] }
 sha2 = { workspace = true, features = [] }
 
-# Async runtime — `time` powers the per-doc timeout wrapping the
-# analyze fan-out. We do **not** depend on `rt`/`spawn`-style
-# concurrency: the engine drives concurrent analyzes via
-# `futures::stream::buffer_unordered` so the surrounding borrows
-# of the codec registry + analyzer spec can stay non-`'static`.
-tokio = { workspace = true, features = ["macros", "time"] }
+# Async runtime — `time` powers the per-doc timeout wrapping
+# the analyze fan-out; `rt` powers the sweeper background task
+# spawned by `Engine::start_sweeper`.
+tokio = { workspace = true, features = ["macros", "rt", "time"] }
+tokio-util = { workspace = true, features = ["rt"] }
 
 # Concurrent stream combinators for the analyze fan-out.
 # `stream::iter(...).buffer_unordered(N)` is the engine's
@@ -87,3 +87,11 @@ serde_json = { workspace = true, features = [] }
 # engine wants to surface a non-fatal anomaly to operators (unknown
 # builtin label name in a catalog request, etc.).
 tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+# Async runtime and parallelism
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# Test utilities
+tempfile = { workspace = true, features = [] }
+zip = { workspace = true }

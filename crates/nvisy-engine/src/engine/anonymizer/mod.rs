@@ -35,10 +35,12 @@
 //! [`Anonymizer`]: elide::redaction::Anonymizer
 
 mod audio;
+mod dispatch;
 mod image;
 mod selector;
 mod tabular;
 mod text;
+mod text_op;
 
 pub(crate) use self::audio::{attach_override_audio, attach_policies_audio};
 pub(crate) use self::image::{attach_override_image, attach_policies_image};

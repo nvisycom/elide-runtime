@@ -9,4 +9,4 @@ pub mod service;
 
 pub use self::handler::error::{Error, ErrorKind, Result};
 pub use self::handler::routes;
-pub use self::service::ServiceState;
+pub use self::service::{ServiceRuntime, ServiceState};

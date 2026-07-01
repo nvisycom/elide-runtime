@@ -1,27 +1,19 @@
 //! Data retention policy types.
+//!
+//! Wire schema only — the three types here ([`Retention`],
+//! [`RetentionScope`], [`RetentionPolicy`]) declare what a
+//! policy's `retention` list can hold. Cross-policy resolution
+//! ("strictest wins") lives in the engine: see
+//! `nvisy_engine::retention::resolve_retention`.
 
 mod duration;
+mod scope;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
 
 pub use self::duration::Retention;
-
-/// What class of data a retention policy applies to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
-#[derive(EnumString, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
-#[non_exhaustive]
-pub enum RetentionScope {
-    /// Original ingested content before redaction.
-    OriginalContent,
-    /// Redacted output artifacts.
-    RedactedOutput,
-    /// Audit log entries.
-    AuditLogs,
-}
+pub use self::scope::RetentionScope;
 
 /// A single retention rule: scope + duration.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]

@@ -10,7 +10,7 @@ use std::process;
 use axum::Router;
 use clap::Parser;
 use nvisy_server::middleware::{OpenApiConfig, *};
-use nvisy_server::service::ServiceState;
+use nvisy_server::service::{ServiceRuntime, ServiceState};
 
 use crate::config::{AppConfig, Cli, ServerConfig};
 
@@ -42,9 +42,11 @@ async fn run() -> anyhow::Result<()> {
         "starting nvisy",
     );
     let AppConfig { server, analyzer } = config;
-    let state = ServiceState::new(server.data_dir.clone(), analyzer).await?;
-    let router = create_router(&server, state);
-    server::run(&server, router).await
+    let runtime = ServiceRuntime::new(server.data_dir.clone(), analyzer, None).await?;
+    let router = create_router(&server, runtime.state());
+    let outcome = server::run(&server, router).await;
+    runtime.stop().await;
+    outcome
 }
 
 fn create_router(server: &ServerConfig, state: ServiceState) -> Router {

@@ -2,52 +2,34 @@
 //! into an [`elide::detection::Analyzer<Tabular>`].
 //!
 //! Tabular runs Pattern and NER over each cell's text (cells
-//! are `TextRecognizable`). LLM is not implemented on Tabular in
-//! elide today — `RecognizerParams::llm` returns a `Validation`
-//! error. (ELIDE GAP: `impl LlmModality for Tabular` would let
-//! an LLM scan tables for PII.)
+//! are `TextRecognizable`). LLM has no `LlmModality` impl for
+//! Tabular in elide today, so `recognizers.llm` is silently
+//! ignored here. (ELIDE GAP: an `LlmModality` impl would let an
+//! LLM scan tables for PII.)
+//!
+//! Modality-foreign enrichers (`language`, `ocr`, `stt`) are
+//! silently ignored too — those flow through the modalities they
+//! belong to when an orchestrator pipeline encounters a body or
+//! embedded part of that modality.
 //!
 //! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
 
 use elide::detection::Analyzer;
+use elide_core::Error;
 use elide_core::modality::tabular::Tabular;
-use elide_core::{Error, ErrorKind};
 use nvisy_core::plan::AnalyzerParams;
 
-use super::common::{attach_dedup, attach_ner, attach_pattern, reject_language_enricher};
+use super::common::{attach_dedup, attach_ner, attach_pattern};
 
 /// Compile `spec` into a tabular-modality [`Analyzer`].
-pub(crate) fn compile_tabular(spec: &AnalyzerParams) -> Result<Analyzer<Tabular>, Error> {
+pub(super) fn compile(spec: &AnalyzerParams) -> Result<Analyzer<Tabular>, Error> {
     let mut analyzer = Analyzer::<Tabular>::new();
-
-    if spec.enrichers.language.is_some() {
-        analyzer = reject_language_enricher::<Tabular>("tabular")?;
-    }
-    if spec.enrichers.ocr.is_some() {
-        return Err(Error::new(
-            ErrorKind::Validation,
-            "analyzer compile: OCR enricher is only valid on the image modality",
-        ));
-    }
-    if spec.enrichers.stt.is_some() {
-        return Err(Error::new(
-            ErrorKind::Validation,
-            "analyzer compile: STT enricher is only valid on the audio modality",
-        ));
-    }
 
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern)?;
     }
     for ner in &spec.recognizers.ner {
         analyzer = attach_ner(analyzer, ner)?;
-    }
-    if !spec.recognizers.llm.is_empty() {
-        return Err(Error::new(
-            ErrorKind::Validation,
-            "analyzer compile: LLM recognizer is not available on the tabular \
-             modality (elide-llm has no LlmModality impl for Tabular today)",
-        ));
     }
 
     Ok(attach_dedup(analyzer, &spec.deduplication))

@@ -4,9 +4,11 @@
 //! `POST /detections` starts a run from already-uploaded file
 //! ids. `GET /detections/{id}` returns the full run state
 //! (header + every per-document body inline); the response
-//! shape covers any [`RunState`] — clients filter on
-//! [`state`](super::response::RunStateDto) to render the
-//! detection vs redaction view of the same underlying run.
+//! shape covers any [`RunState`] — clients filter on the
+//! flattened `state` field to render the detection vs redaction
+//! view of the same underlying run.
+//!
+//! [`RunState`]: nvisy_engine::runs::RunState
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete_with, get_with, post_with};
@@ -14,8 +16,8 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use futures::future;
+use nvisy_engine::Engine;
 use nvisy_engine::runs::{Run, RunDocument};
-use nvisy_engine::{Engine, runs};
 use uuid::Uuid;
 
 use super::error::Result;
@@ -34,7 +36,7 @@ async fn create_detection(
     Json(req): Json<NewDetection>,
 ) -> Result<(StatusCode, Json<DetectionId>)> {
     let batch = req.into_engine_input(state.analyzer_default());
-    let id = runs::start(state.engine(), actor_id, batch).await?;
+    let id = state.engine().start_run(actor_id, batch).await?;
     tracing::info!(target: TARGET, %id, "detection started");
     Ok((StatusCode::ACCEPTED, Json(DetectionId { id })))
 }
@@ -56,7 +58,7 @@ async fn list_detections(
     ActorId(actor_id): ActorId,
     Query(query): Query<DetectionQuery>,
 ) -> Result<Json<Page<RunResponse>>> {
-    let runs_list = runs::list(&engine, actor_id).await;
+    let runs_list = engine.list_runs(actor_id).await;
     let assembled = assemble_runs(&engine, actor_id, runs_list).await;
     Ok(Json(Page::paginate(assembled, &query.pagination)))
 }
@@ -74,7 +76,7 @@ async fn get_detection(
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<Json<RunResponse>> {
-    let run = runs::get(&engine, actor_id, id).await?;
+    let run = engine.get_run(actor_id, id).await?;
     let docs = fetch_docs(&engine, actor_id, &run).await;
     Ok(Json(RunResponse::assemble(run, docs)))
 }
@@ -92,7 +94,7 @@ async fn cancel_detection(
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<StatusCode> {
-    runs::cancel(&engine, actor_id, id).await?;
+    engine.cancel_run(actor_id, id).await?;
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -114,7 +116,7 @@ async fn delete_detection(
     ActorId(actor_id): ActorId,
     Path(DetectionPath { id }): Path<DetectionPath>,
 ) -> Result<StatusCode> {
-    runs::delete(&engine, actor_id, id).await?;
+    engine.delete_run(actor_id, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -167,7 +169,7 @@ pub(super) async fn fetch_docs(engine: &Engine, actor_id: Uuid, run: &Run) -> Ve
     let lookups = run
         .document_ids
         .iter()
-        .map(|doc_id| runs::get_doc(engine, actor_id, run.id, *doc_id));
+        .map(|doc_id| engine.get_run_doc(actor_id, run.id, *doc_id));
     future::join_all(lookups)
         .await
         .into_iter()

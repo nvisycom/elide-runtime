@@ -17,12 +17,16 @@
 //! - [`runs`] is the multi-doc batched run orchestrator on top of
 //!   the per-document verbs, with its persistence trait kept
 //!   `pub(crate)` so external code can't write malformed runs.
+//! - [`retention`] holds the retention schedule, the active-file
+//!   reverse index gating the sweeper, and the sweeper itself
+//!   ([`Engine::sweep_once`] / [`Engine::start_sweeper`]).
 
 mod engine;
 
 pub mod keyspace;
 pub mod registry;
+pub mod retention;
 pub mod runs;
 
-pub use self::engine::Engine;
+pub use self::engine::{ApplyOutcome, Engine};
 pub use self::keyspace::{ContextRegistry, FileDescriptor, FileRegistry, PolicyRegistry};

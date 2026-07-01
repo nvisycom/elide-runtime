@@ -6,7 +6,7 @@
 //! - [`Run`] (a metadata header) lives in the `run_headers`
 //!   keyspace under [`CompositeKey(actor_id, run_id)`].
 //! - [`RunDocument`] (one per input doc) lives in the `run_docs`
-//!   keyspace under [`TripleKey(actor_id, run_id, doc_id)`]. Its
+//!   keyspace under [`RunDocKey(actor_id, run_id, doc_id)`]. Its
 //!   [`body`](RunDocument::body) carries the recognized entities +
 //!   reviewer overrides.
 //!
@@ -20,7 +20,7 @@
 //! [`output_file_id`](RunDocument::output_file_id).
 //!
 //! [`CompositeKey(actor_id, run_id)`]: crate::registry::CompositeKey
-//! [`TripleKey(actor_id, run_id, doc_id)`]: crate::registry::TripleKey
+//! [`RunDocKey(actor_id, run_id, doc_id)`]: crate::registry::RunDocKey
 //! [`FileRegistry`]: crate::FileRegistry
 //! [`FileRegistry::put_file`]: crate::FileRegistry::put_file
 //! [`FileLineage::RedactedFrom`]: nvisy_core::FileLineage::RedactedFrom
@@ -44,7 +44,7 @@ use uuid::Uuid;
 
 /// Top-level state of one run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "state", rename_all = "snake_case")]
+#[serde(tag = "state", rename_all = "camelCase")]
 pub enum RunState {
     /// Analyze phase is in flight (or queued).
     Analyzing,
@@ -63,9 +63,21 @@ pub enum RunState {
     },
 }
 
+impl RunState {
+    /// Whether the run has reached a state from which it will
+    /// never transition again. Terminal runs release their
+    /// active-file references and become safe to sweep.
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::Applied | Self::PartiallyApplied | Self::Failed { .. },
+        )
+    }
+}
+
 /// State of one document inside a run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "state", rename_all = "snake_case")]
+#[serde(tag = "state", rename_all = "camelCase")]
 pub enum RunDocState {
     /// Awaiting its turn on the analyze semaphore.
     Queued,
@@ -158,36 +170,58 @@ pub struct RunDocument {
     /// [`FileRegistry::get_file_bytes`]: crate::FileRegistry::get_file_bytes
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_file_id: Option<Uuid>,
-    /// State of the per-doc lifecycle.
+    /// State of the per-doc lifecycle. Flattened — `state` and
+    /// the state-specific fields (e.g. `reason` for `failed`)
+    /// sit at the row root rather than under a nested object.
+    /// The engine type carries the flatten so the wire shape is
+    /// consistent whether the row is rendered directly or
+    /// projected through a wrapper.
+    #[serde(flatten)]
     pub state: RunDocState,
-    /// The modality elide's codec resolved this doc to; pins the
-    /// active variant of [`body`](Self::body).
-    pub modality: ModalityKind,
-    /// Per-modality recognized entities + reviewer overrides.
+    /// Recognized entities + reviewer overrides for the body and
+    /// every container part. The body's modality lives on
+    /// `body.body` (the [`RecognizedGroup`] variant) — apply
+    /// re-encodes through that modality's typed handle.
     pub body: DocBody,
 }
 
-/// Discriminator for the modality the codec resolved a document
-/// to. Pinned at decode time inside [`RunDocument::modality`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ModalityKind {
-    /// `Text` modality.
-    Text,
-    /// `Tabular` modality.
-    Tabular,
-    /// `Image` modality.
-    Image,
-    /// `Audio` modality.
-    Audio,
+/// Per-document recognized state: the body group plus one group
+/// per container part.
+///
+/// Mirrors elide's [`Report`] shape — `body` carries the body's
+/// entities tagged by modality, `parts` carries one entry per
+/// addressable sub-part (DOCX media files, archive members, …)
+/// keyed by the container-private id and tagged by the part's
+/// modality. Pre-analyze the body is `None` and `parts` is
+/// empty; analyze fills them in.
+///
+/// [`Report`]: elide::Report
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DocBody {
+    /// The body group — `None` when no body pipeline produced
+    /// entities (pre-analyze, or the codec resolved the doc to a
+    /// modality with no pipeline).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<RecognizedGroup>,
+    /// One entry per container part the orchestrator surfaced.
+    /// Keyed by the container-private part id (e.g. a DOCX zip
+    /// entry name like `"word/media/image1.png"`); each value
+    /// carries that part's modality + entities.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub parts: HashMap<String, RecognizedGroup>,
 }
 
-/// Per-modality body: the entities recognized in this doc plus
-/// any reviewer overrides. Tagged by `modality` so the read side
-/// can pick the right variant from the JSON.
+/// A modality-tagged group of recognized entities — the unit
+/// `DocBody` stores in `body` and in every `parts` entry.
+///
+/// Tagged by `modality` (snake_case) so deserialization picks the
+/// right variant and the entity vec inside is statically typed
+/// per modality — apply-time we hand each variant back to elide
+/// as a `Vec<Entity<M>>` for the appropriate `M`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
-pub enum DocBody {
+pub enum RecognizedGroup {
     /// Text entities.
     Text {
         /// Recognized entities, in source-coordinate order.
@@ -208,28 +242,6 @@ pub enum DocBody {
         /// Recognized entities, in source-coordinate order.
         entities: Vec<EntityRecord<Audio>>,
     },
-}
-
-impl DocBody {
-    /// Empty body for the given modality. Engine constructs this
-    /// before recognition runs so the doc state is queryable from
-    /// the moment the run starts.
-    pub fn empty(modality: ModalityKind) -> Self {
-        match modality {
-            ModalityKind::Text => Self::Text {
-                entities: Vec::new(),
-            },
-            ModalityKind::Tabular => Self::Tabular {
-                entities: Vec::new(),
-            },
-            ModalityKind::Image => Self::Image {
-                entities: Vec::new(),
-            },
-            ModalityKind::Audio => Self::Audio {
-                entities: Vec::new(),
-            },
-        }
-    }
 }
 
 /// One recognized entity plus the optional reviewer override.

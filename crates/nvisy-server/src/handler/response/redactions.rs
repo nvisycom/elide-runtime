@@ -1,10 +1,9 @@
 //! Redaction response shapes.
 
+use nvisy_engine::runs::RunDocState;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
-
-use super::runs::RunDocStateDto;
 
 /// Returned by `POST /redactions`. The id is the same run id
 /// as the matching detection. `outputs` carries one entry per
@@ -28,14 +27,12 @@ pub struct RedactionOutput {
     /// Input file the apply read.
     pub input_file_id: Uuid,
     /// Redacted output file, when this doc applied successfully.
-    /// `None` when the doc failed — see
-    /// [`state`](Self::state) + [`failure_reason`](Self::failure_reason).
+    /// `None` when the doc failed — see [`state`](Self::state).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_file_id: Option<Uuid>,
-    /// Per-doc lifecycle state after apply.
-    pub state: RunDocStateDto,
-    /// Detail when [`state`](Self::state) is
-    /// [`RunDocStateDto::Failed`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub failure_reason: Option<String>,
+    /// Per-doc lifecycle state after apply. Flattened — `state`
+    /// and the state-specific fields (e.g. `reason` for `failed`)
+    /// sit at this row's root.
+    #[serde(flatten)]
+    pub state: RunDocState,
 }

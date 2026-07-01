@@ -13,7 +13,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::http::StatusCode;
-use nvisy_engine::{Engine, runs};
+use nvisy_engine::Engine;
 
 use super::detections::fetch_docs;
 use super::error::Result;
@@ -37,35 +37,31 @@ async fn create_redaction(
     // engine call so a missing entity surfaces a clean error
     // before we kick off the more-expensive apply fan-out.
     for o in &req.overrides {
-        runs::override_entity(
-            &engine,
-            actor_id,
-            detection_id,
-            o.doc_id,
-            o.entity_id,
-            o.action.clone(),
-        )
-        .await?;
+        engine
+            .override_entity(
+                actor_id,
+                detection_id,
+                o.doc_id,
+                o.entity_id,
+                o.action.clone(),
+            )
+            .await?;
     }
 
-    runs::apply(&engine, actor_id, detection_id).await?;
+    engine.apply_run(actor_id, detection_id).await?;
 
     // Re-read the run + per-doc rows to render the result. The
     // header + rows now carry the Applied / PartiallyApplied /
     // Failed state per doc plus the output file ids.
-    let run = runs::get(&engine, actor_id, detection_id).await?;
+    let run = engine.get_run(actor_id, detection_id).await?;
     let docs = fetch_docs(&engine, actor_id, &run).await;
     let outputs: Vec<RedactionOutput> = docs
         .into_iter()
-        .map(|d| {
-            let dto: super::response::runs::RunDocumentDto = d.into();
-            RedactionOutput {
-                doc_id: dto.id,
-                input_file_id: dto.input_file_id,
-                output_file_id: dto.output_file_id,
-                state: dto.state,
-                failure_reason: dto.failure_reason,
-            }
+        .map(|d| RedactionOutput {
+            doc_id: d.id,
+            input_file_id: d.input_file_id,
+            output_file_id: d.output_file_id,
+            state: d.state,
         })
         .collect();
 
@@ -102,7 +98,7 @@ async fn get_redaction(
     ActorId(actor_id): ActorId,
     Path(RedactionPath { id }): Path<RedactionPath>,
 ) -> Result<Json<RunResponse>> {
-    let run = runs::get(&engine, actor_id, id).await?;
+    let run = engine.get_run(actor_id, id).await?;
     let docs = fetch_docs(&engine, actor_id, &run).await;
     Ok(Json(RunResponse::assemble(run, docs)))
 }

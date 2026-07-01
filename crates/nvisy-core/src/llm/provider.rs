@@ -2,7 +2,7 @@
 //! recognizer attaches to.
 //!
 //! The provider-selection wire shape lives on
-//! [`elide_llm::provider::Provider`] — nvisy embeds it directly
+//! [`elide_llm::provider::Provider`]; nvisy embeds it directly
 //! on [`super::LlmRecognizer`] rather than mirroring it.
 //!
 //! [`elide_llm::provider::Provider`]: https://docs.rs/elide-llm/latest/elide_llm/provider/enum.Provider.html

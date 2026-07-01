@@ -52,7 +52,7 @@ use crate::service::ServiceState;
 /// carry [`FileLineage::RedactedFrom`] so the run that
 /// produced them is traceable.
 ///
-/// [`FileLineage::RedactedFrom`]: nvisy_core::FileLineage::RedactedFrom
+/// [`FileLineage::RedactedFrom`]: nvisy_schema::file::FileLineage::RedactedFrom
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(infra::health_routes())

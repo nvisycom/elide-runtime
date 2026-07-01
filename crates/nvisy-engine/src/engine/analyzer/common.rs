@@ -26,7 +26,7 @@ use elide_core::modality::text::Text;
 use elide_core::modality::{Modality, TextRecognizable};
 use elide_core::primitive::ConfidenceThreshold;
 use elide_core::recognition::Recognizer;
-use nvisy_core::plan::{
+use nvisy_schema::plan::{
     DeduplicationParams, LanguageEnricherParams, MergingStrategyParams, NerBackendParams,
     NerRecognizerParams, PatternRecognizerParams, TiebreakerParams,
 };
@@ -119,7 +119,12 @@ where
     M: Modality,
 {
     if !spec.calibration.is_empty() {
-        analyzer = analyzer.with_layer(CalibrateLayer::new(spec.calibration.clone()));
+        // Wire type is `HashMap<String, f64>`; elide's
+        // `CalibrationMap` is `FromIterator<(K, V)>` where K:
+        // Into<String> and V: Into<f64>.
+        analyzer = analyzer.with_layer(CalibrateLayer::new(
+            spec.calibration.iter().map(|(k, &v)| (k.clone(), v)).collect(),
+        ));
     }
 
     analyzer = match spec.merging {

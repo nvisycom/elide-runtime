@@ -23,7 +23,7 @@
 //! [`RunDocKey(actor_id, run_id, doc_id)`]: crate::registry::RunDocKey
 //! [`FileRegistry`]: crate::FileRegistry
 //! [`FileRegistry::put_file`]: crate::FileRegistry::put_file
-//! [`FileLineage::RedactedFrom`]: nvisy_core::FileLineage::RedactedFrom
+//! [`FileLineage::RedactedFrom`]: nvisy_schema::file::FileLineage::RedactedFrom
 
 use std::collections::HashMap;
 
@@ -35,8 +35,8 @@ use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use hipstr::HipStr;
 use jiff::Timestamp;
-use nvisy_core::plan::AnalyzerParams;
-use nvisy_core::policy::RuleAction;
+use nvisy_schema::plan::AnalyzerParams;
+use nvisy_schema::policy::RuleAction;
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -164,7 +164,7 @@ pub struct RunDocument {
     /// Id of the redacted output file, when apply succeeded for
     /// this doc. `None` pre-apply and on per-doc failure. Lookup
     /// via [`FileRegistry::get_file_bytes`]; the metadata blob's
-    /// [`lineage`](nvisy_core::FileMetadata::lineage) field
+    /// [`lineage`](nvisy_schema::file::FileMetadata::lineage) field
     /// points back at this run.
     ///
     /// [`FileRegistry::get_file_bytes`]: crate::FileRegistry::get_file_bytes

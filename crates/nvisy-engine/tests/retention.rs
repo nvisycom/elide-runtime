@@ -16,9 +16,9 @@ use std::path::PathBuf;
 use bytes::Bytes;
 use hipstr::HipStr;
 use jiff::{SignedDuration, Timestamp};
-use nvisy_core::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
-use nvisy_core::policy::redaction::{ModalityRedactions, TextRedaction};
-use nvisy_core::policy::{
+use nvisy_schema::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
+use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
+use nvisy_schema::policy::{
     Policy, Predicate, Retention, RetentionPolicy, RetentionScope, Rule, RuleAction,
 };
 use nvisy_engine::keyspace::FileDescriptor;
@@ -76,7 +76,7 @@ fn erase_email_with_retention() -> Policy {
 
 fn analyzer_spec() -> AnalyzerParams {
     AnalyzerParams {
-        recognizers: nvisy_core::plan::RecognizerParams {
+        recognizers: nvisy_schema::plan::RecognizerParams {
             pattern: Some(PatternRecognizerParams {
                 builtins: true,
                 context_enhanced: true,
@@ -84,7 +84,7 @@ fn analyzer_spec() -> AnalyzerParams {
             ner: Vec::new(),
             llm: false,
         },
-        enrichers: nvisy_core::plan::EnricherParams::default(),
+        enrichers: nvisy_schema::plan::EnricherParams::default(),
         deduplication: Default::default(),
         scope: ScopeParams::default(),
     }

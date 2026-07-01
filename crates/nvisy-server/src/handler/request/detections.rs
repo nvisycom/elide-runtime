@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_schema::plan::AnalyzerParams;
 use nvisy_engine::runs::{DocumentInput, ResourceRef, StartBatch};
 use schemars::JsonSchema;
 use serde::Deserialize;

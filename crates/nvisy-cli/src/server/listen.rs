@@ -5,8 +5,9 @@ use std::path::Path;
 
 use tokio::net::TcpListener;
 
+use nvisy_server::config::ServerConfig;
+
 use super::shutdown;
-use crate::config::ServerConfig;
 
 const TARGET: &str = "nvisy_cli::server";
 

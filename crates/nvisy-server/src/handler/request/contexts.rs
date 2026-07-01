@@ -1,6 +1,6 @@
 //! Request bodies for `/contexts` endpoints.
 
-use nvisy_core::context::Context;
+use nvisy_schema::context::Context;
 use schemars::JsonSchema;
 use serde::Deserialize;
 

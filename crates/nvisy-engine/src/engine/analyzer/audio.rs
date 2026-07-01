@@ -13,14 +13,14 @@
 //! belong to when an orchestrator pipeline encounters a body or
 //! embedded part of that modality.
 //!
-//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
+//! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 
 use elide::detection::Analyzer;
 use elide_core::modality::audio::Audio;
 use elide_core::{Error, ErrorKind};
 #[cfg(feature = "test-utils")]
 use elide_stt::{MockBackend as MockSttBackend, SttEnricher};
-use nvisy_core::plan::{AnalyzerParams, SttBackendParams, SttEnricherParams};
+use nvisy_schema::plan::{AnalyzerParams, SttBackendParams, SttEnricherParams};
 
 use super::common::{attach_dedup, attach_ner, attach_pattern};
 

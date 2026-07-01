@@ -39,7 +39,7 @@ use std::error::Error as StdError;
 use bytes::Bytes;
 use hipstr::HipStr;
 use jiff::Timestamp;
-use nvisy_core::file::{FileLineage, FileMetadata};
+use nvisy_schema::file::{FileLineage, FileMetadata};
 use nvisy_core::{Error, Result};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;

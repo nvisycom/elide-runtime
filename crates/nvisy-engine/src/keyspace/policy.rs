@@ -26,7 +26,7 @@
 
 use std::error::Error as StdError;
 
-use nvisy_core::policy::Policy;
+use nvisy_schema::policy::Policy;
 use nvisy_core::{Error, Result};
 use semver::Version;
 use uuid::Uuid;

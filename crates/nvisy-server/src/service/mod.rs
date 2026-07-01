@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use nvisy_core::Result;
 use nvisy_core::llm::LlmConfig;
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_schema::plan::AnalyzerParams;
 use nvisy_engine::Engine;
 use nvisy_engine::retention::SweeperHandle;
 

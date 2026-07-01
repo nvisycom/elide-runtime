@@ -12,12 +12,12 @@
 //! belong to when an orchestrator pipeline encounters a body or
 //! embedded part of that modality.
 //!
-//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
+//! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::tabular::Tabular;
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_schema::plan::AnalyzerParams;
 
 use super::common::{attach_dedup, attach_ner, attach_pattern};
 

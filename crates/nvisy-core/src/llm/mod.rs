@@ -1,6 +1,6 @@
 //! LLM deployment configuration.
 //!
-//! The wire's `RecognizerParams.llm` is only a boolean — every
+//! The wire's `RecognizerParams.llm` is only a boolean; every
 //! detail about which LLM(s) actually run lives here, on the
 //! deployment's side. Sidecar users configure their own lineup;
 //! SaaS operators configure the lineup their tenants share.
@@ -12,7 +12,7 @@
 //!   provider (with model + credentials, from
 //!   [`elide_llm::provider::Provider`]) + optional prompt +
 //!   which modalities it attaches to.
-//! - [`LlmPrompt`] is the prompt spec — inline template, file
+//! - [`LlmPrompt`] is the prompt spec: inline template, file
 //!   path, or absent (uses elide's default recognition prompt).
 //!
 //! [`elide_llm::provider::Provider`]: https://docs.rs/elide-llm/latest/elide_llm/provider/enum.Provider.html

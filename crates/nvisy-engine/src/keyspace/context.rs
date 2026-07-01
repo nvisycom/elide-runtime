@@ -10,7 +10,7 @@
 
 use std::error::Error as StdError;
 
-use nvisy_core::context::Context;
+use nvisy_schema::context::Context;
 use nvisy_core::{Error, Result};
 use semver::Version;
 use uuid::Uuid;

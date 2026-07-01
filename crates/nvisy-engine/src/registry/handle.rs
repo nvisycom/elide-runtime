@@ -88,7 +88,7 @@ impl RegistryHandle {
     /// keyspace (no blob separation) because the bodies are
     /// tiny; range-scan for `list_files` is cheap.
     ///
-    /// [`FileMetadata`]: nvisy_core::FileMetadata
+    /// [`FileMetadata`]: nvisy_schema::file::FileMetadata
     pub(crate) fn files_metadata(&self) -> &Keyspace {
         &self.inner.files_metadata
     }

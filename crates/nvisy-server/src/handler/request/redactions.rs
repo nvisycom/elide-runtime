@@ -1,6 +1,6 @@
 //! Request bodies for `/redactions` endpoints.
 
-use nvisy_core::policy::RuleAction;
+use nvisy_schema::policy::RuleAction;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;

@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use axum_test::TestServer;
 use axum_test::http::HeaderName;
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_schema::plan::AnalyzerParams;
 use nvisy_server::{ServiceRuntime, routes};
 use serde_json::{Value, json};
 use tempfile::TempDir;

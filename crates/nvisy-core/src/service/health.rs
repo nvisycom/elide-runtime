@@ -8,14 +8,14 @@
 //!   ([`Healthy`] / [`Degraded`] / [`Unhealthy`]).
 //! - [`ComponentCheck`]: one named status report.
 //! - [`Healthcheck`]: an async probe a component implements to
-//!   report its own state. Probes should be cheap — no real work,
+//!   report its own state. Probes should be cheap: no real work,
 //!   just enough to confirm the component would respond to a real
 //!   request.
 //!
 //! Composition helpers (probing multiple components concurrently,
 //! computing a roll-up status, applying per-probe timeouts) live
-//! at the layer that aggregates components — typically the
-//! engine — to keep this module dependency-free.
+//! at the layer that aggregates components (typically the engine)
+//! to keep this module dependency-free.
 //!
 //! The HTTP response envelope (a `Health` body with a roll-up
 //! status + per-component checks + timestamp) lives at the
@@ -68,11 +68,11 @@ impl ComponentCheck {
 /// Component that can report its own operational state.
 ///
 /// Implementations should make probes **cheap**: a cached liveness
-/// flag, a single round-trip to a backing service, a small ping —
-/// not anything that does real work. Expensive checks block
+/// flag, a single round-trip to a backing service, a small ping.
+/// Not anything that does real work; expensive checks block
 /// `/health` and risk timing out under load. The caller composing
 /// the report is responsible for applying per-probe timeouts (via
-/// `tokio::time::timeout` or similar) — keep the trait itself
+/// `tokio::time::timeout` or similar); keep the trait itself
 /// timeout-free.
 ///
 /// Each implementor reports independently: a registry that

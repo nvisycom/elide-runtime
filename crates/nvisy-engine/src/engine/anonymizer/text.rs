@@ -4,8 +4,8 @@
 use elide::redaction::Anonymizer;
 use elide_core::Error;
 use elide_core::modality::text::Text;
-use nvisy_core::policy::RuleAction;
-use nvisy_core::policy::redaction::ModalityRedactions;
+use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 use super::dispatch::{Target, attach_one_override, attach_policies};
@@ -18,10 +18,10 @@ use super::text_op::build_text_op;
 /// so callers can pre-filter by [`Policy::applies_when`] without
 /// cloning the policy set.
 ///
-/// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+/// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
 pub(crate) fn attach_policies_text<'a>(
     anonymizer: Anonymizer<Text>,
-    policies: impl Iterator<Item = &'a nvisy_core::policy::Policy>,
+    policies: impl Iterator<Item = &'a nvisy_schema::policy::Policy>,
 ) -> Result<Anonymizer<Text>, Error> {
     attach_policies(anonymizer, policies, compile_one)
 }

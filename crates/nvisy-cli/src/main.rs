@@ -9,10 +9,11 @@ use std::process;
 
 use axum::Router;
 use clap::Parser;
+use nvisy_server::config::{AppConfig, ServerConfig};
 use nvisy_server::middleware::{OpenApiConfig, *};
 use nvisy_server::service::{ServiceRuntime, ServiceState};
 
-use crate::config::{AppConfig, Cli, ServerConfig};
+use crate::config::Cli;
 
 const TARGET: &str = "nvisy_cli";
 

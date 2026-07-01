@@ -40,18 +40,16 @@ path = "src/main.rs"
 
 [dependencies]
 # Internal crates
-nvisy-core = { workspace = true, features = [] }
 nvisy-server = { workspace = true, features = [] }
 
-# Serialization
-serde = { workspace = true, features = [] }
-toml = { workspace = true, features = [] }
-humantime-serde = { workspace = true, features = [] }
-
-# Derive macros and error handling
+# Error handling for the boot path.
 anyhow = { workspace = true, features = [] }
 
-# Primitive datatypes
+# TOML file loading.
+toml = { workspace = true, features = [] }
+
+# Human-readable duration parsing for CLI args
+# (`--shutdown-timeout "30s"`).
 humantime = { workspace = true, features = [] }
 
 # Async runtime and parallelism
@@ -66,6 +64,3 @@ axum = { workspace = true, features = ["tokio"] }
 
 # CLI
 clap = { workspace = true, features = ["derive", "env"] }
-
-[package.metadata.cargo-machete]
-ignored = ["humantime-serde"]

@@ -4,8 +4,8 @@
 //! type and [`ErrorKind`] to classify failures.
 //!
 //! Construction goes through [`Error::new`] or one of the per-kind
-//! shorthand fns ([`Error::validation`], [`Error::not_found`], …) —
-//! there is one helper per [`ErrorKind`] variant. Each shorthand
+//! shorthand fns ([`Error::validation`], [`Error::not_found`], …).
+//! There is one helper per [`ErrorKind`] variant. Each shorthand
 //! seeds the `retryable` flag with the sensible default for that
 //! kind (timeouts and transient connection failures default to
 //! retryable; everything else defaults to non-retryable).
@@ -32,7 +32,7 @@ use std::{error, io, result};
 use strum::Display;
 
 /// Trait-object alias for the [`Error`] cause chain. Wraps any
-/// `std::error::Error` that's safe to send across threads — the
+/// `std::error::Error` that's safe to send across threads: the
 /// usual bound for error sources in async code.
 pub type ErrorSource = Box<dyn error::Error + Send + Sync>;
 
@@ -42,13 +42,13 @@ pub type ErrorSource = Box<dyn error::Error + Send + Sync>;
 /// how to handle a failure (e.g. retry on `Timeout`, surface to user
 /// on `Validation`). Grouped by failure domain:
 ///
-/// - **Domain failures** — `Validation`, `Policy`, `NotFound`,
-///   `Conflict`. The operation was well-formed but rejected by domain
+/// - **Domain failures** (`Validation`, `Policy`, `NotFound`,
+///   `Conflict`). The operation was well-formed but rejected by domain
 ///   logic.
-/// - **Transport failures** — `Connection`, `Timeout`, `Cancellation`.
+/// - **Transport failures** (`Connection`, `Timeout`, `Cancellation`).
 ///   The operation never completed because the channel failed; often
 ///   retryable.
-/// - **Infrastructure failures** — `Internal`, `Runtime`, `Serialization`.
+/// - **Infrastructure failures** (`Internal`, `Runtime`, `Serialization`).
 ///   Something inside the process or its immediate dependencies broke;
 ///   not the caller's fault.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
@@ -113,7 +113,7 @@ impl Error {
     /// Construct an error with the given kind and message; no
     /// component, no source, `retryable = false`. Prefer the
     /// per-kind shorthand fns ([`Self::validation`], [`Self::timeout`],
-    /// …) when one matches — they set the right `retryable` default
+    /// …) when one matches; they set the right `retryable` default
     /// for that kind.
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
         Self {
@@ -195,7 +195,7 @@ impl Error {
     }
 
     /// Connection failure to an external service. `retryable` is
-    /// caller-determined — transient network glitches are retryable,
+    /// caller-determined: transient network glitches are retryable,
     /// permanent auth failures are not.
     pub fn connection(
         message: impl Into<String>,
@@ -214,7 +214,7 @@ impl Error {
             .with_retryable(true)
     }
 
-    /// Explicit cancellation. Non-retryable — by definition the
+    /// Explicit cancellation. Non-retryable: by definition the
     /// caller asked us to stop.
     pub fn cancellation(
         message: impl Into<String>,
@@ -224,14 +224,14 @@ impl Error {
     }
 
     /// Internal infrastructure failure (filesystem, I/O, database).
-    /// Non-retryable by default — most internal failures need
+    /// Non-retryable by default: most internal failures need
     /// investigation, not retry.
     pub fn internal(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
         Self::new(ErrorKind::Internal, message).with_component(component)
     }
 
     /// Runtime failure inside an engine operation. `retryable` is
-    /// caller-determined — an LLM rate-limit is retryable, a
+    /// caller-determined: an LLM rate-limit is retryable, a
     /// compile-time pattern error is not.
     pub fn runtime(
         message: impl Into<String>,

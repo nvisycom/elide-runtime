@@ -9,12 +9,12 @@ use std::path::PathBuf;
 
 use bytes::Bytes;
 use hipstr::HipStr;
-use nvisy_core::RawDocument;
-use nvisy_core::plan::{
+use nvisy_schema::file::RawDocument;
+use nvisy_schema::plan::{
     AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
 };
-use nvisy_core::policy::RuleAction;
-use nvisy_core::policy::redaction::{ModalityRedactions, TextRedaction};
+use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_engine::Engine;
 use nvisy_engine::runs::{DocBody, RecognizedGroup};
 use tempfile::TempDir;
@@ -42,7 +42,7 @@ fn engine() -> (Engine, TempDir) {
 
 fn default_spec() -> AnalyzerParams {
     AnalyzerParams {
-        recognizers: nvisy_core::plan::RecognizerParams {
+        recognizers: nvisy_schema::plan::RecognizerParams {
             pattern: Some(PatternRecognizerParams {
                 builtins: true,
                 context_enhanced: true,
@@ -50,7 +50,7 @@ fn default_spec() -> AnalyzerParams {
             ner: Vec::new(),
             llm: false,
         },
-        enrichers: nvisy_core::plan::EnricherParams {
+        enrichers: nvisy_schema::plan::EnricherParams {
             language: None,
             ocr: Some(OcrEnricherParams {
                 backend: OcrBackendParams::Mock,

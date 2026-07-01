@@ -1,0 +1,56 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-schema"
+description = "Wire schema for the Nvisy platform: request / response types, policy documents, analyzer plans, and file metadata"
+keywords = ["nvisy", "schema", "sdk", "types"]
+categories = ["data-structures", "api-bindings"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+
+## Test-only wire variants (`NerBackendParams::Mock`, `OcrBackendParams::Mock`,
+## `SttBackendParams::Mock`). Off in production so `Nvisy.toml` and inbound
+## requests cannot ship a mock backend; on in downstream crates'
+## dev-dependencies so integration tests can construct a working analyzer.
+test-utils = []
+
+[dependencies]
+# Elide's stable wire vocabulary — primitive types (LanguageTag, CountryCode,
+# BoundingBox, TimeSpan, ConfidenceThreshold) + modality types + entity types
+# — is `elide-core` alone. No codec, no LLM, no runtime plumbing: `elide-core`
+# is the SDK-safe subset.
+elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = [] }
+schemars = { workspace = true, features = ["uuid1", "semver1"] }
+
+# Derive macros
+derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant"] }
+strum = { workspace = true, features = ["derive"] }
+
+# Primitive datatypes
+bytes = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v7"] }
+hipstr = { workspace = true, features = ["serde"] }
+jiff = { workspace = true, features = ["serde"] }
+semver = { workspace = true, features = ["serde"] }

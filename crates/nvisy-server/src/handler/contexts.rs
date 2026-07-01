@@ -6,7 +6,7 @@ use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::http::StatusCode;
-use nvisy_core::context::Context;
+use nvisy_schema::context::Context;
 use nvisy_engine::{ContextRegistry, Engine};
 
 use super::error::Result;

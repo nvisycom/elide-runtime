@@ -16,7 +16,7 @@ use std::path::PathBuf;
 
 use bytes::Bytes;
 use hipstr::HipStr;
-use nvisy_core::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
+use nvisy_schema::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
 use nvisy_engine::keyspace::FileDescriptor;
 use nvisy_engine::runs::{DocumentInput, StartBatch};
 use nvisy_engine::{Engine, FileRegistry};
@@ -32,7 +32,7 @@ fn engine() -> (Engine, TempDir) {
 
 fn analyzer_spec() -> AnalyzerParams {
     AnalyzerParams {
-        recognizers: nvisy_core::plan::RecognizerParams {
+        recognizers: nvisy_schema::plan::RecognizerParams {
             pattern: Some(PatternRecognizerParams {
                 builtins: true,
                 context_enhanced: true,
@@ -40,7 +40,7 @@ fn analyzer_spec() -> AnalyzerParams {
             ner: Vec::new(),
             llm: false,
         },
-        enrichers: nvisy_core::plan::EnricherParams::default(),
+        enrichers: nvisy_schema::plan::EnricherParams::default(),
         deduplication: Default::default(),
         scope: ScopeParams::default(),
     }

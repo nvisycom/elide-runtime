@@ -1,6 +1,6 @@
 //! Request bodies for `/policies` endpoints.
 
-use nvisy_core::policy::Policy;
+use nvisy_schema::policy::Policy;
 use schemars::JsonSchema;
 use serde::Deserialize;
 

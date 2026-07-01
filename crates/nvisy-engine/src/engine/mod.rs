@@ -75,9 +75,10 @@ use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::plan::AnalyzerParams;
-use nvisy_core::policy::{Policy, RuleAction};
-use nvisy_core::{Error, RawDocument, Result};
+use nvisy_schema::plan::AnalyzerParams;
+use nvisy_schema::policy::{Policy, RuleAction};
+use nvisy_schema::file::RawDocument;
+use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
 use self::report::{
@@ -265,7 +266,7 @@ impl Engine {
     /// ride on.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
-    /// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+    /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
     /// [`RecognizedGroup`]: crate::runs::RecognizedGroup
     pub async fn apply_document(
         &self,

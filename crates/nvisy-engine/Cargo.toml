@@ -32,6 +32,7 @@ document = ["elide/codec-document"]
 ## cannot ship a mock recognizer.
 test-utils = [
     "nvisy-core/test-utils",
+    "nvisy-schema/test-utils",
     "elide/mock",
     "elide-ocr/mock",
     "elide-stt/mock",
@@ -45,6 +46,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-schema = { workspace = true, features = [] }
 
 # Elide toolkit (upstream). `mock` pulls the no-op NER stub; the LLM
 # features pull the rig backend (`llm-rig`, needed for Ollama) plus

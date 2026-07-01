@@ -1,6 +1,6 @@
 //! File response shapes.
 
-use nvisy_core::FileMetadata;
+use nvisy_schema::file::FileMetadata;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

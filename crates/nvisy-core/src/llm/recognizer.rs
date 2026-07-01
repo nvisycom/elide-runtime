@@ -14,7 +14,7 @@ use super::{LlmPrompt, LlmRecognizerModality};
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmRecognizer {
-    /// Recognizer name — surfaces on the per-entity provenance
+    /// Recognizer name. Surfaces on the per-entity provenance
     /// trail so audits can attribute detections to a specific
     /// configured recognizer. Must be unique across the
     /// deployment's LLM lineup.
@@ -28,7 +28,7 @@ pub struct LlmRecognizer {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prompt: Option<LlmPrompt>,
     /// Which analyzer modalities this recognizer attaches to.
-    /// Empty is an error at compile time — a recognizer that
+    /// Empty is an error at compile time: a recognizer that
     /// attaches to no analyzer never runs.
     #[serde(default = "default_modalities")]
     pub modalities: Vec<LlmRecognizerModality>,
@@ -39,7 +39,7 @@ pub struct LlmRecognizer {
 /// The four rig variants mirror
 /// [`elide_llm::provider::Provider`] and forward its inner
 /// payloads directly. The `Mock` variant exists only when the
-/// consuming crate enables the `test-utils` feature — the wire
+/// consuming crate enables the `test-utils` feature: the wire
 /// rejects `kind = "mock"` in production builds.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "kebab-case")]

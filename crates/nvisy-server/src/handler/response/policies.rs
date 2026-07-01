@@ -1,6 +1,6 @@
 //! Policy response shapes.
 //!
-//! Reads return the [`nvisy_core::policy::Policy`] type
+//! Reads return the [`nvisy_schema::policy::Policy`] type
 //! directly (already `Serialize + JsonSchema`). `POST /policies`
 //! returns the `(id, version)` summary so clients can reference
 //! the policy without parsing the full body.

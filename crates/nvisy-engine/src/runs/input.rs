@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_schema::plan::AnalyzerParams;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -35,7 +35,7 @@ pub struct StartBatch {
     /// time. Per-request keys override descriptor keys on
     /// conflict.
     ///
-    /// [`DocumentPredicate::HasMetadata`]: nvisy_core::policy::DocumentPredicate::HasMetadata
+    /// [`DocumentPredicate::HasMetadata`]: nvisy_schema::policy::DocumentPredicate::HasMetadata
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub metadata: HashMap<String, String>,
     /// Recognition plan — which recognizers + enrichers run, the

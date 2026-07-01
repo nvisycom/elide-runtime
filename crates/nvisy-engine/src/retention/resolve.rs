@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_core::policy::{Policy, Retention, RetentionScope};
+use nvisy_schema::policy::{Policy, Retention, RetentionScope};
 
 /// Resolve the effective per-scope retention across `policies`.
 ///
@@ -49,7 +49,7 @@ pub fn resolve_retention<'a>(
 #[cfg(test)]
 mod tests {
     use hipstr::HipStr;
-    use nvisy_core::policy::RetentionPolicy;
+    use nvisy_schema::policy::RetentionPolicy;
     use semver::Version;
     use uuid::Uuid;
 

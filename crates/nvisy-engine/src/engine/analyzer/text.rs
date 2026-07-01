@@ -11,14 +11,14 @@
 //! belong to when an orchestrator pipeline encounters a body or
 //! embedded part of that modality.
 //!
-//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
+//! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 //! [`LlmConfig`]: nvisy_core::llm::LlmConfig
 
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::text::Text;
 use nvisy_core::llm::{LlmConfig, LlmRecognizerModality};
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_schema::plan::AnalyzerParams;
 
 use super::common::{attach_dedup, attach_language, attach_ner, attach_pattern};
 use crate::llm::attach_lineup;

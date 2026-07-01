@@ -13,7 +13,7 @@
 //! belong to when an orchestrator pipeline encounters a body or
 //! embedded part of that modality.
 //!
-//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
+//! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 //! [`LlmConfig`]: nvisy_core::llm::LlmConfig
 
 use elide::detection::Analyzer;
@@ -24,7 +24,7 @@ use elide_core::modality::image::Image;
 use elide_ocr::MockBackend as MockOcrBackend;
 use elide_ocr::OcrEnricher;
 use nvisy_core::llm::{LlmConfig, LlmRecognizerModality};
-use nvisy_core::plan::{AnalyzerParams, OcrBackendParams, OcrEnricherParams};
+use nvisy_schema::plan::{AnalyzerParams, OcrBackendParams, OcrEnricherParams};
 
 use super::common::{attach_dedup, attach_ner, attach_pattern};
 use crate::llm::attach_lineup;

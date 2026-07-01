@@ -34,7 +34,7 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 
 use jiff::Timestamp;
-use nvisy_core::policy::{Retention, RetentionScope};
+use nvisy_schema::policy::{Retention, RetentionScope};
 use nvisy_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -132,7 +132,7 @@ pub(crate) trait RetentionRegistry {
     /// and the per-doc apply path (RedactedOutput per output
     /// file).
     ///
-    /// [`resolve_retention`]: nvisy_core::policy::resolve_retention
+    /// [`resolve_retention`]: nvisy_schema::policy::resolve_retention
     /// [`Engine::start_run`]: crate::Engine::start_run
     fn pin_retention(
         &self,

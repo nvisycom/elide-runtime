@@ -3110,10 +3110,7 @@ dependencies = [
  "axum",
  "clap",
  "humantime",
- "humantime-serde",
- "nvisy-core",
  "nvisy-server",
- "serde",
  "tokio",
  "toml",
  "tracing",
@@ -3125,21 +3122,15 @@ name = "nvisy-core"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "bytes",
  "derive_builder",
  "derive_more",
- "elide",
- "elide-core",
  "elide-llm",
- "hipstr",
  "jiff",
  "schemars",
- "semver",
  "serde",
  "serde_json",
  "strum 0.28.0",
  "thiserror",
- "uuid",
 ]
 
 [[package]]
@@ -3160,6 +3151,7 @@ dependencies = [
  "jiff",
  "nvisy-core",
  "nvisy-engine",
+ "nvisy-schema",
  "schemars",
  "semver",
  "serde",
@@ -3171,6 +3163,24 @@ dependencies = [
  "tracing",
  "uuid",
  "zip 2.4.2",
+]
+
+[[package]]
+name = "nvisy-schema"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "derive_builder",
+ "derive_more",
+ "elide-core",
+ "hipstr",
+ "jiff",
+ "schemars",
+ "semver",
+ "serde",
+ "serde_json",
+ "strum 0.28.0",
+ "uuid",
 ]
 
 [[package]]
@@ -3189,6 +3199,7 @@ dependencies = [
  "jiff",
  "nvisy-core",
  "nvisy-engine",
+ "nvisy-schema",
  "nvisy-server",
  "schemars",
  "semver",

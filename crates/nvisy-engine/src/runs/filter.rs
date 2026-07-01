@@ -8,13 +8,13 @@
 //! keys on conflict (per the design decision: "explicit-per-request
 //! wins").
 //!
-//! [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
-//! [`DocumentPredicate`]: nvisy_core::policy::DocumentPredicate
+//! [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
+//! [`DocumentPredicate`]: nvisy_schema::policy::DocumentPredicate
 //! [`StartBatch::metadata`]: super::input::StartBatch::metadata
 
 use std::collections::HashMap;
 
-use nvisy_core::policy::{DocumentPredicate, Policy};
+use nvisy_schema::policy::{DocumentPredicate, Policy};
 
 /// The merged per-document fact set [`DocumentPredicate`]
 /// evaluates against.

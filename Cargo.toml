@@ -7,6 +7,7 @@ members = [
     "./crates/nvisy-cli",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
+    "./crates/nvisy-schema",
     "./crates/nvisy-server",
 ]
 
@@ -30,7 +31,9 @@ documentation = "https://docs.rs/nvisy-runtime"
 
 # Elide toolkit (upstream)
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-core = { git = "https://github.com/nvisycom/elide", branch = "main" }
+elide-core = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-detection = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-redaction = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 # Pulled directly only by `elide-bento`, which implements the per-backend traits these crates export.
 elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
@@ -43,6 +46,7 @@ elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }
 # Internal crates
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-schema = { path = "./crates/nvisy-schema", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
 # Serialization

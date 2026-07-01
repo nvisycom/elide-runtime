@@ -32,7 +32,7 @@
 //!   (`languages`, `countries`, `labels`, `labelCatalog`).
 
 use elide_core::primitive::{CountryCode, Languages};
-use nvisy_core::plan::{
+use nvisy_schema::plan::{
     AnalyzerParams, DeduplicationParams, EnricherParams, LabelCatalogParams,
     LanguageEnricherParams, NerRecognizerParams, OcrEnricherParams, PatternRecognizerParams,
     RecognizerParams, ScopeParams, SttEnricherParams,

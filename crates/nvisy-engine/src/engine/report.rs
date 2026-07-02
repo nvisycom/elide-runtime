@@ -1,15 +1,15 @@
-//! Plumbing between the persistence-shaped [`DocBody`] /
-//! [`RecognizedGroup`] and elide's runtime [`Report`].
+//! Plumbing between [`DocBody`] / [`RecognizedGroup`] and
+//! elide's runtime [`Report`].
 //!
 //! Two directions:
 //!
 //! - **Drain**: after [`Orchestrator::analyze`] returns a
 //!   [`Report`], [`take_body`] and [`take_part`] move each typed
 //!   `Vec<Entity<M>>` out of the report into the matching
-//!   [`RecognizedGroup`] variant for persistence.
+//!   [`RecognizedGroup`] variant for the caller to hold.
 //! - **Rebuild**: at apply time, [`insert_body`] and
-//!   [`insert_part`] feed a fresh [`Report`] from the persisted
-//!   groups (cloning entities — the persisted body is the source
+//!   [`insert_part`] feed a fresh [`Report`] from the returned
+//!   groups (cloning entities; the returned body is the source
 //!   of truth for re-apply idempotency).
 //!
 //! Plus two byte-level helpers used at the apply seam:
@@ -18,12 +18,13 @@
 //! to re-encode through after `anonymize_with` mutated the
 //! document in place.
 //!
-//! All helpers are stateless — no [`Engine`] state, no I/O. The
+//! All helpers are stateless: no [`Engine`] state, no I/O. The
 //! per-modality dispatch is collapsed onto one trait
 //! ([`GroupCarrier`]) plus four trivial impls so adding a fifth
 //! modality is one macro line, not eight functions.
 //!
-//! [`DocBody`]: crate::runs::DocBody
+//! [`DocBody`]: super::document::DocBody
+//! [`RecognizedGroup`]: super::document::RecognizedGroup
 //! [`Engine`]: super::Engine
 //! [`Orchestrator::analyze`]: elide::Orchestrator::analyze
 //! [`Report`]: elide::Report
@@ -42,7 +43,7 @@ use nvisy_schema::policy::RuleAction;
 use uuid::Uuid;
 
 use super::ApplyOutcome;
-use crate::runs::{EntityRecord, RecognizedGroup};
+use super::document::{EntityRecord, RecognizedGroup};
 
 const COMPONENT: &str = "engine::report";
 

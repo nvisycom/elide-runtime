@@ -129,20 +129,6 @@ impl Engine {
         })
     }
 
-    /// Open (or create) the engine database at `path` and pair it
-    /// with a caller-supplied `formats` registry. Useful for tests
-    /// that need to register fake codecs, or for deployments that
-    /// extend the built-in set.
-    pub fn with_formats(path: &Path, formats: FormatRegistry) -> Result<Self> {
-        let registry = RegistryHandle::open(path)?;
-        Ok(Self {
-            registry,
-            formats: Arc::new(formats),
-            ner: Arc::new(nvisy_core::ner::NerConfig::default()),
-            llm: Arc::new(nvisy_core::llm::LlmConfig::default()),
-        })
-    }
-
     /// Set the deployment's NER configuration on an already-open
     /// engine. Consumed once at boot; the analyzer compile reads
     /// it every time a request submits
@@ -203,15 +189,7 @@ impl Engine {
     ) -> Result<DocBody> {
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
-        let orchestrator = orchestrator::build(
-            &self.formats,
-            spec,
-            &self.ner,
-            &self.llm,
-            &[],
-            &[],
-            correlation_id,
-        )?;
+        let orchestrator = self.build_orchestrator(spec, &[], &[], correlation_id)?;
         let mut report = orchestrator.analyze(&mut handle).await.map_err(|err| {
             Error::internal("orchestrator analyze failed", COMPONENT).with_source(err)
         })?;
@@ -311,15 +289,7 @@ impl Engine {
             collect_overrides_into(&mut overrides, group);
         }
 
-        let orchestrator = orchestrator::build(
-            &self.formats,
-            spec,
-            &self.ner,
-            &self.llm,
-            policies,
-            &overrides,
-            correlation_id,
-        )?;
+        let orchestrator = self.build_orchestrator(spec, policies, &overrides, correlation_id)?;
         orchestrator
             .anonymize_with(&mut handle, report)
             .await

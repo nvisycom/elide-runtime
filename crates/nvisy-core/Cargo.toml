@@ -49,8 +49,3 @@ strum = { workspace = true, features = ["derive"] }
 derive_more = { workspace = true, features = ["display"] }
 derive_builder = { workspace = true, features = [] }
 
-# `Healthcheck` trait's async_trait attribute.
-async-trait = { workspace = true, features = [] }
-
-# `ServiceStatus` `Timestamp` field; `Error` chain formatting.
-jiff = { workspace = true, features = ["serde"] }

@@ -9,14 +9,14 @@ use std::path::PathBuf;
 
 use bytes::Bytes;
 use hipstr::HipStr;
+use nvisy_engine::Engine;
+use nvisy_engine::runs::{DocBody, RecognizedGroup};
 use nvisy_schema::file::RawDocument;
 use nvisy_schema::plan::{
     AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::RuleAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
-use nvisy_engine::Engine;
-use nvisy_engine::runs::{DocBody, RecognizedGroup};
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -47,7 +47,7 @@ fn default_spec() -> AnalyzerParams {
                 builtins: true,
                 context_enhanced: true,
             }),
-            ner: Vec::new(),
+            ner: false,
             llm: false,
         },
         enrichers: nvisy_schema::plan::EnricherParams {

@@ -75,10 +75,10 @@ use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
+use nvisy_core::{Error, Result};
+use nvisy_schema::file::RawDocument;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, RuleAction};
-use nvisy_schema::file::RawDocument;
-use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
 use self::report::{
@@ -95,6 +95,7 @@ const COMPONENT: &str = "engine";
 pub struct Engine {
     registry: RegistryHandle,
     formats: Arc<FormatRegistry>,
+    ner: Arc<nvisy_core::ner::NerConfig>,
     llm: Arc<nvisy_core::llm::LlmConfig>,
 }
 
@@ -111,11 +112,11 @@ pub struct ApplyOutcome {
 impl Engine {
     /// Open (or create) the engine database at `path` and pair it
     /// with elide's built-in codec set
-    /// ([`FormatRegistry::with_builtin`]) plus an empty
-    /// [`LlmConfig`]. Callers that want LLM recognition must use
-    /// [`with_llm`] instead.
+    /// ([`FormatRegistry::with_builtin`]) plus empty NER and LLM
+    /// lineups. Callers that want NER or LLM recognition must use
+    /// [`with_ner`] / [`with_llm`] respectively.
     ///
-    /// [`LlmConfig`]: nvisy_core::llm::LlmConfig
+    /// [`with_ner`]: Self::with_ner
     /// [`with_llm`]: Self::with_llm
     pub fn open(path: &Path) -> Result<Self> {
         let registry = RegistryHandle::open(path)?;
@@ -123,6 +124,7 @@ impl Engine {
         Ok(Self {
             registry,
             formats,
+            ner: Arc::new(nvisy_core::ner::NerConfig::default()),
             llm: Arc::new(nvisy_core::llm::LlmConfig::default()),
         })
     }
@@ -136,8 +138,19 @@ impl Engine {
         Ok(Self {
             registry,
             formats: Arc::new(formats),
+            ner: Arc::new(nvisy_core::ner::NerConfig::default()),
             llm: Arc::new(nvisy_core::llm::LlmConfig::default()),
         })
+    }
+
+    /// Set the deployment's NER configuration on an already-open
+    /// engine. Consumed once at boot; the analyzer compile reads
+    /// it every time a request submits
+    /// `AnalyzerParams.recognizers.ner = true`.
+    #[must_use]
+    pub fn with_ner(mut self, ner: nvisy_core::ner::NerConfig) -> Self {
+        self.ner = Arc::new(ner);
+        self
     }
 
     /// Set the deployment's LLM configuration on an already-open
@@ -190,8 +203,15 @@ impl Engine {
     ) -> Result<DocBody> {
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
-        let orchestrator =
-            orchestrator::build(&self.formats, spec, &self.llm, &[], &[], correlation_id)?;
+        let orchestrator = orchestrator::build(
+            &self.formats,
+            spec,
+            &self.ner,
+            &self.llm,
+            &[],
+            &[],
+            correlation_id,
+        )?;
         let mut report = orchestrator.analyze(&mut handle).await.map_err(|err| {
             Error::internal("orchestrator analyze failed", COMPONENT).with_source(err)
         })?;
@@ -294,6 +314,7 @@ impl Engine {
         let orchestrator = orchestrator::build(
             &self.formats,
             spec,
+            &self.ner,
             &self.llm,
             policies,
             &overrides,

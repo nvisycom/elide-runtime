@@ -45,9 +45,10 @@ async fn run() -> anyhow::Result<()> {
     let AppConfig {
         server,
         analyzer,
+        ner,
         llm,
     } = config;
-    let runtime = ServiceRuntime::new(server.data_dir.clone(), analyzer, llm, None).await?;
+    let runtime = ServiceRuntime::new(server.data_dir.clone(), analyzer, ner, llm, None).await?;
     let router = create_router(&server, runtime.state());
     let outcome = server::run(&server, router).await;
     runtime.stop().await;

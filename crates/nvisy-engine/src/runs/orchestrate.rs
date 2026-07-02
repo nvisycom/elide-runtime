@@ -10,11 +10,10 @@ use bytes::Bytes;
 use elide_core::modality::Modality;
 use futures::{StreamExt, stream};
 use jiff::Timestamp;
-use nvisy_schema::file::FileMetadata;
+use nvisy_core::{Error, Result};
+use nvisy_schema::file::{FileLineage, FileMetadata, RawDocument};
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, Retention, RetentionScope, RuleAction};
-use nvisy_schema::file::{FileLineage, RawDocument};
-use nvisy_core::{Error, Result};
 use tokio::time::timeout;
 use uuid::Uuid;
 

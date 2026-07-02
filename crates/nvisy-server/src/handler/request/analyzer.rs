@@ -4,27 +4,22 @@
 //! Every override field defaults to "inherit"; clients say only
 //! what they want different from the deployment default. The
 //! resolution method folds the two into a final
-//! [`AnalyzerParams`] handed to the engine. Total — no failure
+//! [`AnalyzerParams`] handed to the engine. Total, no failure
 //! mode; the engine compile validates the resolved spec.
 //!
 //! ## Override kinds
 //!
-//! - [`ScalarOverride<T>`] wraps a single-value field. Three
-//!   variants: `Inherit` (use default), `Replace { value }`
-//!   (set to value), `Remove` (clear an `Option` slot, even if
-//!   the default had it set).
-//! - [`CollectionOverride<T, S>`] wraps a `Vec<T>` field. Three
-//!   variants: `Inherit`, `Replace { values }`, and
-//!   `Patch { extend, remove }` — filter the default by removing
-//!   matching items via `S` selectors, then append `extend`.
+//! Every field is a [`ScalarOverride<T>`], which wraps a
+//! single-value field. Three variants: `Inherit` (use default),
+//! `Replace { value }` (set to value), `Remove` (clear an
+//! `Option` slot, even if the default had it set).
 //!
 //! ## Wire shape per field
 //!
 //! - `recognizers` ([`RecognizerOverrides`]): nested struct
 //!   carrying one override per kind. `pattern` is at-most-one
-//!   (scalar), `ner` is a list with selector-based patch
-//!   semantics, `llm` is a boolean toggle (the deployment owns
-//!   the lineup, requests only opt in or out).
+//!   (scalar); `ner` and `llm` are boolean toggles (the
+//!   deployment owns each lineup, requests only opt in or out).
 //! - `enrichers` ([`EnricherOverrides`]): nested struct, each
 //!   slot at-most-one (scalar). Slots: `language`, `ocr`, `stt`.
 //! - `deduplication`: scalar.
@@ -34,15 +29,14 @@
 use elide_core::primitive::{CountryCode, Languages};
 use nvisy_schema::plan::{
     AnalyzerParams, DeduplicationParams, EnricherParams, LabelCatalogParams,
-    LanguageEnricherParams, NerRecognizerParams, OcrEnricherParams, PatternRecognizerParams,
-    RecognizerParams, ScopeParams, SttEnricherParams,
+    LanguageEnricherParams, OcrEnricherParams, PatternRecognizerParams, RecognizerParams,
+    ScopeParams, SttEnricherParams,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 /// Per-request analyzer params. Every field defaults to
-/// [`ScalarOverride::Inherit`] / [`CollectionOverride::Inherit`];
-/// the request may set any subset.
+/// [`ScalarOverride::Inherit`]; the request may set any subset.
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerOverrides {
@@ -109,17 +103,18 @@ impl ScopeOverrides {
 
 /// Per-kind overrides on the recognizer slots of
 /// [`RecognizerParams`]. Pattern is scalar (at-most-one); NER
-/// is a collection; LLM is a scalar boolean toggle (the
-/// deployment owns the lineup — the request only opts in or out).
+/// and LLM are scalar boolean toggles (the deployment owns each
+/// lineup — the request only opts in or out).
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognizerOverrides {
     /// Pattern recognizer slot. Scalar.
     #[serde(default)]
     pub pattern: ScalarOverride<PatternRecognizerParams>,
-    /// NER recognizer list. Selectors match by `name`.
+    /// NER toggle. `true` attaches the deployment's configured
+    /// recognizer lineup; `false` skips NER entirely.
     #[serde(default)]
-    pub ner: CollectionOverride<NerRecognizerParams, NerSelector>,
+    pub ner: ScalarOverride<bool>,
     /// LLM toggle. `true` attaches the deployment's configured
     /// recognizer lineup; `false` skips LLM entirely.
     #[serde(default)]
@@ -130,7 +125,7 @@ impl RecognizerOverrides {
     fn resolve(self, default: &RecognizerParams) -> RecognizerParams {
         RecognizerParams {
             pattern: self.pattern.resolve_optional(default.pattern.as_ref()),
-            ner: self.ner.resolve(&default.ner, ner_matches),
+            ner: self.ner.resolve(&default.ner),
             llm: self.llm.resolve(&default.llm),
         }
     }
@@ -206,67 +201,4 @@ impl<T: Clone> ScalarOverride<T> {
             Self::Remove => None,
         }
     }
-}
-
-/// Per-field override for a collection (`Vec<T>`) field.
-///
-/// Renamed in the generated schema to `{T}CollectionOverride` so
-/// each monomorphisation gets a distinct, descriptive schema name
-/// (the selector type `S` is always determined by `T`, so it does
-/// not need to appear in the name).
-#[derive(Debug, Default, Deserialize, JsonSchema)]
-#[serde(tag = "mode", rename_all = "snake_case")]
-#[schemars(rename = "{T}CollectionOverride")]
-pub enum CollectionOverride<T, S> {
-    /// Use the server default's collection.
-    #[default]
-    Inherit,
-    /// Replace the server default's collection entirely.
-    Replace {
-        /// The values to use.
-        values: Vec<T>,
-    },
-    /// Filter the server default by removing matching entries
-    /// (selectors), then append `extend`. Both arrays are
-    /// required on the wire (use `[]` for "no items"); the
-    /// derive can't supply a default-on-omit without forcing
-    /// `Default` bounds onto `T` / `S` we don't want.
-    Patch {
-        /// Items to add after applying `remove`.
-        extend: Vec<T>,
-        /// Selectors that drop matching items from the
-        /// inherited collection.
-        remove: Vec<S>,
-    },
-}
-
-impl<T: Clone, S> CollectionOverride<T, S> {
-    fn resolve(self, default: &[T], matches: impl Fn(&S, &T) -> bool) -> Vec<T> {
-        match self {
-            Self::Inherit => default.to_vec(),
-            Self::Replace { values } => values,
-            Self::Patch { extend, remove } => {
-                let mut out: Vec<T> = default
-                    .iter()
-                    .filter(|item| !remove.iter().any(|sel| matches(sel, item)))
-                    .cloned()
-                    .collect();
-                out.extend(extend);
-                out
-            }
-        }
-    }
-}
-
-/// Selector for [`CollectionOverride::Patch::remove`] on the
-/// `ner` list. NER recognizers are keyed by `name`.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct NerSelector {
-    /// NER recognizer name to match.
-    pub name: String,
-}
-
-fn ner_matches(sel: &NerSelector, spec: &NerRecognizerParams) -> bool {
-    sel.name == spec.name
 }

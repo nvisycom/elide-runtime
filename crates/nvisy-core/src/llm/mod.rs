@@ -21,12 +21,12 @@ mod prompt;
 mod provider;
 mod recognizer;
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 pub use self::prompt::LlmPrompt;
 pub use self::provider::LlmRecognizerModality;
 pub use self::recognizer::{LlmBackendConfig, LlmRecognizer};
-
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// Top-level LLM configuration. Loaded from the deployment's
 /// `[llm]` config section.

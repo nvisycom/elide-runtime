@@ -5,11 +5,12 @@
 
 use std::time::Duration;
 
+use serde::Deserialize;
+
 use crate::middleware::{
     DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_REQUEST_TIMEOUT, RecoveryConfig,
     SecurityConfig,
 };
-use serde::Deserialize;
 
 const MB: usize = 1024 * 1024;
 

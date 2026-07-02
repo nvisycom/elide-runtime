@@ -6,15 +6,17 @@
 //!
 //! ## Layout
 //!
-//! - [`AppConfig`]: top-level bag. `server`, `analyzer`, `llm`.
+//! - [`AppConfig`]: top-level bag. `server`, `analyzer`, `ner`,
+//!   `llm`.
 //! - [`ServerConfig`]: network binding, lifecycle, nested
 //!   observability + middleware sections.
 //! - [`MiddlewareConfig`]: body limits, request timeout, CORS.
 //! - [`ObservabilityConfig`]: log level filter + output format.
 //!
-//! Analyzer and LLM types come from
-//! [`nvisy_schema::plan::AnalyzerParams`] and
-//! [`nvisy_core::llm::LlmConfig`] respectively.
+//! Analyzer type comes from
+//! [`nvisy_schema::plan::AnalyzerParams`]; NER and LLM come from
+//! [`nvisy_core::ner::NerConfig`] and
+//! [`nvisy_core::llm::LlmConfig`].
 //!
 //! [`ServiceRuntime`]: crate::ServiceRuntime
 
@@ -23,6 +25,7 @@ pub mod observability;
 mod server;
 
 use nvisy_core::llm::LlmConfig;
+use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 use serde::Deserialize;
 
@@ -43,6 +46,11 @@ pub struct AppConfig {
     /// semantics.
     #[serde(default)]
     pub analyzer: AnalyzerParams,
+    /// NER recognizer lineup. Empty when the `[ner]` section is
+    /// absent; requests that set `recognizers.ner = true` will
+    /// then fail at compile with a `Validation` error.
+    #[serde(default)]
+    pub ner: NerConfig,
     /// LLM recognizer lineup + per-provider credentials. Empty
     /// when the `[llm]` section is absent; requests that set
     /// `recognizers.llm = true` will then fail at compile with

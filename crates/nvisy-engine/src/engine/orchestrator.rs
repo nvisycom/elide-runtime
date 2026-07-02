@@ -20,9 +20,10 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_core::llm::LlmConfig;
+use nvisy_core::ner::NerConfig;
+use nvisy_core::{Error, Result};
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, RuleAction};
-use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
 use super::analyzer::{AnalyzerCompile, LabelCatalogCompile};
@@ -47,6 +48,7 @@ const COMPONENT: &str = "engine::orchestrator";
 pub(super) fn build<'a>(
     formats: &'a FormatRegistry,
     spec: &AnalyzerParams,
+    ner: &NerConfig,
     llm: &LlmConfig,
     policies: &[Policy],
     overrides: &[(Uuid, RuleAction)],
@@ -96,10 +98,10 @@ pub(super) fn build<'a>(
         attach_policies_audio,
     )?;
 
-    let text_analyzer = spec.compile_text(llm).map_err(compile_err)?;
-    let tabular_analyzer = spec.compile_tabular().map_err(compile_err)?;
-    let image_analyzer = spec.compile_image(llm).map_err(compile_err)?;
-    let audio_analyzer = spec.compile_audio().map_err(compile_err)?;
+    let text_analyzer = spec.compile_text(ner, llm).map_err(compile_err)?;
+    let tabular_analyzer = spec.compile_tabular(ner).map_err(compile_err)?;
+    let image_analyzer = spec.compile_image(ner, llm).map_err(compile_err)?;
+    let audio_analyzer = spec.compile_audio(ner).map_err(compile_err)?;
 
     Ok(Orchestrator::new(formats)
         .with_scope(scope)

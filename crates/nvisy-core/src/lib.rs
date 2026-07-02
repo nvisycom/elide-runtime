@@ -10,6 +10,9 @@
 //! - [`llm`]: deployment-owned LLM recognizer lineup + provider
 //!   credentials. Wraps `elide-llm::Provider`; pulled only when
 //!   the deployment runs LLM recognition.
+//! - [`ner`]: deployment-owned NER recognizer lineup. Same shape
+//!   as [`llm`] — the wire toggles on/off, the deployment picks
+//!   which backends actually run.
 //! - [`service`]: the runtime `Error` / `ErrorKind` vocabulary
 //!   plus the `Healthcheck` composition trait.
 //!
@@ -18,6 +21,7 @@
 //! [`nvisy-schema`]: https://docs.rs/nvisy-schema
 
 pub mod llm;
+pub mod ner;
 pub mod service;
 
 pub use self::service::{Error, ErrorKind, Result};

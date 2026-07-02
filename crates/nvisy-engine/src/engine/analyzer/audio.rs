@@ -20,12 +20,13 @@ use elide_core::modality::audio::Audio;
 use elide_core::{Error, ErrorKind};
 #[cfg(feature = "test-utils")]
 use elide_stt::{MockBackend as MockSttBackend, SttEnricher};
+use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::{AnalyzerParams, SttBackendParams, SttEnricherParams};
 
-use super::common::{attach_dedup, attach_ner, attach_pattern};
+use super::common::{attach_dedup, attach_ner_lineup, attach_pattern};
 
 /// Compile `spec` into an audio-modality [`Analyzer`].
-pub(super) fn compile(spec: &AnalyzerParams) -> Result<Analyzer<Audio>, Error> {
+pub(super) fn compile(spec: &AnalyzerParams, ner: &NerConfig) -> Result<Analyzer<Audio>, Error> {
     let mut analyzer = Analyzer::<Audio>::new();
 
     if let Some(stt) = &spec.enrichers.stt {
@@ -35,8 +36,8 @@ pub(super) fn compile(spec: &AnalyzerParams) -> Result<Analyzer<Audio>, Error> {
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern)?;
     }
-    for ner in &spec.recognizers.ner {
-        analyzer = attach_ner(analyzer, ner)?;
+    if spec.recognizers.ner {
+        analyzer = attach_ner_lineup(analyzer, ner)?;
     }
 
     Ok(attach_dedup(analyzer, &spec.deduplication))

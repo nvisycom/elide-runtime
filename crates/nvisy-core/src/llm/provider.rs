@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 /// Which analyzer modalities an LLM recognizer attaches to.
 /// Text-only default because some models don't support vision;
 /// opt in to `Image` explicitly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum LlmRecognizerModality {

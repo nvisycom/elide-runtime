@@ -25,8 +25,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 
-## Turn on the `LlmBackendConfig::Mock` variant. Off in production so
-## `Nvisy.toml` cannot ship a mock LLM backend.
+## Turn on the `LlmBackendConfig::Mock` and `NerBackendConfig::Mock`
+## variants. Off in production so `Nvisy.toml` cannot ship a mock
+## backend for either.
 test-utils = []
 
 [dependencies]

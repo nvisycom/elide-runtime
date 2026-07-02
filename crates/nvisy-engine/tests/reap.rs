@@ -10,10 +10,10 @@ use std::path::PathBuf;
 
 use bytes::Bytes;
 use hipstr::HipStr;
-use nvisy_schema::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
 use nvisy_engine::keyspace::FileDescriptor;
 use nvisy_engine::runs::{DocumentInput, StartBatch};
 use nvisy_engine::{Engine, FileRegistry};
+use nvisy_schema::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -30,7 +30,7 @@ fn analyzer_spec() -> AnalyzerParams {
                 builtins: true,
                 context_enhanced: true,
             }),
-            ner: Vec::new(),
+            ner: false,
             llm: false,
         },
         enrichers: nvisy_schema::plan::EnricherParams::default(),

@@ -7,9 +7,9 @@
 use elide::detection::Analyzer;
 use elide::recognition::llm::LlmRecognizer;
 use elide_core::{Error, ErrorKind};
-use elide_llm::backend::{LlmBackend, LlmModality, RigBackend};
 #[cfg(feature = "test-utils")]
 use elide_llm::backend::MockBackend as MockLlmBackend;
+use elide_llm::backend::{LlmBackend, LlmModality, RigBackend};
 use elide_llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
 use elide_llm::provider::Provider;
 use nvisy_core::llm::{
@@ -76,10 +76,7 @@ where
     Ok(analyzer)
 }
 
-fn attach_one<M>(
-    analyzer: Analyzer<M>,
-    spec: &ConfigRecognizer,
-) -> Result<Analyzer<M>, Error>
+fn attach_one<M>(analyzer: Analyzer<M>, spec: &ConfigRecognizer) -> Result<Analyzer<M>, Error>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,
@@ -93,9 +90,7 @@ where
         Some(LlmPrompt::Inline { template }) => {
             builder.with_prompt(Jinja2Prompt::<M>::from_template(template.clone())?)
         }
-        Some(LlmPrompt::File { path }) => {
-            builder.with_prompt(Jinja2Prompt::<M>::from_file(path)?)
-        }
+        Some(LlmPrompt::File { path }) => builder.with_prompt(Jinja2Prompt::<M>::from_file(path)?),
         // `LlmPrompt` is `#[non_exhaustive]`. A future variant
         // reaching this arm in an older binary should surface as
         // a compile error rather than silently falling back to

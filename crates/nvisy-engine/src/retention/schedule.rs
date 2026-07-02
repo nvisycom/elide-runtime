@@ -34,8 +34,8 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 
 use jiff::Timestamp;
-use nvisy_schema::policy::{Retention, RetentionScope};
 use nvisy_core::{Error, Result};
+use nvisy_schema::policy::{Retention, RetentionScope};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

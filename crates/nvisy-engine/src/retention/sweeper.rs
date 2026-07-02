@@ -42,8 +42,8 @@
 use std::time::Duration;
 
 use jiff::Timestamp;
-use nvisy_schema::policy::RetentionScope;
 use nvisy_core::{ErrorKind, Result};
+use nvisy_schema::policy::RetentionScope;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 

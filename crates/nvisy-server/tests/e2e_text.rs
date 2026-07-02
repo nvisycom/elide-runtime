@@ -28,10 +28,11 @@ async fn server() -> (TestServer, Uuid, ServiceRuntime, TempDir) {
         dir.path().to_path_buf(),
         AnalyzerParams::default(),
         Default::default(),
+        Default::default(),
         None,
     )
-        .await
-        .expect("service runtime");
+    .await
+    .expect("service runtime");
     let router = routes().with_state(runtime.state());
     let server = TestServer::new(router.into_make_service()).expect("test server");
     let actor_id = Uuid::now_v7();

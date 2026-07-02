@@ -40,6 +40,4 @@ pub use self::enricher::{
     SttEnricherParams,
 };
 pub use self::label::LabelCatalogParams;
-pub use self::recognizer::{
-    NerBackendParams, NerRecognizerParams, PatternRecognizerParams, RecognizerParams,
-};
+pub use self::recognizer::{PatternRecognizerParams, RecognizerParams};

@@ -105,8 +105,7 @@ fn load_toml(path: &Path) -> anyhow::Result<AppConfig> {
     }
     let contents = fs::read_to_string(path)
         .with_context(|| format!("reading config file `{}`", path.display()))?;
-    toml::from_str(&contents)
-        .with_context(|| format!("parsing config file `{}`", path.display()))
+    toml::from_str(&contents).with_context(|| format!("parsing config file `{}`", path.display()))
 }
 
 #[cfg(test)]

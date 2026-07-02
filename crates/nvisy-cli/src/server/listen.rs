@@ -3,9 +3,8 @@
 use std::fs;
 use std::path::Path;
 
-use tokio::net::TcpListener;
-
 use nvisy_server::config::ServerConfig;
+use tokio::net::TcpListener;
 
 use super::shutdown;
 

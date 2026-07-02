@@ -16,15 +16,15 @@ use std::path::PathBuf;
 use bytes::Bytes;
 use hipstr::HipStr;
 use jiff::{SignedDuration, Timestamp};
+use nvisy_engine::keyspace::FileDescriptor;
+use nvisy_engine::retention::RetentionRecord;
+use nvisy_engine::runs::{DocumentInput, ResourceRef, StartBatch};
+use nvisy_engine::{Engine, FileRegistry, PolicyRegistry};
 use nvisy_schema::plan::{AnalyzerParams, PatternRecognizerParams, ScopeParams};
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_schema::policy::{
     Policy, Predicate, Retention, RetentionPolicy, RetentionScope, Rule, RuleAction,
 };
-use nvisy_engine::keyspace::FileDescriptor;
-use nvisy_engine::retention::RetentionRecord;
-use nvisy_engine::runs::{DocumentInput, ResourceRef, StartBatch};
-use nvisy_engine::{Engine, FileRegistry, PolicyRegistry};
 use semver::Version;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -81,7 +81,7 @@ fn analyzer_spec() -> AnalyzerParams {
                 builtins: true,
                 context_enhanced: true,
             }),
-            ner: Vec::new(),
+            ner: false,
             llm: false,
         },
         enrichers: nvisy_schema::plan::EnricherParams::default(),

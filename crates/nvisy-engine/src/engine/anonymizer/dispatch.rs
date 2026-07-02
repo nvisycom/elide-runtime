@@ -23,8 +23,8 @@ use elide::redaction::Anonymizer;
 use elide_core::Error;
 use elide_core::entity::provenance::Attribution;
 use elide_core::modality::Modality;
-use nvisy_core::policy::redaction::ModalityRedactions;
-use nvisy_core::policy::{Policy, Predicate, RuleAction};
+use nvisy_schema::policy::redaction::ModalityRedactions;
+use nvisy_schema::policy::{Policy, Predicate, RuleAction};
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};

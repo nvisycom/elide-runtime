@@ -411,7 +411,7 @@ mod tests {
 
 #[cfg(test)]
 mod reap_tests {
-    use nvisy_core::plan::AnalyzerParams;
+    use nvisy_schema::plan::AnalyzerParams;
     use tempfile::TempDir;
 
     use super::*;

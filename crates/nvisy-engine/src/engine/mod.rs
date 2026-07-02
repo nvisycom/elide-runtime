@@ -75,9 +75,10 @@ use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::plan::AnalyzerParams;
-use nvisy_core::policy::{Policy, RuleAction};
-use nvisy_core::{Error, RawDocument, Result};
+use nvisy_core::{Error, Result};
+use nvisy_schema::file::RawDocument;
+use nvisy_schema::plan::AnalyzerParams;
+use nvisy_schema::policy::{Policy, RuleAction};
 use uuid::Uuid;
 
 use self::report::{
@@ -94,6 +95,8 @@ const COMPONENT: &str = "engine";
 pub struct Engine {
     registry: RegistryHandle,
     formats: Arc<FormatRegistry>,
+    ner: Arc<nvisy_core::ner::NerConfig>,
+    llm: Arc<nvisy_core::llm::LlmConfig>,
 }
 
 /// Outcome of applying redactions to one document.
@@ -109,23 +112,41 @@ pub struct ApplyOutcome {
 impl Engine {
     /// Open (or create) the engine database at `path` and pair it
     /// with elide's built-in codec set
-    /// ([`FormatRegistry::with_builtin`]).
+    /// ([`FormatRegistry::with_builtin`]) plus empty NER and LLM
+    /// lineups. Callers that want NER or LLM recognition must use
+    /// [`with_ner`] / [`with_llm`] respectively.
+    ///
+    /// [`with_ner`]: Self::with_ner
+    /// [`with_llm`]: Self::with_llm
     pub fn open(path: &Path) -> Result<Self> {
         let registry = RegistryHandle::open(path)?;
         let formats = Arc::new(FormatRegistry::with_builtin());
-        Ok(Self { registry, formats })
-    }
-
-    /// Open (or create) the engine database at `path` and pair it
-    /// with a caller-supplied `formats` registry. Useful for tests
-    /// that need to register fake codecs, or for deployments that
-    /// extend the built-in set.
-    pub fn with_formats(path: &Path, formats: FormatRegistry) -> Result<Self> {
-        let registry = RegistryHandle::open(path)?;
         Ok(Self {
             registry,
-            formats: Arc::new(formats),
+            formats,
+            ner: Arc::new(nvisy_core::ner::NerConfig::default()),
+            llm: Arc::new(nvisy_core::llm::LlmConfig::default()),
         })
+    }
+
+    /// Set the deployment's NER configuration on an already-open
+    /// engine. Consumed once at boot; the analyzer compile reads
+    /// it every time a request submits
+    /// `AnalyzerParams.recognizers.ner = true`.
+    #[must_use]
+    pub fn with_ner(mut self, ner: nvisy_core::ner::NerConfig) -> Self {
+        self.ner = Arc::new(ner);
+        self
+    }
+
+    /// Set the deployment's LLM configuration on an already-open
+    /// engine. Consumed once at boot; the analyzer compile reads
+    /// it every time a request submits
+    /// `AnalyzerParams.recognizers.llm = true`.
+    #[must_use]
+    pub fn with_llm(mut self, llm: nvisy_core::llm::LlmConfig) -> Self {
+        self.llm = Arc::new(llm);
+        self
     }
 
     /// The persistence registry. Holds the fjall keyspaces every
@@ -168,7 +189,7 @@ impl Engine {
     ) -> Result<DocBody> {
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
-        let orchestrator = orchestrator::build(&self.formats, spec, &[], &[], correlation_id)?;
+        let orchestrator = self.build_orchestrator(spec, &[], &[], correlation_id)?;
         let mut report = orchestrator.analyze(&mut handle).await.map_err(|err| {
             Error::internal("orchestrator analyze failed", COMPONENT).with_source(err)
         })?;
@@ -243,7 +264,7 @@ impl Engine {
     /// ride on.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
-    /// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+    /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
     /// [`RecognizedGroup`]: crate::runs::RecognizedGroup
     pub async fn apply_document(
         &self,
@@ -268,8 +289,7 @@ impl Engine {
             collect_overrides_into(&mut overrides, group);
         }
 
-        let orchestrator =
-            orchestrator::build(&self.formats, spec, policies, &overrides, correlation_id)?;
+        let orchestrator = self.build_orchestrator(spec, policies, &overrides, correlation_id)?;
         orchestrator
             .anonymize_with(&mut handle, report)
             .await

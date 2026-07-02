@@ -8,13 +8,24 @@
 //! elide operator` bridge once; each per-modality file dispatches
 //! its variant onto a [`Target`] with the built operator.
 
-use elide::redaction::operators::{Erase, Keep, Mask, Replace, Sha2Hash};
+use elide::redaction::operators::{Erase, Keep, Mask, Replace, Sha2Algorithm, Sha2Hash};
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
 use elide_core::{Error, ErrorKind};
-use nvisy_core::policy::redaction::TextRedaction;
+use nvisy_schema::policy::redaction::{HashAlgorithm, TextRedaction};
 
 use super::dispatch::Target;
+
+/// Runtime conversion from the wire's [`HashAlgorithm`] to
+/// elide's [`Sha2Algorithm`]. Lives here rather than as a
+/// `From` impl on the wire type so `nvisy-schema` stays free
+/// of the `elide-redaction` dep.
+fn to_sha2(algorithm: HashAlgorithm) -> Sha2Algorithm {
+    match algorithm {
+        HashAlgorithm::Sha256 => Sha2Algorithm::Sha256,
+        HashAlgorithm::Sha512 => Sha2Algorithm::Sha512,
+    }
+}
 
 /// Discriminated builder result so [`Target::attach_with`] can
 /// attach the right concrete operator type. We can't return
@@ -73,7 +84,7 @@ pub(super) fn build_text_op(spec: &TextRedaction) -> Result<TextOp, Error> {
         ),
         TextRedaction::Replace { template } => TextOp::Replace(Replace::new(template.clone())),
         TextRedaction::Hash { algorithm, salt } => {
-            let mut op = Sha2Hash::new((*algorithm).into());
+            let mut op = Sha2Hash::new(to_sha2(*algorithm));
             if let Some(s) = salt {
                 op = op.with_salt(s.as_bytes().to_vec());
             }

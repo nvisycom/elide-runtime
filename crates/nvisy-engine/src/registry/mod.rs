@@ -13,8 +13,8 @@
 //!   (recognized entities + reviewer overrides + post-apply
 //!   redacted bytes/audit). Lookup by `(actor_id, run_id, doc_id)`.
 //!
-//! [`Policy`]: nvisy_core::policy::Policy
-//! [`Context`]: nvisy_core::context::Context
+//! [`Policy`]: nvisy_schema::policy::Policy
+//! [`Context`]: nvisy_schema::context::Context
 
 mod fjall_ext;
 mod handle;

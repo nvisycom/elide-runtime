@@ -12,24 +12,25 @@
 //! belong to when an orchestrator pipeline encounters a body or
 //! embedded part of that modality.
 //!
-//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
+//! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::tabular::Tabular;
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_core::ner::NerConfig;
+use nvisy_schema::plan::AnalyzerParams;
 
-use super::common::{attach_dedup, attach_ner, attach_pattern};
+use super::common::{attach_dedup, attach_ner_lineup, attach_pattern};
 
 /// Compile `spec` into a tabular-modality [`Analyzer`].
-pub(super) fn compile(spec: &AnalyzerParams) -> Result<Analyzer<Tabular>, Error> {
+pub(super) fn compile(spec: &AnalyzerParams, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern)?;
     }
-    for ner in &spec.recognizers.ner {
-        analyzer = attach_ner(analyzer, ner)?;
+    if spec.recognizers.ner {
+        analyzer = attach_ner_lineup(analyzer, ner)?;
     }
 
     Ok(attach_dedup(analyzer, &spec.deduplication))

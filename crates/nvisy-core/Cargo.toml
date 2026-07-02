@@ -2,8 +2,8 @@
 
 [package]
 name = "nvisy-core"
-description = "Domain types, traits, and errors for the Nvisy platform"
-keywords = ["nvisy", "core", "domain", "types"]
+description = "Runtime plumbing for the Nvisy platform: LLM deployment config, healthcheck traits, and the shared error vocabulary"
+keywords = ["nvisy", "core", "runtime"]
 categories = ["data-structures"]
 readme = "README.md"
 
@@ -25,31 +25,32 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 
-## Test utilities (Entity::new_test, fixture helpers, …).
+## Turn on the `LlmBackendConfig::Mock` and `NerBackendConfig::Mock`
+## variants. Off in production so `Nvisy.toml` cannot ship a mock
+## backend for either.
 test-utils = []
 
 [dependencies]
-# Framework
-elide = { workspace = true, features = ["image", "audio", "tabular", "serde", "schema", "sha2"] }
-elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
+# LLM types (`Provider`, `AuthenticatedProvider`, `UnauthenticatedProvider`).
+# The provider features gate their enum variants — turning them on is what
+# makes `Provider::OpenAi` etc. exist. Rig comes along for the ride.
+elide-llm = { workspace = true, features = ["rig", "openai-gpt", "anthropic-claude", "google-gemini"] }
 
-# Serialization
-serde = { workspace = true, features = [] }
+# Serialization — needed for the LLM config's derive-serde types.
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
-# Derive macros and error handling
+# Error type deps: `Error::From<serde_json::Error>` +
+# `Error::From<derive_builder::UninitializedFieldError>` map upstream
+# errors into the shared vocabulary.
 thiserror = { workspace = true, features = [] }
+strum = { workspace = true, features = ["derive"] }
+derive_more = { workspace = true, features = ["display"] }
 derive_builder = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant"] }
-strum = { workspace = true, features = [] }
 
-# Primitive datatypes
-bytes = { workspace = true, features = [] }
-uuid = { workspace = true, features = ["v7"] }
-hipstr = { workspace = true, features = [] }
-jiff = { workspace = true, features = ["serde"] }
-semver = { workspace = true, features = ["serde"] }
-
-# Async runtime and parallelism
+# `Healthcheck` trait's async_trait attribute.
 async-trait = { workspace = true, features = [] }
+
+# `ServiceStatus` `Timestamp` field; `Error` chain formatting.
+jiff = { workspace = true, features = ["serde"] }

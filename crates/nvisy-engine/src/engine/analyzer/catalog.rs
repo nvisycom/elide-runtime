@@ -4,7 +4,7 @@
 use std::sync::OnceLock;
 
 use elide_core::entity::{LabelCatalog, LabelRef};
-use nvisy_core::plan::LabelCatalogParams;
+use nvisy_schema::plan::LabelCatalogParams;
 
 /// Compile a [`LabelCatalogParams`] into an
 /// [`elide_core::entity::LabelCatalog`].

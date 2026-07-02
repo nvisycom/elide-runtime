@@ -10,10 +10,10 @@ use bytes::Bytes;
 use elide_core::modality::Modality;
 use futures::{StreamExt, stream};
 use jiff::Timestamp;
-use nvisy_core::file::FileMetadata;
-use nvisy_core::plan::AnalyzerParams;
-use nvisy_core::policy::{Policy, Retention, RetentionScope, RuleAction};
-use nvisy_core::{Error, FileLineage, RawDocument, Result};
+use nvisy_core::{Error, Result};
+use nvisy_schema::file::{FileLineage, FileMetadata, RawDocument};
+use nvisy_schema::plan::AnalyzerParams;
+use nvisy_schema::policy::{Policy, Retention, RetentionScope, RuleAction};
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -239,7 +239,7 @@ impl Engine {
         &self,
         actor_id: Uuid,
         file_id: Uuid,
-        scope: nvisy_core::policy::RetentionScope,
+        scope: nvisy_schema::policy::RetentionScope,
     ) -> Result<Option<RetentionRecord>> {
         self.registry()
             .find_retention(actor_id, file_id, scope)
@@ -562,7 +562,7 @@ struct ApplyContext {
     /// output file; scopes absent from the map (no policy
     /// governs) or resolving to `Indefinite` are no-ops.
     ///
-    /// [`resolve_retention`]: nvisy_core::policy::resolve_retention
+    /// [`resolve_retention`]: nvisy_schema::policy::resolve_retention
     retention: HashMap<RetentionScope, Retention>,
 }
 

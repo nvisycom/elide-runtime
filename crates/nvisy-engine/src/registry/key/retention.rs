@@ -6,7 +6,7 @@
 //! returns every retention row for one file.
 
 use derive_more::{AsRef, Deref, From};
-use nvisy_core::policy::RetentionScope;
+use nvisy_schema::policy::RetentionScope;
 use uuid::Uuid;
 
 /// 33-byte retention key:

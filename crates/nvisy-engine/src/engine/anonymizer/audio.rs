@@ -5,8 +5,8 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
 use elide_core::Error;
 use elide_core::modality::audio::Audio;
-use nvisy_core::policy::RuleAction;
-use nvisy_core::policy::redaction::{AudioRedaction, ModalityRedactions};
+use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::redaction::{AudioRedaction, ModalityRedactions};
 use uuid::Uuid;
 
 use super::dispatch::{Target, attach_one_override, attach_policies};
@@ -16,10 +16,10 @@ use super::dispatch::{Target, attach_one_override, attach_policies};
 /// apply pipeline can pre-filter by [`Policy::applies_when`]
 /// without cloning.
 ///
-/// [`Policy::applies_when`]: nvisy_core::policy::Policy::applies_when
+/// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
 pub(crate) fn attach_policies_audio<'a>(
     anonymizer: Anonymizer<Audio>,
-    policies: impl Iterator<Item = &'a nvisy_core::policy::Policy>,
+    policies: impl Iterator<Item = &'a nvisy_schema::policy::Policy>,
 ) -> Result<Anonymizer<Audio>, Error> {
     attach_policies(anonymizer, policies, compile_one)
 }

@@ -1,4 +1,4 @@
-//! Compile a [`nvisy_core::plan::AnalyzerParams`] into an
+//! Compile a [`nvisy_schema::plan::AnalyzerParams`] into an
 //! [`elide::detection::Analyzer`] per modality.
 //!
 //! Symmetric with [`super::anonymizer`]: the spec is pure data
@@ -19,7 +19,7 @@
 //! | Audio    | yes     | yes | (no upstream `LlmModality` impl) |
 //!
 //! [`Analyzer`]: elide::detection::Analyzer
-//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
+//! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 //! [`Orchestrator`]: elide::Orchestrator
 //! [`Orchestrator::with_scope`]: elide::Orchestrator::with_scope
 
@@ -36,41 +36,46 @@ use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_core::llm::LlmConfig;
+use nvisy_core::ner::NerConfig;
+use nvisy_schema::plan::AnalyzerParams;
 
 pub(crate) use self::catalog::LabelCatalogCompile;
 
-/// Compile a [`nvisy_core::plan::AnalyzerParams`] into a
+/// Compile a [`nvisy_schema::plan::AnalyzerParams`] into a
 /// per-modality [`elide::detection::Analyzer`].
 ///
-/// One method per modality — each picks the recognizers and
+/// One method per modality; each picks the recognizers and
 /// enrichers the modality supports and rejects the rest at
-/// compile time (e.g. OCR on text, LLM on tabular).
+/// compile time (e.g. OCR on text, LLM on tabular). Every
+/// compile fn consults the deployment [`NerConfig`] when the
+/// request toggles `recognizers.ner = true`; text and image
+/// also consult [`LlmConfig`] when `recognizers.llm = true`.
 pub(crate) trait AnalyzerCompile {
     /// Build the text-modality analyzer.
-    fn compile_text(&self) -> Result<Analyzer<Text>, Error>;
+    fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>, Error>;
     /// Build the tabular-modality analyzer.
-    fn compile_tabular(&self) -> Result<Analyzer<Tabular>, Error>;
+    fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error>;
     /// Build the image-modality analyzer.
-    fn compile_image(&self) -> Result<Analyzer<Image>, Error>;
+    fn compile_image(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Image>, Error>;
     /// Build the audio-modality analyzer.
-    fn compile_audio(&self) -> Result<Analyzer<Audio>, Error>;
+    fn compile_audio(&self, ner: &NerConfig) -> Result<Analyzer<Audio>, Error>;
 }
 
 impl AnalyzerCompile for AnalyzerParams {
-    fn compile_text(&self) -> Result<Analyzer<Text>, Error> {
-        self::text::compile(self)
+    fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>, Error> {
+        self::text::compile(self, ner, llm)
     }
 
-    fn compile_tabular(&self) -> Result<Analyzer<Tabular>, Error> {
-        self::tabular::compile(self)
+    fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error> {
+        self::tabular::compile(self, ner)
     }
 
-    fn compile_image(&self) -> Result<Analyzer<Image>, Error> {
-        self::image::compile(self)
+    fn compile_image(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Image>, Error> {
+        self::image::compile(self, ner, llm)
     }
 
-    fn compile_audio(&self) -> Result<Analyzer<Audio>, Error> {
-        self::audio::compile(self)
+    fn compile_audio(&self, ner: &NerConfig) -> Result<Analyzer<Audio>, Error> {
+        self::audio::compile(self, ner)
     }
 }

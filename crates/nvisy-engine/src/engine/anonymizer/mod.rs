@@ -1,4 +1,4 @@
-//! Compile a [`nvisy_core::policy::Policy`] set into an
+//! Compile a [`nvisy_schema::policy::Policy`] set into an
 //! [`Anonymizer`] per modality at request time.
 //!
 //! Policy specs are serialisable and modality-agnostic; elide's

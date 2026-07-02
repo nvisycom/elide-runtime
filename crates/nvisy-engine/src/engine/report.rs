@@ -37,8 +37,8 @@ use elide_core::modality::audio::Audio;
 use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::policy::RuleAction;
 use nvisy_core::{Error, Result};
+use nvisy_schema::policy::RuleAction;
 use uuid::Uuid;
 
 use super::ApplyOutcome;

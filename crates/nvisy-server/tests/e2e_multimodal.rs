@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use axum_test::TestServer;
 use axum_test::http::HeaderName;
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_schema::plan::AnalyzerParams;
 use nvisy_server::{ServiceRuntime, routes};
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -24,9 +24,15 @@ const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
 
 async fn server() -> (TestServer, Uuid, ServiceRuntime, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let runtime = ServiceRuntime::new(dir.path().to_path_buf(), AnalyzerParams::default(), None)
-        .await
-        .expect("service runtime");
+    let runtime = ServiceRuntime::new(
+        dir.path().to_path_buf(),
+        AnalyzerParams::default(),
+        Default::default(),
+        Default::default(),
+        None,
+    )
+    .await
+    .expect("service runtime");
     let router = routes().with_state(runtime.state());
     let server = TestServer::new(router.into_make_service()).expect("test server");
     let actor_id = Uuid::now_v7();
@@ -97,7 +103,7 @@ async fn upload_detect_apply_download_round_trips_multimodal_docx() {
                 "enrichers": {
                     "ocr": {
                         "mode": "replace",
-                        "value": { "backend": { "kind": "mock" } },
+                        "value": { "kind": "mock" },
                     },
                 },
             },

@@ -8,7 +8,7 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_core::service::health::{ComponentCheck, ServiceStatus};
+use nvisy_core::health::{ComponentCheck, ServiceStatus};
 
 use super::response::Health;
 use crate::extract::Json;

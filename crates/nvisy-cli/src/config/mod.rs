@@ -1,10 +1,6 @@
-//! CLI configuration management.
+//! CLI arg parsing and config-file loading.
 //!
-//! TOML file is the source of truth; CLI flags override a small
-//! set of network / lifecycle fields. The resolved [`AppConfig`]
-//! is what the rest of the binary consumes.
-//!
-//! # Architecture
+//! ## Architecture
 //!
 //! ```text
 //! Cli (clap)        --config <path>, --host, --port, --shutdown-timeout, --data-dir
@@ -14,21 +10,13 @@
 //! └── server: ServerConfig            [server] + nested .observability / .middleware
 //! ```
 //!
-//! There is no engine config section. Recognizer / analyzer /
-//! anonymizer settings travel per-request inside
-//! [`AnalyzerParams`] on `POST /detections`; the server just
-//! orchestrates and persists. The only server-side
-//! engine-shaped setting is the data directory, which lives on
-//! [`ServerConfig`].
-//!
-//! [`Cli::load`] reads the file, merges CLI overrides, and
-//! returns the resolved [`AppConfig`].
-//!
-//! [`AnalyzerParams`]: nvisy_core::plan::AnalyzerParams
+//! Config-*shape* types (`AppConfig`, `ServerConfig`, …) live in
+//! [`nvisy_server::config`]. This module is the source-side:
+//! reading a TOML file, applying CLI overrides, wiring the
+//! `tracing` subscriber. Anything TOML-specific (or otherwise
+//! coupled to the file-on-disk config source) stays here.
 
-pub mod middleware;
 pub mod observability;
-mod server;
 
 use std::fs;
 use std::net::IpAddr;
@@ -37,10 +25,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use clap::{Args, Parser};
-use nvisy_core::plan::AnalyzerParams;
-use serde::Deserialize;
-
-pub use self::server::ServerConfig;
+use nvisy_server::config::{AppConfig, ServerConfig};
 
 /// Top-level CLI entry point.
 #[derive(Debug, Parser)]
@@ -99,23 +84,6 @@ impl Overrides {
     }
 }
 
-/// Resolved top-level configuration: server settings + the
-/// deployment's default [`AnalyzerParams`], merged from TOML +
-/// CLI overrides.
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct AppConfig {
-    /// Server, observability, and middleware configuration.
-    #[serde(default)]
-    pub server: ServerConfig,
-    /// Default analyzer spec the server applies to every
-    /// request that doesn't override its analyzer fields.
-    /// Empty when the `[analyzer]` section is absent —
-    /// requests then have to ship a complete spec or get
-    /// "nothing detects" semantics.
-    #[serde(default)]
-    pub analyzer: AnalyzerParams,
-}
-
 impl Cli {
     /// Read the TOML file, apply CLI overrides, return the
     /// resolved [`AppConfig`].
@@ -123,21 +91,21 @@ impl Cli {
     /// Missing TOML file resolves to defaults (everything from
     /// CLI + built-ins).
     pub fn load(self) -> anyhow::Result<AppConfig> {
-        let mut config = read_toml(&self.config)?;
+        let mut config = load_toml(&self.config)?;
         self.overrides.merge_into(&mut config.server);
         Ok(config)
     }
 }
 
-fn read_toml(path: &Path) -> anyhow::Result<AppConfig> {
+/// Read `path` and parse as [`AppConfig`]. Missing file resolves
+/// to defaults. Errors carry the file path in context.
+fn load_toml(path: &Path) -> anyhow::Result<AppConfig> {
     if !path.exists() {
         return Ok(AppConfig::default());
     }
     let contents = fs::read_to_string(path)
         .with_context(|| format!("reading config file `{}`", path.display()))?;
-    let config = toml::from_str(&contents)
-        .with_context(|| format!("parsing config file `{}`", path.display()))?;
-    Ok(config)
+    toml::from_str(&contents).with_context(|| format!("parsing config file `{}`", path.display()))
 }
 
 #[cfg(test)]
@@ -156,6 +124,39 @@ mod tests {
         let contents = fs::read_to_string(&path).expect("Nvisy.example.toml exists");
         let config: AppConfig = toml::from_str(&contents).expect("Nvisy.example.toml parses");
         assert_eq!(config.server.port, 8080);
+    }
+
+    #[test]
+    fn toml_parses_humantime_durations() {
+        let toml_src = r#"
+            [server]
+            shutdown_timeout = "45s"
+            [server.middleware]
+            request_timeout = "10m"
+        "#;
+        let config: AppConfig = toml::from_str(toml_src).expect("parses");
+        assert_eq!(config.server.shutdown_timeout, Duration::from_secs(45));
+        assert_eq!(
+            config.server.middleware.request_timeout,
+            Some(Duration::from_secs(600))
+        );
+    }
+
+    #[test]
+    fn missing_file_yields_defaults() {
+        let path = PathBuf::from("/this/file/definitely/does/not/exist.toml");
+        let config = load_toml(&path).expect("missing file resolves to defaults");
+        assert_eq!(config.server.port, 8080);
+    }
+
+    #[test]
+    fn typo_in_server_section_is_rejected() {
+        let toml_src = r#"
+            [server]
+            prot = 8080
+        "#;
+        let result: Result<AppConfig, _> = toml::from_str(toml_src);
+        assert!(result.is_err(), "unknown field `prot` must fail");
     }
 
     #[test]
@@ -197,43 +198,10 @@ mod tests {
     }
 
     #[test]
-    fn toml_parses_humantime_durations() {
-        let toml_src = r#"
-            [server]
-            shutdown_timeout = "45s"
-            [server.middleware]
-            request_timeout = "10m"
-        "#;
-        let config: AppConfig = toml::from_str(toml_src).expect("parses");
-        assert_eq!(config.server.shutdown_timeout, Duration::from_secs(45));
-        assert_eq!(
-            config.server.middleware.request_timeout,
-            Some(Duration::from_secs(600))
-        );
-    }
-
-    #[test]
     fn cli_parses_humantime_duration() {
         let parsed = humantime::parse_duration("45s").expect("parses");
         assert_eq!(parsed, Duration::from_secs(45));
         let parsed = humantime::parse_duration("1m").expect("parses");
         assert_eq!(parsed, Duration::from_secs(60));
-    }
-
-    #[test]
-    fn missing_file_yields_defaults() {
-        let path = PathBuf::from("/this/file/definitely/does/not/exist.toml");
-        let config = read_toml(&path).expect("missing file resolves to defaults");
-        assert_eq!(config.server.port, 8080);
-    }
-
-    #[test]
-    fn typo_in_server_section_is_rejected() {
-        let toml_src = r#"
-            [server]
-            prot = 8080
-        "#;
-        let result: Result<AppConfig, _> = toml::from_str(toml_src);
-        assert!(result.is_err(), "unknown field `prot` must fail");
     }
 }

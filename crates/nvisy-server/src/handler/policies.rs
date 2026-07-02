@@ -5,8 +5,8 @@ use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::http::StatusCode;
-use nvisy_core::policy::Policy;
 use nvisy_engine::{Engine, PolicyRegistry};
+use nvisy_schema::policy::Policy;
 
 use super::error::Result;
 use super::request::{NewPolicy, PolicyIdPath, PolicyVersionPath};

@@ -19,8 +19,8 @@
 //! UUID (or `None` for the policy fallback).
 //!
 //! [`Anonymizer`]: elide::redaction::Anonymizer
-//! [`Rule`]: nvisy_core::policy::Rule
-//! [`Predicate`]: nvisy_core::policy::Predicate
+//! [`Rule`]: nvisy_schema::policy::Rule
+//! [`Predicate`]: nvisy_schema::policy::Predicate
 //! [`Attribution`]: elide_core::entity::provenance::Attribution
 
 use elide::redaction::Anonymizer;
@@ -28,7 +28,7 @@ use elide_core::entity::provenance::Attribution;
 use elide_core::entity::{Entity, LabelCatalog, LabelRef};
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
-use nvisy_core::policy::{Policy, Predicate, Rule};
+use nvisy_schema::policy::{Policy, Predicate, Rule};
 use uuid::Uuid;
 
 /// Build an [`Attribution`] for a concrete rule that fired.

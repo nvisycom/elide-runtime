@@ -28,8 +28,8 @@
 //! engine would corrupt the invariants — hence the visibility
 //! split.
 //!
-//! [`Policy`]: nvisy_core::policy::Policy
-//! [`Context`]: nvisy_core::context::Context
+//! [`Policy`]: nvisy_schema::policy::Policy
+//! [`Context`]: nvisy_schema::context::Context
 //! [`RegistryHandle`]: crate::registry::RegistryHandle
 
 pub mod context;

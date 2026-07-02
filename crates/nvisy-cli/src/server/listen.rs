@@ -3,10 +3,10 @@
 use std::fs;
 use std::path::Path;
 
+use nvisy_server::config::ServerConfig;
 use tokio::net::TcpListener;
 
 use super::shutdown;
-use crate::config::ServerConfig;
 
 const TARGET: &str = "nvisy_cli::server";
 

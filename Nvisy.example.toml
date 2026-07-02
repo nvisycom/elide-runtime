@@ -1,12 +1,15 @@
 # Nvisy configuration
 #
-# Copy to Nvisy.toml (or run `make generate-config`), then edit as
-# needed. The server loads Nvisy.toml by default; override with
-# --config or NVISY_CONFIG.
+# Copy to Nvisy.toml (or run `make generate-config`), then edit
+# as needed. The server loads Nvisy.toml by default; override
+# with --config or NVISY_CONFIG.
 #
-# All sections are optional: omitted sections use server defaults.
+# All sections are optional: omitted sections use server
+# defaults.
 
-# CLI flags (--host, --port, --data-dir) override these.
+
+# Network binding, lifecycle, observability, middleware.
+# CLI flags (--host, --port, --data-dir) override these fields.
 [server]
 host = "0.0.0.0"
 port = 8080
@@ -22,34 +25,35 @@ body_limit_mb = 4
 request_timeout = "5m"
 cors = { allowed_origins = ["*"], max_age = "1h" }
 
-# The deployment default for AnalyzerParams. Requests carry
-# per-field `analyzer` overrides on top of this default (inherit
-# the slot, replace it, remove it from an optional slot, or patch
-# a list with extend + remove selectors). Omit the whole
-# [analyzer] section and the server falls back to the type-level
-# default — no recognizers, no enrichers, default dedup + scope,
-# empty catalog — useful for tests, not useful in production.
+# Deployment default for AnalyzerParams. Requests carry per-field
+# `analyzer` overrides on top of this default (inherit, replace,
+# or remove). Omit the whole [analyzer] section and the server
+# falls back to the type-level default (no recognizers, no
+# enrichers), which is useful for tests but not production.
 
-# Caller-asserted scope, grouped under `[analyzer.scope]`. Engine
-# assembles these four knobs into elide's `Scope` at compile time
-# alongside a server-minted correlation id.
-#
-# - `languages`: structured `Language` entries each with a
-#   `language` tag and `provenance` of `"asserted"` or `"detected"`.
-# - `countries`: ISO 3166-1 alpha-2 codes.
-# - `labels`: document-level classification labels.
-# - `labelCatalog`: the per-request entity-label catalog (see
-#   nested table below).
+# Caller-asserted scope. The engine assembles these four knobs
+# into elide's `Scope` at compile time alongside a server-minted
+# correlation id.
 [analyzer.scope]
-languages = []
-countries = []
-labels = []
-# Example asserting two languages and a jurisdiction:
-# languages = [
-#   { language = "en", provenance = "asserted" },
-#   { language = "es", provenance = "asserted" },
-# ]
-# countries = ["US", "GB"]
+languages = [
+  { language = "en", provenance = "asserted" },
+  { language = "es", provenance = "asserted" },
+]
+countries = ["US", "GB"]
+labels = ["gdpr-request"]
+
+# Per-request label catalog. Two sources union into one catalog
+# at compile time: `builtins` (names from `elide-core`'s shipped
+# builtin set; unknown names warn and are skipped) and `custom`
+# (inline LabelSchema records: `{ name, description?, tags?,
+# metadata? }`). Requests can scalar-replace this wholesale.
+[analyzer.scope.label_catalog]
+builtins = ["email_address", "phone_number", "credit_card"]
+
+[[analyzer.scope.label_catalog.custom]]
+name = "internal_employee_id"
+description = "6-digit employee ID from the corporate directory."
+tags = ["pii"]
 
 # Deduplication pipeline applied after recognition:
 # calibrate → reconcile (merging, same-label) → reconcile
@@ -59,18 +63,6 @@ merging = "max" # max | noisy_or
 tiebreaker = "highest_confidence" # highest_confidence | longest_span
 min_confidence = 0.7 # filter threshold, 0.0..=1.0
 
-# Per-request label catalog. Two sources union into one catalog at
-# compile time: `builtins` (names from `elide-core`'s shipped
-# builtin set; unknown names warn and are skipped) and `custom`
-# (inline LabelSchema records, `{ name, description?, tags?,
-# metadata? }`). Requests can scalar-replace this wholesale; left
-# empty here, no labels are in scope until the request sets them.
-# [analyzer.scope.label_catalog]
-# builtins = ["email_address", "phone_number", "credit_card"]
-# # [[analyzer.scope.label_catalog.custom]]
-# # name = "internal_employee_id"
-# # tags = ["pii"]
-
 # Pattern recognizer: at-most-one per analyzer. Loads every
 # shipped pattern + dictionary and wraps the recognizer in
 # elide's context-boost layer.
@@ -78,32 +70,72 @@ min_confidence = 0.7 # filter threshold, 0.0..=1.0
 builtins = true
 context_enhanced = true
 
-# NER recognizer list. Each entry needs a unique `name`; multiple
-# entries run in parallel (e.g. one English model, one Spanish).
-# [[analyzer.recognizers.ner]]
-# name = "default_ner"
-# backend = { kind = "mock" }
-# # backend = { kind = "bento", base_url = "http://localhost:3000", model = "..." }
-
-# LLM recognizer list. Same shape; backend chooses provider.
-# [[analyzer.recognizers.llm]]
-# name = "default_llm"
-# backend = { kind = "mock" }
-
 # Language enricher (writes the document's detected languages
 # into the recognizer context, driving jurisdiction-aware
 # dispatch). At-most-one per analyzer; text modality only.
-# `candidates` scopes the lingua detector to a candidate pool —
+# `candidates` scopes the lingua detector to a candidate pool;
 # empty considers every language lingua was compiled with.
-# [analyzer.enrichers.language]
-# candidates = ["en", "es", "fr"]
+[analyzer.enrichers.language]
+candidates = ["en", "es", "fr"]
 
 # OCR enricher (image modality only). At-most-one per analyzer.
-# [analyzer.enrichers.ocr]
-# backend = { kind = "mock" }
-# # backend = { kind = "bento", base_url = "http://localhost:3001", model = "..." }
+[analyzer.enrichers.ocr]
+kind = "bento"
+base_url = "http://localhost:3001"
+model = "REPLACE_ME"
 
 # STT enricher (audio modality only). At-most-one per analyzer.
-# [analyzer.enrichers.stt]
-# backend = { kind = "mock" }
-# # backend = { kind = "bento", base_url = "http://localhost:3002", model = "..." }
+[analyzer.enrichers.stt]
+kind = "bento"
+base_url = "http://localhost:3002"
+model = "REPLACE_ME"
+
+# NER recognizer lineup. Each entry declares one recognizer
+# instance: name (for provenance) + backend selection with its
+# per-kind fields flattened onto the wire. Symmetric with
+# `[[llm.recognizers]]`.
+#
+# Turning `analyzer.recognizers.ner = true` on a request runs
+# every entry here. Missing lineup + `ner = true` fails the
+# analyzer compile with a validation error.
+
+[[ner.recognizers]]
+name = "default_ner"
+kind = "bento"
+base_url = "http://localhost:3000"
+model = "fastino/gliner2-privacy-filter-PII-multi"
+
+# LLM recognizer lineup. Each entry is one recognizer instance:
+# provider `kind` + its per-kind fields sit inline alongside
+# `name` (no nested table). Optional Jinja2 prompt and modality
+# filter follow (`modalities` defaults to `["text"]`).
+#
+# Turning `analyzer.recognizers.llm = true` on a request runs
+# every entry here whose `modalities` matches the analyzer.
+# Missing lineup + `llm = true` fails the analyzer compile with
+# a validation error.
+#
+# Supported provider `kind`s: `open-ai`, `anthropic`, `gemini`,
+# `ollama`. All except `ollama` need `api_key`; `ollama`
+# optionally takes `base_url` (default: http://localhost:11434).
+#
+# ⚠ `api_key` is a secret. Keep this example file free of real
+# keys; write real values into your deployment's `Nvisy.toml`
+# via a secrets manager (Doppler, Vault, 1Password) at deploy
+# time, and gitignore that file.
+
+# Ollama — local, no API key. Runs against `ollama serve` at
+# http://localhost:11434 by default; override with `base_url`.
+[[llm.recognizers]]
+name = "llama-local"
+kind = "ollama"
+model = "llama3.1:8b"
+modalities = ["text"]
+
+# OpenAI example (commented — needs an API key):
+# [[llm.recognizers]]
+# name = "gpt-general"
+# kind = "open-ai"
+# api_key = "REPLACE_ME"
+# model = "gpt-4o-mini"
+# modalities = ["text"]

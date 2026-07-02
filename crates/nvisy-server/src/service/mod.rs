@@ -17,9 +17,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use nvisy_core::Result;
-use nvisy_core::plan::AnalyzerParams;
+use nvisy_core::llm::LlmConfig;
+use nvisy_core::ner::NerConfig;
 use nvisy_engine::Engine;
 use nvisy_engine::retention::SweeperHandle;
+use nvisy_schema::plan::AnalyzerParams;
 
 /// Default sweeper cadence when the caller doesn't specify.
 /// Five minutes is small enough that a `ZeroRetention` policy
@@ -87,9 +89,11 @@ impl ServiceRuntime {
     pub async fn new(
         data_dir: PathBuf,
         analyzer_default: AnalyzerParams,
+        ner: NerConfig,
+        llm: LlmConfig,
         sweep_interval: Option<Duration>,
     ) -> Result<Self> {
-        let engine = Engine::open(&data_dir)?;
+        let engine = Engine::open(&data_dir)?.with_ner(ner).with_llm(llm);
 
         // Reap orphan active-file refs from crashes. Runs are
         // the source of truth for whether a file is still

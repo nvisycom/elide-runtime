@@ -9,27 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Multimodal redaction pipeline for PII/PHI detection across text, images, and documents
-- File-format codecs for PDF, DOCX, HTML, Image, XLSX, Audio, CSV, JSON, and plain-text
-- Pattern-based entity detection with regex and dictionary matching
-- Post-match validators (Luhn checksum, SSN format) to reduce false positives
-- Built-in dictionaries for nationalities, religions, currencies, cryptocurrencies, and languages
-- DAG compiler and executor for graph-based processing pipelines
-- Object store integration with S3 for streaming ingestion and output
-- PyO3 bridge for AI-powered NER models (text and image detection)
-- Plugin trait system with action/provider registry
+- Multimodal redaction pipeline for sensitive data detection across
+  text, images, audio, and structured documents (PDF, DOCX, XLSX, CSV,
+  JSON, plain text).
+- Layered detection: regex + dictionary patterns, NER, OCR, and LLM
+  classification.
+- Context-aware redaction operators: mask, replace, hash, encrypt,
+  blur, block, pixelate, policy-driven with per-entity confidence
+  thresholds.
+- Deployment-owned NER and LLM recognizer lineups (deployment picks
+  the providers; the wire only toggles NER or LLM on or off).
+- BentoML inference services shipped as Docker containers:
+  docTR (OCR), PaddleOCR-VL (vision-language OCR), and GLiNER (NER).
 
-### Crates
+### Rust crates (`crates/`)
 
-- **nvisy-cli:** CLI entry point for the nvisy API server
-- **nvisy-codec:** File-format codecs: read, edit, and write documents
-- **nvisy-core:** Domain types, traits, and errors
-- **nvisy-engine:** DAG compiler and executor for pipeline graphs
-- **nvisy-ocr:** OCR backend trait and provider integration
-- **nvisy-ontology:** Domain data types, entity taxonomy, and spatial primitives
-- **nvisy-pattern:** Built-in regex patterns and dictionaries for PII/PHI detection
-- **nvisy-python:** PyO3 bridge for AI NER/OCR detection via embedded Python
-- **nvisy-rig:** LLM/VLM-driven detection, redaction, and OCR backends
-- **nvisy-server:** HTTP server exposing the Engine pipeline via REST endpoints
+- **nvisy-schema:** wire types (policy, context, plan, file). Consumed
+  by SDKs on both sides of the HTTP boundary.
+- **nvisy-core:** deployment-side runtime configuration (NER and LLM
+  recognizer lineups, error vocabulary).
+- **nvisy-engine:** stateless pipeline: decode, analyze, apply. Wraps
+  elide and hosts the per-modality orchestrator.
+- **elide-bento:** BentoML-hosted NER and OCR client implementing
+  elide's recognizer traits.
+
+### Python packages (`packages/`)
+
+- **nvisy-core:** shared Python types and runtime helpers.
+- **nvisy-ner:** GLiNER-based named-entity recognition service.
+- **nvisy-ocr:** docTR-based detection OCR service.
+- **nvisy-vl:** PaddleOCR-VL vision-language OCR service.
 
 [Unreleased]: https://github.com/nvisycom/runtime/commits/main

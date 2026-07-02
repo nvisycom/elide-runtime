@@ -5,19 +5,17 @@
 mod fixtures;
 
 use std::io::Read;
-use std::path::PathBuf;
 
 use bytes::Bytes;
 use hipstr::HipStr;
 use nvisy_engine::Engine;
-use nvisy_engine::runs::{DocBody, RecognizedGroup};
+use nvisy_engine::document::{DocBody, RecognizedGroup};
 use nvisy_schema::file::RawDocument;
 use nvisy_schema::plan::{
     AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::RuleAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
-use tempfile::TempDir;
 use uuid::Uuid;
 
 use self::fixtures::write_artefact;
@@ -33,11 +31,8 @@ fn raw_docx() -> RawDocument {
     }
 }
 
-fn engine() -> (Engine, TempDir) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let path = PathBuf::from(dir.path());
-    let engine = Engine::open(&path).expect("engine opens");
-    (engine, dir)
+fn engine() -> Engine {
+    Engine::new()
 }
 
 fn default_spec() -> AnalyzerParams {
@@ -72,7 +67,7 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 
 #[tokio::test]
 async fn analyze_captures_text_body_and_image_part() {
-    let (engine, _dir) = engine();
+    let engine = engine();
     let body = engine
         .analyze_document(raw_docx(), &default_spec(), Uuid::now_v7())
         .await
@@ -102,7 +97,7 @@ async fn analyze_captures_text_body_and_image_part() {
 
 #[tokio::test]
 async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
-    let (engine, _dir) = engine();
+    let engine = engine();
     let run_id = Uuid::now_v7();
     let body = engine
         .analyze_document(raw_docx(), &default_spec(), run_id)
@@ -159,7 +154,7 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
 
 #[tokio::test]
 async fn empty_docbody_apply_fails_validation() {
-    let (engine, _dir) = engine();
+    let engine = engine();
     let outcome = engine
         .apply_document(
             raw_docx(),

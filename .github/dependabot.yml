@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Enable version updates for cargo
+  # Rust: cargo workspace at repo root
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
@@ -24,47 +24,30 @@ updates:
           - "minor"
           - "patch"
 
-  - package-ecosystem: "pip"
-    directory: "/packages/nvisy-ai"
+  # Python: uv workspace at repo root
+  - package-ecosystem: "uv"
+    directory: "/"
     schedule:
       interval: "weekly"
       timezone: "Europe/Berlin"
       day: "monday"
       time: "04:00"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     labels:
       - "chore"
     commit-message:
       prefix: "chore(deps-py)"
+      prefix-development: "chore(deps-py-dev)"
+    rebase-strategy: "auto"
     groups:
-      rust-dependencies:
+      python-dependencies:
         patterns:
           - "*"
         update-types:
           - "minor"
           - "patch"
 
-  - package-ecosystem: "pip"
-    directory: "/packages/nvisy-exif"
-    schedule:
-      interval: "weekly"
-      timezone: "Europe/Berlin"
-      day: "monday"
-      time: "04:00"
-    open-pull-requests-limit: 3
-    labels:
-      - "chore"
-    commit-message:
-      prefix: "chore(deps-py)"
-    groups:
-      rust-dependencies:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-
-  # Version updates for GitHub Actions
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

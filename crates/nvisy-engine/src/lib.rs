@@ -2,32 +2,26 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-//! The runtime adapter over [`elide`]. Engine is what makes elide a
-//! long-running, multi-tenant, multi-document, two-phase redaction
-//! service:
+//! Stateless redaction pipeline over [`elide`].
 //!
-//! - [`Engine`] bundles persistence + codec registry + the
-//!   per-request orchestrator constructor (analyze and apply on
-//!   one document).
-//! - [`registry`] holds the multi-tenant, actor-scoped storage
-//!   primitives ([`fjall`] keyspaces keyed by `[actor_id | …]`).
-//! - [`keyspace`] hosts the user-owned resource CRUD —
-//!   [`PolicyRegistry`], [`FileRegistry`], [`ContextRegistry`] —
-//!   all extension traits on [`registry::RegistryHandle`].
-//! - [`runs`] is the multi-doc batched run orchestrator on top of
-//!   the per-document verbs, with its persistence trait kept
-//!   `pub(crate)` so external code can't write malformed runs.
-//! - [`retention`] holds the retention schedule, the active-file
-//!   reverse index gating the sweeper, and the sweeper itself
-//!   ([`Engine::sweep_once`] / [`Engine::start_sweeper`]).
+//! Bytes (or a caller-owned path) go in, a detection report or
+//! redacted bytes come out. No persistence, no HTTP, no
+//! long-running background tasks. Hosts (a SaaS API, a Tauri app,
+//! a CLI, a language SDK) embed this crate and layer whatever
+//! workflow, storage, and multi-tenancy they need on top.
+//!
+//! ## Layout
+//!
+//! - [`Engine`]: the entry point. Bundles the codec registry, the
+//!   deployment's NER / LLM lineups, and the per-request
+//!   orchestrator builder.
+//! - `analyze` / `apply` methods on [`Engine`] compile and run the
+//!   full [`elide::Orchestrator`] against one document.
+//!
+//! [`elide`]: elide
 
 mod engine;
 mod llm;
 
-pub mod keyspace;
-pub mod registry;
-pub mod retention;
-pub mod runs;
-
+pub use self::engine::document;
 pub use self::engine::{ApplyOutcome, Engine};
-pub use self::keyspace::{ContextRegistry, FileDescriptor, FileRegistry, PolicyRegistry};

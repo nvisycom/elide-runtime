@@ -2,9 +2,9 @@
 
 [package]
 name = "nvisy-engine"
-description = "Runtime adapter over elide: Policy compile, multi-tenant registry, request orchestration"
+description = "Stateless redaction pipeline over elide: analyzer + anonymizer + orchestrator"
 keywords = ["nvisy", "engine", "elide", "redaction"]
-categories = ["data-structures", "concurrency"]
+categories = ["data-structures"]
 readme = "README.md"
 
 version = { workspace = true }
@@ -27,9 +27,9 @@ audio = ["elide/codec-audio"]
 document = ["elide/codec-document"]
 
 ## Turn on the test-only mock variants
-## (`{Ner,Ocr,Stt,Llm}BackendParams::Mock`) and the elide mock
-## backends they compile into. Off in production so `Nvisy.toml`
-## cannot ship a mock recognizer.
+## (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) and the elide mock
+## backends they compile into. Off in production so deployment
+## config cannot ship a mock recognizer.
 test-utils = [
     "nvisy-core/test-utils",
     "nvisy-schema/test-utils",
@@ -69,54 +69,30 @@ elide-stt = { workspace = true, features = [] }
 # Runtime-owned elide extensions
 elide-bento = { workspace = true, features = ["ner", "ocr"] }
 
-# Derive macros
-derive_more = { workspace = true, features = ["as_ref", "deref", "from"] }
-
 # Primitive datatypes
-uuid = { workspace = true, features = ["v7"] }
-semver = { workspace = true, features = ["serde"] }
-hipstr = { workspace = true, features = ["serde"] }
-jiff = { workspace = true, features = ["serde"] }
+uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 serde = { workspace = true, features = ["derive"] }
-schemars = { workspace = true, features = ["uuid1", "semver1"] }
-sha2 = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
 
-# Async runtime — `time` powers the per-doc timeout wrapping
-# the analyze fan-out; `rt` powers the sweeper background task
-# spawned by `Engine::start_sweeper`.
-tokio = { workspace = true, features = ["macros", "rt", "time"] }
-tokio-util = { workspace = true, features = ["rt"] }
-
-# Concurrent stream combinators for the analyze fan-out.
-# `stream::iter(...).buffer_unordered(N)` is the engine's
-# non-spawn concurrency primitive — caps in-flight work at N
-# while keeping every per-doc future borrowing the codec
-# registry + spec for free.
-futures = { workspace = true, features = ["std"] }
-
-# Multi-tenant storage
-fjall = { workspace = true, features = [] }
-
-# Resource serialisation (policy / context / run blobs in fjall)
-serde_json = { workspace = true, features = [] }
-
-# Structured logging — used inline at warn/error points where the
-# engine wants to surface a non-fatal anomaly to operators (unknown
+# Structured logging — surface non-fatal anomalies (unknown
 # builtin label name in a catalog request, etc.).
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 # Turn on the test-only mock variants
-# (`{Ner,Ocr,Stt,Llm}BackendParams::Mock`) so integration tests
+# (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) so integration tests
 # can construct a working analyzer without hitting a real Bento
-# backend or LLM provider. Off in production so `Nvisy.toml`
-# cannot ship a mock recognizer.
+# backend or LLM provider.
 nvisy-engine = { path = ".", features = ["test-utils"] }
 
 # Async runtime and parallelism
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
+# Primitives referenced from test fixtures.
+hipstr = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v7"] }
+bytes = { workspace = true, features = [] }
+
 # Test utilities
-tempfile = { workspace = true, features = [] }
 zip = { workspace = true }

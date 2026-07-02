@@ -10,7 +10,7 @@ dependencies = [
     # 1.4.39 floor pulls in an aiohttp without the CVEs from PR #6; do not relax.
     "bentoml>=1.4.39,<2",
     "nvisy-core",
-    "pillow>=10,<13",
+    "pillow>=12.3.0,<13",
     "prometheus-client>=0.20",
     # docTR (PyTorch backend); torch/torchvision are core deps in 1.x, no extra.
     "python-doctr>=1.0,<2",

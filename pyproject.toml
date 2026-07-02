@@ -30,8 +30,8 @@ constraint-dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.27",
-    "pytest>=8",
-    "ruff>=0.15.15",
+    "pytest>=9.1.1",
+    "ruff>=0.15.20",
 ]
 
 [tool.ruff]

@@ -1,0 +1,31 @@
+[project]
+name = "nvisy-ner"
+version = "0.1.0"
+description = "Schema-driven NER inference service for nvisy (GLiNER2)"
+readme = "README.md"
+requires-python = "==3.12.*"
+license = "Apache-2.0"
+authors = [{ name = "Nvisy" }]
+dependencies = [
+    # 1.4.39 floor pulls in a CVE-free aiohttp; do not relax.
+    "bentoml>=1.4.39,<2",
+    # The sole inference engine (schema-driven). Pulls transformers/torch/
+    # onnxruntime transitively. Major cap: pre-1.0 -> 1.x was breaking.
+    "gliner2>=1.3,<2",
+    "nvisy-core",
+    "prometheus-client>=0.20",
+]
+
+[build-system]
+requires = ["uv_build>=0.6,<0.7"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Mirror the workspace root: exclude real-model tests by default (run them with
+# -m real). Pytest uses the nearest config when invoked inside this package, so
+# the marker + exclusion must be declared here too, not only at the root.
+addopts = ["-m", "not real"]
+markers = [
+    "real: exercises real model weights (downloads + inference); excluded by default, run with -m real",
+]

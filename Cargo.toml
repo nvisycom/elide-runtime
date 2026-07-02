@@ -8,6 +8,9 @@ members = [
     "./crates/nvisy-engine",
     "./crates/nvisy-schema",
 ]
+# Python (uv) workspace lives in `packages/`. Excluded so cargo
+# doesn't glob-scan it or complain about missing Cargo.toml files.
+exclude = ["packages/"]
 
 [workspace.package]
 version = "0.1.0"

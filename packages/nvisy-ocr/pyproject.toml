@@ -1,0 +1,24 @@
+[project]
+name = "nvisy-ocr"
+version = "0.1.0"
+description = "Default OCR inference service for nvisy (docTR)"
+readme = "README.md"
+requires-python = "==3.12.*"
+license = "Apache-2.0"
+authors = [{ name = "Nvisy" }]
+dependencies = [
+    # 1.4.39 floor pulls in an aiohttp without the CVEs from PR #6; do not relax.
+    "bentoml>=1.4.39,<2",
+    "nvisy-core",
+    "pillow>=10,<13",
+    "prometheus-client>=0.20",
+    # docTR (PyTorch backend); torch/torchvision are core deps in 1.x, no extra.
+    "python-doctr>=1.0,<2",
+]
+
+[build-system]
+requires = ["uv_build>=0.6,<0.7"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

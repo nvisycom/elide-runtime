@@ -1,4 +1,4 @@
-name: Security
+name: Rs Security
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "deny.toml"
-      - ".github/workflows/security.yml"
+      - ".github/workflows/rs-security.yml"
   pull_request:
     branches:
       - "main"
@@ -20,7 +20,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "deny.toml"
-      - ".github/workflows/security.yml"
+      - ".github/workflows/rs-security.yml"
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:

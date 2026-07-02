@@ -1,0 +1,9 @@
+# Build from the repo root:  bentoml build -f packages/nvisy-vl/bentofile.yaml .
+# Image config (Python version, system packages, requirements) lives in
+# service.py; this file selects the service and scopes the bundled source.
+service: "nvisy_vl.service:OcrVlService"
+include:
+  - "packages/nvisy-vl/**"
+  - "packages/nvisy-core/**"
+  - "pyproject.toml"
+  - "uv.lock"

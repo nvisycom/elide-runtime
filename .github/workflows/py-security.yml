@@ -1,0 +1,53 @@
+name: Py Security
+
+on:
+  push:
+    branches:
+      - "main"
+      - "release"
+    paths:
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/py-security.yml"
+  pull_request:
+    branches:
+      - "main"
+      - "release"
+    paths:
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/py-security.yml"
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Export locked requirements
+        run: uv export --locked --all-packages --no-emit-workspace --format requirements-txt -o requirements.txt
+
+      - name: Audit dependencies
+        # CVE-2025-3000: torch.jit.script memory-corruption (CVSS 5.3, local; we don't 
+        # call jit.script). No patched torch release exists as of today (13 Jun 26).
+        run: uvx pip-audit -r requirements.txt --ignore-vuln CVE-2025-3000

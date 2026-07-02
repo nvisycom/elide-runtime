@@ -198,9 +198,9 @@ fsspec==2026.4.0 \
     #   bentoml
     #   huggingface-hub
     #   torch
-gliner==0.2.26 \
-    --hash=sha256:6783be92b4b81caa878dcc4269ba37800207c37118d8ff9be028b93bddd6813d \
-    --hash=sha256:b9baa47641efb90b9d069add0528ed2464d137991ff097f42b0cab37a91ba991
+gliner==0.2.24 \
+    --hash=sha256:191a37d1b3d297927c37ae890ce904e9d4e9d3f4c8e19715e77a9876e5f8a575 \
+    --hash=sha256:efe614e05b31d06d848373aef8270f567e34fe1b4e96f816a8c70cef24908a6c
     # via gliner2
 gliner2==1.3.1 \
     --hash=sha256:8af0e84a61e04f2bb491de10ef9509f7b45b4a72eb678b85e06b745e85087291 \
@@ -773,11 +773,12 @@ tqdm==4.67.3 \
     #   huggingface-hub
     #   peft
     #   transformers
-transformers==5.1.0 \
-    --hash=sha256:c60d6180e5845ea1b4eed38d7d1b06fcc4cc341c6b7fa5c1dc767d7e25fe0139 \
-    --hash=sha256:de534b50c9b2ce6217fc56421075a1734241fb40704fdc90f50f6a08fc533d59
+transformers==5.12.1 \
+    --hash=sha256:2a5e109d2021265df7098ffbb738295acaf5ad256f12cbc586db2ea4dcbb1a8a \
+    --hash=sha256:679ee731c8225347889ad4fb3b2c926a62e9da3b7d284e9d12c791da7272466b
     # via
     #   gliner
+    #   nvisy-ner
     #   peft
 triton==3.7.0 ; sys_platform == 'linux' \
     --hash=sha256:8f111161d49bf903c0eaedde3962353a3d841c08a836839b7cc1025b8426efcf \
@@ -788,11 +789,7 @@ typer==0.25.1 \
     --hash=sha256:9616eb8853a09ffeabab1698952f33c6f29ffdbceb4eaeecf571880e8d7664cc
     # via
     #   huggingface-hub
-    #   typer-slim
-typer-slim==0.24.0 \
-    --hash=sha256:d5d7ee1ee2834d5020c7c616ed5e0d0f29b9a4b1dd283bdebae198ec09778d0e \
-    --hash=sha256:f0ed36127183f52ae6ced2ecb2521789995992c521a46083bfcdbb652d22ad34
-    # via transformers
+    #   transformers
 typing-extensions==4.15.0 \
     --hash=sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466 \
     --hash=sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548

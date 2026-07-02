@@ -10,24 +10,24 @@ policy documents, analyzer plans, and file metadata.
 The SDK-safe subset of Nvisy's type surface. Ships the serde-derived
 types that appear on the wire and the JSON schema derivations for them.
 
-Sibling to nvisy-core, which adds the deployment-side runtime
-configuration (NER and LLM recognizer lineups, error vocabulary) hosts
-need to construct an engine. SDK consumers who only need to
-(de)serialize wire bodies should depend on nvisy-schema directly to
+Sibling to [`nvisy-core`](../nvisy-core), which adds the deployment-side
+runtime configuration (NER and LLM recognizer lineups, error vocabulary)
+hosts need to construct an engine. SDK consumers who only need to
+(de)serialize wire bodies should depend on `nvisy-schema` directly to
 avoid pulling those extras. The transitive dependency tree is
-elide-core plus a slice of the serialization stack, no HTTP client, no
-LLM plumbing.
+`elide-core` plus a slice of the serialization stack, no HTTP client,
+no LLM plumbing.
 
 ## Changelog
 
-See ../../CHANGELOG.md for release notes and version history.
+See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
 
 ## License
 
-Apache 2.0 License, see ../../LICENSE.txt.
+Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
 
 ## Support
 
-- Documentation: <https://docs.nvisy.com>
-- Issues: <https://github.com/nvisycom/runtime/issues>
-- Email: support@nvisy.com
+- **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/runtime/issues)
+- **Email**: [support@nvisy.com](mailto:support@nvisy.com)

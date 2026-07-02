@@ -12,7 +12,7 @@ base64-encoded image and returns a `Page → Block → Line → Word` hierarchy.
 natively produces that hierarchy with **word-level geometry** (its detection +
 recognition models), which is what redaction needs to mask sub-line spans.
 Request/response types come from [`nvisy_core.ocr.v1`](../nvisy-core); the
-generated contract lives at [`docs/openapi/ocr.json`](../../docs/openapi/ocr.json).
+generated contract lives at [`nvisy_core.ocr.v1`](../nvisy-core/src/nvisy_core/ocr/v1.py).
 Any service that speaks the contract can replace it (bring-your-own-inference).
 
 BentoML batches concurrent calls, so the HTTP body wraps the list:
@@ -48,5 +48,5 @@ Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
 ## Support
 
 - **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
-- **Issues**: [GitHub Issues](https://github.com/nvisycom/inference/issues)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/runtime/issues)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)

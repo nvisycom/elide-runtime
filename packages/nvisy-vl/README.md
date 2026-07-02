@@ -54,5 +54,5 @@ Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
 ## Support
 
 - **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
-- **Issues**: [GitHub Issues](https://github.com/nvisycom/inference/issues)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/runtime/issues)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)

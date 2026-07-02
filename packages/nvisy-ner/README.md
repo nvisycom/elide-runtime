@@ -19,7 +19,7 @@ published as `ghcr.io/nvisy/inference-ner`.
 The response returns each group's results, with character offsets and confidence
 scores. Request/response types come from [`nvisy_core.ner.v1`](../nvisy-core);
 the generated contract lives at
-[`docs/openapi/ner.json`](../../docs/openapi/ner.json).
+[`nvisy_core.ner.v1`](../nvisy-core/src/nvisy_core/ner/v1).
 
 Labels are **model-native** — the service returns exactly what the model emits
 and does not map onto a shared taxonomy; that mapping is the consumer's job (the
@@ -95,5 +95,5 @@ Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
 ## Support
 
 - **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
-- **Issues**: [GitHub Issues](https://github.com/nvisycom/inference/issues)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/runtime/issues)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)

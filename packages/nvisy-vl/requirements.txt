@@ -507,18 +507,18 @@ packaging==26.2 \
     #   opentelemetry-instrumentation
     #   paddlex
     #   pip-requirements-parser
-paddleocr==3.6.0 \
-    --hash=sha256:76a03d260a2b5f7f3f1af017fbdc0cae3ccb2a538d40ba898a3a791711c34c33 \
-    --hash=sha256:fc3805825ad9177e12e8334888060007e127b65faf41924441a325919aa3c4ff
+paddleocr==3.7.0 \
+    --hash=sha256:9b81eb62cf37e590d4873e60262ff56f968ff9de6ce1f565749760ceb1c422e2 \
+    --hash=sha256:c0f0a81ad4112727f30c6fcf986ac0ef6a120d31ee0991a01fae0357ee32d338
     # via nvisy-vl
 paddlepaddle==3.3.1 \
     --hash=sha256:324b5122cf3887dfbd15db17f36e2421ef923fd4569d26111bf1a21fe84d442b \
     --hash=sha256:9016fc497213e1101261684321fbb31ef5960019ef39cb07ded27bc70e2a9858 \
     --hash=sha256:d7827d867503b502a881c718e3743d9b91648a62d01f93bcd5ba3d7846de5ab5
     # via nvisy-vl
-paddlex==3.6.1 \
-    --hash=sha256:4c6bdbd81a9fcef6b55c887272b71ba7ef8193bc257762341393420a492fabd7 \
-    --hash=sha256:a6008bba66703aaf2cfe75185210535c839f87052f9be45501aedb4b02258498
+paddlex==3.7.2 \
+    --hash=sha256:6a60b4595e2d51460f7f51326672adca86b89ff9ecfd02ac348fb69739e0093c \
+    --hash=sha256:f1678bf650bbaccfd8f0d4e49d0ae631b4685c829fdae6e802ccd90d4fcb9a7f
     # via
     #   nvisy-vl
     #   paddleocr

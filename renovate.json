@@ -1,0 +1,43 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": ["before 05:00 on monday"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
+  "labels": ["chore"],
+  "rebaseWhen": "conflicted",
+  "rangeStrategy": "auto",
+  "commitMessagePrefix": "chore(deps):",
+  "packageRules": [
+    {
+      "matchManagers": ["cargo"],
+      "groupName": "rust-dependencies",
+      "matchUpdateTypes": ["minor", "patch"],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "matchManagers": ["pep621"],
+      "groupName": "python-dependencies",
+      "matchUpdateTypes": ["minor", "patch"],
+      "commitMessagePrefix": "chore(deps-py):"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "commitMessagePrefix": "chore(actions):"
+    }
+  ],
+  "postUpgradeTasks": {
+    "commands": ["uv sync --all-packages && uv run python scripts/gen_requirements.py"],
+    "fileFilters": [
+      "packages/*/requirements.txt",
+      "uv.lock"
+    ],
+    "executionMode": "branch"
+  }
+}

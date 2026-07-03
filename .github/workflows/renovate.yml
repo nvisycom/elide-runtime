@@ -1,0 +1,61 @@
+name: Renovate
+
+on:
+  schedule:
+    # Every hour on the hour; Renovate itself decides which PRs to open based
+    # on `renovate.json` schedule + prConcurrentLimit.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "Renovate log level"
+        required: false
+        default: "info"
+        type: choice
+        options:
+          - debug
+          - info
+          - warn
+
+concurrency:
+  group: renovate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get token
+        id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          token: ${{ steps.token.outputs.token }}
+
+      # `postUpgradeTasks.commands` needs uv on PATH; install it before running
+      # Renovate so post-upgrade `uv sync && gen_requirements.py` succeeds.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Renovate
+        uses: renovatebot/github-action@v46.1.17
+        env:
+          # Whitelist the exact command postUpgradeTasks may run. Anything not
+          # matching this regex is silently ignored, which is the security
+          # backstop against a compromised renovate.json running arbitrary code.
+          RENOVATE_ALLOWED_POST_UPGRADE_COMMANDS: '["^uv sync --all-packages && uv run python scripts/gen_requirements\\.py$"]'
+          RENOVATE_ALLOW_POST_UPGRADE_COMMAND_TEMPLATING: "true"
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+        with:
+          token: ${{ steps.token.outputs.token }}
+          configurationFile: renovate.json

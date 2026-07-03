@@ -66,8 +66,11 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
+#[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
 use elide_core::modality::image::Image;
+#[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_core::{Error, Result};
@@ -167,21 +170,26 @@ impl Engine {
 
         // Walk the body modality slots in order; the first that
         // returns Some is the body modality the orchestrator's
-        // codec resolved. `body` ends up None only if no pipeline
-        // accepted the body — defensive, since all four are wired.
-        let body_group = take_body::<Text>(&mut report)
-            .or_else(|| take_body::<Tabular>(&mut report))
-            .or_else(|| take_body::<Image>(&mut report))
-            .or_else(|| take_body::<Audio>(&mut report))
-            .ok_or_else(|| {
-                Error::validation(
-                    format!(
-                        "codec resolved {extension:?} to a modality the orchestrator \
-                         has no pipeline for"
-                    ),
-                    COMPONENT,
-                )
-            })?;
+        // codec resolved. Only the modalities compiled in are
+        // considered; a document decoded to a disabled modality
+        // ends up in the `None` arm and surfaces as Validation.
+        let body_group = take_body::<Text>(&mut report);
+        #[cfg(feature = "internal_tabular")]
+        let body_group = body_group.or_else(|| take_body::<Tabular>(&mut report));
+        #[cfg(feature = "internal_image")]
+        let body_group = body_group.or_else(|| take_body::<Image>(&mut report));
+        #[cfg(feature = "internal_audio")]
+        let body_group = body_group.or_else(|| take_body::<Audio>(&mut report));
+
+        let body_group = body_group.ok_or_else(|| {
+            Error::validation(
+                format!(
+                    "codec resolved {extension:?} to a modality the orchestrator \
+                     has no pipeline for"
+                ),
+                COMPONENT,
+            )
+        })?;
 
         // Walk the parts in the same way: collect (id, modality)
         // pairs first (read-borrow), then drain each part with the
@@ -192,18 +200,7 @@ impl Engine {
             .collect();
         let mut parts = HashMap::with_capacity(part_ids.len());
         for (id, type_id) in part_ids {
-            let group = if type_id == TypeId::of::<Text>() {
-                take_part::<Text>(&mut report, &id)
-            } else if type_id == TypeId::of::<Tabular>() {
-                take_part::<Tabular>(&mut report, &id)
-            } else if type_id == TypeId::of::<Image>() {
-                take_part::<Image>(&mut report, &id)
-            } else if type_id == TypeId::of::<Audio>() {
-                take_part::<Audio>(&mut report, &id)
-            } else {
-                // Pipeline modality the engine doesn't model. Skip.
-                continue;
-            };
+            let group = take_part_dispatch(&mut report, &id, type_id);
             if let Some(group) = group {
                 parts.insert(id.as_str().to_owned(), group);
             }
@@ -286,4 +283,31 @@ impl Engine {
                 .with_source(err)
             })
     }
+}
+
+/// Dispatch a part to the take-part helper matching its modality
+/// `TypeId`. Feature-gated per modality; a part whose modality is
+/// disabled in this build falls through to `None`, and the caller
+/// treats it the same as a part the engine doesn't model.
+fn take_part_dispatch(
+    report: &mut elide::Report,
+    id: &PartId,
+    type_id: TypeId,
+) -> Option<self::document::RecognizedGroup> {
+    if type_id == TypeId::of::<Text>() {
+        return take_part::<Text>(report, id);
+    }
+    #[cfg(feature = "internal_tabular")]
+    if type_id == TypeId::of::<Tabular>() {
+        return take_part::<Tabular>(report, id);
+    }
+    #[cfg(feature = "internal_image")]
+    if type_id == TypeId::of::<Image>() {
+        return take_part::<Image>(report, id);
+    }
+    #[cfg(feature = "internal_audio")]
+    if type_id == TypeId::of::<Audio>() {
+        return take_part::<Audio>(report, id);
+    }
+    None
 }

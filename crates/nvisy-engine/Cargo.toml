@@ -19,12 +19,42 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio", "document"]
+default = ["tabular", "image", "audio", "codec-docx"]
 
-tabular = ["elide/codec-tabular"]
-image = ["elide/codec-image"]
-audio = ["elide/codec-audio"]
-document = ["elide/codec-document"]
+## Tabular modality (analyzer + anonymizer + redaction operators)
+## plus every tabular codec elide ships (CSV, XLSX).
+tabular = ["internal_tabular", "codec-csv", "codec-xlsx"]
+## Image modality (analyzer + anonymizer + redaction operators)
+## plus every image codec elide ships (PNG, JPEG, TIFF).
+image = ["internal_image", "codec-png", "codec-jpeg", "codec-tiff"]
+## Audio modality (analyzer + anonymizer + redaction operators)
+## plus the WAV codec. MP3 is opt-in via `codec-mp3` because of
+## patent licensing.
+audio = ["internal_audio", "codec-wav"]
+
+## Individual codec toggles. Each pulls in its modality's shared
+## code (`internal_*`), so `codec-png` alone works without also
+## enabling `image`.
+codec-csv = ["internal_tabular", "elide/codec-csv"]
+codec-xlsx = ["internal_tabular", "elide/codec-xlsx"]
+codec-png = ["internal_image", "elide/codec-png"]
+codec-jpeg = ["internal_image", "elide/codec-jpeg"]
+codec-tiff = ["internal_image", "elide/codec-tiff"]
+codec-wav = ["internal_audio", "elide/codec-wav"]
+## MP3 is opt-in: MP3 patent licensing may not be satisfiable
+## downstream. Off by default even when `audio` is enabled.
+codec-mp3 = ["internal_audio", "elide/codec-mp3"]
+## DOCX documents (a zip archive with an XML body plus embedded
+## image parts). Standalone: not implied by `image` or `tabular`.
+codec-docx = ["elide/codec-docx"]
+
+# Internal shared-code gates. Not part of the public feature
+# surface: enabled transitively by every user-facing feature that
+# needs the corresponding modality's analyzer, anonymizer, and
+# redaction operators. Never set directly by consumers.
+internal_tabular = []
+internal_image = []
+internal_audio = []
 
 ## Turn on the test-only mock variants
 ## (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) and the elide mock

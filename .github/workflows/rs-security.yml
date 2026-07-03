@@ -51,4 +51,9 @@ jobs:
         run: cargo binstall cargo-deny --no-confirm --no-symlinks
 
       - name: Run deny
-        run: cargo deny check all
+        # --all-features exercises the whole crate graph, including
+        # feature-gated deps like `codec-mp3` (mp3lame-sys / mp3lame-encoder,
+        # LGPL). Without it, cargo-deny warns that our license exceptions
+        # for those crates were "not encountered", because default features
+        # exclude them.
+        run: cargo deny --all-features check all

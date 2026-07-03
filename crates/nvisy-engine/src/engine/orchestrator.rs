@@ -14,8 +14,11 @@ use elide::Orchestrator;
 use elide::redaction::Anonymizer;
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::Modality;
+#[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
 use elide_core::modality::image::Image;
+#[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_core::{Error, Result};
@@ -25,10 +28,13 @@ use uuid::Uuid;
 
 use super::Engine;
 use super::analyzer::{AnalyzerCompile, LabelCatalogCompile};
-use super::anonymizer::{
-    attach_override_audio, attach_override_image, attach_override_tabular, attach_override_text,
-    attach_policies_audio, attach_policies_image, attach_policies_tabular, attach_policies_text,
-};
+use super::anonymizer::{attach_override_text, attach_policies_text};
+#[cfg(feature = "internal_audio")]
+use super::anonymizer::{attach_override_audio, attach_policies_audio};
+#[cfg(feature = "internal_image")]
+use super::anonymizer::{attach_override_image, attach_policies_image};
+#[cfg(feature = "internal_tabular")]
+use super::anonymizer::{attach_override_tabular, attach_policies_tabular};
 
 const COMPONENT: &str = "engine::orchestrator";
 
@@ -78,43 +84,57 @@ impl Engine {
             attach_override_text,
             attach_policies_text,
         )?;
-        let tabular = assemble::<Tabular, _, _>(
-            &catalog,
-            overrides,
-            policies,
-            attach_override_tabular,
-            attach_policies_tabular,
-        )?;
-        let image = assemble::<Image, _, _>(
-            &catalog,
-            overrides,
-            policies,
-            attach_override_image,
-            attach_policies_image,
-        )?;
-        let audio = assemble::<Audio, _, _>(
-            &catalog,
-            overrides,
-            policies,
-            attach_override_audio,
-            attach_policies_audio,
-        )?;
-
         let text_analyzer = spec
             .compile_text(&self.ner, &self.llm)
             .map_err(compile_err)?;
-        let tabular_analyzer = spec.compile_tabular(&self.ner).map_err(compile_err)?;
-        let image_analyzer = spec
-            .compile_image(&self.ner, &self.llm)
-            .map_err(compile_err)?;
-        let audio_analyzer = spec.compile_audio(&self.ner).map_err(compile_err)?;
 
-        Ok(Orchestrator::new(&self.formats)
+        #[allow(unused_mut)]
+        let mut orchestrator = Orchestrator::new(&self.formats)
             .with_scope(scope)
-            .with_modality::<Text>(text_analyzer, text)
-            .with_modality::<Tabular>(tabular_analyzer, tabular)
-            .with_modality::<Image>(image_analyzer, image)
-            .with_modality::<Audio>(audio_analyzer, audio))
+            .with_modality::<Text>(text_analyzer, text);
+
+        #[cfg(feature = "internal_tabular")]
+        {
+            let tabular = assemble::<Tabular, _, _>(
+                &catalog,
+                overrides,
+                policies,
+                attach_override_tabular,
+                attach_policies_tabular,
+            )?;
+            let tabular_analyzer = spec.compile_tabular(&self.ner).map_err(compile_err)?;
+            orchestrator = orchestrator.with_modality::<Tabular>(tabular_analyzer, tabular);
+        }
+
+        #[cfg(feature = "internal_image")]
+        {
+            let image = assemble::<Image, _, _>(
+                &catalog,
+                overrides,
+                policies,
+                attach_override_image,
+                attach_policies_image,
+            )?;
+            let image_analyzer = spec
+                .compile_image(&self.ner, &self.llm)
+                .map_err(compile_err)?;
+            orchestrator = orchestrator.with_modality::<Image>(image_analyzer, image);
+        }
+
+        #[cfg(feature = "internal_audio")]
+        {
+            let audio = assemble::<Audio, _, _>(
+                &catalog,
+                overrides,
+                policies,
+                attach_override_audio,
+                attach_policies_audio,
+            )?;
+            let audio_analyzer = spec.compile_audio(&self.ner).map_err(compile_err)?;
+            orchestrator = orchestrator.with_modality::<Audio>(audio_analyzer, audio);
+        }
+
+        Ok(orchestrator)
     }
 }
 

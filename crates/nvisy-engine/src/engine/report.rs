@@ -34,8 +34,11 @@ use std::mem;
 use elide::codec::{PartId, UntypedDocumentHandle};
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
+#[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
 use elide_core::modality::image::Image;
+#[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_core::{Error, Result};
@@ -69,8 +72,11 @@ macro_rules! impl_group_carrier {
 }
 
 impl_group_carrier!(Text, Text);
+#[cfg(feature = "internal_tabular")]
 impl_group_carrier!(Tabular, Tabular);
+#[cfg(feature = "internal_image")]
 impl_group_carrier!(Image, Image);
+#[cfg(feature = "internal_audio")]
 impl_group_carrier!(Audio, Audio);
 
 /// Drain the body's entities from `report` into a
@@ -95,12 +101,15 @@ pub(super) fn take_part<M: GroupCarrier>(
 pub(super) fn insert_body(report: elide::Report, group: &RecognizedGroup) -> elide::Report {
     match group {
         RecognizedGroup::Text { entities } => report.insert_body::<Text>(clone_entities(entities)),
+        #[cfg(feature = "internal_tabular")]
         RecognizedGroup::Tabular { entities } => {
             report.insert_body::<Tabular>(clone_entities(entities))
         }
+        #[cfg(feature = "internal_image")]
         RecognizedGroup::Image { entities } => {
             report.insert_body::<Image>(clone_entities(entities))
         }
+        #[cfg(feature = "internal_audio")]
         RecognizedGroup::Audio { entities } => {
             report.insert_body::<Audio>(clone_entities(entities))
         }
@@ -118,12 +127,15 @@ pub(super) fn insert_part(
         RecognizedGroup::Text { entities } => {
             report.insert_part::<Text>(part_id, clone_entities(entities))
         }
+        #[cfg(feature = "internal_tabular")]
         RecognizedGroup::Tabular { entities } => {
             report.insert_part::<Tabular>(part_id, clone_entities(entities))
         }
+        #[cfg(feature = "internal_image")]
         RecognizedGroup::Image { entities } => {
             report.insert_part::<Image>(part_id, clone_entities(entities))
         }
+        #[cfg(feature = "internal_audio")]
         RecognizedGroup::Audio { entities } => {
             report.insert_part::<Audio>(part_id, clone_entities(entities))
         }
@@ -143,8 +155,11 @@ where
 pub(super) fn collect_overrides_into(out: &mut Vec<(Uuid, RuleAction)>, group: &RecognizedGroup) {
     match group {
         RecognizedGroup::Text { entities } => extend_overrides(out, entities),
+        #[cfg(feature = "internal_tabular")]
         RecognizedGroup::Tabular { entities } => extend_overrides(out, entities),
+        #[cfg(feature = "internal_image")]
         RecognizedGroup::Image { entities } => extend_overrides(out, entities),
+        #[cfg(feature = "internal_audio")]
         RecognizedGroup::Audio { entities } => extend_overrides(out, entities),
     }
 }
@@ -168,8 +183,11 @@ pub(super) fn encode_redacted(
 ) -> Result<ApplyOutcome> {
     match body {
         RecognizedGroup::Text { .. } => encode_typed::<Text>(handle, "Text"),
+        #[cfg(feature = "internal_tabular")]
         RecognizedGroup::Tabular { .. } => encode_typed::<Tabular>(handle, "Tabular"),
+        #[cfg(feature = "internal_image")]
         RecognizedGroup::Image { .. } => encode_typed::<Image>(handle, "Image"),
+        #[cfg(feature = "internal_audio")]
         RecognizedGroup::Audio { .. } => encode_typed::<Audio>(handle, "Audio"),
     }
 }

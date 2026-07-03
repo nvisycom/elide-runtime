@@ -23,17 +23,23 @@
 //! [`Orchestrator`]: elide::Orchestrator
 //! [`Orchestrator::with_scope`]: elide::Orchestrator::with_scope
 
+#[cfg(feature = "internal_audio")]
 mod audio;
 mod catalog;
 mod common;
+#[cfg(feature = "internal_image")]
 mod image;
+#[cfg(feature = "internal_tabular")]
 mod tabular;
 mod text;
 
 use elide::detection::Analyzer;
 use elide_core::Error;
+#[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
 use elide_core::modality::image::Image;
+#[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_core::llm::LlmConfig;
@@ -51,14 +57,19 @@ pub(crate) use self::catalog::LabelCatalogCompile;
 /// compile fn consults the deployment [`NerConfig`] when the
 /// request toggles `recognizers.ner = true`; text and image
 /// also consult [`LlmConfig`] when `recognizers.llm = true`.
+///
+/// Non-text methods are gated on their modality's feature.
 pub(crate) trait AnalyzerCompile {
     /// Build the text-modality analyzer.
     fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>, Error>;
     /// Build the tabular-modality analyzer.
+    #[cfg(feature = "internal_tabular")]
     fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error>;
     /// Build the image-modality analyzer.
+    #[cfg(feature = "internal_image")]
     fn compile_image(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Image>, Error>;
     /// Build the audio-modality analyzer.
+    #[cfg(feature = "internal_audio")]
     fn compile_audio(&self, ner: &NerConfig) -> Result<Analyzer<Audio>, Error>;
 }
 
@@ -67,14 +78,17 @@ impl AnalyzerCompile for AnalyzerParams {
         self::text::compile(self, ner, llm)
     }
 
+    #[cfg(feature = "internal_tabular")]
     fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error> {
         self::tabular::compile(self, ner)
     }
 
+    #[cfg(feature = "internal_image")]
     fn compile_image(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Image>, Error> {
         self::image::compile(self, ner, llm)
     }
 
+    #[cfg(feature = "internal_audio")]
     fn compile_audio(&self, ner: &NerConfig) -> Result<Analyzer<Audio>, Error> {
         self::audio::compile(self, ner)
     }

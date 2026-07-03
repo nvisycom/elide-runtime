@@ -18,8 +18,11 @@ use std::collections::HashMap;
 
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
+#[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
 use elide_core::modality::image::Image;
+#[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_schema::policy::RuleAction;
@@ -59,16 +62,22 @@ pub enum RecognizedGroup {
         entities: Vec<EntityRecord<Text>>,
     },
     /// Tabular entities.
+    #[cfg(feature = "internal_tabular")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "tabular")))]
     Tabular {
         /// Recognized entities, in source-coordinate order.
         entities: Vec<EntityRecord<Tabular>>,
     },
     /// Image entities.
+    #[cfg(feature = "internal_image")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "image")))]
     Image {
         /// Recognized entities, in source-coordinate order.
         entities: Vec<EntityRecord<Image>>,
     },
     /// Audio entities.
+    #[cfg(feature = "internal_audio")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
     Audio {
         /// Recognized entities, in source-coordinate order.
         entities: Vec<EntityRecord<Audio>>,

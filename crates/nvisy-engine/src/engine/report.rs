@@ -45,7 +45,7 @@ use nvisy_core::{Error, Result};
 use nvisy_schema::policy::PolicyAction;
 use uuid::Uuid;
 
-use super::ApplyOutcome;
+use super::AnonymizedDocument;
 use super::findings::{EntityRecord, RecognizedGroup};
 
 const COMPONENT: &str = "engine::report";
@@ -180,7 +180,7 @@ fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, PolicyAction)>, records: &
 pub(super) fn encode_redacted(
     handle: UntypedDocumentHandle,
     body: &RecognizedGroup,
-) -> Result<ApplyOutcome> {
+) -> Result<AnonymizedDocument> {
     match body {
         RecognizedGroup::Text { .. } => encode_typed::<Text>(handle, "Text"),
         #[cfg(feature = "internal_tabular")]
@@ -192,7 +192,7 @@ pub(super) fn encode_redacted(
     }
 }
 
-fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<ApplyOutcome>
+fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<AnonymizedDocument>
 where
     M: Modality,
 {
@@ -209,7 +209,7 @@ where
     let content = typed
         .encode()
         .map_err(|err| Error::internal("post-apply encode failed", COMPONENT).with_source(err))?;
-    Ok(ApplyOutcome {
+    Ok(AnonymizedDocument {
         bytes: content.into_bytes(),
     })
 }

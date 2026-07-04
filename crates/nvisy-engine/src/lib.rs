@@ -22,4 +22,4 @@
 mod engine;
 mod llm;
 
-pub use self::engine::{ApplyOutcome, Engine, findings};
+pub use self::engine::{AnonymizedDocument, Engine, findings};

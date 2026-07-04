@@ -1,6 +1,6 @@
 //! File types: [`FileMetadata`] (the persisted descriptor),
 //! [`FileLineage`] (provenance for engine-produced files), and
-//! [`RawDocument`] (the in-memory codec input).
+//! [`Document`] (the in-memory codec input).
 //!
 //! A file in the engine is a `(metadata, bytes)` pair: the bytes
 //! live in a blob-separated keyspace, the metadata in a small
@@ -18,10 +18,10 @@
 //! [`StartBatch`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/runs/struct.StartBatch.html
 //! [`DocumentPredicate`]: crate::policy::predicate::DocumentPredicate
 
+mod document;
 mod lineage;
 mod metadata;
-mod raw;
 
+pub use self::document::Document;
 pub use self::lineage::FileLineage;
 pub use self::metadata::FileMetadata;
-pub use self::raw::RawDocument;

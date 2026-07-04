@@ -16,14 +16,15 @@
 //! ## Per-document verbs
 //!
 //! - [`Engine::analyze_document`] decodes raw bytes, builds an
-//!   [`Orchestrator`] with one pipeline per modality + the request
-//!   scope, runs detection, and projects the report (body + every
-//!   container part) onto the caller-facing [`Findings`].
-//! - [`Engine::apply_document`] decodes raw bytes again, rebuilds
-//!   a multi-group [`Report`] from the returned body + parts,
-//!   layers the reviewer overrides + filtered policy set onto
-//!   each modality's anonymizer, drives redaction, and returns
-//!   the re-encoded bytes via [`ApplyOutcome`].
+//!   [`Orchestrator`] with one pipeline per modality + the
+//!   request scope, runs detection, and projects the report
+//!   (body + every container part) onto the caller-facing
+//!   [`Findings`].
+//! - [`Engine::anonymize_document`] decodes raw bytes again,
+//!   rebuilds a multi-group [`Report`] from the returned body +
+//!   parts, layers the reviewer overrides + filtered policy set
+//!   onto each modality's anonymizer, drives redaction, and
+//!   returns the re-encoded bytes via [`AnonymizedDocument`].
 //!
 //! Both methods build a fresh [`Orchestrator`] per call: it is a
 //! small map of trait objects keyed by modality `TypeId`, cheap
@@ -31,10 +32,11 @@
 //! scope per document at apply time without mutating a shared
 //! anonymizer.
 //!
-//! Hosts hold the returned [`Findings`] between analyze and apply
-//! however they see fit — in memory, in a run store, in a
-//! reviewer UI's state — and hand it back to `apply_document`
-//! with any per-entity reviewer overrides folded in.
+//! Hosts hold the returned [`Findings`] between analyze and
+//! anonymize however they see fit — in memory, in a run store,
+//! in a reviewer UI's state — and hand it back to
+//! `anonymize_document` with any per-entity reviewer overrides
+//! folded in.
 //!
 //! ## Internal layout
 //!
@@ -74,7 +76,8 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_core::{Error, Result};
-use nvisy_schema::file::RawDocument;
+use nvisy_schema::context::Context;
+use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
@@ -96,9 +99,11 @@ pub struct Engine {
     llm: Arc<nvisy_core::llm::LlmConfig>,
 }
 
-/// Outcome of applying redactions to one document.
+/// The redacted output of [`Engine::anonymize_document`]: the
+/// re-encoded document bytes after every applicable redaction
+/// operator ran.
 #[derive(Debug, Clone)]
-pub struct ApplyOutcome {
+pub struct AnonymizedDocument {
     /// Encoded bytes of the redacted document.
     pub bytes: Bytes,
 }
@@ -149,18 +154,23 @@ impl Engine {
     /// orchestrator returned; each returned group carries its
     /// own modality tag via its [`RecognizedGroup`] variant.
     ///
-    /// `correlation_id` is caller-minted (typically a per-run or
-    /// per-request id); the orchestrator threads it into tracing
-    /// spans on the detection path.
+    /// `contexts` is a placeholder for the deployment's
+    /// reference-data collections. Reserved on the API: no
+    /// built-in recognizer in this workspace consumes contexts
+    /// yet — see
+    /// <https://github.com/nvisycom/runtime/issues/314> for the
+    /// wiring plan.
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     /// [`RecognizedGroup`]: findings::RecognizedGroup
     pub async fn analyze_document(
         &self,
-        document: RawDocument,
+        document: Document,
         spec: &AnalyzerParams,
-        correlation_id: Uuid,
+        contexts: &[Context],
     ) -> Result<Findings> {
+        let _ = contexts;
+        let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
         let orchestrator = self.build_orchestrator(spec, &[], &[], correlation_id)?;
@@ -222,10 +232,10 @@ impl Engine {
     /// [`Policy::applies_when`] against the per-doc facts; the
     /// engine does not re-evaluate predicates. `spec` is the same
     /// [`AnalyzerParams`] that drove analyze (needed for the label
-    /// catalog). `correlation_id` is caller-minted, threaded into
+    /// catalog). The document's `correlation_id` is threaded into
     /// tracing spans on the redaction path.
     ///
-    /// The body's modality (read from `body.body`'s
+    /// The body's modality (read from `findings.body`'s
     /// [`RecognizedGroup`] variant) pins which typed handle the
     /// post-apply re-encode goes through: a container's body
     /// modality regardless of how many other modalities its parts
@@ -234,20 +244,20 @@ impl Engine {
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
     /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
     /// [`RecognizedGroup`]: findings::RecognizedGroup
-    pub async fn apply_document(
+    pub async fn anonymize_document(
         &self,
-        document: RawDocument,
+        document: Document,
         spec: &AnalyzerParams,
         policies: &[Policy],
         findings: &Findings,
-        correlation_id: Uuid,
-    ) -> Result<ApplyOutcome> {
+    ) -> Result<AnonymizedDocument> {
         let body_group = findings.body.as_ref().ok_or_else(|| {
             Error::validation(
-                "apply_document: body group is missing — analyze must run first",
+                "anonymize_document: body group is missing — analyze must run first",
                 COMPONENT,
             )
         })?;
+        let correlation_id = document.correlation_id;
         let mut handle = self.decode(document).await?;
         let mut report = insert_body(elide::Report::new(), body_group);
         let mut overrides: Vec<(Uuid, PolicyAction)> = Vec::new();
@@ -268,8 +278,8 @@ impl Engine {
         encode_redacted(handle, body_group)
     }
 
-    async fn decode(&self, document: RawDocument) -> Result<UntypedDocumentHandle> {
-        let RawDocument {
+    async fn decode(&self, document: Document) -> Result<UntypedDocumentHandle> {
+        let Document {
             bytes, extension, ..
         } = document;
         self.formats

@@ -1,34 +1,29 @@
 //! End-to-end at the engine layer over a DOCX (text body +
-//! embedded PNG): analyze, override one entity, apply, assert
-//! the body changed and the image part round-tripped unchanged.
+//! embedded PNG): analyze, override one entity, anonymize,
+//! assert the body changed and the image part round-tripped
+//! unchanged.
 
 mod fixtures;
 
 use std::io::Read;
 
 use bytes::Bytes;
-use hipstr::HipStr;
 use nvisy_engine::Engine;
 use nvisy_engine::findings::{Findings, RecognizedGroup};
-use nvisy_schema::file::RawDocument;
+use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
-use uuid::Uuid;
 
 use self::fixtures::write_artefact;
 
 const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
 const IMAGE_PART_ID: &str = "word/media/image1.png";
 
-fn raw_docx() -> RawDocument {
-    RawDocument {
-        bytes: Bytes::from_static(SAMPLE_DOCX),
-        extension: HipStr::from("docx"),
-        content_type: None,
-    }
+fn raw_docx() -> Document {
+    Document::new(Bytes::from_static(SAMPLE_DOCX), "docx")
 }
 
 fn engine() -> Engine {
@@ -69,7 +64,7 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
     let findings = engine
-        .analyze_document(raw_docx(), &default_spec(), Uuid::now_v7())
+        .analyze_document(raw_docx(), &default_spec(), &[])
         .await
         .expect("analyze succeeds");
 
@@ -96,11 +91,10 @@ async fn analyze_captures_text_body_and_image_part() {
 }
 
 #[tokio::test]
-async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
+async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
-    let run_id = Uuid::now_v7();
     let mut findings = engine
-        .analyze_document(raw_docx(), &default_spec(), run_id)
+        .analyze_document(raw_docx(), &default_spec(), &[])
         .await
         .expect("analyze succeeds");
     let body_group = findings.body.as_ref().expect("body group present");
@@ -127,9 +121,9 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
     }));
 
     let outcome = engine
-        .apply_document(raw_docx(), &default_spec(), &[], &findings, run_id)
+        .anonymize_document(raw_docx(), &default_spec(), &[], &findings)
         .await
-        .expect("apply succeeds");
+        .expect("anonymize succeeds");
     write_artefact("sample", "docx", &outcome.bytes);
 
     let original_body =
@@ -152,18 +146,12 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
 }
 
 #[tokio::test]
-async fn empty_findings_apply_fails_validation() {
+async fn empty_findings_anonymize_fails_validation() {
     let engine = engine();
     let outcome = engine
-        .apply_document(
-            raw_docx(),
-            &default_spec(),
-            &[],
-            &Findings::default(),
-            Uuid::now_v7(),
-        )
+        .anonymize_document(raw_docx(), &default_spec(), &[], &Findings::default())
         .await;
-    let err = outcome.expect_err("apply must reject a missing body group");
+    let err = outcome.expect_err("anonymize must reject a missing body group");
     assert!(
         err.to_string().contains("body group is missing"),
         "expected `body group is missing` error, got: {err}",

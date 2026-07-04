@@ -1,4 +1,4 @@
-//! Attach a [`Rule`] / `fallback` onto an elide [`Anonymizer`],
+//! Attach a [`PolicyRule`] / `fallback` onto an elide [`Anonymizer`],
 //! stamping the engine-internal attribution from policy + rule
 //! UUIDs.
 //!
@@ -19,8 +19,8 @@
 //! UUID (or `None` for the policy fallback).
 //!
 //! [`Anonymizer`]: elide::redaction::Anonymizer
-//! [`Rule`]: nvisy_schema::policy::Rule
-//! [`Predicate`]: nvisy_schema::policy::Predicate
+//! [`PolicyRule`]: nvisy_schema::policy::PolicyRule
+//! [`Predicate`]: nvisy_schema::policy::predicate::Predicate
 //! [`Attribution`]: elide_core::entity::provenance::Attribution
 
 use elide::redaction::Anonymizer;
@@ -28,11 +28,12 @@ use elide_core::entity::provenance::Attribution;
 use elide_core::entity::{Entity, LabelCatalog, LabelRef};
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
-use nvisy_schema::policy::{Policy, Predicate, Rule};
+use nvisy_schema::policy::predicate::Predicate;
+use nvisy_schema::policy::{Policy, PolicyRule};
 use uuid::Uuid;
 
 /// Build an [`Attribution`] for a concrete rule that fired.
-pub(super) fn rule_attribution(policy: &Policy, rule: &Rule) -> Attribution {
+pub(super) fn rule_attribution(policy: &Policy, rule: &PolicyRule) -> Attribution {
     Attribution {
         policy_id: policy.id.to_string().into(),
         reason: Some(rule.id.to_string().into()),

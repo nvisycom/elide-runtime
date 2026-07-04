@@ -1,19 +1,33 @@
-//! Composable, entity-level predicates for [`Rule::predicate`].
+//! Predicates that gate whether a policy or rule fires.
 //!
-//! Each variant is serialisable. Engine compiles a `Predicate` into
-//! a closure passed to `elide::redaction::Anonymizer::with_catalog_predicate`
-//! (or routed to [`with_label`] / [`with_tag`] fast paths for the
+//! Two axes:
+//!
+//! - [`Predicate`] runs per entity; a rule fires only when its
+//!   predicate holds against the candidate entity's facts (label,
+//!   tag, confidence, coref).
+//! - [`DocumentPredicate`] runs once per document; a policy is
+//!   evaluated only when its `applies_when` predicate holds
+//!   against the document-level facts (labels, metadata,
+//!   language, etc.).
+//!
+//! Both are serialisable. Engine compiles a `Predicate` into a
+//! closure passed to
+//! `elide::redaction::Anonymizer::with_catalog_predicate` (or
+//! routed to [`with_label`] / [`with_tag`] fast paths for the
 //! degenerate single-label / single-tag shapes). Leaf variants
-//! inspect entity facts (label, tag, confidence, coref); the
-//! composing variants ([`All`], [`Any`], [`Not`]) wire boolean
-//! algebra over them.
+//! inspect entity facts; the composing variants
+//! ([`Predicate::All`], [`Predicate::Any`], [`Predicate::Not`])
+//! wire boolean algebra over them.
 //!
-//! [`Rule::predicate`]: super::Rule::predicate
 //! [`with_label`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_label
 //! [`with_tag`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_tag
 
+mod document;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub use self::document::DocumentPredicate;
 
 /// Predicate over a recognised entity. The wire format uses an
 /// internally tagged enum so authors write

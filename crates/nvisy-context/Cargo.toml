@@ -1,0 +1,46 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-context"
+description = "Wire schema for Nvisy contexts: persistent reference-data collections for detection"
+keywords = ["nvisy", "schema", "context", "reference-data"]
+categories = ["data-structures", "api-bindings"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Elide's stable wire vocabulary: primitive types (LanguageTag,
+# BoundingBox, TimeSpan) plus modality types. No codec, no LLM, no
+# runtime plumbing — elide-core is the SDK-safe subset.
+elide-core = { workspace = true, features = ["serde", "schema"] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = ["uuid1", "semver1"] }
+
+# Derive macros
+derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["from"] }
+
+# Primitive datatypes
+uuid = { workspace = true, features = ["v7"] }
+jiff = { workspace = true, features = ["serde"] }
+semver = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+# Round-trip tests serialize + deserialize schema values.
+serde_json = { workspace = true, features = [] }

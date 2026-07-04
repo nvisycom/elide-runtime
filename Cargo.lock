@@ -2428,6 +2428,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-context"
+version = "0.1.0"
+dependencies = [
+ "derive_builder",
+ "derive_more",
+ "elide-core",
+ "jiff",
+ "schemars",
+ "semver",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-core"
 version = "0.1.0"
 dependencies = [
@@ -2465,20 +2480,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-policy"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "elide-core",
+ "hipstr",
+ "schemars",
+ "semver",
+ "serde",
+ "strum 0.28.0",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-schema"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "derive_builder",
- "derive_more",
  "elide-core",
  "hipstr",
  "jiff",
+ "nvisy-context",
+ "nvisy-policy",
  "schemars",
- "semver",
  "serde",
  "serde_json",
- "strum 0.28.0",
  "uuid",
 ]
 

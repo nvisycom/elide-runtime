@@ -23,8 +23,9 @@ use elide::redaction::Anonymizer;
 use elide_core::Error;
 use elide_core::entity::provenance::Attribution;
 use elide_core::modality::Modality;
+use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use nvisy_schema::policy::{Policy, Predicate, RuleAction};
+use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
@@ -114,7 +115,7 @@ where
 {
     for policy in policies {
         for rule in &policy.rules {
-            let RuleAction::Redact(redactions) = &rule.action else {
+            let PolicyAction::Redact(redactions) = &rule.action else {
                 continue;
             };
             anonymizer = compile_one(
@@ -126,7 +127,7 @@ where
                 redactions,
             )?;
         }
-        if let Some(RuleAction::Redact(redactions)) = &policy.fallback {
+        if let Some(PolicyAction::Redact(redactions)) = &policy.fallback {
             anonymizer = compile_one(
                 Target::Fallback {
                     anonymizer,
@@ -145,14 +146,14 @@ where
 pub(super) fn attach_one_override<M, F>(
     anonymizer: Anonymizer<M>,
     entity_id: Uuid,
-    action: &RuleAction,
+    action: &PolicyAction,
     compile_one: F,
 ) -> Result<Anonymizer<M>, Error>
 where
     M: Modality + 'static,
     F: FnOnce(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
 {
-    let RuleAction::Redact(redactions) = action else {
+    let PolicyAction::Redact(redactions) = action else {
         return Ok(anonymizer);
     };
     compile_one(

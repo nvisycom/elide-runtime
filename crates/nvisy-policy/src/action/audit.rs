@@ -1,6 +1,6 @@
-//! [`AuditAction`]: payload of an [`Action::Audit`] rule.
+//! [`AuditAction`]: payload of an [`PolicyAction::Audit`] rule.
 //!
-//! [`Action::Audit`]: super::rule::Action::Audit
+//! [`PolicyAction::Audit`]: crate::PolicyAction::Audit
 
 use hipstr::HipStr;
 use schemars::JsonSchema;

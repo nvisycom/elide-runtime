@@ -22,7 +22,9 @@ Rust crates ([`crates/`](crates/)) — library only, no long-running
 process. Hosts (a SaaS backend, a Tauri app, a language SDK, a custom
 pipeline) embed the engine directly.
 
-- **[nvisy-schema](crates/nvisy-schema/)**: wire types (policy, context, plan, file), consumed by SDKs on both sides of the HTTP boundary
+- **[nvisy-context](crates/nvisy-context/)**: wire schema for reference-data collections (analytic, biometric, document, geospatial, reference, temporal)
+- **[nvisy-policy](crates/nvisy-policy/)**: wire schema for redaction governance (rules, predicates, retention, audit)
+- **[nvisy-schema](crates/nvisy-schema/)**: umbrella crate re-exporting `nvisy-context` + `nvisy-policy` alongside plan and file types
 - **[nvisy-core](crates/nvisy-core/)**: deployment-side runtime configuration (NER and LLM recognizer lineups, error vocabulary)
 - **[nvisy-engine](crates/nvisy-engine/)**: stateless pipeline (decode, analyze, apply) wrapping elide and hosting the per-modality orchestrator
 - **[elide-bento](crates/elide-bento/)**: BentoML-hosted NER and OCR client implementing elide's recognizer traits

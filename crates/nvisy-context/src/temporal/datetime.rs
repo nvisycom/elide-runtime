@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// For timezone-aware timestamps, use the entry-level `created_at` /
 /// `expires_at` fields on [`ContextEntry`].
 ///
-/// [`ContextEntry`]: crate::context::ContextEntry
+/// [`ContextEntry`]: crate::ContextEntry
 /// [`DateTime`]: jiff::civil::DateTime
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

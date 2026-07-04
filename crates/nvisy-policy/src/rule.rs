@@ -1,7 +1,7 @@
 //! One rule inside a [`Policy`]: shared identity/description
-//! fields, the match predicate, and the action ([`RuleAction`]).
+//! fields, the match predicate, and the action ([`PolicyAction`]).
 //!
-//! The engine compiles a rule's [`predicate`](Rule::predicate)
+//! The engine compiles a rule's [`predicate`](PolicyRule::predicate)
 //! into an elide anonymizer rule at request time. Three shapes
 //! are recognised as fast paths and route to the matching
 //! [`Anonymizer`] builder method; everything else compiles to a
@@ -28,10 +28,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::audit::AuditAction;
+use super::action::{AuditAction, SuppressAction};
 use super::predicate::Predicate;
 use super::redaction::ModalityRedactions;
-use super::suppress::SuppressAction;
 
 /// One rule inside a [`Policy`]. Identity is the UUID; `name` /
 /// `description` are display-only.
@@ -39,7 +38,7 @@ use super::suppress::SuppressAction;
 /// [`Policy`]: super::Policy
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Rule {
+pub struct PolicyRule {
     /// Stable identifier. UUIDv7 recommended (time-ordered);
     /// customer-supplied so re-submissions carry the same id.
     /// Engine stamps this into the redaction event's
@@ -59,21 +58,21 @@ pub struct Rule {
     /// [`Predicate`] for the full grammar.
     pub predicate: Predicate,
     /// What to do on match.
-    pub action: RuleAction,
+    pub action: PolicyAction,
 }
 
-/// What a rule does when its [`predicate`](Rule::predicate)
+/// What a rule does when its [`predicate`](PolicyRule::predicate)
 /// matches.
 ///
-/// Three verbs: [`Redact`](RuleAction::Redact) transforms the
+/// Three verbs: [`Redact`](PolicyAction::Redact) transforms the
 /// entity with one operator per modality;
-/// [`Suppress`](RuleAction::Suppress) drops the entity entirely
+/// [`Suppress`](PolicyAction::Suppress) drops the entity entirely
 /// (false-positive marker) and stamps a reason onto the audit;
-/// [`Audit`](RuleAction::Audit) flags it for human review without
+/// [`Audit`](PolicyAction::Audit) flags it for human review without
 /// transforming.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "camelCase")]
-pub enum RuleAction {
+pub enum PolicyAction {
     /// Redact matching entities. The carried map names operators
     /// per modality; modalities the rule didn't cover fall through
     /// to the policy fallback (or the next policy in the chain).

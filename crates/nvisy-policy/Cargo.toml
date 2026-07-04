@@ -1,0 +1,42 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-policy"
+description = "Wire schema for Nvisy policies: authored redaction governance (rules, predicates, retention, audit)"
+keywords = ["nvisy", "schema", "policy", "redaction", "governance"]
+categories = ["data-structures", "api-bindings"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Elide's stable wire vocabulary: entity types (Label) plus modality
+# types (Waveform is pulled by the audio redaction spec) plus primitive
+# types (Color). elide-core is the SDK-safe subset.
+elide-core = { workspace = true, features = ["serde", "schema", "audio"] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = ["uuid1", "semver1"] }
+
+# Derive macros
+derive_more = { workspace = true, features = ["display"] }
+strum = { workspace = true, features = ["derive"] }
+
+# Primitive datatypes
+uuid = { workspace = true, features = ["v7"] }
+hipstr = { workspace = true, features = ["serde"] }
+semver = { workspace = true, features = ["serde"] }

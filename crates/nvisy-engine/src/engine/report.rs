@@ -1,4 +1,4 @@
-//! Plumbing between [`DocBody`] / [`RecognizedGroup`] and
+//! Plumbing between [`Findings`] / [`RecognizedGroup`] and
 //! elide's runtime [`Report`].
 //!
 //! Two directions:
@@ -23,8 +23,8 @@
 //! ([`GroupCarrier`]) plus four trivial impls so adding a fifth
 //! modality is one macro line, not eight functions.
 //!
-//! [`DocBody`]: super::document::DocBody
-//! [`RecognizedGroup`]: super::document::RecognizedGroup
+//! [`Findings`]: super::findings::Findings
+//! [`RecognizedGroup`]: super::findings::RecognizedGroup
 //! [`Engine`]: super::Engine
 //! [`Orchestrator::analyze`]: elide::Orchestrator::analyze
 //! [`Report`]: elide::Report
@@ -42,11 +42,11 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_core::{Error, Result};
-use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::PolicyAction;
 use uuid::Uuid;
 
 use super::ApplyOutcome;
-use super::document::{EntityRecord, RecognizedGroup};
+use super::findings::{EntityRecord, RecognizedGroup};
 
 const COMPONENT: &str = "engine::report";
 
@@ -152,7 +152,7 @@ where
 /// Append every reviewer override on `group` to `out`. Iterates
 /// the variant-appropriate `Vec<EntityRecord<M>>` and keeps only
 /// records whose `override` field is set.
-pub(super) fn collect_overrides_into(out: &mut Vec<(Uuid, RuleAction)>, group: &RecognizedGroup) {
+pub(super) fn collect_overrides_into(out: &mut Vec<(Uuid, PolicyAction)>, group: &RecognizedGroup) {
     match group {
         RecognizedGroup::Text { entities } => extend_overrides(out, entities),
         #[cfg(feature = "internal_tabular")]
@@ -164,7 +164,7 @@ pub(super) fn collect_overrides_into(out: &mut Vec<(Uuid, RuleAction)>, group: &
     }
 }
 
-fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, RuleAction)>, records: &[EntityRecord<M>]) {
+fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, PolicyAction)>, records: &[EntityRecord<M>]) {
     out.extend(
         records
             .iter()

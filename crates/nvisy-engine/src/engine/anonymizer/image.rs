@@ -5,7 +5,7 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
 use elide_core::Error;
 use elide_core::modality::image::Image;
-use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ImageRedaction, ModalityRedactions};
 use uuid::Uuid;
 
@@ -29,7 +29,7 @@ pub(crate) fn attach_policies_image<'a>(
 pub(crate) fn attach_override_image(
     anonymizer: Anonymizer<Image>,
     entity_id: Uuid,
-    action: &RuleAction,
+    action: &PolicyAction,
 ) -> Result<Anonymizer<Image>, Error> {
     attach_one_override(anonymizer, entity_id, action, compile_one)
 }

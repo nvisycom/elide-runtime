@@ -18,7 +18,7 @@
 //! - [`Engine::analyze_document`] decodes raw bytes, builds an
 //!   [`Orchestrator`] with one pipeline per modality + the request
 //!   scope, runs detection, and projects the report (body + every
-//!   container part) onto the caller-facing [`DocBody`].
+//!   container part) onto the caller-facing [`Findings`].
 //! - [`Engine::apply_document`] decodes raw bytes again, rebuilds
 //!   a multi-group [`Report`] from the returned body + parts,
 //!   layers the reviewer overrides + filtered policy set onto
@@ -31,7 +31,7 @@
 //! scope per document at apply time without mutating a shared
 //! anonymizer.
 //!
-//! Hosts hold the returned [`DocBody`] between analyze and apply
+//! Hosts hold the returned [`Findings`] between analyze and apply
 //! however they see fit — in memory, in a run store, in a
 //! reviewer UI's state — and hand it back to `apply_document`
 //! with any per-entity reviewer overrides folded in.
@@ -43,12 +43,12 @@
 //! - [`orchestrator`] wires those into an [`Orchestrator`] for a
 //!   single request.
 //! - [`report`] translates between elide's runtime [`Report`] and
-//!   the caller-facing [`DocBody`] / [`RecognizedGroup`].
-//! - [`document`] defines [`DocBody`] and [`RecognizedGroup`],
+//!   the caller-facing [`Findings`] / [`RecognizedGroup`].
+//! - [`findings`] defines [`Findings`] and [`RecognizedGroup`],
 //!   the analyze → apply bridge.
 //!
-//! [`DocBody`]: document::DocBody
-//! [`RecognizedGroup`]: document::RecognizedGroup
+//! [`Findings`]: findings::Findings
+//! [`RecognizedGroup`]: findings::RecognizedGroup
 //! [`FormatRegistry`]: elide::codec::FormatRegistry
 //! [`DocumentHandle`]: elide::codec::DocumentHandle
 //! [`Orchestrator`]: elide::Orchestrator
@@ -56,7 +56,7 @@
 
 pub(crate) mod analyzer;
 pub(crate) mod anonymizer;
-pub mod document;
+pub mod findings;
 mod orchestrator;
 mod report;
 
@@ -76,10 +76,10 @@ use elide_core::modality::text::Text;
 use nvisy_core::{Error, Result};
 use nvisy_schema::file::RawDocument;
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::{Policy, RuleAction};
+use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
-use self::document::DocBody;
+use self::findings::Findings;
 use self::report::{
     collect_overrides_into, encode_redacted, insert_body, insert_part, take_body, take_part,
 };
@@ -142,7 +142,7 @@ impl Engine {
     }
 
     /// Decode `document`, drive [`Orchestrator::analyze`], project
-    /// the report onto the caller-facing [`DocBody`].
+    /// the report onto the caller-facing [`Findings`].
     ///
     /// Captures the body group *and* every container part group
     /// (DOCX embedded images, archive members, ...) the
@@ -154,13 +154,13 @@ impl Engine {
     /// spans on the detection path.
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
-    /// [`RecognizedGroup`]: document::RecognizedGroup
+    /// [`RecognizedGroup`]: findings::RecognizedGroup
     pub async fn analyze_document(
         &self,
         document: RawDocument,
         spec: &AnalyzerParams,
         correlation_id: Uuid,
-    ) -> Result<DocBody> {
+    ) -> Result<Findings> {
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
         let orchestrator = self.build_orchestrator(spec, &[], &[], correlation_id)?;
@@ -206,7 +206,7 @@ impl Engine {
             }
         }
 
-        Ok(DocBody {
+        Ok(Findings {
             body: Some(body_group),
             parts,
         })
@@ -233,16 +233,16 @@ impl Engine {
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
     /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
-    /// [`RecognizedGroup`]: document::RecognizedGroup
+    /// [`RecognizedGroup`]: findings::RecognizedGroup
     pub async fn apply_document(
         &self,
         document: RawDocument,
         spec: &AnalyzerParams,
         policies: &[Policy],
-        body: &DocBody,
+        findings: &Findings,
         correlation_id: Uuid,
     ) -> Result<ApplyOutcome> {
-        let body_group = body.body.as_ref().ok_or_else(|| {
+        let body_group = findings.body.as_ref().ok_or_else(|| {
             Error::validation(
                 "apply_document: body group is missing — analyze must run first",
                 COMPONENT,
@@ -250,9 +250,9 @@ impl Engine {
         })?;
         let mut handle = self.decode(document).await?;
         let mut report = insert_body(elide::Report::new(), body_group);
-        let mut overrides: Vec<(Uuid, RuleAction)> = Vec::new();
+        let mut overrides: Vec<(Uuid, PolicyAction)> = Vec::new();
         collect_overrides_into(&mut overrides, body_group);
-        for (id, group) in &body.parts {
+        for (id, group) in &findings.parts {
             report = insert_part(report, id.as_str(), group);
             collect_overrides_into(&mut overrides, group);
         }
@@ -293,7 +293,7 @@ fn take_part_dispatch(
     report: &mut elide::Report,
     id: &PartId,
     type_id: TypeId,
-) -> Option<self::document::RecognizedGroup> {
+) -> Option<self::findings::RecognizedGroup> {
     if type_id == TypeId::of::<Text>() {
         return take_part::<Text>(report, id);
     }

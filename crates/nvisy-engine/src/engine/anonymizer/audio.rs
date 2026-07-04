@@ -5,7 +5,7 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
 use elide_core::Error;
 use elide_core::modality::audio::Audio;
-use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{AudioRedaction, ModalityRedactions};
 use uuid::Uuid;
 
@@ -29,7 +29,7 @@ pub(crate) fn attach_policies_audio<'a>(
 pub(crate) fn attach_override_audio(
     anonymizer: Anonymizer<Audio>,
     entity_id: Uuid,
-    action: &RuleAction,
+    action: &PolicyAction,
 ) -> Result<Anonymizer<Audio>, Error> {
     attach_one_override(anonymizer, entity_id, action, compile_one)
 }

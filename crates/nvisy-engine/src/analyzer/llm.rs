@@ -34,7 +34,7 @@ use nvisy_core::llm::{
 /// - `DefaultPrompt: Prompt<M>` — elide ships text + image
 ///   default prompts.
 /// - `Jinja2Prompt<M>: Prompt<M>` — same coverage.
-pub(crate) fn attach_lineup<M>(
+pub(crate) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &LlmConfig,
     modality: LlmRecognizerModality,

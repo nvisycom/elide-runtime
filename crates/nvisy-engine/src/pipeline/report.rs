@@ -1,4 +1,4 @@
-//! Plumbing between [`Findings`] / [`RecognizedGroup`] and
+//! Plumbing between [`AnalyzedDocument`] / [`RecognizedGroup`] and
 //! elide's runtime [`Report`].
 //!
 //! Two directions:
@@ -7,12 +7,12 @@
 //!   [`Report`], [`take_body`] and [`take_part`] move each typed
 //!   `Vec<Entity<M>>` out of the report into the matching
 //!   [`RecognizedGroup`] variant for the caller to hold.
-//! - **Rebuild**: at apply time, [`insert_body`] and
+//! - **Rebuild**: at anonymize time, [`insert_body`] and
 //!   [`insert_part`] feed a fresh [`Report`] from the returned
 //!   groups (cloning entities; the returned body is the source
 //!   of truth for re-apply idempotency).
 //!
-//! Plus two byte-level helpers used at the apply seam:
+//! Plus two byte-level helpers used at the anonymize seam:
 //! [`collect_overrides_into`] walks reviewer overrides off any
 //! group, and [`encode_redacted`] picks the right typed handle
 //! to re-encode through after `anonymize_with` mutated the
@@ -23,8 +23,8 @@
 //! ([`GroupCarrier`]) plus four trivial impls so adding a fifth
 //! modality is one macro line, not eight functions.
 //!
-//! [`Findings`]: super::findings::Findings
-//! [`RecognizedGroup`]: super::findings::RecognizedGroup
+//! [`AnalyzedDocument`]: crate::AnalyzedDocument
+//! [`RecognizedGroup`]: crate::RecognizedGroup
 //! [`Engine`]: super::Engine
 //! [`Orchestrator::analyze`]: elide::Orchestrator::analyze
 //! [`Report`]: elide::Report
@@ -46,9 +46,9 @@ use nvisy_schema::policy::PolicyAction;
 use uuid::Uuid;
 
 use super::AnonymizedDocument;
-use super::findings::{EntityRecord, RecognizedGroup};
+use super::analyzed::{EntityRecord, RecognizedGroup};
 
-const COMPONENT: &str = "engine::report";
+const COMPONENT: &str = "pipeline::report";
 
 /// Per-modality bridge between `Vec<Entity<M>>` and the matching
 /// [`RecognizedGroup`] variant. Implemented for each of the four

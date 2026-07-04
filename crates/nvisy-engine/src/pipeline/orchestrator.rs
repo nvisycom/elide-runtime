@@ -27,16 +27,16 @@ use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
 use super::Engine;
-use super::analyzer::{AnalyzerCompile, LabelCatalogCompile};
+use crate::analyzer::{AnalyzerCompile, LabelCatalogCompile};
 #[cfg(feature = "internal_audio")]
-use super::anonymizer::{attach_override_audio, attach_policies_audio};
+use crate::anonymizer::{attach_override_audio, attach_policies_audio};
 #[cfg(feature = "internal_image")]
-use super::anonymizer::{attach_override_image, attach_policies_image};
+use crate::anonymizer::{attach_override_image, attach_policies_image};
 #[cfg(feature = "internal_tabular")]
-use super::anonymizer::{attach_override_tabular, attach_policies_tabular};
-use super::anonymizer::{attach_override_text, attach_policies_text};
+use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
+use crate::anonymizer::{attach_override_text, attach_policies_text};
 
-const COMPONENT: &str = "engine::orchestrator";
+const COMPONENT: &str = "pipeline::orchestrator";
 
 impl Engine {
     /// Build an [`Orchestrator`] with one pipeline per modality
@@ -143,7 +143,7 @@ impl Engine {
 /// rules), then attach the policy chain.
 ///
 /// `attach_override` and `attach_policies` are the per-modality
-/// bridges into [`super::anonymizer`]; they know which
+/// bridges into [`crate::anonymizer`]; they know which
 /// `ModalityRedactions` field to read and how to build the typed
 /// operator. This helper owns the invariant order and the error
 /// wrapping so each modality's callsite is one call.

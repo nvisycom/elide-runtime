@@ -4,7 +4,7 @@
 //!
 //! - The [`FormatRegistry`] over elide's codec set. Decodes raw
 //!   bytes into a modality-typed [`DocumentHandle`] at analyze +
-//!   apply time.
+//!   anonymize time.
 //! - The deployment's NER + LLM lineups (see [`nvisy_core::ner`]
 //!   and [`nvisy_core::llm`]). Consulted by the analyzer compile
 //!   whenever the request's `AnalyzerParams.recognizers.ner` or
@@ -19,7 +19,7 @@
 //!   [`Orchestrator`] with one pipeline per modality + the
 //!   request scope, runs detection, and projects the report
 //!   (body + every container part) onto the caller-facing
-//!   [`Findings`].
+//!   [`AnalyzedDocument`].
 //! - [`Engine::anonymize_document`] decodes raw bytes again,
 //!   rebuilds a multi-group [`Report`] from the returned body +
 //!   parts, layers the reviewer overrides + filtered policy set
@@ -29,10 +29,10 @@
 //! Both methods build a fresh [`Orchestrator`] per call: it is a
 //! small map of trait objects keyed by modality `TypeId`, cheap
 //! to construct. The per-call shape lets us re-resolve policies +
-//! scope per document at apply time without mutating a shared
+//! scope per document at anonymize time without mutating a shared
 //! anonymizer.
 //!
-//! Hosts hold the returned [`Findings`] between analyze and
+//! Hosts hold the returned [`AnalyzedDocument`] between analyze and
 //! anonymize however they see fit — in memory, in a run store,
 //! in a reviewer UI's state — and hand it back to
 //! `anonymize_document` with any per-entity reviewer overrides
@@ -40,25 +40,31 @@
 //!
 //! ## Internal layout
 //!
-//! - [`analyzer`] / [`anonymizer`] compile per-modality `spec`
-//!   and `policies` into per-modality elide types.
-//! - [`orchestrator`] wires those into an [`Orchestrator`] for a
-//!   single request.
-//! - [`report`] translates between elide's runtime [`Report`] and
-//!   the caller-facing [`Findings`] / [`RecognizedGroup`].
-//! - [`findings`] defines [`Findings`] and [`RecognizedGroup`],
-//!   the analyze → apply bridge.
+//! Sibling crate-level modules provide the modality-shaped
+//! plumbing:
 //!
-//! [`Findings`]: findings::Findings
-//! [`RecognizedGroup`]: findings::RecognizedGroup
+//! - `crate::analyzer` and `crate::anonymizer` compile
+//!   per-modality `spec` and `policies` into per-modality elide
+//!   types.
+//!
+//! Inside this module:
+//!
+//! - `orchestrator` wires those into an [`Orchestrator`] for a
+//!   single request.
+//! - `report` translates between elide's runtime [`Report`] and
+//!   the caller-facing [`AnalyzedDocument`] / [`RecognizedGroup`].
+//! - `analyzed` defines [`AnalyzedDocument`] and
+//!   [`RecognizedGroup`], the analyze → anonymize bridge; both
+//!   types re-exported at the crate root.
+//!
+//! [`AnalyzedDocument`]: crate::AnalyzedDocument
+//! [`RecognizedGroup`]: crate::RecognizedGroup
 //! [`FormatRegistry`]: elide::codec::FormatRegistry
 //! [`DocumentHandle`]: elide::codec::DocumentHandle
 //! [`Orchestrator`]: elide::Orchestrator
 //! [`Report`]: elide::Report
 
-pub(crate) mod analyzer;
-pub(crate) mod anonymizer;
-pub mod findings;
+mod analyzed;
 mod orchestrator;
 mod report;
 
@@ -82,12 +88,12 @@ use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
-use self::findings::Findings;
+pub use self::analyzed::{AnalyzedDocument, EntityRecord, RecognizedGroup};
 use self::report::{
     collect_overrides_into, encode_redacted, insert_body, insert_part, take_body, take_part,
 };
 
-const COMPONENT: &str = "engine";
+const COMPONENT: &str = "pipeline";
 
 /// Cheaply-cloneable pipeline adapter: codec registry + the
 /// deployment's NER / LLM lineups + the per-request orchestrator
@@ -147,7 +153,7 @@ impl Engine {
     }
 
     /// Decode `document`, drive [`Orchestrator::analyze`], project
-    /// the report onto the caller-facing [`Findings`].
+    /// the report onto the caller-facing [`AnalyzedDocument`].
     ///
     /// Captures the body group *and* every container part group
     /// (DOCX embedded images, archive members, ...) the
@@ -162,13 +168,13 @@ impl Engine {
     /// wiring plan.
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
-    /// [`RecognizedGroup`]: findings::RecognizedGroup
+    /// [`RecognizedGroup`]: crate::RecognizedGroup
     pub async fn analyze_document(
         &self,
         document: Document,
         spec: &AnalyzerParams,
         contexts: &[Context],
-    ) -> Result<Findings> {
+    ) -> Result<AnalyzedDocument> {
         let _ = contexts;
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
@@ -216,7 +222,7 @@ impl Engine {
             }
         }
 
-        Ok(Findings {
+        Ok(AnalyzedDocument {
             body: Some(body_group),
             parts,
         })
@@ -235,7 +241,7 @@ impl Engine {
     /// catalog). The document's `correlation_id` is threaded into
     /// tracing spans on the redaction path.
     ///
-    /// The body's modality (read from `findings.body`'s
+    /// The body's modality (read from `analyzed.body`'s
     /// [`RecognizedGroup`] variant) pins which typed handle the
     /// post-apply re-encode goes through: a container's body
     /// modality regardless of how many other modalities its parts
@@ -243,15 +249,15 @@ impl Engine {
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
     /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
-    /// [`RecognizedGroup`]: findings::RecognizedGroup
+    /// [`RecognizedGroup`]: crate::RecognizedGroup
     pub async fn anonymize_document(
         &self,
         document: Document,
         spec: &AnalyzerParams,
         policies: &[Policy],
-        findings: &Findings,
+        analyzed: &AnalyzedDocument,
     ) -> Result<AnonymizedDocument> {
-        let body_group = findings.body.as_ref().ok_or_else(|| {
+        let body_group = analyzed.body.as_ref().ok_or_else(|| {
             Error::validation(
                 "anonymize_document: body group is missing — analyze must run first",
                 COMPONENT,
@@ -262,7 +268,7 @@ impl Engine {
         let mut report = insert_body(elide::Report::new(), body_group);
         let mut overrides: Vec<(Uuid, PolicyAction)> = Vec::new();
         collect_overrides_into(&mut overrides, body_group);
-        for (id, group) in &findings.parts {
+        for (id, group) in &analyzed.parts {
             report = insert_part(report, id.as_str(), group);
             collect_overrides_into(&mut overrides, group);
         }
@@ -303,7 +309,7 @@ fn take_part_dispatch(
     report: &mut elide::Report,
     id: &PartId,
     type_id: TypeId,
-) -> Option<self::findings::RecognizedGroup> {
+) -> Option<RecognizedGroup> {
     if type_id == TypeId::of::<Text>() {
         return take_part::<Text>(report, id);
     }

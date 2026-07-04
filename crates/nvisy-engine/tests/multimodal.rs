@@ -8,8 +8,7 @@ mod fixtures;
 use std::io::Read;
 
 use bytes::Bytes;
-use nvisy_engine::Engine;
-use nvisy_engine::findings::{Findings, RecognizedGroup};
+use nvisy_engine::{AnalyzedDocument, Engine, RecognizedGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
@@ -63,12 +62,12 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 #[tokio::test]
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
-    let findings = engine
+    let analyzed = engine
         .analyze_document(raw_docx(), &default_spec(), &[])
         .await
         .expect("analyze succeeds");
 
-    let body_group = findings.body.as_ref().expect("body group present");
+    let body_group = analyzed.body.as_ref().expect("body group present");
     let text_entities = match body_group {
         RecognizedGroup::Text { entities } => entities,
         other => panic!("expected Text body, got {other:?}"),
@@ -78,10 +77,10 @@ async fn analyze_captures_text_body_and_image_part() {
         "fixture should carry at least one body entity",
     );
 
-    let image_group = findings.parts.get(IMAGE_PART_ID).unwrap_or_else(|| {
+    let image_group = analyzed.parts.get(IMAGE_PART_ID).unwrap_or_else(|| {
         panic!(
-            "expected part `{IMAGE_PART_ID}` in findings.parts; got keys: {:?}",
-            findings.parts.keys().collect::<Vec<_>>(),
+            "expected part `{IMAGE_PART_ID}` in analyzed.parts; got keys: {:?}",
+            analyzed.parts.keys().collect::<Vec<_>>(),
         )
     });
     assert!(
@@ -93,11 +92,11 @@ async fn analyze_captures_text_body_and_image_part() {
 #[tokio::test]
 async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
-    let mut findings = engine
+    let mut analyzed = engine
         .analyze_document(raw_docx(), &default_spec(), &[])
         .await
         .expect("analyze succeeds");
-    let body_group = findings.body.as_ref().expect("body group present");
+    let body_group = analyzed.body.as_ref().expect("body group present");
     let RecognizedGroup::Text { entities } = body_group else {
         panic!("expected Text body");
     };
@@ -107,7 +106,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     );
 
     let target_id = entities[0].entity.id;
-    let RecognizedGroup::Text { entities: muts } = findings.body.as_mut().unwrap() else {
+    let RecognizedGroup::Text { entities: muts } = analyzed.body.as_mut().unwrap() else {
         unreachable!()
     };
     muts.iter_mut()
@@ -121,7 +120,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     }));
 
     let outcome = engine
-        .anonymize_document(raw_docx(), &default_spec(), &[], &findings)
+        .anonymize_document(raw_docx(), &default_spec(), &[], &analyzed)
         .await
         .expect("anonymize succeeds");
     write_artefact("sample", "docx", &outcome.bytes);
@@ -146,10 +145,15 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
 }
 
 #[tokio::test]
-async fn empty_findings_anonymize_fails_validation() {
+async fn empty_analyzed_document_anonymize_fails_validation() {
     let engine = engine();
     let outcome = engine
-        .anonymize_document(raw_docx(), &default_spec(), &[], &Findings::default())
+        .anonymize_document(
+            raw_docx(),
+            &default_spec(),
+            &[],
+            &AnalyzedDocument::default(),
+        )
         .await;
     let err = outcome.expect_err("anonymize must reject a missing body group");
     assert!(

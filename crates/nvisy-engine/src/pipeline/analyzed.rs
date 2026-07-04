@@ -1,16 +1,21 @@
-//! Analyze → apply bridge: what `analyze()` returns and what
-//! `apply()` accepts.
+//! Analyze → anonymize bridge: what
+//! [`Engine::analyze_document`] returns and what
+//! [`Engine::anonymize_document`] accepts.
 //!
-//! [`Findings`] mirrors elide's [`Report`] shape: a body group +
-//! zero-or-more container part groups (DOCX embedded images,
-//! archive members, ...) keyed by container-private part id.
-//! Every group is a [`RecognizedGroup`] tagged by modality so the
-//! serialized form round-trips cleanly. Reviewer overrides live
-//! per-entity inside [`EntityRecord`].
+//! [`AnalyzedDocument`] mirrors elide's [`Report`] shape: a
+//! body group + zero-or-more container part groups (DOCX
+//! embedded images, archive members, ...) keyed by
+//! container-private part id. Every group is a
+//! [`RecognizedGroup`] tagged by modality so the serialized
+//! form round-trips cleanly. Reviewer overrides live per-entity
+//! inside [`EntityRecord`].
 //!
-//! Hosts hold this value between `analyze()` and `apply()` and
-//! may persist it however they like (`serde` derives are on
+//! Hosts hold this value between analyze and anonymize and may
+//! persist it however they like (`serde` derives are on
 //! everything).
+//!
+//! [`Engine::analyze_document`]: super::Engine::analyze_document
+//! [`Engine::anonymize_document`]: super::Engine::anonymize_document
 //!
 //! [`Report`]: elide::Report
 
@@ -33,7 +38,7 @@ use serde::{Deserialize, Serialize};
 /// per-container-part groups, each tagged by modality.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Findings {
+pub struct AnalyzedDocument {
     /// The body group. `None` when no body pipeline produced
     /// entities (pre-analyze, or the codec resolved the doc to a
     /// modality with no pipeline).
@@ -48,7 +53,7 @@ pub struct Findings {
 }
 
 /// A modality-tagged group of recognized entities. The unit
-/// [`Findings`] stores in `body` and in every `parts` entry.
+/// [`AnalyzedDocument`] stores in `body` and in every `parts` entry.
 ///
 /// Tagged by `modality` (snake_case) so deserialization picks the
 /// right variant and the entity vec inside is statically typed

@@ -1,7 +1,7 @@
 //! Compile a [`nvisy_schema::plan::AnalyzerParams`] into an
 //! [`elide::detection::Analyzer`] per modality.
 //!
-//! Symmetric with [`super::anonymizer`]: the spec is pure data
+//! Symmetric with [`crate::anonymizer`]: the spec is pure data
 //! (recognizer + enricher + dedup choices); engine walks it and
 //! assembles the matching elide runtime values.
 //!
@@ -29,6 +29,8 @@ mod catalog;
 mod common;
 #[cfg(feature = "internal_image")]
 mod image;
+mod llm;
+mod ner;
 #[cfg(feature = "internal_tabular")]
 mod tabular;
 mod text;

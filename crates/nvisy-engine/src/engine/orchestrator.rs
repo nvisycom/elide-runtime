@@ -23,18 +23,18 @@ use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_core::{Error, Result};
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::{Policy, RuleAction};
+use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
 use super::Engine;
 use super::analyzer::{AnalyzerCompile, LabelCatalogCompile};
-use super::anonymizer::{attach_override_text, attach_policies_text};
 #[cfg(feature = "internal_audio")]
 use super::anonymizer::{attach_override_audio, attach_policies_audio};
 #[cfg(feature = "internal_image")]
 use super::anonymizer::{attach_override_image, attach_policies_image};
 #[cfg(feature = "internal_tabular")]
 use super::anonymizer::{attach_override_tabular, attach_policies_tabular};
+use super::anonymizer::{attach_override_text, attach_policies_text};
 
 const COMPONENT: &str = "engine::orchestrator";
 
@@ -59,7 +59,7 @@ impl Engine {
         &self,
         spec: &AnalyzerParams,
         policies: &[Policy],
-        overrides: &[(Uuid, RuleAction)],
+        overrides: &[(Uuid, PolicyAction)],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
         let catalog = spec.scope.label_catalog.compile();
@@ -149,14 +149,14 @@ impl Engine {
 /// wrapping so each modality's callsite is one call.
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
-    overrides: &[(Uuid, RuleAction)],
+    overrides: &[(Uuid, PolicyAction)],
     policies: &'a [Policy],
     attach_override: O,
     attach_policies: P,
 ) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    O: Fn(Anonymizer<M>, Uuid, &RuleAction) -> std::result::Result<Anonymizer<M>, elide::Error>,
+    O: Fn(Anonymizer<M>, Uuid, &PolicyAction) -> std::result::Result<Anonymizer<M>, elide::Error>,
     P: FnOnce(
         Anonymizer<M>,
         std::slice::Iter<'a, Policy>,

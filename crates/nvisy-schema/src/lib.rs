@@ -2,19 +2,25 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-//! Wire schema for the Nvisy HTTP API.
+//! ## Reference
 //!
-//! Serialisation + JSON schema types shared between the server,
-//! any SDK that talks to the server, and consumers generating
-//! bindings from the OpenAPI spec. Runtime plumbing (LLM
-//! provider clients, engine internals, healthcheck traits) lives
-//! in [`nvisy-core`] on top of this crate.
+//! Wire schema for the Nvisy HTTP API. Serialisation + JSON
+//! schema types shared between the server, any SDK that talks
+//! to the server, and consumers generating bindings from the
+//! OpenAPI spec. Runtime plumbing (LLM provider clients,
+//! engine internals) lives in [`nvisy-core`] on top of this
+//! crate.
 //!
-//! ## Modules
+//! This crate is an umbrella. `plan`, `file`, and the
+//! `elide_core` slice (`primitive`, `entity`, `modality`) live
+//! here directly; `policy` and `context` come from their peer
+//! crates, re-exported so a single `nvisy-schema` dep still
+//! gives an SDK caller the whole wire surface.
 //!
-//! - [`policy`]: governance documents. `Policy`, `Rule`,
-//!   `RuleAction`, `Predicate`, retention rules, etc.
+//! - [`policy`]: governance documents. Re-exported from
+//!   [`nvisy-policy`].
 //! - [`context`]: reference data submitted to enrich detection.
+//!   Re-exported from [`nvisy-context`].
 //! - [`plan`]: analyzer plans. `AnalyzerParams`, per-recognizer
 //!   configuration, dedup pipeline, request scope.
 //! - [`file`](mod@file): persisted file descriptors and lineage.
@@ -23,11 +29,14 @@
 //!   SDK callers don't need `elide-core` as a separate dep.
 //!
 //! [`nvisy-core`]: https://docs.rs/nvisy-core
+//! [`nvisy-policy`]: https://docs.rs/nvisy-policy
+//! [`nvisy-context`]: https://docs.rs/nvisy-context
 
-pub mod context;
+pub use nvisy_context as context;
+pub use nvisy_policy as policy;
+
 pub mod entity;
 pub mod file;
 pub mod modality;
 pub mod plan;
-pub mod policy;
 pub mod primitive;

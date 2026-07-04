@@ -24,8 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Rust crates (`crates/`)
 
-- **nvisy-schema:** wire types (policy, context, plan, file). Consumed
-  by SDKs on both sides of the HTTP boundary.
+- **nvisy-context:** wire schema for reference-data collections.
+- **nvisy-policy:** wire schema for redaction governance (rules,
+  predicates, retention, audit).
+- **nvisy-schema:** umbrella re-exporting `nvisy-context` +
+  `nvisy-policy` alongside `plan` and `file`. Consumed by SDKs on
+  both sides of the HTTP boundary.
 - **nvisy-core:** deployment-side runtime configuration (NER and LLM
   recognizer lineups, error vocabulary).
 - **nvisy-engine:** stateless pipeline: decode, analyze, apply. Wraps

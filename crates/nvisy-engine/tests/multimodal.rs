@@ -9,12 +9,12 @@ use std::io::Read;
 use bytes::Bytes;
 use hipstr::HipStr;
 use nvisy_engine::Engine;
-use nvisy_engine::document::{DocBody, RecognizedGroup};
+use nvisy_engine::findings::{Findings, RecognizedGroup};
 use nvisy_schema::file::RawDocument;
 use nvisy_schema::plan::{
     AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
 };
-use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
 use uuid::Uuid;
 
@@ -68,12 +68,12 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 #[tokio::test]
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
-    let body = engine
+    let findings = engine
         .analyze_document(raw_docx(), &default_spec(), Uuid::now_v7())
         .await
         .expect("analyze succeeds");
 
-    let body_group = body.body.as_ref().expect("body group present");
+    let body_group = findings.body.as_ref().expect("body group present");
     let text_entities = match body_group {
         RecognizedGroup::Text { entities } => entities,
         other => panic!("expected Text body, got {other:?}"),
@@ -83,10 +83,10 @@ async fn analyze_captures_text_body_and_image_part() {
         "fixture should carry at least one body entity",
     );
 
-    let image_group = body.parts.get(IMAGE_PART_ID).unwrap_or_else(|| {
+    let image_group = findings.parts.get(IMAGE_PART_ID).unwrap_or_else(|| {
         panic!(
-            "expected part `{IMAGE_PART_ID}` in body.parts; got keys: {:?}",
-            body.parts.keys().collect::<Vec<_>>(),
+            "expected part `{IMAGE_PART_ID}` in findings.parts; got keys: {:?}",
+            findings.parts.keys().collect::<Vec<_>>(),
         )
     });
     assert!(
@@ -99,11 +99,11 @@ async fn analyze_captures_text_body_and_image_part() {
 async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
     let run_id = Uuid::now_v7();
-    let body = engine
+    let mut findings = engine
         .analyze_document(raw_docx(), &default_spec(), run_id)
         .await
         .expect("analyze succeeds");
-    let body_group = body.body.as_ref().expect("body group present");
+    let body_group = findings.body.as_ref().expect("body group present");
     let RecognizedGroup::Text { entities } = body_group else {
         panic!("expected Text body");
     };
@@ -113,14 +113,13 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
     );
 
     let target_id = entities[0].entity.id;
-    let mut body = body;
-    let RecognizedGroup::Text { entities: muts } = body.body.as_mut().unwrap() else {
+    let RecognizedGroup::Text { entities: muts } = findings.body.as_mut().unwrap() else {
         unreachable!()
     };
     muts.iter_mut()
         .find(|r| r.entity.id == target_id)
         .expect("entity present")
-        .r#override = Some(RuleAction::Redact(ModalityRedactions {
+        .r#override = Some(PolicyAction::Redact(ModalityRedactions {
         text: Some(TextRedaction::Erase),
         tabular: None,
         image: None,
@@ -128,7 +127,7 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
     }));
 
     let outcome = engine
-        .apply_document(raw_docx(), &default_spec(), &[], &body, run_id)
+        .apply_document(raw_docx(), &default_spec(), &[], &findings, run_id)
         .await
         .expect("apply succeeds");
     write_artefact("sample", "docx", &outcome.bytes);
@@ -153,14 +152,14 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
 }
 
 #[tokio::test]
-async fn empty_docbody_apply_fails_validation() {
+async fn empty_findings_apply_fails_validation() {
     let engine = engine();
     let outcome = engine
         .apply_document(
             raw_docx(),
             &default_spec(),
             &[],
-            &DocBody::default(),
+            &Findings::default(),
             Uuid::now_v7(),
         )
         .await;

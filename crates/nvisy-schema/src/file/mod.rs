@@ -16,7 +16,7 @@
 //!
 //! [`DocumentInput`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/runs/struct.DocumentInput.html
 //! [`StartBatch`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/runs/struct.StartBatch.html
-//! [`DocumentPredicate`]: crate::policy::DocumentPredicate
+//! [`DocumentPredicate`]: crate::policy::predicate::DocumentPredicate
 
 mod lineage;
 mod metadata;

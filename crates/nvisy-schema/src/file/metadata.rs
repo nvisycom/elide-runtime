@@ -57,14 +57,14 @@ pub struct FileMetadata {
     /// [`DocumentPredicate::HasLabel`] policies when a run
     /// references this file.
     ///
-    /// [`DocumentPredicate::HasLabel`]: crate::policy::DocumentPredicate::HasLabel
+    /// [`DocumentPredicate::HasLabel`]: crate::policy::predicate::DocumentPredicate::HasLabel
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub descriptor_labels: Vec<String>,
     /// Doc-level metadata that gates
     /// [`DocumentPredicate::HasMetadata`] policies, merged with
     /// any per-request metadata at run-time.
     ///
-    /// [`DocumentPredicate::HasMetadata`]: crate::policy::DocumentPredicate::HasMetadata
+    /// [`DocumentPredicate::HasMetadata`]: crate::policy::predicate::DocumentPredicate::HasMetadata
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub descriptor_metadata: HashMap<String, String>,
 }

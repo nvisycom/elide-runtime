@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-schema"
-description = "Wire schema for the Nvisy platform: request / response types, policy documents, analyzer plans, and file metadata"
+description = "Wire schema for the Nvisy platform: umbrella crate re-exporting policy + context alongside plan and file"
 keywords = ["nvisy", "schema", "sdk", "types"]
 categories = ["data-structures", "api-bindings"]
 readme = "README.md"
@@ -32,25 +32,26 @@ default = []
 test-utils = []
 
 [dependencies]
-# Elide's stable wire vocabulary — primitive types (LanguageTag, CountryCode,
-# BoundingBox, TimeSpan, ConfidenceThreshold) + modality types + entity types
-# — is `elide-core` alone. No codec, no LLM, no runtime plumbing: `elide-core`
-# is the SDK-safe subset.
+# Sibling schema crates re-exported through this umbrella so a
+# single `nvisy-schema` dep gives an SDK caller the whole wire
+# surface. Consumers who want tighter dep trees can depend on
+# `nvisy-policy` or `nvisy-context` directly and skip this crate.
+nvisy-context = { workspace = true, features = [] }
+nvisy-policy = { workspace = true, features = [] }
+
+# Elide's stable wire vocabulary: primitive types (LanguageTag,
+# CountryCode, BoundingBox, ConfidenceThreshold) + modality types +
+# entity types. No codec, no LLM, no runtime plumbing — elide-core is
+# the SDK-safe subset.
 elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
-schemars = { workspace = true, features = ["uuid1", "semver1"] }
-
-# Derive macros
-derive_builder = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant"] }
-strum = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = ["uuid1"] }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = ["v7"] }
 hipstr = { workspace = true, features = ["serde"] }
 jiff = { workspace = true, features = ["serde"] }
-semver = { workspace = true, features = ["serde"] }

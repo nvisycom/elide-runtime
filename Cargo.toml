@@ -4,8 +4,10 @@
 resolver = "3"
 members = [
     "./crates/elide-bento",
+    "./crates/nvisy-context",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
+    "./crates/nvisy-policy",
     "./crates/nvisy-schema",
 ]
 # Python (uv) workspace lives in `packages/`. Excluded so cargo
@@ -45,8 +47,10 @@ elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", defaul
 elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }
 
 # Internal crates
+nvisy-context = { path = "./crates/nvisy-context", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-policy = { path = "./crates/nvisy-policy", version = "0.1.0" }
 nvisy-schema = { path = "./crates/nvisy-schema", version = "0.1.0" }
 
 # Serialization

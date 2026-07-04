@@ -1,5 +1,6 @@
-//! Per-modality redaction operator specs: the closed wire vocabulary
-//! a policy author can choose from inside a `redact` rule, plus the
+//! Per-modality redaction operator specs: the closed wire vocabulary a policy.
+//!
+//! Author can choose from inside a `redact` rule, plus the
 //! [`ModalityRedactions`] map a rule carries to wire one operator
 //! per modality, and the [`AnyRedaction`] erasure used at the
 //! override boundary.

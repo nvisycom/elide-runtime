@@ -1,7 +1,7 @@
 //! Analyze → apply bridge: what `analyze()` returns and what
 //! `apply()` accepts.
 //!
-//! [`DocBody`] mirrors elide's [`Report`] shape: a body group +
+//! [`Findings`] mirrors elide's [`Report`] shape: a body group +
 //! zero-or-more container part groups (DOCX embedded images,
 //! archive members, ...) keyed by container-private part id.
 //! Every group is a [`RecognizedGroup`] tagged by modality so the
@@ -25,14 +25,15 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::PolicyAction;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// The body of one document as detection saw it.
+/// What detection found in one document: the body group plus
+/// per-container-part groups, each tagged by modality.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct DocBody {
+pub struct Findings {
     /// The body group. `None` when no body pipeline produced
     /// entities (pre-analyze, or the codec resolved the doc to a
     /// modality with no pipeline).
@@ -47,7 +48,7 @@ pub struct DocBody {
 }
 
 /// A modality-tagged group of recognized entities. The unit
-/// [`DocBody`] stores in `body` and in every `parts` entry.
+/// [`Findings`] stores in `body` and in every `parts` entry.
 ///
 /// Tagged by `modality` (snake_case) so deserialization picks the
 /// right variant and the entity vec inside is statically typed
@@ -102,7 +103,7 @@ pub struct EntityRecord<M: Modality> {
     /// decision"; `Some(action)` overrides it for this specific
     /// entity at apply time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub r#override: Option<RuleAction>,
+    pub r#override: Option<PolicyAction>,
 }
 
 impl<M: Modality> EntityRecord<M> {

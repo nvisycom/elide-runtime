@@ -13,7 +13,7 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow};
 use elide_core::Error;
 use elide_core::modality::tabular::Tabular;
-use nvisy_schema::policy::RuleAction;
+use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TabularRedaction};
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ pub(crate) fn attach_policies_tabular<'a>(
 pub(crate) fn attach_override_tabular(
     anonymizer: Anonymizer<Tabular>,
     entity_id: Uuid,
-    action: &RuleAction,
+    action: &PolicyAction,
 ) -> Result<Anonymizer<Tabular>, Error> {
     attach_one_override(anonymizer, entity_id, action, compile_one)
 }

@@ -1,15 +1,21 @@
-//! Policy types: authored vocabulary for redaction governance.
+#![forbid(unsafe_code)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![doc = include_str!("../README.md")]
+
+//! ## Architecture
+//!
+//! Authored vocabulary for redaction governance.
 //!
 //! A request submits `Vec<Policy>` in precedence order. Engine
 //! walks them; for each policy whose [`Policy::applies_when`]
-//! holds against the document, it walks [`Policy::rules`] in order
-//! and runs the first matching rule's [`RuleAction`]. If no rule
-//! in a policy matches, the policy's [`Policy::fallback`] runs
-//! (and the chain halts) if set; otherwise the engine moves to
-//! the next policy. If no policy matches and no policy carries a
-//! fallback, the entity is skipped.
+//! holds against the document, it walks [`Policy::rules`] in
+//! order and runs the first matching rule's [`PolicyAction`]. If
+//! no rule in a policy matches, the policy's [`Policy::fallback`]
+//! runs (and the chain halts) if set; otherwise the engine moves
+//! to the next policy. If no policy matches and no policy
+//! carries a fallback, the entity is skipped.
 //!
-//! Identity is UUID-keyed: every [`Policy`] and every [`Rule`]
+//! Identity is UUID-keyed: every [`Policy`] and every [`PolicyRule`]
 //! carries a stable [`Uuid`]. Engine stamps `policy.id` and
 //! `rule.id` into the redaction event's [`Attribution`] so
 //! reviewers can trace any redaction back to the exact rule that
@@ -17,13 +23,11 @@
 //!
 //! [`Attribution`]: elide_core::entity::provenance::Attribution
 
-mod audit;
-mod document;
-mod predicate;
+mod action;
+pub mod predicate;
 pub mod redaction;
-mod retention;
+pub mod retention;
 mod rule;
-mod suppress;
 
 use elide_core::entity::Label;
 use hipstr::HipStr;
@@ -32,13 +36,10 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::audit::AuditAction;
-pub use self::document::DocumentPredicate;
-pub use self::predicate::Predicate;
-pub use self::redaction::AnyRedaction;
-pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
-pub use self::rule::{Rule, RuleAction};
-pub use self::suppress::SuppressAction;
+pub use self::action::{AuditAction, SuppressAction};
+use self::predicate::DocumentPredicate;
+use self::retention::RetentionPolicy;
+pub use self::rule::{PolicyAction, PolicyRule};
 
 /// A named, versioned governance policy.
 ///
@@ -76,17 +77,18 @@ pub struct Policy {
     /// tag-based [`Predicate::TagOneOf`] matching.
     ///
     /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
+    /// [`Predicate::TagOneOf`]: predicate::Predicate::TagOneOf
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub labels: Vec<Label>,
     /// Ordered rules. First match wins within this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub rules: Vec<Rule>,
+    pub rules: Vec<PolicyRule>,
     /// Per-policy catch-all. Fires when no rule in this policy
     /// matched. Presence halts the chain; absence falls through
     /// to the next policy. [`Option`] enforces "at most one
     /// fallback per policy" at the type level.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fallback: Option<RuleAction>,
+    pub fallback: Option<PolicyAction>,
     /// Lifecycle rules for content under this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub retention: Vec<RetentionPolicy>,

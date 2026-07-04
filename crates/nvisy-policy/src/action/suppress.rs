@@ -1,6 +1,6 @@
-//! [`SuppressAction`]: payload of an [`Action::Suppress`] rule.
+//! [`SuppressAction`]: payload of an [`PolicyAction::Suppress`] rule.
 //!
-//! [`Action::Suppress`]: super::rule::Action::Suppress
+//! [`PolicyAction::Suppress`]: crate::PolicyAction::Suppress
 
 use hipstr::HipStr;
 use schemars::JsonSchema;

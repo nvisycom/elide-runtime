@@ -2,10 +2,12 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-//! Deployment-side runtime plumbing for the Nvisy platform.
+//! ## Reference
 //!
-//! Sibling to [`nvisy-schema`] (the wire schema). This crate holds
-//! the deployment-only surface the SDK caller doesn't need:
+//! Deployment-side runtime plumbing for the Nvisy platform.
+//! Sibling to [`nvisy-schema`] (the wire schema). This crate
+//! holds the deployment-only surface the SDK caller doesn't
+//! need:
 //!
 //! - [`llm`]: deployment-owned LLM recognizer lineup + provider
 //!   credentials. Wraps `elide-llm::Provider`; pulled only when

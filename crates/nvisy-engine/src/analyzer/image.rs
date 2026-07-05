@@ -29,8 +29,9 @@ use nvisy_core::llm::{LlmConfig, LlmRecognizerModality};
 use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::{AnalyzerParams, OcrBackendParams, OcrEnricherParams};
 
-use super::common::{attach_dedup, attach_ner_lineup, attach_pattern};
-use crate::llm::attach_lineup;
+use super::common::{attach_dedup, attach_pattern};
+use super::llm::attach_llm_lineup;
+use super::ner::attach_ner_lineup;
 
 /// Compile `spec` into an image-modality [`Analyzer`].
 pub(super) fn compile(
@@ -51,7 +52,7 @@ pub(super) fn compile(
         analyzer = attach_ner_lineup(analyzer, ner)?;
     }
     if spec.recognizers.llm {
-        analyzer = attach_lineup(analyzer, llm, LlmRecognizerModality::Image)?;
+        analyzer = attach_llm_lineup(analyzer, llm, LlmRecognizerModality::Image)?;
     }
 
     Ok(attach_dedup(analyzer, &spec.deduplication))

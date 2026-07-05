@@ -5,7 +5,7 @@
 //! `test-utils` feature).
 
 use elide::detection::Analyzer;
-use elide::recognition::llm::LlmRecognizer;
+use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide_core::{Error, ErrorKind};
 #[cfg(feature = "test-utils")]
 use elide_llm::backend::MockBackend as MockLlmBackend;
@@ -34,7 +34,7 @@ use nvisy_core::llm::{
 /// - `DefaultPrompt: Prompt<M>` — elide ships text + image
 ///   default prompts.
 /// - `Jinja2Prompt<M>: Prompt<M>` — same coverage.
-pub(crate) fn attach_lineup<M>(
+pub(crate) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &LlmConfig,
     modality: LlmRecognizerModality,
@@ -110,9 +110,9 @@ where
 }
 
 fn attach_backend<M>(
-    builder: elide::recognition::llm::LlmRecognizerBuilder<M>,
+    builder: LlmRecognizerBuilder<M>,
     spec: &ConfigRecognizer,
-) -> Result<elide::recognition::llm::LlmRecognizerBuilder<M>, Error>
+) -> Result<LlmRecognizerBuilder<M>, Error>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,

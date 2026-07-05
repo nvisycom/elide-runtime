@@ -1,5 +1,4 @@
-//! Recognizer params: per-kind slots inside an
-//! [`AnalyzerParams`].
+//! Recognizer params: per-kind slots inside an [`AnalyzerParams`].
 //!
 //! Three recognizer kinds (pattern, NER, LLM):
 //!
@@ -24,26 +23,30 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Recognizer slots an analyzer can fill. Pattern is
-/// at-most-one (per-request); NER and LLM are
+/// Recognizer slots an analyzer can fill.
+///
+/// Pattern is at-most-one (per-request); NER and LLM are
 /// deployment-owned lineups each gated by a boolean toggle.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognizerParams {
     /// Built-in pattern + dictionary recognizer (`elide-pattern`).
+    ///
     /// At most one per analyzer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pattern: Option<PatternRecognizerParams>,
-    /// Run the deployment's NER recognizer lineup. `false`
-    /// skips NER recognition entirely; `true` attaches every
-    /// deployment-configured recognizer. When the deployment
-    /// has no NER recognizers configured, `true` fails the
-    /// analyzer compile with a `Validation` error.
+    /// Run the deployment's NER recognizer lineup.
+    ///
+    /// `false` skips NER recognition entirely; `true` attaches
+    /// every deployment-configured recognizer. When the
+    /// deployment has no NER recognizers configured, `true` fails
+    /// the analyzer compile with a `Validation` error.
     #[serde(default, skip_serializing_if = "is_false")]
     pub ner: bool,
-    /// Run the deployment's LLM recognizer lineup. `false`
-    /// skips LLM recognition entirely; `true` attaches every
-    /// deployment-configured recognizer whose declared
+    /// Run the deployment's LLM recognizer lineup.
+    ///
+    /// `false` skips LLM recognition entirely; `true` attaches
+    /// every deployment-configured recognizer whose declared
     /// modalities match the analyzer's modality. When the
     /// deployment has no LLM recognizers configured for this
     /// modality, `true` fails the analyzer compile with a
@@ -61,13 +64,15 @@ fn is_false(b: &bool) -> bool {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternRecognizerParams {
-    /// Load every pattern + dictionary shipped with
-    /// `elide-pattern`. Implies the country-scoped
-    /// jurisdictional pattern packs are active for the scope's
-    /// jurisdictions.
+    /// Load every pattern + dictionary shipped with `elide-pattern`.
+    ///
+    /// Implies the country-scoped jurisdictional pattern packs
+    /// are active for the scope's jurisdictions.
     #[serde(default)]
     pub builtins: bool,
-    /// Wrap the bare pattern recognizer in elide's
+    /// Enable per-label context-keyword boosting.
+    ///
+    /// Wraps the bare pattern recognizer in elide's
     /// `Enhanced<PatternRecognizer>` layer so per-label context
     /// keywords boost low-confidence matches before they leave
     /// the recognizer.

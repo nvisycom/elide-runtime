@@ -1,13 +1,16 @@
 //! Compile a [`nvisy_schema::plan::AnalyzerParams`] into an
 //! [`elide::detection::Analyzer`] per modality.
 //!
-//! Symmetric with [`super::anonymizer`]: the spec is pure data
+//! Symmetric with [`crate::anonymizer`]: the spec is pure data
 //! (recognizer + enricher + dedup choices); engine walks it and
 //! assembles the matching elide runtime values.
 //!
-//! Scope is **not** per-modality — `elide::recognition::Scope` is
-//! modality-free and is built once in [`super::scope`], then
-//! attached to the [`Orchestrator`] via [`Orchestrator::with_scope`].
+//! Scope is **not** per-modality — [`Scope`] is modality-free
+//! and is built once in [`crate::pipeline`]'s orchestrator
+//! builder, then attached to the [`Orchestrator`] via
+//! [`Orchestrator::with_scope`].
+//!
+//! [`Scope`]: elide::recognition::Scope
 //!
 //! ## Per-modality coverage
 //!
@@ -29,6 +32,8 @@ mod catalog;
 mod common;
 #[cfg(feature = "internal_image")]
 mod image;
+mod llm;
+mod ner;
 #[cfg(feature = "internal_tabular")]
 mod tabular;
 mod text;

@@ -1,4 +1,4 @@
-//! Plumbing between [`Findings`] / [`RecognizedGroup`] and
+//! Plumbing between [`AnalyzedDocument`] / [`RecognizedGroup`] and
 //! elide's runtime [`Report`].
 //!
 //! Two directions:
@@ -7,12 +7,12 @@
 //!   [`Report`], [`take_body`] and [`take_part`] move each typed
 //!   `Vec<Entity<M>>` out of the report into the matching
 //!   [`RecognizedGroup`] variant for the caller to hold.
-//! - **Rebuild**: at apply time, [`insert_body`] and
+//! - **Rebuild**: at anonymize time, [`insert_body`] and
 //!   [`insert_part`] feed a fresh [`Report`] from the returned
 //!   groups (cloning entities; the returned body is the source
 //!   of truth for re-apply idempotency).
 //!
-//! Plus two byte-level helpers used at the apply seam:
+//! Plus two byte-level helpers used at the anonymize seam:
 //! [`collect_overrides_into`] walks reviewer overrides off any
 //! group, and [`encode_redacted`] picks the right typed handle
 //! to re-encode through after `anonymize_with` mutated the
@@ -23,14 +23,15 @@
 //! ([`GroupCarrier`]) plus four trivial impls so adding a fifth
 //! modality is one macro line, not eight functions.
 //!
-//! [`Findings`]: super::findings::Findings
-//! [`RecognizedGroup`]: super::findings::RecognizedGroup
+//! [`AnalyzedDocument`]: crate::AnalyzedDocument
+//! [`RecognizedGroup`]: crate::RecognizedGroup
 //! [`Engine`]: super::Engine
 //! [`Orchestrator::analyze`]: elide::Orchestrator::analyze
 //! [`Report`]: elide::Report
 
 use std::mem;
 
+use elide::Report;
 use elide::codec::{PartId, UntypedDocumentHandle};
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
@@ -45,10 +46,10 @@ use nvisy_core::{Error, Result};
 use nvisy_schema::policy::PolicyAction;
 use uuid::Uuid;
 
-use super::ApplyOutcome;
-use super::findings::{EntityRecord, RecognizedGroup};
+use super::AnonymizedDocument;
+use super::analyzed::{EntityRecord, RecognizedGroup};
 
-const COMPONENT: &str = "engine::report";
+const COMPONENT: &str = "pipeline::report";
 
 /// Per-modality bridge between `Vec<Entity<M>>` and the matching
 /// [`RecognizedGroup`] variant. Implemented for each of the four
@@ -82,7 +83,7 @@ impl_group_carrier!(Audio, Audio);
 /// Drain the body's entities from `report` into a
 /// [`RecognizedGroup`] of `M`'s variant, or `None` if the body
 /// is a different modality.
-pub(super) fn take_body<M: GroupCarrier>(report: &mut elide::Report) -> Option<RecognizedGroup> {
+pub(super) fn take_body<M: GroupCarrier>(report: &mut Report) -> Option<RecognizedGroup> {
     let entities = mem::take(report.entities::<M>()?);
     Some(M::into_group(entities))
 }
@@ -90,7 +91,7 @@ pub(super) fn take_body<M: GroupCarrier>(report: &mut elide::Report) -> Option<R
 /// Drain the part `id`'s entities into a [`RecognizedGroup`] of
 /// `M`'s variant, or `None` if `M` is not that part's modality.
 pub(super) fn take_part<M: GroupCarrier>(
-    report: &mut elide::Report,
+    report: &mut Report,
     id: &PartId,
 ) -> Option<RecognizedGroup> {
     let entities = mem::take(report.part_entities::<M>(id)?);
@@ -98,7 +99,7 @@ pub(super) fn take_part<M: GroupCarrier>(
 }
 
 /// Insert the body group into `report` under its modality.
-pub(super) fn insert_body(report: elide::Report, group: &RecognizedGroup) -> elide::Report {
+pub(super) fn insert_body(report: Report, group: &RecognizedGroup) -> Report {
     match group {
         RecognizedGroup::Text { entities } => report.insert_body::<Text>(clone_entities(entities)),
         #[cfg(feature = "internal_tabular")]
@@ -117,11 +118,7 @@ pub(super) fn insert_body(report: elide::Report, group: &RecognizedGroup) -> eli
 }
 
 /// Insert one part group into `report` under its modality.
-pub(super) fn insert_part(
-    report: elide::Report,
-    id: &str,
-    group: &RecognizedGroup,
-) -> elide::Report {
+pub(super) fn insert_part(report: Report, id: &str, group: &RecognizedGroup) -> Report {
     let part_id = PartId::from(id.to_owned());
     match group {
         RecognizedGroup::Text { entities } => {
@@ -165,11 +162,11 @@ pub(super) fn collect_overrides_into(out: &mut Vec<(Uuid, PolicyAction)>, group:
 }
 
 fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, PolicyAction)>, records: &[EntityRecord<M>]) {
-    out.extend(
-        records
-            .iter()
-            .filter_map(|r| r.r#override.as_ref().map(|a| (r.entity.id, a.clone()))),
-    );
+    out.extend(records.iter().filter_map(|r| {
+        r.reviewer_override
+            .as_ref()
+            .map(|a| (r.entity.id, a.clone()))
+    }));
 }
 
 /// After `anonymize_with` mutated `handle` in place, recover the
@@ -180,7 +177,7 @@ fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, PolicyAction)>, records: &
 pub(super) fn encode_redacted(
     handle: UntypedDocumentHandle,
     body: &RecognizedGroup,
-) -> Result<ApplyOutcome> {
+) -> Result<AnonymizedDocument> {
     match body {
         RecognizedGroup::Text { .. } => encode_typed::<Text>(handle, "Text"),
         #[cfg(feature = "internal_tabular")]
@@ -192,7 +189,7 @@ pub(super) fn encode_redacted(
     }
 }
 
-fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<ApplyOutcome>
+fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<AnonymizedDocument>
 where
     M: Modality,
 {
@@ -209,7 +206,7 @@ where
     let content = typed
         .encode()
         .map_err(|err| Error::internal("post-apply encode failed", COMPONENT).with_source(err))?;
-    Ok(ApplyOutcome {
+    Ok(AnonymizedDocument {
         bytes: content.into_bytes(),
     })
 }

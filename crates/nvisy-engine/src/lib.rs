@@ -19,7 +19,10 @@
 //!
 //! [`elide`]: elide
 
-mod engine;
-mod llm;
+mod analyzer;
+mod anonymizer;
+mod pipeline;
 
-pub use self::engine::{ApplyOutcome, Engine, findings};
+pub use self::pipeline::{
+    AnalyzedDocument, AnonymizedDocument, Engine, EntityRecord, RecognizedGroup,
+};

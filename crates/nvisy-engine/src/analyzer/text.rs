@@ -22,8 +22,9 @@ use nvisy_core::llm::{LlmConfig, LlmRecognizerModality};
 use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
-use super::common::{attach_dedup, attach_language, attach_ner_lineup, attach_pattern};
-use crate::llm::attach_lineup;
+use super::common::{attach_dedup, attach_language, attach_pattern};
+use super::llm::attach_llm_lineup;
+use super::ner::attach_ner_lineup;
 
 /// Compile `spec` into a text-modality [`Analyzer`]. Scope is
 /// built separately and lives on the orchestrator.
@@ -45,7 +46,7 @@ pub(super) fn compile(
         analyzer = attach_ner_lineup(analyzer, ner)?;
     }
     if spec.recognizers.llm {
-        analyzer = attach_lineup(analyzer, llm, LlmRecognizerModality::Text)?;
+        analyzer = attach_llm_lineup(analyzer, llm, LlmRecognizerModality::Text)?;
     }
 
     Ok(attach_dedup(analyzer, &spec.deduplication))

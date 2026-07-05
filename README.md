@@ -1,7 +1,7 @@
 # Nvisy Runtime
 
-[![Rust Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/rs-build.yml?branch=main&label=rust&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/rs-build.yml)
-[![Python Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/py-build.yml?branch=main&label=python&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/py-build.yml)
+[![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/rs-build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/rs-build.yml)
+[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/py-build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/py-build.yml)
 
 Multimodal redaction library and its inference services.
 

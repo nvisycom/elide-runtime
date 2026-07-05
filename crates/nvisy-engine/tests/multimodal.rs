@@ -1,34 +1,30 @@
 //! End-to-end at the engine layer over a DOCX (text body +
-//! embedded PNG): analyze, override one entity, apply, assert
-//! the body changed and the image part round-tripped unchanged.
+//! embedded PNG): analyze, override one entity, anonymize,
+//! assert the body changed and the image part round-tripped
+//! unchanged.
 
 mod fixtures;
 
 use std::io::Read;
 
 use bytes::Bytes;
-use hipstr::HipStr;
-use nvisy_engine::Engine;
-use nvisy_engine::findings::{Findings, RecognizedGroup};
-use nvisy_schema::file::RawDocument;
+use elide_core::entity::LabelRef;
+use nvisy_engine::{AnalyzedDocument, Engine, RecognizedGroup};
+use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
-    AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
+    AnalyzerParams, LabelCatalogParams, OcrBackendParams, OcrEnricherParams,
+    PatternRecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
-use uuid::Uuid;
 
 use self::fixtures::write_artefact;
 
 const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
 const IMAGE_PART_ID: &str = "word/media/image1.png";
 
-fn raw_docx() -> RawDocument {
-    RawDocument {
-        bytes: Bytes::from_static(SAMPLE_DOCX),
-        extension: HipStr::from("docx"),
-        content_type: None,
-    }
+fn raw_docx() -> Document {
+    Document::new(Bytes::from_static(SAMPLE_DOCX), "docx")
 }
 
 fn engine() -> Engine {
@@ -68,12 +64,12 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 #[tokio::test]
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
-    let findings = engine
-        .analyze_document(raw_docx(), &default_spec(), Uuid::now_v7())
+    let analyzed = engine
+        .analyze_document(raw_docx(), &default_spec(), &[])
         .await
         .expect("analyze succeeds");
 
-    let body_group = findings.body.as_ref().expect("body group present");
+    let body_group = analyzed.body.as_ref().expect("body group present");
     let text_entities = match body_group {
         RecognizedGroup::Text { entities } => entities,
         other => panic!("expected Text body, got {other:?}"),
@@ -83,10 +79,10 @@ async fn analyze_captures_text_body_and_image_part() {
         "fixture should carry at least one body entity",
     );
 
-    let image_group = findings.parts.get(IMAGE_PART_ID).unwrap_or_else(|| {
+    let image_group = analyzed.parts.get(IMAGE_PART_ID).unwrap_or_else(|| {
         panic!(
-            "expected part `{IMAGE_PART_ID}` in findings.parts; got keys: {:?}",
-            findings.parts.keys().collect::<Vec<_>>(),
+            "expected part `{IMAGE_PART_ID}` in analyzed.parts; got keys: {:?}",
+            analyzed.parts.keys().collect::<Vec<_>>(),
         )
     });
     assert!(
@@ -96,14 +92,13 @@ async fn analyze_captures_text_body_and_image_part() {
 }
 
 #[tokio::test]
-async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
+async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
-    let run_id = Uuid::now_v7();
-    let mut findings = engine
-        .analyze_document(raw_docx(), &default_spec(), run_id)
+    let mut analyzed = engine
+        .analyze_document(raw_docx(), &default_spec(), &[])
         .await
         .expect("analyze succeeds");
-    let body_group = findings.body.as_ref().expect("body group present");
+    let body_group = analyzed.body.as_ref().expect("body group present");
     let RecognizedGroup::Text { entities } = body_group else {
         panic!("expected Text body");
     };
@@ -113,13 +108,13 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
     );
 
     let target_id = entities[0].entity.id;
-    let RecognizedGroup::Text { entities: muts } = findings.body.as_mut().unwrap() else {
+    let RecognizedGroup::Text { entities: muts } = analyzed.body.as_mut().unwrap() else {
         unreachable!()
     };
     muts.iter_mut()
         .find(|r| r.entity.id == target_id)
         .expect("entity present")
-        .r#override = Some(PolicyAction::Redact(ModalityRedactions {
+        .reviewer_override = Some(PolicyAction::Redact(ModalityRedactions {
         text: Some(TextRedaction::Erase),
         tabular: None,
         image: None,
@@ -127,9 +122,9 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
     }));
 
     let outcome = engine
-        .apply_document(raw_docx(), &default_spec(), &[], &findings, run_id)
+        .anonymize_document(raw_docx(), &[], &analyzed)
         .await
-        .expect("apply succeeds");
+        .expect("anonymize succeeds");
     write_artefact("sample", "docx", &outcome.bytes);
 
     let original_body =
@@ -152,18 +147,67 @@ async fn apply_redacts_targeted_entity_and_preserves_other_parts() {
 }
 
 #[tokio::test]
-async fn empty_findings_apply_fails_validation() {
+async fn analyze_populates_scope_from_spec_label_catalog() {
+    let engine = engine();
+
+    let empty = engine
+        .analyze_document(raw_docx(), &default_spec(), &[])
+        .await
+        .expect("analyze succeeds");
+    assert!(
+        empty.scope.catalog.is_empty(),
+        "spec with no catalog entries must persist an empty scope catalog, \
+         got {} entries",
+        empty.scope.catalog.len(),
+    );
+
+    let mut spec = default_spec();
+    spec.scope.label_catalog = LabelCatalogParams {
+        builtins: vec!["email_address".to_owned()],
+        custom: Vec::new(),
+    };
+    let with_catalog = engine
+        .analyze_document(raw_docx(), &spec, &[])
+        .await
+        .expect("analyze succeeds");
+    assert!(
+        with_catalog
+            .scope
+            .catalog
+            .contains(&LabelRef::new("email_address")),
+        "spec.builtins = [email_address] must persist that label onto scope.catalog",
+    );
+}
+
+#[tokio::test]
+async fn analyzed_document_rejects_missing_scope_on_deserialize() {
+    let engine = engine();
+    let analyzed = engine
+        .analyze_document(raw_docx(), &default_spec(), &[])
+        .await
+        .expect("analyze succeeds");
+    let mut value = serde_json::to_value(&analyzed).expect("serialize");
+    value
+        .as_object_mut()
+        .expect("object")
+        .remove("scope")
+        .expect("scope was serialized");
+
+    let err = serde_json::from_value::<AnalyzedDocument>(value)
+        .expect_err("deserializing without scope must fail");
+    assert!(
+        err.to_string().contains("scope"),
+        "missing-field error must name `scope`, got: {err}",
+    );
+}
+
+#[tokio::test]
+async fn empty_analyzed_document_anonymize_fails_validation() {
     let engine = engine();
     let outcome = engine
-        .apply_document(
-            raw_docx(),
-            &default_spec(),
-            &[],
-            &Findings::default(),
-            Uuid::now_v7(),
-        )
+        .anonymize_document(raw_docx(), &[], &AnalyzedDocument::default())
         .await;
-    let err = outcome.expect_err("apply must reject a missing body group");
+    let err = outcome.expect_err("anonymize must reject a missing body group");
     assert!(
         err.to_string().contains("body group is missing"),
         "expected `body group is missing` error, got: {err}",

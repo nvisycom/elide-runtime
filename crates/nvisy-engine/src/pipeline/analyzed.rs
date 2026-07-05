@@ -1,21 +1,27 @@
-//! Analyze → apply bridge: what `analyze()` returns and what
-//! `apply()` accepts.
+//! Analyze → anonymize bridge: what
+//! [`Engine::analyze_document`] returns and what
+//! [`Engine::anonymize_document`] accepts.
 //!
-//! [`Findings`] mirrors elide's [`Report`] shape: a body group +
-//! zero-or-more container part groups (DOCX embedded images,
-//! archive members, ...) keyed by container-private part id.
-//! Every group is a [`RecognizedGroup`] tagged by modality so the
-//! serialized form round-trips cleanly. Reviewer overrides live
-//! per-entity inside [`EntityRecord`].
+//! [`AnalyzedDocument`] mirrors elide's [`Report`] shape: a
+//! body group + zero-or-more container part groups (DOCX
+//! embedded images, archive members, ...) keyed by
+//! container-private part id. Every group is a
+//! [`RecognizedGroup`] tagged by modality so the serialized
+//! form round-trips cleanly. Reviewer overrides live per-entity
+//! inside [`EntityRecord`].
 //!
-//! Hosts hold this value between `analyze()` and `apply()` and
-//! may persist it however they like (`serde` derives are on
+//! Hosts hold this value between analyze and anonymize and may
+//! persist it however they like (`serde` derives are on
 //! everything).
+//!
+//! [`Engine::analyze_document`]: super::Engine::analyze_document
+//! [`Engine::anonymize_document`]: super::Engine::anonymize_document
 //!
 //! [`Report`]: elide::Report
 
 use std::collections::HashMap;
 
+use elide::recognition::Scope;
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
 #[cfg(feature = "internal_audio")]
@@ -29,26 +35,63 @@ use nvisy_schema::policy::PolicyAction;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// What detection found in one document: the body group plus
-/// per-container-part groups, each tagged by modality.
+/// What detection found in one document.
+///
+/// The body group plus per-container-part groups (each tagged
+/// by modality) plus a snapshot of the recognition [`Scope`] the
+/// entities were scored against.
+///
+/// The scope snapshot travels with the entities so anonymize
+/// can rebuild an orchestrator against exactly the vocabulary
+/// analyze used. Anything a policy predicate compares against
+/// (label catalog, document-level classification labels,
+/// asserted languages / jurisdictions) is here.
+///
+/// `correlation_id` on the persisted scope is always `None`; the
+/// anonymize call supplies a fresh id from the passed
+/// [`Document`](nvisy_schema::file::Document) so anonymize-side
+/// tracing spans are distinct from the analyze-side ones.
+///
+/// [`Scope`]: elide::recognition::Scope
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Findings {
-    /// The body group. `None` when no body pipeline produced
-    /// entities (pre-analyze, or the codec resolved the doc to a
-    /// modality with no pipeline).
+pub struct AnalyzedDocument {
+    /// The body group.
+    ///
+    /// `None` when no body pipeline produced entities (pre-analyze,
+    /// or the codec resolved the doc to a modality with no
+    /// pipeline).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<RecognizedGroup>,
     /// One entry per container part the orchestrator surfaced.
+    ///
     /// Keyed by the container-private part id (e.g. a DOCX zip
     /// entry name like `"word/media/image1.png"`); each value
     /// carries that part's modality + entities.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub parts: HashMap<String, RecognizedGroup>,
+    /// Recognition scope snapshot.
+    ///
+    /// The resolved label catalog + asserted languages,
+    /// countries, and document labels. Held so
+    /// [`Engine::anonymize_document`] can compile against the same
+    /// vocabulary analyze used without the caller re-passing an
+    /// `AnalyzerParams`.
+    ///
+    /// Required on the wire. A missing scope on an incoming
+    /// [`AnalyzedDocument`] would default to an empty catalog and
+    /// silently underfire every `TagOneOf` policy predicate;
+    /// rejecting at deserialize time surfaces the shape mismatch
+    /// at load, not at apply.
+    ///
+    /// [`Engine::anonymize_document`]: super::Engine::anonymize_document
+    pub scope: Scope,
 }
 
-/// A modality-tagged group of recognized entities. The unit
-/// [`Findings`] stores in `body` and in every `parts` entry.
+/// A modality-tagged group of recognized entities.
+///
+/// The unit [`AnalyzedDocument`] stores in `body` and in every
+/// `parts` entry.
 ///
 /// Tagged by `modality` (snake_case) so deserialization picks the
 /// right variant and the entity vec inside is statically typed
@@ -99,11 +142,12 @@ pub enum RecognizedGroup {
 pub struct EntityRecord<M: Modality> {
     /// The elide entity, as recognition produced it.
     pub entity: Entity<M>,
-    /// Reviewer-supplied override. `None` means "use the policy's
-    /// decision"; `Some(action)` overrides it for this specific
-    /// entity at apply time.
+    /// Reviewer-supplied override.
+    ///
+    /// `None` means "use the policy's decision"; `Some(action)`
+    /// overrides it for this specific entity at apply time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub r#override: Option<PolicyAction>,
+    pub reviewer_override: Option<PolicyAction>,
 }
 
 impl<M: Modality> EntityRecord<M> {
@@ -111,7 +155,7 @@ impl<M: Modality> EntityRecord<M> {
     pub fn new(entity: Entity<M>) -> Self {
         Self {
             entity,
-            r#override: None,
+            reviewer_override: None,
         }
     }
 }

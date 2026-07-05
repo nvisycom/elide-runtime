@@ -1,4 +1,6 @@
-//! Analyzer plan: serialisable description of how to build an
+//! Analyzer plan.
+//!
+//! Serialisable description of how to build an
 //! `elide::detection::Analyzer` for a request.
 //!
 //! Symmetric with [`policy`]. Where policy describes redaction
@@ -11,13 +13,14 @@
 //!
 //! - [`AnalyzerParams`]: top-level. Recognizers, enrichers,
 //!   dedup pipeline, scope, label catalog.
-//! - [`recognizer`]: per-recognizer specs (Pattern, NER, LLM).
-//! - [`enricher`]: per-enricher specs (language detection, OCR,
-//!   STT).
-//! - [`deduplication`]: calibrate / reconcile / filter
+//! - [`RecognizerParams`]: per-recognizer specs (Pattern, NER,
+//!   LLM).
+//! - [`EnricherParams`]: per-enricher specs (language detection,
+//!   OCR, STT).
+//! - [`DeduplicationParams`]: calibrate / reconcile / filter
 //!   strategies.
-//! - [`label`]: per-request label catalog selection. Builtins by
-//!   name plus custom inline schemas.
+//! - [`LabelCatalogParams`]: per-request label catalog selection.
+//!   Builtins by name plus custom inline schemas.
 //!
 //! Caller-asserted scope lives under [`AnalyzerParams::scope`],
 //! a single [`ScopeParams`] grouping `languages`, `countries`,
@@ -28,10 +31,10 @@
 //! [`policy`]: crate::policy
 
 mod analyzer;
-pub mod deduplication;
-pub mod enricher;
-pub mod label;
-pub mod recognizer;
+mod deduplication;
+mod enricher;
+mod label;
+mod recognizer;
 
 pub use self::analyzer::{AnalyzerParams, ScopeParams};
 pub use self::deduplication::{DeduplicationParams, MergingStrategyParams, TiebreakerParams};

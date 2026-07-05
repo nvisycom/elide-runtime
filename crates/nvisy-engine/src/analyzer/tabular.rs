@@ -20,7 +20,8 @@ use elide_core::modality::tabular::Tabular;
 use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
-use super::common::{attach_dedup, attach_ner_lineup, attach_pattern};
+use super::common::{attach_dedup, attach_pattern};
+use super::ner::attach_ner_lineup;
 
 /// Compile `spec` into a tabular-modality [`Analyzer`].
 pub(super) fn compile(spec: &AnalyzerParams, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error> {

@@ -2473,6 +2473,7 @@ dependencies = [
  "nvisy-schema",
  "schemars",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "uuid",

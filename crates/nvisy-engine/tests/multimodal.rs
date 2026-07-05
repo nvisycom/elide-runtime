@@ -8,10 +8,12 @@ mod fixtures;
 use std::io::Read;
 
 use bytes::Bytes;
+use elide_core::entity::LabelRef;
 use nvisy_engine::{AnalyzedDocument, Engine, RecognizedGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
-    AnalyzerParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams, ScopeParams,
+    AnalyzerParams, LabelCatalogParams, OcrBackendParams, OcrEnricherParams,
+    PatternRecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
@@ -141,6 +143,61 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     assert_eq!(
         image_bytes, original_image,
         "image part must round-trip unchanged when no override targets it",
+    );
+}
+
+#[tokio::test]
+async fn analyze_populates_scope_from_spec_label_catalog() {
+    let engine = engine();
+
+    let empty = engine
+        .analyze_document(raw_docx(), &default_spec(), &[])
+        .await
+        .expect("analyze succeeds");
+    assert!(
+        empty.scope.catalog.is_empty(),
+        "spec with no catalog entries must persist an empty scope catalog, \
+         got {} entries",
+        empty.scope.catalog.len(),
+    );
+
+    let mut spec = default_spec();
+    spec.scope.label_catalog = LabelCatalogParams {
+        builtins: vec!["email_address".to_owned()],
+        custom: Vec::new(),
+    };
+    let with_catalog = engine
+        .analyze_document(raw_docx(), &spec, &[])
+        .await
+        .expect("analyze succeeds");
+    assert!(
+        with_catalog
+            .scope
+            .catalog
+            .contains(&LabelRef::new("email_address")),
+        "spec.builtins = [email_address] must persist that label onto scope.catalog",
+    );
+}
+
+#[tokio::test]
+async fn analyzed_document_rejects_missing_scope_on_deserialize() {
+    let engine = engine();
+    let analyzed = engine
+        .analyze_document(raw_docx(), &default_spec(), &[])
+        .await
+        .expect("analyze succeeds");
+    let mut value = serde_json::to_value(&analyzed).expect("serialize");
+    value
+        .as_object_mut()
+        .expect("object")
+        .remove("scope")
+        .expect("scope was serialized");
+
+    let err = serde_json::from_value::<AnalyzedDocument>(value)
+        .expect_err("deserializing without scope must fail");
+    assert!(
+        err.to_string().contains("scope"),
+        "missing-field error must name `scope`, got: {err}",
     );
 }
 

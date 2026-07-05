@@ -126,3 +126,4 @@ bytes = { workspace = true, features = [] }
 
 # Test utilities
 zip = { workspace = true }
+serde_json = { workspace = true, features = [] }

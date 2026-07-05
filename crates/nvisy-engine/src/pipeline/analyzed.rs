@@ -72,8 +72,13 @@ pub struct AnalyzedDocument {
     /// same vocabulary analyze used without the caller
     /// re-passing an `AnalyzerParams`.
     ///
+    /// Required on the wire. A missing scope on an incoming
+    /// [`AnalyzedDocument`] would default to an empty catalog and
+    /// silently underfire every `TagOneOf` policy predicate;
+    /// rejecting at deserialize time surfaces the shape mismatch
+    /// at load, not at apply.
+    ///
     /// [`Engine::anonymize_document`]: super::Engine::anonymize_document
-    #[serde(default)]
     pub scope: Scope,
 }
 

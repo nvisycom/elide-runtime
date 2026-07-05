@@ -1,16 +1,30 @@
-//! Build a per-request [`Orchestrator`] from an [`AnalyzerParams`]
-//! plus the resolved policy + override sets.
+//! Build a per-request [`Orchestrator`] from either an
+//! [`AnalyzerParams`] (at analyze time) or a persisted
+//! [`Scope`] (at anonymize time).
 //!
 //! One pipeline per modality, all wired against a single
-//! [`elide::recognition::Scope`] (the request's caller-asserted
-//! scope + the compiled label catalog + a server-minted
-//! correlation id). The orchestrator is built fresh per call;
-//! it's a small map of trait objects keyed by modality `TypeId`,
-//! cheap to construct, and the per-call shape lets us re-resolve
-//! policies and scope per document at apply time without
-//! mutating a shared anonymizer.
+//! [`Scope`]. The orchestrator is built
+//! fresh per call; it's a small map of trait objects keyed by
+//! modality `TypeId`, cheap to construct, and the per-call
+//! shape lets us re-resolve policies and overrides per document
+//! at anonymize time without mutating a shared anonymizer.
+//!
+//! Two entry points:
+//!
+//! - [`Engine::build_analyze_orchestrator`] compiles the
+//!   analyzer chain from an [`AnalyzerParams`]; empty policies +
+//!   overrides. Consumed by [`Engine::analyze_document`].
+//! - [`Engine::build_anonymize_orchestrator`] takes the
+//!   persisted analyze-time [`Scope`] as-is; uses empty
+//!   analyzers (recognition already happened, apply just needs
+//!   the anonymizer stack) but a full policy + override set.
+//!   Consumed by [`Engine::anonymize_document`].
+//!
+//! [`Scope`]: elide::recognition::Scope
 
 use elide::Orchestrator;
+use elide::detection::Analyzer;
+use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::Modality;
@@ -39,103 +53,166 @@ use crate::anonymizer::{attach_override_text, attach_policies_text};
 const COMPONENT: &str = "pipeline::orchestrator";
 
 impl Engine {
-    /// Build an [`Orchestrator`] with one pipeline per modality
-    /// and a request-scoped [`Scope`].
+    /// Build an [`Orchestrator`] for the analyze path: compile
+    /// every per-modality analyzer from `spec`, wire empty
+    /// anonymizers (analyze doesn't run redaction), and stamp
+    /// the request-scoped [`Scope`].
     ///
-    /// `policies` is the resolved policy set (empty during
-    /// analyze). `overrides` are layered onto every modality's
-    /// anonymizer ahead of the policy chain; entity ids are
-    /// globally unique across body and parts, so an override
-    /// matches in exactly one pipeline (the one whose
-    /// recognized entities include that id) and is a no-op
-    /// everywhere else.
-    ///
-    /// Engine state (`formats`, `ner`, `llm`) comes from
-    /// `&self`. Only the per-request inputs sit on the
-    /// signature.
+    /// Returns both the orchestrator and the resolved [`Scope`]
+    /// so [`Engine::analyze_document`] can persist the scope onto
+    /// the returned [`super::AnalyzedDocument`] with
+    /// `correlation_id: None`. The orchestrator itself carries
+    /// the caller-supplied `correlation_id` for tracing spans.
     ///
     /// [`Scope`]: elide::recognition::Scope
-    pub(super) fn build_orchestrator(
+    pub(super) fn build_analyze_orchestrator(
         &self,
         spec: &AnalyzerParams,
-        policies: &[Policy],
-        overrides: &[(Uuid, PolicyAction)],
         correlation_id: Uuid,
-    ) -> Result<Orchestrator<'_>> {
+    ) -> Result<(Orchestrator<'_>, Scope)> {
         let catalog = spec.scope.label_catalog.compile();
-        // Assemble the orchestrator's `Scope` from the three
-        // wire knobs on `AnalyzerParams` + the caller-supplied
-        // `correlation_id` + the resolved catalog. The catalog
-        // has exactly one route (LabelCatalogParams); the
-        // correlation id is server-minted (typically the run
-        // id) and never appears on the wire shape.
-        let scope = elide::recognition::Scope {
+        let persisted_scope = Scope {
             languages: spec.scope.languages.clone(),
             countries: spec.scope.countries.clone(),
             labels: spec.scope.labels.clone(),
             catalog: catalog.clone(),
+            correlation_id: None,
+        };
+        let live_scope = Scope {
             correlation_id: Some(correlation_id),
+            ..persisted_scope.clone()
         };
 
-        let text = assemble::<Text, _, _>(
-            &catalog,
-            overrides,
-            policies,
-            attach_override_text,
-            attach_policies_text,
-        )?;
+        let text_anon = assemble_empty::<Text>(&catalog)?;
         let text_analyzer = spec
             .compile_text(&self.ner, &self.llm)
             .map_err(compile_err)?;
 
         #[allow(unused_mut)]
         let mut orchestrator = Orchestrator::new(&self.formats)
-            .with_scope(scope)
-            .with_modality::<Text>(text_analyzer, text);
+            .with_scope(live_scope)
+            .with_modality::<Text>(text_analyzer, text_anon);
 
         #[cfg(feature = "internal_tabular")]
         {
-            let tabular = assemble::<Tabular, _, _>(
-                &catalog,
+            let anon = assemble_empty::<Tabular>(&catalog)?;
+            let analyzer = spec.compile_tabular(&self.ner).map_err(compile_err)?;
+            orchestrator = orchestrator.with_modality::<Tabular>(analyzer, anon);
+        }
+
+        #[cfg(feature = "internal_image")]
+        {
+            let anon = assemble_empty::<Image>(&catalog)?;
+            let analyzer = spec
+                .compile_image(&self.ner, &self.llm)
+                .map_err(compile_err)?;
+            orchestrator = orchestrator.with_modality::<Image>(analyzer, anon);
+        }
+
+        #[cfg(feature = "internal_audio")]
+        {
+            let anon = assemble_empty::<Audio>(&catalog)?;
+            let analyzer = spec.compile_audio(&self.ner).map_err(compile_err)?;
+            orchestrator = orchestrator.with_modality::<Audio>(analyzer, anon);
+        }
+
+        Ok((orchestrator, persisted_scope))
+    }
+
+    /// Build an [`Orchestrator`] for the anonymize path: reuse
+    /// the persisted [`Scope`] from analyze, wire the requested
+    /// `policies` + reviewer `overrides` onto every modality's
+    /// anonymizer, and skip the analyzer compile (analysis
+    /// already happened; only [`Anonymizer`] state matters here).
+    ///
+    /// Each modality gets an empty [`Analyzer<M>`]; elide's
+    /// [`Orchestrator::anonymize_with`] doesn't run recognition
+    /// on this path, so an empty analyzer is a zero-cost
+    /// placeholder needed only to satisfy `with_modality`'s type
+    /// contract.
+    ///
+    /// The `correlation_id` from the anonymize-time
+    /// [`super::Document`] is stamped fresh onto the returned
+    /// orchestrator's scope so anonymize-side tracing spans are
+    /// distinct from the analyze-side ones.
+    ///
+    /// [`Scope`]: elide::recognition::Scope
+    /// [`Analyzer<M>`]: elide::detection::Analyzer
+    pub(super) fn build_anonymize_orchestrator(
+        &self,
+        scope: &Scope,
+        policies: &[Policy],
+        overrides: &[(Uuid, PolicyAction)],
+        correlation_id: Uuid,
+    ) -> Result<Orchestrator<'_>> {
+        let live_scope = Scope {
+            correlation_id: Some(correlation_id),
+            ..scope.clone()
+        };
+        let catalog = &scope.catalog;
+
+        let text_anon = assemble::<Text, _, _>(
+            catalog,
+            overrides,
+            policies,
+            attach_override_text,
+            attach_policies_text,
+        )?;
+
+        #[allow(unused_mut)]
+        let mut orchestrator = Orchestrator::new(&self.formats)
+            .with_scope(live_scope)
+            .with_modality::<Text>(Analyzer::<Text>::new(), text_anon);
+
+        #[cfg(feature = "internal_tabular")]
+        {
+            let anon = assemble::<Tabular, _, _>(
+                catalog,
                 overrides,
                 policies,
                 attach_override_tabular,
                 attach_policies_tabular,
             )?;
-            let tabular_analyzer = spec.compile_tabular(&self.ner).map_err(compile_err)?;
-            orchestrator = orchestrator.with_modality::<Tabular>(tabular_analyzer, tabular);
+            orchestrator = orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon);
         }
 
         #[cfg(feature = "internal_image")]
         {
-            let image = assemble::<Image, _, _>(
-                &catalog,
+            let anon = assemble::<Image, _, _>(
+                catalog,
                 overrides,
                 policies,
                 attach_override_image,
                 attach_policies_image,
             )?;
-            let image_analyzer = spec
-                .compile_image(&self.ner, &self.llm)
-                .map_err(compile_err)?;
-            orchestrator = orchestrator.with_modality::<Image>(image_analyzer, image);
+            orchestrator = orchestrator.with_modality::<Image>(Analyzer::<Image>::new(), anon);
         }
 
         #[cfg(feature = "internal_audio")]
         {
-            let audio = assemble::<Audio, _, _>(
-                &catalog,
+            let anon = assemble::<Audio, _, _>(
+                catalog,
                 overrides,
                 policies,
                 attach_override_audio,
                 attach_policies_audio,
             )?;
-            let audio_analyzer = spec.compile_audio(&self.ner).map_err(compile_err)?;
-            orchestrator = orchestrator.with_modality::<Audio>(audio_analyzer, audio);
+            orchestrator = orchestrator.with_modality::<Audio>(Analyzer::<Audio>::new(), anon);
         }
 
         Ok(orchestrator)
     }
+}
+
+/// Empty per-modality anonymizer: catalog only, no policies,
+/// no overrides. Used on the analyze path where redaction isn't
+/// yet in play; [`Anonymizer`] presence is required by
+/// [`Orchestrator::with_modality`]'s type contract.
+fn assemble_empty<M>(catalog: &LabelCatalog) -> Result<Anonymizer<M>>
+where
+    M: Modality + 'static,
+{
+    Ok(Anonymizer::<M>::new().with_catalog(catalog.clone()))
 }
 
 /// Assemble one modality's anonymizer: seed with the catalog,

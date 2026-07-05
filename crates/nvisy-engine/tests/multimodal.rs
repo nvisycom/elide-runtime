@@ -120,7 +120,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     }));
 
     let outcome = engine
-        .anonymize_document(raw_docx(), &default_spec(), &[], &analyzed)
+        .anonymize_document(raw_docx(), &[], &analyzed)
         .await
         .expect("anonymize succeeds");
     write_artefact("sample", "docx", &outcome.bytes);
@@ -148,12 +148,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
 async fn empty_analyzed_document_anonymize_fails_validation() {
     let engine = engine();
     let outcome = engine
-        .anonymize_document(
-            raw_docx(),
-            &default_spec(),
-            &[],
-            &AnalyzedDocument::default(),
-        )
+        .anonymize_document(raw_docx(), &[], &AnalyzedDocument::default())
         .await;
     let err = outcome.expect_err("anonymize must reject a missing body group");
     assert!(

@@ -21,6 +21,7 @@
 
 use std::collections::HashMap;
 
+use elide::recognition::Scope;
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
 #[cfg(feature = "internal_audio")]
@@ -35,7 +36,22 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// What detection found in one document: the body group plus
-/// per-container-part groups, each tagged by modality.
+/// per-container-part groups (each tagged by modality) plus a
+/// snapshot of the recognition [`Scope`] the entities were
+/// scored against.
+///
+/// The scope snapshot travels with the entities so anonymize
+/// can rebuild an orchestrator against exactly the vocabulary
+/// analyze used. Anything a policy predicate compares against
+/// (label catalog, document-level classification labels,
+/// asserted languages / jurisdictions) is here.
+///
+/// `correlation_id` on the persisted scope is always `None`; the
+/// anonymize call supplies a fresh id from the passed
+/// [`Document`](nvisy_schema::file::Document) so anonymize-side
+/// tracing spans are distinct from the analyze-side ones.
+///
+/// [`Scope`]: elide::recognition::Scope
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzedDocument {
@@ -50,6 +66,15 @@ pub struct AnalyzedDocument {
     /// carries that part's modality + entities.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub parts: HashMap<String, RecognizedGroup>,
+    /// Recognition scope snapshot: the resolved label catalog +
+    /// asserted languages, countries, and document labels. Held
+    /// so [`Engine::anonymize_document`] can compile against the
+    /// same vocabulary analyze used without the caller
+    /// re-passing an `AnalyzerParams`.
+    ///
+    /// [`Engine::anonymize_document`]: super::Engine::anonymize_document
+    #[serde(default)]
+    pub scope: Scope,
 }
 
 /// A modality-tagged group of recognized entities. The unit

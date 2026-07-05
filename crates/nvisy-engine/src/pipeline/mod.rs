@@ -28,15 +28,24 @@
 //!
 //! Both methods build a fresh [`Orchestrator`] per call: it is a
 //! small map of trait objects keyed by modality `TypeId`, cheap
-//! to construct. The per-call shape lets us re-resolve policies +
-//! scope per document at anonymize time without mutating a shared
+//! to construct. The per-call shape lets us re-resolve policies
+//! per document at anonymize time without mutating a shared
 //! anonymizer.
 //!
-//! Hosts hold the returned [`AnalyzedDocument`] between analyze and
-//! anonymize however they see fit — in memory, in a run store,
-//! in a reviewer UI's state — and hand it back to
+//! The recognition [`Scope`] (label catalog + asserted
+//! languages, countries, and document labels) is compiled once
+//! by analyze and persisted onto [`AnalyzedDocument::scope`];
+//! anonymize reads it from there. Callers do not re-pass an
+//! [`AnalyzerParams`] to anonymize — analyze's vocabulary and
+//! anonymize's vocabulary are the same by construction.
+//!
+//! Hosts hold the returned [`AnalyzedDocument`] between analyze
+//! and anonymize however they see fit — in memory, in a run
+//! store, in a reviewer UI's state — and hand it back to
 //! `anonymize_document` with any per-entity reviewer overrides
 //! folded in.
+//!
+//! [`Scope`]: elide::recognition::Scope
 //!
 //! ## Internal layout
 //!
@@ -73,6 +82,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use elide::Report;
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
@@ -179,7 +189,7 @@ impl Engine {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
-        let orchestrator = self.build_orchestrator(spec, &[], &[], correlation_id)?;
+        let (orchestrator, scope) = self.build_analyze_orchestrator(spec, correlation_id)?;
         let mut report = orchestrator.analyze(&mut handle).await.map_err(|err| {
             Error::internal("orchestrator analyze failed", COMPONENT).with_source(err)
         })?;
@@ -225,21 +235,26 @@ impl Engine {
         Ok(AnalyzedDocument {
             body: Some(body_group),
             parts,
+            scope,
         })
     }
 
-    /// Re-decode `document`, rebuild a multi-group
-    /// [`elide::Report`] from the analyze-returned body + parts,
-    /// drive [`Orchestrator::anonymize_with`] with the reviewer
-    /// overrides extracted from every group and the caller-filtered
-    /// `policies`, and return the re-encoded redacted bytes.
+    /// Re-decode `document`, rebuild a multi-group [`Report`]
+    /// from the analyze-returned body + parts, drive
+    /// [`Orchestrator::anonymize_with`] with the reviewer
+    /// overrides extracted from every group and the
+    /// caller-filtered `policies`, and return the re-encoded
+    /// redacted bytes.
     ///
     /// `policies` is the policy set already filtered by
     /// [`Policy::applies_when`] against the per-doc facts; the
-    /// engine does not re-evaluate predicates. `spec` is the same
-    /// [`AnalyzerParams`] that drove analyze (needed for the label
-    /// catalog). The document's `correlation_id` is threaded into
-    /// tracing spans on the redaction path.
+    /// engine does not re-evaluate predicates. The vocabulary
+    /// the anonymizer compiles against (label catalog, asserted
+    /// languages / jurisdictions / labels) travels on
+    /// [`analyzed.scope`], persisted by analyze — the caller
+    /// does not re-pass an [`AnalyzerParams`]. The document's
+    /// `correlation_id` is threaded into tracing spans on the
+    /// redaction path.
     ///
     /// The body's modality (read from `analyzed.body`'s
     /// [`RecognizedGroup`] variant) pins which typed handle the
@@ -250,10 +265,10 @@ impl Engine {
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
     /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
     /// [`RecognizedGroup`]: crate::RecognizedGroup
+    /// [`analyzed.scope`]: AnalyzedDocument::scope
     pub async fn anonymize_document(
         &self,
         document: Document,
-        spec: &AnalyzerParams,
         policies: &[Policy],
         analyzed: &AnalyzedDocument,
     ) -> Result<AnonymizedDocument> {
@@ -265,7 +280,7 @@ impl Engine {
         })?;
         let correlation_id = document.correlation_id;
         let mut handle = self.decode(document).await?;
-        let mut report = insert_body(elide::Report::new(), body_group);
+        let mut report = insert_body(Report::new(), body_group);
         let mut overrides: Vec<(Uuid, PolicyAction)> = Vec::new();
         collect_overrides_into(&mut overrides, body_group);
         for (id, group) in &analyzed.parts {
@@ -273,7 +288,12 @@ impl Engine {
             collect_overrides_into(&mut overrides, group);
         }
 
-        let orchestrator = self.build_orchestrator(spec, policies, &overrides, correlation_id)?;
+        let orchestrator = self.build_anonymize_orchestrator(
+            &analyzed.scope,
+            policies,
+            &overrides,
+            correlation_id,
+        )?;
         orchestrator
             .anonymize_with(&mut handle, report)
             .await
@@ -306,7 +326,7 @@ impl Engine {
 /// disabled in this build falls through to `None`, and the caller
 /// treats it the same as a part the engine doesn't model.
 fn take_part_dispatch(
-    report: &mut elide::Report,
+    report: &mut Report,
     id: &PartId,
     type_id: TypeId,
 ) -> Option<RecognizedGroup> {

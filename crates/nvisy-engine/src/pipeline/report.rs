@@ -31,6 +31,7 @@
 
 use std::mem;
 
+use elide::Report;
 use elide::codec::{PartId, UntypedDocumentHandle};
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
@@ -82,7 +83,7 @@ impl_group_carrier!(Audio, Audio);
 /// Drain the body's entities from `report` into a
 /// [`RecognizedGroup`] of `M`'s variant, or `None` if the body
 /// is a different modality.
-pub(super) fn take_body<M: GroupCarrier>(report: &mut elide::Report) -> Option<RecognizedGroup> {
+pub(super) fn take_body<M: GroupCarrier>(report: &mut Report) -> Option<RecognizedGroup> {
     let entities = mem::take(report.entities::<M>()?);
     Some(M::into_group(entities))
 }
@@ -90,7 +91,7 @@ pub(super) fn take_body<M: GroupCarrier>(report: &mut elide::Report) -> Option<R
 /// Drain the part `id`'s entities into a [`RecognizedGroup`] of
 /// `M`'s variant, or `None` if `M` is not that part's modality.
 pub(super) fn take_part<M: GroupCarrier>(
-    report: &mut elide::Report,
+    report: &mut Report,
     id: &PartId,
 ) -> Option<RecognizedGroup> {
     let entities = mem::take(report.part_entities::<M>(id)?);
@@ -98,7 +99,7 @@ pub(super) fn take_part<M: GroupCarrier>(
 }
 
 /// Insert the body group into `report` under its modality.
-pub(super) fn insert_body(report: elide::Report, group: &RecognizedGroup) -> elide::Report {
+pub(super) fn insert_body(report: Report, group: &RecognizedGroup) -> Report {
     match group {
         RecognizedGroup::Text { entities } => report.insert_body::<Text>(clone_entities(entities)),
         #[cfg(feature = "internal_tabular")]
@@ -117,11 +118,7 @@ pub(super) fn insert_body(report: elide::Report, group: &RecognizedGroup) -> eli
 }
 
 /// Insert one part group into `report` under its modality.
-pub(super) fn insert_part(
-    report: elide::Report,
-    id: &str,
-    group: &RecognizedGroup,
-) -> elide::Report {
+pub(super) fn insert_part(report: Report, id: &str, group: &RecognizedGroup) -> Report {
     let part_id = PartId::from(id.to_owned());
     match group {
         RecognizedGroup::Text { entities } => {

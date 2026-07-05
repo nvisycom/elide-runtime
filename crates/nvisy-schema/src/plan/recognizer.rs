@@ -1,5 +1,4 @@
-//! Recognizer params: per-kind slots inside an
-//! [`AnalyzerParams`].
+//! Recognizer params: per-kind slots inside an [`AnalyzerParams`].
 //!
 //! Three recognizer kinds (pattern, NER, LLM):
 //!

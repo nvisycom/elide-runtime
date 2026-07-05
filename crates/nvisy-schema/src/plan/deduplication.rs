@@ -46,8 +46,10 @@ pub struct DeduplicationParams {
     pub min_confidence: Option<ConfidenceThreshold>,
 }
 
-/// Strategy the merging reconciler uses to combine same-label
-/// overlapping findings into one entity.
+/// How the merging reconciler combines same-label overlaps.
+///
+/// Picks one entity per overlapping cluster of findings that
+/// share a label.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -61,8 +63,10 @@ pub enum MergingStrategyParams {
     NoisyOr,
 }
 
-/// Tiebreaker the structural reconciler uses to pick a winner
-/// when overlapping entities carry different labels.
+/// How the structural reconciler picks a winner across labels.
+///
+/// Runs after merging when overlapping entities carry different
+/// labels.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

@@ -1,5 +1,4 @@
-//! Enricher params: per-kind slots inside an
-//! [`AnalyzerParams`].
+//! Enricher params: per-kind slots inside an [`AnalyzerParams`].
 //!
 //! Three enricher kinds (language detection, OCR, STT), each
 //! at-most-one per analyzer. Enrichers run sequentially before

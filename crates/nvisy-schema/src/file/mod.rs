@@ -1,6 +1,8 @@
-//! File types: [`FileMetadata`] (the persisted descriptor),
-//! [`FileLineage`] (provenance for engine-produced files), and
-//! [`Document`] (the in-memory codec input).
+//! File types for the wire and in-memory carriers.
+//!
+//! [`FileMetadata`] is the persisted descriptor, [`FileLineage`]
+//! carries provenance for engine-produced files, and [`Document`]
+//! is the in-memory codec input.
 //!
 //! A file in the engine is a `(metadata, bytes)` pair: the bytes
 //! live in a blob-separated keyspace, the metadata in a small

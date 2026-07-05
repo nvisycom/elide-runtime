@@ -33,23 +33,29 @@ use super::recognizer::RecognizerParams;
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerParams {
-    /// Recognizer slots: pattern (at-most-one), ner, llm
-    /// (each a list, identified by name).
+    /// Recognizer slots.
+    ///
+    /// Pattern (at-most-one), ner, llm (each a list, identified
+    /// by name).
     #[serde(default)]
     pub recognizers: RecognizerParams,
     /// Enricher slots: language, ocr, stt (each at-most-one).
-    /// Enrichers run sequentially before recognition; the
-    /// engine picks a canonical order (language → ocr → stt).
+    ///
+    /// Enrichers run sequentially before recognition; the engine
+    /// picks a canonical order (language → ocr → stt).
     #[serde(default)]
     pub enrichers: EnricherParams,
-    /// Deduplication pipeline applied after recognition:
-    /// calibrate → reconcile → filter.
+    /// Deduplication pipeline applied after recognition.
+    ///
+    /// Calibrate → reconcile → filter.
     #[serde(default)]
     pub deduplication: DeduplicationParams,
-    /// Caller-asserted scope: languages, jurisdictions, document
-    /// labels, and the per-request entity-label catalog. Engine
-    /// assembles this (plus a server-minted correlation id) into
-    /// an `elide::recognition::Scope` at compile time.
+    /// Caller-asserted scope.
+    ///
+    /// Languages, jurisdictions, document labels, and the
+    /// per-request entity-label catalog. Engine assembles this
+    /// (plus a server-minted correlation id) into an
+    /// `elide::recognition::Scope` at compile time.
     #[serde(default)]
     pub scope: ScopeParams,
 }
@@ -63,22 +69,26 @@ pub struct AnalyzerParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ScopeParams {
-    /// Caller-asserted languages for the analysis. Empty means
-    /// the caller asserted none, leaving detection (if a language
-    /// enricher runs) to fill in.
+    /// Caller-asserted languages for the analysis.
+    ///
+    /// Empty means the caller asserted none, leaving detection
+    /// (if a language enricher runs) to fill in.
     #[serde(default)]
     pub languages: Languages,
-    /// Caller-asserted jurisdictions. When non-empty, recognizers
-    /// that carry per-rule country scopes skip rules that match
-    /// none of them. An empty list means "any": rules that declare
-    /// countries still run as a permissive fallback so callers who
-    /// don't assert a jurisdiction don't lose detections.
+    /// Caller-asserted jurisdictions.
+    ///
+    /// When non-empty, recognizers that carry per-rule country
+    /// scopes skip rules that match none of them. An empty list
+    /// means "any": rules that declare countries still run as a
+    /// permissive fallback so callers who don't assert a
+    /// jurisdiction don't lose detections.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub countries: Vec<CountryCode>,
-    /// Document-level classification labels (e.g. `"medical"`,
-    /// `"gdpr-request"`). Recognizers may use these to bias their
-    /// behaviour for domain-specific terms; those that don't
-    /// ignore the field.
+    /// Document-level classification labels.
+    ///
+    /// E.g. `"medical"`, `"gdpr-request"`. Recognizers may use
+    /// these to bias their behaviour for domain-specific terms;
+    /// those that don't ignore the field.
     ///
     /// Distinct from [`label_catalog`]: these classify the
     /// *document*, whereas the catalog names the entity *types*
@@ -87,12 +97,13 @@ pub struct ScopeParams {
     /// [`label_catalog`]: ScopeParams::label_catalog
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub labels: Vec<String>,
-    /// Per-request entity-label catalog: builtins selected by
-    /// name + custom inline schemas. Drives what recognizers are
-    /// asked to emit and tag-based selector matching in the
-    /// anonymizer. Engine resolves this into the assembled
-    /// `elide::recognition::Scope`'s `catalog` field at compile
-    /// time.
+    /// Per-request entity-label catalog.
+    ///
+    /// Builtins selected by name + custom inline schemas. Drives
+    /// what recognizers are asked to emit and tag-based selector
+    /// matching in the anonymizer. Engine resolves this into the
+    /// assembled `elide::recognition::Scope`'s `catalog` field at
+    /// compile time.
     #[serde(default)]
     pub label_catalog: LabelCatalogParams,
 }

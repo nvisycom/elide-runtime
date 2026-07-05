@@ -23,14 +23,16 @@ use elide_core::entity::Label;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Per-request label-catalog selection. Picks builtins by name +
-/// adds inline custom schemas.
+/// Per-request label-catalog selection.
+///
+/// Picks builtins by name + adds inline custom schemas.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelCatalogParams {
-    /// Builtin label names to enable (e.g. `"email_address"`,
-    /// `"phone_number"`). Unknown names log a warning and are
-    /// skipped.
+    /// Builtin label names to enable.
+    ///
+    /// E.g. `"email_address"`, `"phone_number"`. Unknown names
+    /// log a warning and are skipped.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub builtins: Vec<String>,
     /// Custom labels defined inline by the caller.

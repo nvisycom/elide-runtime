@@ -12,31 +12,34 @@ use elide_core::primitive::LanguageTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Enricher slots an analyzer can fill. Each slot is
-/// at-most-one; the slot name is the kind.
+/// Enricher slots an analyzer can fill.
+///
+/// Each slot is at-most-one; the slot name is the kind.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EnricherParams {
-    /// Detect the document's primary language(s) and write them
+    /// Language-detection enricher.
+    ///
+    /// Detects the document's primary language(s) and writes them
     /// into the recognizer context. Drives jurisdiction-aware
     /// recognizer dispatch downstream.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<LanguageEnricherParams>,
-    /// OCR the image (or PDF page raster) and stamp the
+    /// OCR enricher (image modality only).
+    ///
+    /// OCRs the image (or PDF page raster) and stamps the
     /// recognised [`Layout`] onto the recognizer context, so
     /// downstream text recognizers can match on the OCR'd text.
-    ///
-    /// Image modality only.
     ///
     /// [`Layout`]: elide_core::modality::image::Layout
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ocr: Option<OcrEnricherParams>,
-    /// Speech-to-text: transcribe the audio stream and stamp
-    /// the resulting [`TranscriptSegment`]s onto the recognizer
-    /// context, so downstream text recognizers can match
-    /// against the transcript.
+    /// Speech-to-text enricher (audio modality only).
     ///
-    /// Audio modality only.
+    /// Transcribes the audio stream and stamps the resulting
+    /// [`TranscriptSegment`]s onto the recognizer context, so
+    /// downstream text recognizers can match against the
+    /// transcript.
     ///
     /// [`TranscriptSegment`]: elide_core::modality::audio::TranscriptSegment
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -54,11 +57,12 @@ pub struct EnricherParams {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LanguageEnricherParams {
-    /// Candidate language pool the detector picks from. Empty means
-    /// "every language lingua was compiled with"; a non-empty list
-    /// restricts detection to those languages and is a real
-    /// speed + accuracy win when the caller knows what languages
-    /// their documents are in.
+    /// Candidate language pool the detector picks from.
+    ///
+    /// Empty means "every language lingua was compiled with"; a
+    /// non-empty list restricts detection to those languages and
+    /// is a real speed + accuracy win when the caller knows what
+    /// languages their documents are in.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub candidates: Vec<LanguageTag>,
 }
@@ -70,8 +74,9 @@ pub struct LanguageEnricherParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OcrEnricherParams {
-    /// Backend selection + its per-kind fields, flattened onto
-    /// the enricher's wire shape.
+    /// Backend selection + its per-kind fields.
+    ///
+    /// Flattened onto the enricher's wire shape.
     #[serde(flatten)]
     pub backend: OcrBackendParams,
 }
@@ -81,9 +86,10 @@ pub struct OcrEnricherParams {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum OcrBackendParams {
-    /// BentoML-hosted OCR service. Engine wires the shared
-    /// `elide-bento` client; per-request URL + model come from
-    /// this variant.
+    /// BentoML-hosted OCR service.
+    ///
+    /// Engine wires the shared `elide-bento` client; per-request
+    /// URL + model come from this variant.
     Bento {
         /// Base URL of the BentoML service.
         base_url: String,
@@ -103,8 +109,9 @@ pub enum OcrBackendParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SttEnricherParams {
-    /// Backend selection + its per-kind fields, flattened onto
-    /// the enricher's wire shape.
+    /// Backend selection + its per-kind fields.
+    ///
+    /// Flattened onto the enricher's wire shape.
     #[serde(flatten)]
     pub backend: SttBackendParams,
 }
@@ -114,9 +121,10 @@ pub struct SttEnricherParams {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SttBackendParams {
-    /// BentoML-hosted STT service. Per-request URL + model come
-    /// from this variant. Engine wiring lands when
-    /// `elide-bento` ships a `BentoStt` client.
+    /// BentoML-hosted STT service.
+    ///
+    /// Per-request URL + model come from this variant. Engine
+    /// wiring lands when `elide-bento` ships a `BentoStt` client.
     Bento {
         /// Base URL of the BentoML service.
         base_url: String,

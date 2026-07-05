@@ -20,9 +20,9 @@
 //!
 //! Each per-modality `compile` entry walks `&[Policy]` in
 //! precedence order; within each policy, rules are tried in
-//! declared order; the first matching rule's operator wins. Each
-//! policy's `default_action`, if Redact with that modality's arm
-//! set, becomes the anonymizer's fallback.
+//! declared order; the first matching rule's operator wins. A
+//! policy's `fallback`, if Redact with that modality's arm set,
+//! becomes the anonymizer's catch-all.
 //!
 //! ## Audit decoration
 //!

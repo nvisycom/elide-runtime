@@ -3,11 +3,16 @@
 //! [`Scope`] (at anonymize time).
 //!
 //! One pipeline per modality, all wired against a single
-//! [`Scope`]. The orchestrator is built
-//! fresh per call; it's a small map of trait objects keyed by
-//! modality `TypeId`, cheap to construct, and the per-call
-//! shape lets us re-resolve policies and overrides per document
-//! at anonymize time without mutating a shared anonymizer.
+//! [`Scope`]. The orchestrator is built fresh per call: a small
+//! map of trait objects keyed by modality `TypeId`. The
+//! anonymize path is cheap — empty analyzers, per-request
+//! policy + override attachment. The analyze path is not free —
+//! LLM recognizers construct their [`RigBackend`] client on
+//! every compile — but the per-call shape is what lets us
+//! re-resolve policies and overrides per document at anonymize
+//! time without mutating a shared anonymizer.
+//!
+//! [`RigBackend`]: elide_llm::backend::RigBackend
 //!
 //! Two entry points:
 //!

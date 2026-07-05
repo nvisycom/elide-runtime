@@ -5,7 +5,7 @@
 //! `test-utils` feature).
 
 use elide::detection::Analyzer;
-use elide::recognition::llm::LlmRecognizer;
+use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide_core::{Error, ErrorKind};
 #[cfg(feature = "test-utils")]
 use elide_llm::backend::MockBackend as MockLlmBackend;
@@ -110,9 +110,9 @@ where
 }
 
 fn attach_backend<M>(
-    builder: elide::recognition::llm::LlmRecognizerBuilder<M>,
+    builder: LlmRecognizerBuilder<M>,
     spec: &ConfigRecognizer,
-) -> Result<elide::recognition::llm::LlmRecognizerBuilder<M>, Error>
+) -> Result<LlmRecognizerBuilder<M>, Error>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,

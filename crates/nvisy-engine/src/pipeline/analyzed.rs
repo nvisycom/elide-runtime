@@ -137,7 +137,7 @@ pub struct EntityRecord<M: Modality> {
     /// Reviewer-supplied override. `None` means "use the policy's
     /// decision"; `Some(action)` overrides it for this specific
     /// entity at apply time.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "override", default, skip_serializing_if = "Option::is_none")]
     pub r#override: Option<PolicyAction>,
 }
 

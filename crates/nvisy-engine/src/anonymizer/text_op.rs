@@ -8,6 +8,7 @@
 //! elide operator` bridge once; each per-modality file dispatches
 //! its variant onto a [`Target`] with the built operator.
 
+use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Erase, Keep, Mask, Replace, Sha2Algorithm, Sha2Hash};
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
@@ -46,7 +47,7 @@ impl TextOp {
     /// anonymizer accepts the text operator set (elide ships
     /// `impl Operator<Text>` and `impl Operator<Tabular>` on all
     /// five concrete ops).
-    pub(super) fn attach_to<M>(self, target: Target<'_, M>) -> elide::redaction::Anonymizer<M>
+    pub(super) fn attach_to<M>(self, target: Target<'_, M>) -> Anonymizer<M>
     where
         M: Modality + 'static,
         Erase: Operator<M>,

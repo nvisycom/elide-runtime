@@ -88,7 +88,7 @@ impl Engine {
             ..persisted_scope.clone()
         };
 
-        let text_anon = assemble_empty::<Text>(&catalog)?;
+        let text_anon = assemble_empty::<Text>(&catalog);
         let text_analyzer = spec
             .compile_text(&self.ner, &self.llm)
             .map_err(compile_err)?;
@@ -100,14 +100,14 @@ impl Engine {
 
         #[cfg(feature = "internal_tabular")]
         {
-            let anon = assemble_empty::<Tabular>(&catalog)?;
+            let anon = assemble_empty::<Tabular>(&catalog);
             let analyzer = spec.compile_tabular(&self.ner).map_err(compile_err)?;
             orchestrator = orchestrator.with_modality::<Tabular>(analyzer, anon);
         }
 
         #[cfg(feature = "internal_image")]
         {
-            let anon = assemble_empty::<Image>(&catalog)?;
+            let anon = assemble_empty::<Image>(&catalog);
             let analyzer = spec
                 .compile_image(&self.ner, &self.llm)
                 .map_err(compile_err)?;
@@ -116,7 +116,7 @@ impl Engine {
 
         #[cfg(feature = "internal_audio")]
         {
-            let anon = assemble_empty::<Audio>(&catalog)?;
+            let anon = assemble_empty::<Audio>(&catalog);
             let analyzer = spec.compile_audio(&self.ner).map_err(compile_err)?;
             orchestrator = orchestrator.with_modality::<Audio>(analyzer, anon);
         }
@@ -213,11 +213,11 @@ impl Engine {
 /// no overrides. Used on the analyze path where redaction isn't
 /// yet in play; [`Anonymizer`] presence is required by
 /// [`Orchestrator::with_modality`]'s type contract.
-fn assemble_empty<M>(catalog: &LabelCatalog) -> Result<Anonymizer<M>>
+fn assemble_empty<M>(catalog: &LabelCatalog) -> Anonymizer<M>
 where
     M: Modality + 'static,
 {
-    Ok(Anonymizer::<M>::new().with_catalog(catalog.clone()))
+    Anonymizer::<M>::new().with_catalog(catalog.clone())
 }
 
 /// Assemble one modality's anonymizer: seed with the catalog,

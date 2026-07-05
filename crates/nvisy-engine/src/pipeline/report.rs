@@ -162,11 +162,11 @@ pub(super) fn collect_overrides_into(out: &mut Vec<(Uuid, PolicyAction)>, group:
 }
 
 fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, PolicyAction)>, records: &[EntityRecord<M>]) {
-    out.extend(
-        records
-            .iter()
-            .filter_map(|r| r.r#override.as_ref().map(|a| (r.entity.id, a.clone()))),
-    );
+    out.extend(records.iter().filter_map(|r| {
+        r.reviewer_override
+            .as_ref()
+            .map(|a| (r.entity.id, a.clone()))
+    }));
 }
 
 /// After `anonymize_with` mutated `handle` in place, recover the

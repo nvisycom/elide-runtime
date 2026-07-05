@@ -105,9 +105,10 @@ use self::report::{
 
 const COMPONENT: &str = "pipeline";
 
-/// Cheaply-cloneable pipeline adapter: codec registry + the
-/// deployment's NER / LLM lineups + the per-request orchestrator
-/// constructor.
+/// Cheaply-cloneable pipeline adapter over [`elide`].
+///
+/// Bundles the codec registry, the deployment's NER / LLM
+/// lineups, and the per-request orchestrator constructor.
 #[derive(Clone, Default)]
 pub struct Engine {
     formats: Arc<FormatRegistry>,
@@ -115,8 +116,9 @@ pub struct Engine {
     llm: Arc<nvisy_core::llm::LlmConfig>,
 }
 
-/// The redacted output of [`Engine::anonymize_document`]: the
-/// re-encoded document bytes after every applicable redaction
+/// The redacted output of [`Engine::anonymize_document`].
+///
+/// Re-encoded document bytes after every applicable redaction
 /// operator ran.
 #[derive(Debug, Clone)]
 pub struct AnonymizedDocument {
@@ -125,10 +127,11 @@ pub struct AnonymizedDocument {
 }
 
 impl Engine {
-    /// New engine paired with elide's built-in codec set
-    /// ([`FormatRegistry::with_builtin`]) plus empty NER and LLM
-    /// lineups. Callers that want NER or LLM recognition must
-    /// chain [`with_ner`](Self::with_ner) or
+    /// New engine paired with elide's built-in codec set.
+    ///
+    /// Uses [`FormatRegistry::with_builtin`] plus empty NER and
+    /// LLM lineups. Callers that want NER or LLM recognition
+    /// must chain [`with_ner`](Self::with_ner) or
     /// [`with_llm`](Self::with_llm).
     pub fn new() -> Self {
         Self {
@@ -138,37 +141,45 @@ impl Engine {
         }
     }
 
-    /// Set the deployment's NER configuration. Consumed once at
-    /// setup; the analyzer compile reads it every time a request
-    /// submits `AnalyzerParams.recognizers.ner = true`.
+    /// Set the deployment's NER configuration.
+    ///
+    /// Consumed once at setup; the analyzer compile reads it
+    /// every time a request submits
+    /// `AnalyzerParams.recognizers.ner = true`.
     #[must_use]
     pub fn with_ner(mut self, ner: nvisy_core::ner::NerConfig) -> Self {
         self.ner = Arc::new(ner);
         self
     }
 
-    /// Set the deployment's LLM configuration. Consumed once at
-    /// setup; the analyzer compile reads it every time a request
-    /// submits `AnalyzerParams.recognizers.llm = true`.
+    /// Set the deployment's LLM configuration.
+    ///
+    /// Consumed once at setup; the analyzer compile reads it
+    /// every time a request submits
+    /// `AnalyzerParams.recognizers.llm = true`.
     #[must_use]
     pub fn with_llm(mut self, llm: nvisy_core::llm::LlmConfig) -> Self {
         self.llm = Arc::new(llm);
         self
     }
 
-    /// The codec registry. Pipeline calls reach for it to decode
-    /// raw bytes into an [`UntypedDocumentHandle`].
+    /// The codec registry.
+    ///
+    /// Pipeline calls reach for it to decode raw bytes into an
+    /// [`UntypedDocumentHandle`].
     pub fn formats(&self) -> &FormatRegistry {
         &self.formats
     }
 
-    /// Decode `document`, drive [`Orchestrator::analyze`], project
-    /// the report onto the caller-facing [`AnalyzedDocument`].
+    /// Analyze one document into an [`AnalyzedDocument`].
     ///
-    /// Captures the body group *and* every container part group
-    /// (DOCX embedded images, archive members, ...) the
-    /// orchestrator returned; each returned group carries its
-    /// own modality tag via its [`RecognizedGroup`] variant.
+    /// Decodes `document`, drives [`Orchestrator::analyze`], and
+    /// projects the report onto the caller-facing
+    /// [`AnalyzedDocument`]. Captures the body group *and* every
+    /// container part group (DOCX embedded images, archive
+    /// members, ...) the orchestrator returned; each returned
+    /// group carries its own modality tag via its
+    /// [`RecognizedGroup`] variant.
     ///
     /// `contexts` is a placeholder for the deployment's
     /// reference-data collections. Reserved on the API: no
@@ -239,11 +250,13 @@ impl Engine {
         })
     }
 
-    /// Re-decode `document`, rebuild a multi-group [`Report`]
-    /// from the analyze-returned body + parts, drive
+    /// Anonymize one document against a policy set and reviewer overrides.
+    ///
+    /// Re-decodes `document`, rebuilds a multi-group [`Report`]
+    /// from the analyze-returned body + parts, drives
     /// [`Orchestrator::anonymize_with`] with the reviewer
     /// overrides extracted from every group and the
-    /// caller-filtered `policies`, and return the re-encoded
+    /// caller-filtered `policies`, and returns the re-encoded
     /// redacted bytes.
     ///
     /// `policies` is the policy set already filtered by

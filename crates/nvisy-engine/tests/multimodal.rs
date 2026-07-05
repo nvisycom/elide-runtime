@@ -114,7 +114,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     muts.iter_mut()
         .find(|r| r.entity.id == target_id)
         .expect("entity present")
-        .r#override = Some(PolicyAction::Redact(ModalityRedactions {
+        .reviewer_override = Some(PolicyAction::Redact(ModalityRedactions {
         text: Some(TextRedaction::Erase),
         tabular: None,
         image: None,

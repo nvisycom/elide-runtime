@@ -35,10 +35,11 @@ use nvisy_schema::policy::PolicyAction;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// What detection found in one document: the body group plus
-/// per-container-part groups (each tagged by modality) plus a
-/// snapshot of the recognition [`Scope`] the entities were
-/// scored against.
+/// What detection found in one document.
+///
+/// The body group plus per-container-part groups (each tagged
+/// by modality) plus a snapshot of the recognition [`Scope`] the
+/// entities were scored against.
 ///
 /// The scope snapshot travels with the entities so anonymize
 /// can rebuild an orchestrator against exactly the vocabulary
@@ -55,22 +56,27 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzedDocument {
-    /// The body group. `None` when no body pipeline produced
-    /// entities (pre-analyze, or the codec resolved the doc to a
-    /// modality with no pipeline).
+    /// The body group.
+    ///
+    /// `None` when no body pipeline produced entities (pre-analyze,
+    /// or the codec resolved the doc to a modality with no
+    /// pipeline).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<RecognizedGroup>,
     /// One entry per container part the orchestrator surfaced.
+    ///
     /// Keyed by the container-private part id (e.g. a DOCX zip
     /// entry name like `"word/media/image1.png"`); each value
     /// carries that part's modality + entities.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub parts: HashMap<String, RecognizedGroup>,
-    /// Recognition scope snapshot: the resolved label catalog +
-    /// asserted languages, countries, and document labels. Held
-    /// so [`Engine::anonymize_document`] can compile against the
-    /// same vocabulary analyze used without the caller
-    /// re-passing an `AnalyzerParams`.
+    /// Recognition scope snapshot.
+    ///
+    /// The resolved label catalog + asserted languages,
+    /// countries, and document labels. Held so
+    /// [`Engine::anonymize_document`] can compile against the same
+    /// vocabulary analyze used without the caller re-passing an
+    /// `AnalyzerParams`.
     ///
     /// Required on the wire. A missing scope on an incoming
     /// [`AnalyzedDocument`] would default to an empty catalog and
@@ -82,8 +88,10 @@ pub struct AnalyzedDocument {
     pub scope: Scope,
 }
 
-/// A modality-tagged group of recognized entities. The unit
-/// [`AnalyzedDocument`] stores in `body` and in every `parts` entry.
+/// A modality-tagged group of recognized entities.
+///
+/// The unit [`AnalyzedDocument`] stores in `body` and in every
+/// `parts` entry.
 ///
 /// Tagged by `modality` (snake_case) so deserialization picks the
 /// right variant and the entity vec inside is statically typed
@@ -134,11 +142,12 @@ pub enum RecognizedGroup {
 pub struct EntityRecord<M: Modality> {
     /// The elide entity, as recognition produced it.
     pub entity: Entity<M>,
-    /// Reviewer-supplied override. `None` means "use the policy's
-    /// decision"; `Some(action)` overrides it for this specific
-    /// entity at apply time.
-    #[serde(rename = "override", default, skip_serializing_if = "Option::is_none")]
-    pub r#override: Option<PolicyAction>,
+    /// Reviewer-supplied override.
+    ///
+    /// `None` means "use the policy's decision"; `Some(action)`
+    /// overrides it for this specific entity at apply time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reviewer_override: Option<PolicyAction>,
 }
 
 impl<M: Modality> EntityRecord<M> {
@@ -146,7 +155,7 @@ impl<M: Modality> EntityRecord<M> {
     pub fn new(entity: Entity<M>) -> Self {
         Self {
             entity,
-            r#override: None,
+            reviewer_override: None,
         }
     }
 }

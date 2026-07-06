@@ -33,7 +33,7 @@ use super::selector::{attach, attach_override, fallback_attribution, rule_attrib
 /// Where an operator is being attached. The per-modality `Op`
 /// dispatcher takes one of these and feeds the carried
 /// `Anonymizer<M>` through the right elide entry point.
-pub(super) enum Target<'a, M: Modality> {
+pub(in crate::anonymizer) enum Target<'a, M: Modality> {
     /// Rule attachment: predicate-guarded redaction with a
     /// `policy_id` + `reason` attribution. Maps to
     /// [`super::selector::attach`].
@@ -62,7 +62,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// needs exactly one match on its own variants — no separate
     /// `attach_rule` / `attach_fallback` / `attach_override`
     /// dispatchers per modality.
-    pub(super) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
+    pub(in crate::anonymizer) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
     where
         O: elide_core::operator::Operator<M> + Clone + 'static,
     {
@@ -86,7 +86,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// Recover the anonymizer unchanged. Per-modality callbacks
     /// use this when this modality's redaction slot is absent —
     /// they take no action, return the input.
-    pub(super) fn passthrough(self) -> Anonymizer<M> {
+    pub(in crate::anonymizer) fn passthrough(self) -> Anonymizer<M> {
         match self {
             Target::Rule { anonymizer, .. } => anonymizer,
             Target::Fallback { anonymizer, .. } => anonymizer,
@@ -104,7 +104,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
 /// redaction spec is absent or wrong-modality — those are no-ops
 /// at the per-modality dispatch boundary. Operator build errors
 /// propagate.
-pub(super) fn attach_policies<'a, M, F>(
+pub(in crate::anonymizer) fn attach_policies<'a, M, F>(
     mut anonymizer: Anonymizer<M>,
     policies: impl Iterator<Item = &'a Policy>,
     mut compile_one: F,
@@ -143,7 +143,7 @@ where
 /// Apply a reviewer override on one entity. `compile_one` is the
 /// same per-modality bridge as in [`attach_policies`]; called
 /// once with a [`Target::Override`].
-pub(super) fn attach_one_override<M, F>(
+pub(in crate::anonymizer) fn attach_one_override<M, F>(
     anonymizer: Anonymizer<M>,
     entity_id: Uuid,
     action: &PolicyAction,

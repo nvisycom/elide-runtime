@@ -36,14 +36,13 @@
 
 #[cfg(feature = "internal_audio")]
 mod audio;
-mod dispatch;
+mod compile;
 #[cfg(feature = "internal_image")]
 mod image;
-mod selector;
+mod operator;
 #[cfg(feature = "internal_tabular")]
 mod tabular;
 mod text;
-mod text_op;
 
 #[cfg(feature = "internal_audio")]
 pub(crate) use self::audio::{attach_override_audio, attach_policies_audio};

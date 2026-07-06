@@ -40,14 +40,14 @@ impl ImageOp {
     }
 }
 
-/// Build an [`ImageOp`] from the wire spec. Infallible — image
-/// operators are all stateless and always build.
-pub(in crate::anonymizer) fn build(spec: &ImageRedaction) -> ImageOp {
-    match spec {
-        ImageRedaction::Erase => ImageOp::Erase,
-        ImageRedaction::Keep => ImageOp::Keep,
-        ImageRedaction::Blur { sigma } => ImageOp::Blur(Blur::new(*sigma)),
-        ImageRedaction::Pixelate { block_size } => ImageOp::Pixelate(Pixelate::new(*block_size)),
-        ImageRedaction::Blackbox { color } => ImageOp::Blackbox(Blackbox::new(*color)),
+impl From<&ImageRedaction> for ImageOp {
+    fn from(spec: &ImageRedaction) -> Self {
+        match spec {
+            ImageRedaction::Erase => Self::Erase,
+            ImageRedaction::Keep => Self::Keep,
+            ImageRedaction::Blur { sigma } => Self::Blur(Blur::new(*sigma)),
+            ImageRedaction::Pixelate { block_size } => Self::Pixelate(Pixelate::new(*block_size)),
+            ImageRedaction::Blackbox { color } => Self::Blackbox(Blackbox::new(*color)),
+        }
     }
 }

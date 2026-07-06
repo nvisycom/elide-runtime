@@ -9,7 +9,7 @@ use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
-use super::operator::text as text_op;
+use super::operator::text::TextOp;
 
 /// Attach every text-applicable rule from `policies` onto an
 /// already-constructed anonymizer. The apply pipeline calls this
@@ -45,5 +45,5 @@ fn compile_one(
     let Some(spec) = &redactions.text else {
         return Ok(target.passthrough());
     };
-    Ok(text_op::build(spec)?.attach_to(target))
+    Ok(TextOp::try_from(spec)?.attach_to(target))
 }

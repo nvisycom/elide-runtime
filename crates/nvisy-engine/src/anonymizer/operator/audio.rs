@@ -37,21 +37,21 @@ impl AudioOp {
     }
 }
 
-/// Build an [`AudioOp`] from the wire spec. Infallible — audio
-/// operators are all stateless and always build.
-pub(in crate::anonymizer) fn build(spec: &AudioRedaction) -> AudioOp {
-    match spec {
-        AudioRedaction::Erase => AudioOp::Erase,
-        AudioRedaction::Keep => AudioOp::Keep,
-        AudioRedaction::Silence => AudioOp::Silence,
-        AudioRedaction::Beep {
-            hz,
-            amplitude,
-            waveform,
-        } => AudioOp::Beep(
-            Beep::new(*hz)
-                .with_amplitude(*amplitude)
-                .with_waveform(*waveform),
-        ),
+impl From<&AudioRedaction> for AudioOp {
+    fn from(spec: &AudioRedaction) -> Self {
+        match spec {
+            AudioRedaction::Erase => Self::Erase,
+            AudioRedaction::Keep => Self::Keep,
+            AudioRedaction::Silence => Self::Silence,
+            AudioRedaction::Beep {
+                hz,
+                amplitude,
+                waveform,
+            } => Self::Beep(
+                Beep::new(*hz)
+                    .with_amplitude(*amplitude)
+                    .with_waveform(*waveform),
+            ),
+        }
     }
 }

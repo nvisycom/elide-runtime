@@ -65,40 +65,42 @@ impl TextOp {
     }
 }
 
-/// Build a [`TextOp`] from the wire spec.
-///
-/// `Pseudonymize` and `Encrypt` need engine-side infrastructure
-/// (vault, key provider) that isn't wired yet, so they error at
-/// compile time — the wire declares them, the runtime rejects
-/// them.
-pub(in crate::anonymizer) fn build(spec: &TextRedaction) -> Result<TextOp, Error> {
-    Ok(match spec {
-        TextRedaction::Erase => TextOp::Erase,
-        TextRedaction::Keep => TextOp::Keep,
-        TextRedaction::Mask {
-            mask_char,
-            keep_prefix,
-            keep_suffix,
-        } => TextOp::Mask(
-            Mask::new(*mask_char)
-                .with_keep_prefix(*keep_prefix)
-                .with_keep_suffix(*keep_suffix),
-        ),
-        TextRedaction::Replace { template } => TextOp::Replace(Replace::new(template.clone())),
-        TextRedaction::Hash { algorithm, salt } => {
-            let mut op = Sha2Hash::new(to_sha2(*algorithm));
-            if let Some(s) = salt {
-                op = op.with_salt(s.as_bytes().to_vec());
+impl TryFrom<&TextRedaction> for TextOp {
+    type Error = Error;
+
+    /// `Pseudonymize` and `Encrypt` need engine-side
+    /// infrastructure (vault, key provider) that isn't wired
+    /// yet, so they error here — the wire declares them, the
+    /// runtime rejects them.
+    fn try_from(spec: &TextRedaction) -> Result<Self, Self::Error> {
+        Ok(match spec {
+            TextRedaction::Erase => Self::Erase,
+            TextRedaction::Keep => Self::Keep,
+            TextRedaction::Mask {
+                mask_char,
+                keep_prefix,
+                keep_suffix,
+            } => Self::Mask(
+                Mask::new(*mask_char)
+                    .with_keep_prefix(*keep_prefix)
+                    .with_keep_suffix(*keep_suffix),
+            ),
+            TextRedaction::Replace { template } => Self::Replace(Replace::new(template.clone())),
+            TextRedaction::Hash { algorithm, salt } => {
+                let mut op = Sha2Hash::new(to_sha2(*algorithm));
+                if let Some(s) = salt {
+                    op = op.with_salt(s.as_bytes().to_vec());
+                }
+                Self::Hash(op)
             }
-            TextOp::Hash(op)
-        }
-        TextRedaction::Pseudonymize => {
-            return Err(stateful_not_wired("pseudonymize", "vault + generator"));
-        }
-        TextRedaction::Encrypt => {
-            return Err(stateful_not_wired("encrypt", "key provider"));
-        }
-    })
+            TextRedaction::Pseudonymize => {
+                return Err(stateful_not_wired("pseudonymize", "vault + generator"));
+            }
+            TextRedaction::Encrypt => {
+                return Err(stateful_not_wired("encrypt", "key provider"));
+            }
+        })
+    }
 }
 
 fn stateful_not_wired(operator: &'static str, infrastructure: &'static str) -> Error {

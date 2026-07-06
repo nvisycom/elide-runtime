@@ -1,10 +1,11 @@
 //! Per-modality operator vocabularies.
 //!
-//! Each submodule owns the `Op` enum + `build` fn that maps a
-//! wire spec (`{Text,Image,Audio}Redaction`) to elide's concrete
-//! operator types (e.g. `Erase`, `Blur`, `Beep`). Per-modality
-//! entry files in [`super`] dispatch a built `Op` onto a
-//! [`super::compile::Target`] via the `Op::attach_to` method.
+//! Each submodule owns the `Op` enum plus a wire → runtime
+//! conversion — `From<&{Image,Audio}Redaction>` (infallible) or
+//! `TryFrom<&TextRedaction>` (fallible; text has stateful
+//! operators that aren't wired yet). Per-modality entry files in
+//! [`super`] dispatch a converted `Op` onto a
+//! [`super::compile::Target`] via `Op::attach_to`.
 //!
 //! Text and tabular share the text vocabulary — cells in a
 //! tabular are `TextBacked` in elide, so every text operator

@@ -18,7 +18,7 @@ use nvisy_schema::policy::redaction::{ModalityRedactions, TabularRedaction};
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
-use super::operator::text as text_op;
+use super::operator::text::TextOp;
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the
@@ -51,7 +51,7 @@ fn compile_one(
         return Ok(target.passthrough());
     };
     Ok(match spec {
-        TabularRedaction::Cell { spec } => text_op::build(spec)?.attach_to(target),
+        TabularRedaction::Cell { spec } => TextOp::try_from(spec)?.attach_to(target),
         TabularRedaction::DropRow => target.attach_with(DropRow),
         TabularRedaction::DropColumn => target.attach_with(DropColumn),
     })

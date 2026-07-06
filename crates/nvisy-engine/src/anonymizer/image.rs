@@ -9,7 +9,7 @@ use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
-use super::operator::image as image_op;
+use super::operator::image::ImageOp;
 
 /// Attach every image-applicable rule from `policies` onto an
 /// already-constructed anonymizer.
@@ -42,5 +42,5 @@ fn compile_one(
     let Some(spec) = &redactions.image else {
         return Ok(target.passthrough());
     };
-    Ok(image_op::build(spec).attach_to(target))
+    Ok(ImageOp::from(spec).attach_to(target))
 }

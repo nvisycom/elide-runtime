@@ -9,7 +9,7 @@ use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
-use super::operator::audio as audio_op;
+use super::operator::audio::AudioOp;
 
 /// Attach every audio-applicable rule from `policies` onto an
 /// already-constructed anonymizer.
@@ -42,5 +42,5 @@ fn compile_one(
     let Some(spec) = &redactions.audio else {
         return Ok(target.passthrough());
     };
-    Ok(audio_op::build(spec).attach_to(target))
+    Ok(AudioOp::from(spec).attach_to(target))
 }

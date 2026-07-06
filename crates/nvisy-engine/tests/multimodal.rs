@@ -37,6 +37,7 @@ fn default_spec() -> AnalyzerParams {
             pattern: Some(PatternRecognizerParams {
                 builtins: true,
                 context_enhanced: true,
+                ..Default::default()
             }),
             ner: false,
             llm: false,

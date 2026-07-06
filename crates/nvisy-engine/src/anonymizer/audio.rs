@@ -2,19 +2,20 @@
 //! [`Anonymizer<Audio>`].
 
 use elide::redaction::Anonymizer;
-use elide::redaction::operators::{Beep, Erase, Keep, Silence};
 use elide_core::Error;
 use elide_core::modality::audio::Audio;
 use nvisy_schema::policy::PolicyAction;
-use nvisy_schema::policy::redaction::{AudioRedaction, ModalityRedactions};
+use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
-use super::dispatch::{Target, attach_one_override, attach_policies};
+use super::compile::{Target, attach_one_override, attach_policies};
+use super::operator::audio::AudioOp;
 
 /// Attach every audio-applicable rule from `policies` onto an
-/// already-constructed anonymizer. Takes an iterator so the
-/// apply pipeline can pre-filter by [`Policy::applies_when`]
-/// without cloning.
+/// already-constructed anonymizer.
+///
+/// Takes an iterator so the apply pipeline can pre-filter by
+/// [`Policy::applies_when`] without cloning.
 ///
 /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
 pub(crate) fn attach_policies_audio<'a>(
@@ -41,34 +42,5 @@ fn compile_one(
     let Some(spec) = &redactions.audio else {
         return Ok(target.passthrough());
     };
-    Ok(match build(spec) {
-        AudioOp::Erase => target.attach_with(Erase),
-        AudioOp::Keep => target.attach_with(Keep),
-        AudioOp::Silence => target.attach_with(Silence),
-        AudioOp::Beep(op) => target.attach_with(op),
-    })
-}
-
-enum AudioOp {
-    Erase,
-    Keep,
-    Silence,
-    Beep(Beep),
-}
-
-fn build(spec: &AudioRedaction) -> AudioOp {
-    match spec {
-        AudioRedaction::Erase => AudioOp::Erase,
-        AudioRedaction::Keep => AudioOp::Keep,
-        AudioRedaction::Silence => AudioOp::Silence,
-        AudioRedaction::Beep {
-            hz,
-            amplitude,
-            waveform,
-        } => AudioOp::Beep(
-            Beep::new(*hz)
-                .with_amplitude(*amplitude)
-                .with_waveform(*waveform),
-        ),
-    }
+    Ok(AudioOp::from(spec).attach_to(target))
 }

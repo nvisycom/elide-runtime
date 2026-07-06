@@ -22,7 +22,7 @@ use nvisy_core::ner::{NerBackendConfig, NerConfig, NerRecognizer as ConfigNerRec
 /// the request toggled `ner = true`, so "no recognizers
 /// configured" is user-visible). Modality-generic for any
 /// `M: TextRecognizable`.
-pub(super) fn attach_ner_lineup<M>(
+pub(in crate::analyzer) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
     ner: &NerConfig,
 ) -> Result<Analyzer<M>, Error>

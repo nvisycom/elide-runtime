@@ -2,9 +2,9 @@
 //! an [`Anonymizer<Tabular>`].
 //!
 //! Tabular cells are `TextBacked` in elide, so cell-level ops
-//! share the [`super::text_op`] builder with the text modality.
-//! The two structural operators — [`DropRow`] and [`DropColumn`]
-//! — sit alongside as tabular-only.
+//! share the [`super::operator::text`] builder with the text
+//! modality. The two structural operators — [`DropRow`] and
+//! [`DropColumn`] — sit alongside as tabular-only.
 //!
 //! [`DropRow`]: elide::redaction::operators::DropRow
 //! [`DropColumn`]: elide::redaction::operators::DropColumn
@@ -17,8 +17,8 @@ use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TabularRedaction};
 use uuid::Uuid;
 
-use super::dispatch::{Target, attach_one_override, attach_policies};
-use super::text_op::build_text_op;
+use super::compile::{Target, attach_one_override, attach_policies};
+use super::operator::text::TextOp;
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the
@@ -51,7 +51,7 @@ fn compile_one(
         return Ok(target.passthrough());
     };
     Ok(match spec {
-        TabularRedaction::Cell { spec } => build_text_op(spec)?.attach_to(target),
+        TabularRedaction::Cell { spec } => TextOp::try_from(spec)?.attach_to(target),
         TabularRedaction::DropRow => target.attach_with(DropRow),
         TabularRedaction::DropColumn => target.attach_with(DropColumn),
     })

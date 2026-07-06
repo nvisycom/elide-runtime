@@ -23,6 +23,7 @@ mod analyzer;
 mod anonymizer;
 mod pipeline;
 
+pub use self::analyzer::PatternGuardrails;
 pub use self::pipeline::{
     AnalyzedDocument, AnonymizedDocument, Engine, EntityRecord, RecognizedGroup,
 };

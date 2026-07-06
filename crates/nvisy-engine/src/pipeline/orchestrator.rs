@@ -90,7 +90,7 @@ impl Engine {
 
         let text_anon = assemble_empty::<Text>(&catalog);
         let text_analyzer = spec
-            .compile_text(&self.ner, &self.llm)
+            .compile_text(&self.ner, &self.llm, &self.pattern_guardrails)
             .map_err(compile_err)?;
 
         #[allow(unused_mut)]
@@ -101,7 +101,9 @@ impl Engine {
         #[cfg(feature = "internal_tabular")]
         {
             let anon = assemble_empty::<Tabular>(&catalog);
-            let analyzer = spec.compile_tabular(&self.ner).map_err(compile_err)?;
+            let analyzer = spec
+                .compile_tabular(&self.ner, &self.pattern_guardrails)
+                .map_err(compile_err)?;
             orchestrator = orchestrator.with_modality::<Tabular>(analyzer, anon);
         }
 
@@ -109,7 +111,7 @@ impl Engine {
         {
             let anon = assemble_empty::<Image>(&catalog);
             let analyzer = spec
-                .compile_image(&self.ner, &self.llm)
+                .compile_image(&self.ner, &self.llm, &self.pattern_guardrails)
                 .map_err(compile_err)?;
             orchestrator = orchestrator.with_modality::<Image>(analyzer, anon);
         }
@@ -117,7 +119,9 @@ impl Engine {
         #[cfg(feature = "internal_audio")]
         {
             let anon = assemble_empty::<Audio>(&catalog);
-            let analyzer = spec.compile_audio(&self.ner).map_err(compile_err)?;
+            let analyzer = spec
+                .compile_audio(&self.ner, &self.pattern_guardrails)
+                .map_err(compile_err)?;
             orchestrator = orchestrator.with_modality::<Audio>(analyzer, anon);
         }
 

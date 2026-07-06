@@ -34,6 +34,7 @@ mod analyzer;
 mod deduplication;
 mod enricher;
 mod label;
+mod pattern;
 mod recognizer;
 
 pub use self::analyzer::{AnalyzerParams, ScopeParams};
@@ -43,4 +44,8 @@ pub use self::enricher::{
     SttEnricherParams,
 };
 pub use self::label::LabelCatalogParams;
+pub use self::pattern::{
+    CustomDictionary, CustomDictionaryTerm, CustomPatternContext, CustomPatternRule,
+    CustomPatternVariant, MAX_REGEX_SOURCE_LEN,
+};
 pub use self::recognizer::{PatternRecognizerParams, RecognizerParams};

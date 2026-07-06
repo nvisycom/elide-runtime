@@ -29,11 +29,11 @@
 #[cfg(feature = "internal_audio")]
 mod audio;
 mod catalog;
-mod common;
+mod enricher;
 #[cfg(feature = "internal_image")]
 mod image;
-mod llm;
-mod ner;
+mod layer;
+mod recognizer;
 #[cfg(feature = "internal_tabular")]
 mod tabular;
 mod text;
@@ -52,6 +52,7 @@ use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
 pub(crate) use self::catalog::LabelCatalogCompile;
+pub use self::recognizer::PatternGuardrails;
 
 /// Compile a [`nvisy_schema::plan::AnalyzerParams`] into a
 /// per-modality [`elide::detection::Analyzer`].
@@ -62,39 +63,77 @@ pub(crate) use self::catalog::LabelCatalogCompile;
 /// compile fn consults the deployment [`NerConfig`] when the
 /// request toggles `recognizers.ner = true`; text and image
 /// also consult [`LlmConfig`] when `recognizers.llm = true`.
+/// Every method consults [`PatternGuardrails`] when the pattern
+/// recognizer is enabled.
 ///
 /// Non-text methods are gated on their modality's feature.
 pub(crate) trait AnalyzerCompile {
     /// Build the text-modality analyzer.
-    fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>, Error>;
+    fn compile_text(
+        &self,
+        ner: &NerConfig,
+        llm: &LlmConfig,
+        guardrails: &PatternGuardrails,
+    ) -> Result<Analyzer<Text>, Error>;
     /// Build the tabular-modality analyzer.
     #[cfg(feature = "internal_tabular")]
-    fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error>;
+    fn compile_tabular(
+        &self,
+        ner: &NerConfig,
+        guardrails: &PatternGuardrails,
+    ) -> Result<Analyzer<Tabular>, Error>;
     /// Build the image-modality analyzer.
     #[cfg(feature = "internal_image")]
-    fn compile_image(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Image>, Error>;
+    fn compile_image(
+        &self,
+        ner: &NerConfig,
+        llm: &LlmConfig,
+        guardrails: &PatternGuardrails,
+    ) -> Result<Analyzer<Image>, Error>;
     /// Build the audio-modality analyzer.
     #[cfg(feature = "internal_audio")]
-    fn compile_audio(&self, ner: &NerConfig) -> Result<Analyzer<Audio>, Error>;
+    fn compile_audio(
+        &self,
+        ner: &NerConfig,
+        guardrails: &PatternGuardrails,
+    ) -> Result<Analyzer<Audio>, Error>;
 }
 
 impl AnalyzerCompile for AnalyzerParams {
-    fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>, Error> {
-        self::text::compile(self, ner, llm)
+    fn compile_text(
+        &self,
+        ner: &NerConfig,
+        llm: &LlmConfig,
+        guardrails: &PatternGuardrails,
+    ) -> Result<Analyzer<Text>, Error> {
+        self::text::compile(self, ner, llm, guardrails)
     }
 
     #[cfg(feature = "internal_tabular")]
-    fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error> {
-        self::tabular::compile(self, ner)
+    fn compile_tabular(
+        &self,
+        ner: &NerConfig,
+        guardrails: &PatternGuardrails,
+    ) -> Result<Analyzer<Tabular>, Error> {
+        self::tabular::compile(self, ner, guardrails)
     }
 
     #[cfg(feature = "internal_image")]
-    fn compile_image(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Image>, Error> {
-        self::image::compile(self, ner, llm)
+    fn compile_image(
+        &self,
+        ner: &NerConfig,
+        llm: &LlmConfig,
+        guardrails: &PatternGuardrails,
+    ) -> Result<Analyzer<Image>, Error> {
+        self::image::compile(self, ner, llm, guardrails)
     }
 
     #[cfg(feature = "internal_audio")]
-    fn compile_audio(&self, ner: &NerConfig) -> Result<Analyzer<Audio>, Error> {
-        self::audio::compile(self, ner)
+    fn compile_audio(
+        &self,
+        ner: &NerConfig,
+        guardrails: &PatternGuardrails,
+    ) -> Result<Analyzer<Audio>, Error> {
+        self::audio::compile(self, ner, guardrails)
     }
 }

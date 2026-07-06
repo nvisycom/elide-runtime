@@ -20,15 +20,20 @@ use elide_core::modality::tabular::Tabular;
 use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
-use super::common::{attach_dedup, attach_pattern};
-use super::ner::attach_ner_lineup;
+use super::PatternGuardrails;
+use super::layer::attach_dedup;
+use super::recognizer::{attach_ner_lineup, attach_pattern};
 
 /// Compile `spec` into a tabular-modality [`Analyzer`].
-pub(super) fn compile(spec: &AnalyzerParams, ner: &NerConfig) -> Result<Analyzer<Tabular>, Error> {
+pub(super) fn compile(
+    spec: &AnalyzerParams,
+    ner: &NerConfig,
+    guardrails: &PatternGuardrails,
+) -> Result<Analyzer<Tabular>, Error> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
     if let Some(pattern) = &spec.recognizers.pattern {
-        analyzer = attach_pattern(analyzer, pattern)?;
+        analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
     if spec.recognizers.ner {
         analyzer = attach_ner_lineup(analyzer, ner)?;

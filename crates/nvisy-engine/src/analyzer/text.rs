@@ -22,9 +22,10 @@ use nvisy_core::llm::{LlmConfig, LlmRecognizerModality};
 use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
-use super::common::{attach_dedup, attach_language, attach_pattern};
-use super::llm::attach_llm_lineup;
-use super::ner::attach_ner_lineup;
+use super::PatternGuardrails;
+use super::enricher::attach_language;
+use super::layer::attach_dedup;
+use super::recognizer::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
 
 /// Compile `spec` into a text-modality [`Analyzer`]. Scope is
 /// built separately and lives on the orchestrator.
@@ -32,6 +33,7 @@ pub(super) fn compile(
     spec: &AnalyzerParams,
     ner: &NerConfig,
     llm: &LlmConfig,
+    guardrails: &PatternGuardrails,
 ) -> Result<Analyzer<Text>, Error> {
     let mut analyzer = Analyzer::<Text>::new();
 
@@ -40,7 +42,7 @@ pub(super) fn compile(
     }
 
     if let Some(pattern) = &spec.recognizers.pattern {
-        analyzer = attach_pattern(analyzer, pattern)?;
+        analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
     if spec.recognizers.ner {
         analyzer = attach_ner_lineup(analyzer, ner)?;

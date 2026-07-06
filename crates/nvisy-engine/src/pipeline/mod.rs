@@ -108,12 +108,14 @@ const COMPONENT: &str = "pipeline";
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
 /// Bundles the codec registry, the deployment's NER / LLM
-/// lineups, and the per-request orchestrator constructor.
+/// lineups, the pattern-recognizer guardrails, and the
+/// per-request orchestrator constructor.
 #[derive(Clone, Default)]
 pub struct Engine {
     formats: Arc<FormatRegistry>,
     ner: Arc<nvisy_core::ner::NerConfig>,
     llm: Arc<nvisy_core::llm::LlmConfig>,
+    pattern_guardrails: crate::PatternGuardrails,
 }
 
 /// The redacted output of [`Engine::anonymize_document`].
@@ -138,6 +140,7 @@ impl Engine {
             formats: Arc::new(FormatRegistry::with_builtin()),
             ner: Arc::new(nvisy_core::ner::NerConfig::default()),
             llm: Arc::new(nvisy_core::llm::LlmConfig::default()),
+            pattern_guardrails: crate::PatternGuardrails::default(),
         }
     }
 
@@ -160,6 +163,22 @@ impl Engine {
     #[must_use]
     pub fn with_llm(mut self, llm: nvisy_core::llm::LlmConfig) -> Self {
         self.llm = Arc::new(llm);
+        self
+    }
+
+    /// Set the pattern-recognizer guardrails.
+    ///
+    /// Bounds the ReDoS attack surface and automaton compile
+    /// cost when callers inline custom regex rules and
+    /// dictionaries on
+    /// [`PatternRecognizerParams`]. `max_regex_source_len` is
+    /// clamped to the wire-layer ceiling on construction; every
+    /// other knob applies as-is at analyzer-compile time.
+    ///
+    /// [`PatternRecognizerParams`]: nvisy_schema::plan::PatternRecognizerParams
+    #[must_use]
+    pub fn with_pattern_guardrails(mut self, guardrails: crate::PatternGuardrails) -> Self {
+        self.pattern_guardrails = guardrails.clamped();
         self
     }
 

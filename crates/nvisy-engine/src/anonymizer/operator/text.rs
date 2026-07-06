@@ -1,5 +1,4 @@
-//! Shared text-operator builder consumed by both
-//! [`super::text`] and [`super::tabular`].
+//! Text-modality operator builder, shared with `tabular`.
 //!
 //! Cells in a tabular are `TextBacked` in elide, so the same
 //! concrete operators (`Erase`, `Keep`, `Mask`, `Replace`,
@@ -15,7 +14,7 @@ use elide_core::operator::Operator;
 use elide_core::{Error, ErrorKind};
 use nvisy_schema::policy::redaction::{HashAlgorithm, TextRedaction};
 
-use super::dispatch::Target;
+use crate::anonymizer::compile::Target;
 
 /// Runtime conversion from the wire's [`HashAlgorithm`] to
 /// elide's [`Sha2Algorithm`]. Lives here rather than as a
@@ -34,7 +33,7 @@ fn to_sha2(algorithm: HashAlgorithm) -> Sha2Algorithm {
 /// takes `O: Operator<M> + 'static` by value.
 ///
 /// [`Anonymizer::with_label`]: elide::redaction::Anonymizer::with_label
-pub(super) enum TextOp {
+pub(in crate::anonymizer) enum TextOp {
     Erase,
     Keep,
     Mask(Mask),
@@ -47,7 +46,7 @@ impl TextOp {
     /// anonymizer accepts the text operator set (elide ships
     /// `impl Operator<Text>` and `impl Operator<Tabular>` on all
     /// five concrete ops).
-    pub(super) fn attach_to<M>(self, target: Target<'_, M>) -> Anonymizer<M>
+    pub(in crate::anonymizer) fn attach_to<M>(self, target: Target<'_, M>) -> Anonymizer<M>
     where
         M: Modality + 'static,
         Erase: Operator<M>,
@@ -66,38 +65,42 @@ impl TextOp {
     }
 }
 
-/// Build a [`TextOp`] from the wire spec. `Pseudonymize` and
-/// `Encrypt` need engine-side infrastructure (vault, key
-/// provider) that isn't wired yet, so they error at compile
-/// time — the wire declares them, the runtime rejects them.
-pub(super) fn build_text_op(spec: &TextRedaction) -> Result<TextOp, Error> {
-    Ok(match spec {
-        TextRedaction::Erase => TextOp::Erase,
-        TextRedaction::Keep => TextOp::Keep,
-        TextRedaction::Mask {
-            mask_char,
-            keep_prefix,
-            keep_suffix,
-        } => TextOp::Mask(
-            Mask::new(*mask_char)
-                .with_keep_prefix(*keep_prefix)
-                .with_keep_suffix(*keep_suffix),
-        ),
-        TextRedaction::Replace { template } => TextOp::Replace(Replace::new(template.clone())),
-        TextRedaction::Hash { algorithm, salt } => {
-            let mut op = Sha2Hash::new(to_sha2(*algorithm));
-            if let Some(s) = salt {
-                op = op.with_salt(s.as_bytes().to_vec());
+impl TryFrom<&TextRedaction> for TextOp {
+    type Error = Error;
+
+    /// `Pseudonymize` and `Encrypt` need engine-side
+    /// infrastructure (vault, key provider) that isn't wired
+    /// yet, so they error here — the wire declares them, the
+    /// runtime rejects them.
+    fn try_from(spec: &TextRedaction) -> Result<Self, Self::Error> {
+        Ok(match spec {
+            TextRedaction::Erase => Self::Erase,
+            TextRedaction::Keep => Self::Keep,
+            TextRedaction::Mask {
+                mask_char,
+                keep_prefix,
+                keep_suffix,
+            } => Self::Mask(
+                Mask::new(*mask_char)
+                    .with_keep_prefix(*keep_prefix)
+                    .with_keep_suffix(*keep_suffix),
+            ),
+            TextRedaction::Replace { template } => Self::Replace(Replace::new(template.clone())),
+            TextRedaction::Hash { algorithm, salt } => {
+                let mut op = Sha2Hash::new(to_sha2(*algorithm));
+                if let Some(s) = salt {
+                    op = op.with_salt(s.as_bytes().to_vec());
+                }
+                Self::Hash(op)
             }
-            TextOp::Hash(op)
-        }
-        TextRedaction::Pseudonymize => {
-            return Err(stateful_not_wired("pseudonymize", "vault + generator"));
-        }
-        TextRedaction::Encrypt => {
-            return Err(stateful_not_wired("encrypt", "key provider"));
-        }
-    })
+            TextRedaction::Pseudonymize => {
+                return Err(stateful_not_wired("pseudonymize", "vault + generator"));
+            }
+            TextRedaction::Encrypt => {
+                return Err(stateful_not_wired("encrypt", "key provider"));
+            }
+        })
+    }
 }
 
 fn stateful_not_wired(operator: &'static str, infrastructure: &'static str) -> Error {

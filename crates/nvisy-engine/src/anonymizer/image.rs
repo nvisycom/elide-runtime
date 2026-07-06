@@ -2,19 +2,20 @@
 //! [`Anonymizer<Image>`].
 
 use elide::redaction::Anonymizer;
-use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
 use elide_core::Error;
 use elide_core::modality::image::Image;
 use nvisy_schema::policy::PolicyAction;
-use nvisy_schema::policy::redaction::{ImageRedaction, ModalityRedactions};
+use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
-use super::dispatch::{Target, attach_one_override, attach_policies};
+use super::compile::{Target, attach_one_override, attach_policies};
+use super::operator::image::ImageOp;
 
 /// Attach every image-applicable rule from `policies` onto an
-/// already-constructed anonymizer. Takes an iterator so the
-/// apply pipeline can pre-filter by [`Policy::applies_when`]
-/// without cloning.
+/// already-constructed anonymizer.
+///
+/// Takes an iterator so the apply pipeline can pre-filter by
+/// [`Policy::applies_when`] without cloning.
 ///
 /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
 pub(crate) fn attach_policies_image<'a>(
@@ -41,29 +42,5 @@ fn compile_one(
     let Some(spec) = &redactions.image else {
         return Ok(target.passthrough());
     };
-    Ok(match build(spec) {
-        ImageOp::Erase => target.attach_with(Erase),
-        ImageOp::Keep => target.attach_with(Keep),
-        ImageOp::Blur(op) => target.attach_with(op),
-        ImageOp::Pixelate(op) => target.attach_with(op),
-        ImageOp::Blackbox(op) => target.attach_with(op),
-    })
-}
-
-enum ImageOp {
-    Erase,
-    Keep,
-    Blur(Blur),
-    Pixelate(Pixelate),
-    Blackbox(Blackbox),
-}
-
-fn build(spec: &ImageRedaction) -> ImageOp {
-    match spec {
-        ImageRedaction::Erase => ImageOp::Erase,
-        ImageRedaction::Keep => ImageOp::Keep,
-        ImageRedaction::Blur { sigma } => ImageOp::Blur(Blur::new(*sigma)),
-        ImageRedaction::Pixelate { block_size } => ImageOp::Pixelate(Pixelate::new(*block_size)),
-        ImageRedaction::Blackbox { color } => ImageOp::Blackbox(Blackbox::new(*color)),
-    }
+    Ok(ImageOp::from(spec).attach_to(target))
 }

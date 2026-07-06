@@ -5,7 +5,10 @@
 //! - **Pattern** is at-most-one, per-request. Single
 //!   regex/dictionary engine per analyzer; multi-pattern means
 //!   accumulating into one instance's pattern list, not running
-//!   two engines.
+//!   two engines. Callers may inline custom regex rules
+//!   ([`CustomPatternRule`]) and dictionaries
+//!   ([`CustomDictionary`]) alongside the shipped `builtins`;
+//!   the engine compiles them per request.
 //! - **NER** is a **deployment-owned lineup** gated by a
 //!   boolean toggle. Provider, model, and (future) credentials
 //!   live in the deployment config; the wire only opts in or
@@ -22,6 +25,8 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use super::pattern::{CustomDictionary, CustomPatternRule};
 
 /// Recognizer slots an analyzer can fill.
 ///
@@ -60,7 +65,7 @@ fn is_false(b: &bool) -> bool {
 }
 
 /// Params for the `elide-pattern` recognizer.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternRecognizerParams {
@@ -78,4 +83,21 @@ pub struct PatternRecognizerParams {
     /// the recognizer.
     #[serde(default)]
     pub context_enhanced: bool,
+    /// Caller-inlined regex rules.
+    ///
+    /// Compiled per-request. See [`CustomPatternRule`] for the
+    /// shape; the engine bounds request-level cost with a rule-
+    /// count cap and a per-regex NFA-size limit at compile time,
+    /// on top of the deserialize-time source-length cap in
+    /// [`MAX_REGEX_SOURCE_LEN`].
+    ///
+    /// [`MAX_REGEX_SOURCE_LEN`]: super::MAX_REGEX_SOURCE_LEN
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom: Vec<CustomPatternRule>,
+    /// Caller-inlined literal-term dictionaries.
+    ///
+    /// Compiled per-request into a shared Aho-Corasick automaton.
+    /// Same rule-count cap as `custom` applies at compile time.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_dictionaries: Vec<CustomDictionary>,
 }

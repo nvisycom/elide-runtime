@@ -10,6 +10,6 @@
 //! [`context`]: crate::context
 
 pub use elide_core::primitive::{
-    BoundingBox, Color, ConfidenceThreshold, CountryCode, LanguageTag, Languages, Point, Polygon,
-    TimeSpan,
+    BoundingBox, Color, Confidence, ConfidenceThreshold, CountryCode, LanguageTag, Languages,
+    Point, Polygon, TimeSpan,
 };

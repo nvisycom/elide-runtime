@@ -19,25 +19,23 @@
 //! [`LlmConfig`]: nvisy_core::llm::LlmConfig
 
 use elide::detection::Analyzer;
-use elide_bento::BentoOcr;
 use elide_core::Error;
 use elide_core::modality::image::Image;
-#[cfg(feature = "test-utils")]
-use elide_ocr::MockBackend as MockOcrBackend;
-use elide_ocr::OcrEnricher;
 use nvisy_core::llm::{LlmConfig, LlmRecognizerModality};
 use nvisy_core::ner::NerConfig;
-use nvisy_schema::plan::{AnalyzerParams, OcrBackendParams, OcrEnricherParams};
+use nvisy_schema::plan::AnalyzerParams;
 
-use super::common::{attach_dedup, attach_pattern};
-use super::llm::attach_llm_lineup;
-use super::ner::attach_ner_lineup;
+use super::PatternGuardrails;
+use super::enricher::attach_ocr;
+use super::layer::attach_dedup;
+use super::recognizer::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
 
 /// Compile `spec` into an image-modality [`Analyzer`].
 pub(super) fn compile(
     spec: &AnalyzerParams,
     ner: &NerConfig,
     llm: &LlmConfig,
+    guardrails: &PatternGuardrails,
 ) -> Result<Analyzer<Image>, Error> {
     let mut analyzer = Analyzer::<Image>::new();
 
@@ -46,7 +44,7 @@ pub(super) fn compile(
     }
 
     if let Some(pattern) = &spec.recognizers.pattern {
-        analyzer = attach_pattern(analyzer, pattern)?;
+        analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
     if spec.recognizers.ner {
         analyzer = attach_ner_lineup(analyzer, ner)?;
@@ -56,28 +54,4 @@ pub(super) fn compile(
     }
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
-}
-
-fn attach_ocr(
-    analyzer: Analyzer<Image>,
-    spec: &OcrEnricherParams,
-) -> Result<Analyzer<Image>, Error> {
-    let enricher = match &spec.backend {
-        OcrBackendParams::Bento { base_url, model } => {
-            OcrEnricher::new(BentoOcr::new(base_url.clone(), model.clone())?)
-        }
-        #[cfg(feature = "test-utils")]
-        OcrBackendParams::Mock => OcrEnricher::new(MockOcrBackend),
-        // `OcrBackendParams` is `#[non_exhaustive]`. Unknown
-        // variants surface as Validation instead of silently
-        // skipping OCR.
-        _ => {
-            return Err(elide_core::Error::new(
-                elide_core::ErrorKind::Validation,
-                "OCR enricher uses a backend kind this engine binary doesn't \
-                 understand; upgrade the engine or downgrade the config",
-            ));
-        }
-    };
-    Ok(analyzer.with_enricher(enricher))
 }

@@ -1,0 +1,77 @@
+name: Dependabot Regen
+
+# Runs after Dependabot opens or updates a PR that touches Python
+# dependency descriptors (`pyproject.toml`, `uv.lock`). Regenerates
+# the per-service `requirements.txt` files via
+# `scripts/gen_requirements.py` and commits the diff back onto the
+# same PR branch, so Py Build's `gen_requirements.py --check` step
+# passes without a manual follow-up.
+#
+# **Why not GITHUB_TOKEN**: a push signed by the built-in workflow
+# token does not trigger downstream workflows on the same PR — Py
+# Build would stay red even after the fix. We push with a PAT
+# (`DEPENDABOT_REGEN_PAT`, scoped repo:contents write) so downstream
+# workflows chain normally.
+#
+# Guarded on `pull_request.user.login == 'dependabot[bot]'`: only
+# PRs opened by Dependabot regen. Manual PRs and human-opened
+# branches are ignored. A maintainer rebasing a Dependabot PR still
+# fires regen — the PR's author stays Dependabot across rebases.
+
+on:
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "uv.lock"
+      - "packages/**/pyproject.toml"
+
+permissions:
+  contents: read
+
+jobs:
+  regen:
+    name: Regen requirements
+    runs-on: ubuntu-latest
+    # Guard on PR author, not push actor: a maintainer rebasing
+    # a Dependabot PR should still trigger regen, since the PR's
+    # author remains `dependabot[bot]` across rebases.
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          # A default `GITHUB_TOKEN` checkout on a `pull_request`
+          # event lands on a detached HEAD of the merge ref; we want
+          # to push to the actual branch, so check it out by ref.
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          # PAT so a subsequent `git push` triggers downstream
+          # workflows on the PR.
+          token: ${{ secrets.DEPENDABOT_REGEN_PAT }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Sync
+        run: uv sync --locked --all-packages
+
+      - name: Regenerate service requirements
+        run: uv run python scripts/gen_requirements.py
+
+      - name: Commit + push if changed
+        run: |
+          if [ -z "$(git status --porcelain -- 'packages/*/requirements.txt')" ]; then
+            echo "requirements.txt already up to date; nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/*/requirements.txt
+          git commit -m "chore(deps-py): regenerate service requirements"
+          git push

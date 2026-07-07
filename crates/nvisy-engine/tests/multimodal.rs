@@ -39,8 +39,8 @@ fn default_spec() -> AnalyzerParams {
                 context_enhanced: true,
                 ..Default::default()
             }),
-            ner: false,
-            llm: false,
+            ner: Some(false),
+            llm: Some(false),
         },
         enrichers: nvisy_schema::plan::EnricherParams {
             language: None,

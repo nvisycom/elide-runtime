@@ -2,9 +2,11 @@
 //! [`elide::detection::Analyzer<Text>`].
 //!
 //! Text supports the full recognizer set: Pattern, NER, and LLM.
-//! NER and LLM are opt-in via `spec.recognizers.ner = true` /
-//! `spec.recognizers.llm = true`; the deployment's [`NerConfig`]
-//! and [`LlmConfig`] provide the actual recognizer lineups.
+//! NER and LLM are three-state toggles on
+//! `spec.recognizers.{ner,llm}` (see
+//! [`nvisy_schema::plan::RecognizerParams`]); the deployment's
+//! [`NerConfig`] and [`LlmConfig`] provide the actual recognizer
+//! lineups.
 //!
 //! Modality-foreign enrichers (`ocr`, `stt`) on `spec` are
 //! silently ignored; those flow through the modalities they
@@ -44,12 +46,13 @@ pub(super) fn compile(
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
-    if spec.recognizers.ner {
-        analyzer = attach_ner_lineup(analyzer, ner)?;
-    }
-    if spec.recognizers.llm {
-        analyzer = attach_llm_lineup(analyzer, llm, LlmRecognizerModality::Text)?;
-    }
+    analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner)?;
+    analyzer = attach_llm_lineup(
+        analyzer,
+        llm,
+        LlmRecognizerModality::Text,
+        spec.recognizers.llm,
+    )?;
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
 }

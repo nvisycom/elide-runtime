@@ -27,8 +27,8 @@ fn spec_with_pattern_params(params: PatternRecognizerParams) -> AnalyzerParams {
     AnalyzerParams {
         recognizers: nvisy_schema::plan::RecognizerParams {
             pattern: Some(params),
-            ner: false,
-            llm: false,
+            ner: Some(false),
+            llm: Some(false),
         },
         ..Default::default()
     }

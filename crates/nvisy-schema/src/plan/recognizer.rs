@@ -10,11 +10,12 @@
 //!   ([`CustomDictionary`]) alongside the shipped `builtins`;
 //!   the engine compiles them per request.
 //! - **NER** is a **deployment-owned lineup** gated by a
-//!   boolean toggle. Provider, model, and (future) credentials
-//!   live in the deployment config; the wire only opts in or
-//!   out.
-//! - **LLM** is the same shape as NER: a deployment-owned
-//!   lineup gated by a boolean toggle.
+//!   three-state toggle. Provider, model, and (future)
+//!   credentials live in the deployment config; the wire opts in
+//!   (`true`), opts out (`false`), or leaves it to the default
+//!   (`None`, softly-on: attach when the deployment has any NER
+//!   configured, skip otherwise).
+//! - **LLM** is the same shape as NER.
 //!
 //! Rationale for the NER/LLM shape: policies stay portable
 //! across deployments, the operator controls model choice and
@@ -31,7 +32,8 @@ use super::pattern::{CustomDictionary, CustomPatternRule};
 /// Recognizer slots an analyzer can fill.
 ///
 /// Pattern is at-most-one (per-request); NER and LLM are
-/// deployment-owned lineups each gated by a boolean toggle.
+/// deployment-owned lineups each gated by a three-state
+/// [`Option<bool>`] toggle.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognizerParams {
@@ -42,26 +44,26 @@ pub struct RecognizerParams {
     pub pattern: Option<PatternRecognizerParams>,
     /// Run the deployment's NER recognizer lineup.
     ///
-    /// `false` skips NER recognition entirely; `true` attaches
-    /// every deployment-configured recognizer. When the
-    /// deployment has no NER recognizers configured, `true` fails
-    /// the analyzer compile with a `Validation` error.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub ner: bool,
+    /// - `Some(true)`: explicit opt-in. Attaches every
+    ///   deployment-configured recognizer. Fails the analyzer
+    ///   compile with a `Validation` error when the deployment
+    ///   has no NER recognizers configured.
+    /// - `Some(false)`: explicit opt-out. Skips NER entirely.
+    /// - `None`: softly-on default. Attaches every configured
+    ///   recognizer if the deployment has any; skips silently
+    ///   otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ner: Option<bool>,
     /// Run the deployment's LLM recognizer lineup.
     ///
-    /// `false` skips LLM recognition entirely; `true` attaches
-    /// every deployment-configured recognizer whose declared
-    /// modalities match the analyzer's modality. When the
-    /// deployment has no LLM recognizers configured for this
-    /// modality, `true` fails the analyzer compile with a
-    /// `Validation` error.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub llm: bool,
-}
-
-fn is_false(b: &bool) -> bool {
-    !*b
+    /// Same three-state semantics as [`ner`]. The lineup is
+    /// filtered by declared modality — only recognizers whose
+    /// `modalities` list contains the analyzer's modality
+    /// attach.
+    ///
+    /// [`ner`]: RecognizerParams::ner
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm: Option<bool>,
 }
 
 /// Params for the `elide-pattern` recognizer.

@@ -21,14 +21,14 @@ use super::recognizer::RecognizerParams;
 /// The caller-asserted scope lives under [`scope`], a single
 /// nested object grouping the four knobs the engine assembles
 /// into an `elide::recognition::Scope` at compile time
-/// ([`languages`], [`countries`], [`labels`], [`label_catalog`]).
+/// ([`languages`], [`countries`], [`tags`], [`label_catalog`]).
 /// `Scope`'s fifth knob, `correlation_id`, is server-minted per
 /// request and never appears on the wire.
 ///
 /// [`scope`]: AnalyzerParams::scope
 /// [`languages`]: ScopeParams::languages
 /// [`countries`]: ScopeParams::countries
-/// [`labels`]: ScopeParams::labels
+/// [`tags`]: ScopeParams::tags
 /// [`label_catalog`]: ScopeParams::label_catalog
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -52,7 +52,7 @@ pub struct AnalyzerParams {
     pub deduplication: DeduplicationParams,
     /// Caller-asserted scope.
     ///
-    /// Languages, jurisdictions, document labels, and the
+    /// Languages, jurisdictions, document tags, and the
     /// per-request entity-label catalog. Engine assembles this
     /// (plus a server-minted correlation id) into an
     /// `elide::recognition::Scope` at compile time.
@@ -84,19 +84,20 @@ pub struct ScopeParams {
     /// jurisdiction don't lose detections.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub countries: Vec<CountryCode>,
-    /// Document-level classification labels.
+    /// Document-level classification tags.
     ///
     /// E.g. `"medical"`, `"gdpr-request"`. Recognizers may use
     /// these to bias their behaviour for domain-specific terms;
     /// those that don't ignore the field.
     ///
-    /// Distinct from [`label_catalog`]: these classify the
-    /// *document*, whereas the catalog names the entity *types*
-    /// to emit.
+    /// Named `tags`, not `labels`, to keep "label" reserved for
+    /// the entity taxonomy ([`label_catalog`]): these classify
+    /// the *document*, whereas the catalog names the entity
+    /// *types* to emit.
     ///
     /// [`label_catalog`]: ScopeParams::label_catalog
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub labels: Vec<String>,
+    pub tags: Vec<String>,
     /// Per-request entity-label catalog.
     ///
     /// Builtins selected by name + custom inline schemas. Drives

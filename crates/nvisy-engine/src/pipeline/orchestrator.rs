@@ -40,7 +40,7 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::{Error, Result};
+use nvisy_core::Result;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
@@ -54,8 +54,6 @@ use crate::anonymizer::{attach_override_image, attach_policies_image};
 #[cfg(feature = "internal_tabular")]
 use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
 use crate::anonymizer::{attach_override_text, attach_policies_text};
-
-const COMPONENT: &str = "pipeline::orchestrator";
 
 impl Engine {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -89,41 +87,32 @@ impl Engine {
         };
 
         let text_anon = assemble_empty::<Text>(&catalog);
-        let text_analyzer = spec
-            .compile_text(&self.ner, &self.llm, &self.pattern_guardrails)
-            .map_err(compile_err)?;
+        let text_analyzer = spec.compile_text(&self.ner, &self.llm, &self.pattern_guardrails)?;
 
-        #[allow(unused_mut)]
-        let mut orchestrator = Orchestrator::new(&self.formats)
+        let orchestrator = Orchestrator::new(&self.formats)
             .with_scope(live_scope)
             .with_modality::<Text>(text_analyzer, text_anon);
 
         #[cfg(feature = "internal_tabular")]
-        {
+        let orchestrator = {
             let anon = assemble_empty::<Tabular>(&catalog);
-            let analyzer = spec
-                .compile_tabular(&self.ner, &self.pattern_guardrails)
-                .map_err(compile_err)?;
-            orchestrator = orchestrator.with_modality::<Tabular>(analyzer, anon);
-        }
+            let analyzer = spec.compile_tabular(&self.ner, &self.pattern_guardrails)?;
+            orchestrator.with_modality::<Tabular>(analyzer, anon)
+        };
 
         #[cfg(feature = "internal_image")]
-        {
+        let orchestrator = {
             let anon = assemble_empty::<Image>(&catalog);
-            let analyzer = spec
-                .compile_image(&self.ner, &self.llm, &self.pattern_guardrails)
-                .map_err(compile_err)?;
-            orchestrator = orchestrator.with_modality::<Image>(analyzer, anon);
-        }
+            let analyzer = spec.compile_image(&self.ner, &self.llm, &self.pattern_guardrails)?;
+            orchestrator.with_modality::<Image>(analyzer, anon)
+        };
 
         #[cfg(feature = "internal_audio")]
-        {
+        let orchestrator = {
             let anon = assemble_empty::<Audio>(&catalog);
-            let analyzer = spec
-                .compile_audio(&self.ner, &self.pattern_guardrails)
-                .map_err(compile_err)?;
-            orchestrator = orchestrator.with_modality::<Audio>(analyzer, anon);
-        }
+            let analyzer = spec.compile_audio(&self.ner, &self.pattern_guardrails)?;
+            orchestrator.with_modality::<Audio>(analyzer, anon)
+        };
 
         Ok((orchestrator, persisted_scope))
     }
@@ -168,13 +157,12 @@ impl Engine {
             attach_policies_text,
         )?;
 
-        #[allow(unused_mut)]
-        let mut orchestrator = Orchestrator::new(&self.formats)
+        let orchestrator = Orchestrator::new(&self.formats)
             .with_scope(live_scope)
             .with_modality::<Text>(Analyzer::<Text>::new(), text_anon);
 
         #[cfg(feature = "internal_tabular")]
-        {
+        let orchestrator = {
             let anon = assemble::<Tabular, _, _>(
                 catalog,
                 overrides,
@@ -182,11 +170,11 @@ impl Engine {
                 attach_override_tabular,
                 attach_policies_tabular,
             )?;
-            orchestrator = orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon);
-        }
+            orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon)
+        };
 
         #[cfg(feature = "internal_image")]
-        {
+        let orchestrator = {
             let anon = assemble::<Image, _, _>(
                 catalog,
                 overrides,
@@ -194,11 +182,11 @@ impl Engine {
                 attach_override_image,
                 attach_policies_image,
             )?;
-            orchestrator = orchestrator.with_modality::<Image>(Analyzer::<Image>::new(), anon);
-        }
+            orchestrator.with_modality::<Image>(Analyzer::<Image>::new(), anon)
+        };
 
         #[cfg(feature = "internal_audio")]
-        {
+        let orchestrator = {
             let anon = assemble::<Audio, _, _>(
                 catalog,
                 overrides,
@@ -206,8 +194,8 @@ impl Engine {
                 attach_override_audio,
                 attach_policies_audio,
             )?;
-            orchestrator = orchestrator.with_modality::<Audio>(Analyzer::<Audio>::new(), anon);
-        }
+            orchestrator.with_modality::<Audio>(Analyzer::<Audio>::new(), anon)
+        };
 
         Ok(orchestrator)
     }
@@ -250,17 +238,7 @@ where
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
     for (id, action) in overrides {
-        anonymizer = attach_override(anonymizer, *id, action).map_err(compile_err)?;
+        anonymizer = attach_override(anonymizer, *id, action)?;
     }
-    attach_policies(anonymizer, policies.iter()).map_err(compile_err)
-}
-
-/// Translate an `elide::Error` from a `compile_*` call into the
-/// runtime's error type. Compile failures are caller-driven (e.g.
-/// unsupported recognizer for the modality), so they map to
-/// [`Validation`].
-///
-/// [`Validation`]: nvisy_core::ErrorKind::Validation
-fn compile_err(err: elide::Error) -> Error {
-    Error::validation(format!("orchestrator compile failed: {err}"), COMPONENT).with_source(err)
+    Ok(attach_policies(anonymizer, policies.iter())?)
 }

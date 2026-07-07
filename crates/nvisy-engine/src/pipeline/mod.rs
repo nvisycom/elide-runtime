@@ -218,9 +218,7 @@ impl Engine {
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
         let (orchestrator, scope) = self.build_analyze_orchestrator(spec, correlation_id)?;
-        let mut report = orchestrator.analyze(&mut handle).await.map_err(|err| {
-            Error::internal("orchestrator analyze failed", COMPONENT).with_source(err)
-        })?;
+        let mut report = orchestrator.analyze(&mut handle).await?;
 
         // Walk the body modality slots in order; the first that
         // returns Some is the body modality the orchestrator's
@@ -324,12 +322,7 @@ impl Engine {
             &overrides,
             correlation_id,
         )?;
-        orchestrator
-            .anonymize_with(&mut handle, report)
-            .await
-            .map_err(|err| {
-                Error::internal("orchestrator anonymize_with failed", COMPONENT).with_source(err)
-            })?;
+        orchestrator.anonymize_with(&mut handle, report).await?;
 
         body_group.encode_redacted_from(handle)
     }

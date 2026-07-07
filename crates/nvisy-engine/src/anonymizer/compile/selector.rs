@@ -52,7 +52,7 @@ pub(super) fn fallback_attribution(policy: &Policy) -> Attribution {
 /// sentinel `policy_id = "override"` so audits can distinguish
 /// override-driven redactions from policy-driven ones; `reason`
 /// carries the overridden entity's id.
-pub(crate) fn override_attribution(entity_id: Uuid) -> Attribution {
+pub(super) fn override_attribution(entity_id: Uuid) -> Attribution {
     Attribution {
         policy_id: "override".into(),
         reason: Some(entity_id.to_string().into()),
@@ -63,7 +63,7 @@ pub(crate) fn override_attribution(entity_id: Uuid) -> Attribution {
 /// identified by `entity_id`. Used by the apply pipeline to give
 /// reviewer overrides higher precedence than any policy-driven
 /// rule.
-pub(crate) fn attach_override<M, O>(
+pub(super) fn attach_override<M, O>(
     anonymizer: Anonymizer<M>,
     entity_id: Uuid,
     operator: O,

@@ -23,16 +23,14 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-# Elide's stable wire vocabulary: entity types (Label) plus modality
-# types (Waveform is pulled by the audio redaction spec) plus primitive
-# types (Color). elide-core is the SDK-safe subset.
+# Elide crates
 elide-core = { workspace = true, features = ["serde", "schema", "audio"] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true, features = ["uuid1", "semver1"] }
 
-# Derive macros
+# Derive macros and error handling
 derive_more = { workspace = true, features = ["display"] }
 strum = { workspace = true, features = ["derive"] }
 

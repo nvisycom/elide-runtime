@@ -23,16 +23,14 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-# Elide's stable wire vocabulary: primitive types (LanguageTag,
-# BoundingBox, TimeSpan) plus modality types. No codec, no LLM, no
-# runtime plumbing — elide-core is the SDK-safe subset.
+# Elide crates
 elide-core = { workspace = true, features = ["serde", "schema"] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true, features = ["uuid1", "semver1"] }
 
-# Derive macros
+# Derive macros and error handling
 derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["from"] }
 
@@ -42,5 +40,5 @@ jiff = { workspace = true, features = ["serde"] }
 semver = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-# Round-trip tests serialize + deserialize schema values.
+# Serialization
 serde_json = { workspace = true, features = [] }

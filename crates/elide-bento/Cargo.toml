@@ -32,7 +32,7 @@ ner = ["dep:elide-ner"]
 ocr = ["dep:elide-ocr", "dep:base64", "elide-core/image"]
 
 [dependencies]
-# Elide toolkit (upstream)
+# Elide crates
 elide-core = { workspace = true, features = [] }
 elide-ner = { workspace = true, features = [], optional = true }
 elide-ocr = { workspace = true, features = [], optional = true }
@@ -40,20 +40,21 @@ elide-ocr = { workspace = true, features = [], optional = true }
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 
+# Derive macros and error handling
+thiserror = { workspace = true, features = [] }
+
 # Primitive datatypes
 hipstr = { workspace = true, features = [] }
 
-# Async runtime
-async-trait = { workspace = true, features = [] }
-
-# Error handling
-thiserror = { workspace = true, features = [] }
-
-# Image bytes → base64 (OCR only)
+# Encoding and hashing
 base64 = { workspace = true, features = [], optional = true }
 
-# BentoML client
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+
+# AI / LLM frameworks
 bentoml = { workspace = true, default-features = false, features = ["rustls-tls", "tracing"] }
 
 [dev-dependencies]
+# Async runtime and parallelism
 tokio = { workspace = true, features = ["rt", "macros"] }

@@ -32,18 +32,17 @@ documentation = "https://docs.rs/nvisy-runtime"
 #
 # See for more details: https://github.com/rust-lang/cargo/issues/11329
 
-# Elide toolkit (upstream)
+# Elide crates
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-detection = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-redaction = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-# Pulled directly only by `elide-bento`, which implements the per-backend traits these crates export.
 elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
-# Runtime-owned elide extensions
+# Elide extensions
 elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }
 
 # Internal crates

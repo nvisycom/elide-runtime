@@ -99,9 +99,7 @@ use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
 pub use self::analyzed::{AnalyzedDocument, EntityRecord, RecognizedGroup};
-use self::report::{
-    collect_overrides_into, encode_redacted, insert_body, insert_part, take_body, take_part,
-};
+use self::report::{take_body, take_part};
 
 const COMPONENT: &str = "pipeline";
 
@@ -312,12 +310,12 @@ impl Engine {
         })?;
         let correlation_id = document.correlation_id;
         let mut handle = self.decode(document).await?;
-        let mut report = insert_body(Report::new(), body_group);
+        let mut report = body_group.insert_into_body(Report::new());
         let mut overrides: Vec<(Uuid, PolicyAction)> = Vec::new();
-        collect_overrides_into(&mut overrides, body_group);
+        body_group.collect_overrides_into(&mut overrides);
         for (id, group) in &analyzed.parts {
-            report = insert_part(report, id.as_str(), group);
-            collect_overrides_into(&mut overrides, group);
+            report = group.insert_as_part(report, id.as_str());
+            group.collect_overrides_into(&mut overrides);
         }
 
         let orchestrator = self.build_anonymize_orchestrator(
@@ -333,7 +331,7 @@ impl Engine {
                 Error::internal("orchestrator anonymize_with failed", COMPONENT).with_source(err)
             })?;
 
-        encode_redacted(handle, body_group)
+        body_group.encode_redacted_from(handle)
     }
 
     async fn decode(&self, document: Document) -> Result<UntypedDocumentHandle> {

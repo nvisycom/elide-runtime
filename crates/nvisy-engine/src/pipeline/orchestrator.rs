@@ -12,7 +12,7 @@
 //! re-resolve policies and overrides per document at anonymize
 //! time without mutating a shared anonymizer.
 //!
-//! [`RigBackend`]: elide_llm::backend::RigBackend
+//! [`RigBackend`]: elide::recognition::llm::backend::RigBackend
 //!
 //! Two entry points:
 //!
@@ -77,7 +77,7 @@ impl Engine {
         let persisted_scope = Scope {
             languages: spec.scope.languages.clone(),
             countries: spec.scope.countries.clone(),
-            labels: spec.scope.labels.clone(),
+            tags: spec.scope.tags.clone(),
             catalog: catalog.clone(),
             correlation_id: None,
         };

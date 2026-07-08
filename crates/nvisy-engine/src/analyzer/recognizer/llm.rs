@@ -5,13 +5,13 @@
 //! `test-utils` feature).
 
 use elide::detection::Analyzer;
+#[cfg(feature = "test-utils")]
+use elide::recognition::llm::backend::MockBackend as MockLlmBackend;
+use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend};
+use elide::recognition::llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
+use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide_core::{Error, ErrorKind};
-#[cfg(feature = "test-utils")]
-use elide_llm::backend::MockBackend as MockLlmBackend;
-use elide_llm::backend::{LlmBackend, LlmModality, RigBackend};
-use elide_llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
-use elide_llm::provider::Provider;
 use nvisy_core::llm::{
     LlmBackendConfig, LlmConfig, LlmPrompt, LlmRecognizer as ConfigRecognizer,
     LlmRecognizerModality,

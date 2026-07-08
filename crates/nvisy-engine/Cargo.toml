@@ -64,9 +64,6 @@ test-utils = [
     "nvisy-core/test-utils",
     "nvisy-schema/test-utils",
     "elide/mock",
-    "elide-ocr/mock",
-    "elide-stt/mock",
-    "elide-llm/mock",
 ]
 
 [package.metadata.docs.rs]
@@ -75,11 +72,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "llm-rig", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "serde", "schema", "sha2"] }
+elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-jinja2", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "serde", "schema", "sha2"] }
 elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
-elide-llm = { workspace = true, features = ["jinja2"] }
-elide-ocr = { workspace = true, features = [] }
-elide-stt = { workspace = true, features = [] }
 
 # Elide extensions
 elide-bento = { workspace = true, features = ["ner", "ocr"] }

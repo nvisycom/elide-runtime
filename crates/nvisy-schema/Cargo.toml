@@ -32,18 +32,12 @@ default = []
 test-utils = []
 
 [dependencies]
-# Sibling schema crates re-exported through this umbrella so a
-# single `nvisy-schema` dep gives an SDK caller the whole wire
-# surface. Consumers who want tighter dep trees can depend on
-# `nvisy-policy` or `nvisy-context` directly and skip this crate.
+# Elide crates
+elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
+
+# Internal crates
 nvisy-context = { workspace = true, features = [] }
 nvisy-policy = { workspace = true, features = [] }
-
-# Elide's stable wire vocabulary: primitive types (LanguageTag,
-# CountryCode, BoundingBox, ConfidenceThreshold) + modality types +
-# entity types. No codec, no LLM, no runtime plumbing — elide-core is
-# the SDK-safe subset.
-elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

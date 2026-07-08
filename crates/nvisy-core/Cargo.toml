@@ -31,21 +31,17 @@ default = []
 test-utils = []
 
 [dependencies]
-# LLM types (`Provider`, `AuthenticatedProvider`, `UnauthenticatedProvider`).
-# The provider features gate their enum variants — turning them on is what
-# makes `Provider::OpenAi` etc. exist. Rig comes along for the ride.
+# Elide crates
+elide-core = { workspace = true, features = [] }
 elide-llm = { workspace = true, features = ["rig", "openai-gpt", "anthropic-claude", "google-gemini"] }
 
-# Serialization — needed for the LLM config's derive-serde types.
+# Serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
-# Error type deps: `Error::From<serde_json::Error>` +
-# `Error::From<derive_builder::UninitializedFieldError>` map upstream
-# errors into the shared vocabulary.
+# Derive macros and error handling
 thiserror = { workspace = true, features = [] }
-strum = { workspace = true, features = ["derive"] }
 derive_more = { workspace = true, features = ["display"] }
 derive_builder = { workspace = true, features = [] }
-
+strum = { workspace = true, features = ["derive"] }

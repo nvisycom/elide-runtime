@@ -2448,6 +2448,7 @@ version = "0.1.0"
 dependencies = [
  "derive_builder",
  "derive_more",
+ "elide-core",
  "elide-llm",
  "schemars",
  "serde",

@@ -273,5 +273,26 @@ impl From<derive_builder::UninitializedFieldError> for Error {
     }
 }
 
+impl From<elide_core::Error> for Error {
+    /// Map elide's per-operation error into the runtime's shared
+    /// vocabulary. The elide `ErrorKind` is preserved semantically
+    /// via a mapping onto the nearest [`ErrorKind`] variant; the
+    /// original elide error travels along as the source cause.
+    ///
+    /// Called at every `nvisy-engine` seam where an `elide::Error`
+    /// crosses into engine-land — pattern compile, recognizer
+    /// build, anonymizer attach, orchestrator analyze/anonymize.
+    fn from(err: elide_core::Error) -> Self {
+        let kind = match err.kind() {
+            elide_core::ErrorKind::OutOfRange | elide_core::ErrorKind::Validation => {
+                ErrorKind::Validation
+            }
+            elide_core::ErrorKind::Transport => ErrorKind::Connection,
+            _ => ErrorKind::Runtime,
+        };
+        Self::new(kind, err.to_string()).with_source(err)
+    }
+}
+
 /// Convenience type alias for results using the Nvisy error type.
 pub type Result<T, E = Error> = result::Result<T, E>;

@@ -18,14 +18,20 @@ use nvisy_core::llm::{
 };
 
 /// Attach every LLM recognizer in `llm.recognizers` whose
-/// modality list includes `modality` to `analyzer`. Errors when:
+/// modality list includes `modality` to `analyzer`, dispatched on
+/// the request's three-state toggle.
 ///
-/// - The lineup has no recognizer for this modality (compile is
-///   only invoked when the request toggled `llm = true`, so
-///   "nothing configured for this modality" is user-visible).
-/// - A recognizer's `modalities` list is empty.
-/// - A Jinja2 prompt file / template fails to load or compile.
-/// - A provider-client construction (rig) fails.
+/// - `Some(true)`: explicit opt-in. Attaches every configured
+///   recognizer whose declared modalities include `modality`;
+///   errors when zero match.
+/// - `Some(false)`: explicit opt-out. Returns the analyzer
+///   unchanged.
+/// - `None`: softly-on default. Attaches every matching
+///   recognizer if any match; skips silently otherwise.
+///
+/// Errors on: any recognizer whose `modalities` list is empty
+/// (bad config), Jinja2 prompt load/compile failure, provider
+/// client construction failure.
 ///
 /// Bound explanation:
 ///
@@ -34,10 +40,11 @@ use nvisy_core::llm::{
 /// - `DefaultPrompt: Prompt<M>` — elide ships text + image
 ///   default prompts.
 /// - `Jinja2Prompt<M>: Prompt<M>` — same coverage.
-pub(crate) fn attach_llm_lineup<M>(
+pub(in crate::analyzer) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &LlmConfig,
     modality: LlmRecognizerModality,
+    toggle: Option<bool>,
 ) -> Result<Analyzer<M>, Error>
 where
     M: LlmModality,
@@ -45,6 +52,9 @@ where
     DefaultPrompt: Prompt<M>,
     Jinja2Prompt<M>: Prompt<M>,
 {
+    if toggle == Some(false) {
+        return Ok(analyzer);
+    }
     let mut matched = 0usize;
     for recognizer in &llm.recognizers {
         if recognizer.modalities.is_empty() {
@@ -63,13 +73,13 @@ where
         matched += 1;
         analyzer = attach_one(analyzer, recognizer)?;
     }
-    if matched == 0 {
+    if matched == 0 && toggle == Some(true) {
         return Err(Error::new(
             ErrorKind::Validation,
             format!(
                 "AnalyzerParams.recognizers.llm = true but the deployment has no LLM \
                  recognizer configured for the {modality:?} modality; add one to \
-                 `[[llm.recognizers]]` in the deployment config or leave `llm = false`",
+                 `[[llm.recognizers]]` in the deployment config or leave `llm` unset / false",
             ),
         ));
     }

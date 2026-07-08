@@ -74,56 +74,45 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+# Elide crates
+elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "llm-rig", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "serde", "schema", "sha2"] }
+elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
+elide-llm = { workspace = true, features = ["jinja2"] }
+elide-ocr = { workspace = true, features = [] }
+elide-stt = { workspace = true, features = [] }
+
+# Elide extensions
+elide-bento = { workspace = true, features = ["ner", "ocr"] }
+
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-schema = { workspace = true, features = [] }
 
-# Elide toolkit (upstream). `mock` pulls the no-op NER stub; the LLM
-# features pull the rig backend (`llm-rig`, needed for Ollama) plus
-# the three authenticated providers.
-elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "llm", "llm-rig", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "serde", "schema", "sha2"] }
-
-# `Jinja2Prompt` loader for deployment-configured per-recognizer
-# prompt templates. Not re-exported from the elide umbrella, so
-# we depend directly.
-elide-llm = { workspace = true, features = ["jinja2"] }
-elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
-
-# Recognition-side elide crates not re-exported through the elide
-# umbrella the way the recognizer crates are (`elide::recognition::*`
-# is the natural reach for those). `elide-ocr` is the OCR enricher
-# layer engine wires from the image-modality compile path.
-elide-ocr = { workspace = true, features = [] }
-elide-stt = { workspace = true, features = [] }
-
-# Runtime-owned elide extensions
-elide-bento = { workspace = true, features = ["ner", "ocr"] }
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
-serde = { workspace = true, features = ["derive"] }
-schemars = { workspace = true, features = [] }
 
-# Structured logging — surface non-fatal anomalies (unknown
-# builtin label name in a catalog request, etc.).
+# Observability
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
-# Turn on the test-only mock variants
-# (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) so integration tests
-# can construct a working analyzer without hitting a real Bento
-# backend or LLM provider.
+# Internal crates
 nvisy-engine = { path = ".", features = ["test-utils"] }
 
-# Async runtime and parallelism
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+# Serialization
+serde_json = { workspace = true, features = [] }
 
-# Primitives referenced from test fixtures.
-hipstr = { workspace = true, features = [] }
+# Primitive datatypes
 uuid = { workspace = true, features = ["v7"] }
 bytes = { workspace = true, features = [] }
+hipstr = { workspace = true, features = [] }
 
 # Test utilities
 zip = { workspace = true }
-serde_json = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

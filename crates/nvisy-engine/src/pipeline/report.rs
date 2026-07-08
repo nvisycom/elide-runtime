@@ -7,16 +7,18 @@
 //!   [`Report`], [`take_body`] and [`take_part`] move each typed
 //!   `Vec<Entity<M>>` out of the report into the matching
 //!   [`RecognizedGroup`] variant for the caller to hold.
-//! - **Rebuild**: at anonymize time, [`insert_body`] and
-//!   [`insert_part`] feed a fresh [`Report`] from the returned
-//!   groups (cloning entities; the returned body is the source
-//!   of truth for re-apply idempotency).
+//! - **Rebuild**: at anonymize time,
+//!   [`RecognizedGroup::insert_into_body`] and
+//!   [`RecognizedGroup::insert_as_part`] feed a fresh [`Report`]
+//!   from the returned groups (cloning entities; the returned
+//!   body is the source of truth for re-apply idempotency).
 //!
 //! Plus two byte-level helpers used at the anonymize seam:
-//! [`collect_overrides_into`] walks reviewer overrides off any
-//! group, and [`encode_redacted`] picks the right typed handle
-//! to re-encode through after `anonymize_with` mutated the
-//! document in place.
+//! [`RecognizedGroup::collect_overrides_into`] walks reviewer
+//! overrides off any group, and
+//! [`RecognizedGroup::encode_redacted_from`] picks the right
+//! typed handle to re-encode through after `anonymize_with`
+//! mutated the document in place.
 //!
 //! All helpers are stateless: no [`Engine`] state, no I/O. The
 //! per-modality dispatch is collapsed onto one trait
@@ -98,43 +100,80 @@ pub(super) fn take_part<M: GroupCarrier>(
     Some(M::into_group(entities))
 }
 
-/// Insert the body group into `report` under its modality.
-pub(super) fn insert_body(report: Report, group: &RecognizedGroup) -> Report {
-    match group {
-        RecognizedGroup::Text { entities } => report.insert_body::<Text>(clone_entities(entities)),
-        #[cfg(feature = "internal_tabular")]
-        RecognizedGroup::Tabular { entities } => {
-            report.insert_body::<Tabular>(clone_entities(entities))
-        }
-        #[cfg(feature = "internal_image")]
-        RecognizedGroup::Image { entities } => {
-            report.insert_body::<Image>(clone_entities(entities))
-        }
-        #[cfg(feature = "internal_audio")]
-        RecognizedGroup::Audio { entities } => {
-            report.insert_body::<Audio>(clone_entities(entities))
+impl RecognizedGroup {
+    /// Insert this group into `report` under its modality, as
+    /// the body.
+    pub(super) fn insert_into_body(&self, report: Report) -> Report {
+        match self {
+            Self::Text { entities } => report.insert_body::<Text>(clone_entities(entities)),
+            #[cfg(feature = "internal_tabular")]
+            Self::Tabular { entities } => report.insert_body::<Tabular>(clone_entities(entities)),
+            #[cfg(feature = "internal_image")]
+            Self::Image { entities } => report.insert_body::<Image>(clone_entities(entities)),
+            #[cfg(feature = "internal_audio")]
+            Self::Audio { entities } => report.insert_body::<Audio>(clone_entities(entities)),
         }
     }
-}
 
-/// Insert one part group into `report` under its modality.
-pub(super) fn insert_part(report: Report, id: &str, group: &RecognizedGroup) -> Report {
-    let part_id = PartId::from(id.to_owned());
-    match group {
-        RecognizedGroup::Text { entities } => {
-            report.insert_part::<Text>(part_id, clone_entities(entities))
+    /// Insert this group into `report` under its modality, as a
+    /// container part keyed by `id`.
+    pub(super) fn insert_as_part(&self, report: Report, id: &str) -> Report {
+        let part_id = PartId::from(id.to_owned());
+        match self {
+            Self::Text { entities } => {
+                report.insert_part::<Text>(part_id, clone_entities(entities))
+            }
+            #[cfg(feature = "internal_tabular")]
+            Self::Tabular { entities } => {
+                report.insert_part::<Tabular>(part_id, clone_entities(entities))
+            }
+            #[cfg(feature = "internal_image")]
+            Self::Image { entities } => {
+                report.insert_part::<Image>(part_id, clone_entities(entities))
+            }
+            #[cfg(feature = "internal_audio")]
+            Self::Audio { entities } => {
+                report.insert_part::<Audio>(part_id, clone_entities(entities))
+            }
         }
-        #[cfg(feature = "internal_tabular")]
-        RecognizedGroup::Tabular { entities } => {
-            report.insert_part::<Tabular>(part_id, clone_entities(entities))
+    }
+
+    /// Append every reviewer override on this group to `out`.
+    ///
+    /// Iterates the variant-appropriate `Vec<EntityRecord<M>>`
+    /// and keeps only records whose `reviewer_override` field is
+    /// set.
+    pub(super) fn collect_overrides_into(&self, out: &mut Vec<(Uuid, PolicyAction)>) {
+        match self {
+            Self::Text { entities } => extend_overrides(out, entities),
+            #[cfg(feature = "internal_tabular")]
+            Self::Tabular { entities } => extend_overrides(out, entities),
+            #[cfg(feature = "internal_image")]
+            Self::Image { entities } => extend_overrides(out, entities),
+            #[cfg(feature = "internal_audio")]
+            Self::Audio { entities } => extend_overrides(out, entities),
         }
-        #[cfg(feature = "internal_image")]
-        RecognizedGroup::Image { entities } => {
-            report.insert_part::<Image>(part_id, clone_entities(entities))
-        }
-        #[cfg(feature = "internal_audio")]
-        RecognizedGroup::Audio { entities } => {
-            report.insert_part::<Audio>(part_id, clone_entities(entities))
+    }
+
+    /// Recover the typed handle for this group's modality (the
+    /// document body's modality) and re-encode it into an
+    /// [`AnonymizedDocument`].
+    ///
+    /// Called after `anonymize_with` mutated `handle` in place.
+    /// The apply-time re-encode needs the typed form because
+    /// [`elide::codec::DocumentHandle::encode`] is per-modality.
+    pub(super) fn encode_redacted_from(
+        &self,
+        handle: UntypedDocumentHandle,
+    ) -> Result<AnonymizedDocument> {
+        match self {
+            Self::Text { .. } => encode_typed::<Text>(handle, "Text"),
+            #[cfg(feature = "internal_tabular")]
+            Self::Tabular { .. } => encode_typed::<Tabular>(handle, "Tabular"),
+            #[cfg(feature = "internal_image")]
+            Self::Image { .. } => encode_typed::<Image>(handle, "Image"),
+            #[cfg(feature = "internal_audio")]
+            Self::Audio { .. } => encode_typed::<Audio>(handle, "Audio"),
         }
     }
 }
@@ -146,47 +185,12 @@ where
     records.iter().map(|r| r.entity.clone()).collect()
 }
 
-/// Append every reviewer override on `group` to `out`. Iterates
-/// the variant-appropriate `Vec<EntityRecord<M>>` and keeps only
-/// records whose `override` field is set.
-pub(super) fn collect_overrides_into(out: &mut Vec<(Uuid, PolicyAction)>, group: &RecognizedGroup) {
-    match group {
-        RecognizedGroup::Text { entities } => extend_overrides(out, entities),
-        #[cfg(feature = "internal_tabular")]
-        RecognizedGroup::Tabular { entities } => extend_overrides(out, entities),
-        #[cfg(feature = "internal_image")]
-        RecognizedGroup::Image { entities } => extend_overrides(out, entities),
-        #[cfg(feature = "internal_audio")]
-        RecognizedGroup::Audio { entities } => extend_overrides(out, entities),
-    }
-}
-
 fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, PolicyAction)>, records: &[EntityRecord<M>]) {
     out.extend(records.iter().filter_map(|r| {
         r.reviewer_override
             .as_ref()
             .map(|a| (r.entity.id, a.clone()))
     }));
-}
-
-/// After `anonymize_with` mutated `handle` in place, recover the
-/// typed handle for the doc's body modality and re-encode it.
-/// `handle` was a typed `DocumentHandle<M>` before being erased;
-/// the apply-time re-encode needs the typed form because
-/// [`elide::codec::DocumentHandle::encode`] is per-modality.
-pub(super) fn encode_redacted(
-    handle: UntypedDocumentHandle,
-    body: &RecognizedGroup,
-) -> Result<AnonymizedDocument> {
-    match body {
-        RecognizedGroup::Text { .. } => encode_typed::<Text>(handle, "Text"),
-        #[cfg(feature = "internal_tabular")]
-        RecognizedGroup::Tabular { .. } => encode_typed::<Tabular>(handle, "Tabular"),
-        #[cfg(feature = "internal_image")]
-        RecognizedGroup::Image { .. } => encode_typed::<Image>(handle, "Image"),
-        #[cfg(feature = "internal_audio")]
-        RecognizedGroup::Audio { .. } => encode_typed::<Audio>(handle, "Audio"),
-    }
 }
 
 fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<AnonymizedDocument>

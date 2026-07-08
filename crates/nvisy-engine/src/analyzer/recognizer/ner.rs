@@ -4,7 +4,8 @@
 //! backend (or `MockBackend` under the `test-utils` feature).
 //!
 //! Symmetric with [`super::llm`]; called by every per-modality
-//! compile function when `AnalyzerParams.recognizers.ner == true`.
+//! compile function with the request's
+//! `AnalyzerParams.recognizers.ner` three-state toggle.
 //!
 //! [`Analyzer`]: elide::detection::Analyzer
 //! [`NerConfig::recognizers`]: nvisy_core::ner::NerConfig::recognizers
@@ -17,26 +18,37 @@ use elide_core::modality::TextRecognizable;
 use elide_core::recognition::Recognizer;
 use nvisy_core::ner::{NerBackendConfig, NerConfig, NerRecognizer as ConfigNerRecognizer};
 
-/// Attach every recognizer from the deployment's NER lineup.
-/// Errors when the lineup is empty (compile is only invoked when
-/// the request toggled `ner = true`, so "no recognizers
-/// configured" is user-visible). Modality-generic for any
-/// `M: TextRecognizable`.
+/// Attach every recognizer from the deployment's NER lineup,
+/// dispatched on the request's three-state toggle.
+///
+/// - `Some(true)`: explicit opt-in. Attaches every configured
+///   recognizer; errors if the lineup is empty.
+/// - `Some(false)`: explicit opt-out. Returns the analyzer
+///   unchanged.
+/// - `None`: softly-on default. Attaches every configured
+///   recognizer if the lineup is non-empty; skips silently
+///   otherwise.
 pub(in crate::analyzer) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
     ner: &NerConfig,
+    toggle: Option<bool>,
 ) -> Result<Analyzer<M>, Error>
 where
     M: TextRecognizable,
     NerRecognizer: Recognizer<M> + 'static,
 {
-    if ner.recognizers.is_empty() {
-        return Err(Error::new(
-            elide_core::ErrorKind::Validation,
-            "AnalyzerParams.recognizers.ner = true but the deployment has no NER \
-             recognizer configured; add one to `[[ner.recognizers]]` in the \
-             deployment config or leave `ner = false`",
-        ));
+    match toggle {
+        Some(false) => return Ok(analyzer),
+        None if ner.recognizers.is_empty() => return Ok(analyzer),
+        Some(true) if ner.recognizers.is_empty() => {
+            return Err(Error::new(
+                elide_core::ErrorKind::Validation,
+                "AnalyzerParams.recognizers.ner = true but the deployment has no NER \
+                 recognizer configured; add one to `[[ner.recognizers]]` in the \
+                 deployment config or leave `ner` unset / false",
+            ));
+        }
+        _ => {}
     }
     for recognizer in &ner.recognizers {
         analyzer = attach_ner_one(analyzer, recognizer)?;

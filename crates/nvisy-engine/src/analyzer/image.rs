@@ -46,12 +46,13 @@ pub(super) fn compile(
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
-    if spec.recognizers.ner {
-        analyzer = attach_ner_lineup(analyzer, ner)?;
-    }
-    if spec.recognizers.llm {
-        analyzer = attach_llm_lineup(analyzer, llm, LlmRecognizerModality::Image)?;
-    }
+    analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner)?;
+    analyzer = attach_llm_lineup(
+        analyzer,
+        llm,
+        LlmRecognizerModality::Image,
+        spec.recognizers.llm,
+    )?;
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
 }

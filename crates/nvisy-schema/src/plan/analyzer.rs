@@ -90,10 +90,9 @@ pub struct ScopeParams {
     /// these to bias their behaviour for domain-specific terms;
     /// those that don't ignore the field.
     ///
-    /// Named `tags`, not `labels`, to keep "label" reserved for
-    /// the entity taxonomy ([`label_catalog`]): these classify
-    /// the *document*, whereas the catalog names the entity
-    /// *types* to emit.
+    /// Distinct from [`label_catalog`]: tags classify the
+    /// *document*, whereas the catalog names the entity *types*
+    /// to emit.
     ///
     /// [`label_catalog`]: ScopeParams::label_catalog
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

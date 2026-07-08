@@ -2465,8 +2465,6 @@ dependencies = [
  "elide",
  "elide-bento",
  "elide-core",
- "elide-ocr",
- "elide-stt",
  "hipstr",
  "nvisy-core",
  "nvisy-engine",

@@ -6,15 +6,15 @@
 //! Validation.
 
 use elide::detection::Analyzer;
+#[cfg(feature = "test-utils")]
+use elide::enrichment::stt::{MockBackend as MockSttBackend, SttEnricher};
 use elide_core::modality::audio::Audio;
 use elide_core::{Error, ErrorKind};
-#[cfg(feature = "test-utils")]
-use elide_stt::{MockBackend as MockSttBackend, SttEnricher};
 use nvisy_schema::plan::{SttBackendParams, SttEnricherParams};
 
 /// Attach an [`SttEnricher`] for the audio modality.
 ///
-/// [`SttEnricher`]: elide_stt::SttEnricher
+/// [`SttEnricher`]: elide::enrichment::stt::SttEnricher
 pub(in crate::analyzer) fn attach(
     analyzer: Analyzer<Audio>,
     spec: &SttEnricherParams,

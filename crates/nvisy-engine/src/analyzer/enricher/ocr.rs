@@ -6,12 +6,12 @@
 //! OCR.
 
 use elide::detection::Analyzer;
+#[cfg(feature = "test-utils")]
+use elide::enrichment::ocr::MockBackend as MockOcrBackend;
+use elide::enrichment::ocr::OcrEnricher;
 use elide_bento::BentoOcr;
 use elide_core::Error;
 use elide_core::modality::image::Image;
-#[cfg(feature = "test-utils")]
-use elide_ocr::MockBackend as MockOcrBackend;
-use elide_ocr::OcrEnricher;
 use nvisy_schema::plan::{OcrBackendParams, OcrEnricherParams};
 
 /// Attach an [`OcrEnricher`] for the image modality.

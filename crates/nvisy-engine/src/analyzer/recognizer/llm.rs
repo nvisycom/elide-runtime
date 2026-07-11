@@ -4,9 +4,6 @@
 //! entry via elide's `RigBackend` (or `MockBackend` under the
 //! `test-utils` feature).
 
-use crate::provider::llm::{
-    AttachTo, LlmConfig, LlmPrompt, LlmRecognizer as ConfigRecognizer, LlmSource,
-};
 use elide::detection::Analyzer;
 #[cfg(feature = "test-utils")]
 use elide::recognition::llm::backend::MockBackend as MockLlmBackend;
@@ -15,6 +12,10 @@ use elide::recognition::llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide_core::{Error, ErrorKind};
+
+use crate::provider::llm::{
+    AttachTo, LlmConfig, LlmPrompt, LlmRecognizer as ConfigRecognizer, LlmSource,
+};
 
 /// Attach every LLM recognizer in `llm.recognizers` whose
 /// modality list includes `modality` to `analyzer`, dispatched on

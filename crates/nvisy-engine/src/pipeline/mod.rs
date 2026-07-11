@@ -81,7 +81,6 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::{Error, Result};
 use bytes::Bytes;
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
 use elide::{Directives, Report};
@@ -100,6 +99,9 @@ use uuid::Uuid;
 
 pub use self::analyzed::{AnalyzedDocument, EntityRecord, RecognizedGroup};
 use self::report::{take_body, take_part};
+use crate::provider::llm::LlmConfig;
+use crate::provider::ner::NerConfig;
+use crate::{Error, PatternGuardrails, Result};
 
 const COMPONENT: &str = "pipeline";
 
@@ -111,9 +113,9 @@ const COMPONENT: &str = "pipeline";
 #[derive(Clone, Default)]
 pub struct Engine {
     formats: Arc<FormatRegistry>,
-    ner: Arc<crate::provider::ner::NerConfig>,
-    llm: Arc<crate::provider::llm::LlmConfig>,
-    pattern_guardrails: crate::PatternGuardrails,
+    ner: Arc<NerConfig>,
+    llm: Arc<LlmConfig>,
+    pattern_guardrails: PatternGuardrails,
 }
 
 /// The redacted output of [`Engine::anonymize_document`].
@@ -131,14 +133,16 @@ impl Engine {
     ///
     /// Uses [`FormatRegistry::with_builtin`] plus empty NER and
     /// LLM lineups. Callers that want NER or LLM recognition
-    /// must chain [`with_ner`](Self::with_ner) or
-    /// [`with_llm`](Self::with_llm).
+    /// must chain [`with_ner`] or [`with_llm`].
+    ///
+    /// [`with_ner`]: Self::with_ner
+    /// [`with_llm`]: Self::with_llm
     pub fn new() -> Self {
         Self {
             formats: Arc::new(FormatRegistry::with_builtin()),
-            ner: Arc::new(crate::provider::ner::NerConfig::default()),
-            llm: Arc::new(crate::provider::llm::LlmConfig::default()),
-            pattern_guardrails: crate::PatternGuardrails::default(),
+            ner: Arc::new(NerConfig::default()),
+            llm: Arc::new(LlmConfig::default()),
+            pattern_guardrails: PatternGuardrails::default(),
         }
     }
 
@@ -148,7 +152,7 @@ impl Engine {
     /// every time a request submits
     /// `AnalyzerParams.recognizers.ner = true`.
     #[must_use]
-    pub fn with_ner(mut self, ner: crate::provider::ner::NerConfig) -> Self {
+    pub fn with_ner(mut self, ner: NerConfig) -> Self {
         self.ner = Arc::new(ner);
         self
     }
@@ -159,7 +163,7 @@ impl Engine {
     /// every time a request submits
     /// `AnalyzerParams.recognizers.llm = true`.
     #[must_use]
-    pub fn with_llm(mut self, llm: crate::provider::llm::LlmConfig) -> Self {
+    pub fn with_llm(mut self, llm: LlmConfig) -> Self {
         self.llm = Arc::new(llm);
         self
     }
@@ -175,7 +179,7 @@ impl Engine {
     ///
     /// [`PatternRecognizerParams`]: nvisy_schema::plan::PatternRecognizerParams
     #[must_use]
-    pub fn with_pattern_guardrails(mut self, guardrails: crate::PatternGuardrails) -> Self {
+    pub fn with_pattern_guardrails(mut self, guardrails: PatternGuardrails) -> Self {
         self.pattern_guardrails = guardrails.clamped();
         self
     }

@@ -10,13 +10,14 @@
 //! [`Analyzer`]: elide::detection::Analyzer
 //! [`NerConfig::recognizers`]: crate::provider::ner::NerConfig::recognizers
 
-use crate::provider::ner::{NerBackend, NerConfig, NerRecognizer as ConfigNerRecognizer};
 use elide::detection::Analyzer;
 use elide::recognition::ner::NerRecognizer;
 use elide_bento::BentoNer;
-use elide_core::Error;
 use elide_core::modality::TextRecognizable;
 use elide_core::recognition::Recognizer;
+use elide_core::{Error, ErrorKind};
+
+use crate::provider::ner::{NerBackend, NerConfig, NerRecognizer as ConfigNerRecognizer};
 
 /// Attach every recognizer from the deployment's NER lineup,
 /// dispatched on the request's three-state toggle.
@@ -42,7 +43,7 @@ where
         None if ner.recognizers.is_empty() => return Ok(analyzer),
         Some(true) if ner.recognizers.is_empty() => {
             return Err(Error::new(
-                elide_core::ErrorKind::Validation,
+                ErrorKind::Validation,
                 "AnalyzerParams.recognizers.ner = true but the deployment has no NER \
                  recognizer configured; add one to `[[ner.recognizers]]` in the \
                  deployment config or leave `ner` unset / false",

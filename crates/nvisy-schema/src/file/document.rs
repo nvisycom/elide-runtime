@@ -44,9 +44,11 @@ pub struct Document {
 impl Document {
     /// New document with a freshly minted UUIDv7 correlation id.
     ///
-    /// Chain [`with_content_type`](Self::with_content_type) or
-    /// [`with_correlation_id`](Self::with_correlation_id) to set
-    /// the optional fields.
+    /// Chain [`with_content_type`] or [`with_correlation_id`] to
+    /// set the optional fields.
+    ///
+    /// [`with_content_type`]: Self::with_content_type
+    /// [`with_correlation_id`]: Self::with_correlation_id
     pub fn new(bytes: impl Into<Bytes>, extension: impl Into<HipStr<'static>>) -> Self {
         Self {
             bytes: bytes.into(),

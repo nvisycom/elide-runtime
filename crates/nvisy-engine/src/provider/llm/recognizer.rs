@@ -8,11 +8,12 @@ use super::{AttachTo, LlmPrompt};
 
 /// One entry in the deployment's LLM lineup.
 ///
-/// Every entry in
-/// [`LlmConfig::recognizers`](super::LlmConfig::recognizers)
-/// runs on every analyzer whose modality is listed in
-/// [`modalities`](Self::modalities), provided the request
-/// toggled `recognizers.llm = true`.
+/// Every entry in [`LlmConfig::recognizers`] runs on every
+/// analyzer whose modality is listed in [`modalities`], provided
+/// the request toggled `recognizers.llm = true`.
+///
+/// [`LlmConfig::recognizers`]: super::LlmConfig::recognizers
+/// [`modalities`]: Self::modalities
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmRecognizer {

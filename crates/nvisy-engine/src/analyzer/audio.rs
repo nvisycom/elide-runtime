@@ -15,7 +15,6 @@
 //!
 //! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 
-use crate::provider::ner::NerConfig;
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::audio::Audio;
@@ -25,6 +24,7 @@ use super::PatternGuardrails;
 use super::enricher::attach_stt;
 use super::layer::attach_dedup;
 use super::recognizer::{attach_ner_lineup, attach_pattern};
+use crate::provider::ner::NerConfig;
 
 /// Compile `spec` into an audio-modality [`Analyzer`].
 pub(super) fn compile(

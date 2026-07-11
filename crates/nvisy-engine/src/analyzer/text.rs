@@ -17,8 +17,6 @@
 //! [`NerConfig`]: crate::provider::ner::NerConfig
 //! [`LlmConfig`]: crate::provider::llm::LlmConfig
 
-use crate::provider::llm::{AttachTo, LlmConfig};
-use crate::provider::ner::NerConfig;
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::text::Text;
@@ -28,6 +26,8 @@ use super::PatternGuardrails;
 use super::enricher::attach_language;
 use super::layer::attach_dedup;
 use super::recognizer::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
+use crate::provider::llm::{AttachTo, LlmConfig};
+use crate::provider::ner::NerConfig;
 
 /// Compile `spec` into a text-modality [`Analyzer`]. Scope is
 /// built separately and lives on the orchestrator.

@@ -16,14 +16,15 @@ pub(crate) trait LabelCatalogCompile {
     /// Build the per-request catalog. Engine does not pre-seed
     /// builtins; the caller picks. Two sources union into one:
     ///
-    /// - [`builtins`](LabelCatalogParams::builtins) — each name is
-    ///   looked up against the cached full builtin catalog;
-    ///   unknown names warn and are skipped (typos shouldn't fail
-    ///   the request).
-    /// - [`custom`](LabelCatalogParams::custom) — inserted as-is;
-    ///   names that collide with a builtin replace it (matches
-    ///   [`LabelCatalog::insert`] semantics: last write wins).
+    /// - [`builtins`] — each name is looked up against the cached
+    ///   full builtin catalog; unknown names warn and are skipped
+    ///   (typos shouldn't fail the request).
+    /// - [`custom`] — inserted as-is; names that collide with a
+    ///   builtin replace it (matches [`LabelCatalog::insert`]
+    ///   semantics: last write wins).
     ///
+    /// [`builtins`]: LabelCatalogParams::builtins
+    /// [`custom`]: LabelCatalogParams::custom
     /// [`LabelCatalog::insert`]: elide_core::entity::LabelCatalog::insert
     fn compile(&self) -> LabelCatalog;
 }

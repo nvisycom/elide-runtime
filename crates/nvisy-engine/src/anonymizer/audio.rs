@@ -4,8 +4,8 @@
 use elide::redaction::Anonymizer;
 use elide_core::Error;
 use elide_core::modality::audio::Audio;
-use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::ModalityRedactions;
+use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
@@ -20,7 +20,7 @@ use super::operator::audio::AudioOp;
 /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
 pub(crate) fn attach_policies_audio<'a>(
     anonymizer: Anonymizer<Audio>,
-    policies: impl Iterator<Item = &'a nvisy_schema::policy::Policy>,
+    policies: impl Iterator<Item = &'a Policy>,
 ) -> Result<Anonymizer<Audio>, Error> {
     attach_policies(anonymizer, policies, compile_one)
 }

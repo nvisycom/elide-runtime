@@ -38,8 +38,6 @@ mod recognizer;
 mod tabular;
 mod text;
 
-use crate::provider::llm::LlmConfig;
-use crate::provider::ner::NerConfig;
 use elide::detection::Analyzer;
 use elide_core::Error;
 #[cfg(feature = "internal_audio")]
@@ -53,6 +51,8 @@ use nvisy_schema::plan::AnalyzerParams;
 
 pub(crate) use self::catalog::LabelCatalogCompile;
 pub use self::recognizer::PatternGuardrails;
+use crate::provider::llm::LlmConfig;
+use crate::provider::ner::NerConfig;
 
 /// Compile a [`nvisy_schema::plan::AnalyzerParams`] into a
 /// per-modality [`elide::detection::Analyzer`].

@@ -13,8 +13,8 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow};
 use elide_core::Error;
 use elide_core::modality::tabular::Tabular;
-use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TabularRedaction};
+use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
@@ -28,7 +28,7 @@ use super::operator::text::TextOp;
 /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
 pub(crate) fn attach_policies_tabular<'a>(
     anonymizer: Anonymizer<Tabular>,
-    policies: impl Iterator<Item = &'a nvisy_schema::policy::Policy>,
+    policies: impl Iterator<Item = &'a Policy>,
 ) -> Result<Anonymizer<Tabular>, Error> {
     attach_policies(anonymizer, policies, compile_one)
 }

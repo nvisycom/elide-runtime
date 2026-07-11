@@ -10,8 +10,8 @@ use elide::detection::Analyzer;
 use elide::enrichment::ocr::MockBackend as MockOcrBackend;
 use elide::enrichment::ocr::OcrEnricher;
 use elide_bento::BentoOcr;
-use elide_core::Error;
 use elide_core::modality::image::Image;
+use elide_core::{Error, ErrorKind};
 use nvisy_schema::plan::{OcrBackendParams, OcrEnricherParams};
 
 /// Attach an [`OcrEnricher`] for the image modality.
@@ -29,8 +29,8 @@ pub(in crate::analyzer) fn attach(
         // variants surface as Validation instead of silently
         // skipping OCR.
         _ => {
-            return Err(elide_core::Error::new(
-                elide_core::ErrorKind::Validation,
+            return Err(Error::new(
+                ErrorKind::Validation,
                 "OCR enricher uses a backend kind this engine binary doesn't \
                  understand; upgrade the engine or downgrade the config",
             ));

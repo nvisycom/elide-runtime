@@ -23,6 +23,7 @@ use elide::redaction::Anonymizer;
 use elide_core::Error;
 use elide_core::entity::provenance::Attribution;
 use elide_core::modality::Modality;
+use elide_core::operator::Operator;
 use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::ModalityRedactions;
 use nvisy_schema::policy::{Policy, PolicyAction};
@@ -64,7 +65,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// dispatchers per modality.
     pub(in crate::anonymizer) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
     where
-        O: elide_core::operator::Operator<M> + Clone + 'static,
+        O: Operator<M> + Clone + 'static,
     {
         match self {
             Target::Rule {

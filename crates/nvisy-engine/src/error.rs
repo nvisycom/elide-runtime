@@ -29,6 +29,7 @@
 use std::borrow::Cow;
 use std::{error, io, result};
 
+use elide_core::{Error as ElideError, ErrorKind as ElideErrorKind};
 use strum::Display;
 
 /// Trait-object alias for the [`Error`] cause chain.
@@ -289,7 +290,7 @@ impl From<derive_builder::UninitializedFieldError> for Error {
     }
 }
 
-impl From<elide_core::Error> for Error {
+impl From<ElideError> for Error {
     /// Map elide's per-operation error into the runtime's shared vocabulary.
     ///
     /// The elide `ErrorKind` is preserved semantically via a
@@ -299,12 +300,10 @@ impl From<elide_core::Error> for Error {
     /// Called at every `nvisy-engine` seam where an `elide::Error`
     /// crosses into engine-land — pattern compile, recognizer
     /// build, anonymizer attach, orchestrator analyze/anonymize.
-    fn from(err: elide_core::Error) -> Self {
+    fn from(err: ElideError) -> Self {
         let kind = match err.kind() {
-            elide_core::ErrorKind::OutOfRange | elide_core::ErrorKind::Validation => {
-                ErrorKind::Validation
-            }
-            elide_core::ErrorKind::Transport => ErrorKind::Connection,
+            ElideErrorKind::OutOfRange | ElideErrorKind::Validation => ErrorKind::Validation,
+            ElideErrorKind::Transport => ErrorKind::Connection,
             _ => ErrorKind::Runtime,
         };
         Self::new(kind, err.to_string()).with_source(err)

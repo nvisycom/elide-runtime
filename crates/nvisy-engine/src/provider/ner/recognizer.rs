@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 
 /// One entry in the deployment's NER lineup.
 ///
-/// Every entry in
-/// [`NerConfig::recognizers`](super::NerConfig::recognizers)
-/// runs when the request toggles `recognizers.ner = true`.
+/// Every entry in [`NerConfig::recognizers`] runs when the
+/// request toggles `recognizers.ner = true`.
+///
+/// [`NerConfig::recognizers`]: super::NerConfig::recognizers
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NerRecognizer {

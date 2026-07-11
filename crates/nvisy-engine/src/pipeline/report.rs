@@ -33,7 +33,6 @@
 
 use std::mem;
 
-use crate::{Error, Result};
 use elide::Report;
 use elide::codec::{PartId, UntypedDocumentHandle};
 use elide_core::entity::Entity;
@@ -50,6 +49,7 @@ use uuid::Uuid;
 
 use super::AnonymizedDocument;
 use super::analyzed::{EntityRecord, RecognizedGroup};
+use crate::{Error, Result};
 
 const COMPONENT: &str = "pipeline::report";
 

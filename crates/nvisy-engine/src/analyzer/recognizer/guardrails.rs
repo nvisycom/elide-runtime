@@ -8,9 +8,10 @@
 //! Every knob has a conservative default; a deployment can
 //! tighten below the default but not raise past a hard ceiling
 //! also enforced at the wire layer (see
-//! `nvisy_schema::plan::MAX_REGEX_SOURCE_LEN` for the regex
+//! `MAX_REGEX_SOURCE_LEN` for the regex
 //! source-length ceiling).
 
+use nvisy_schema::plan::MAX_REGEX_SOURCE_LEN;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -64,7 +65,7 @@ pub struct PatternGuardrails {
 impl Default for PatternGuardrails {
     fn default() -> Self {
         Self {
-            max_regex_source_len: nvisy_schema::plan::MAX_REGEX_SOURCE_LEN,
+            max_regex_source_len: MAX_REGEX_SOURCE_LEN,
             max_custom_rules: 32,
             max_dictionary_term_count: 100_000,
             max_dictionary_term_bytes: 8 * 1024 * 1024,
@@ -86,9 +87,7 @@ impl PatternGuardrails {
     /// [`Engine::with_pattern_guardrails`]: crate::Engine::with_pattern_guardrails
     #[must_use]
     pub fn clamped(mut self) -> Self {
-        self.max_regex_source_len = self
-            .max_regex_source_len
-            .min(nvisy_schema::plan::MAX_REGEX_SOURCE_LEN);
+        self.max_regex_source_len = self.max_regex_source_len.min(MAX_REGEX_SOURCE_LEN);
         self
     }
 }

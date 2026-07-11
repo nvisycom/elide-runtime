@@ -26,10 +26,10 @@ use elide::recognition::pattern::{
     Context as PatternContext, Dictionary, PatternRecognizer, PatternRecognizerBuilder, Regex,
     Scoring, Term, Variant,
 };
-use elide_core::Error;
 use elide_core::modality::TextRecognizable;
 use elide_core::primitive::LanguageTag;
 use elide_core::recognition::Recognizer;
+use elide_core::{Error, ErrorKind};
 use nvisy_schema::plan::{
     CustomDictionary, CustomDictionaryTerm, CustomPatternContext, CustomPatternRule,
     CustomPatternVariant, PatternRecognizerParams,
@@ -103,7 +103,7 @@ fn check_custom_count(
     let total = spec.custom.len() + spec.custom_dictionaries.len();
     if total > guardrails.max_custom_rules {
         return Err(Error::new(
-            elide_core::ErrorKind::Validation,
+            ErrorKind::Validation,
             format!(
                 "pattern recognizer: {} custom rules requested \
                  (custom={} + customDictionaries={}) exceeds the \
@@ -143,7 +143,7 @@ fn compile_custom_variant(
 ) -> Result<Variant, Error> {
     if variant.regex.len() > guardrails.max_regex_source_len {
         return Err(Error::new(
-            elide_core::ErrorKind::Validation,
+            ErrorKind::Validation,
             format!(
                 "pattern recognizer: regex source of {} bytes exceeds \
                  the deployment cap of {} bytes",

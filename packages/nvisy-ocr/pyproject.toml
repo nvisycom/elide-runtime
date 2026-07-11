@@ -10,6 +10,8 @@ dependencies = [
     # 1.4.39 floor pulls in an aiohttp without the CVEs from PR #6; do not relax.
     "bentoml>=1.4.39,<2",
     "nvisy-core",
+    # 1.22.0 floor patches CVE-2026-44512 (pulled in transitively via python-doctr).
+    "onnx>=1.22.0",
     "pillow>=12.3.0,<13",
     "prometheus-client>=0.20",
     # docTR (PyTorch backend); torch/torchvision are core deps in 1.x, no extra.

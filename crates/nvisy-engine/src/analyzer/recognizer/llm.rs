@@ -12,9 +12,9 @@ use elide::recognition::llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide_core::{Error, ErrorKind};
-use nvisy_core::llm::{
-    LlmBackendConfig, LlmConfig, LlmPrompt, LlmRecognizer as ConfigRecognizer,
-    LlmRecognizerModality,
+
+use crate::provider::llm::{
+    AttachTo, LlmConfig, LlmPrompt, LlmRecognizer as ConfigRecognizer, LlmSource,
 };
 
 /// Attach every LLM recognizer in `llm.recognizers` whose
@@ -43,7 +43,7 @@ use nvisy_core::llm::{
 pub(in crate::analyzer) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &LlmConfig,
-    modality: LlmRecognizerModality,
+    modality: AttachTo,
     toggle: Option<bool>,
 ) -> Result<Analyzer<M>, Error>
 where
@@ -94,32 +94,18 @@ where
     Jinja2Prompt<M>: Prompt<M>,
 {
     let mut builder = LlmRecognizer::<M>::builder().with_name(spec.name.clone());
-    builder = attach_backend(builder, spec)?;
+    builder = attach_source(builder, spec)?;
     builder = match &spec.prompt {
         None => builder.with_default_prompt(),
         Some(LlmPrompt::Inline { template }) => {
             builder.with_prompt(Jinja2Prompt::<M>::from_template(template.clone())?)
         }
         Some(LlmPrompt::File { path }) => builder.with_prompt(Jinja2Prompt::<M>::from_file(path)?),
-        // `LlmPrompt` is `#[non_exhaustive]`. A future variant
-        // reaching this arm in an older binary should surface as
-        // a compile error rather than silently falling back to
-        // the default prompt.
-        Some(_) => {
-            return Err(Error::new(
-                ErrorKind::Validation,
-                format!(
-                    "LLM recognizer `{}` uses a prompt shape this engine binary \
-                     doesn't understand; upgrade the engine or downgrade the config",
-                    spec.name,
-                ),
-            ));
-        }
     };
     Ok(analyzer.with_recognizer(builder.build()?))
 }
 
-fn attach_backend<M>(
+fn attach_source<M>(
     builder: LlmRecognizerBuilder<M>,
     spec: &ConfigRecognizer,
 ) -> Result<LlmRecognizerBuilder<M>, Error>
@@ -127,26 +113,14 @@ where
     M: LlmModality,
     RigBackend: LlmBackend<M>,
 {
-    let provider = match &spec.backend {
-        LlmBackendConfig::OpenAi(p) => Provider::OpenAi(p.clone()),
-        LlmBackendConfig::Anthropic(p) => Provider::Anthropic(p.clone()),
-        LlmBackendConfig::Gemini(p) => Provider::Gemini(p.clone()),
-        LlmBackendConfig::Ollama(p) => Provider::Ollama(p.clone()),
+    let provider = match &spec.source {
+        LlmSource::OpenAi(p) => Provider::OpenAi(p.clone()),
+        LlmSource::Anthropic(p) => Provider::Anthropic(p.clone()),
+        LlmSource::Gemini(p) => Provider::Gemini(p.clone()),
+        LlmSource::Ollama(p) => Provider::Ollama(p.clone()),
         #[cfg(feature = "test-utils")]
-        LlmBackendConfig::Mock => {
+        LlmSource::Mock => {
             return Ok(builder.with_backend(MockLlmBackend));
-        }
-        // `LlmBackendConfig` is `#[non_exhaustive]`. Unknown
-        // variants surface as Validation.
-        _ => {
-            return Err(Error::new(
-                ErrorKind::Validation,
-                format!(
-                    "LLM recognizer `{}` uses a backend kind this engine binary \
-                     doesn't understand; upgrade the engine or downgrade the config",
-                    spec.name,
-                ),
-            ));
         }
     };
     Ok(builder.with_backend(RigBackend::new(provider)?))

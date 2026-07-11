@@ -8,8 +8,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::FileLineage;
-
 /// Descriptor for one stored file.
 ///
 /// Persisted as a small JSON blob next to the raw bytes; clients
@@ -46,32 +44,20 @@ pub struct FileMetadata {
     pub extension: HipStr<'static>,
     /// Length of the raw bytes in bytes.
     pub size: u64,
-    /// Hex-encoded SHA-256 of the raw bytes.
-    ///
-    /// Stable per upload: re-uploading the same bytes produces
-    /// the same digest.
-    #[schemars(with = "String")]
-    pub digest: HipStr<'static>,
     /// Engine timestamp at upload time.
     ///
     /// UUIDv7's encoded timestamp also orders files, but this is
     /// the source of truth for display and filtering.
     #[schemars(with = "String")]
     pub uploaded_at: Timestamp,
-    /// Where this file came from.
+    /// Doc-level tags that gate `HasTag` policies.
     ///
-    /// `None` for uploaded files; [`FileLineage::RedactedFrom`]
-    /// for files produced by a redaction apply.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lineage: Option<FileLineage>,
-    /// Doc-level labels that gate `HasLabel` policies.
-    ///
-    /// Consumed by [`DocumentPredicate::HasLabel`] when a run
+    /// Consumed by [`DocumentPredicate::HasTag`] when a run
     /// references this file.
     ///
-    /// [`DocumentPredicate::HasLabel`]: crate::policy::predicate::DocumentPredicate::HasLabel
+    /// [`DocumentPredicate::HasTag`]: crate::policy::predicate::DocumentPredicate::HasTag
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub descriptor_labels: Vec<String>,
+    pub descriptor_tags: Vec<String>,
     /// Doc-level metadata that gates `HasMetadata` policies.
     ///
     /// Consumed by [`DocumentPredicate::HasMetadata`], merged

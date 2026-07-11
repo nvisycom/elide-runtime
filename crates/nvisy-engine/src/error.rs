@@ -29,11 +29,13 @@
 use std::borrow::Cow;
 use std::{error, io, result};
 
+use elide_core::{Error as ElideError, ErrorKind as ElideErrorKind};
 use strum::Display;
 
-/// Trait-object alias for the [`Error`] cause chain. Wraps any
-/// `std::error::Error` that's safe to send across threads: the
-/// usual bound for error sources in async code.
+/// Trait-object alias for the [`Error`] cause chain.
+///
+/// Wraps any `std::error::Error` that's safe to send across
+/// threads: the usual bound for error sources in async code.
 pub type ErrorSource = Box<dyn error::Error + Send + Sync>;
 
 /// Classification of error kinds.
@@ -60,9 +62,10 @@ pub enum ErrorKind {
     Policy,
     /// The requested resource was not found.
     NotFound,
-    /// The operation conflicts with the resource's current state
-    /// (e.g. "already in terminal state", "cannot delete while
-    /// running"). Maps to HTTP 409. Non-retryable: the caller has
+    /// The operation conflicts with the resource's current state.
+    ///
+    /// E.g. "already in terminal state", "cannot delete while
+    /// running". Maps to HTTP 409. Non-retryable: the caller has
     /// to inspect the resource and pick a different operation.
     Conflict,
     /// Could not connect to an external service.
@@ -110,11 +113,12 @@ pub struct Error {
 }
 
 impl Error {
-    /// Construct an error with the given kind and message; no
-    /// component, no source, `retryable = false`. Prefer the
-    /// per-kind shorthand fns ([`Self::validation`], [`Self::timeout`],
-    /// …) when one matches; they set the right `retryable` default
-    /// for that kind.
+    /// Construct an error with the given kind and message.
+    ///
+    /// No component, no source, `retryable = false`. Prefer the
+    /// per-kind shorthand fns ([`Self::validation`],
+    /// [`Self::timeout`], …) when one matches; they set the right
+    /// `retryable` default for that kind.
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
         Self {
             kind,
@@ -125,8 +129,9 @@ impl Error {
         }
     }
 
-    /// Attach an underlying cause to this error. Reachable downstream
-    /// via [`Error::source`].
+    /// Attach an underlying cause to this error.
+    ///
+    /// Reachable downstream via [`Error::source`].
     ///
     /// [`Error::source`]: std::error::Error::source
     pub fn with_source(mut self, source: impl error::Error + Send + Sync + 'static) -> Self {
@@ -134,8 +139,9 @@ impl Error {
         self
     }
 
-    /// Tag this error with the name of the component that produced
-    /// it (e.g. `"detection"`, `"registry"`, `"ocr-bento"`). Accepts
+    /// Tag this error with the name of the producer component.
+    ///
+    /// E.g. `"detection"`, `"registry"`, `"ocr-bento"`. Accepts
     /// `&'static str` (zero-alloc) or `String` (when the name is
     /// computed at runtime).
     pub fn with_component(mut self, component: impl Into<Cow<'static, str>>) -> Self {
@@ -143,9 +149,11 @@ impl Error {
         self
     }
 
-    /// Override the retryable flag. Per-kind shorthand fns set
-    /// sensible defaults; use this only when the call site has
-    /// information the kind alone can't express.
+    /// Override the retryable flag.
+    ///
+    /// Per-kind shorthand fns set sensible defaults; use this
+    /// only when the call site has information the kind alone
+    /// can't express.
     pub fn with_retryable(mut self, retryable: bool) -> Self {
         self.retryable = retryable;
         self
@@ -171,14 +179,17 @@ impl Error {
         self.retryable
     }
 
-    /// Validation failure. Caller's input or configuration was
-    /// rejected by domain logic. Non-retryable.
+    /// Validation failure. Non-retryable.
+    ///
+    /// Caller's input or configuration was rejected by domain
+    /// logic.
     pub fn validation(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
         Self::new(ErrorKind::Validation, message).with_component(component)
     }
 
-    /// Policy violation. Detected data conflicts with an active
-    /// policy rule. Non-retryable.
+    /// Policy violation. Non-retryable.
+    ///
+    /// Detected data conflicts with an active policy rule.
     pub fn policy(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
         Self::new(ErrorKind::Policy, message).with_component(component)
     }
@@ -188,15 +199,18 @@ impl Error {
         Self::new(ErrorKind::NotFound, message).with_component(component)
     }
 
-    /// Resource-state conflict (e.g. operation requires a different
-    /// status). Non-retryable. Maps to HTTP 409.
+    /// Resource-state conflict. Non-retryable.
+    ///
+    /// E.g. an operation that requires a different status. Maps
+    /// to HTTP 409.
     pub fn conflict(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
         Self::new(ErrorKind::Conflict, message).with_component(component)
     }
 
-    /// Connection failure to an external service. `retryable` is
-    /// caller-determined: transient network glitches are retryable,
-    /// permanent auth failures are not.
+    /// Connection failure to an external service.
+    ///
+    /// `retryable` is caller-determined: transient network
+    /// glitches are retryable, permanent auth failures are not.
     pub fn connection(
         message: impl Into<String>,
         component: impl Into<Cow<'static, str>>,
@@ -214,8 +228,9 @@ impl Error {
             .with_retryable(true)
     }
 
-    /// Explicit cancellation. Non-retryable: by definition the
-    /// caller asked us to stop.
+    /// Explicit cancellation. Non-retryable.
+    ///
+    /// By definition the caller asked us to stop.
     pub fn cancellation(
         message: impl Into<String>,
         component: impl Into<Cow<'static, str>>,
@@ -224,15 +239,17 @@ impl Error {
     }
 
     /// Internal infrastructure failure (filesystem, I/O, database).
+    ///
     /// Non-retryable by default: most internal failures need
     /// investigation, not retry.
     pub fn internal(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
         Self::new(ErrorKind::Internal, message).with_component(component)
     }
 
-    /// Runtime failure inside an engine operation. `retryable` is
-    /// caller-determined: an LLM rate-limit is retryable, a
-    /// compile-time pattern error is not.
+    /// Runtime failure inside an engine operation.
+    ///
+    /// `retryable` is caller-determined: an LLM rate-limit is
+    /// retryable, a compile-time pattern error is not.
     pub fn runtime(
         message: impl Into<String>,
         component: impl Into<Cow<'static, str>>,
@@ -273,21 +290,20 @@ impl From<derive_builder::UninitializedFieldError> for Error {
     }
 }
 
-impl From<elide_core::Error> for Error {
-    /// Map elide's per-operation error into the runtime's shared
-    /// vocabulary. The elide `ErrorKind` is preserved semantically
-    /// via a mapping onto the nearest [`ErrorKind`] variant; the
+impl From<ElideError> for Error {
+    /// Map elide's per-operation error into the runtime's shared vocabulary.
+    ///
+    /// The elide `ErrorKind` is preserved semantically via a
+    /// mapping onto the nearest [`ErrorKind`] variant; the
     /// original elide error travels along as the source cause.
     ///
     /// Called at every `nvisy-engine` seam where an `elide::Error`
     /// crosses into engine-land — pattern compile, recognizer
     /// build, anonymizer attach, orchestrator analyze/anonymize.
-    fn from(err: elide_core::Error) -> Self {
+    fn from(err: ElideError) -> Self {
         let kind = match err.kind() {
-            elide_core::ErrorKind::OutOfRange | elide_core::ErrorKind::Validation => {
-                ErrorKind::Validation
-            }
-            elide_core::ErrorKind::Transport => ErrorKind::Connection,
+            ElideErrorKind::OutOfRange | ElideErrorKind::Validation => ErrorKind::Validation,
+            ElideErrorKind::Transport => ErrorKind::Connection,
             _ => ErrorKind::Runtime,
         };
         Self::new(kind, err.to_string()).with_source(err)

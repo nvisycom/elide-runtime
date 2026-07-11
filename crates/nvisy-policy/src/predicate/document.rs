@@ -15,12 +15,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DocumentPredicate {
-    /// Document carries `label` (e.g. `"contract"`, `"medical"`).
-    /// Labels come from the content descriptor; the importer
+    /// Document carries `tag` (e.g. `"contract"`, `"medical"`).
+    /// Tags come from the content descriptor; the importer
     /// populates them at ingest time.
-    HasLabel {
-        /// Required document label.
-        label: String,
+    HasTag {
+        /// Required document tag.
+        tag: String,
     },
     /// Document metadata has `key` set, optionally to `value`. When
     /// `value` is `None` the key just has to be present.

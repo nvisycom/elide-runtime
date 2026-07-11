@@ -5,15 +5,15 @@
 
 mod fixtures;
 
-use std::io::Read;
+use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
 use nvisy_engine::{AnalyzedDocument, Engine, RecognizedGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
-    AnalyzerParams, LabelCatalogParams, OcrBackendParams, OcrEnricherParams,
-    PatternRecognizerParams, ScopeParams,
+    AnalyzerParams, EnricherParams, LabelCatalogParams, OcrBackendParams, OcrEnricherParams,
+    PatternRecognizerParams, RecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
@@ -33,7 +33,7 @@ fn engine() -> Engine {
 
 fn default_spec() -> AnalyzerParams {
     AnalyzerParams {
-        recognizers: nvisy_schema::plan::RecognizerParams {
+        recognizers: RecognizerParams {
             pattern: Some(PatternRecognizerParams {
                 builtins: true,
                 context_enhanced: true,
@@ -42,7 +42,7 @@ fn default_spec() -> AnalyzerParams {
             ner: Some(false),
             llm: Some(false),
         },
-        enrichers: nvisy_schema::plan::EnricherParams {
+        enrichers: EnricherParams {
             language: None,
             ocr: Some(OcrEnricherParams {
                 backend: OcrBackendParams::Mock,
@@ -51,11 +51,12 @@ fn default_spec() -> AnalyzerParams {
         },
         deduplication: Default::default(),
         scope: ScopeParams::default(),
+        annotations: Default::default(),
     }
 }
 
 fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
-    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(buf.to_vec())).ok()?;
+    let mut zip = zip::ZipArchive::new(Cursor::new(buf.to_vec())).ok()?;
     let mut entry = zip.by_name(name).ok()?;
     let mut out = Vec::new();
     entry.read_to_end(&mut out).ok()?;

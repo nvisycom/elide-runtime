@@ -17,12 +17,12 @@
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::tabular::Tabular;
-use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
 use super::PatternGuardrails;
 use super::layer::attach_dedup;
 use super::recognizer::{attach_ner_lineup, attach_pattern};
+use crate::provider::ner::NerConfig;
 
 /// Compile `spec` into a tabular-modality [`Analyzer`].
 pub(super) fn compile(

@@ -23,10 +23,12 @@
 //!   Re-exported from [`nvisy-context`].
 //! - [`plan`]: analyzer plans. `AnalyzerParams`, per-recognizer
 //!   configuration, dedup pipeline, request scope.
-//! - [`file`](mod@file): persisted file descriptors and lineage.
-//! - [`primitive`], [`entity`], [`modality`]: the slice of
-//!   `elide_core` the wire types are built on, re-exported so
-//!   SDK callers don't need `elide-core` as a separate dep.
+//! - [`file`](mod@file): persisted file descriptor and the
+//!   in-memory carrier for codec input.
+//! - [`primitive`], [`entity`], [`modality`], [`annotation`]:
+//!   the slice of `elide_core` the wire types are built on,
+//!   re-exported so SDK callers don't need `elide-core` as a
+//!   separate dep.
 //!
 //! [`nvisy-core`]: https://docs.rs/nvisy-core
 //! [`nvisy-policy`]: https://docs.rs/nvisy-policy
@@ -35,6 +37,7 @@
 pub use nvisy_context as context;
 pub use nvisy_policy as policy;
 
+pub mod annotation;
 pub mod entity;
 pub mod file;
 pub mod modality;

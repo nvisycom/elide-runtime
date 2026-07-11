@@ -47,12 +47,12 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::llm::LlmConfig;
-use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
 pub(crate) use self::catalog::LabelCatalogCompile;
 pub use self::recognizer::PatternGuardrails;
+use crate::provider::llm::LlmConfig;
+use crate::provider::ner::NerConfig;
 
 /// Compile a [`nvisy_schema::plan::AnalyzerParams`] into a
 /// per-modality [`elide::detection::Analyzer`].

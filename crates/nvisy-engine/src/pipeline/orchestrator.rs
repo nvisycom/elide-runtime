@@ -27,10 +27,12 @@
 //!
 //! [`Scope`]: elide::recognition::Scope
 
-use elide::Orchestrator;
+use std::slice;
+
 use elide::detection::Analyzer;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
+use elide::{Error as ElideError, Orchestrator};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::Modality;
 #[cfg(feature = "internal_audio")]
@@ -40,12 +42,12 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::Result;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
 use super::Engine;
+use crate::Result;
 use crate::analyzer::{AnalyzerCompile, LabelCatalogCompile};
 #[cfg(feature = "internal_audio")]
 use crate::anonymizer::{attach_override_audio, attach_policies_audio};
@@ -230,11 +232,8 @@ fn assemble<'a, M, O, P>(
 ) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    O: Fn(Anonymizer<M>, Uuid, &PolicyAction) -> std::result::Result<Anonymizer<M>, elide::Error>,
-    P: FnOnce(
-        Anonymizer<M>,
-        std::slice::Iter<'a, Policy>,
-    ) -> std::result::Result<Anonymizer<M>, elide::Error>,
+    O: Fn(Anonymizer<M>, Uuid, &PolicyAction) -> Result<Anonymizer<M>, ElideError>,
+    P: FnOnce(Anonymizer<M>, slice::Iter<'a, Policy>) -> Result<Anonymizer<M>, ElideError>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
     for (id, action) in overrides {

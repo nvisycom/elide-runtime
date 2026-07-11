@@ -61,7 +61,6 @@ internal_audio = []
 ## backends they compile into. Off in production so deployment
 ## config cannot ship a mock recognizer.
 test-utils = [
-    "nvisy-core/test-utils",
     "nvisy-schema/test-utils",
     "elide/mock",
 ]
@@ -79,12 +78,18 @@ elide-core = { workspace = true, features = ["serde", "schema", "image", "audio"
 elide-bento = { workspace = true, features = ["ner", "ocr"] }
 
 # Internal crates
-nvisy-core = { workspace = true, features = [] }
 nvisy-schema = { workspace = true, features = [] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
+
+# Derive macros and error handling
+thiserror = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["display"] }
+derive_builder = { workspace = true, features = [] }
+strum = { workspace = true, features = ["derive"] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
@@ -96,9 +101,6 @@ tracing = { workspace = true, features = [] }
 [dev-dependencies]
 # Internal crates
 nvisy-engine = { path = ".", features = ["test-utils"] }
-
-# Serialization
-serde_json = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = ["v7"] }

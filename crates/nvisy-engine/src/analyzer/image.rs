@@ -15,20 +15,20 @@
 //! embedded part of that modality.
 //!
 //! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
-//! [`NerConfig`]: nvisy_core::ner::NerConfig
-//! [`LlmConfig`]: nvisy_core::llm::LlmConfig
+//! [`NerConfig`]: crate::provider::ner::NerConfig
+//! [`LlmConfig`]: crate::provider::llm::LlmConfig
 
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::image::Image;
-use nvisy_core::llm::{LlmConfig, LlmRecognizerModality};
-use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
 use super::PatternGuardrails;
 use super::enricher::attach_ocr;
 use super::layer::attach_dedup;
 use super::recognizer::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
+use crate::provider::llm::{AttachTo, LlmConfig};
+use crate::provider::ner::NerConfig;
 
 /// Compile `spec` into an image-modality [`Analyzer`].
 pub(super) fn compile(
@@ -47,12 +47,7 @@ pub(super) fn compile(
         analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
     analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner)?;
-    analyzer = attach_llm_lineup(
-        analyzer,
-        llm,
-        LlmRecognizerModality::Image,
-        spec.recognizers.llm,
-    )?;
+    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Image, spec.recognizers.llm)?;
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
 }

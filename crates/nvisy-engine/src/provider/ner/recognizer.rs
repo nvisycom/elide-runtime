@@ -3,9 +3,12 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// One deployment-configured NER recognizer. Every entry in
-/// [`NerConfig::recognizers`](super::NerConfig::recognizers)
-/// runs when the request toggles `recognizers.ner = true`.
+/// One entry in the deployment's NER lineup.
+///
+/// Every entry in [`NerConfig::recognizers`] runs when the
+/// request toggles `recognizers.ner = true`.
+///
+/// [`NerConfig::recognizers`]: super::NerConfig::recognizers
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NerRecognizer {
@@ -17,7 +20,7 @@ pub struct NerRecognizer {
     /// Backend selection + its per-kind fields, flattened onto
     /// the recognizer's wire shape.
     #[serde(flatten)]
-    pub backend: NerBackendConfig,
+    pub backend: NerBackend,
 }
 
 /// How a configured recognizer talks to its NER backend.
@@ -29,8 +32,7 @@ pub struct NerRecognizer {
 /// `kind = "mock"` in production builds.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum NerBackendConfig {
+pub enum NerBackend {
     /// BentoML-hosted NER service. Engine wires the shared
     /// `elide-bento` client; per-recognizer URL + model come
     /// from this variant.

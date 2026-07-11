@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 /// "use elide's default recognition prompt for this modality."
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "source", rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum LlmPrompt {
     /// Load the Jinja2 template from a file on disk. Resolved
     /// relative to the config file's directory (or absolute if

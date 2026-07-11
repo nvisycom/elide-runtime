@@ -21,23 +21,13 @@
 
 mod analyzer;
 mod anonymizer;
+mod error;
 mod pipeline;
+mod provider;
 
 pub use self::analyzer::PatternGuardrails;
+pub use self::error::{Error, ErrorKind, ErrorSource, Result};
 pub use self::pipeline::{
     AnalyzedDocument, AnonymizedDocument, Engine, EntityRecord, RecognizedGroup,
 };
-
-/// Deployment-owned LLM recognizer lineup consumed by
-/// [`Engine::with_llm`]. Re-exported from [`nvisy_core::llm`] so
-/// engine callers don't need `nvisy-core` as a separate dep.
-pub use nvisy_core::llm;
-/// Deployment-owned NER recognizer lineup consumed by
-/// [`Engine::with_ner`]. Re-exported from [`nvisy_core::ner`] so
-/// engine callers don't need `nvisy-core` as a separate dep.
-pub use nvisy_core::ner;
-/// Runtime error vocabulary. [`Error`] is what every fallible
-/// `Engine` method returns via [`Result`]. Re-exported from
-/// [`nvisy_core`] so engine callers don't need it as a separate
-/// dep.
-pub use nvisy_core::{Error, ErrorKind, Result};
+pub use self::provider::{llm, ner};

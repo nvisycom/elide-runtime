@@ -18,13 +18,13 @@
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::audio::Audio;
-use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
 use super::PatternGuardrails;
 use super::enricher::attach_stt;
 use super::layer::attach_dedup;
 use super::recognizer::{attach_ner_lineup, attach_pattern};
+use crate::provider::ner::NerConfig;
 
 /// Compile `spec` into an audio-modality [`Analyzer`].
 pub(super) fn compile(

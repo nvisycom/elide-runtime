@@ -44,12 +44,12 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::{Error, Result};
 use nvisy_schema::policy::PolicyAction;
 use uuid::Uuid;
 
 use super::AnonymizedDocument;
 use super::analyzed::{EntityRecord, RecognizedGroup};
+use crate::{Error, Result};
 
 const COMPONENT: &str = "pipeline::report";
 

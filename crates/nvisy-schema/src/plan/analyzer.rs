@@ -4,6 +4,7 @@ use elide_core::primitive::{CountryCode, Languages};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::annotation::AnyAnnotations;
 use super::deduplication::DeduplicationParams;
 use super::enricher::EnricherParams;
 use super::label::LabelCatalogParams;
@@ -58,6 +59,15 @@ pub struct AnalyzerParams {
     /// `elide::recognition::Scope` at compile time.
     #[serde(default)]
     pub scope: ScopeParams,
+    /// Per-modality region annotations.
+    ///
+    /// Empty by default. Each modality slot carries inclusions
+    /// (candidate regions LLM-adjudicating recognizers fold into
+    /// detection) and exclusions (protected regions the analyzer
+    /// drops any overlapping entity from). Engine attaches each
+    /// slot to the modality's pipeline at compile time.
+    #[serde(default)]
+    pub annotations: AnyAnnotations,
 }
 
 /// Caller-asserted scope for one request.

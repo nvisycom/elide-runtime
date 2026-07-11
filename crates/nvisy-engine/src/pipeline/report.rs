@@ -33,6 +33,7 @@
 
 use std::mem;
 
+use crate::{Error, Result};
 use elide::Report;
 use elide::codec::{PartId, UntypedDocumentHandle};
 use elide_core::entity::Entity;
@@ -44,7 +45,6 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::{Error, Result};
 use nvisy_schema::policy::PolicyAction;
 use uuid::Uuid;
 

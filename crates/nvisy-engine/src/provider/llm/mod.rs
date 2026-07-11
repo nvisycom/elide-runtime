@@ -8,25 +8,28 @@
 //! ## Layout
 //!
 //! - [`LlmConfig`] is the top-level bag: the recognizer lineup.
-//! - [`LlmRecognizer`] declares one recognizer instance:
-//!   provider (with model + credentials, from
-//!   [`elide_llm::provider::Provider`]) + optional prompt +
-//!   which modalities it attaches to.
+//! - [`LlmRecognizer`] declares one recognizer instance: source
+//!   + optional prompt + which modalities it attaches to.
+//! - [`LlmSource`] is the discriminated source enum, wrapping
+//!   [`elide::recognition::llm::provider::Provider`]'s variants
+//!   (with model + credentials) plus a test-only `Mock`.
 //! - [`LlmPrompt`] is the prompt spec: inline template, file
 //!   path, or absent (uses elide's default recognition prompt).
+//! - [`AttachTo`] tags which analyzer modalities a recognizer
+//!   attaches to.
 //!
-//! [`elide_llm::provider::Provider`]: https://docs.rs/elide-llm/latest/elide_llm/provider/enum.Provider.html
+//! [`elide::recognition::llm::provider::Provider`]: https://docs.rs/elide-llm/latest/elide_llm/provider/enum.Provider.html
 
+mod attach;
 mod prompt;
-mod provider;
 mod recognizer;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub use self::attach::AttachTo;
 pub use self::prompt::LlmPrompt;
-pub use self::provider::LlmRecognizerModality;
-pub use self::recognizer::{LlmBackendConfig, LlmRecognizer};
+pub use self::recognizer::{LlmRecognizer, LlmSource};
 
 /// Top-level LLM configuration. Loaded from the deployment's
 /// `[llm]` config section.

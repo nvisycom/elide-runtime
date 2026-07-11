@@ -38,6 +38,8 @@ mod recognizer;
 mod tabular;
 mod text;
 
+use crate::provider::llm::LlmConfig;
+use crate::provider::ner::NerConfig;
 use elide::detection::Analyzer;
 use elide_core::Error;
 #[cfg(feature = "internal_audio")]
@@ -47,8 +49,6 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::llm::LlmConfig;
-use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
 pub(crate) use self::catalog::LabelCatalogCompile;

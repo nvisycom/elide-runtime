@@ -14,14 +14,14 @@
 //! embedded part of that modality.
 //!
 //! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
-//! [`NerConfig`]: nvisy_core::ner::NerConfig
-//! [`LlmConfig`]: nvisy_core::llm::LlmConfig
+//! [`NerConfig`]: crate::provider::ner::NerConfig
+//! [`LlmConfig`]: crate::provider::llm::LlmConfig
 
+use crate::provider::llm::{AttachTo, LlmConfig};
+use crate::provider::ner::NerConfig;
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::text::Text;
-use nvisy_core::llm::{LlmConfig, LlmRecognizerModality};
-use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
 use super::PatternGuardrails;
@@ -47,12 +47,7 @@ pub(super) fn compile(
         analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
     analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner)?;
-    analyzer = attach_llm_lineup(
-        analyzer,
-        llm,
-        LlmRecognizerModality::Text,
-        spec.recognizers.llm,
-    )?;
+    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Text, spec.recognizers.llm)?;
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
 }

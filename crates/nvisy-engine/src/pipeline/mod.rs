@@ -5,8 +5,8 @@
 //! - The [`FormatRegistry`] over elide's codec set. Decodes raw
 //!   bytes into a modality-typed [`DocumentHandle`] at analyze +
 //!   anonymize time.
-//! - The deployment's NER + LLM lineups (see [`nvisy_core::ner`]
-//!   and [`nvisy_core::llm`]). Consulted by the analyzer compile
+//! - The deployment's NER + LLM lineups (see [`crate::provider::ner`]
+//!   and [`crate::provider::llm`]). Consulted by the analyzer compile
 //!   whenever the request's `AnalyzerParams.recognizers.ner` or
 //!   `.llm` toggle is on.
 //!
@@ -81,9 +81,10 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::{Error, Result};
 use bytes::Bytes;
-use elide::Report;
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
+use elide::{Directives, Report};
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
@@ -91,7 +92,6 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::{Error, Result};
 use nvisy_schema::context::Context;
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
@@ -111,8 +111,8 @@ const COMPONENT: &str = "pipeline";
 #[derive(Clone, Default)]
 pub struct Engine {
     formats: Arc<FormatRegistry>,
-    ner: Arc<nvisy_core::ner::NerConfig>,
-    llm: Arc<nvisy_core::llm::LlmConfig>,
+    ner: Arc<crate::provider::ner::NerConfig>,
+    llm: Arc<crate::provider::llm::LlmConfig>,
     pattern_guardrails: crate::PatternGuardrails,
 }
 
@@ -136,8 +136,8 @@ impl Engine {
     pub fn new() -> Self {
         Self {
             formats: Arc::new(FormatRegistry::with_builtin()),
-            ner: Arc::new(nvisy_core::ner::NerConfig::default()),
-            llm: Arc::new(nvisy_core::llm::LlmConfig::default()),
+            ner: Arc::new(crate::provider::ner::NerConfig::default()),
+            llm: Arc::new(crate::provider::llm::LlmConfig::default()),
             pattern_guardrails: crate::PatternGuardrails::default(),
         }
     }
@@ -148,7 +148,7 @@ impl Engine {
     /// every time a request submits
     /// `AnalyzerParams.recognizers.ner = true`.
     #[must_use]
-    pub fn with_ner(mut self, ner: nvisy_core::ner::NerConfig) -> Self {
+    pub fn with_ner(mut self, ner: crate::provider::ner::NerConfig) -> Self {
         self.ner = Arc::new(ner);
         self
     }
@@ -159,7 +159,7 @@ impl Engine {
     /// every time a request submits
     /// `AnalyzerParams.recognizers.llm = true`.
     #[must_use]
-    pub fn with_llm(mut self, llm: nvisy_core::llm::LlmConfig) -> Self {
+    pub fn with_llm(mut self, llm: crate::provider::llm::LlmConfig) -> Self {
         self.llm = Arc::new(llm);
         self
     }
@@ -218,7 +218,8 @@ impl Engine {
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
         let (orchestrator, scope) = self.build_analyze_orchestrator(spec, correlation_id)?;
-        let mut report = orchestrator.analyze(&mut handle).await?;
+        let directives = build_analyze_directives(spec);
+        let mut report = orchestrator.analyze(&mut handle, &directives).await?;
 
         // Walk the body modality slots in order; the first that
         // returns Some is the body modality the orchestrator's
@@ -342,6 +343,22 @@ impl Engine {
                 .with_source(err)
             })
     }
+}
+
+/// Assemble the per-analyze [`Directives`] from `spec.annotations`,
+/// registering each feature-gated modality's regions with the set.
+///
+/// The orchestrator's run-wide scope stays the default; no
+/// per-analysis scope override is used at this layer.
+fn build_analyze_directives(spec: &AnalyzerParams) -> Directives {
+    let directives = Directives::new().with_annotations::<Text>(spec.annotations.text.clone());
+    #[cfg(feature = "internal_tabular")]
+    let directives = directives.with_annotations::<Tabular>(spec.annotations.tabular.clone());
+    #[cfg(feature = "internal_image")]
+    let directives = directives.with_annotations::<Image>(spec.annotations.image.clone());
+    #[cfg(feature = "internal_audio")]
+    let directives = directives.with_annotations::<Audio>(spec.annotations.audio.clone());
+    directives
 }
 
 /// Dispatch a part to the take-part helper matching its modality

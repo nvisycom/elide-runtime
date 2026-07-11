@@ -8,15 +8,15 @@
 //! `AnalyzerParams.recognizers.ner` three-state toggle.
 //!
 //! [`Analyzer`]: elide::detection::Analyzer
-//! [`NerConfig::recognizers`]: nvisy_core::ner::NerConfig::recognizers
+//! [`NerConfig::recognizers`]: crate::provider::ner::NerConfig::recognizers
 
+use crate::provider::ner::{NerBackend, NerConfig, NerRecognizer as ConfigNerRecognizer};
 use elide::detection::Analyzer;
 use elide::recognition::ner::NerRecognizer;
 use elide_bento::BentoNer;
 use elide_core::Error;
 use elide_core::modality::TextRecognizable;
 use elide_core::recognition::Recognizer;
-use nvisy_core::ner::{NerBackendConfig, NerConfig, NerRecognizer as ConfigNerRecognizer};
 
 /// Attach every recognizer from the deployment's NER lineup,
 /// dispatched on the request's three-state toggle.
@@ -66,26 +66,12 @@ where
 {
     let mut builder = NerRecognizer::builder().with_name(spec.name.clone());
     match &spec.backend {
-        NerBackendConfig::Bento { base_url, model } => {
+        NerBackend::Bento { base_url, model } => {
             builder = builder.with_backend(BentoNer::new(base_url.clone(), model.clone())?);
         }
         #[cfg(feature = "test-utils")]
-        NerBackendConfig::Mock => {
+        NerBackend::Mock => {
             builder = builder.with_mock_backend();
-        }
-        // `NerBackendConfig` is `#[non_exhaustive]`. A future
-        // variant reaching this arm should surface as a
-        // Validation error rather than silently dropping the
-        // recognizer.
-        _ => {
-            return Err(Error::new(
-                elide_core::ErrorKind::Validation,
-                format!(
-                    "NER recognizer `{}` uses a backend kind this engine binary \
-                     doesn't understand; upgrade the engine or downgrade the config",
-                    spec.name,
-                ),
-            ));
         }
     }
     Ok(analyzer.with_recognizer(builder.build()?))

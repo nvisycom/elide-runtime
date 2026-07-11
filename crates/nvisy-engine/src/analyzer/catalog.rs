@@ -11,7 +11,7 @@ use nvisy_schema::plan::LabelCatalogParams;
 ///
 /// Extension trait kept on the engine side so the cached
 /// `with_builtins` lookup and the warn-and-skip policy for unknown
-/// builtin names stay out of `nvisy-core`.
+/// builtin names stay out of `nvisy-schema`.
 pub(crate) trait LabelCatalogCompile {
     /// Build the per-request catalog. Engine does not pre-seed
     /// builtins; the caller picks. Two sources union into one:

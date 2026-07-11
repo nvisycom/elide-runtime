@@ -2,7 +2,7 @@
 //!
 //! The wire's `RecognizerParams.ner` is only a boolean; every
 //! detail about which NER recognizer(s) actually run lives here,
-//! on the deployment's side. Symmetric with [`crate::llm`]:
+//! on the deployment's side. Symmetric with [`super::llm`]:
 //! deployment operator owns model choice, connection details,
 //! and (future) credentials; the wire only opts in or out.
 //!
@@ -12,7 +12,7 @@
 //! - [`NerRecognizer`] declares one recognizer instance:
 //!   name (for provenance) + backend selection with its
 //!   per-kind fields flattened onto the wire.
-//! - [`NerBackendConfig`] is the discriminated backend enum:
+//! - [`NerBackend`] is the discriminated backend enum:
 //!   Bento today, extensible with authenticated variants later.
 
 mod recognizer;
@@ -20,7 +20,7 @@ mod recognizer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::recognizer::{NerBackendConfig, NerRecognizer};
+pub use self::recognizer::{NerBackend, NerRecognizer};
 
 /// Top-level NER configuration. Loaded from the deployment's
 /// `[ner]` config section.

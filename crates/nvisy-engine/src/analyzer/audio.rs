@@ -15,10 +15,10 @@
 //!
 //! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 
+use crate::provider::ner::NerConfig;
 use elide::detection::Analyzer;
 use elide_core::Error;
 use elide_core::modality::audio::Audio;
-use nvisy_core::ner::NerConfig;
 use nvisy_schema::plan::AnalyzerParams;
 
 use super::PatternGuardrails;

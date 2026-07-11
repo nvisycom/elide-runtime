@@ -27,6 +27,7 @@
 //!
 //! [`Scope`]: elide::recognition::Scope
 
+use crate::Result;
 use elide::Orchestrator;
 use elide::detection::Analyzer;
 use elide::recognition::Scope;
@@ -40,7 +41,6 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_core::Result;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;

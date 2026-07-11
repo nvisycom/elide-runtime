@@ -44,14 +44,12 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
+use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::policy::PolicyAction;
 use uuid::Uuid;
 
 use super::AnonymizedDocument;
 use super::analyzed::{EntityRecord, RecognizedGroup};
-use crate::{Error, Result};
-
-const COMPONENT: &str = "pipeline::report";
 
 /// Per-modality bridge between `Vec<Entity<M>>` and the matching
 /// [`RecognizedGroup`] variant. Implemented for each of the four
@@ -198,18 +196,21 @@ where
     M: Modality,
 {
     let typed = handle.into::<M>().map_err(|_| {
-        Error::internal(
+        Error::new(
+            ErrorKind::Redaction,
             format!(
                 "post-apply re-encode: handle is not {name} — orchestrator \
                  returned a handle of a different modality than analyze \
                  recorded"
             ),
-            COMPONENT,
         )
     })?;
-    let content = typed
-        .encode()
-        .map_err(|err| Error::internal("post-apply encode failed", COMPONENT).with_source(err))?;
+    let content = typed.encode().map_err(|err| {
+        Error::new(
+            ErrorKind::Redaction,
+            format!("post-apply encode failed: {err}"),
+        )
+    })?;
     Ok(AnonymizedDocument {
         bytes: content.into_bytes(),
     })

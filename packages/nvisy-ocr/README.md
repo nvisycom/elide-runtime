@@ -1,6 +1,6 @@
 # nvisy-ocr
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/py-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/py-build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/inference-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/inference-build.yml)
 
 Default OCR inference service for nvisy. Wraps [docTR](https://github.com/mindee/doctr)
 behind an HTTP/JSON endpoint, published as `ghcr.io/nvisy/inference-ocr`.

@@ -24,6 +24,8 @@ mod attach;
 mod prompt;
 mod recognizer;
 
+#[doc(inline)]
+pub use elide::recognition::llm::provider::{AuthenticatedProvider, UnauthenticatedProvider};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

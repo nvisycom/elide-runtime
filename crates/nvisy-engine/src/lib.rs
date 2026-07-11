@@ -21,12 +21,17 @@
 
 mod analyzer;
 mod anonymizer;
-mod error;
 mod pipeline;
 mod provider;
 
+#[doc(inline)]
+pub use elide::recognition::Scope;
+#[doc(inline)]
+pub use elide_core::entity::Entity;
+#[doc(inline)]
+pub use elide_core::{Error, ErrorKind, Result};
+
 pub use self::analyzer::PatternGuardrails;
-pub use self::error::{Error, ErrorKind, ErrorSource, Result};
 pub use self::pipeline::{
     AnalyzedDocument, AnonymizedDocument, Engine, EntityRecord, RecognizedGroup,
 };

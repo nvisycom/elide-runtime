@@ -91,6 +91,7 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
+use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::context::Context;
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
@@ -99,11 +100,9 @@ use uuid::Uuid;
 
 pub use self::analyzed::{AnalyzedDocument, EntityRecord, RecognizedGroup};
 use self::report::{take_body, take_part};
+use crate::PatternGuardrails;
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
-use crate::{Error, PatternGuardrails, Result};
-
-const COMPONENT: &str = "pipeline";
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
@@ -239,12 +238,12 @@ impl Engine {
         let body_group = body_group.or_else(|| take_body::<Audio>(&mut report));
 
         let body_group = body_group.ok_or_else(|| {
-            Error::validation(
+            Error::new(
+                ErrorKind::Validation,
                 format!(
                     "codec resolved {extension:?} to a modality the orchestrator \
                      has no pipeline for"
                 ),
-                COMPONENT,
             )
         })?;
 
@@ -306,9 +305,9 @@ impl Engine {
         analyzed: &AnalyzedDocument,
     ) -> Result<AnonymizedDocument> {
         let body_group = analyzed.body.as_ref().ok_or_else(|| {
-            Error::validation(
+            Error::new(
+                ErrorKind::Validation,
                 "anonymize_document: body group is missing — analyze must run first",
-                COMPONENT,
             )
         })?;
         let correlation_id = document.correlation_id;
@@ -340,11 +339,10 @@ impl Engine {
             .decode(bytes, extension.as_str())
             .await
             .map_err(|err| {
-                Error::validation(
-                    format!("codec decode failed for extension {extension:?}"),
-                    COMPONENT,
+                Error::new(
+                    ErrorKind::Validation,
+                    format!("codec decode failed for extension {extension:?}: {err}"),
                 )
-                .with_source(err)
             })
     }
 }

@@ -15,12 +15,11 @@ use nvisy_schema::plan::MAX_REGEX_SOURCE_LEN;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Deployment-side caps applied to
-/// [`PatternRecognizerParams`]-driven recognizer builds.
+/// Deployment-side caps on pattern-recognizer builds.
 ///
-/// Loaded from the deployment's `[pattern.guardrails]` config
-/// section; passed into the engine via
-/// [`Engine::with_pattern_guardrails`].
+/// Applied to [`PatternRecognizerParams`]-driven builds. Loaded
+/// from the deployment's `[pattern.guardrails]` config section;
+/// passed into the engine via [`Engine::with_pattern_guardrails`].
 ///
 /// [`PatternRecognizerParams`]: nvisy_schema::plan::PatternRecognizerParams
 /// [`Engine::with_pattern_guardrails`]: crate::Engine::with_pattern_guardrails

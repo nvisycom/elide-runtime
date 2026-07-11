@@ -1,6 +1,6 @@
 # nvisy-ner
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/py-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/py-build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/inference-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/inference-build.yml)
 
 Self-hosted, schema-driven NER/PII inference service for nvisy, backed by
 [GLiNER2](https://github.com/fastino-ai/GLiNER2) behind an HTTP/JSON endpoint,

@@ -1,4 +1,4 @@
-name: Rs Build
+name: Runtime Build
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - ".github/workflows/rs-build.yml"
+      - ".github/workflows/runtime-build.yml"
   pull_request:
     branches:
       - "main"
@@ -18,7 +18,7 @@ on:
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - ".github/workflows/rs-build.yml"
+      - ".github/workflows/runtime-build.yml"
   workflow_dispatch:
 
 env:

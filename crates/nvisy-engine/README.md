@@ -1,6 +1,6 @@
 # nvisy-engine
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/rs-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/rs-build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/runtime-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/runtime-build.yml)
 
 Stateless multimodal redaction pipeline over elide.
 
@@ -9,10 +9,10 @@ Stateless multimodal redaction pipeline over elide.
 The engine bundles elide's codec, detection, recognition, redaction,
 and orchestration layers into a single per-request pipeline. Callers
 construct an engine paired with the deployment's NER and LLM lineups
-(from [`nvisy-core`](../nvisy-core)), then drive documents through
-analyze and apply verbs. Every call is self-contained: no persistence,
-no HTTP layer, no long-running background tasks. Hosts (a SaaS
-backend, a Tauri app, a CLI, an SDK) own their own workflow and
+(configured through the `provider` module), then drive documents
+through analyze and apply verbs. Every call is self-contained: no
+persistence, no HTTP layer, no long-running background tasks. Hosts (a
+SaaS backend, a Tauri app, a CLI, an SDK) own their own workflow and
 storage on top.
 
 Owns the per-request orchestrator constructor that wires elide's

@@ -1,6 +1,6 @@
 # nvisy-schema
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/rs-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/rs-build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/runtime-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/runtime-build.yml)
 
 Wire schema for the Nvisy platform: umbrella crate re-exporting policy
 and context alongside plan and file types.
@@ -17,11 +17,11 @@ single `nvisy-schema` dep still gives an SDK caller the whole wire
 surface. Consumers who want tighter dep trees can depend on
 `nvisy-policy` or `nvisy-context` directly and skip this crate.
 
-Sibling to `nvisy-core`, which adds the deployment-side runtime
-configuration (NER and LLM recognizer lineups, error vocabulary) hosts
-need to construct an engine. The transitive dependency tree for
-`nvisy-schema` is `elide-core` plus a slice of the serialization stack:
-no HTTP client, no LLM plumbing.
+Consumed by `nvisy-engine`, which layers the deployment-side runtime
+configuration (NER and LLM recognizer lineups) hosts need to construct
+an engine. The transitive dependency tree for `nvisy-schema` is
+`elide-core` plus a slice of the serialization stack: no HTTP client,
+no LLM plumbing.
 
 ## Changelog
 

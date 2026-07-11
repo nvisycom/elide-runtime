@@ -1,7 +1,7 @@
 # Nvisy Runtime
 
-[![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/rs-build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/rs-build.yml)
-[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/py-build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/py-build.yml)
+[![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/runtime-build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/runtime-build.yml)
+[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/inference-build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/inference-build.yml)
 
 Multimodal redaction library and its inference services.
 
@@ -25,8 +25,7 @@ pipeline) embed the engine directly.
 - **[nvisy-context](crates/nvisy-context/)**: wire schema for reference-data collections (analytic, biometric, document, geospatial, reference, temporal)
 - **[nvisy-policy](crates/nvisy-policy/)**: wire schema for redaction governance (rules, predicates, retention, audit)
 - **[nvisy-schema](crates/nvisy-schema/)**: umbrella crate re-exporting `nvisy-context` + `nvisy-policy` alongside plan and file types
-- **[nvisy-core](crates/nvisy-core/)**: deployment-side runtime configuration (NER and LLM recognizer lineups, error vocabulary)
-- **[nvisy-engine](crates/nvisy-engine/)**: stateless pipeline (decode, analyze, apply) wrapping elide and hosting the per-modality orchestrator
+- **[nvisy-engine](crates/nvisy-engine/)**: stateless pipeline (decode, analyze, apply) wrapping elide, hosting the per-modality orchestrator and the deployment-side NER / LLM recognizer configuration
 - **[elide-bento](crates/elide-bento/)**: BentoML-hosted NER and OCR client implementing elide's recognizer traits
 
 Python packages ([`packages/`](packages/)) — BentoML services shipped

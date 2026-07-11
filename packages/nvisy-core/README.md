@@ -1,6 +1,6 @@
 # nvisy-core
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/py-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/py-build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/inference-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/inference-build.yml)
 
 Shared wire-contract types for the Nvisy inference services. The OCR, NER,
 and vision-language OCR services all depend on this package, so the HTTP

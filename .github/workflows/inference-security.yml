@@ -1,4 +1,4 @@
-name: Py Security
+name: Inference Security
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - "packages/**"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/py-security.yml"
+      - ".github/workflows/inference-security.yml"
   pull_request:
     branches:
       - "main"
@@ -18,7 +18,7 @@ on:
       - "packages/**"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/py-security.yml"
+      - ".github/workflows/inference-security.yml"
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:

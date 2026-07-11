@@ -1,4 +1,4 @@
-name: Py Build
+name: Inference Build
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - "packages/**"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/py-build.yml"
+      - ".github/workflows/inference-build.yml"
   pull_request:
     branches:
       - "main"
@@ -18,7 +18,7 @@ on:
       - "packages/**"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/py-build.yml"
+      - ".github/workflows/inference-build.yml"
   # Weekly real-model run (the real-models job is gated on non-PR events below).
   schedule:
     - cron: "0 7 * * 1"

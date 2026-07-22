@@ -603,7 +603,7 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "strsim 0.11.1",
+ "strsim",
  "syn",
 ]
 
@@ -668,47 +668,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10d60334b3b2e7c9d91ef8150abfb6fa4c1c39ebbcf4a81c2e346aad939fee3e"
 dependencies = [
  "thiserror",
-]
-
-[[package]]
-name = "deluxe"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ed332aaf752b459088acf3dd4eca323e3ef4b83c70a84ca48fb0ec5305f1488"
-dependencies = [
- "deluxe-core",
- "deluxe-macros",
- "once_cell",
- "proc-macro2",
- "syn",
-]
-
-[[package]]
-name = "deluxe-core"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eddada51c8576df9d6a8450c351ff63042b092c9458b8ac7d20f89cbd0ffd313"
-dependencies = [
- "arrayvec",
- "proc-macro2",
- "quote",
- "strsim 0.10.0",
- "syn",
-]
-
-[[package]]
-name = "deluxe-macros"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f87546d9c837f0b7557e47b8bd6eae52c3c223141b76aa233c345c9ab41d9117"
-dependencies = [
- "deluxe-core",
- "heck 0.4.1",
- "if_chain",
- "proc-macro-crate 1.3.1",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -839,7 +798,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 [[package]]
 name = "elide"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "elide-codec",
@@ -875,7 +834,7 @@ dependencies = [
 [[package]]
 name = "elide-codec"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "bytes",
@@ -899,7 +858,7 @@ dependencies = [
 [[package]]
 name = "elide-context"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -910,7 +869,7 @@ dependencies = [
 [[package]]
 name = "elide-core"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "bytes",
@@ -928,7 +887,7 @@ dependencies = [
 [[package]]
 name = "elide-detection"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -941,7 +900,7 @@ dependencies = [
 [[package]]
 name = "elide-lingua"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -952,7 +911,7 @@ dependencies = [
 [[package]]
 name = "elide-llm"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -972,7 +931,7 @@ dependencies = [
 [[package]]
 name = "elide-ner"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -986,7 +945,7 @@ dependencies = [
 [[package]]
 name = "elide-ocr"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -996,7 +955,7 @@ dependencies = [
 [[package]]
 name = "elide-orchestration"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "bytes",
  "elide-codec",
@@ -1010,7 +969,7 @@ dependencies = [
 [[package]]
 name = "elide-pattern"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "aho-corasick",
  "async-trait",
@@ -1030,7 +989,7 @@ dependencies = [
 [[package]]
 name = "elide-redaction"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1045,7 +1004,7 @@ dependencies = [
 [[package]]
 name = "elide-stt"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#33dea52314905c633d9bbd9a30486bca6bfb01ea"
+source = "git+https://github.com/nvisycom/elide?branch=main#a29a152ec00d3d2d3ca36ee4b9e55a867744b17e"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1492,12 +1451,6 @@ dependencies = [
 
 [[package]]
 name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
-
-[[package]]
-name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
@@ -1758,12 +1711,6 @@ dependencies = [
  "icu_normalizer",
  "icu_properties",
 ]
-
-[[package]]
-name = "if_chain"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd62e6b5e86ea8eeeb8db1de02880a6abc01a397b2ebb64b5d74ac255318f5cb"
 
 [[package]]
 name = "image"
@@ -2286,15 +2233,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nanoid"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ffa00dec017b5b1a8b7cf5e2c008bfda1aa7e0697ac1508b491fdf2622fb4d8"
-dependencies = [
- "rand 0.8.6",
-]
-
-[[package]]
 name = "new_debug_unreachable"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2428,21 +2366,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-context"
-version = "0.1.0"
-dependencies = [
- "derive_builder",
- "derive_more",
- "elide-core",
- "jiff",
- "schemars",
- "semver",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
 name = "nvisy-engine"
 version = "0.1.0"
 dependencies = [
@@ -2488,7 +2411,6 @@ dependencies = [
  "elide-core",
  "hipstr",
  "jiff",
- "nvisy-context",
  "nvisy-policy",
  "schemars",
  "serde",
@@ -2745,21 +2667,11 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 
 [[package]]
 name = "proc-macro-crate"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
-dependencies = [
- "once_cell",
- "toml_edit 0.19.15",
-]
-
-[[package]]
-name = "proc-macro-crate"
 version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f"
 dependencies = [
- "toml_edit 0.25.12+spec-1.1.0",
+ "toml_edit",
 ]
 
 [[package]]
@@ -2912,22 +2824,11 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rand"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
-dependencies = [
- "libc",
- "rand_chacha 0.3.1",
- "rand_core 0.6.4",
-]
-
-[[package]]
-name = "rand"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea"
 dependencies = [
- "rand_chacha 0.9.0",
+ "rand_chacha",
  "rand_core 0.9.5",
 ]
 
@@ -2944,31 +2845,12 @@ dependencies = [
 
 [[package]]
 name = "rand_chacha"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
-dependencies = [
- "ppv-lite86",
- "rand_core 0.6.4",
-]
-
-[[package]]
-name = "rand_chacha"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
 dependencies = [
  "ppv-lite86",
  "rand_core 0.9.5",
-]
-
-[[package]]
-name = "rand_core"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
-dependencies = [
- "getrandom 0.2.17",
 ]
 
 [[package]]
@@ -3024,7 +2906,7 @@ dependencies = [
  "paste",
  "profiling",
  "rand 0.9.4",
- "rand_chacha 0.9.0",
+ "rand_chacha",
  "simd_helpers",
  "thiserror",
  "v_frame",
@@ -3267,18 +3149,18 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 
 [[package]]
 name = "rig"
-version = "0.39.0"
+version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e98e2e8f01c4c5bc23f577983634fa4d5244ffb070ea14c23b1ea5bd406e5cac"
+checksum = "9aac59326725633a25c21ef2c24d33c4d00dc38a1f0cc097205a7a9bde70b482"
 dependencies = [
  "rig-core",
 ]
 
 [[package]]
 name = "rig-core"
-version = "0.39.0"
+version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80a4bc7a93b329c4e1a66d5fd211d79990e7331e3c701f057c29f135f548686d"
+checksum = "d8731dd5532b3a12ce1613af73073fb2051ef750f50c504778c21d55ae933cac"
 dependencies = [
  "as-any",
  "async-stream",
@@ -3293,7 +3175,6 @@ dependencies = [
  "indexmap",
  "mime",
  "mime_guess",
- "nanoid",
  "ordered-float",
  "pin-project-lite",
  "reqwest",
@@ -3312,14 +3193,13 @@ dependencies = [
 
 [[package]]
 name = "rig-derive"
-version = "0.39.0"
+version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5531bfa887b371eab658a92de7db35003370bbeee208ff5e68bbb81a5ae92d3d"
+checksum = "b3e98dde7a4e59e083e7396126ee4c83498c5bff605d126654e67815fa230a78"
 dependencies = [
  "convert_case 0.11.0",
- "deluxe",
  "indoc",
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "serde_json",
@@ -3786,9 +3666,9 @@ dependencies = [
 
 [[package]]
 name = "spin"
-version = "0.9.8"
+version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 dependencies = [
  "lock_api",
 ]
@@ -3825,12 +3705,6 @@ dependencies = [
 
 [[package]]
 name = "strsim"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
-
-[[package]]
-name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
@@ -3859,7 +3733,7 @@ version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "syn",
@@ -3871,7 +3745,7 @@ version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "syn",
@@ -4140,17 +4014,11 @@ dependencies = [
  "indexmap",
  "serde_core",
  "serde_spanned",
- "toml_datetime 1.1.1+spec-1.1.0",
+ "toml_datetime",
  "toml_parser",
  "toml_writer",
- "winnow 1.0.3",
+ "winnow",
 ]
-
-[[package]]
-name = "toml_datetime"
-version = "0.6.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22cddaf88f4fbc13c51aebbf5f8eceb5c7c5a9da2ac40a13519eb5b0a0e8f11c"
 
 [[package]]
 name = "toml_datetime"
@@ -4163,25 +4031,14 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.19.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
-dependencies = [
- "indexmap",
- "toml_datetime 0.6.11",
- "winnow 0.5.40",
-]
-
-[[package]]
-name = "toml_edit"
 version = "0.25.12+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2153edc6955a6c354fad8f5efd38b6a8769bdccf9fe50f8e1329f81b0baa5d7"
 dependencies = [
  "indexmap",
- "toml_datetime 1.1.1+spec-1.1.0",
+ "toml_datetime",
  "toml_parser",
- "winnow 1.0.3",
+ "winnow",
 ]
 
 [[package]]
@@ -4190,7 +4047,7 @@ version = "1.1.2+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2abe9b86193656635d2411dc43050282ca48aa31c2451210f4202550afb7526"
 dependencies = [
- "winnow 1.0.3",
+ "winnow",
 ]
 
 [[package]]
@@ -4843,15 +4700,6 @@ name = "windows_x86_64_msvc"
 version = "0.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
-
-[[package]]
-name = "winnow"
-version = "0.5.40"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "winnow"

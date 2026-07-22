@@ -92,7 +92,6 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind, Result};
-use nvisy_schema::context::Context;
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::{Policy, PolicyAction};
@@ -201,22 +200,13 @@ impl Engine {
     /// group carries its own modality tag via its
     /// [`RecognizedGroup`] variant.
     ///
-    /// `contexts` is a placeholder for the deployment's
-    /// reference-data collections. Reserved on the API: no
-    /// built-in recognizer in this workspace consumes contexts
-    /// yet — see
-    /// <https://github.com/nvisycom/runtime/issues/314> for the
-    /// wiring plan.
-    ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     /// [`RecognizedGroup`]: crate::RecognizedGroup
     pub async fn analyze_document(
         &self,
         document: Document,
         spec: &AnalyzerParams,
-        contexts: &[Context],
     ) -> Result<AnalyzedDocument> {
-        let _ = contexts;
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;

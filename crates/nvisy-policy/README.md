@@ -15,8 +15,8 @@ redaction operators (erase, mask, replace, hash, encrypt, blur,
 pixelate, ...), predicates (document / entity match), retention
 schedules, audit envelopes, and suppression rules.
 
-Sibling to `nvisy-context` (reference data telling detection what to
-look for) and `nvisy-schema` (umbrella re-exporting both).
+Sibling to `nvisy-schema`, which re-exports this crate alongside its
+own plan and file types.
 
 ## Changelog
 

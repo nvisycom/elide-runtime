@@ -67,7 +67,7 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
     let analyzed = engine
-        .analyze_document(raw_docx(), &default_spec(), &[])
+        .analyze_document(raw_docx(), &default_spec())
         .await
         .expect("analyze succeeds");
 
@@ -97,7 +97,7 @@ async fn analyze_captures_text_body_and_image_part() {
 async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
     let mut analyzed = engine
-        .analyze_document(raw_docx(), &default_spec(), &[])
+        .analyze_document(raw_docx(), &default_spec())
         .await
         .expect("analyze succeeds");
     let body_group = analyzed.body.as_ref().expect("body group present");
@@ -153,7 +153,7 @@ async fn analyze_populates_scope_from_spec_label_catalog() {
     let engine = engine();
 
     let empty = engine
-        .analyze_document(raw_docx(), &default_spec(), &[])
+        .analyze_document(raw_docx(), &default_spec())
         .await
         .expect("analyze succeeds");
     assert!(
@@ -169,7 +169,7 @@ async fn analyze_populates_scope_from_spec_label_catalog() {
         custom: Vec::new(),
     };
     let with_catalog = engine
-        .analyze_document(raw_docx(), &spec, &[])
+        .analyze_document(raw_docx(), &spec)
         .await
         .expect("analyze succeeds");
     assert!(
@@ -185,7 +185,7 @@ async fn analyze_populates_scope_from_spec_label_catalog() {
 async fn analyzed_document_rejects_missing_scope_on_deserialize() {
     let engine = engine();
     let analyzed = engine
-        .analyze_document(raw_docx(), &default_spec(), &[])
+        .analyze_document(raw_docx(), &default_spec())
         .await
         .expect("analyze succeeds");
     let mut value = serde_json::to_value(&analyzed).expect("serialize");

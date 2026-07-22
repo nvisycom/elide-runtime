@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-schema"
-description = "Wire schema for the Nvisy platform: umbrella crate re-exporting policy + context alongside plan and file"
+description = "Wire schema for the Nvisy platform: plan, file, elide-core slice, plus a re-export of nvisy-policy"
 keywords = ["nvisy", "schema", "sdk", "types"]
 categories = ["data-structures", "api-bindings"]
 readme = "README.md"
@@ -36,7 +36,6 @@ test-utils = []
 elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
 # Internal crates
-nvisy-context = { workspace = true, features = [] }
 nvisy-policy = { workspace = true, features = [] }
 
 # Serialization

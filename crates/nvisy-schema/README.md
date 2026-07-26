@@ -2,20 +2,19 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/runtime-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/runtime-build.yml)
 
-Wire schema for the Nvisy platform: umbrella crate re-exporting policy
-and context alongside plan and file types.
+Wire schema for the Nvisy platform: plan, file, and the `elide-core`
+slice, plus a re-export of `nvisy-policy`.
 
 ## Overview
 
 The SDK-safe subset of Nvisy's type surface. Ships the serde-derived
 types that appear on the wire and the JSON schema derivations for them.
 
-Structured as an umbrella. `plan`, `file`, and the `elide-core` slice
-(`primitive`, `entity`, `modality`) live in this crate directly;
-`policy` and `context` come from their peer crates, re-exported so a
-single `nvisy-schema` dep still gives an SDK caller the whole wire
-surface. Consumers who want tighter dep trees can depend on
-`nvisy-policy` or `nvisy-context` directly and skip this crate.
+`plan`, `file`, and the `elide-core` slice (`primitive`, `entity`,
+`modality`) live in this crate directly; `policy` comes from its peer
+crate, re-exported so a single `nvisy-schema` dep gives an SDK caller
+the whole wire surface. Consumers who want tighter dep trees can
+depend on `nvisy-policy` directly and skip this crate.
 
 Consumed by `nvisy-engine`, which layers the deployment-side runtime
 configuration (NER and LLM recognizer lineups) hosts need to construct

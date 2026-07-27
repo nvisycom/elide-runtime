@@ -15,8 +15,10 @@
 //!   [`elide_pattern::Dictionary`] / [`Term`].
 //!
 //! [`PatternGuardrails`] bounds runaway compile cost from any of
-//! those slots. See [`guardrails`](super::guardrails) for the
-//! per-request budget shape.
+//! those slots. See [`guardrails`] for the per-request budget
+//! shape.
+//!
+//! [`guardrails`]: super::guardrails
 
 use std::collections::HashMap;
 

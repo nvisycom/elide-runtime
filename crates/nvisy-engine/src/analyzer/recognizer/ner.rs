@@ -12,7 +12,7 @@
 
 use elide::detection::Analyzer;
 use elide::recognition::ner::NerRecognizer;
-use elide_bento::BentoNer;
+use elide_bento::ner::BentoNer;
 use elide_core::modality::TextRecognizable;
 use elide_core::recognition::Recognizer;
 use elide_core::{Error, ErrorKind};

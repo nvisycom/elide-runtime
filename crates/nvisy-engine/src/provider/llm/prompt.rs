@@ -7,8 +7,10 @@ use serde::{Deserialize, Serialize};
 
 /// Where a recognizer's Jinja2 prompt template comes from.
 ///
-/// Omitted from an [`LlmRecognizer`](super::LlmRecognizer) means
-/// "use elide's default recognition prompt for this modality."
+/// Omitted from an [`LlmRecognizer`] means "use elide's default
+/// recognition prompt for this modality."
+///
+/// [`LlmRecognizer`]: super::LlmRecognizer
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "source", rename_all = "snake_case")]
 pub enum LlmPrompt {

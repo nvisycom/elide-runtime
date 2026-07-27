@@ -1,9 +1,13 @@
-//! Entity-domain types re-exported from `elide_core::entity`.
+//! Detected entities, their labels, and their audit trail.
 //!
-//! Wire types on [`policy`] and [`plan`] carry [`Label`] and
-//! [`LabelRef`] directly.
-//!
-//! [`plan`]: crate::plan
-//! [`policy`]: crate::policy
+//! [`Entity`] is the modality-generic detection record produced
+//! by the analyzer and consumed by the anonymizer. [`Label`] and
+//! [`LabelRef`] name the entity kind; [`LabelCatalog`] holds the
+//! deployment's label vocabulary. [`Provenance`] carries the
+//! audit trail (which rule / model / pattern produced each
+//! detection).
 
-pub use elide_core::entity::{Label, LabelRef};
+pub use elide_core::entity::provenance::{
+    Attribution, Event, EventKind, ModelEvent, PatternEvent, Provenance, RuleMatch,
+};
+pub use elide_core::entity::{Entity, EntityCoRef, EntityRef, Label, LabelCatalog, LabelRef};

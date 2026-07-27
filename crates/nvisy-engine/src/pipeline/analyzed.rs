@@ -49,9 +49,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// `correlation_id` on the persisted scope is always `None`; the
 /// anonymize call supplies a fresh id from the passed
-/// [`Document`](nvisy_schema::file::Document) so anonymize-side
-/// tracing spans are distinct from the analyze-side ones.
+/// [`Document`] so anonymize-side tracing spans are distinct
+/// from the analyze-side ones.
 ///
+/// [`Document`]: nvisy_schema::file::Document
 /// [`Scope`]: elide::recognition::Scope
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

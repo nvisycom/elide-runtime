@@ -1,4 +1,4 @@
-//! [`BentoOcr`]: an [`elide_ocr::OcrBackend`] backed by the
+//! [`BentoOcr`]: an [`OcrBackend`] backed by the
 //! `nvisy-inference-ocr` BentoML service.
 //!
 //! Wire contract: `POST /recognize` accepts a batched list of
@@ -15,6 +15,7 @@
 //! `response` (incoming) submodules; only the public
 //! [`BentoOcr`] backend is part of this crate's API.
 //!
+//! [`OcrBackend`]: elide_ocr::OcrBackend
 //! [`LayoutBlock`]: elide_core::modality::image::LayoutBlock
 //! [`LayoutWord`]: elide_core::modality::image::LayoutWord
 

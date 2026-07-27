@@ -16,7 +16,7 @@ dependencies = [
     # Without the [ocr] extra, PaddleOCRVL() raises DependencyError at load.
     "paddlex[ocr]>=3.7.2,<4",
     "pillow>=12.3.0,<13",
-    "prometheus-client>=0.20",
+    "prometheus-client>=0.26.0",
 ]
 
 [build-system]

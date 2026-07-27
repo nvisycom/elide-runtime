@@ -13,7 +13,7 @@ dependencies = [
     # 1.22.0 floor patches CVE-2026-44512 (pulled in transitively via python-doctr).
     "onnx>=1.22.0",
     "pillow>=12.3.0,<13",
-    "prometheus-client>=0.20",
+    "prometheus-client>=0.26.0",
     # docTR (PyTorch backend); torch/torchvision are core deps in 1.x, no extra.
     "python-doctr>=1.0,<2",
 ]

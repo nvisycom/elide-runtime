@@ -1,5 +1,4 @@
-//! Caller-supplied region annotations re-exported from
-//! `elide_core::recognition::annotation`.
+//! Caller-supplied region annotations passed to the analyzer.
 //!
 //! Two directions, two types. An [`Inclusion`] adds a candidate
 //! region ("there may be an entity here"); recognizers that

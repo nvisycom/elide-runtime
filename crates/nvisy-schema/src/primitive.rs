@@ -1,13 +1,14 @@
-//! Primitive value types re-exported from `elide_core::primitive`.
+//! Primitive value types wire schemas carry directly.
 //!
-//! Wire types on [`plan`] and [`policy`] carry these directly.
-//! The re-export means an SDK caller can construct them without
-//! adding `elide-core` as a separate dep.
+//! Bounding boxes, confidence, colors, languages, country codes,
+//! time spans, and friends. Wire types on [`plan`] and [`policy`]
+//! use these as leaf fields.
 //!
 //! [`plan`]: crate::plan
 //! [`policy`]: crate::policy
 
 pub use elide_core::primitive::{
-    BoundingBox, Color, Confidence, ConfidenceThreshold, CountryCode, LanguageTag, Languages,
-    Point, Polygon, TimeSpan,
+    BoundingBox, Color, Confidence, ConfidenceThreshold, CountryCode, Dimensions, Dpi, Language,
+    LanguageProvenance, LanguageSpan, LanguageTag, Languages, PixelRegion, Point, Polygon,
+    TimeSpan, UnitBoundingBox,
 };

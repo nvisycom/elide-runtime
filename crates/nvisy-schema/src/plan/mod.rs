@@ -1,13 +1,11 @@
-//! Analyzer plan.
+//! Authored recognition plan: recognizers, enrichers, dedup, scope.
 //!
-//! Serialisable description of how to build an
-//! `elide::detection::Analyzer` for a request.
-//!
-//! Symmetric with [`policy`]. Where policy describes redaction
-//! governance (which entities to hide and how), the plan
-//! describes recognition (which entities to find and how). Both
-//! are pure data; the engine compiles them into elide runtime
-//! values at request time.
+//! Serialisable description of how to build an analyzer for a
+//! request. Symmetric with [`policy`]. Where policy describes
+//! redaction governance (which entities to hide and how), the
+//! plan describes recognition (which entities to find and how).
+//! Both are pure data; the engine compiles them into elide
+//! runtime values at request time.
 //!
 //! ## Layout
 //!

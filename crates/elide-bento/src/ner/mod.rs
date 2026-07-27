@@ -1,4 +1,4 @@
-//! [`BentoNer`]: an [`elide_ner::backend::NerBackend`] backed by the
+//! [`BentoNer`]: an [`NerBackend`] backed by the
 //! `nvisy-inference-ner` BentoML service.
 //!
 //! Wire contract: `POST /recognize` accepts a batched list of
@@ -11,6 +11,8 @@
 //! Wire types live in the private `request` (outgoing) and
 //! `response` (incoming) submodules; only the public
 //! [`BentoNer`] backend is part of this crate's API.
+//!
+//! [`NerBackend`]: elide_ner::backend::NerBackend
 
 mod request;
 mod response;

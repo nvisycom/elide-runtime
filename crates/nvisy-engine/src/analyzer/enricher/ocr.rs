@@ -9,7 +9,7 @@ use elide::detection::Analyzer;
 #[cfg(feature = "test-utils")]
 use elide::enrichment::ocr::MockBackend as MockOcrBackend;
 use elide::enrichment::ocr::OcrEnricher;
-use elide_bento::BentoOcr;
+use elide_bento::ocr::BentoOcr;
 use elide_core::modality::image::Image;
 use elide_core::{Error, ErrorKind};
 use nvisy_schema::plan::{OcrBackendParams, OcrEnricherParams};

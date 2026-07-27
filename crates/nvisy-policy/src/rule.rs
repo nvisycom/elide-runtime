@@ -1,11 +1,10 @@
 //! One rule inside a [`Policy`]: shared identity/description
 //! fields, the match predicate, and the action ([`PolicyAction`]).
 //!
-//! The engine compiles a rule's [`predicate`](PolicyRule::predicate)
-//! into an elide anonymizer rule at request time. Three shapes
-//! are recognised as fast paths and route to the matching
-//! [`Anonymizer`] builder method; everything else compiles to a
-//! catalog-aware closure:
+//! The engine compiles a rule's [`predicate`] into an elide
+//! anonymizer rule at request time. Three shapes are recognised
+//! as fast paths and route to the matching [`Anonymizer`] builder
+//! method; everything else compiles to a catalog-aware closure:
 //!
 //! - [`Predicate::LabelOneOf`] with a single label → [`Anonymizer::with_label`]
 //! - [`Predicate::TagOneOf`] with a single tag → [`Anonymizer::with_tag`]
@@ -18,6 +17,7 @@
 //! compiles down to the same fast path.
 //!
 //! [`Policy`]: super::Policy
+//! [`predicate`]: PolicyRule::predicate
 //! [`Anonymizer`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer
 //! [`Anonymizer::with_label`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_label
 //! [`Anonymizer::with_tag`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_tag
@@ -61,15 +61,17 @@ pub struct PolicyRule {
     pub action: PolicyAction,
 }
 
-/// What a rule does when its [`predicate`](PolicyRule::predicate)
-/// matches.
+/// What a rule does when its [`predicate`] matches.
 ///
-/// Three verbs: [`Redact`](PolicyAction::Redact) transforms the
-/// entity with one operator per modality;
-/// [`Suppress`](PolicyAction::Suppress) drops the entity entirely
-/// (false-positive marker) and stamps a reason onto the audit;
-/// [`Audit`](PolicyAction::Audit) flags it for human review without
-/// transforming.
+/// Three verbs: [`Redact`] transforms the entity with one operator
+/// per modality; [`Suppress`] drops the entity entirely (false-positive
+/// marker) and stamps a reason onto the audit; [`Audit`] flags it for
+/// human review without transforming.
+///
+/// [`predicate`]: PolicyRule::predicate
+/// [`Redact`]: PolicyAction::Redact
+/// [`Suppress`]: PolicyAction::Suppress
+/// [`Audit`]: PolicyAction::Audit
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PolicyAction {

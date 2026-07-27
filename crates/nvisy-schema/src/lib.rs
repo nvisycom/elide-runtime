@@ -22,6 +22,9 @@
 //!
 //! [`nvisy-policy`]: https://docs.rs/nvisy-policy
 
+/// Authored redaction governance: policies, rules, predicates,
+/// operators, retention.
+#[doc(inline)]
 pub use nvisy_policy as policy;
 
 pub mod annotation;

@@ -3,16 +3,17 @@
 //! Two distinct sources the engine unions into one
 //! `elide_core::entity::LabelCatalog` at compile time:
 //!
-//! - [`builtins`](LabelCatalogParams::builtins): names of labels
-//!   from `elide-core`'s shipped builtin set
-//!   (`LabelCatalog::with_builtins`). Engine looks each name up
-//!   against the full builtin catalog and copies the matching
-//!   [`Label`] across; unknown names log a warning and are
-//!   skipped (typos don't fail the request).
-//! - [`custom`](LabelCatalogParams::custom): schemas the caller
-//!   defined inline, beyond the builtin set. Names that collide
-//!   with a builtin replace it (last write wins, matching
-//!   `LabelCatalog::insert` semantics).
+//! - [`builtins`]: names of labels from `elide-core`'s shipped
+//!   builtin set (`LabelCatalog::with_builtins`). Engine looks
+//!   each name up against the full builtin catalog and copies
+//!   the matching [`Label`] across; unknown names log a warning
+//!   and are skipped (typos don't fail the request).
+//! - [`custom`]: schemas the caller defined inline, beyond the
+//!   builtin set. Names that collide with a builtin replace it
+//!   (last write wins, matching `LabelCatalog::insert` semantics).
+//!
+//! [`builtins`]: LabelCatalogParams::builtins
+//! [`custom`]: LabelCatalogParams::custom
 //!
 //! Empty default. Server-side deployments may pre-populate via
 //! the `analyzer` server-default block in the config, but the

@@ -21,8 +21,11 @@
 
 mod analyzer;
 mod anonymizer;
+pub mod entity;
+pub mod modality;
+pub mod plan;
 mod pipeline;
-mod provider;
+pub mod provider;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
@@ -30,15 +33,14 @@ pub use elide::codec::FormatRegistry;
 pub use elide::recognition::Scope;
 #[doc(inline)]
 pub use elide_core::{Error, ErrorKind, Result};
+#[doc(inline)]
+pub use nvisy_schema::file::{Document, FileMetadata};
 /// Authored redaction governance: policies, rules, predicates,
 /// operators, retention.
 #[doc(inline)]
 pub use nvisy_schema::policy;
-#[doc(inline)]
-pub use nvisy_schema::{annotation, entity, file, modality, plan, primitive};
 
 pub use self::analyzer::PatternGuardrails;
 pub use self::pipeline::{
-    AnalyzedDocument, AnonymizedDocument, Engine, EntityRecord, RecognizedGroup,
+    AnalyzedDocument, AnonymizedDocument, Engine, RecognizedGroup, RegisteredRecognizer,
 };
-pub use self::provider::{llm, ner};

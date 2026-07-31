@@ -13,7 +13,7 @@ use nvisy_engine::{AnalyzedDocument, Engine, RecognizedGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, EnricherParams, LabelCatalogParams, OcrBackendParams, OcrEnricherParams,
-    PatternRecognizerParams, RecognizerParams, ScopeParams,
+    PatternRecognizerParams, ProviderSelection, RecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
@@ -39,8 +39,8 @@ fn default_spec() -> AnalyzerParams {
                 context_enhanced: true,
                 ..Default::default()
             }),
-            ner: Some(false),
-            llm: Some(false),
+            ner: Some(ProviderSelection::All(false)),
+            llm: Some(ProviderSelection::All(false)),
         },
         enrichers: EnricherParams {
             language: None,

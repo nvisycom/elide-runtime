@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// One entry in the deployment's NER lineup.
 ///
 /// Every entry in [`NerConfig::recognizers`] runs when the
-/// request toggles `recognizers.ner = true`.
+/// request's `recognizers.ner` selects it.
 ///
 /// [`NerConfig::recognizers`]: super::NerConfig::recognizers
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -17,6 +17,11 @@ pub struct NerRecognizer {
     /// configured recognizer. Must be unique across the
     /// deployment's NER lineup.
     pub name: String,
+    /// Optional human-readable description. Surfaces on the
+    /// list-recognizers accessor so operators and SDK callers
+    /// can identify what each recognizer is for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Backend selection + its per-kind fields, flattened onto
     /// the recognizer's wire shape.
     #[serde(flatten)]
@@ -46,4 +51,16 @@ pub enum NerBackend {
     #[cfg(feature = "test-utils")]
     #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
     Mock,
+}
+
+impl NerBackend {
+    /// Provider slug for the list-recognizers accessor.
+    #[must_use]
+    pub fn provider(&self) -> &'static str {
+        match self {
+            Self::Bento { .. } => "bento",
+            #[cfg(feature = "test-utils")]
+            Self::Mock => "mock",
+        }
+    }
 }

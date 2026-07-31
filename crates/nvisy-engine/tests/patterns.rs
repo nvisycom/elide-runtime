@@ -11,7 +11,7 @@ use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, CustomDictionary, CustomDictionaryTerm, CustomPatternContext,
     CustomPatternRule, CustomPatternVariant, MAX_REGEX_SOURCE_LEN, PatternRecognizerParams,
-    RecognizerParams,
+    ProviderSelection, RecognizerParams,
 };
 
 const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
@@ -28,8 +28,8 @@ fn spec_with_pattern_params(params: PatternRecognizerParams) -> AnalyzerParams {
     AnalyzerParams {
         recognizers: RecognizerParams {
             pattern: Some(params),
-            ner: Some(false),
-            llm: Some(false),
+            ner: Some(ProviderSelection::All(false)),
+            llm: Some(ProviderSelection::All(false)),
         },
         ..Default::default()
     }

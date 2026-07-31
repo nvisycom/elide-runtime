@@ -61,10 +61,10 @@ use crate::provider::ner::NerConfig;
 /// enrichers the modality supports and rejects the rest at
 /// compile time (e.g. OCR on text, LLM on tabular). Every
 /// compile fn consults the deployment [`NerConfig`] when the
-/// request toggles `recognizers.ner = true`; text and image
-/// also consult [`LlmConfig`] when `recognizers.llm = true`.
-/// Every method consults [`PatternGuardrails`] when the pattern
-/// recognizer is enabled.
+/// request's `recognizers.ner` selects any recognizer; text
+/// and image also consult [`LlmConfig`] when
+/// `recognizers.llm` does. Every method consults
+/// [`PatternGuardrails`] when the pattern recognizer is enabled.
 ///
 /// Non-text methods are gated on their modality's feature.
 pub(crate) trait AnalyzerCompile {

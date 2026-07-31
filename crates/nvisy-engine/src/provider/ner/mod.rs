@@ -1,10 +1,12 @@
 //! NER deployment configuration.
 //!
-//! The wire's `RecognizerParams.ner` is only a boolean; every
-//! detail about which NER recognizer(s) actually run lives here,
-//! on the deployment's side. Symmetric with [`super::llm`]:
-//! deployment operator owns model choice, connection details,
-//! and (future) credentials; the wire only opts in or out.
+//! The wire's `RecognizerParams.ner` selects recognizers by
+//! name (or the whole lineup); every detail about which NER
+//! recognizer(s) actually run lives here, on the deployment's
+//! side. Symmetric with [`super::llm`]: deployment operator
+//! owns model choice, connection details, and (future)
+//! credentials; the wire only names which of the operator's
+//! recognizers to run.
 //!
 //! ## Layout
 //!
@@ -27,8 +29,9 @@ pub use self::recognizer::{NerBackend, NerRecognizer};
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NerConfig {
-    /// The recognizer lineup. Every entry runs when the request
-    /// toggles `recognizers.ner = true`.
+    /// The recognizer lineup. Each entry runs when the request's
+    /// `recognizers.ner` selects it (by allowlist name or by
+    /// running the whole lineup).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recognizers: Vec<NerRecognizer>,
 }

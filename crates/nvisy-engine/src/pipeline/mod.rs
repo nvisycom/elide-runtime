@@ -6,9 +6,9 @@
 //!   bytes into a modality-typed [`DocumentHandle`] at analyze +
 //!   anonymize time.
 //! - The deployment's NER + LLM lineups (see [`crate::provider::ner`]
-//!   and [`crate::provider::llm`]). Consulted by the analyzer compile
-//!   whenever the request's `AnalyzerParams.recognizers.ner` or
-//!   `.llm` toggle is on.
+//!   and [`crate::provider::llm`]). Consulted by the analyzer
+//!   compile whenever the request's
+//!   `AnalyzerParams.recognizers.{ner,llm}` selects any recognizer.
 //!
 //! [`Engine`] clones cheaply (`Arc` under the hood). Callers pass
 //! a clone into every request-scoped code path they run.
@@ -75,7 +75,10 @@
 
 mod analyzed;
 mod orchestrator;
+mod registered;
 mod report;
+
+pub use self::registered::RegisteredRecognizer;
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -146,9 +149,9 @@ impl Engine {
 
     /// Set the deployment's NER configuration.
     ///
-    /// Consumed once at setup; the analyzer compile reads it
-    /// every time a request submits
-    /// `AnalyzerParams.recognizers.ner = true`.
+    /// Consumed once at setup; the analyzer compile reads it on
+    /// every request whose `AnalyzerParams.recognizers.ner`
+    /// selects any of the configured recognizers.
     #[must_use]
     pub fn with_ner(mut self, ner: NerConfig) -> Self {
         self.ner = Arc::new(ner);
@@ -157,9 +160,9 @@ impl Engine {
 
     /// Set the deployment's LLM configuration.
     ///
-    /// Consumed once at setup; the analyzer compile reads it
-    /// every time a request submits
-    /// `AnalyzerParams.recognizers.llm = true`.
+    /// Consumed once at setup; the analyzer compile reads it on
+    /// every request whose `AnalyzerParams.recognizers.llm`
+    /// selects any of the configured recognizers.
     #[must_use]
     pub fn with_llm(mut self, llm: LlmConfig) -> Self {
         self.llm = Arc::new(llm);
@@ -188,6 +191,27 @@ impl Engine {
     /// [`UntypedDocumentHandle`].
     pub fn formats(&self) -> &FormatRegistry {
         &self.formats
+    }
+
+    /// Every NER recognizer this engine has registered, in
+    /// configuration order.
+    ///
+    /// Feeds a "list recognizers" endpoint. Each entry carries
+    /// name, optional description, and provider slug; connection
+    /// details and (future) credentials stay in the private
+    /// [`NerConfig`].
+    pub fn ner_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer<'_>> {
+        self.ner.recognizers.iter().map(Into::into)
+    }
+
+    /// Every LLM recognizer this engine has registered, in
+    /// configuration order.
+    ///
+    /// Same shape as [`ner_recognizers`], for the LLM lineup.
+    ///
+    /// [`ner_recognizers`]: Self::ner_recognizers
+    pub fn llm_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer<'_>> {
+        self.llm.recognizers.iter().map(Into::into)
     }
 
     /// Analyze one document into an [`AnalyzedDocument`].

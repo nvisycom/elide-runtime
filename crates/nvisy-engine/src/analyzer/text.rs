@@ -2,7 +2,7 @@
 //! [`elide::detection::Analyzer<Text>`].
 //!
 //! Text supports the full recognizer set: Pattern, NER, and LLM.
-//! NER and LLM are three-state toggles on
+//! NER and LLM are selected out of the deployment's lineup by
 //! `spec.recognizers.{ner,llm}` (see
 //! [`nvisy_schema::plan::RecognizerParams`]); the deployment's
 //! [`NerConfig`] and [`LlmConfig`] provide the actual recognizer
@@ -46,8 +46,8 @@ pub(super) fn compile(
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
-    analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner)?;
-    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Text, spec.recognizers.llm)?;
+    analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner.as_ref())?;
+    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Text, spec.recognizers.llm.as_ref())?;
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
 }

@@ -50,4 +50,4 @@ pub use self::pattern::{
     CustomDictionary, CustomDictionaryTerm, CustomPatternContext, CustomPatternRule,
     CustomPatternVariant, MAX_REGEX_SOURCE_LEN,
 };
-pub use self::recognizer::{PatternRecognizerParams, RecognizerParams};
+pub use self::recognizer::{PatternRecognizerParams, ProviderSelection, RecognizerParams};

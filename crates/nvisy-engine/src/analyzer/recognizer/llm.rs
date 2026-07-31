@@ -1,8 +1,12 @@
 //! Attach the deployment's LLM lineup to a per-modality
 //! [`Analyzer`]. Walks [`LlmConfig::recognizers`], filters by
-//! modality, and builds one `LlmRecognizer<M>` per matching
-//! entry via elide's `RigBackend` (or `MockBackend` under the
-//! `test-utils` feature).
+//! [`ProviderSelection`] and then by modality, and builds one
+//! `LlmRecognizer<M>` per matching entry via elide's `RigBackend`
+//! (or `MockBackend` under the `test-utils` feature).
+//!
+//! [`Analyzer`]: elide::detection::Analyzer
+//! [`LlmConfig::recognizers`]: crate::provider::llm::LlmConfig::recognizers
+//! [`ProviderSelection`]: nvisy_schema::plan::ProviderSelection
 
 use elide::detection::Analyzer;
 #[cfg(feature = "test-utils")]
@@ -12,22 +16,22 @@ use elide::recognition::llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide_core::{Error, ErrorKind};
+use nvisy_schema::plan::ProviderSelection;
 
+use super::selection::select;
 use crate::provider::llm::{
     AttachTo, LlmConfig, LlmPrompt, LlmRecognizer as ConfigRecognizer, LlmSource,
 };
 
-/// Attach every LLM recognizer in `llm.recognizers` whose
-/// modality list includes `modality` to `analyzer`, dispatched on
-/// the request's three-state toggle.
+/// Attach LLM recognizers selected by `selection` whose modality
+/// list includes `modality`.
 ///
-/// - `Some(true)`: explicit opt-in. Attaches every configured
-///   recognizer whose declared modalities include `modality`;
-///   errors when zero match.
-/// - `Some(false)`: explicit opt-out. Returns the analyzer
-///   unchanged.
-/// - `None`: softly-on default. Attaches every matching
-///   recognizer if any match; skips silently otherwise.
+/// The name allowlist runs first; the modality filter then drops
+/// any allowlisted recognizer that doesn't attach to this
+/// analyzer's modality. Only `All(true)` requires at least one
+/// modality-matching recognizer to remain — `Only(names)`
+/// silently skips if every named recognizer is scoped to a
+/// different modality.
 ///
 /// Errors on: any recognizer whose `modalities` list is empty
 /// (bad config), Jinja2 prompt load/compile failure, provider
@@ -44,7 +48,7 @@ pub(in crate::analyzer) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &LlmConfig,
     modality: AttachTo,
-    toggle: Option<bool>,
+    selection: Option<&ProviderSelection>,
 ) -> Result<Analyzer<M>, Error>
 where
     M: LlmModality,
@@ -52,11 +56,9 @@ where
     DefaultPrompt: Prompt<M>,
     Jinja2Prompt<M>: Prompt<M>,
 {
-    if toggle == Some(false) {
-        return Ok(analyzer);
-    }
-    let mut matched = 0usize;
-    for recognizer in &llm.recognizers {
+    let selected = select(selection, &llm.recognizers, "llm")?;
+    let mut modality_matched = 0usize;
+    for recognizer in &selected {
         if recognizer.modalities.is_empty() {
             return Err(Error::new(
                 ErrorKind::Validation,
@@ -70,10 +72,10 @@ where
         if !recognizer.modalities.contains(&modality) {
             continue;
         }
-        matched += 1;
+        modality_matched += 1;
         analyzer = attach_one(analyzer, recognizer)?;
     }
-    if matched == 0 && toggle == Some(true) {
+    if modality_matched == 0 && matches!(selection, Some(ProviderSelection::All(true))) {
         return Err(Error::new(
             ErrorKind::Validation,
             format!(

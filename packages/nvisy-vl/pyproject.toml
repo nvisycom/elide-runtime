@@ -7,7 +7,6 @@ requires-python = "==3.12.*"
 license = "Apache-2.0"
 authors = [{ name = "Nvisy" }]
 dependencies = [
-    # 1.4.39 floor pulls in an aiohttp without the CVEs from PR #6; do not relax.
     "bentoml>=1.4.39,<2",
     "nvisy-core",
     # PaddleOCR-VL ships in the paddleocr package (>=3.5 for the VL pipeline).
@@ -16,11 +15,11 @@ dependencies = [
     # Without the [ocr] extra, PaddleOCRVL() raises DependencyError at load.
     "paddlex[ocr]>=3.7.2,<4",
     "pillow>=12.3.0,<13",
-    "prometheus-client>=0.20",
+    "prometheus-client>=0.26.0",
 ]
 
 [build-system]
-requires = ["uv_build>=0.11.28,<0.12"]
+requires = ["uv_build>=0.11.32,<0.12"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]

@@ -566,9 +566,9 @@ prettytable==3.17.0 \
     # via
     #   aistudio-sdk
     #   paddlex
-prometheus-client==0.25.0 \
-    --hash=sha256:5e373b75c31afb3c86f1a52fa1ad470c9aace18082d39ec0d2f918d11cc9ba28 \
-    --hash=sha256:d5aec89e349a6ec230805d0df882f3807f74fd6c1a2fa86864e3c2279059fed1
+prometheus-client==0.26.0 \
+    --hash=sha256:04a91bcf94e2cf74a44a1a874d651a2e853ed354b6e822f3b7487751465d5c2b \
+    --hash=sha256:fa93d06737aa02bacd05794768508bb97d2fbee28cb3bca04eaae92f0ca953d6
     # via
     #   bentoml
     #   nvisy-vl
@@ -877,9 +877,9 @@ sentencepiece==0.2.1 \
     --hash=sha256:d9381351182ff9888cc80e41c632e7e274b106f450de33d67a9e8f6043da6f76 \
     --hash=sha256:daeb5e9e9fcad012324807856113708614d534f596d5008638eb9b40112cd9e4
     # via paddlex
-setuptools==81.0.0 \
-    --hash=sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a \
-    --hash=sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6
+setuptools==83.0.0 \
+    --hash=sha256:025bccbbf0fa05b6192bc64ae1e7b16e001fd6d6d4d5de03c97b1c1ade523bef \
+    --hash=sha256:29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3
     # via
     #   modelscope
     #   paddlepaddle

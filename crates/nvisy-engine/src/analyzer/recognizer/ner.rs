@@ -42,13 +42,7 @@ where
     M: TextRecognizable,
     NerRecognizer: Recognizer<M> + 'static,
 {
-    let selected = select(
-        selection,
-        &ner.recognizers,
-        |r| r.name.as_str(),
-        "ner",
-        "[[ner.recognizers]]",
-    )?;
+    let selected = select(selection, &ner.recognizers, "ner")?;
     for recognizer in selected {
         analyzer = attach_ner_one(analyzer, recognizer)?;
     }

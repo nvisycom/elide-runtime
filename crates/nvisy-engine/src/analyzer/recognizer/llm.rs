@@ -56,13 +56,7 @@ where
     DefaultPrompt: Prompt<M>,
     Jinja2Prompt<M>: Prompt<M>,
 {
-    let selected = select(
-        selection,
-        &llm.recognizers,
-        |r| r.name.as_str(),
-        "llm",
-        "[[llm.recognizers]]",
-    )?;
+    let selected = select(selection, &llm.recognizers, "llm")?;
     let mut modality_matched = 0usize;
     for recognizer in &selected {
         if recognizer.modalities.is_empty() {

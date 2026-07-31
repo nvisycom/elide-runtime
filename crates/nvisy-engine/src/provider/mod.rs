@@ -7,5 +7,11 @@
 //! at deployment startup; requests only name which of the
 //! operator's recognizers to run.
 
-pub mod llm;
-pub mod ner;
+pub(crate) mod llm;
+pub(crate) mod ner;
+
+pub use self::llm::{
+    AttachTo, AuthenticatedProvider, LlmConfig, LlmPrompt, LlmRecognizer, LlmSource,
+    UnauthenticatedProvider,
+};
+pub use self::ner::{NerBackend, NerConfig, NerRecognizer};

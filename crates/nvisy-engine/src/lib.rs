@@ -25,6 +25,7 @@ pub mod entity;
 pub mod modality;
 pub mod plan;
 mod pipeline;
+pub mod primitive;
 pub mod provider;
 
 #[doc(inline)]

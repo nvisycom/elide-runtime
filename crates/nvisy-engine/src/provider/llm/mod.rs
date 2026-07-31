@@ -1,9 +1,10 @@
 //! LLM deployment configuration.
 //!
-//! The wire's `RecognizerParams.llm` is only a boolean; every
-//! detail about which LLM(s) actually run lives here, on the
-//! deployment's side. Sidecar users configure their own lineup;
-//! SaaS operators configure the lineup their tenants share.
+//! The wire's `RecognizerParams.llm` selects recognizers by
+//! name (or the whole lineup); every detail about which LLM(s)
+//! actually run lives here, on the deployment's side. Sidecar
+//! users configure their own lineup; SaaS operators configure
+//! the lineup their tenants share.
 //!
 //! ## Layout
 //!

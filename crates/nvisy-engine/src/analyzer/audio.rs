@@ -41,7 +41,7 @@ pub(super) fn compile(
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
-    analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner)?;
+    analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner.as_ref())?;
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
 }

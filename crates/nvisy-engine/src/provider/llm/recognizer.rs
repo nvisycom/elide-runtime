@@ -10,7 +10,7 @@ use super::{AttachTo, LlmPrompt};
 ///
 /// Every entry in [`LlmConfig::recognizers`] runs on every
 /// analyzer whose modality is listed in [`modalities`], provided
-/// the request toggled `recognizers.llm = true`.
+/// the request's `recognizers.llm` selects this recognizer.
 ///
 /// [`LlmConfig::recognizers`]: super::LlmConfig::recognizers
 /// [`modalities`]: Self::modalities
@@ -22,6 +22,11 @@ pub struct LlmRecognizer {
     /// configured recognizer. Must be unique across the
     /// deployment's LLM lineup.
     pub name: String,
+    /// Optional human-readable description. Surfaces on the
+    /// list-recognizers accessor so operators and SDK callers
+    /// can identify what each recognizer is for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Source selection + its per-kind fields, flattened onto
     /// the recognizer's wire shape.
     #[serde(flatten)]
@@ -59,6 +64,21 @@ pub enum LlmSource {
     #[cfg(feature = "test-utils")]
     #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
     Mock,
+}
+
+impl LlmSource {
+    /// Provider slug for the list-recognizers accessor.
+    #[must_use]
+    pub fn provider(&self) -> &'static str {
+        match self {
+            Self::OpenAi(_) => "openai",
+            Self::Anthropic(_) => "anthropic",
+            Self::Gemini(_) => "gemini",
+            Self::Ollama(_) => "ollama",
+            #[cfg(feature = "test-utils")]
+            Self::Mock => "mock",
+        }
+    }
 }
 
 fn default_modalities() -> Vec<AttachTo> {

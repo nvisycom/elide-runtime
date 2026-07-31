@@ -5,53 +5,51 @@
 //!
 //! Symmetric with [`super::llm`]; called by every per-modality
 //! compile function with the request's
-//! `AnalyzerParams.recognizers.ner` three-state toggle.
+//! `AnalyzerParams.recognizers.ner` [`ProviderSelection`].
 //!
 //! [`Analyzer`]: elide::detection::Analyzer
 //! [`NerConfig::recognizers`]: crate::provider::ner::NerConfig::recognizers
+//! [`ProviderSelection`]: nvisy_schema::plan::ProviderSelection
 
 use elide::detection::Analyzer;
 use elide::recognition::ner::NerRecognizer;
 use elide_bento::ner::BentoNer;
 use elide_core::modality::TextRecognizable;
 use elide_core::recognition::Recognizer;
-use elide_core::{Error, ErrorKind};
+use elide_core::Error;
+use nvisy_schema::plan::ProviderSelection;
 
+use super::selection::select;
 use crate::provider::ner::{NerBackend, NerConfig, NerRecognizer as ConfigNerRecognizer};
 
-/// Attach every recognizer from the deployment's NER lineup,
-/// dispatched on the request's three-state toggle.
+/// Attach recognizers from the deployment's NER lineup selected
+/// by `selection`.
 ///
-/// - `Some(true)`: explicit opt-in. Attaches every configured
-///   recognizer; errors if the lineup is empty.
-/// - `Some(false)`: explicit opt-out. Returns the analyzer
-///   unchanged.
 /// - `None`: softly-on default. Attaches every configured
 ///   recognizer if the lineup is non-empty; skips silently
 ///   otherwise.
+/// - `Some(All(true))`: explicit opt-in. Attaches every
+///   configured recognizer; errors if the lineup is empty.
+/// - `Some(All(false))`: explicit opt-out.
+/// - `Some(Only(names))`: attach only the named recognizers.
+///   Empty list and unknown names error.
 pub(in crate::analyzer) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
     ner: &NerConfig,
-    toggle: Option<bool>,
+    selection: Option<&ProviderSelection>,
 ) -> Result<Analyzer<M>, Error>
 where
     M: TextRecognizable,
     NerRecognizer: Recognizer<M> + 'static,
 {
-    match toggle {
-        Some(false) => return Ok(analyzer),
-        None if ner.recognizers.is_empty() => return Ok(analyzer),
-        Some(true) if ner.recognizers.is_empty() => {
-            return Err(Error::new(
-                ErrorKind::Validation,
-                "AnalyzerParams.recognizers.ner = true but the deployment has no NER \
-                 recognizer configured; add one to `[[ner.recognizers]]` in the \
-                 deployment config or leave `ner` unset / false",
-            ));
-        }
-        _ => {}
-    }
-    for recognizer in &ner.recognizers {
+    let selected = select(
+        selection,
+        &ner.recognizers,
+        |r| r.name.as_str(),
+        "ner",
+        "[[ner.recognizers]]",
+    )?;
+    for recognizer in selected {
         analyzer = attach_ner_one(analyzer, recognizer)?;
     }
     Ok(analyzer)

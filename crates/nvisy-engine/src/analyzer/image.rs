@@ -5,8 +5,8 @@
 //! over the OCR'd text (the OCR enricher stamps a `Layout` onto
 //! the recognizer artifacts upstream), and LLM is available
 //! image-natively for vision-language models. NER and LLM are
-//! opt-in via `spec.recognizers.ner = true` /
-//! `spec.recognizers.llm = true`; the deployment's [`NerConfig`]
+//! selected out of the deployment's lineup via
+//! `spec.recognizers.{ner,llm}`; the deployment's [`NerConfig`]
 //! and [`LlmConfig`] provide the actual recognizer lineups.
 //!
 //! Modality-foreign enrichers (`language`, `stt`) on `spec` are
@@ -46,8 +46,8 @@ pub(super) fn compile(
     if let Some(pattern) = &spec.recognizers.pattern {
         analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
-    analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner)?;
-    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Image, spec.recognizers.llm)?;
+    analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner.as_ref())?;
+    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Image, spec.recognizers.llm.as_ref())?;
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
 }

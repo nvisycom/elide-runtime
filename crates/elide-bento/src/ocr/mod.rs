@@ -80,6 +80,30 @@ impl BentoOcr {
         self.default_threshold = threshold;
         self
     }
+
+    /// Send one batched `/recognize` POST end-to-end: encode
+    /// each [`OcrRequest`] to its wire form, POST the batch
+    /// (layering `x-request-id` when any request carries a
+    /// correlation id), decode the wire responses back to
+    /// [`OcrResponse`]s.
+    async fn post_recognize(
+        &self,
+        requests: &[OcrRequest<'_>],
+    ) -> Result<Vec<OcrResponse>, BentoError> {
+        let body: Vec<WireOcrRequest> = requests
+            .iter()
+            .map(|r| WireOcrRequest::from_request(r, self.default_threshold))
+            .collect();
+        let mut endpoint = self.endpoint.clone();
+        if let Some(id) = requests.iter().find_map(|r| r.correlation_id) {
+            endpoint = endpoint.with_request_id(id.to_string());
+        }
+        let wire: Vec<WireOcrResponse> = endpoint
+            .invoke(&body)
+            .await
+            .map_err(BentoError::Transport)?;
+        Ok(wire.into_iter().map(WireOcrResponse::decode).collect())
+    }
 }
 
 #[async_trait::async_trait]
@@ -93,28 +117,25 @@ impl OcrBackend for BentoOcr {
     }
 
     async fn recognize(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
-        let body = vec![WireOcrRequest::from_request(
-            &request,
-            self.default_threshold,
-        )];
-        let mut endpoint = self.endpoint.clone();
-        if let Some(id) = request.correlation_id {
-            endpoint = endpoint.with_request_id(id.to_string());
+        let mut responses = self.recognize_batch(&[request]).await?;
+        responses.pop().ok_or_else(|| {
+            BentoError::Protocol("bento ocr returned an empty batch".into()).into()
+        })
+    }
+
+    async fn recognize_batch(&self, requests: &[OcrRequest<'_>]) -> Result<Vec<OcrResponse>> {
+        if requests.is_empty() {
+            return Ok(Vec::new());
         }
-        let responses: Vec<WireOcrResponse> = endpoint
-            .invoke(&body)
-            .await
-            .map_err(BentoError::Transport)?;
-        let mut iter = responses.into_iter();
-        let response = iter
-            .next()
-            .ok_or_else(|| BentoError::Protocol("bento ocr returned an empty batch".into()))?;
-        if iter.next().is_some() {
-            return Err(BentoError::Protocol(
-                "bento ocr returned more responses than requests".into(),
-            )
+        let responses = self.post_recognize(requests).await?;
+        if responses.len() != requests.len() {
+            return Err(BentoError::Protocol(format!(
+                "bento ocr returned {} responses for {} requests",
+                responses.len(),
+                requests.len(),
+            ))
             .into());
         }
-        Ok(response.decode())
+        Ok(responses)
     }
 }

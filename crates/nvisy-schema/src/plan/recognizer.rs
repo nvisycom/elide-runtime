@@ -9,12 +9,13 @@
 //!   ([`CustomPatternRule`]) and dictionaries
 //!   ([`CustomDictionary`]) alongside the shipped `builtins`;
 //!   the engine compiles them per request.
-//! - **NER** is a **deployment-owned lineup** gated by a
-//!   three-state toggle. Provider, model, and (future)
+//! - **NER** is a **deployment-owned lineup** selected by a
+//!   [`ProviderSelection`]. Provider, model, and (future)
 //!   credentials live in the deployment config; the wire opts in
-//!   (`true`), opts out (`false`), or leaves it to the default
-//!   (`None`, softly-on: attach when the deployment has any NER
-//!   configured, skip otherwise).
+//!   (`true`), opts out (`false`), names a subset by recognizer
+//!   name, or leaves it to the default (`None`, softly-on:
+//!   attach when the deployment has any NER configured, skip
+//!   otherwise).
 //! - **LLM** is the same shape as NER.
 //!
 //! Rationale for the NER/LLM shape: policies stay portable
@@ -32,8 +33,8 @@ use super::pattern::{CustomDictionary, CustomPatternRule};
 /// Recognizer slots an analyzer can fill.
 ///
 /// Pattern is at-most-one (per-request); NER and LLM are
-/// deployment-owned lineups each gated by a three-state
-/// [`Option<bool>`] toggle.
+/// deployment-owned lineups each selected by a
+/// [`ProviderSelection`].
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognizerParams {
@@ -42,28 +43,41 @@ pub struct RecognizerParams {
     /// At most one per analyzer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pattern: Option<PatternRecognizerParams>,
-    /// Run the deployment's NER recognizer lineup.
+    /// Select which of the deployment's NER recognizers to run.
     ///
-    /// - `Some(true)`: explicit opt-in. Attaches every
-    ///   deployment-configured recognizer. Fails the analyzer
-    ///   compile with a `Validation` error when the deployment
-    ///   has no NER recognizers configured.
-    /// - `Some(false)`: explicit opt-out. Skips NER entirely.
-    /// - `None`: softly-on default. Attaches every configured
-    ///   recognizer if the deployment has any; skips silently
-    ///   otherwise.
+    /// See [`ProviderSelection`] for the shape. `None` is the
+    /// softly-on default: attach every configured recognizer if
+    /// the deployment has any, skip silently otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ner: Option<bool>,
-    /// Run the deployment's LLM recognizer lineup.
+    pub ner: Option<ProviderSelection>,
+    /// Select which of the deployment's LLM recognizers to run.
     ///
-    /// Same three-state semantics as [`ner`]. The lineup is
-    /// filtered by declared modality — only recognizers whose
-    /// `modalities` list contains the analyzer's modality
-    /// attach.
+    /// Same shape as [`ner`]. The lineup is additionally filtered
+    /// by declared modality — only recognizers whose `modalities`
+    /// list contains the analyzer's modality attach.
     ///
     /// [`ner`]: RecognizerParams::ner
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub llm: Option<bool>,
+    pub llm: Option<ProviderSelection>,
+}
+
+/// How to pick recognizers out of a deployment-configured lineup.
+///
+/// Untagged on the wire: `true` / `false` / a list of names.
+///
+/// - `All(true)`: explicit opt-in. Attaches every configured
+///   recognizer; fails the analyzer compile if the lineup is
+///   empty.
+/// - `All(false)`: explicit opt-out. Skips the lineup entirely.
+/// - `Only(names)`: attach only the named recognizers. An empty
+///   list and any unknown name fail the analyzer compile.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum ProviderSelection {
+    /// Whole-lineup toggle.
+    All(bool),
+    /// Allowlist by recognizer name.
+    Only(Vec<String>),
 }
 
 /// Params for the `elide-pattern` recognizer.

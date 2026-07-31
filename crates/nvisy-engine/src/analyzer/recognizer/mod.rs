@@ -21,6 +21,7 @@ mod guardrails;
 mod llm;
 mod ner;
 mod pattern;
+mod selection;
 
 pub use self::guardrails::PatternGuardrails;
 pub(super) use self::llm::attach_llm_lineup;

@@ -77,13 +77,15 @@ impl BentoNer {
         self
     }
 
-    /// Send one batched `/recognize` POST and parse the response
-    /// body. Clones the cached endpoint so per-request headers
-    /// layer on without touching the original.
+    /// Send one batched `/recognize` POST end-to-end: encode
+    /// each [`NerRequest`] to its wire form, POST the batch
+    /// (layering `x-request-id` when any request carries a
+    /// correlation id), decode the wire responses back to
+    /// [`NerResponse`]s.
     async fn post_recognize(
         &self,
         requests: &[NerRequest<'_>],
-    ) -> Result<Vec<WireNerResponse>, BentoError> {
+    ) -> Result<Vec<NerResponse>, BentoError> {
         let body: Vec<WireNerRequest> = requests
             .iter()
             .map(|r| WireNerRequest::from_request(r, self.default_threshold))
@@ -92,10 +94,11 @@ impl BentoNer {
         if let Some(id) = requests.iter().find_map(|r| r.correlation_id) {
             endpoint = endpoint.with_request_id(id.to_string());
         }
-        endpoint
-            .invoke::<_, Vec<WireNerResponse>>(&body)
+        let wire: Vec<WireNerResponse> = endpoint
+            .invoke(&body)
             .await
-            .map_err(BentoError::Transport)
+            .map_err(BentoError::Transport)?;
+        Ok(wire.into_iter().map(WireNerResponse::decode).collect())
     }
 }
 
@@ -110,18 +113,10 @@ impl NerBackend for BentoNer {
     }
 
     async fn recognize(&self, request: NerRequest<'_>) -> Result<NerResponse> {
-        let responses = self.post_recognize(&[request]).await?;
-        let mut iter = responses.into_iter();
-        let response = iter
-            .next()
-            .ok_or_else(|| BentoError::Protocol("bento ner returned an empty batch".into()))?;
-        if iter.next().is_some() {
-            return Err(BentoError::Protocol(
-                "bento ner returned more responses than requests".into(),
-            )
-            .into());
-        }
-        Ok(response.decode())
+        let mut responses = self.recognize_batch(&[request]).await?;
+        responses.pop().ok_or_else(|| {
+            BentoError::Protocol("bento ner returned an empty batch".into()).into()
+        })
     }
 
     async fn recognize_batch(&self, requests: &[NerRequest<'_>]) -> Result<Vec<NerResponse>> {
@@ -137,6 +132,6 @@ impl NerBackend for BentoNer {
             ))
             .into());
         }
-        Ok(responses.into_iter().map(WireNerResponse::decode).collect())
+        Ok(responses)
     }
 }

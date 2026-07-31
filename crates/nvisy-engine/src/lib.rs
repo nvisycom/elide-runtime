@@ -40,5 +40,6 @@ pub use nvisy_schema::{annotation, entity, file, modality, plan, primitive};
 pub use self::analyzer::PatternGuardrails;
 pub use self::pipeline::{
     AnalyzedDocument, AnonymizedDocument, Engine, EntityRecord, RecognizedGroup,
+    RegisteredRecognizer,
 };
 pub use self::provider::{llm, ner};

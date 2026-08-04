@@ -139,7 +139,8 @@ pub enum RecognizedGroup {
 #[serde(rename_all = "camelCase")]
 #[serde(bound = "M::Location: Serialize + for<'a> Deserialize<'a>, \
                   M::Data: Serialize + for<'a> Deserialize<'a>")]
-#[schemars(bound = "M::Location: JsonSchema, M::Data: JsonSchema")]
+#[schemars(bound = "M: JsonSchema, M::Location: JsonSchema, M::Data: JsonSchema")]
+#[schemars(rename = "{M}EntityRecord")]
 pub struct EntityRecord<M: Modality> {
     /// The elide entity, as recognition produced it.
     pub entity: Entity<M>,

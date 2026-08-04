@@ -45,7 +45,7 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind, Result};
-use nvisy_schema::policy::PolicyAction;
+use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 use super::AnonymizedDocument;
@@ -141,7 +141,7 @@ impl RecognizedGroup {
     /// Iterates the variant-appropriate `Vec<EntityRecord<M>>`
     /// and keeps only records whose `reviewer_override` field is
     /// set.
-    pub(super) fn collect_overrides_into(&self, out: &mut Vec<(Uuid, PolicyAction)>) {
+    pub(super) fn collect_overrides_into(&self, out: &mut Vec<(Uuid, ModalityRedactions)>) {
         match self {
             Self::Text { entities } => extend_overrides(out, entities),
             #[cfg(feature = "internal_tabular")]
@@ -183,7 +183,7 @@ where
     records.iter().map(|r| r.entity.clone()).collect()
 }
 
-fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, PolicyAction)>, records: &[EntityRecord<M>]) {
+fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, ModalityRedactions)>, records: &[EntityRecord<M>]) {
     out.extend(records.iter().filter_map(|r| {
         r.reviewer_override
             .as_ref()

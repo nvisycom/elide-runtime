@@ -97,7 +97,8 @@ use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::{PolicyDefinition, PolicyAction};
+use nvisy_schema::policy::PolicyDefinition;
+use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 pub use self::analyzed::{AnalyzedDocument, EntityRecord, RecognizedGroup};
@@ -327,7 +328,7 @@ impl Engine {
         let correlation_id = document.correlation_id;
         let mut handle = self.decode(document).await?;
         let mut report = body_group.insert_into_body(Report::new());
-        let mut overrides: Vec<(Uuid, PolicyAction)> = Vec::new();
+        let mut overrides: Vec<(Uuid, ModalityRedactions)> = Vec::new();
         body_group.collect_overrides_into(&mut overrides);
         for (id, group) in &analyzed.parts {
             report = group.insert_as_part(report, id.as_str());

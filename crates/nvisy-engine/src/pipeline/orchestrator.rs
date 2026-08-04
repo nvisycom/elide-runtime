@@ -43,7 +43,8 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::{PolicyDefinition, PolicyAction};
+use nvisy_schema::policy::PolicyDefinition;
+use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 use super::Engine;
@@ -141,7 +142,7 @@ impl Engine {
         &self,
         scope: &Scope,
         policies: &[PolicyDefinition],
-        overrides: &[(Uuid, PolicyAction)],
+        overrides: &[(Uuid, ModalityRedactions)],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
         let live_scope = Scope {
@@ -224,14 +225,14 @@ where
 /// wrapping so each modality's callsite is one call.
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
-    overrides: &[(Uuid, PolicyAction)],
+    overrides: &[(Uuid, ModalityRedactions)],
     policies: &'a [PolicyDefinition],
     attach_override: O,
     attach_policies: P,
 ) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    O: Fn(Anonymizer<M>, Uuid, &PolicyAction) -> Result<Anonymizer<M>, Error>,
+    O: Fn(Anonymizer<M>, Uuid, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
     P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>, Error>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());

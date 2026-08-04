@@ -9,7 +9,7 @@
 //! A request submits `Vec<PolicyDefinition>` in precedence order. Engine
 //! walks them; for each policy whose [`PolicyDefinition::when`]
 //! holds against the document, it walks [`PolicyDefinition::rules`] in
-//! order and runs the first matching rule's [`PolicyAction`]. If
+//! order and runs the first matching rule's redaction operators. If
 //! no rule in a policy matches, the policy's [`PolicyDefinition::fallback`]
 //! runs (and the chain halts) if set; otherwise the engine moves
 //! to the next policy. If no policy matches and no policy
@@ -23,7 +23,6 @@
 //!
 //! [`Attribution`]: elide_core::entity::provenance::Attribution
 
-mod action;
 pub mod predicate;
 pub mod redaction;
 pub mod retention;
@@ -35,10 +34,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::action::{AuditAction, SuppressAction};
 use self::predicate::DocumentPredicate;
+use self::redaction::ModalityRedactions;
 use self::retention::RetentionPolicy;
-pub use self::rule::{PolicyAction, PolicyRule};
+pub use self::rule::PolicyRule;
 
 /// A named governance policy.
 ///
@@ -82,7 +81,7 @@ pub struct PolicyDefinition {
     /// to the next policy. [`Option`] enforces "at most one
     /// fallback per policy" at the type level.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fallback: Option<PolicyAction>,
+    pub fallback: Option<ModalityRedactions>,
     /// Lifecycle rules for content under this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub retention: Vec<RetentionPolicy>,

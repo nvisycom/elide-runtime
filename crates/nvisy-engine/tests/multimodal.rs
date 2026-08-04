@@ -15,7 +15,6 @@ use nvisy_schema::plan::{
     AnalyzerParams, EnricherParams, LabelCatalogParams, OcrBackendParams, OcrEnricherParams,
     PatternRecognizerParams, ProviderSelection, RecognizerParams, ScopeParams,
 };
-use nvisy_schema::policy::PolicyAction;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
 
 use self::fixtures::write_artefact;
@@ -116,12 +115,12 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     muts.iter_mut()
         .find(|r| r.entity.id == target_id)
         .expect("entity present")
-        .reviewer_override = Some(PolicyAction::Redact(ModalityRedactions {
+        .reviewer_override = Some(ModalityRedactions {
         text: Some(TextRedaction::Erase),
         tabular: None,
         image: None,
         audio: None,
-    }));
+    });
 
     let outcome = engine
         .anonymize_document(raw_docx(), &[], &analyzed)

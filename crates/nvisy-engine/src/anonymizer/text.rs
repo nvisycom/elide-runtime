@@ -4,8 +4,8 @@
 use elide::redaction::Anonymizer;
 use elide_core::Error;
 use elide_core::modality::text::Text;
+use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use nvisy_schema::policy::{PolicyDefinition, PolicyAction};
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
@@ -26,16 +26,14 @@ pub(crate) fn attach_policies_text<'a>(
     attach_policies(anonymizer, policies, compile_one)
 }
 
-/// Attach a reviewer override for one entity. The override only
-/// applies to `PolicyAction::Redact` with a text-modality spec —
-/// other action shapes (or non-text overrides) are no-ops at the
-/// per-modality dispatch boundary.
+/// Attach a reviewer override for one entity. A no-op when the
+/// override's redaction spec carries no text arm.
 pub(crate) fn attach_override_text(
     anonymizer: Anonymizer<Text>,
     entity_id: Uuid,
-    action: &PolicyAction,
+    redactions: &ModalityRedactions,
 ) -> Result<Anonymizer<Text>, Error> {
-    attach_one_override(anonymizer, entity_id, action, compile_one)
+    attach_one_override(anonymizer, entity_id, redactions, compile_one)
 }
 
 fn compile_one(

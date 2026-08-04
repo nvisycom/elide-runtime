@@ -19,7 +19,7 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio", "codec-docx"]
+default = ["tabular", "image", "audio", "document"]
 
 ## Tabular modality (analyzer + anonymizer + redaction operators)
 ## plus every tabular codec elide ships (CSV, XLSX).
@@ -31,6 +31,11 @@ image = ["internal_image", "codec-png", "codec-jpeg", "codec-tiff"]
 ## plus the WAV codec. MP3 is opt-in via `codec-mp3` because of
 ## patent licensing.
 audio = ["internal_audio", "codec-wav"]
+## Container-document codecs: DOCX, PDF, RTF. Standalone: text and
+## image modalities are still needed to handle the parts these
+## containers embed. `codec-pdf-render` (rasterising pages for
+## OCR) is opt-in via its own toggle.
+document = ["codec-docx", "codec-pdf", "codec-rtf"]
 
 ## Individual codec toggles. Each pulls in its modality's shared
 ## code (`internal_*`), so `codec-png` alone works without also
@@ -45,8 +50,16 @@ codec-wav = ["internal_audio", "elide/codec-wav"]
 ## downstream. Off by default even when `audio` is enabled.
 codec-mp3 = ["internal_audio", "elide/codec-mp3"]
 ## DOCX documents (a zip archive with an XML body plus embedded
-## image parts). Standalone: not implied by `image` or `tabular`.
+## image parts).
 codec-docx = ["elide/codec-docx"]
+## PDF documents (text extraction).
+codec-pdf = ["elide/codec-pdf"]
+## PDF page rasterisation for downstream OCR. Standalone toggle
+## on top of `codec-pdf`; opt-in because it drags in a native
+## rendering dep.
+codec-pdf-render = ["codec-pdf", "elide/codec-pdf-render"]
+## RTF documents.
+codec-rtf = ["elide/codec-rtf"]
 
 # Internal shared-code gates. Not part of the public feature
 # surface: enabled transitively by every user-facing feature that

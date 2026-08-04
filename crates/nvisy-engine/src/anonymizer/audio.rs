@@ -5,7 +5,7 @@ use elide::redaction::Anonymizer;
 use elide_core::Error;
 use elide_core::modality::audio::Audio;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use nvisy_schema::policy::{Policy, PolicyAction};
+use nvisy_schema::policy::{PolicyDefinition, PolicyAction};
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
@@ -15,12 +15,12 @@ use super::operator::audio::AudioOp;
 /// already-constructed anonymizer.
 ///
 /// Takes an iterator so the apply pipeline can pre-filter by
-/// [`Policy::applies_when`] without cloning.
+/// [`PolicyDefinition::when`] without cloning.
 ///
-/// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
+/// [`PolicyDefinition::when`]: nvisy_schema::policy::PolicyDefinition::when
 pub(crate) fn attach_policies_audio<'a>(
     anonymizer: Anonymizer<Audio>,
-    policies: impl Iterator<Item = &'a Policy>,
+    policies: impl Iterator<Item = &'a PolicyDefinition>,
 ) -> Result<Anonymizer<Audio>, Error> {
     attach_policies(anonymizer, policies, compile_one)
 }

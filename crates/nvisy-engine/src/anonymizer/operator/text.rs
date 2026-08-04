@@ -8,7 +8,7 @@
 //! its variant onto a [`Target`] with the built operator.
 
 use elide::redaction::Anonymizer;
-use elide::redaction::operators::{Erase, Keep, Mask, Replace, Sha2Algorithm, Sha2Hash};
+use elide::redaction::operators::{Erase, Fake, Keep, Mask, Replace, Sha2Algorithm, Sha2Hash};
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
 use elide_core::{Error, ErrorKind};
@@ -39,13 +39,17 @@ pub(in crate::anonymizer) enum TextOp {
     Mask(Mask),
     Replace(Replace),
     Hash(Sha2Hash),
+    /// `Fake` is generic over its fallback; we bind the fallback
+    /// to [`Replace`] at compile so the enum stays a fixed set of
+    /// concrete types.
+    Fake(Fake<Replace>),
 }
 
 impl TextOp {
     /// Attach `self` to `target`. Works for any modality whose
     /// anonymizer accepts the text operator set (elide ships
     /// `impl Operator<Text>` and `impl Operator<Tabular>` on all
-    /// five concrete ops).
+    /// six concrete ops).
     pub(in crate::anonymizer) fn attach_to<M>(self, target: Target<'_, M>) -> Anonymizer<M>
     where
         M: Modality + 'static,
@@ -54,6 +58,7 @@ impl TextOp {
         Mask: Operator<M> + Clone,
         Replace: Operator<M> + Clone,
         Sha2Hash: Operator<M> + Clone,
+        Fake<Replace>: Operator<M> + Clone,
     {
         match self {
             TextOp::Erase => target.attach_with(Erase),
@@ -61,6 +66,7 @@ impl TextOp {
             TextOp::Mask(op) => target.attach_with(op),
             TextOp::Replace(op) => target.attach_with(op),
             TextOp::Hash(op) => target.attach_with(op),
+            TextOp::Fake(op) => target.attach_with(op),
         }
     }
 }
@@ -92,6 +98,21 @@ impl TryFrom<&TextRedaction> for TextOp {
                     op = op.with_salt(s.as_bytes().to_vec());
                 }
                 Self::Hash(op)
+            }
+            TextRedaction::Fake {
+                default_language,
+                seed,
+                fallback_template,
+            } => {
+                let fallback = Replace::new(fallback_template.clone());
+                let mut op = Fake::new(fallback);
+                if let Some(lang) = default_language {
+                    op = op.with_default_language(lang.clone());
+                }
+                if let Some(s) = seed {
+                    op = op.with_seed(*s);
+                }
+                Self::Fake(op)
             }
             TextRedaction::Pseudonymize => {
                 return Err(stateful_not_wired("pseudonymize", "vault + generator"));

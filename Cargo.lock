@@ -773,6 +773,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "deunicode"
+version = "1.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abd57806937c9cc163efc8ea3910e00a62e2aeb0b8119f1793a978088f8f6b04"
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -948,6 +954,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "elide-fake"
+version = "0.1.0"
+source = "git+https://github.com/nvisycom/elide?branch=main#5f613868a84b6f862b8b4874b62bfd7a495a394c"
+dependencies = [
+ "async-trait",
+ "elide-core",
+ "fake",
+ "uuid",
+]
+
+[[package]]
 name = "elide-lingua"
 version = "0.1.0"
 source = "git+https://github.com/nvisycom/elide?branch=main#5f613868a84b6f862b8b4874b62bfd7a495a394c"
@@ -1045,6 +1062,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "elide-core",
+ "elide-fake",
  "hex",
  "hipstr",
  "sha2 0.11.0",
@@ -1151,6 +1169,17 @@ name = "extended"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af9673d8203fcb076b19dfd17e38b3d4ae9f44959416ea532ce72415a6020365"
+
+[[package]]
+name = "fake"
+version = "5.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea6be833b323a56361118a747470a45a1bcd5c52a2ec9b1e40c83dafe687e453"
+dependencies = [
+ "deunicode",
+ "either",
+ "rand 0.10.1",
+]
 
 [[package]]
 name = "fastrand"
@@ -2490,7 +2519,6 @@ dependencies = [
  "elide-core",
  "hipstr",
  "schemars",
- "semver",
  "serde",
  "strum 0.28.0",
  "uuid",
@@ -3506,7 +3534,6 @@ dependencies = [
  "dyn-clone",
  "ref-cast",
  "schemars_derive",
- "semver",
  "serde",
  "serde_json",
  "uuid",
@@ -3598,10 +3625,6 @@ name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
-dependencies = [
- "serde",
- "serde_core",
-]
 
 [[package]]
 name = "send_wrapper"

@@ -43,7 +43,7 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::{Policy, PolicyAction};
+use nvisy_schema::policy::{PolicyDefinition, PolicyAction};
 use uuid::Uuid;
 
 use super::Engine;
@@ -140,7 +140,7 @@ impl Engine {
     pub(super) fn build_anonymize_orchestrator(
         &self,
         scope: &Scope,
-        policies: &[Policy],
+        policies: &[PolicyDefinition],
         overrides: &[(Uuid, PolicyAction)],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
@@ -225,14 +225,14 @@ where
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
     overrides: &[(Uuid, PolicyAction)],
-    policies: &'a [Policy],
+    policies: &'a [PolicyDefinition],
     attach_override: O,
     attach_policies: P,
 ) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
     O: Fn(Anonymizer<M>, Uuid, &PolicyAction) -> Result<Anonymizer<M>, Error>,
-    P: FnOnce(Anonymizer<M>, slice::Iter<'a, Policy>) -> Result<Anonymizer<M>, Error>,
+    P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>, Error>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
     for (id, action) in overrides {

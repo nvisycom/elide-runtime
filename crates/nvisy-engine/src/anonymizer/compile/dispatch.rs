@@ -26,7 +26,7 @@ use elide_core::modality::Modality;
 use elide_core::operator::Operator;
 use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use nvisy_schema::policy::{Policy, PolicyAction};
+use nvisy_schema::policy::{PolicyDefinition, PolicyAction};
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
@@ -43,7 +43,7 @@ pub(in crate::anonymizer) enum Target<'a, M: Modality> {
         predicate: &'a Predicate,
         attribution: Attribution,
     },
-    /// Policy `fallback`: catch-all redaction with `reason: None`.
+    /// PolicyDefinition `fallback`: catch-all redaction with `reason: None`.
     /// Maps to [`Anonymizer::with_fallback`] + `because`.
     Fallback {
         anonymizer: Anonymizer<M>,
@@ -107,7 +107,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
 /// propagate.
 pub(in crate::anonymizer) fn attach_policies<'a, M, F>(
     mut anonymizer: Anonymizer<M>,
-    policies: impl Iterator<Item = &'a Policy>,
+    policies: impl Iterator<Item = &'a PolicyDefinition>,
     mut compile_one: F,
 ) -> Result<Anonymizer<M>, Error>
 where

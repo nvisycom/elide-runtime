@@ -1,4 +1,4 @@
-//! One rule inside a [`Policy`]: shared identity/description
+//! One rule inside a [`PolicyDefinition`]: shared identity/description
 //! fields, the match predicate, and the action ([`PolicyAction`]).
 //!
 //! The engine compiles a rule's [`predicate`] into an elide
@@ -16,7 +16,7 @@
 //! same rule as the old `RuleKind::Label { label: "email" }` and
 //! compiles down to the same fast path.
 //!
-//! [`Policy`]: super::Policy
+//! [`PolicyDefinition`]: super::PolicyDefinition
 //! [`predicate`]: PolicyRule::predicate
 //! [`Anonymizer`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer
 //! [`Anonymizer::with_label`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_label
@@ -32,10 +32,10 @@ use super::action::{AuditAction, SuppressAction};
 use super::predicate::Predicate;
 use super::redaction::ModalityRedactions;
 
-/// One rule inside a [`Policy`]. Identity is the UUID; `name` /
+/// One rule inside a [`PolicyDefinition`]. Identity is the UUID; `name` /
 /// `description` are display-only.
 ///
-/// [`Policy`]: super::Policy
+/// [`PolicyDefinition`]: super::PolicyDefinition
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyRule {

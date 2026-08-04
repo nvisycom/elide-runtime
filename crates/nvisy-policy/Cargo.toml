@@ -28,7 +28,7 @@ elide-core = { workspace = true, features = ["serde", "schema", "audio"] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
-schemars = { workspace = true, features = ["uuid1", "semver1"] }
+schemars = { workspace = true, features = ["uuid1"] }
 
 # Derive macros and error handling
 derive_more = { workspace = true, features = ["display"] }
@@ -37,4 +37,3 @@ strum = { workspace = true, features = ["derive"] }
 # Primitive datatypes
 uuid = { workspace = true, features = ["v7"] }
 hipstr = { workspace = true, features = ["serde"] }
-semver = { workspace = true, features = ["serde"] }

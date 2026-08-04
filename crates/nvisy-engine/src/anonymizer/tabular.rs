@@ -14,7 +14,7 @@ use elide::redaction::operators::{DropColumn, DropRow};
 use elide_core::Error;
 use elide_core::modality::tabular::Tabular;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TabularRedaction};
-use nvisy_schema::policy::{Policy, PolicyAction};
+use nvisy_schema::policy::{PolicyDefinition, PolicyAction};
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
@@ -22,13 +22,13 @@ use super::operator::text::TextOp;
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the
-/// apply pipeline can pre-filter by [`Policy::applies_when`]
+/// apply pipeline can pre-filter by [`PolicyDefinition::when`]
 /// without cloning.
 ///
-/// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
+/// [`PolicyDefinition::when`]: nvisy_schema::policy::PolicyDefinition::when
 pub(crate) fn attach_policies_tabular<'a>(
     anonymizer: Anonymizer<Tabular>,
-    policies: impl Iterator<Item = &'a Policy>,
+    policies: impl Iterator<Item = &'a PolicyDefinition>,
 ) -> Result<Anonymizer<Tabular>, Error> {
     attach_policies(anonymizer, policies, compile_one)
 }

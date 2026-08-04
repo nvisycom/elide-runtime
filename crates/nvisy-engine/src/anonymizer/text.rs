@@ -5,7 +5,7 @@ use elide::redaction::Anonymizer;
 use elide_core::Error;
 use elide_core::modality::text::Text;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use nvisy_schema::policy::{Policy, PolicyAction};
+use nvisy_schema::policy::{PolicyDefinition, PolicyAction};
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
@@ -15,13 +15,13 @@ use super::operator::text::TextOp;
 /// already-constructed anonymizer. The apply pipeline calls this
 /// after layering per-entity override rules so the overrides
 /// keep first-match precedence. Takes an iterator (not a slice)
-/// so callers can pre-filter by [`Policy::applies_when`] without
+/// so callers can pre-filter by [`PolicyDefinition::when`] without
 /// cloning the policy set.
 ///
-/// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
+/// [`PolicyDefinition::when`]: nvisy_schema::policy::PolicyDefinition::when
 pub(crate) fn attach_policies_text<'a>(
     anonymizer: Anonymizer<Text>,
-    policies: impl Iterator<Item = &'a Policy>,
+    policies: impl Iterator<Item = &'a PolicyDefinition>,
 ) -> Result<Anonymizer<Text>, Error> {
     attach_policies(anonymizer, policies, compile_one)
 }

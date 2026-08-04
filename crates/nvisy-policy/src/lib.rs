@@ -6,16 +6,16 @@
 //!
 //! Authored vocabulary for redaction governance.
 //!
-//! A request submits `Vec<Policy>` in precedence order. Engine
-//! walks them; for each policy whose [`Policy::applies_when`]
-//! holds against the document, it walks [`Policy::rules`] in
+//! A request submits `Vec<PolicyDefinition>` in precedence order. Engine
+//! walks them; for each policy whose [`PolicyDefinition::when`]
+//! holds against the document, it walks [`PolicyDefinition::rules`] in
 //! order and runs the first matching rule's [`PolicyAction`]. If
-//! no rule in a policy matches, the policy's [`Policy::fallback`]
+//! no rule in a policy matches, the policy's [`PolicyDefinition::fallback`]
 //! runs (and the chain halts) if set; otherwise the engine moves
 //! to the next policy. If no policy matches and no policy
 //! carries a fallback, the entity is skipped.
 //!
-//! Identity is UUID-keyed: every [`Policy`] and every [`PolicyRule`]
+//! Identity is UUID-keyed: every [`PolicyDefinition`] and every [`PolicyRule`]
 //! carries a stable [`Uuid`]. Engine stamps `policy.id` and
 //! `rule.id` into the redaction event's [`Attribution`] so
 //! reviewers can trace any redaction back to the exact rule that
@@ -32,7 +32,6 @@ mod rule;
 use elide_core::entity::Label;
 use hipstr::HipStr;
 use schemars::JsonSchema;
-use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -41,14 +40,12 @@ use self::predicate::DocumentPredicate;
 use self::retention::RetentionPolicy;
 pub use self::rule::{PolicyAction, PolicyRule};
 
-/// A named, versioned governance policy.
+/// A named governance policy.
 ///
-/// Identity is the UUID; `name` is display-only. `version` is the
-/// policy body's semver: two submissions of the same
-/// `(id, version)` pair should produce identical decisions.
+/// Identity is the UUID; `name` is display-only.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Policy {
+pub struct PolicyDefinition {
     /// Stable identifier. UUIDv7 recommended (time-ordered);
     /// customer-supplied so re-submissions carry the same id.
     /// Engine stamps this into the redaction event's
@@ -60,9 +57,6 @@ pub struct Policy {
     /// Human-readable name. Display-only. Does not key anything.
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
-    /// Semver of the policy body.
-    #[schemars(with = "String")]
-    pub version: Version,
     /// Optional description for reviewers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -70,7 +64,7 @@ pub struct Policy {
     /// is skipped when this is `Some(...)` and the predicate is
     /// false for the document. Evaluated once per document.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub applies_when: Option<DocumentPredicate>,
+    pub when: Option<DocumentPredicate>,
     /// Vocabulary the policy operates over. Engine unions every
     /// submitted policy's `labels` into a per-request
     /// [`LabelCatalog`] used to drive recognizer dispatch and

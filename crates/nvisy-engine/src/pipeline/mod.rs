@@ -253,7 +253,7 @@ impl Engine {
 
         let body_group = body_group.ok_or_else(|| {
             Error::new(
-                ErrorKind::Validation,
+                ErrorKind::CapabilityUnavailable,
                 format!(
                     "codec resolved {extension:?} to a modality the orchestrator \
                      has no pipeline for"
@@ -320,7 +320,7 @@ impl Engine {
     ) -> Result<AnonymizedDocument> {
         let body_group = analyzed.body.as_ref().ok_or_else(|| {
             Error::new(
-                ErrorKind::Validation,
+                ErrorKind::Configuration,
                 "anonymize_document: body group is missing — analyze must run first",
             )
         })?;
@@ -354,7 +354,7 @@ impl Engine {
             .await
             .map_err(|err| {
                 Error::new(
-                    ErrorKind::Validation,
+                    ErrorKind::MalformedInput,
                     format!("codec decode failed for extension {extension:?}: {err}"),
                 )
             })

@@ -105,7 +105,7 @@ fn check_custom_count(
     let total = spec.custom.len() + spec.custom_dictionaries.len();
     if total > guardrails.max_custom_rules {
         return Err(Error::new(
-            ErrorKind::Validation,
+            ErrorKind::Configuration,
             format!(
                 "pattern recognizer: {} custom rules requested \
                  (custom={} + customDictionaries={}) exceeds the \
@@ -145,7 +145,7 @@ fn compile_custom_variant(
 ) -> Result<Variant, Error> {
     if variant.regex.len() > guardrails.max_regex_source_len {
         return Err(Error::new(
-            ErrorKind::Validation,
+            ErrorKind::Configuration,
             format!(
                 "pattern recognizer: regex source of {} bytes exceeds \
                  the deployment cap of {} bytes",

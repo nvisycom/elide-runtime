@@ -61,7 +61,7 @@ where
     for recognizer in &selected {
         if recognizer.modalities.is_empty() {
             return Err(Error::new(
-                ErrorKind::Validation,
+                ErrorKind::Configuration,
                 format!(
                     "LLM recognizer `{}` declares empty `modalities`; \
                      add at least one modality or remove the recognizer",
@@ -77,7 +77,7 @@ where
     }
     if modality_matched == 0 && matches!(selection, Some(ProviderSelection::All(true))) {
         return Err(Error::new(
-            ErrorKind::Validation,
+            ErrorKind::Configuration,
             format!(
                 "AnalyzerParams.recognizers.llm = true but the deployment has no LLM \
                  recognizer configured for the {modality:?} modality; add one to \

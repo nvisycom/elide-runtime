@@ -82,7 +82,7 @@ fn select_allowlisted<'a, T: Named>(
 
 fn empty_lineup(field: &str) -> Error {
     Error::new(
-        ErrorKind::Validation,
+        ErrorKind::Configuration,
         format!(
             "AnalyzerParams.recognizers.{field} = true but the deployment has no \
              {field} recognizer configured; leave `{field}` unset / false to opt out"
@@ -92,7 +92,7 @@ fn empty_lineup(field: &str) -> Error {
 
 fn empty_allowlist(field: &str) -> Error {
     Error::new(
-        ErrorKind::Validation,
+        ErrorKind::Configuration,
         format!(
             "AnalyzerParams.recognizers.{field} is an empty allowlist; use \
              `{field}: false` to opt out entirely, or list at least one recognizer name"
@@ -104,7 +104,7 @@ fn unknown_names(field: &str, unknown: &[&str], available: &HashSet<&str>) -> Er
     let mut available: Vec<&str> = available.iter().copied().collect();
     available.sort_unstable();
     Error::new(
-        ErrorKind::Validation,
+        ErrorKind::Configuration,
         format!(
             "AnalyzerParams.recognizers.{field} names unknown recognizer(s) {unknown:?}; \
              available in this deployment: {available:?}"

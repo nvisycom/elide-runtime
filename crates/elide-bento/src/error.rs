@@ -27,12 +27,12 @@ pub(crate) enum BentoError {
 
 impl From<BentoError> for Error {
     /// Map transport to [`ErrorKind::Transport`] and protocol to
-    /// [`ErrorKind::Validation`], carrying the original error as the
+    /// [`ErrorKind::Provider`], carrying the original error as the
     /// source cause.
     fn from(err: BentoError) -> Self {
         let kind = match err {
             BentoError::Transport(_) => ErrorKind::Transport,
-            BentoError::Protocol(_) => ErrorKind::Validation,
+            BentoError::Protocol(_) => ErrorKind::Provider,
         };
         Error::new(kind, err)
     }

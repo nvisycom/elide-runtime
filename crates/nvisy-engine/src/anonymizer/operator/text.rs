@@ -105,7 +105,7 @@ impl TryFrom<&TextRedaction> for TextOp {
 
 fn stateful_not_wired(operator: &'static str, infrastructure: &'static str) -> Error {
     Error::new(
-        ErrorKind::Validation,
+        ErrorKind::CapabilityUnavailable,
         format!(
             "policy compile: `{operator}` needs an engine-side {infrastructure}; \
              stateful operator infrastructure is not wired into the compile surface yet",

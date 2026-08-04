@@ -30,7 +30,7 @@ pub(in crate::analyzer) fn attach(
         // skipping OCR.
         _ => {
             return Err(Error::new(
-                ErrorKind::Validation,
+                ErrorKind::CapabilityUnavailable,
                 "OCR enricher uses a backend kind this engine binary doesn't \
                  understand; upgrade the engine or downgrade the config",
             ));

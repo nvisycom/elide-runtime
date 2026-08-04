@@ -23,7 +23,7 @@ pub(in crate::analyzer) fn attach(
     let _ = analyzer;
     match &spec.backend {
         SttBackendParams::Bento { .. } => Err(Error::new(
-            ErrorKind::Validation,
+            ErrorKind::CapabilityUnavailable,
             "analyzer compile: BentoML STT backend needs an elide-bento `BentoStt` \
              client; not wired into the compile surface yet",
         )),
@@ -32,7 +32,7 @@ pub(in crate::analyzer) fn attach(
         // `SttBackendParams` is `#[non_exhaustive]`. Unknown
         // variants surface as Validation.
         _ => Err(Error::new(
-            ErrorKind::Validation,
+            ErrorKind::CapabilityUnavailable,
             "analyzer compile: STT enricher uses a backend kind this engine binary \
              doesn't understand; upgrade the engine or downgrade the config",
         )),

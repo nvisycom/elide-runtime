@@ -804,7 +804,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 [[package]]
 name = "elide"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "elide-codec",
@@ -840,7 +840,7 @@ dependencies = [
 [[package]]
 name = "elide-codec"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "bytes",
@@ -864,7 +864,7 @@ dependencies = [
 [[package]]
 name = "elide-context"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -875,7 +875,7 @@ dependencies = [
 [[package]]
 name = "elide-core"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "bytes",
@@ -893,7 +893,7 @@ dependencies = [
 [[package]]
 name = "elide-detection"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -906,7 +906,7 @@ dependencies = [
 [[package]]
 name = "elide-lingua"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -917,7 +917,7 @@ dependencies = [
 [[package]]
 name = "elide-llm"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -929,6 +929,7 @@ dependencies = [
  "rig",
  "schemars",
  "serde",
+ "serde_json",
  "thiserror",
  "tracing",
  "unicode-normalization",
@@ -937,7 +938,7 @@ dependencies = [
 [[package]]
 name = "elide-ner"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -951,7 +952,7 @@ dependencies = [
 [[package]]
 name = "elide-ocr"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -961,7 +962,7 @@ dependencies = [
 [[package]]
 name = "elide-orchestration"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "bytes",
  "elide-codec",
@@ -975,7 +976,7 @@ dependencies = [
 [[package]]
 name = "elide-pattern"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "aho-corasick",
  "async-trait",
@@ -995,7 +996,7 @@ dependencies = [
 [[package]]
 name = "elide-redaction"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1010,7 +1011,7 @@ dependencies = [
 [[package]]
 name = "elide-stt"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#6c0331db2926bf5a55ed895feb9c9ed6cf6a0304"
+source = "git+https://github.com/nvisycom/elide?branch=main#97d03a75dc303188db6e40243386c7ca40e941e3"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1787,15 +1788,6 @@ checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
 dependencies = [
  "equivalent",
  "hashbrown 0.17.1",
-]
-
-[[package]]
-name = "indoc"
-version = "2.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79cf5c93f93228cf8efb3ba362535fb11199ac548a09ce117c9b1adc3030d706"
-dependencies = [
- "rustversion",
 ]
 
 [[package]]
@@ -3166,18 +3158,42 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 
 [[package]]
 name = "rig"
-version = "0.40.0"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9aac59326725633a25c21ef2c24d33c4d00dc38a1f0cc097205a7a9bde70b482"
+checksum = "2ce03971e6115d30ef53fb3244d06718a4e62bbde82c103065600c09459b989a"
 dependencies = [
+ "rig-agent",
  "rig-core",
+ "rig-derive",
+]
+
+[[package]]
+name = "rig-agent"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b0796bbf47d7b76670401aac975bc619cf7fba3482b22dfe14992edaa9c2e04"
+dependencies = [
+ "async-stream",
+ "fastrand",
+ "futures",
+ "http",
+ "indexmap",
+ "rig-core",
+ "rig-derive",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
 name = "rig-core"
-version = "0.40.0"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8731dd5532b3a12ce1613af73073fb2051ef750f50c504778c21d55ae933cac"
+checksum = "35f5520515ae8f6851adcbc6fde9eea8e96f657418c062e16c82cd81cce44e8e"
 dependencies = [
  "as-any",
  "async-stream",
@@ -3210,16 +3226,14 @@ dependencies = [
 
 [[package]]
 name = "rig-derive"
-version = "0.40.0"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3e98dde7a4e59e083e7396126ee4c83498c5bff605d126654e67815fa230a78"
+checksum = "eb868fcebdf3ba425e3afad2e4926bb6d9e1188a856843b00bcee2e15c07424f"
 dependencies = [
  "convert_case 0.11.0",
- "indoc",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "serde_json",
  "syn 2.0.118",
 ]
 

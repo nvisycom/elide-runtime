@@ -1,5 +1,6 @@
-//! One rule inside a [`Policy`]: shared identity/description
-//! fields, the match predicate, and the action ([`PolicyAction`]).
+//! One rule inside a [`PolicyDefinition`]: shared identity/description
+//! fields, the match predicate, and the redaction operators
+//! ([`ModalityRedactions`]) to apply on match.
 //!
 //! The engine compiles a rule's [`predicate`] into an elide
 //! anonymizer rule at request time. Three shapes are recognised
@@ -16,7 +17,7 @@
 //! same rule as the old `RuleKind::Label { label: "email" }` and
 //! compiles down to the same fast path.
 //!
-//! [`Policy`]: super::Policy
+//! [`PolicyDefinition`]: super::PolicyDefinition
 //! [`predicate`]: PolicyRule::predicate
 //! [`Anonymizer`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer
 //! [`Anonymizer::with_label`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_label
@@ -28,14 +29,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::action::{AuditAction, SuppressAction};
 use super::predicate::Predicate;
 use super::redaction::ModalityRedactions;
 
-/// One rule inside a [`Policy`]. Identity is the UUID; `name` /
+/// One rule inside a [`PolicyDefinition`]. Identity is the UUID; `name` /
 /// `description` are display-only.
 ///
-/// [`Policy`]: super::Policy
+/// [`PolicyDefinition`]: super::PolicyDefinition
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyRule {
@@ -57,33 +57,9 @@ pub struct PolicyRule {
     /// on a given recognised entity. Composable; see
     /// [`Predicate`] for the full grammar.
     pub predicate: Predicate,
-    /// What to do on match.
-    pub action: PolicyAction,
-}
-
-/// What a rule does when its [`predicate`] matches.
-///
-/// Three verbs: [`Redact`] transforms the entity with one operator
-/// per modality; [`Suppress`] drops the entity entirely (false-positive
-/// marker) and stamps a reason onto the audit; [`Audit`] flags it for
-/// human review without transforming.
-///
-/// [`predicate`]: PolicyRule::predicate
-/// [`Redact`]: PolicyAction::Redact
-/// [`Suppress`]: PolicyAction::Suppress
-/// [`Audit`]: PolicyAction::Audit
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum PolicyAction {
-    /// Redact matching entities. The carried map names operators
-    /// per modality; modalities the rule didn't cover fall through
-    /// to the policy fallback (or the next policy in the chain).
-    Redact(ModalityRedactions),
-    /// Suppress matching entities: treat as a false positive and
-    /// skip redaction. The audit records the suppression.
-    Suppress(SuppressAction),
-    /// Flag matching entities for human review. The entity is
-    /// left untouched; the audit entry carries the severity hint
-    /// for downstream tooling.
-    Audit(AuditAction),
+    /// Per-modality redaction operators applied when the
+    /// predicate matches. Modalities the rule doesn't cover fall
+    /// through to the policy fallback (or the next policy in the
+    /// chain).
+    pub action: ModalityRedactions,
 }

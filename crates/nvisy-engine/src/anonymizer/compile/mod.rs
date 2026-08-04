@@ -1,10 +1,10 @@
 //! Modality-generic dispatch machinery for
-//! [`nvisy_schema::policy::Policy`] compilation.
+//! [`nvisy_schema::policy::PolicyDefinition`] compilation.
 //!
 //! Two files:
 //!
 //! - [`dispatch`] — the modality-generic outer loop that walks
-//!   `&[Policy]` in precedence order, per-rule dispatches through
+//!   `&[PolicyDefinition]` in precedence order, per-rule dispatches through
 //!   a caller-supplied bridge callback. Defines the [`Target`]
 //!   enum (rule / fallback / override) that per-modality entries
 //!   attach their built operator onto.

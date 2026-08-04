@@ -9,6 +9,9 @@
 //! - [`TextRedaction::Mask`] → `elide::redaction::operators::Mask`
 //! - [`TextRedaction::Replace`] → `elide::redaction::operators::Replace`
 //! - [`TextRedaction::Hash`] → `elide::redaction::operators::Sha2Hash`
+//! - [`TextRedaction::Fake`] → `elide_fake::Fake` (locale-aware
+//!   surrogate values; the engine wires a `Replace`-with-default-
+//!   template fallback for labels outside the core PII catalogue)
 //! - [`TextRedaction::Pseudonymize`] →
 //!   `elide::redaction::operators::Pseudonymize`
 //! - [`TextRedaction::Encrypt`] →
@@ -19,6 +22,7 @@
 //! is predefined. New built-ins land in elide first, then surface
 //! here as new variants.
 
+use elide_core::primitive::LanguageTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -78,6 +82,34 @@ pub enum TextRedaction {
         /// Salt prepended to the value before hashing.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         salt: Option<String>,
+    },
+    /// Swap the matched span for a locale-aware fake value. Picks
+    /// the locale from the entity's BCP-47 `language` tag, falling
+    /// back to `default_language` (English unless overridden) when
+    /// the entity carries none. Coreferent mentions of the same
+    /// real-world entity collapse to the same surrogate within a
+    /// run. Labels outside the built-in PII catalogue fall through
+    /// to [`Replace`] with `fallback_template`.
+    ///
+    /// [`Replace`]: TextRedaction::Replace
+    Fake {
+        /// BCP-47 tag used when the entity carries no language of
+        /// its own. Defaults to English (`"en"`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        default_language: Option<LanguageTag>,
+        /// Seed mixed into per-entity RNG state. Two runs with the
+        /// same seed and the same input entities produce the same
+        /// surrogates. Defaults to `0`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        seed: Option<u64>,
+        /// Template used for entity labels outside the built-in
+        /// PII catalogue (which `Fake` can't generate for).
+        /// Supports the same `{label}` / `{value}` / `{coref}`
+        /// placeholders as [`Replace`]. Defaults to `[{label}]`.
+        ///
+        /// [`Replace`]: TextRedaction::Replace
+        #[serde(default = "default_replace_template")]
+        fallback_template: String,
     },
     /// Vault-backed pseudonym: every mention of the same entity
     /// reads the same surrogate. The engine wires a per-request

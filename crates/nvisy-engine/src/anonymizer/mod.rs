@@ -1,7 +1,7 @@
-//! Compile a [`nvisy_schema::policy::Policy`] set into an
+//! Compile a [`nvisy_schema::policy::PolicyDefinition`] set into an
 //! [`Anonymizer`] per modality at request time.
 //!
-//! Policy specs are serialisable and modality-agnostic; elide's
+//! PolicyDefinition specs are serialisable and modality-agnostic; elide's
 //! [`Anonymizer`]`<M>` is a runtime, modality-typed value that
 //! drives actual redaction. This module bridges the two: it walks every
 //! enabled rule in precedence order, builds the matching elide
@@ -18,7 +18,7 @@
 //!   Blackbox).
 //! - `audio` handles the audio specs (Erase, Keep, Silence, Beep).
 //!
-//! Each per-modality `compile` entry walks `&[Policy]` in
+//! Each per-modality `compile` entry walks `&[PolicyDefinition]` in
 //! precedence order; within each policy, rules are tried in
 //! declared order; the first matching rule's operator wins. A
 //! policy's `fallback`, if Redact with that modality's arm set,

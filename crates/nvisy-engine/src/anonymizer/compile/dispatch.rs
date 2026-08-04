@@ -3,12 +3,11 @@
 //! Every per-modality `compile` follows the same outer shape:
 //!
 //! - Walk `policies` in precedence order.
-//! - For each policy, walk `rules` in declared order. A rule with
-//!   a `Redact` action whose redaction spec carries this modality
-//!   compiles its operator and attaches it (rule predicate +
-//!   attribution).
-//! - Then a policy `fallback` of `Redact` with this modality's
-//!   arm set becomes the anonymizer's [`with_fallback`].
+//! - For each policy, walk `rules` in declared order. A rule
+//!   whose redaction spec carries this modality compiles its
+//!   operator and attaches it (rule predicate + attribution).
+//! - Then a policy `fallback` with this modality's arm set
+//!   becomes the anonymizer's [`with_fallback`].
 //!
 //! The per-modality differences are exactly two: which
 //! `redactions.{modality}` field to read, and how to build (then
@@ -24,9 +23,9 @@ use elide_core::Error;
 use elide_core::entity::provenance::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
+use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use nvisy_schema::policy::{Policy, PolicyAction};
 use uuid::Uuid;
 
 use super::selector::{attach, attach_override, fallback_attribution, rule_attribution};
@@ -43,7 +42,7 @@ pub(in crate::anonymizer) enum Target<'a, M: Modality> {
         predicate: &'a Predicate,
         attribution: Attribution,
     },
-    /// Policy `fallback`: catch-all redaction with `reason: None`.
+    /// PolicyDefinition `fallback`: catch-all redaction with `reason: None`.
     /// Maps to [`Anonymizer::with_fallback`] + `because`.
     Fallback {
         anonymizer: Anonymizer<M>,
@@ -107,7 +106,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
 /// propagate.
 pub(in crate::anonymizer) fn attach_policies<'a, M, F>(
     mut anonymizer: Anonymizer<M>,
-    policies: impl Iterator<Item = &'a Policy>,
+    policies: impl Iterator<Item = &'a PolicyDefinition>,
     mut compile_one: F,
 ) -> Result<Anonymizer<M>, Error>
 where
@@ -116,19 +115,16 @@ where
 {
     for policy in policies {
         for rule in &policy.rules {
-            let PolicyAction::Redact(redactions) = &rule.action else {
-                continue;
-            };
             anonymizer = compile_one(
                 Target::Rule {
                     anonymizer,
                     predicate: &rule.predicate,
                     attribution: rule_attribution(policy, rule),
                 },
-                redactions,
+                &rule.action,
             )?;
         }
-        if let Some(PolicyAction::Redact(redactions)) = &policy.fallback {
+        if let Some(redactions) = &policy.fallback {
             anonymizer = compile_one(
                 Target::Fallback {
                     anonymizer,
@@ -147,16 +143,13 @@ where
 pub(in crate::anonymizer) fn attach_one_override<M, F>(
     anonymizer: Anonymizer<M>,
     entity_id: Uuid,
-    action: &PolicyAction,
+    redactions: &ModalityRedactions,
     compile_one: F,
 ) -> Result<Anonymizer<M>, Error>
 where
     M: Modality + 'static,
     F: FnOnce(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
 {
-    let PolicyAction::Redact(redactions) = action else {
-        return Ok(anonymizer);
-    };
     compile_one(
         Target::Override {
             anonymizer,

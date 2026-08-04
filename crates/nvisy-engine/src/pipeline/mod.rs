@@ -97,7 +97,8 @@ use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::{Policy, PolicyAction};
+use nvisy_schema::policy::PolicyDefinition;
+use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 pub use self::analyzed::{AnalyzedDocument, EntityRecord, RecognizedGroup};
@@ -293,7 +294,7 @@ impl Engine {
     /// redacted bytes.
     ///
     /// `policies` is the policy set already filtered by
-    /// [`Policy::applies_when`] against the per-doc facts; the
+    /// [`PolicyDefinition::when`] against the per-doc facts; the
     /// engine does not re-evaluate predicates. The vocabulary
     /// the anonymizer compiles against (label catalog, asserted
     /// languages / jurisdictions / labels) travels on
@@ -309,13 +310,13 @@ impl Engine {
     /// ride on.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
-    /// [`Policy::applies_when`]: nvisy_schema::policy::Policy::applies_when
+    /// [`PolicyDefinition::when`]: nvisy_schema::policy::PolicyDefinition::when
     /// [`RecognizedGroup`]: crate::RecognizedGroup
     /// [`analyzed.scope`]: AnalyzedDocument::scope
     pub async fn anonymize_document(
         &self,
         document: Document,
-        policies: &[Policy],
+        policies: &[PolicyDefinition],
         analyzed: &AnalyzedDocument,
     ) -> Result<AnonymizedDocument> {
         let body_group = analyzed.body.as_ref().ok_or_else(|| {
@@ -327,7 +328,7 @@ impl Engine {
         let correlation_id = document.correlation_id;
         let mut handle = self.decode(document).await?;
         let mut report = body_group.insert_into_body(Report::new());
-        let mut overrides: Vec<(Uuid, PolicyAction)> = Vec::new();
+        let mut overrides: Vec<(Uuid, ModalityRedactions)> = Vec::new();
         body_group.collect_overrides_into(&mut overrides);
         for (id, group) in &analyzed.parts {
             report = group.insert_as_part(report, id.as_str());

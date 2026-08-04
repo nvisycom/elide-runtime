@@ -31,7 +31,7 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use nvisy_schema::policy::PolicyAction;
+use nvisy_schema::policy::redaction::ModalityRedactions;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -149,7 +149,7 @@ pub struct EntityRecord<M: Modality> {
     /// `None` means "use the policy's decision"; `Some(action)`
     /// overrides it for this specific entity at apply time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reviewer_override: Option<PolicyAction>,
+    pub reviewer_override: Option<ModalityRedactions>,
 }
 
 impl<M: Modality> EntityRecord<M> {

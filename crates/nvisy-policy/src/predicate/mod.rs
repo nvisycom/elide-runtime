@@ -6,7 +6,7 @@
 //!   predicate holds against the candidate entity's facts (label,
 //!   tag, confidence, coref).
 //! - [`DocumentPredicate`] runs once per document; a policy is
-//!   evaluated only when its `applies_when` predicate holds
+//!   evaluated only when its `when` predicate holds
 //!   against the document-level facts (labels, metadata,
 //!   language, etc.).
 //!
@@ -24,6 +24,7 @@
 
 mod document;
 
+use elide_core::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -37,8 +38,8 @@ pub use self::document::DocumentPredicate;
 pub enum Predicate {
     /// Entity confidence is at least `min`.
     Confidence {
-        /// Minimum confidence in `[0.0, 1.0]`.
-        min: f32,
+        /// Minimum confidence cutoff.
+        min: ConfidenceThreshold,
     },
     /// Entity label is one of `labels`.
     LabelOneOf {

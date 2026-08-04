@@ -64,7 +64,6 @@ uuid = { version = "1.23", features = ["serde", "v4", "v7"] }
 bytes = { version = "1.0", features = ["serde"] }
 hipstr = { version = "0.8", features = ["serde"] }
 jiff = { version = "0.2", features = ["serde"] }
-semver = { version = "1.0", features = ["serde"] }
 
 # Encoding and hashing
 base64 = { version = "0.23", features = [] }

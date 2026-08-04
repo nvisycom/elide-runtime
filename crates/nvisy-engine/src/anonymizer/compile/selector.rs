@@ -29,11 +29,11 @@ use elide_core::entity::{Entity, LabelCatalog, LabelRef};
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
 use nvisy_schema::policy::predicate::Predicate;
-use nvisy_schema::policy::{Policy, PolicyRule};
+use nvisy_schema::policy::{PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
 /// Build an [`Attribution`] for a concrete rule that fired.
-pub(super) fn rule_attribution(policy: &Policy, rule: &PolicyRule) -> Attribution {
+pub(super) fn rule_attribution(policy: &PolicyDefinition, rule: &PolicyRule) -> Attribution {
     Attribution {
         policy_id: policy.id.to_string().into(),
         reason: Some(rule.id.to_string().into()),
@@ -41,7 +41,7 @@ pub(super) fn rule_attribution(policy: &Policy, rule: &PolicyRule) -> Attributio
 }
 
 /// Build an [`Attribution`] for a policy's `fallback`.
-pub(super) fn fallback_attribution(policy: &Policy) -> Attribution {
+pub(super) fn fallback_attribution(policy: &PolicyDefinition) -> Attribution {
     Attribution {
         policy_id: policy.id.to_string().into(),
         reason: None,
@@ -129,7 +129,7 @@ where
 
 fn eval<M: Modality>(predicate: &Predicate, entity: &Entity<M>, catalog: &LabelCatalog) -> bool {
     match predicate {
-        Predicate::Confidence { min } => f32::from(entity.confidence) >= *min,
+        Predicate::Confidence { min } => f32::from(entity.confidence) >= f32::from(*min),
         Predicate::LabelOneOf { labels } => labels
             .iter()
             .any(|l| LabelRef::new(l.clone()) == entity.label),

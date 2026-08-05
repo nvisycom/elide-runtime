@@ -25,7 +25,7 @@
 
 use elide::redaction::Anonymizer;
 use elide_core::entity::provenance::Attribution;
-use elide_core::entity::{Entity, LabelCatalog, LabelRef};
+use elide_core::entity::{Entity, LabelCatalog};
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
 use nvisy_schema::policy::predicate::Predicate;
@@ -98,7 +98,7 @@ where
 {
     let anonymizer = match predicate {
         Predicate::LabelOneOf { labels } if labels.len() == 1 => {
-            anonymizer.with_label(LabelRef::new(labels[0].clone()), operator)
+            anonymizer.with_label(labels[0].clone(), operator)
         }
         Predicate::TagOneOf { tags } if tags.len() == 1 => {
             anonymizer.with_tag(tags[0].clone(), operator)
@@ -132,7 +132,7 @@ fn eval<M: Modality>(predicate: &Predicate, entity: &Entity<M>, catalog: &LabelC
         Predicate::Confidence { min } => f32::from(entity.confidence) >= f32::from(*min),
         Predicate::LabelOneOf { labels } => labels
             .iter()
-            .any(|l| LabelRef::new(l.clone()) == entity.label),
+            .any(|l| l == &entity.label),
         Predicate::TagOneOf { tags } => catalog
             .get(&entity.label)
             .is_some_and(|label| tags.iter().any(|tag| label.has_tag(tag.as_str()))),

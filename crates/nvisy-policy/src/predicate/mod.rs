@@ -24,6 +24,7 @@
 
 mod document;
 
+use elide_core::entity::LabelRef;
 use elide_core::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -44,7 +45,7 @@ pub enum Predicate {
     /// Entity label is one of `labels`.
     LabelOneOf {
         /// Allowed labels.
-        labels: Vec<String>,
+        labels: Vec<LabelRef>,
     },
     /// Entity label carries one of `tags`, per the per-request
     /// label catalog.

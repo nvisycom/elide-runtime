@@ -12,10 +12,11 @@ use elide_core::entity::LabelRef;
 use nvisy_engine::{AnalyzedDocument, Engine, RecognizedGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
-    AnalyzerParams, EnricherParams, LabelCatalogParams, OcrBackendParams, OcrEnricherParams,
-    PatternRecognizerParams, ProviderSelection, RecognizerParams, ScopeParams,
+    AnalyzerParams, EnricherParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams,
+    ProviderSelection, RecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
+use nvisy_schema::policy::{LabelCatalogParams, PolicyDefinition};
 
 use self::fixtures::write_artefact;
 
@@ -66,7 +67,7 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
     let analyzed = engine
-        .analyze_document(raw_docx(), &default_spec())
+        .analyze_document(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
 
@@ -96,7 +97,7 @@ async fn analyze_captures_text_body_and_image_part() {
 async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
     let mut analyzed = engine
-        .analyze_document(raw_docx(), &default_spec())
+        .analyze_document(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
     let body_group = analyzed.body.as_ref().expect("body group present");
@@ -115,7 +116,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     muts.iter_mut()
         .find(|r| r.entity.id == target_id)
         .expect("entity present")
-        .reviewer_override = Some(ModalityRedactions {
+        .review = Some(ModalityRedactions {
         text: Some(TextRedaction::Erase),
         tabular: None,
         image: None,
@@ -148,27 +149,34 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
 }
 
 #[tokio::test]
-async fn analyze_populates_scope_from_spec_label_catalog() {
+async fn analyze_populates_scope_from_policy_labels() {
     let engine = engine();
 
     let empty = engine
-        .analyze_document(raw_docx(), &default_spec())
+        .analyze_document(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
     assert!(
         empty.scope.catalog.is_empty(),
-        "spec with no catalog entries must persist an empty scope catalog, \
-         got {} entries",
+        "no policies means no catalog entries; got {} entries",
         empty.scope.catalog.len(),
     );
 
-    let mut spec = default_spec();
-    spec.scope.label_catalog = LabelCatalogParams {
-        builtins: vec!["email_address".to_owned()],
-        custom: Vec::new(),
+    let policy = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "test".into(),
+        description: None,
+        when: None,
+        labels: LabelCatalogParams {
+            builtins: vec![LabelRef::new("email_address")],
+            custom: Vec::new(),
+        },
+        rules: Vec::new(),
+        fallback: None,
+        retention: Vec::new(),
     };
     let with_catalog = engine
-        .analyze_document(raw_docx(), &spec)
+        .analyze_document(raw_docx(), std::slice::from_ref(&policy), &default_spec())
         .await
         .expect("analyze succeeds");
     assert!(
@@ -176,7 +184,7 @@ async fn analyze_populates_scope_from_spec_label_catalog() {
             .scope
             .catalog
             .contains(&LabelRef::new("email_address")),
-        "spec.builtins = [email_address] must persist that label onto scope.catalog",
+        "policy.labels.builtins = [email_address] must persist that label onto scope.catalog",
     );
 }
 
@@ -184,7 +192,7 @@ async fn analyze_populates_scope_from_spec_label_catalog() {
 async fn analyzed_document_rejects_missing_scope_on_deserialize() {
     let engine = engine();
     let analyzed = engine
-        .analyze_document(raw_docx(), &default_spec())
+        .analyze_document(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
     let mut value = serde_json::to_value(&analyzed).expect("serialize");

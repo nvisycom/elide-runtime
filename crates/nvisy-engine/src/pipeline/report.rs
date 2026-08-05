@@ -33,6 +33,7 @@
 
 use std::mem;
 
+use bytes::Bytes;
 use elide::Report;
 use elide::codec::{PartId, UntypedDocumentHandle};
 use elide_core::entity::Entity;
@@ -48,7 +49,6 @@ use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
-use super::AnonymizedDocument;
 use super::analyzed::{EntityRecord, RecognizedGroup};
 
 /// Per-modality bridge between `Vec<Entity<M>>` and the matching
@@ -139,7 +139,7 @@ impl RecognizedGroup {
     /// Append every reviewer override on this group to `out`.
     ///
     /// Iterates the variant-appropriate `Vec<EntityRecord<M>>`
-    /// and keeps only records whose `reviewer_override` field is
+    /// and keeps only records whose `review` field is
     /// set.
     pub(super) fn collect_overrides_into(&self, out: &mut Vec<(Uuid, ModalityRedactions)>) {
         match self {
@@ -154,8 +154,7 @@ impl RecognizedGroup {
     }
 
     /// Recover the typed handle for this group's modality (the
-    /// document body's modality) and re-encode it into an
-    /// [`AnonymizedDocument`].
+    /// document body's modality) and re-encode it into raw bytes.
     ///
     /// Called after `anonymize_with` mutated `handle` in place.
     /// The apply-time re-encode needs the typed form because
@@ -163,7 +162,7 @@ impl RecognizedGroup {
     pub(super) fn encode_redacted_from(
         &self,
         handle: UntypedDocumentHandle,
-    ) -> Result<AnonymizedDocument> {
+    ) -> Result<Bytes> {
         match self {
             Self::Text { .. } => encode_typed::<Text>(handle, "Text"),
             #[cfg(feature = "internal_tabular")]
@@ -185,13 +184,13 @@ where
 
 fn extend_overrides<M: Modality>(out: &mut Vec<(Uuid, ModalityRedactions)>, records: &[EntityRecord<M>]) {
     out.extend(records.iter().filter_map(|r| {
-        r.reviewer_override
+        r.review
             .as_ref()
             .map(|a| (r.entity.id, a.clone()))
     }));
 }
 
-fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<AnonymizedDocument>
+fn encode_typed<M>(handle: UntypedDocumentHandle, name: &'static str) -> Result<Bytes>
 where
     M: Modality,
 {
@@ -211,7 +210,5 @@ where
             format!("post-apply encode failed: {err}"),
         )
     })?;
-    Ok(AnonymizedDocument {
-        bytes: content.into_bytes(),
-    })
+    Ok(content.into_bytes())
 }

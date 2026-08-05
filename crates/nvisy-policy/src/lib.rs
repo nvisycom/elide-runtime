@@ -23,17 +23,18 @@
 //!
 //! [`Attribution`]: elide_core::entity::provenance::Attribution
 
+mod label;
 pub mod predicate;
 pub mod redaction;
 pub mod retention;
 mod rule;
 
-use elide_core::entity::Label;
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use self::label::LabelCatalogParams;
 use self::predicate::DocumentPredicate;
 use self::redaction::ModalityRedactions;
 use self::retention::RetentionPolicy;
@@ -64,15 +65,16 @@ pub struct PolicyDefinition {
     /// false for the document. Evaluated once per document.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<DocumentPredicate>,
-    /// Vocabulary the policy operates over. Engine unions every
-    /// submitted policy's `labels` into a per-request
+    /// Vocabulary the policy operates over: builtins picked by
+    /// name plus caller-authored custom label schemas. Engine
+    /// unions every submitted policy's `labels` into a per-request
     /// [`LabelCatalog`] used to drive recognizer dispatch and
     /// tag-based [`Predicate::TagOneOf`] matching.
     ///
     /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
     /// [`Predicate::TagOneOf`]: predicate::Predicate::TagOneOf
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub labels: Vec<Label>,
+    #[serde(default, skip_serializing_if = "LabelCatalogParams::is_empty")]
+    pub labels: LabelCatalogParams,
     /// Ordered rules. First match wins within this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<PolicyRule>,

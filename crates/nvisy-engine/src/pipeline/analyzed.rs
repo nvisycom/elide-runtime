@@ -144,20 +144,22 @@ pub enum RecognizedGroup {
 pub struct EntityRecord<M: Modality> {
     /// The elide entity, as recognition produced it.
     pub entity: Entity<M>,
-    /// Reviewer-supplied override.
+    /// Reviewer-supplied redaction override.
     ///
-    /// `None` means "use the policy's decision"; `Some(action)`
-    /// overrides it for this specific entity at apply time.
+    /// `None` means "use the matching policy rule's decision";
+    /// `Some(...)` overrides that rule for this specific entity
+    /// at apply time. Reviewer overrides take precedence over
+    /// every policy rule.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reviewer_override: Option<ModalityRedactions>,
+    pub review: Option<ModalityRedactions>,
 }
 
 impl<M: Modality> EntityRecord<M> {
-    /// New record over `entity`, no override.
+    /// New record over `entity`, no review override.
     pub fn new(entity: Entity<M>) -> Self {
         Self {
             entity,
-            reviewer_override: None,
+            review: None,
         }
     }
 }

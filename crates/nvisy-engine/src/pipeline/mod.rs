@@ -24,7 +24,7 @@
 //!   rebuilds a multi-group [`Report`] from the returned body +
 //!   parts, layers the reviewer overrides + filtered policy set
 //!   onto each modality's anonymizer, drives redaction, and
-//!   returns the re-encoded bytes via [`AnonymizedDocument`].
+//!   returns the re-encoded [`Document`].
 //!
 //! Both methods build a fresh [`Orchestrator`] per call: it is a
 //! small map of trait objects keyed by modality `TypeId`, cheap
@@ -84,7 +84,6 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
 use elide::{Directives, Report};
 #[cfg(feature = "internal_audio")]
@@ -118,16 +117,6 @@ pub struct Engine {
     ner: Arc<NerConfig>,
     llm: Arc<LlmConfig>,
     pattern_guardrails: PatternGuardrails,
-}
-
-/// The redacted output of [`Engine::anonymize_document`].
-///
-/// Re-encoded document bytes after every applicable redaction
-/// operator ran.
-#[derive(Debug, Clone)]
-pub struct AnonymizedDocument {
-    /// Encoded bytes of the redacted document.
-    pub bytes: Bytes,
 }
 
 impl Engine {
@@ -225,17 +214,28 @@ impl Engine {
     /// group carries its own modality tag via its
     /// [`RecognizedGroup`] variant.
     ///
+    /// `policies` contributes the label catalog (each
+    /// [`PolicyDefinition::labels`] unions in) that drives
+    /// recognizer dispatch. The compiled catalog is persisted
+    /// onto [`AnalyzedDocument::scope`]; the anonymize path
+    /// reads it back from there. Pass the same policy set to
+    /// [`Self::anonymize_document`] so its rule bodies match
+    /// against a catalog they helped define.
+    ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     /// [`RecognizedGroup`]: crate::RecognizedGroup
+    /// [`PolicyDefinition::labels`]: nvisy_schema::policy::PolicyDefinition::labels
     pub async fn analyze_document(
         &self,
         document: Document,
+        policies: &[PolicyDefinition],
         spec: &AnalyzerParams,
     ) -> Result<AnalyzedDocument> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
-        let (orchestrator, scope) = self.build_analyze_orchestrator(spec, correlation_id)?;
+        let (orchestrator, scope) =
+            self.build_analyze_orchestrator(spec, policies, correlation_id)?;
         let directives = build_analyze_directives(spec);
         let mut report = orchestrator.analyze(&mut handle, &directives).await?;
 
@@ -318,7 +318,7 @@ impl Engine {
         document: Document,
         policies: &[PolicyDefinition],
         analyzed: &AnalyzedDocument,
-    ) -> Result<AnonymizedDocument> {
+    ) -> Result<Document> {
         let body_group = analyzed.body.as_ref().ok_or_else(|| {
             Error::new(
                 ErrorKind::Configuration,
@@ -326,6 +326,8 @@ impl Engine {
             )
         })?;
         let correlation_id = document.correlation_id;
+        let extension = document.extension.clone();
+        let content_type = document.content_type.clone();
         let mut handle = self.decode(document).await?;
         let mut report = body_group.insert_into_body(Report::new());
         let mut overrides: Vec<(Uuid, ModalityRedactions)> = Vec::new();
@@ -343,7 +345,13 @@ impl Engine {
         )?;
         orchestrator.anonymize_with(&mut handle, report).await?;
 
-        body_group.encode_redacted_from(handle)
+        let bytes = body_group.encode_redacted_from(handle)?;
+        Ok(Document {
+            bytes,
+            extension,
+            content_type,
+            correlation_id,
+        })
     }
 
     async fn decode(&self, document: Document) -> Result<UntypedDocumentHandle> {

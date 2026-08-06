@@ -1,44 +1,49 @@
-//! Plumbing between [`Audit`] / [`RecognizedGroup`] and
-//! elide's runtime [`Report`].
+//! Modality-tagged group of recognised entities.
+//!
+//! [`EntityGroup`] is the unit [`Audit`] stores in `body` and in
+//! every `parts` entry — one enum tagged by `modality` (snake_case)
+//! so deserialisation picks the right variant and the entity vec
+//! inside is statically typed per modality. Apply-time we hand
+//! each variant back to elide as a `Vec<Entity<M>>` for the
+//! appropriate `M`.
+//!
+//! ## Plumbing between [`EntityGroup`] and elide's [`Report`]
 //!
 //! Three directions:
 //!
 //! - **Drain**: after [`Orchestrator::analyze`] returns a
 //!   [`Report`], [`take_body`] and [`take_part`] move each typed
 //!   `Vec<Entity<M>>` out of the report into the matching
-//!   [`RecognizedGroup`] variant for the caller to hold.
+//!   [`EntityGroup`] variant.
 //! - **Rebuild**: at anonymize time,
-//!   [`RecognizedGroup::insert_into_body`] and
-//!   [`RecognizedGroup::insert_as_part`] feed a fresh [`Report`]
-//!   from the returned groups (cloning entities; the returned
-//!   body is the source of truth for re-apply idempotency).
+//!   [`EntityGroup::insert_into_body`] and
+//!   [`EntityGroup::insert_as_part`] feed a fresh [`Report`] from
+//!   the returned groups (cloning entities; the returned body is
+//!   the source of truth for re-apply idempotency).
 //! - **Merge**: after [`Orchestrator::anonymize_with`] returns
-//!   its mutated [`Report`],
-//!   [`RecognizedGroup::merge_body_from`] and
-//!   [`RecognizedGroup::merge_part_from`] move the redaction
-//!   events elide stamped onto each entity's provenance chain
-//!   back onto the caller's records.
+//!   its mutated [`Report`], [`EntityGroup::merge_body_from`] and
+//!   [`EntityGroup::merge_part_from`] move the redaction events
+//!   elide stamped onto each entity's provenance chain back onto
+//!   the caller's records.
 //!
 //! Plus two byte-level helpers used at the anonymize seam:
-//! [`RecognizedGroup::collect_overrides_into`] walks reviewer
+//! [`EntityGroup::collect_overrides_into`] walks reviewer
 //! overrides off any group, and
-//! [`RecognizedGroup::encode_redacted_from`] picks the right
-//! typed handle to re-encode through after `anonymize_with`
-//! mutated the document in place.
+//! [`EntityGroup::encode_redacted_from`] picks the right typed
+//! handle to re-encode through after `anonymize_with` mutated the
+//! document in place.
 //!
 //! Per-modality construction lives on one trait
 //! ([`GroupCarrier`]) with a macro-generated impl per modality,
 //! reused by [`take_body`] / [`take_part`] to fold four
 //! feature-gated identical bodies into one generic function.
-//! Every [`RecognizedGroup`] method dispatches on variant via
-//! the internal [`dispatch!`] macro, so the modality list lives
-//! in exactly one place: the macro definition. Adding a fifth
-//! modality means updating the enum, [`impl_group_carrier!`],
-//! and one macro arm.
+//! Every [`EntityGroup`] method dispatches on variant via the
+//! internal `dispatch!` macro, so the modality list lives in
+//! exactly one place: the macro definition. Adding a fifth
+//! modality means updating the enum, `impl_group_carrier!`, and
+//! one macro arm.
 //!
 //! [`Audit`]: crate::Audit
-//! [`RecognizedGroup`]: crate::RecognizedGroup
-//! [`Engine`]: super::Engine
 //! [`Orchestrator::analyze`]: elide::Orchestrator::analyze
 //! [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
 //! [`Report`]: elide::Report
@@ -60,27 +65,57 @@ use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::policy::redaction::ModalityRedactions;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::audit::{EntityRecord, RecognizedGroup};
+use super::record::EntityRecord;
+
+/// A modality-tagged group of recognised entities.
+///
+/// The unit [`Audit`] stores in `body` and in every `parts`
+/// entry.
+///
+/// Tagged by `modality` (snake_case) so deserialization picks the
+/// right variant and the entity vec inside is statically typed
+/// per modality — apply-time we hand each variant back to elide
+/// as a `Vec<Entity<M>>` for the appropriate `M`.
+///
+/// [`Audit`]: crate::Audit
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "modality", content = "entities", rename_all = "snake_case")]
+pub enum EntityGroup {
+    /// Text entities, in source-coordinate order.
+    Text(Vec<EntityRecord<Text>>),
+    /// Tabular entities, in source-coordinate order.
+    #[cfg(feature = "internal_tabular")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "tabular")))]
+    Tabular(Vec<EntityRecord<Tabular>>),
+    /// Image entities, in source-coordinate order.
+    #[cfg(feature = "internal_image")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "image")))]
+    Image(Vec<EntityRecord<Image>>),
+    /// Audio entities, in source-coordinate order.
+    #[cfg(feature = "internal_audio")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
+    Audio(Vec<EntityRecord<Audio>>),
+}
 
 /// Per-modality bridge from a drained `Vec<Entity<M>>` back
-/// into a [`RecognizedGroup`] variant. Implemented once per
-/// modality via macro; consumed by the drain helpers that walk
-/// modalities in feature-gated fallthrough order.
-pub(super) trait GroupCarrier: Modality + Sized + 'static {
+/// into an [`EntityGroup`] variant. Implemented once per modality
+/// via macro; consumed by the drain helpers that walk modalities
+/// in feature-gated fallthrough order.
+pub(crate) trait GroupCarrier: Modality + Sized + 'static {
     /// Wrap a drained `Vec<Entity<Self>>` into the matching
-    /// [`RecognizedGroup`] variant.
-    fn into_group(entities: Vec<Entity<Self>>) -> RecognizedGroup;
+    /// [`EntityGroup`] variant.
+    fn into_group(entities: Vec<Entity<Self>>) -> EntityGroup;
 }
 
 macro_rules! impl_group_carrier {
     ($modality:ty, $variant:ident) => {
         impl GroupCarrier for $modality {
-            fn into_group(entities: Vec<Entity<Self>>) -> RecognizedGroup {
-                RecognizedGroup::$variant {
-                    entities: entities.into_iter().map(EntityRecord::new).collect(),
-                }
+            fn into_group(entities: Vec<Entity<Self>>) -> EntityGroup {
+                EntityGroup::$variant(entities.into_iter().map(EntityRecord::new).collect())
             }
         }
     };
@@ -94,56 +129,52 @@ impl_group_carrier!(Image, Image);
 #[cfg(feature = "internal_audio")]
 impl_group_carrier!(Audio, Audio);
 
-/// Drain the body's entities from `report` into a
-/// [`RecognizedGroup`] of `M`'s variant, or `None` if the body
-/// is a different modality.
-pub(super) fn take_body<M: GroupCarrier>(report: &mut Report) -> Option<RecognizedGroup> {
+/// Drain the body's entities from `report` into an
+/// [`EntityGroup`] of `M`'s variant, or `None` if the body is a
+/// different modality.
+pub(crate) fn take_body<M: GroupCarrier>(report: &mut Report) -> Option<EntityGroup> {
     let entities = mem::take(report.entities::<M>()?);
     Some(M::into_group(entities))
 }
 
-/// Drain the part `id`'s entities into a [`RecognizedGroup`] of
+/// Drain the part `id`'s entities into an [`EntityGroup`] of
 /// `M`'s variant, or `None` if `M` is not that part's modality.
-pub(super) fn take_part<M: GroupCarrier>(
+pub(crate) fn take_part<M: GroupCarrier>(
     report: &mut Report,
     id: &PartId,
-) -> Option<RecognizedGroup> {
+) -> Option<EntityGroup> {
     let entities = mem::take(report.part_entities::<M>(id)?);
     Some(M::into_group(entities))
 }
 
-/// Dispatch on a [`RecognizedGroup`] variant, binding the
-/// modality type as `$m` and the entities slot as `$entities`
-/// in the body. The modality list lives here — every method on
-/// [`RecognizedGroup`] below reuses this macro instead of
-/// re-writing four feature-gated match arms.
+/// Dispatch on an [`EntityGroup`] variant, binding the modality
+/// type as `$m` and the entities slot as `$entities` in the body.
+/// The modality list lives here — every method on [`EntityGroup`]
+/// below reuses this macro instead of re-writing four
+/// feature-gated match arms.
 ///
 /// Every method that consumes this macro uses both bindings;
 /// pattern-bind the entities slot to `_` in an arm if a caller
 /// ever needs only the modality type.
 macro_rules! dispatch {
     ($group:expr, |$m:ident, $entities:tt| $body:expr) => {{
-        // Bring the modality types into scope with unique aliases
-        // so referencing `$m` in the body picks up the arm's
-        // concrete type via redefinition below. Rust never
-        // complains about an unused type alias.
         match $group {
-            RecognizedGroup::Text { entities: $entities } => {
+            EntityGroup::Text($entities) => {
                 type $m = Text;
                 $body
             }
             #[cfg(feature = "internal_tabular")]
-            RecognizedGroup::Tabular { entities: $entities } => {
+            EntityGroup::Tabular($entities) => {
                 type $m = Tabular;
                 $body
             }
             #[cfg(feature = "internal_image")]
-            RecognizedGroup::Image { entities: $entities } => {
+            EntityGroup::Image($entities) => {
                 type $m = Image;
                 $body
             }
             #[cfg(feature = "internal_audio")]
-            RecognizedGroup::Audio { entities: $entities } => {
+            EntityGroup::Audio($entities) => {
                 type $m = Audio;
                 $body
             }
@@ -151,16 +182,16 @@ macro_rules! dispatch {
     }};
 }
 
-impl RecognizedGroup {
+impl EntityGroup {
     /// Insert this group into `report` as the body under its
     /// modality.
-    pub(super) fn insert_into_body(&self, report: Report) -> Report {
+    pub(crate) fn insert_into_body(&self, report: Report) -> Report {
         dispatch!(self, |M, entities| report.insert_body::<M>(clone_entities(entities)))
     }
 
-    /// Insert this group into `report` as a container part
-    /// keyed by `id`.
-    pub(super) fn insert_as_part(&self, report: Report, id: &str) -> Report {
+    /// Insert this group into `report` as a container part keyed
+    /// by `id`.
+    pub(crate) fn insert_as_part(&self, report: Report, id: &str) -> Report {
         let part_id = PartId::from(id.to_owned());
         dispatch!(self, |M, entities| {
             report.insert_part::<M>(part_id, clone_entities(entities))
@@ -168,22 +199,22 @@ impl RecognizedGroup {
     }
 
     /// Append every reviewer override on this group to `out`.
-    pub(super) fn collect_overrides_into(&self, out: &mut Vec<(Uuid, ModalityRedactions)>) {
+    pub(crate) fn collect_overrides_into(&self, out: &mut Vec<(Uuid, ModalityRedactions)>) {
         dispatch!(self, |_M, entities| extend_overrides(out, entities))
     }
 
-    /// Merge post-apply provenance from `report`'s body into
-    /// this group's records, matched by entity id.
+    /// Merge post-apply provenance from `report`'s body into this
+    /// group's records, matched by entity id.
     ///
     /// After [`Orchestrator::anonymize_with`] applies operators,
     /// each mutated `Entity<M>` on the returned report carries a
     /// fresh redaction event appended to its
-    /// `provenance.events`. This helper moves that chain onto
-    /// the caller's [`EntityRecord<M>`] so the audit is visible
-    /// via `audit.body`.
+    /// `provenance.events`. This helper moves that chain onto the
+    /// caller's [`EntityRecord<M>`] so the audit is visible via
+    /// `audit.body`.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
-    pub(super) fn merge_body_from(&mut self, report: &mut Report) {
+    pub(crate) fn merge_body_from(&mut self, report: &mut Report) {
         dispatch!(self, |M, entities| {
             merge_provenance::<M>(entities, |f| report.for_each_body_mut::<M>(f));
         })
@@ -191,7 +222,7 @@ impl RecognizedGroup {
 
     /// Merge post-apply provenance for a container part. Same
     /// shape as [`Self::merge_body_from`], keyed by part id.
-    pub(super) fn merge_part_from(&mut self, report: &mut Report, id: &str) {
+    pub(crate) fn merge_part_from(&mut self, report: &mut Report, id: &str) {
         let part_id = PartId::from(id.to_owned());
         dispatch!(self, |M, entities| {
             merge_provenance::<M>(entities, |f| report.for_each_part_mut::<M>(&part_id, f));
@@ -204,7 +235,7 @@ impl RecognizedGroup {
     /// Called after `anonymize_with` mutated `handle` in place.
     /// The apply-time re-encode needs the typed form because
     /// [`elide::codec::DocumentHandle::encode`] is per-modality.
-    pub(super) fn encode_redacted_from(&self, handle: UntypedDocumentHandle) -> Result<Bytes> {
+    pub(crate) fn encode_redacted_from(&self, handle: UntypedDocumentHandle) -> Result<Bytes> {
         dispatch!(self, |M, _entities| encode_typed::<M>(handle))
     }
 }

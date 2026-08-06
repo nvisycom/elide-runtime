@@ -2,10 +2,10 @@
 //!
 //! Bounding boxes, confidence, colors, languages, country codes,
 //! time spans, and friends. Appear as leaf fields on entities,
-//! on the recognition [`Scope`], on [`plan`] recognizer params,
-//! and on [`policy`] operators.
+//! on the recognition [`AuditContext`], on [`plan`] recognizer
+//! params, and on [`policy`] operators.
 //!
-//! [`Scope`]: crate::Scope
+//! [`AuditContext`]: crate::AuditContext
 //! [`plan`]: crate::plan
 //! [`policy`]: crate::policy
 

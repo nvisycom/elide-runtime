@@ -6,7 +6,7 @@
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
 use elide_core::primitive::Confidence;
-use nvisy_engine::{Engine, PatternGuardrails, RecognizedGroup};
+use nvisy_engine::{Engine, EntityGroup, PatternGuardrails};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, CustomDictionary, CustomDictionaryTerm, CustomPatternContext,
@@ -65,12 +65,12 @@ async fn custom_regex_produces_entity_with_caller_label() {
     });
 
     let analyzed = engine
-        .analyze_document(raw_docx(), &[], &spec)
+        .analyze(raw_docx(), &[], &spec)
         .await
         .expect("analyze succeeds");
 
     let body = analyzed.body.as_ref().expect("body group present");
-    let RecognizedGroup::Text { entities } = body else {
+    let EntityGroup::Text(entities) = body else {
         panic!("expected Text body, got {body:?}");
     };
     let alice = LabelRef::new("alice_id");
@@ -103,12 +103,12 @@ async fn custom_dictionary_produces_entity_with_caller_label() {
     });
 
     let analyzed = engine
-        .analyze_document(raw_docx(), &[], &spec)
+        .analyze(raw_docx(), &[], &spec)
         .await
         .expect("analyze succeeds");
 
     let body = analyzed.body.as_ref().expect("body group present");
-    let RecognizedGroup::Text { entities } = body else {
+    let EntityGroup::Text(entities) = body else {
         panic!("expected Text body, got {body:?}");
     };
     let greeting = LabelRef::new("greeting");
@@ -153,7 +153,7 @@ async fn too_many_custom_rules_rejects_at_analyze() {
     });
 
     let err = engine
-        .analyze_document(raw_docx(), &[], &spec)
+        .analyze(raw_docx(), &[], &spec)
         .await
         .expect_err("33 rules must exceed the per-request cap");
     let msg = err.to_string();
@@ -183,7 +183,7 @@ async fn tightened_rule_count_guardrail_takes_effect() {
     });
 
     let err = engine
-        .analyze_document(raw_docx(), &[], &spec)
+        .analyze(raw_docx(), &[], &spec)
         .await
         .expect_err("5 rules must exceed a tightened cap of 4");
     let msg = err.to_string();
@@ -211,7 +211,7 @@ async fn tightened_regex_source_len_guardrail_takes_effect() {
     });
 
     let err = engine
-        .analyze_document(raw_docx(), &[], &spec)
+        .analyze(raw_docx(), &[], &spec)
         .await
         .expect_err("60-byte source must exceed a tightened cap of 16 bytes");
     let msg = err.to_string();
@@ -246,7 +246,7 @@ async fn regex_source_len_config_above_ceiling_is_clamped() {
     });
 
     let err = engine
-        .analyze_document(raw_docx(), &[], &spec)
+        .analyze(raw_docx(), &[], &spec)
         .await
         .expect_err("engine must clamp max_regex_source_len to the wire ceiling");
     let msg = err.to_string();

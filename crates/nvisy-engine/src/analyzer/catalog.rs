@@ -13,7 +13,7 @@
 use std::sync::OnceLock;
 
 use elide_core::entity::LabelCatalog;
-use nvisy_schema::policy::{LabelCatalogParams, PolicyDefinition};
+use nvisy_schema::policy::{Labels, PolicyDefinition};
 
 /// Compile the label catalog for a request from its policy set.
 ///
@@ -36,7 +36,7 @@ pub(crate) fn compile_catalog(policies: &[PolicyDefinition]) -> LabelCatalog {
     catalog
 }
 
-fn insert_params(catalog: &mut LabelCatalog, params: &LabelCatalogParams) {
+fn insert_params(catalog: &mut LabelCatalog, params: &Labels) {
     let builtins = builtin_catalog();
     for label_ref in &params.builtins {
         match builtins.get(label_ref) {
@@ -66,4 +66,89 @@ fn insert_params(catalog: &mut LabelCatalog, params: &LabelCatalogParams) {
 fn builtin_catalog() -> &'static LabelCatalog {
     static BUILTINS: OnceLock<LabelCatalog> = OnceLock::new();
     BUILTINS.get_or_init(LabelCatalog::with_builtins)
+}
+
+#[cfg(test)]
+mod tests {
+    use elide_core::entity::{Label, LabelRef};
+    use hipstr::HipStr;
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn policy_with_labels(labels: Labels) -> PolicyDefinition {
+        PolicyDefinition {
+            id: Uuid::now_v7(),
+            name: HipStr::from("test"),
+            description: None,
+            when: None,
+            labels,
+            rules: Vec::new(),
+            fallback: None,
+            retention: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn empty_policy_set_yields_empty_catalog() {
+        assert!(compile_catalog(&[]).is_empty());
+    }
+
+    #[test]
+    fn policy_with_no_labels_contributes_nothing() {
+        let policy = policy_with_labels(Labels::default());
+        assert!(compile_catalog(std::slice::from_ref(&policy)).is_empty());
+    }
+
+    #[test]
+    fn builtin_names_land_in_the_catalog() {
+        let policy = policy_with_labels(Labels {
+            builtins: vec![LabelRef::new("email_address")],
+            custom: Vec::new(),
+        });
+        let catalog = compile_catalog(std::slice::from_ref(&policy));
+        assert!(catalog.contains(&LabelRef::new("email_address")));
+        assert_eq!(catalog.len(), 1);
+    }
+
+    #[test]
+    fn unknown_builtin_names_skip_instead_of_failing() {
+        let policy = policy_with_labels(Labels {
+            builtins: vec![
+                LabelRef::new("email_address"),
+                LabelRef::new("definitely_not_a_real_label"),
+            ],
+            custom: Vec::new(),
+        });
+        let catalog = compile_catalog(std::slice::from_ref(&policy));
+        assert!(catalog.contains(&LabelRef::new("email_address")));
+        assert!(!catalog.contains(&LabelRef::new("definitely_not_a_real_label")));
+        assert_eq!(catalog.len(), 1);
+    }
+
+    #[test]
+    fn custom_labels_land_in_the_catalog() {
+        let policy = policy_with_labels(Labels {
+            builtins: Vec::new(),
+            custom: vec![Label::new("project_code")],
+        });
+        let catalog = compile_catalog(std::slice::from_ref(&policy));
+        assert!(catalog.contains(&LabelRef::new("project_code")));
+    }
+
+    #[test]
+    fn multiple_policies_union_their_labels() {
+        let a = policy_with_labels(Labels {
+            builtins: vec![LabelRef::new("email_address")],
+            custom: Vec::new(),
+        });
+        let b = policy_with_labels(Labels {
+            builtins: vec![LabelRef::new("phone_number")],
+            custom: Vec::new(),
+        });
+        let catalog = compile_catalog(&[a, b]);
+        assert!(catalog.contains(&LabelRef::new("email_address")));
+        assert!(catalog.contains(&LabelRef::new("phone_number")));
+        assert_eq!(catalog.len(), 2);
+    }
 }

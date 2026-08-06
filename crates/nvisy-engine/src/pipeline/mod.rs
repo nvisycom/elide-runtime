@@ -15,16 +15,16 @@
 //!
 //! ## Per-document verbs
 //!
-//! - [`Engine::analyze_document`] decodes raw bytes, builds an
+//! - [`Engine::analyze`] decodes raw bytes, builds an
 //!   [`Orchestrator`] with one pipeline per modality + the
 //!   request scope, runs detection, and projects the report
 //!   (body + every container part) onto the caller-facing
 //!   [`Audit`].
-//! - [`Engine::anonymize_document`] decodes raw bytes again,
-//!   rebuilds a multi-group [`Report`] from the returned body +
-//!   parts, layers the reviewer overrides + filtered policy set
-//!   onto each modality's anonymizer, drives redaction, and
-//!   returns the re-encoded [`Document`].
+//! - [`Engine::anonymize`] decodes raw bytes again, rebuilds a
+//!   multi-group [`Report`] from the returned body + parts,
+//!   layers the reviewer overrides + filtered policy set onto
+//!   each modality's anonymizer, drives redaction, and returns
+//!   the re-encoded [`Document`].
 //!
 //! Both methods build a fresh [`Orchestrator`] per call: it is a
 //! small map of trait objects keyed by modality `TypeId`, cheap
@@ -32,20 +32,18 @@
 //! per document at anonymize time without mutating a shared
 //! anonymizer.
 //!
-//! The recognition [`Scope`] (label catalog + asserted
-//! languages, countries, and document labels) is compiled once
-//! by analyze and persisted onto [`Audit::scope`];
-//! anonymize reads it from there. Callers do not re-pass an
-//! [`AnalyzerParams`] to anonymize — analyze's vocabulary and
-//! anonymize's vocabulary are the same by construction.
+//! The recognition scope split has two owners: caller-asserted
+//! facts (languages, jurisdictions, tags) travel between calls on
+//! [`Audit::context`]; the label catalog is derived from
+//! `policies` afresh on every call so policies stay the single
+//! source of truth for label vocabulary. Callers do not re-pass
+//! an [`AnalyzerParams`] to anonymize.
 //!
-//! Hosts hold the returned [`Audit`] between analyze
-//! and anonymize however they see fit — in memory, in a run
-//! store, in a reviewer UI's state — and hand it back to
-//! `anonymize_document` with any per-entity reviewer overrides
+//! Hosts hold the returned [`Audit`] between analyze and
+//! anonymize however they see fit — in memory, in a run store, in
+//! a reviewer UI's state — and hand it back to
+//! [`Engine::anonymize`] with any per-entity reviewer overrides
 //! folded in.
-//!
-//! [`Scope`]: elide::recognition::Scope
 //!
 //! ## Internal layout
 //!
@@ -55,19 +53,19 @@
 //! - `crate::analyzer` and `crate::anonymizer` compile
 //!   per-modality `spec` and `policies` into per-modality elide
 //!   types.
+//! - `crate::entity` owns [`EntityGroup`] (the modality-tagged
+//!   entity carrier) and its report bridging helpers.
 //!
 //! Inside this module:
 //!
 //! - `orchestrator` wires those into an [`Orchestrator`] for a
 //!   single request.
-//! - `report` translates between elide's runtime [`Report`] and
-//!   the caller-facing [`Audit`] / [`RecognizedGroup`].
-//! - `audit` defines [`Audit`] and
-//!   [`RecognizedGroup`], the analyze → anonymize bridge; both
-//!   types re-exported at the crate root.
+//! - `audit` defines [`Audit`], [`AuditContext`], the analyze →
+//!   anonymize bridge; all re-exported at the crate root.
 //!
 //! [`Audit`]: crate::Audit
-//! [`RecognizedGroup`]: crate::RecognizedGroup
+//! [`AuditContext`]: crate::AuditContext
+//! [`EntityGroup`]: crate::entity::EntityGroup
 //! [`FormatRegistry`]: elide::codec::FormatRegistry
 //! [`DocumentHandle`]: elide::codec::DocumentHandle
 //! [`Orchestrator`]: elide::Orchestrator
@@ -78,7 +76,6 @@ mod audit;
 mod audit_csv;
 mod orchestrator;
 mod registered;
-mod report;
 
 pub use self::registered::RegisteredRecognizer;
 
@@ -102,9 +99,9 @@ use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
-pub use self::audit::{Audit, EntityRecord, RecognizedGroup};
-use self::report::{take_body, take_part};
+pub use self::audit::{Audit, AuditContext};
 use crate::PatternGuardrails;
+use crate::entity::{EntityGroup, take_body, take_part};
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
 
@@ -209,25 +206,24 @@ impl Engine {
     /// Analyze one document into an [`Audit`].
     ///
     /// Decodes `document`, drives [`Orchestrator::analyze`], and
-    /// projects the report onto the caller-facing
-    /// [`Audit`]. Captures the body group *and* every
-    /// container part group (DOCX embedded images, archive
-    /// members, ...) the orchestrator returned; each returned
-    /// group carries its own modality tag via its
-    /// [`RecognizedGroup`] variant.
+    /// projects the report onto the caller-facing [`Audit`].
+    /// Captures the body group *and* every container part group
+    /// (DOCX embedded images, archive members, ...) the
+    /// orchestrator returned; each returned group carries its own
+    /// modality tag via its [`EntityGroup`] variant.
     ///
     /// `policies` contributes the label catalog (each
     /// [`PolicyDefinition::labels`] unions in) that drives
-    /// recognizer dispatch. The compiled catalog is persisted
-    /// onto [`Audit::scope`]; the anonymize path
-    /// reads it back from there. Pass the same policy set to
-    /// [`Self::anonymize_document`] so its rule bodies match
-    /// against a catalog they helped define.
+    /// recognizer dispatch. The catalog is not persisted onto the
+    /// returned [`Audit`] — the anonymize path re-derives it from
+    /// the policy set it was handed. Pass the same policy set to
+    /// [`Self::anonymize`] so its rule bodies match against a
+    /// catalog they helped define.
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
-    /// [`RecognizedGroup`]: crate::RecognizedGroup
+    /// [`EntityGroup`]: crate::entity::EntityGroup
     /// [`PolicyDefinition::labels`]: nvisy_schema::policy::PolicyDefinition::labels
-    pub async fn analyze_document(
+    pub async fn analyze(
         &self,
         document: Document,
         policies: &[PolicyDefinition],
@@ -236,7 +232,7 @@ impl Engine {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
-        let (orchestrator, scope) =
+        let (orchestrator, context) =
             self.build_analyze_orchestrator(spec, policies, correlation_id)?;
         let directives = build_analyze_directives(spec);
         let mut report = orchestrator.analyze(&mut handle, &directives).await?;
@@ -282,46 +278,47 @@ impl Engine {
         Ok(Audit {
             body: Some(body_group),
             parts,
-            scope,
+            context,
         })
     }
 
-    /// Anonymize one document against a policy set and reviewer overrides.
+    /// Anonymize one document against a policy set and reviewer
+    /// overrides.
     ///
     /// Re-decodes `document`, rebuilds a multi-group [`Report`]
     /// from `audit`'s body + parts, drives
     /// [`Orchestrator::anonymize_with`] with the reviewer
-    /// overrides extracted from every group and the
-    /// caller-filtered `policies`, merges the redaction events
-    /// elide stamped back onto each `EntityRecord`'s provenance
-    /// chain, and returns the re-encoded [`Document`].
+    /// overrides extracted from every group and the caller-filtered
+    /// `policies`, merges the redaction events elide stamped back
+    /// onto each `EntityRecord`'s provenance chain, and returns
+    /// the re-encoded [`Document`].
     ///
     /// `audit` is taken by `&mut`: after redaction, each entity's
     /// `provenance.events` gains one redaction event per operator
     /// that fired. Callers walk `audit.body`/`audit.parts`
-    /// entities' provenance to see who redacted what, under
-    /// which rule, and when.
+    /// entities' provenance to see who redacted what, under which
+    /// rule, and when.
     ///
     /// `policies` is the policy set already filtered by
     /// [`PolicyDefinition::when`] against the per-doc facts; the
-    /// engine does not re-evaluate predicates. The vocabulary
-    /// the anonymizer compiles against (label catalog, asserted
-    /// languages / jurisdictions / labels) travels on
-    /// [`Audit::scope`], persisted by analyze — the caller
-    /// does not re-pass an [`AnalyzerParams`]. The document's
+    /// engine does not re-evaluate predicates. The label catalog
+    /// is re-derived from this same policy set on every call —
+    /// policies are the sole source of label vocabulary. The
+    /// asserted scope (languages, jurisdictions, tags) travels on
+    /// [`Audit::context`] from analyze. The document's
     /// `correlation_id` is threaded into tracing spans on the
     /// redaction path.
     ///
     /// The body's modality (read from `audit.body`'s
-    /// [`RecognizedGroup`] variant) pins which typed handle the
+    /// [`EntityGroup`] variant) pins which typed handle the
     /// post-apply re-encode goes through: a container's body
     /// modality regardless of how many other modalities its parts
     /// ride on.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
     /// [`PolicyDefinition::when`]: nvisy_schema::policy::PolicyDefinition::when
-    /// [`RecognizedGroup`]: crate::RecognizedGroup
-    pub async fn anonymize_document(
+    /// [`EntityGroup`]: crate::entity::EntityGroup
+    pub async fn anonymize(
         &self,
         document: Document,
         policies: &[PolicyDefinition],
@@ -330,7 +327,7 @@ impl Engine {
         let body_group = audit.body.as_ref().ok_or_else(|| {
             Error::new(
                 ErrorKind::Configuration,
-                "anonymize_document: body group is missing — analyze must run first",
+                "anonymize: body group is missing — analyze must run first",
             )
         })?;
         let correlation_id = document.correlation_id;
@@ -347,7 +344,7 @@ impl Engine {
         }
 
         let orchestrator = self.build_anonymize_orchestrator(
-            &audit.scope,
+            &audit.context,
             policies,
             &overrides,
             correlation_id,
@@ -410,7 +407,7 @@ fn take_part_dispatch(
     report: &mut Report,
     id: &PartId,
     type_id: TypeId,
-) -> Option<RecognizedGroup> {
+) -> Option<EntityGroup> {
     if type_id == TypeId::of::<Text>() {
         return take_part::<Text>(report, id);
     }

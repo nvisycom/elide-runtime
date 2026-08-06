@@ -34,7 +34,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::label::LabelCatalogParams;
+pub use self::label::Labels;
 use self::predicate::DocumentPredicate;
 use self::redaction::ModalityRedactions;
 use self::retention::RetentionPolicy;
@@ -73,8 +73,8 @@ pub struct PolicyDefinition {
     ///
     /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
     /// [`Predicate::TagOneOf`]: predicate::Predicate::TagOneOf
-    #[serde(default, skip_serializing_if = "LabelCatalogParams::is_empty")]
-    pub labels: LabelCatalogParams,
+    #[serde(default, skip_serializing_if = "Labels::is_empty")]
+    pub labels: Labels,
     /// Ordered rules. First match wins within this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<PolicyRule>,

@@ -1,64 +1,59 @@
-//! Analyze → anonymize bridge: what
-//! [`Engine::analyze_document`] returns and what
-//! [`Engine::anonymize_document`] accepts.
+//! Analyze → anonymize bridge: what [`Engine::analyze`] returns
+//! and what [`Engine::anonymize`] accepts.
 //!
-//! [`Audit`] mirrors elide's [`Report`] shape: a
-//! body group + zero-or-more container part groups (DOCX
-//! embedded images, archive members, ...) keyed by
-//! container-private part id. Every group is a
-//! [`RecognizedGroup`] tagged by modality so the serialized
-//! form round-trips cleanly. Reviewer overrides live per-entity
-//! inside [`EntityRecord`].
+//! [`Audit`] mirrors elide's [`Report`] shape: a body group +
+//! zero-or-more container part groups (DOCX embedded images,
+//! archive members, ...) keyed by container-private part id.
+//! Every group is an [`EntityGroup`] tagged by modality so the
+//! serialised form round-trips cleanly. Reviewer overrides live
+//! per-entity inside [`EntityRecord`].
+//!
+//! [`AuditContext`] carries the recognition-side facts the
+//! anonymize step needs to rebuild an orchestrator against the
+//! exact vocabulary the analyze step used, minus the label
+//! catalog — labels are policy-owned and re-derived from the
+//! policy set on every anonymize call.
 //!
 //! Hosts hold this value between analyze and anonymize and may
 //! persist it however they like (`serde` derives are on
 //! everything).
 //!
-//! [`Engine::analyze_document`]: super::Engine::analyze_document
-//! [`Engine::anonymize_document`]: super::Engine::anonymize_document
-//!
+//! [`EntityGroup`]: crate::entity::EntityGroup
+//! [`EntityRecord`]: crate::entity::EntityRecord
+//! [`Engine::analyze`]: super::Engine::analyze
+//! [`Engine::anonymize`]: super::Engine::anonymize
 //! [`Report`]: elide::Report
 
 use std::collections::HashMap;
 #[cfg(feature = "audit-json")]
 use std::io::Write;
 
-use elide::recognition::Scope;
-use elide_core::entity::Entity;
-use elide_core::modality::Modality;
-#[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
+use elide_core::primitive::{CountryCode, Languages};
 #[cfg(feature = "audit-json")]
 use elide_core::{Error, ErrorKind, Result};
-use nvisy_schema::policy::redaction::ModalityRedactions;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::entity::EntityGroup;
 
 /// What detection found in one document.
 ///
-/// The body group plus per-container-part groups (each tagged
-/// by modality) plus a snapshot of the recognition [`Scope`] the
-/// entities were scored against.
+/// The body group plus per-container-part groups (each tagged by
+/// modality) plus the recognition [`AuditContext`] the entities
+/// were scored against.
 ///
-/// The scope snapshot travels with the entities so anonymize
-/// can rebuild an orchestrator against exactly the vocabulary
-/// analyze used. Anything a policy predicate compares against
-/// (label catalog, document-level classification labels,
-/// asserted languages / jurisdictions) is here.
+/// The context travels with the entities so anonymize can rebuild
+/// an orchestrator against exactly the vocabulary analyze used.
+/// Anything a policy predicate compares against beyond the label
+/// catalog (asserted languages, jurisdictions, document tags) is
+/// here; labels are re-derived from the policy set on each
+/// anonymize call.
 ///
-/// `correlation_id` on the persisted scope is always `None`; the
-/// anonymize call supplies a fresh id from the passed
-/// [`Document`] so anonymize-side tracing spans are distinct
-/// from the analyze-side ones.
-///
-/// [`Document`]: nvisy_schema::file::Document
-/// [`Scope`]: elide::recognition::Scope
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+/// No [`Default`] — a well-formed audit must carry a real
+/// [`AuditContext`] with a real correlation id. Callers building
+/// an audit outside the analyze path construct it explicitly.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Audit {
     /// The body group.
@@ -67,30 +62,76 @@ pub struct Audit {
     /// or the codec resolved the doc to a modality with no
     /// pipeline).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body: Option<RecognizedGroup>,
+    pub body: Option<EntityGroup>,
     /// One entry per container part the orchestrator surfaced.
     ///
     /// Keyed by the container-private part id (e.g. a DOCX zip
     /// entry name like `"word/media/image1.png"`); each value
     /// carries that part's modality + entities.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub parts: HashMap<String, RecognizedGroup>,
-    /// Recognition scope snapshot.
+    pub parts: HashMap<String, EntityGroup>,
+    /// Recognition context.
     ///
-    /// The resolved label catalog + asserted languages,
-    /// countries, and document labels. Held so
-    /// [`Engine::anonymize_document`] can compile against the same
+    /// The asserted languages, countries, document tags, and the
+    /// analyze-side correlation id. Held so
+    /// [`Engine::anonymize`] can compile against the same
     /// vocabulary analyze used without the caller re-passing an
     /// `AnalyzerParams`.
     ///
-    /// Required on the wire. A missing scope on an incoming
-    /// [`Audit`] would default to an empty catalog and
-    /// silently underfire every `TagOneOf` policy predicate;
-    /// rejecting at deserialize time surfaces the shape mismatch
-    /// at load, not at apply.
+    /// Required on the wire — a missing context on an incoming
+    /// [`Audit`] rejects at deserialize time so the shape
+    /// mismatch surfaces at load, not at apply.
     ///
-    /// [`Engine::anonymize_document`]: super::Engine::anonymize_document
-    pub scope: Scope,
+    /// [`Engine::anonymize`]: super::Engine::anonymize
+    pub context: AuditContext,
+}
+
+/// Recognition-side facts that travel from analyze to anonymize.
+///
+/// Everything a policy predicate might key off the request's
+/// caller-asserted scope (languages, jurisdictions, document
+/// tags), plus the analyze-time correlation id so tracing spans
+/// across both phases stay linked. The label catalog is not on
+/// here — labels are policy-owned, and anonymize re-derives them
+/// from the policy set it was handed.
+///
+/// No [`Default`] — `correlation_id` has no meaningful default
+/// (a nil UUID would silently collapse unrelated audits under one
+/// bucket in downstream trace aggregators), so callers supply one
+/// explicitly. Everything else is optional-on-the-wire and
+/// defaults to empty when missing.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditContext {
+    /// Caller-asserted languages for the analysis.
+    ///
+    /// Recorded from `AnalyzerParams.scope.languages` at analyze
+    /// time; anonymize re-uses them verbatim.
+    #[serde(default)]
+    pub languages: Languages,
+    /// Caller-asserted jurisdictions.
+    ///
+    /// Recorded from `AnalyzerParams.scope.countries`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub countries: Vec<CountryCode>,
+    /// Document-level classification tags.
+    ///
+    /// Recorded from `AnalyzerParams.scope.tags`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Analyze-time correlation id.
+    ///
+    /// Threaded into every tracing span on the recognition path;
+    /// carried over so the anonymize path can link its own spans
+    /// to the same request. The anonymize call supplies a fresh
+    /// id from the passed [`Document`] as the anonymize-side
+    /// correlation id — this one stays as the analyze-side
+    /// pointer.
+    ///
+    /// Required on the wire.
+    ///
+    /// [`Document`]: nvisy_schema::file::Document
+    pub correlation_id: Uuid,
 }
 
 #[cfg(feature = "audit-json")]
@@ -98,7 +139,7 @@ pub struct Audit {
 impl Audit {
     /// Serialize the audit as pretty JSON into `writer`.
     ///
-    /// Preserves the full structure — body + parts + scope, and
+    /// Preserves the full structure — body + parts + context, and
     /// every entity's provenance chain. This is the canonical
     /// export; callers without a specific reason to reach for
     /// another format use this.
@@ -117,80 +158,3 @@ impl Audit {
         })
     }
 }
-
-
-/// A modality-tagged group of recognized entities.
-///
-/// The unit [`Audit`] stores in `body` and in every
-/// `parts` entry.
-///
-/// Tagged by `modality` (snake_case) so deserialization picks the
-/// right variant and the entity vec inside is statically typed
-/// per modality — apply-time we hand each variant back to elide
-/// as a `Vec<Entity<M>>` for the appropriate `M`.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "modality", rename_all = "snake_case")]
-pub enum RecognizedGroup {
-    /// Text entities.
-    Text {
-        /// Recognized entities, in source-coordinate order.
-        entities: Vec<EntityRecord<Text>>,
-    },
-    /// Tabular entities.
-    #[cfg(feature = "internal_tabular")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "tabular")))]
-    Tabular {
-        /// Recognized entities, in source-coordinate order.
-        entities: Vec<EntityRecord<Tabular>>,
-    },
-    /// Image entities.
-    #[cfg(feature = "internal_image")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "image")))]
-    Image {
-        /// Recognized entities, in source-coordinate order.
-        entities: Vec<EntityRecord<Image>>,
-    },
-    /// Audio entities.
-    #[cfg(feature = "internal_audio")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
-    Audio {
-        /// Recognized entities, in source-coordinate order.
-        entities: Vec<EntityRecord<Audio>>,
-    },
-}
-
-/// One recognized entity plus the optional reviewer override.
-///
-/// The bound mirrors elide's [`Entity<M>`]: serialization needs
-/// `M::Location` and `M::Data` (de)serializable, and JsonSchema
-/// derivation needs them schema-able. All four modalities elide
-/// ships satisfy these under the `serde` + `schema` features.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-#[serde(bound = "M::Location: Serialize + for<'a> Deserialize<'a>, \
-                  M::Data: Serialize + for<'a> Deserialize<'a>")]
-#[schemars(bound = "M: JsonSchema, M::Location: JsonSchema, M::Data: JsonSchema")]
-#[schemars(rename = "{M}EntityRecord")]
-pub struct EntityRecord<M: Modality> {
-    /// The elide entity, as recognition produced it.
-    pub entity: Entity<M>,
-    /// Reviewer-supplied redaction override.
-    ///
-    /// `None` means "use the matching policy rule's decision";
-    /// `Some(...)` overrides that rule for this specific entity
-    /// at apply time. Reviewer overrides take precedence over
-    /// every policy rule.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub review: Option<ModalityRedactions>,
-}
-
-impl<M: Modality> EntityRecord<M> {
-    /// New record over `entity`, no review override.
-    pub fn new(entity: Entity<M>) -> Self {
-        Self {
-            entity,
-            review: None,
-        }
-    }
-}
-

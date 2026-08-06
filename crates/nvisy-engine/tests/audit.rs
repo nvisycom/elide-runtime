@@ -12,7 +12,7 @@ mod fixtures;
 use bytes::Bytes;
 use nvisy_engine::entity::EntityRecord;
 use nvisy_engine::modality::Text;
-use nvisy_engine::{Audit, Engine, RecognizedGroup};
+use nvisy_engine::{Audit, Engine, EntityGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, EnricherParams, PatternRecognizerParams, ProviderSelection, RecognizerParams,
@@ -52,13 +52,13 @@ fn default_spec() -> AnalyzerParams {
 
 async fn analyze() -> Audit {
     engine()
-        .analyze_document(raw_txt(), &[], &default_spec())
+        .analyze(raw_txt(), &[], &default_spec())
         .await
         .expect("analyze succeeds")
 }
 
 fn text_records_mut(audit: &mut Audit) -> &mut Vec<EntityRecord<Text>> {
-    let RecognizedGroup::Text { entities } = audit.body.as_mut().expect("body present") else {
+    let EntityGroup::Text(entities) = audit.body.as_mut().expect("body present") else {
         panic!("expected text body");
     };
     entities
@@ -85,10 +85,10 @@ async fn write_json_round_trips_via_serde_and_drops_artefact() {
     write_artefact("sample", "audit.json", &buf);
 
     let round: Audit = serde_json::from_slice(&buf).expect("round-trip deserialize");
-    let RecognizedGroup::Text { entities: original } = audit.body.as_ref().unwrap() else {
+    let EntityGroup::Text(original) = audit.body.as_ref().unwrap() else {
         panic!("original body is not text");
     };
-    let RecognizedGroup::Text { entities: round } = round.body.as_ref().unwrap() else {
+    let EntityGroup::Text(round) = round.body.as_ref().unwrap() else {
         panic!("round-tripped body is not text");
     };
     assert_eq!(
@@ -121,7 +121,7 @@ async fn write_entities_csv_has_header_and_one_row_per_entity() {
     );
 
     let row_count = lines.count();
-    let RecognizedGroup::Text { entities } = audit.body.as_ref().unwrap() else {
+    let EntityGroup::Text(entities) = audit.body.as_ref().unwrap() else {
         unreachable!()
     };
     assert_eq!(
@@ -149,7 +149,7 @@ async fn write_provenance_csv_emits_one_row_per_event() {
     );
 
     let row_count = lines.count();
-    let RecognizedGroup::Text { entities } = audit.body.as_ref().unwrap() else {
+    let EntityGroup::Text(entities) = audit.body.as_ref().unwrap() else {
         unreachable!()
     };
     let expected_events: usize = entities

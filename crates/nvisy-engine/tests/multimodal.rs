@@ -9,14 +9,14 @@ use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
-use nvisy_engine::{Audit, Engine, RecognizedGroup};
+use nvisy_engine::{Audit, AuditContext, Engine, EntityGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, EnricherParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams,
     ProviderSelection, RecognizerParams, ScopeParams,
 };
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
-use nvisy_schema::policy::{LabelCatalogParams, PolicyDefinition};
+use nvisy_schema::policy::{Labels, PolicyDefinition};
 
 use self::fixtures::write_artefact;
 
@@ -67,13 +67,13 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
     let analyzed = engine
-        .analyze_document(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
 
     let body_group = analyzed.body.as_ref().expect("body group present");
     let text_entities = match body_group {
-        RecognizedGroup::Text { entities } => entities,
+        EntityGroup::Text(entities) => entities,
         other => panic!("expected Text body, got {other:?}"),
     };
     assert!(
@@ -88,7 +88,7 @@ async fn analyze_captures_text_body_and_image_part() {
         )
     });
     assert!(
-        matches!(image_group, RecognizedGroup::Image { .. }),
+        matches!(image_group, EntityGroup::Image(_)),
         "expected Image variant for image part, got {image_group:?}",
     );
 }
@@ -97,11 +97,11 @@ async fn analyze_captures_text_body_and_image_part() {
 async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
     let mut analyzed = engine
-        .analyze_document(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
     let body_group = analyzed.body.as_ref().expect("body group present");
-    let RecognizedGroup::Text { entities } = body_group else {
+    let EntityGroup::Text(entities) = body_group else {
         panic!("expected Text body");
     };
     assert!(
@@ -110,7 +110,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     );
 
     let target_id = entities[0].entity.id;
-    let RecognizedGroup::Text { entities: muts } = analyzed.body.as_mut().unwrap() else {
+    let EntityGroup::Text(muts) = analyzed.body.as_mut().unwrap() else {
         unreachable!()
     };
     muts.iter_mut()
@@ -124,7 +124,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     });
 
     let outcome = engine
-        .anonymize_document(raw_docx(), &[], &mut analyzed)
+        .anonymize(raw_docx(), &[], &mut analyzed)
         .await
         .expect("anonymize succeeds");
     write_artefact("sample", "out.docx", &outcome.bytes);
@@ -149,25 +149,39 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
 }
 
 #[tokio::test]
-async fn analyze_populates_scope_from_policy_labels() {
+async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
     let engine = engine();
 
-    let empty = engine
-        .analyze_document(raw_docx(), &[], &default_spec())
+    let mut spec = default_spec();
+    spec.scope.tags = vec!["gdpr-request".to_owned()];
+    let doc = raw_docx();
+    let correlation_id = doc.correlation_id;
+
+    let audit = engine
+        .analyze(doc, &[], &spec)
         .await
         .expect("analyze succeeds");
-    assert!(
-        empty.scope.catalog.is_empty(),
-        "no policies means no catalog entries; got {} entries",
-        empty.scope.catalog.len(),
+
+    assert_eq!(
+        audit.context.tags, spec.scope.tags,
+        "audit context must mirror the caller-asserted scope tags",
     );
+    assert_eq!(
+        audit.context.correlation_id, correlation_id,
+        "analyze-time correlation id must be recorded on the audit context",
+    );
+}
+
+#[tokio::test]
+async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
+    let engine = engine();
 
     let policy = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
         name: "test".into(),
         description: None,
         when: None,
-        labels: LabelCatalogParams {
+        labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
         },
@@ -175,47 +189,53 @@ async fn analyze_populates_scope_from_policy_labels() {
         fallback: None,
         retention: Vec::new(),
     };
-    let with_catalog = engine
-        .analyze_document(raw_docx(), std::slice::from_ref(&policy), &default_spec())
+    let mut analyzed = engine
+        .analyze(raw_docx(), std::slice::from_ref(&policy), &default_spec())
         .await
         .expect("analyze succeeds");
-    assert!(
-        with_catalog
-            .scope
-            .catalog
-            .contains(&LabelRef::new("email_address")),
-        "policy.labels.builtins = [email_address] must persist that label onto scope.catalog",
-    );
+
+    engine
+        .anonymize(raw_docx(), std::slice::from_ref(&policy), &mut analyzed)
+        .await
+        .expect("anonymize succeeds when catalog is re-derived from the same policy set");
 }
 
 #[tokio::test]
-async fn analyzed_document_rejects_missing_scope_on_deserialize() {
+async fn audit_rejects_missing_context_on_deserialize() {
     let engine = engine();
     let analyzed = engine
-        .analyze_document(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
     let mut value = serde_json::to_value(&analyzed).expect("serialize");
     value
         .as_object_mut()
         .expect("object")
-        .remove("scope")
-        .expect("scope was serialized");
+        .remove("context")
+        .expect("context was serialized");
 
     let err = serde_json::from_value::<Audit>(value)
-        .expect_err("deserializing without scope must fail");
+        .expect_err("deserializing without context must fail");
     assert!(
-        err.to_string().contains("scope"),
-        "missing-field error must name `scope`, got: {err}",
+        err.to_string().contains("context"),
+        "missing-field error must name `context`, got: {err}",
     );
 }
 
 #[tokio::test]
 async fn empty_analyzed_document_anonymize_fails_validation() {
     let engine = engine();
-    let outcome = engine
-        .anonymize_document(raw_docx(), &[], &mut Audit::default())
-        .await;
+    let mut audit = Audit {
+        body: None,
+        parts: Default::default(),
+        context: AuditContext {
+            languages: Default::default(),
+            countries: Vec::new(),
+            tags: Vec::new(),
+            correlation_id: uuid::Uuid::now_v7(),
+        },
+    };
+    let outcome = engine.anonymize(raw_docx(), &[], &mut audit).await;
     let err = outcome.expect_err("anonymize must reject a missing body group");
     assert!(
         err.to_string().contains("body group is missing"),

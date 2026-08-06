@@ -16,8 +16,8 @@
 //! Empty default. Every submitted [`PolicyDefinition`]'s labels
 //! union at request time to form the analyzer's per-run catalog.
 //!
-//! [`builtins`]: LabelCatalogParams::builtins
-//! [`custom`]: LabelCatalogParams::custom
+//! [`builtins`]: Labels::builtins
+//! [`custom`]: Labels::custom
 //! [`PolicyDefinition`]: super::PolicyDefinition
 
 use elide_core::entity::{Label, LabelRef};
@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 /// Picks builtins by name + adds inline custom schemas.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct LabelCatalogParams {
+pub struct Labels {
     /// Builtin label names to enable.
     ///
     /// E.g. `"email_address"`, `"phone_number"`. Unknown names
@@ -41,7 +41,7 @@ pub struct LabelCatalogParams {
     pub custom: Vec<Label>,
 }
 
-impl LabelCatalogParams {
+impl Labels {
     /// `true` when neither source contributes any label.
     #[must_use]
     pub fn is_empty(&self) -> bool {

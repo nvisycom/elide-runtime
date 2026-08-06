@@ -26,7 +26,8 @@ use nvisy_schema::policy::redaction::ModalityRedactions;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use super::audit::{Audit, EntityRecord, RecognizedGroup};
+use super::audit::Audit;
+use crate::entity::{EntityGroup, EntityRecord};
 
 impl Audit {
     /// Serialize the entity table as CSV into `writer`.
@@ -264,48 +265,42 @@ struct ProvenanceRow<'a> {
 }
 
 fn push_entity_rows<'a>(
-    group: &'a RecognizedGroup,
+    group: &'a EntityGroup,
     part_id: Option<&'a str>,
     out: &mut Vec<EntityRow<'a>>,
 ) {
     match group {
-        RecognizedGroup::Text { entities } => extend_entity_rows(entities, part_id, "text", out),
+        EntityGroup::Text(entities) => extend_entity_rows(entities, part_id, "text", out),
         #[cfg(feature = "internal_tabular")]
-        RecognizedGroup::Tabular { entities } => {
-            extend_entity_rows(entities, part_id, "tabular", out)
-        }
+        EntityGroup::Tabular(entities) => extend_entity_rows(entities, part_id, "tabular", out),
         #[cfg(feature = "internal_image")]
-        RecognizedGroup::Image { entities } => {
-            extend_entity_rows(entities, part_id, "image", out)
-        }
+        EntityGroup::Image(entities) => extend_entity_rows(entities, part_id, "image", out),
         #[cfg(feature = "internal_audio")]
-        RecognizedGroup::Audio { entities } => {
-            extend_entity_rows(entities, part_id, "audio", out)
-        }
+        EntityGroup::Audio(entities) => extend_entity_rows(entities, part_id, "audio", out),
     }
 }
 
-fn push_provenance_rows<'a>(group: &'a RecognizedGroup, out: &mut Vec<ProvenanceRow<'a>>) {
+fn push_provenance_rows<'a>(group: &'a EntityGroup, out: &mut Vec<ProvenanceRow<'a>>) {
     match group {
-        RecognizedGroup::Text { entities } => extend_provenance_rows(entities, out),
+        EntityGroup::Text(entities) => extend_provenance_rows(entities, out),
         #[cfg(feature = "internal_tabular")]
-        RecognizedGroup::Tabular { entities } => extend_provenance_rows(entities, out),
+        EntityGroup::Tabular(entities) => extend_provenance_rows(entities, out),
         #[cfg(feature = "internal_image")]
-        RecognizedGroup::Image { entities } => extend_provenance_rows(entities, out),
+        EntityGroup::Image(entities) => extend_provenance_rows(entities, out),
         #[cfg(feature = "internal_audio")]
-        RecognizedGroup::Audio { entities } => extend_provenance_rows(entities, out),
+        EntityGroup::Audio(entities) => extend_provenance_rows(entities, out),
     }
 }
 
-fn push_review_rows(group: &RecognizedGroup, out: &mut Vec<(Uuid, &'static str, String)>) {
+fn push_review_rows(group: &EntityGroup, out: &mut Vec<(Uuid, &'static str, String)>) {
     match group {
-        RecognizedGroup::Text { entities } => extend_review_rows(entities, "text", out),
+        EntityGroup::Text(entities) => extend_review_rows(entities, "text", out),
         #[cfg(feature = "internal_tabular")]
-        RecognizedGroup::Tabular { entities } => extend_review_rows(entities, "tabular", out),
+        EntityGroup::Tabular(entities) => extend_review_rows(entities, "tabular", out),
         #[cfg(feature = "internal_image")]
-        RecognizedGroup::Image { entities } => extend_review_rows(entities, "image", out),
+        EntityGroup::Image(entities) => extend_review_rows(entities, "image", out),
         #[cfg(feature = "internal_audio")]
-        RecognizedGroup::Audio { entities } => extend_review_rows(entities, "audio", out),
+        EntityGroup::Audio(entities) => extend_review_rows(entities, "audio", out),
     }
 }
 

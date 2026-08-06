@@ -130,7 +130,7 @@ mod tests {
     fn custom_labels_land_in_the_catalog() {
         let policy = policy_with_labels(Labels {
             builtins: Vec::new(),
-            custom: vec![Label::new("project_code")],
+            custom: vec![Label::new("project_code", "Project code")],
         });
         let catalog = compile_catalog(std::slice::from_ref(&policy));
         assert!(catalog.contains(&LabelRef::new("project_code")));

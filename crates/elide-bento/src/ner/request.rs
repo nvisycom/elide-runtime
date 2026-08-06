@@ -6,6 +6,7 @@
 //! structured records (also part of the upstream schema) are
 //! omitted — this backend surfaces entity extraction only.
 
+use elide_core::primitive::LanguageTag;
 use elide_ner::backend::NerRequest;
 use serde::Serialize;
 
@@ -26,15 +27,21 @@ impl WireNerRequest {
     /// Translate an elide [`NerRequest`] into the wire shape,
     /// pinning the service-default threshold when the request has
     /// no per-label thresholds of its own.
+    ///
+    /// Label name/description are localized in the request's
+    /// asserted language when set; otherwise English is used as
+    /// the fallback locale (matching elide's own default).
     pub(super) fn from_request(request: &NerRequest<'_>, default_threshold: f32) -> Self {
+        let english = LanguageTag::english();
+        let language = request.language.unwrap_or(&english);
         let entities = request
             .labels
             .map(|labels| {
                 labels
                     .iter()
                     .map(|label| WireEntitySpec {
-                        label: label.name().to_owned(),
-                        description: label.description().map(str::to_owned),
+                        label: label.name(language).to_owned(),
+                        description: label.description(language).map(str::to_owned),
                         threshold: None,
                     })
                     .collect()

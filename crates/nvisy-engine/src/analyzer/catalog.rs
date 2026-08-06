@@ -1,57 +1,59 @@
-//! Compile a [`LabelCatalogParams`] into an
+//! Compile a slice of [`PolicyDefinition`] into an
 //! [`elide_core::entity::LabelCatalog`].
+//!
+//! Walks every policy's [`labels`] block, unions the builtin
+//! selections and the inline custom schemas into one catalog.
+//! Kept engine-side so the cached `with_builtins` lookup and the
+//! warn-and-skip policy for unknown builtin names stay out of
+//! `nvisy-policy`.
+//!
+//! [`PolicyDefinition`]: nvisy_schema::policy::PolicyDefinition
+//! [`labels`]: nvisy_schema::policy::PolicyDefinition::labels
 
 use std::sync::OnceLock;
 
-use elide_core::entity::{LabelCatalog, LabelRef};
-use nvisy_schema::plan::LabelCatalogParams;
+use elide_core::entity::LabelCatalog;
+use nvisy_schema::policy::{LabelCatalogParams, PolicyDefinition};
 
-/// Compile a [`LabelCatalogParams`] into an
-/// [`elide_core::entity::LabelCatalog`].
+/// Compile the label catalog for a request from its policy set.
 ///
-/// Extension trait kept on the engine side so the cached
-/// `with_builtins` lookup and the warn-and-skip policy for unknown
-/// builtin names stay out of `nvisy-schema`.
-pub(crate) trait LabelCatalogCompile {
-    /// Build the per-request catalog. Engine does not pre-seed
-    /// builtins; the caller picks. Two sources union into one:
-    ///
-    /// - [`builtins`] — each name is looked up against the cached
-    ///   full builtin catalog; unknown names warn and are skipped
-    ///   (typos shouldn't fail the request).
-    /// - [`custom`] — inserted as-is; names that collide with a
-    ///   builtin replace it (matches [`LabelCatalog::insert`]
-    ///   semantics: last write wins).
-    ///
-    /// [`builtins`]: LabelCatalogParams::builtins
-    /// [`custom`]: LabelCatalogParams::custom
-    /// [`LabelCatalog::insert`]: elide_core::entity::LabelCatalog::insert
-    fn compile(&self) -> LabelCatalog;
+/// Every policy contributes its [`labels`] block; builtins are
+/// resolved once against the cached full builtin catalog, custom
+/// labels are inserted as-is. Names that collide across policies
+/// or between builtins and customs follow
+/// [`LabelCatalog::insert`] semantics: last write wins.
+///
+/// Unknown builtin names log a warning and are skipped — typos
+/// shouldn't fail the request.
+///
+/// [`labels`]: nvisy_schema::policy::PolicyDefinition::labels
+/// [`LabelCatalog::insert`]: elide_core::entity::LabelCatalog::insert
+pub(crate) fn compile_catalog(policies: &[PolicyDefinition]) -> LabelCatalog {
+    let mut catalog = LabelCatalog::new();
+    for policy in policies {
+        insert_params(&mut catalog, &policy.labels);
+    }
+    catalog
 }
 
-impl LabelCatalogCompile for LabelCatalogParams {
-    fn compile(&self) -> LabelCatalog {
-        let mut catalog = LabelCatalog::new();
-        let builtins = builtin_catalog();
-        for name in &self.builtins {
-            let label_ref = LabelRef::new(name.clone());
-            match builtins.get(&label_ref) {
-                Some(label) => {
-                    catalog.insert(label.clone());
-                }
-                None => {
-                    tracing::warn!(
-                        target: "engine::analyzer",
-                        label = %name,
-                        "unknown builtin label name in catalog request; skipping",
-                    );
-                }
+fn insert_params(catalog: &mut LabelCatalog, params: &LabelCatalogParams) {
+    let builtins = builtin_catalog();
+    for label_ref in &params.builtins {
+        match builtins.get(label_ref) {
+            Some(label) => {
+                catalog.insert(label.clone());
+            }
+            None => {
+                tracing::warn!(
+                    target: "engine::analyzer",
+                    label = label_ref.as_str(),
+                    "unknown builtin label name in policy catalog; skipping",
+                );
             }
         }
-        for label in &self.custom {
-            catalog.insert(label.clone());
-        }
-        catalog
+    }
+    for label in &params.custom {
+        catalog.insert(label.clone());
     }
 }
 

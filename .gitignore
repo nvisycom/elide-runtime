@@ -74,3 +74,5 @@ CLAUDE.md
 # E2E artifacts
 **/testdata/**/*.in.*
 **/testdata/**/*.out.*
+**/testdata/**/*.audit.*
+**/testdata/**/*.audit-*.*

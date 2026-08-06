@@ -1,7 +1,8 @@
-//! Per-request label catalog params.
+//! Per-policy label catalog: the vocabulary the policy's rules
+//! and predicates operate over.
 //!
 //! Two distinct sources the engine unions into one
-//! `elide_core::entity::LabelCatalog` at compile time:
+//! `elide_core::entity::LabelCatalog` at request-compile time:
 //!
 //! - [`builtins`]: names of labels from `elide-core`'s shipped
 //!   builtin set (`LabelCatalog::with_builtins`). Engine looks
@@ -12,19 +13,18 @@
 //!   builtin set. Names that collide with a builtin replace it
 //!   (last write wins, matching `LabelCatalog::insert` semantics).
 //!
+//! Empty default. Every submitted [`PolicyDefinition`]'s labels
+//! union at request time to form the analyzer's per-run catalog.
+//!
 //! [`builtins`]: LabelCatalogParams::builtins
 //! [`custom`]: LabelCatalogParams::custom
-//!
-//! Empty default. Server-side deployments may pre-populate via
-//! the `analyzer` server-default block in the config, but the
-//! resolved value goes to the engine empty unless the request or
-//! the server-default sets it.
+//! [`PolicyDefinition`]: super::PolicyDefinition
 
-use elide_core::entity::Label;
+use elide_core::entity::{Label, LabelRef};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Per-request label-catalog selection.
+/// Per-policy label-catalog selection.
 ///
 /// Picks builtins by name + adds inline custom schemas.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -35,8 +35,16 @@ pub struct LabelCatalogParams {
     /// E.g. `"email_address"`, `"phone_number"`. Unknown names
     /// log a warning and are skipped.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub builtins: Vec<String>,
+    pub builtins: Vec<LabelRef>,
     /// Custom labels defined inline by the caller.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom: Vec<Label>,
+}
+
+impl LabelCatalogParams {
+    /// `true` when neither source contributes any label.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.builtins.is_empty() && self.custom.is_empty()
+    }
 }

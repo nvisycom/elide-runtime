@@ -48,7 +48,7 @@ use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 use super::Engine;
-use crate::analyzer::{AnalyzerCompile, LabelCatalogCompile};
+use crate::analyzer::{AnalyzerCompile, compile_catalog};
 #[cfg(feature = "internal_audio")]
 use crate::anonymizer::{attach_override_audio, attach_policies_audio};
 #[cfg(feature = "internal_image")]
@@ -63,19 +63,29 @@ impl Engine {
     /// anonymizers (analyze doesn't run redaction), and stamp
     /// the request-scoped [`Scope`].
     ///
+    /// The label catalog is derived from `policies`: every
+    /// submitted [`PolicyDefinition::labels`] unions into one
+    /// [`LabelCatalog`] used to drive recognizer dispatch and
+    /// tag-based selector matching. Persisted onto the returned
+    /// [`Scope`] so the anonymize path reads it back without
+    /// re-walking policies.
+    ///
     /// Returns both the orchestrator and the resolved [`Scope`]
     /// so [`Engine::analyze_document`] can persist the scope onto
-    /// the returned [`super::AnalyzedDocument`] with
+    /// the returned [`super::Audit`] with
     /// `correlation_id: None`. The orchestrator itself carries
     /// the caller-supplied `correlation_id` for tracing spans.
     ///
     /// [`Scope`]: elide::recognition::Scope
+    /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
+    /// [`PolicyDefinition::labels`]: nvisy_schema::policy::PolicyDefinition::labels
     pub(super) fn build_analyze_orchestrator(
         &self,
         spec: &AnalyzerParams,
+        policies: &[PolicyDefinition],
         correlation_id: Uuid,
     ) -> Result<(Orchestrator<'_>, Scope)> {
-        let catalog = spec.scope.label_catalog.compile();
+        let catalog = compile_catalog(policies);
         let persisted_scope = Scope {
             languages: spec.scope.languages.clone(),
             countries: spec.scope.countries.clone(),

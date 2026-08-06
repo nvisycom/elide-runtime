@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use super::annotation::AnyAnnotations;
 use super::deduplication::DeduplicationParams;
 use super::enricher::EnricherParams;
-use super::label::LabelCatalogParams;
 use super::recognizer::RecognizerParams;
 
 /// Full description of how to build an analyzer for one
@@ -20,17 +19,18 @@ use super::recognizer::RecognizerParams;
 /// image picks up the image ones, etc.
 ///
 /// The caller-asserted scope lives under [`scope`], a single
-/// nested object grouping the four knobs the engine assembles
+/// nested object grouping the three knobs the engine assembles
 /// into an `elide::recognition::Scope` at compile time
-/// ([`languages`], [`countries`], [`tags`], [`label_catalog`]).
-/// `Scope`'s fifth knob, `correlation_id`, is server-minted per
-/// request and never appears on the wire.
+/// ([`languages`], [`countries`], [`tags`]). `Scope`'s two other
+/// knobs are engine-side: `correlation_id` is server-minted per
+/// request, and `catalog` is derived from the request's policy
+/// set (each [`PolicyDefinition::labels`] contributes).
 ///
 /// [`scope`]: AnalyzerParams::scope
 /// [`languages`]: ScopeParams::languages
 /// [`countries`]: ScopeParams::countries
 /// [`tags`]: ScopeParams::tags
-/// [`label_catalog`]: ScopeParams::label_catalog
+/// [`PolicyDefinition::labels`]: crate::policy::PolicyDefinition::labels
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerParams {
@@ -53,9 +53,9 @@ pub struct AnalyzerParams {
     pub deduplication: DeduplicationParams,
     /// Caller-asserted scope.
     ///
-    /// Languages, jurisdictions, document tags, and the
-    /// per-request entity-label catalog. Engine assembles this
-    /// (plus a server-minted correlation id) into an
+    /// Languages, jurisdictions, document tags. Engine assembles
+    /// this (plus a server-minted correlation id and the
+    /// policy-derived label catalog) into an
     /// `elide::recognition::Scope` at compile time.
     #[serde(default)]
     pub scope: ScopeParams,
@@ -100,20 +100,12 @@ pub struct ScopeParams {
     /// these to bias their behaviour for domain-specific terms;
     /// those that don't ignore the field.
     ///
-    /// Distinct from [`label_catalog`]: tags classify the
-    /// *document*, whereas the catalog names the entity *types*
-    /// to emit.
+    /// Distinct from the entity-label catalog: tags classify the
+    /// *document*, whereas labels name the entity *types* to
+    /// emit. Labels are authored on each [`PolicyDefinition`],
+    /// not here.
     ///
-    /// [`label_catalog`]: ScopeParams::label_catalog
+    /// [`PolicyDefinition`]: crate::policy::PolicyDefinition
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
-    /// Per-request entity-label catalog.
-    ///
-    /// Builtins selected by name + custom inline schemas. Drives
-    /// what recognizers are asked to emit and tag-based selector
-    /// matching in the anonymizer. Engine resolves this into the
-    /// assembled `elide::recognition::Scope`'s `catalog` field at
-    /// compile time.
-    #[serde(default)]
-    pub label_catalog: LabelCatalogParams,
 }

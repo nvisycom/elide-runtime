@@ -43,5 +43,5 @@ pub use nvisy_schema::policy;
 
 pub use self::analyzer::PatternGuardrails;
 pub use self::pipeline::{
-    AnalyzedDocument, AnonymizedDocument, Engine, RecognizedGroup, RegisteredRecognizer,
+    Audit, Engine, RecognizedGroup, RegisteredRecognizer,
 };

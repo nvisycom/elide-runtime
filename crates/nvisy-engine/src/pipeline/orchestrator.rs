@@ -72,7 +72,7 @@ impl Engine {
     ///
     /// Returns both the orchestrator and the resolved [`Scope`]
     /// so [`Engine::analyze_document`] can persist the scope onto
-    /// the returned [`super::AnalyzedDocument`] with
+    /// the returned [`super::Audit`] with
     /// `correlation_id: None`. The orchestrator itself carries
     /// the caller-supplied `correlation_id` for tracing spans.
     ///

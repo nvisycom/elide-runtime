@@ -9,7 +9,7 @@ use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
-use nvisy_engine::{AnalyzedDocument, Engine, RecognizedGroup};
+use nvisy_engine::{Audit, Engine, RecognizedGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, EnricherParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams,
@@ -124,10 +124,10 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     });
 
     let outcome = engine
-        .anonymize_document(raw_docx(), &[], &analyzed)
+        .anonymize_document(raw_docx(), &[], &mut analyzed)
         .await
         .expect("anonymize succeeds");
-    write_artefact("sample", "docx", &outcome.bytes);
+    write_artefact("sample", "out.docx", &outcome.bytes);
 
     let original_body =
         read_zip_entry(SAMPLE_DOCX, "word/document.xml").expect("fixture has word/document.xml");
@@ -202,7 +202,7 @@ async fn analyzed_document_rejects_missing_scope_on_deserialize() {
         .remove("scope")
         .expect("scope was serialized");
 
-    let err = serde_json::from_value::<AnalyzedDocument>(value)
+    let err = serde_json::from_value::<Audit>(value)
         .expect_err("deserializing without scope must fail");
     assert!(
         err.to_string().contains("scope"),
@@ -214,7 +214,7 @@ async fn analyzed_document_rejects_missing_scope_on_deserialize() {
 async fn empty_analyzed_document_anonymize_fails_validation() {
     let engine = engine();
     let outcome = engine
-        .anonymize_document(raw_docx(), &[], &AnalyzedDocument::default())
+        .anonymize_document(raw_docx(), &[], &mut Audit::default())
         .await;
     let err = outcome.expect_err("anonymize must reject a missing body group");
     assert!(

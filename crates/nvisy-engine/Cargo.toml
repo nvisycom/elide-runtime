@@ -69,6 +69,13 @@ internal_tabular = []
 internal_image = []
 internal_audio = []
 
+## JSON audit export via `Audit::write_json`.
+audit-json = ["dep:serde_json"]
+## CSV audit export via `Audit::write_*_csv`. Pulls
+## `serde_json` for reading enum-tagged operator kinds off
+## reviewer overrides.
+audit-csv = ["dep:csv", "dep:serde_json"]
+
 ## Turn on the test-only mock variants
 ## (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) and the elide mock
 ## backends they compile into. Off in production so deployment
@@ -95,8 +102,9 @@ nvisy-schema = { workspace = true, features = [] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true, features = [] }
+serde_json = { workspace = true, features = [], optional = true }
 schemars = { workspace = true, features = [] }
+csv = { workspace = true, features = [], optional = true }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
@@ -113,12 +121,15 @@ tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 # Internal crates
-nvisy-engine = { path = ".", features = ["test-utils"] }
+nvisy-engine = { path = ".", features = ["test-utils", "audit-json", "audit-csv"] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = ["v7"] }
 bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
+
+# Serialization
+serde_json = { workspace = true, features = [] }
 
 # Test utilities
 zip = { workspace = true }

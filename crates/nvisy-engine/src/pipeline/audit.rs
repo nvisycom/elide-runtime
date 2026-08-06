@@ -2,7 +2,7 @@
 //! [`Engine::analyze_document`] returns and what
 //! [`Engine::anonymize_document`] accepts.
 //!
-//! [`AnalyzedDocument`] mirrors elide's [`Report`] shape: a
+//! [`Audit`] mirrors elide's [`Report`] shape: a
 //! body group + zero-or-more container part groups (DOCX
 //! embedded images, archive members, ...) keyed by
 //! container-private part id. Every group is a
@@ -20,6 +20,8 @@
 //! [`Report`]: elide::Report
 
 use std::collections::HashMap;
+#[cfg(feature = "audit-json")]
+use std::io::Write;
 
 use elide::recognition::Scope;
 use elide_core::entity::Entity;
@@ -31,6 +33,8 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
+#[cfg(feature = "audit-json")]
+use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::policy::redaction::ModalityRedactions;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -56,7 +60,7 @@ use serde::{Deserialize, Serialize};
 /// [`Scope`]: elide::recognition::Scope
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct AnalyzedDocument {
+pub struct Audit {
     /// The body group.
     ///
     /// `None` when no body pipeline produced entities (pre-analyze,
@@ -80,7 +84,7 @@ pub struct AnalyzedDocument {
     /// `AnalyzerParams`.
     ///
     /// Required on the wire. A missing scope on an incoming
-    /// [`AnalyzedDocument`] would default to an empty catalog and
+    /// [`Audit`] would default to an empty catalog and
     /// silently underfire every `TagOneOf` policy predicate;
     /// rejecting at deserialize time surfaces the shape mismatch
     /// at load, not at apply.
@@ -89,9 +93,35 @@ pub struct AnalyzedDocument {
     pub scope: Scope,
 }
 
+#[cfg(feature = "audit-json")]
+#[cfg_attr(docsrs, doc(cfg(feature = "audit-json")))]
+impl Audit {
+    /// Serialize the audit as pretty JSON into `writer`.
+    ///
+    /// Preserves the full structure — body + parts + scope, and
+    /// every entity's provenance chain. This is the canonical
+    /// export; callers without a specific reason to reach for
+    /// another format use this.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Processing`] wrapping the underlying
+    /// [`serde_json::Error`] (schema violation, I/O error on
+    /// the writer).
+    pub fn write_json<W: Write>(&self, writer: W) -> Result<()> {
+        serde_json::to_writer_pretty(writer, self).map_err(|err| {
+            Error::new(
+                ErrorKind::Processing,
+                format!("audit JSON export failed: {err}"),
+            )
+        })
+    }
+}
+
+
 /// A modality-tagged group of recognized entities.
 ///
-/// The unit [`AnalyzedDocument`] stores in `body` and in every
+/// The unit [`Audit`] stores in `body` and in every
 /// `parts` entry.
 ///
 /// Tagged by `modality` (snake_case) so deserialization picks the
@@ -163,3 +193,4 @@ impl<M: Modality> EntityRecord<M> {
         }
     }
 }
+

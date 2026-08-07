@@ -130,9 +130,7 @@ where
 fn eval<M: Modality>(predicate: &Predicate, entity: &Entity<M>, catalog: &LabelCatalog) -> bool {
     match predicate {
         Predicate::Confidence { min } => f32::from(entity.confidence) >= f32::from(*min),
-        Predicate::LabelOneOf { labels } => labels
-            .iter()
-            .any(|l| l == &entity.label),
+        Predicate::LabelOneOf { labels } => labels.iter().any(|l| l == &entity.label),
         Predicate::TagOneOf { tags } => catalog
             .get(&entity.label)
             .is_some_and(|label| tags.iter().any(|tag| label.has_tag(tag.as_str()))),

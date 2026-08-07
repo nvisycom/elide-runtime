@@ -15,7 +15,7 @@ use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend};
 use elide::recognition::llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
-use elide_core::{Error, ErrorKind};
+use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::plan::ProviderSelection;
 
 use super::selection::select;
@@ -49,7 +49,7 @@ pub(in crate::analyzer) fn attach_llm_lineup<M>(
     llm: &LlmConfig,
     modality: AttachTo,
     selection: Option<&ProviderSelection>,
-) -> Result<Analyzer<M>, Error>
+) -> Result<Analyzer<M>>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,
@@ -88,7 +88,7 @@ where
     Ok(analyzer)
 }
 
-fn attach_one<M>(analyzer: Analyzer<M>, spec: &ConfigRecognizer) -> Result<Analyzer<M>, Error>
+fn attach_one<M>(analyzer: Analyzer<M>, spec: &ConfigRecognizer) -> Result<Analyzer<M>>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,
@@ -110,7 +110,7 @@ where
 fn attach_source<M>(
     builder: LlmRecognizerBuilder<M>,
     spec: &ConfigRecognizer,
-) -> Result<LlmRecognizerBuilder<M>, Error>
+) -> Result<LlmRecognizerBuilder<M>>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,

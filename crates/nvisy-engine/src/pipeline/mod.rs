@@ -84,6 +84,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
+use elide::redaction::operators::KeyProvider;
 use elide::{Directives, Report};
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
@@ -108,14 +109,18 @@ use crate::provider::ner::NerConfig;
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
 /// Bundles the codec registry, the deployment's NER / LLM
-/// lineups, the pattern-recognizer guardrails, and the
+/// lineups, the pattern-recognizer guardrails, the shared
+/// [`KeyProvider`] (for `HmacHash` and `Encrypt`), and the
 /// per-request orchestrator constructor.
+///
+/// [`KeyProvider`]: elide::redaction::operators::KeyProvider
 #[derive(Clone, Default)]
 pub struct Engine {
     formats: Arc<FormatRegistry>,
     ner: Arc<NerConfig>,
     llm: Arc<LlmConfig>,
     pattern_guardrails: PatternGuardrails,
+    pub(super) key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 impl Engine {
@@ -123,16 +128,20 @@ impl Engine {
     ///
     /// Uses [`FormatRegistry::with_builtin`] plus empty NER and
     /// LLM lineups. Callers that want NER or LLM recognition
-    /// must chain [`with_ner`] or [`with_llm`].
+    /// must chain [`with_ner`] or [`with_llm`]. Callers whose
+    /// policies use `HmacHash` or `Encrypt` must wire a key
+    /// provider via [`with_key_provider`].
     ///
     /// [`with_ner`]: Self::with_ner
     /// [`with_llm`]: Self::with_llm
+    /// [`with_key_provider`]: Self::with_key_provider
     pub fn new() -> Self {
         Self {
             formats: Arc::new(FormatRegistry::with_builtin()),
             ner: Arc::new(NerConfig::default()),
             llm: Arc::new(LlmConfig::default()),
             pattern_guardrails: PatternGuardrails::default(),
+            key_provider: None,
         }
     }
 
@@ -155,6 +164,23 @@ impl Engine {
     #[must_use]
     pub fn with_llm(mut self, llm: LlmConfig) -> Self {
         self.llm = Arc::new(llm);
+        self
+    }
+
+    /// Set the shared cryptographic [`KeyProvider`] the
+    /// `HmacHash` and `Encrypt` operators resolve their keys
+    /// through.
+    ///
+    /// One provider backs both operators; per-label keys are the
+    /// provider's own responsibility. A policy that names either
+    /// operator without a provider wired errors at request
+    /// compile time — the audit trail names the operator so a
+    /// misconfiguration surfaces at load, not silently.
+    ///
+    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    #[must_use]
+    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+        self.key_provider = Some(provider);
         self
     }
 
@@ -403,11 +429,7 @@ fn build_analyze_directives(spec: &AnalyzerParams) -> Directives {
 /// `TypeId`. Feature-gated per modality; a part whose modality is
 /// disabled in this build falls through to `None`, and the caller
 /// treats it the same as a part the engine doesn't model.
-fn take_part_dispatch(
-    report: &mut Report,
-    id: &PartId,
-    type_id: TypeId,
-) -> Option<EntityGroup> {
+fn take_part_dispatch(report: &mut Report, id: &PartId, type_id: TypeId) -> Option<EntityGroup> {
     if type_id == TypeId::of::<Text>() {
         return take_part::<Text>(report, id);
     }

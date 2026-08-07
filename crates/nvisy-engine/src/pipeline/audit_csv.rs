@@ -386,13 +386,22 @@ fn event_kind_and_payload<M: Modality>(kind: &EventKind<M>) -> (&'static str, Op
 /// object always has a `"kind"` field.
 fn operator_kind_for_modality(review: &ModalityRedactions, modality: &str) -> Option<String> {
     let value = match modality {
-        "text" => review.text.as_ref().and_then(|op| serde_json::to_value(op).ok()),
+        "text" => review
+            .text
+            .as_ref()
+            .and_then(|op| serde_json::to_value(op).ok()),
         "tabular" => review
             .tabular
             .as_ref()
             .and_then(|op| serde_json::to_value(op).ok()),
-        "image" => review.image.as_ref().and_then(|op| serde_json::to_value(op).ok()),
-        "audio" => review.audio.as_ref().and_then(|op| serde_json::to_value(op).ok()),
+        "image" => review
+            .image
+            .as_ref()
+            .and_then(|op| serde_json::to_value(op).ok()),
+        "audio" => review
+            .audio
+            .as_ref()
+            .and_then(|op| serde_json::to_value(op).ok()),
         _ => None,
     }?;
     value

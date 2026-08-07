@@ -32,5 +32,5 @@ pub use nvisy_schema::entity::{
 };
 
 pub use self::group::EntityGroup;
-pub use self::record::EntityRecord;
 pub(crate) use self::group::{take_body, take_part};
+pub use self::record::EntityRecord;

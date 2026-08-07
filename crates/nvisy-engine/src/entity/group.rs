@@ -139,10 +139,7 @@ pub(crate) fn take_body<M: GroupCarrier>(report: &mut Report) -> Option<EntityGr
 
 /// Drain the part `id`'s entities into an [`EntityGroup`] of
 /// `M`'s variant, or `None` if `M` is not that part's modality.
-pub(crate) fn take_part<M: GroupCarrier>(
-    report: &mut Report,
-    id: &PartId,
-) -> Option<EntityGroup> {
+pub(crate) fn take_part<M: GroupCarrier>(report: &mut Report, id: &PartId) -> Option<EntityGroup> {
     let entities = mem::take(report.part_entities::<M>(id)?);
     Some(M::into_group(entities))
 }
@@ -186,7 +183,8 @@ impl EntityGroup {
     /// Insert this group into `report` as the body under its
     /// modality.
     pub(crate) fn insert_into_body(&self, report: Report) -> Report {
-        dispatch!(self, |M, entities| report.insert_body::<M>(clone_entities(entities)))
+        dispatch!(self, |M, entities| report
+            .insert_body::<M>(clone_entities(entities)))
     }
 
     /// Insert this group into `report` as a container part keyed

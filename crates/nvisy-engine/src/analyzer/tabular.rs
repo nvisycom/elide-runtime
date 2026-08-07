@@ -15,7 +15,7 @@
 //! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 
 use elide::detection::Analyzer;
-use elide_core::Error;
+use elide_core::Result;
 use elide_core::modality::tabular::Tabular;
 use nvisy_schema::plan::AnalyzerParams;
 
@@ -29,7 +29,7 @@ pub(super) fn compile(
     spec: &AnalyzerParams,
     ner: &NerConfig,
     guardrails: &PatternGuardrails,
-) -> Result<Analyzer<Tabular>, Error> {
+) -> Result<Analyzer<Tabular>> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
     if let Some(pattern) = &spec.recognizers.pattern {

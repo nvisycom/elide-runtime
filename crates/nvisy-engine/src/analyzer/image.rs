@@ -19,7 +19,7 @@
 //! [`LlmConfig`]: crate::provider::llm::LlmConfig
 
 use elide::detection::Analyzer;
-use elide_core::Error;
+use elide_core::Result;
 use elide_core::modality::image::Image;
 use nvisy_schema::plan::AnalyzerParams;
 
@@ -36,7 +36,7 @@ pub(super) fn compile(
     ner: &NerConfig,
     llm: &LlmConfig,
     guardrails: &PatternGuardrails,
-) -> Result<Analyzer<Image>, Error> {
+) -> Result<Analyzer<Image>> {
     let mut analyzer = Analyzer::<Image>::new();
 
     if let Some(ocr) = &spec.enrichers.ocr {
@@ -47,7 +47,12 @@ pub(super) fn compile(
         analyzer = attach_pattern(analyzer, pattern, guardrails)?;
     }
     analyzer = attach_ner_lineup(analyzer, ner, spec.recognizers.ner.as_ref())?;
-    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Image, spec.recognizers.llm.as_ref())?;
+    analyzer = attach_llm_lineup(
+        analyzer,
+        llm,
+        AttachTo::Image,
+        spec.recognizers.llm.as_ref(),
+    )?;
 
     Ok(attach_dedup(analyzer, &spec.deduplication))
 }

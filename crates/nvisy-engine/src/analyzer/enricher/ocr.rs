@@ -11,14 +11,14 @@ use elide::enrichment::ocr::MockBackend as MockOcrBackend;
 use elide::enrichment::ocr::OcrEnricher;
 use elide_bento::ocr::BentoOcr;
 use elide_core::modality::image::Image;
-use elide_core::{Error, ErrorKind};
+use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::plan::{OcrBackendParams, OcrEnricherParams};
 
 /// Attach an [`OcrEnricher`] for the image modality.
 pub(in crate::analyzer) fn attach(
     analyzer: Analyzer<Image>,
     spec: &OcrEnricherParams,
-) -> Result<Analyzer<Image>, Error> {
+) -> Result<Analyzer<Image>> {
     let enricher = match &spec.backend {
         OcrBackendParams::Bento { base_url, model } => {
             OcrEnricher::new(BentoOcr::new(base_url.clone(), model.clone())?)

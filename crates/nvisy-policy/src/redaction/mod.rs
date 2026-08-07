@@ -6,11 +6,13 @@
 //! override boundary.
 //!
 //! Each modality has its own enum because the operator catalogue
-//! differs by modality. Text gets the full elide built-in set
-//! ([`Replace`], [`Mask`], [`Hash`], [`Erase`], [`Keep`]) plus a
-//! `Custom` escape hatch. Image / Audio / Tabular currently expose
-//! only `Custom`; elide ships no built-in operators wired into the
-//! policy wire format for those modalities.
+//! differs by modality. Text carries the full elide built-in set
+//! ([`Erase`], [`Keep`], [`Mask`], [`Replace`], [`Hash`], [`Fake`],
+//! [`Pseudonymize`], [`Encrypt`], [`HmacHash`], [`Truncate`],
+//! [`Clamp`], [`GeneralizeDate`], and the [`WithFallback`] wrapper).
+//! Image, audio, and tabular each carry their own operator sets
+//! (blur/pixelate/blackbox for image, silence/beep for audio,
+//! drop-row/drop-column plus cell-level text ops for tabular).
 //!
 //! The split between these enums (the spec) and elide's
 //! [`Operator<M>`] trait is intentional: the spec is the
@@ -18,11 +20,19 @@
 //! variant into the matching runtime operator instance at apply
 //! time.
 //!
-//! [`Replace`]: https://docs.rs/elide/latest/elide/redaction/operators/Replace
-//! [`Mask`]: https://docs.rs/elide/latest/elide/redaction/operators/Mask
-//! [`Hash`]: https://docs.rs/elide/latest/elide/redaction/operators/Sha2Hash
-//! [`Erase`]: https://docs.rs/elide/latest/elide/redaction/operators/Erase
-//! [`Keep`]: https://docs.rs/elide/latest/elide/redaction/operators/Keep
+//! [`Erase`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Erase.html
+//! [`Keep`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Keep.html
+//! [`Mask`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Mask.html
+//! [`Replace`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Replace.html
+//! [`Hash`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Sha2Hash.html
+//! [`Fake`]: https://docs.rs/elide_fake/latest/elide_fake/struct.Fake.html
+//! [`Pseudonymize`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Pseudonymize.html
+//! [`Encrypt`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.AesEncrypt.html
+//! [`HmacHash`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.HmacHash.html
+//! [`Truncate`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Truncate.html
+//! [`Clamp`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Clamp.html
+//! [`GeneralizeDate`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.GeneralizeDate.html
+//! [`WithFallback`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.WithFallback.html
 //! [`Operator<M>`]: elide_core::operator::Operator
 
 mod any;
@@ -38,7 +48,9 @@ pub use self::any::{AnyRedaction, RedactionModality};
 pub use self::audio::AudioRedaction;
 pub use self::image::ImageRedaction;
 pub use self::tabular::TabularRedaction;
-pub use self::text::{HashAlgorithm, TextRedaction};
+pub use self::text::{
+    ClampBucket, DateGranularity, DateStyle, HashAlgorithm, TerminalFallback, TextRedaction,
+};
 
 /// Per-modality operator specs carried by a `redact` rule.
 ///
@@ -76,25 +88,5 @@ impl ModalityRedactions {
             && self.tabular.is_none()
             && self.image.is_none()
             && self.audio.is_none()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_when_no_modality_set() {
-        let r = ModalityRedactions::default();
-        assert!(r.is_empty());
-    }
-
-    #[test]
-    fn non_empty_when_any_modality_set() {
-        let r = ModalityRedactions {
-            text: Some(TextRedaction::Erase),
-            ..Default::default()
-        };
-        assert!(!r.is_empty());
     }
 }

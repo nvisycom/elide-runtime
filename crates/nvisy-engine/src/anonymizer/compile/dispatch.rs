@@ -19,7 +19,7 @@
 //! [`with_fallback`]: elide::redaction::Anonymizer::with_fallback
 
 use elide::redaction::Anonymizer;
-use elide_core::Error;
+use elide_core::Result;
 use elide_core::entity::provenance::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
@@ -108,10 +108,10 @@ pub(in crate::anonymizer) fn attach_policies<'a, M, F>(
     mut anonymizer: Anonymizer<M>,
     policies: impl Iterator<Item = &'a PolicyDefinition>,
     mut compile_one: F,
-) -> Result<Anonymizer<M>, Error>
+) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    F: FnMut(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
+    F: FnMut(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>>,
 {
     for policy in policies {
         for rule in &policy.rules {
@@ -145,10 +145,10 @@ pub(in crate::anonymizer) fn attach_one_override<M, F>(
     entity_id: Uuid,
     redactions: &ModalityRedactions,
     compile_one: F,
-) -> Result<Anonymizer<M>, Error>
+) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    F: FnOnce(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
+    F: FnOnce(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>>,
 {
     compile_one(
         Target::Override {

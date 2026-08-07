@@ -18,7 +18,7 @@
 //! [`LlmConfig`]: crate::provider::llm::LlmConfig
 
 use elide::detection::Analyzer;
-use elide_core::Error;
+use elide_core::Result;
 use elide_core::modality::text::Text;
 use nvisy_schema::plan::AnalyzerParams;
 
@@ -36,7 +36,7 @@ pub(super) fn compile(
     ner: &NerConfig,
     llm: &LlmConfig,
     guardrails: &PatternGuardrails,
-) -> Result<Analyzer<Text>, Error> {
+) -> Result<Analyzer<Text>> {
     let mut analyzer = Analyzer::<Text>::new();
 
     if let Some(language) = &spec.enrichers.language {

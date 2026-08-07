@@ -39,7 +39,8 @@ use std::slice;
 use elide::detection::Analyzer;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::{Error, Orchestrator, Result};
+use elide::redaction::vault::InMemoryVault;
+use elide::{Orchestrator, Result};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::Modality;
 #[cfg(feature = "internal_audio")]
@@ -57,13 +58,13 @@ use uuid::Uuid;
 use super::Engine;
 use super::audit::AuditContext;
 use crate::analyzer::{AnalyzerCompile, compile_catalog};
+use crate::anonymizer::{TextOperatorContext, attach_override_text, attach_policies_text};
 #[cfg(feature = "internal_audio")]
 use crate::anonymizer::{attach_override_audio, attach_policies_audio};
 #[cfg(feature = "internal_image")]
 use crate::anonymizer::{attach_override_image, attach_policies_image};
 #[cfg(feature = "internal_tabular")]
 use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
-use crate::anonymizer::{attach_override_text, attach_policies_text};
 
 impl Engine {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -159,12 +160,22 @@ impl Engine {
         let catalog = compile_catalog(policies);
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
+        // Fresh per-request text-operator context. `Pseudonymize`
+        // resolves consistently within one request via a per-request
+        // vault; `HmacHash`/`Encrypt` share the engine-level key
+        // provider. Cross-request pseudonym consistency is a
+        // durable-vault story (see elide #143).
+        let text_ctx = TextOperatorContext {
+            key_provider: self.key_provider.clone(),
+            pseudonym_vault: InMemoryVault::new(),
+        };
+
         let text_anon = assemble::<Text, _, _>(
             &catalog,
             overrides,
             policies,
-            attach_override_text,
-            attach_policies_text,
+            |anon, id, redactions| attach_override_text(anon, id, redactions, &text_ctx),
+            |anon, policies| attach_policies_text(anon, policies, &text_ctx),
         )?;
 
         let orchestrator = Orchestrator::new(&self.formats)
@@ -177,8 +188,8 @@ impl Engine {
                 &catalog,
                 overrides,
                 policies,
-                attach_override_tabular,
-                attach_policies_tabular,
+                |anon, id, redactions| attach_override_tabular(anon, id, redactions, &text_ctx),
+                |anon, policies| attach_policies_tabular(anon, policies, &text_ctx),
             )?;
             orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon)
         };
@@ -196,16 +207,15 @@ impl Engine {
         };
 
         #[cfg(feature = "internal_audio")]
-        let orchestrator = {
-            let anon = assemble::<Audio, _, _>(
-                &catalog,
-                overrides,
-                policies,
-                attach_override_audio,
-                attach_policies_audio,
-            )?;
-            orchestrator.with_modality::<Audio>(Analyzer::<Audio>::new(), anon)
-        };
+        let anon = assemble::<Audio, _, _>(
+            &catalog,
+            overrides,
+            policies,
+            attach_override_audio,
+            attach_policies_audio,
+        )?;
+        #[cfg(feature = "internal_audio")]
+        let orchestrator = orchestrator.with_modality::<Audio>(Analyzer::<Audio>::new(), anon);
 
         Ok(orchestrator)
     }
@@ -253,8 +263,8 @@ fn assemble<'a, M, O, P>(
 ) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    O: Fn(Anonymizer<M>, Uuid, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
-    P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>, Error>,
+    O: Fn(Anonymizer<M>, Uuid, &ModalityRedactions) -> Result<Anonymizer<M>>,
+    P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
     for (id, action) in overrides {

@@ -1,16 +1,16 @@
 //! Per-modality operator vocabularies.
 //!
-//! Each submodule owns the `Op` enum plus a wire → runtime
-//! conversion — `From<&{Image,Audio}Redaction>` (infallible) or
-//! `TryFrom<&TextRedaction>` (fallible; text has stateful
-//! operators that aren't wired yet). Per-modality entry files in
-//! [`super`] dispatch a converted `Op` onto a
-//! [`super::compile::Target`] via `Op::attach_to`.
+//! [`text`] owns the text-and-tabular wire → runtime bridge: one
+//! [`compile_and_attach`] function that matches a
+//! [`TextRedaction`] and calls [`Target::attach_with`] with the
+//! concrete elide operator. Image and audio each own their own
+//! `Op` enum + `attach_to` dispatcher; those two vocabularies
+//! don't overlap with text.
 //!
-//! Text and tabular share the text vocabulary — cells in a
-//! tabular are `TextBacked` in elide, so every text operator
-//! also implements `Operator<Tabular>`. Image and audio each own
-//! their vocabulary; the operators don't cross modalities.
+//! [`text`]: self::text
+//! [`compile_and_attach`]: self::text::compile_and_attach
+//! [`Target::attach_with`]: super::compile::Target::attach_with
+//! [`TextRedaction`]: nvisy_schema::policy::redaction::TextRedaction
 
 #[cfg(feature = "internal_audio")]
 pub(super) mod audio;

@@ -2,7 +2,7 @@
 //! [`Anonymizer<Image>`].
 
 use elide::redaction::Anonymizer;
-use elide_core::Error;
+use elide_core::Result;
 use elide_core::modality::image::Image;
 use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::ModalityRedactions;
@@ -21,7 +21,7 @@ use super::operator::image::ImageOp;
 pub(crate) fn attach_policies_image<'a>(
     anonymizer: Anonymizer<Image>,
     policies: impl Iterator<Item = &'a PolicyDefinition>,
-) -> Result<Anonymizer<Image>, Error> {
+) -> Result<Anonymizer<Image>> {
     attach_policies(anonymizer, policies, compile_one)
 }
 
@@ -31,14 +31,14 @@ pub(crate) fn attach_override_image(
     anonymizer: Anonymizer<Image>,
     entity_id: Uuid,
     redactions: &ModalityRedactions,
-) -> Result<Anonymizer<Image>, Error> {
+) -> Result<Anonymizer<Image>> {
     attach_one_override(anonymizer, entity_id, redactions, compile_one)
 }
 
 fn compile_one(
     target: Target<'_, Image>,
     redactions: &ModalityRedactions,
-) -> Result<Anonymizer<Image>, Error> {
+) -> Result<Anonymizer<Image>> {
     let Some(spec) = &redactions.image else {
         return Ok(target.passthrough());
     };

@@ -4,19 +4,17 @@
 //!
 //! Both variants carry the same identity/description fields; the
 //! shape differs only in how targets are selected. The engine
-//! compiles either shape down through the same
-//! [`Anonymizer`] entry points:
+//! compiles either shape into elide [`Rule`]s attached via
+//! [`Anonymizer::with`]:
 //!
 //! - **Predicated** rule → the `predicate` compiles into an elide
 //!   selector. Fast paths:
-//!   - [`Predicate::LabelOneOf`] with a single label →
-//!     [`Anonymizer::with_label`]
-//!   - [`Predicate::TagOneOf`] with a single tag →
-//!     [`Anonymizer::with_tag`]
-//!   - anything else → [`Anonymizer::with_catalog_predicate`]
+//!   - [`Predicate::LabelOneOf`] with a single label → [`Rule::label`]
+//!   - [`Predicate::TagOneOf`] with a single tag → [`Rule::tag`]
+//!   - anything else → [`Rule::predicate`]
 //! - **Table** rule → each `(label, action)` entry attaches as
-//!   [`Anonymizer::with_label`] directly; the table is sugar over
-//!   N predicated rules with identical id/name/description.
+//!   [`Rule::label`] directly; the table is sugar over N
+//!   predicated rules with identical id/name/description.
 //!
 //! Table rules keep templates that need per-label operator
 //! dispatch (HIPAA Safe Harbor identifier fan-out: date →
@@ -32,10 +30,11 @@
 //! [`Predicate`]: super::predicate::Predicate
 //! [`Predicate::LabelOneOf`]: super::predicate::Predicate::LabelOneOf
 //! [`Predicate::TagOneOf`]: super::predicate::Predicate::TagOneOf
-//! [`Anonymizer`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer
-//! [`Anonymizer::with_label`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_label
-//! [`Anonymizer::with_tag`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_tag
-//! [`Anonymizer::with_catalog_predicate`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_catalog_predicate
+//! [`Anonymizer::with`]: elide_redaction::Anonymizer::with
+//! [`Rule`]: elide_redaction::Rule
+//! [`Rule::label`]: elide_redaction::Rule::label
+//! [`Rule::tag`]: elide_redaction::Rule::tag
+//! [`Rule::predicate`]: elide_redaction::Rule::predicate
 
 use elide_core::entity::LabelRef;
 use hipstr::HipStr;
@@ -153,14 +152,14 @@ pub struct PredicatedRule {
 
 /// Per-label table rule: N labels, N actions, one shared identity.
 ///
-/// Each entry compiles to an [`Anonymizer::with_label`] attachment
-/// under this rule's shared UUID / name / description — so the
-/// audit trail records "rule X fired" without exposing the fan-out
-/// to the reviewer. Meant for templates where a single policy
-/// intent (e.g. "HIPAA Safe Harbor identifiers") routes different
-/// labels to different operators.
+/// Each entry compiles to a [`Rule::label`] attachment under this
+/// rule's shared UUID / name / description — so the audit trail
+/// records "rule X fired" without exposing the fan-out to the
+/// reviewer. Meant for templates where a single policy intent
+/// (e.g. "HIPAA Safe Harbor identifiers") routes different labels
+/// to different operators.
 ///
-/// [`Anonymizer::with_label`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_label
+/// [`Rule::label`]: elide_redaction::Rule::label
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TableRule {
@@ -180,12 +179,10 @@ pub struct TableRule {
     /// the policy fallback.
     ///
     /// A [`Vec`] rather than a map keeps the author-supplied
-    /// order — elide's anonymizer treats attach order as a
-    /// tie-break, so the wire keeping the caller's order buys
-    /// deterministic audits. Duplicate labels are the caller's
-    /// bug; the engine attaches every entry, and elide's
-    /// `Anonymizer` overwrites earlier attachments with later
-    /// ones for the same label.
+    /// order — elide's anonymizer is first-match-wins, so wire
+    /// order determines which entry fires when two match the
+    /// same entity. Duplicate labels are the caller's bug; the
+    /// engine attaches every entry, and the first one wins.
     pub operators: Vec<LabelEntry>,
 }
 

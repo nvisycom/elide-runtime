@@ -117,7 +117,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         )
         .await
         .expect("analyze succeeds");
-    engine
+    let redacted = engine
         .anonymize(
             raw_txt(),
             std::slice::from_ref(&policy),
@@ -135,12 +135,27 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         redaction_hits(&analyzed, "phone_number") >= 1,
         "phone entries in the sample should each get a redaction event",
     );
-    // Both branches share the same rule UUID via elide's Attribution.
-    // Cross-verify one entity's attribution names the table rule.
+
+    // The interesting invariant: each label routes to *its own*
+    // operator. Inspect the redacted body — the phone entries must
+    // read `[phone]` (Replace template), and the raw email address
+    // must be gone (Erase). Both are strong enough that a bug
+    // routing everything through one operator would trip them.
+    let body = std::str::from_utf8(&redacted.bytes).expect("body is utf-8");
+    assert!(
+        body.contains("[phone]"),
+        "phone entries must render as the Replace template `[phone]`; body was:\n{body}",
+    );
+    assert!(
+        !body.contains("jane.doe@example.com"),
+        "email entries must be erased, not replaced; body was:\n{body}",
+    );
+
+    // Attribution: both branches share the shared rule UUID.
     let Some(EntityGroup::Text(entities)) = analyzed.body.as_ref() else {
         panic!("expected text body");
     };
-    let sample_event = entities
+    let attribution = entities
         .iter()
         .find(|r| r.entity.label.as_str() == "email_address")
         .and_then(|r| {
@@ -155,7 +170,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         })
         .expect("email entity must have a redaction event with an attribution");
     assert_eq!(
-        sample_event.description.as_deref(),
+        attribution.description.as_deref(),
         Some(rule_id.to_string().as_str()),
         "attribution.description must carry the shared rule UUID",
     );

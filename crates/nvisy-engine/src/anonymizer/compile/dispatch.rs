@@ -7,7 +7,7 @@
 //!   whose redaction spec carries this modality compiles its
 //!   operator and attaches it (rule predicate + attribution).
 //! - Then a policy `fallback` with this modality's arm set
-//!   becomes the anonymizer's [`with_fallback`].
+//!   attaches as a [`Rule::fallback`] on the anonymizer.
 //!
 //! The per-modality differences are exactly two: which
 //! `redactions.{modality}` field to read, and how to build (then
@@ -16,7 +16,7 @@
 //! every per-modality file stays under ~50 lines — just the
 //! `Op` enum + `build` + an `attach_to` dispatcher.
 //!
-//! [`with_fallback`]: elide::redaction::Anonymizer::with_fallback
+//! [`Rule::fallback`]: elide::redaction::Rule::fallback
 
 use elide::redaction::{Anonymizer, Rule};
 use elide_core::Result;
@@ -42,8 +42,10 @@ pub(in crate::anonymizer) enum Target<'a, M: Modality> {
         predicate: &'a Predicate,
         attribution: Attribution,
     },
-    /// PolicyDefinition `fallback`: catch-all redaction with `reason: None`.
-    /// Maps to [`Anonymizer::with_fallback`] + `because`.
+    /// PolicyDefinition `fallback`: catch-all redaction attached
+    /// via [`Rule::fallback`] with a `because(fallback_attribution)`.
+    ///
+    /// [`Rule::fallback`]: elide::redaction::Rule::fallback
     Fallback {
         anonymizer: Anonymizer<M>,
         attribution: Attribution,

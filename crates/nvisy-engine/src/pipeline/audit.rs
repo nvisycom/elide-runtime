@@ -28,10 +28,11 @@ use std::collections::HashMap;
 #[cfg(feature = "audit-json")]
 use std::io::Write;
 
-use elide_core::primitive::{CountryCode, Languages};
 use elide::recognition::ScopeMetadata;
+use elide_core::primitive::{CountryCode, Languages};
 #[cfg(feature = "audit-json")]
 use elide_core::{Error, ErrorKind, Result};
+use nvisy_schema::plan::scope_metadata_is_empty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -136,17 +137,6 @@ pub struct AuditContext {
     ///
     /// [`Document`]: nvisy_schema::file::Document
     pub correlation_id: Uuid,
-}
-
-/// Whether the [`ScopeMetadata`] carries no assertions.
-///
-/// Used by [`AuditContext::metadata`]'s `skip_serializing_if` to
-/// keep the serialized `context` block minimal when the caller
-/// asserts nothing beyond the typed fields. Local to this module
-/// because elide's `ScopeMetadata` doesn't ship an `is_empty` of
-/// its own; a one-line helper is cheaper than a wrapper type.
-fn scope_metadata_is_empty(metadata: &ScopeMetadata) -> bool {
-    metadata.tags.is_empty() && metadata.purpose.is_none() && metadata.audience.is_empty()
 }
 
 #[cfg(feature = "audit-json")]

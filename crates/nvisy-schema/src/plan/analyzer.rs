@@ -94,13 +94,15 @@ pub struct ScopeParams {
     pub metadata: ScopeMetadata,
 }
 
-/// Whether the [`ScopeMetadata`] carries no assertions.
+/// Whether a [`ScopeMetadata`] carries no assertions — all three
+/// fields (`tags`, `purpose`, `audience`) empty.
 ///
-/// Used by [`ScopeParams::metadata`]'s `skip_serializing_if` to
-/// keep the serialized `scope` block minimal when the caller
-/// asserts nothing beyond the typed fields. Local to this module
-/// because elide's `ScopeMetadata` doesn't ship an `is_empty` of
-/// its own; a one-line helper is cheaper than a wrapper type.
-fn scope_metadata_is_empty(metadata: &ScopeMetadata) -> bool {
+/// Used as the `skip_serializing_if` for every wire type that
+/// carries a `ScopeMetadata` (both [`ScopeParams::metadata`] here
+/// and the engine-side `AuditContext::metadata`) so a serialized
+/// block stays minimal when the caller asserts nothing beyond
+/// the typed fields. Exposed because elide's `ScopeMetadata`
+/// doesn't ship an `is_empty` of its own.
+pub fn scope_metadata_is_empty(metadata: &ScopeMetadata) -> bool {
     metadata.tags.is_empty() && metadata.purpose.is_none() && metadata.audience.is_empty()
 }

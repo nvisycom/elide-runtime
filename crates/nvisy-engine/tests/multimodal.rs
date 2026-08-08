@@ -154,6 +154,8 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
 
     let mut spec = default_spec();
     spec.scope.metadata.tags = vec!["gdpr-request".into()];
+    spec.scope.metadata.purpose = Some("dsar-response".into());
+    spec.scope.metadata.audience = vec!["data-subject".into(), "compliance-review".into()];
     let doc = raw_docx();
     let correlation_id = doc.correlation_id;
 
@@ -165,6 +167,14 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
     assert_eq!(
         audit.context.metadata.tags, spec.scope.metadata.tags,
         "audit context must mirror the caller-asserted scope tags",
+    );
+    assert_eq!(
+        audit.context.metadata.purpose, spec.scope.metadata.purpose,
+        "audit context must mirror the caller-asserted scope purpose",
+    );
+    assert_eq!(
+        audit.context.metadata.audience, spec.scope.metadata.audience,
+        "audit context must mirror the caller-asserted scope audience",
     );
     assert_eq!(
         audit.context.correlation_id, correlation_id,

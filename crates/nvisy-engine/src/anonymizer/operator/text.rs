@@ -9,15 +9,18 @@
 //! their [`Target`] here.
 //!
 //! Every arm returns an `Arc<dyn Operator<M> + Send + Sync +
-//! 'static>` — [`Arc`] so it stays [`Clone`] (elide's
-//! `Anonymizer::with_label` requires `O: Operator<M> + Clone`).
-//! Elide ships a blanket `impl<M, T: Operator<M> + ?Sized>
-//! Operator<M> for Arc<T>` (elide #160), so the shared handle is
-//! itself an operator and drops straight into `with_label`. That
-//! turns the wire → runtime bridge into a `match` returning one
-//! type — no per-variant enum, no fan-out of concrete
+//! 'static>` — an [`Arc`] rather than a [`Box`] so the same
+//! handle can seed a [`Fake`] fallback as easily as it can
+//! attach on its own. Elide ships a blanket
+//! `impl<M, T: Operator<M> + ?Sized> Operator<M> for Arc<T>`
+//! (elide #160), so the shared handle is itself an operator and
+//! drops straight into [`Rule::label`]. That turns the wire →
+//! runtime bridge into a `match` returning one type — no
+//! per-variant enum, no fan-out of concrete
 //! `WithFallback<primary, fallback>` combinations at the source
 //! level.
+//!
+//! [`Rule::label`]: elide::redaction::Rule::label
 
 use std::sync::Arc;
 
@@ -65,16 +68,14 @@ pub(crate) struct TextOperatorContext {
 
 /// Type-erased shared handle to a modality-`M` operator.
 ///
-/// `Arc<dyn Operator<M>>` — [`Arc`] rather than [`Box`] because
-/// elide's [`Anonymizer::with_label`] requires `O: Operator<M>
-/// + Clone`, and only `Arc` (not `Box`) makes a trait object
-/// cloneable. Elide's blanket forward `impl<M, T: Operator<M>
-/// + ?Sized> Operator<M> for Arc<T>` (elide #160) makes the
-/// shared handle itself an operator, so it drops directly into
-/// every elide entry point that accepts an `impl Operator<M>
-/// + Clone + 'static` — no unwrap, no dispatcher.
+/// `Arc<dyn Operator<M>>` — [`Arc`] rather than [`Box`] so the
+/// same handle can seed a [`Fake`] fallback and still attach as
+/// its own operator. Elide's blanket forward
+/// `impl<M, T: Operator<M> + ?Sized> Operator<M> for Arc<T>`
+/// (elide #160) makes the shared handle itself an operator, so
+/// it drops directly into [`Rule::label`] with no unwrap.
 ///
-/// [`Anonymizer::with_label`]: elide::redaction::Anonymizer::with_label
+/// [`Rule::label`]: elide::redaction::Rule::label
 pub(in crate::anonymizer) type SharedTextOp<M> = Arc<dyn Operator<M> + Send + Sync + 'static>;
 
 /// Compile `spec` into a boxed operator and attach it to `target`.
@@ -92,17 +93,16 @@ where
     M: Modality + Send + Sync + 'static,
     Erase: Operator<M>,
     Keep: Operator<M>,
-    Mask: Operator<M> + Clone,
-    Replace: Operator<M> + Clone,
-    Sha2Hash: Operator<M> + Clone,
-    HmacHash: Operator<M> + Clone,
-    Truncate: Operator<M> + Clone,
-    Clamp: TryOperator<M> + Clone,
-    GeneralizeDate: TryOperator<M> + Clone,
-    Fake<Replace>: Operator<M> + Clone,
-    Pseudonymize<InMemoryVault<(LabelRef, String), TextReplacement>, RandomToken>:
-        Operator<M> + Clone,
-    AesEncrypt: Operator<M> + Clone,
+    Mask: Operator<M>,
+    Replace: Operator<M>,
+    Sha2Hash: Operator<M>,
+    HmacHash: Operator<M>,
+    Truncate: Operator<M>,
+    Clamp: TryOperator<M>,
+    GeneralizeDate: TryOperator<M>,
+    Fake<Replace>: Operator<M>,
+    Pseudonymize<InMemoryVault<(LabelRef, String), TextReplacement>, RandomToken>: Operator<M>,
+    AesEncrypt: Operator<M>,
 {
     Ok(target.attach_with(build(spec, ctx)?))
 }
@@ -130,17 +130,16 @@ where
     M: Modality + Send + Sync + 'static,
     Erase: Operator<M>,
     Keep: Operator<M>,
-    Mask: Operator<M> + Clone,
-    Replace: Operator<M> + Clone,
-    Sha2Hash: Operator<M> + Clone,
-    HmacHash: Operator<M> + Clone,
-    Truncate: Operator<M> + Clone,
-    Clamp: TryOperator<M> + Clone,
-    GeneralizeDate: TryOperator<M> + Clone,
-    Fake<Replace>: Operator<M> + Clone,
-    Pseudonymize<InMemoryVault<(LabelRef, String), TextReplacement>, RandomToken>:
-        Operator<M> + Clone,
-    AesEncrypt: Operator<M> + Clone,
+    Mask: Operator<M>,
+    Replace: Operator<M>,
+    Sha2Hash: Operator<M>,
+    HmacHash: Operator<M>,
+    Truncate: Operator<M>,
+    Clamp: TryOperator<M>,
+    GeneralizeDate: TryOperator<M>,
+    Fake<Replace>: Operator<M>,
+    Pseudonymize<InMemoryVault<(LabelRef, String), TextReplacement>, RandomToken>: Operator<M>,
+    AesEncrypt: Operator<M>,
 {
     Ok(match spec {
         TextRedaction::Erase => Arc::new(Erase),
@@ -229,11 +228,11 @@ fn box_with_optional_fallback<M, P>(
 ) -> SharedTextOp<M>
 where
     M: Modality + Send + Sync + 'static,
-    P: TryOperator<M> + Clone + Send + Sync + 'static,
+    P: TryOperator<M> + Send + Sync + 'static,
     Erase: Operator<M>,
     Keep: Operator<M>,
-    Replace: Operator<M> + Clone,
-    Mask: Operator<M> + Clone,
+    Replace: Operator<M>,
+    Mask: Operator<M>,
 {
     match fallback {
         None => Arc::new(primary),

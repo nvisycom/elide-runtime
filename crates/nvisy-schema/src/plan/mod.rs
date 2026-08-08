@@ -36,7 +36,7 @@ mod enricher;
 mod pattern;
 mod recognizer;
 
-pub use self::analyzer::{AnalyzerParams, ScopeParams};
+pub use self::analyzer::{AnalyzerParams, ScopeParams, scope_metadata_is_empty};
 pub use self::annotation::AnyAnnotations;
 pub use self::deduplication::{DeduplicationParams, MergingStrategyParams, TiebreakerParams};
 pub use self::enricher::{

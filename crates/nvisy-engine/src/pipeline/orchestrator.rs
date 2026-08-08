@@ -214,15 +214,16 @@ impl Engine {
         };
 
         #[cfg(feature = "internal_audio")]
-        let anon = assemble::<Audio, _, _>(
-            &catalog,
-            overrides,
-            policies,
-            attach_override_audio,
-            attach_policies_audio,
-        )?;
-        #[cfg(feature = "internal_audio")]
-        let orchestrator = orchestrator.with_modality::<Audio>(Analyzer::<Audio>::new(), anon);
+        let orchestrator = {
+            let anon = assemble::<Audio, _, _>(
+                &catalog,
+                overrides,
+                policies,
+                attach_override_audio,
+                attach_policies_audio,
+            )?;
+            orchestrator.with_modality::<Audio>(Analyzer::<Audio>::new(), anon)
+        };
 
         Ok(orchestrator)
     }

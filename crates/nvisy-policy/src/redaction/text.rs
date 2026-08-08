@@ -109,7 +109,7 @@ impl ClampBucket {
         match self {
             Self::Plain(text) => clamp.with_ceiling(threshold, text.clone()),
             Self::Format { format } => clamp.with_ceiling_fmt(threshold, format.clone()),
-            Self::Localized(map) => clamp.with_ceiling(threshold, to_localized(map)),
+            Self::Localized(map) => clamp.with_ceiling(threshold, localized(map)),
         }
     }
 
@@ -120,17 +120,14 @@ impl ClampBucket {
         match self {
             Self::Plain(text) => clamp.with_floor(threshold, text.clone()),
             Self::Format { format } => clamp.with_floor_fmt(threshold, format.clone()),
-            Self::Localized(map) => clamp.with_floor(threshold, to_localized(map)),
+            Self::Localized(map) => clamp.with_floor(threshold, localized(map)),
         }
     }
 }
 
-/// Convert a per-language string map into elide's [`LocalizedText`]
-/// carrier. `String` moves into `HipStr` without a re-allocation
-/// (`HipStr` reuses the owned buffer).
-fn to_localized(map: &HashMap<LanguageTag, String>) -> LocalizedText<HipStr<'static>> {
+fn localized(map: &HashMap<LanguageTag, String>) -> LocalizedText<HipStr<'static>> {
     map.iter()
-        .map(|(lang, value)| (lang.clone(), value.clone().into()))
+        .map(|(lang, value)| (lang.clone(), HipStr::from(value.as_str())))
         .collect()
 }
 
@@ -275,7 +272,9 @@ pub enum TextRedaction {
     /// this *shortens* the string — the dropped characters leave
     /// no placeholder. The PCI DSS §3.5.1 truncation posture for
     /// stored PAN: `Truncate { keep_prefix: 6, keep_suffix: 4 }`
-    /// yields `"41111111234"` (not `"411111********1234"`).
+    /// on `"4111111111111234"` yields `"4111111234"` (10 chars),
+    /// where the analogous [`Mask`] would yield `"411111******1234"`
+    /// (16 chars, length preserved).
     ///
     /// A configuration whose kept regions cover (or overlap) the
     /// whole value is rejected at apply time; the operator errors

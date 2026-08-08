@@ -40,7 +40,6 @@ nvisy-policy = { workspace = true, features = [] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = ["uuid1"] }
 
 # Primitive datatypes

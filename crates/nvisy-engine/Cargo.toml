@@ -106,12 +106,6 @@ serde_json = { workspace = true, features = [], optional = true }
 schemars = { workspace = true, features = [] }
 csv = { workspace = true, features = [], optional = true }
 
-# Derive macros and error handling
-thiserror = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["display"] }
-derive_builder = { workspace = true, features = [] }
-strum = { workspace = true, features = ["derive"] }
-
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
@@ -124,13 +118,13 @@ tracing = { workspace = true, features = [] }
 nvisy-engine = { path = ".", features = ["test-utils", "audit-json", "audit-csv"] }
 nvisy-template = { workspace = true }
 
-# Primitive datatypes
-uuid = { workspace = true, features = ["v7"] }
-bytes = { workspace = true, features = [] }
-hipstr = { workspace = true, features = [] }
-
 # Serialization
 serde_json = { workspace = true, features = [] }
+
+# Primitive datatypes
+bytes = { workspace = true, features = [] }
+hipstr = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v7"] }
 
 # Test utilities
 zip = { workspace = true }

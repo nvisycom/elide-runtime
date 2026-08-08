@@ -33,18 +33,10 @@ documentation = "https://docs.rs/nvisy-runtime"
 
 # Elide crates
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-codec = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-context = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-detection = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-engine = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-pattern = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-redaction = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Elide extensions
 elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }

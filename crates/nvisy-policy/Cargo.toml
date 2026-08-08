@@ -32,7 +32,6 @@ serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true, features = ["uuid1"] }
 
 # Derive macros and error handling
-derive_more = { workspace = true, features = ["display"] }
 strum = { workspace = true, features = ["derive"] }
 
 # Primitive datatypes

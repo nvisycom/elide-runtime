@@ -23,11 +23,11 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+# Elide crates
+elide-core = { workspace = true, features = ["serde"] }
+
 # Internal crates
 nvisy-policy = { workspace = true }
-
-# Elide crates — for LabelRef in template bodies
-elide-core = { workspace = true, features = ["serde"] }
 
 # Primitive datatypes
 hipstr = { workspace = true, features = ["serde"] }

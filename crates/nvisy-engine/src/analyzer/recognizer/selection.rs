@@ -10,7 +10,7 @@
 
 use std::collections::HashSet;
 
-use elide_core::{Error, ErrorKind};
+use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::plan::ProviderSelection;
 
 use crate::provider::{LlmRecognizer, NerRecognizer};
@@ -42,7 +42,7 @@ pub(super) fn select<'a, T: Named>(
     selection: Option<&ProviderSelection>,
     lineup: &'a [T],
     field: &'static str,
-) -> Result<Vec<&'a T>, Error> {
+) -> Result<Vec<&'a T>> {
     match selection {
         None => Ok(lineup.iter().collect()),
         Some(ProviderSelection::All(false)) => Ok(Vec::new()),
@@ -60,7 +60,7 @@ fn select_allowlisted<'a, T: Named>(
     lineup: &'a [T],
     names: &[String],
     field: &'static str,
-) -> Result<Vec<&'a T>, Error> {
+) -> Result<Vec<&'a T>> {
     if names.is_empty() {
         return Err(empty_allowlist(field));
     }

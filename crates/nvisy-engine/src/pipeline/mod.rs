@@ -84,6 +84,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
+use elide::redaction::operators::KeyProvider;
 use elide::{Directives, Report};
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
@@ -95,8 +96,8 @@ use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::ModalityRedactions;
+use nvisy_schema::policy::{LabelGroup, PolicyDefinition};
 use uuid::Uuid;
 
 pub use self::audit::{Audit, AuditContext};
@@ -108,14 +109,18 @@ use crate::provider::ner::NerConfig;
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
 /// Bundles the codec registry, the deployment's NER / LLM
-/// lineups, the pattern-recognizer guardrails, and the
+/// lineups, the pattern-recognizer guardrails, the shared
+/// [`KeyProvider`] (for `HmacHash` and `Encrypt`), and the
 /// per-request orchestrator constructor.
+///
+/// [`KeyProvider`]: elide::redaction::operators::KeyProvider
 #[derive(Clone, Default)]
 pub struct Engine {
     formats: Arc<FormatRegistry>,
     ner: Arc<NerConfig>,
     llm: Arc<LlmConfig>,
     pattern_guardrails: PatternGuardrails,
+    pub(super) key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 impl Engine {
@@ -123,16 +128,20 @@ impl Engine {
     ///
     /// Uses [`FormatRegistry::with_builtin`] plus empty NER and
     /// LLM lineups. Callers that want NER or LLM recognition
-    /// must chain [`with_ner`] or [`with_llm`].
+    /// must chain [`with_ner`] or [`with_llm`]. Callers whose
+    /// policies use `HmacHash` or `Encrypt` must wire a key
+    /// provider via [`with_key_provider`].
     ///
     /// [`with_ner`]: Self::with_ner
     /// [`with_llm`]: Self::with_llm
+    /// [`with_key_provider`]: Self::with_key_provider
     pub fn new() -> Self {
         Self {
             formats: Arc::new(FormatRegistry::with_builtin()),
             ner: Arc::new(NerConfig::default()),
             llm: Arc::new(LlmConfig::default()),
             pattern_guardrails: PatternGuardrails::default(),
+            key_provider: None,
         }
     }
 
@@ -155,6 +164,23 @@ impl Engine {
     #[must_use]
     pub fn with_llm(mut self, llm: LlmConfig) -> Self {
         self.llm = Arc::new(llm);
+        self
+    }
+
+    /// Set the shared cryptographic [`KeyProvider`] the
+    /// `HmacHash` and `Encrypt` operators resolve their keys
+    /// through.
+    ///
+    /// One provider backs both operators; per-label keys are the
+    /// provider's own responsibility. A policy that names either
+    /// operator without a provider wired errors at request
+    /// compile time — the audit trail names the operator so a
+    /// misconfiguration surfaces at load, not silently.
+    ///
+    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    #[must_use]
+    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+        self.key_provider = Some(provider);
         self
     }
 
@@ -214,26 +240,34 @@ impl Engine {
     ///
     /// `policies` contributes the label catalog (each
     /// [`PolicyDefinition::labels`] unions in) that drives
-    /// recognizer dispatch. The catalog is not persisted onto the
-    /// returned [`Audit`] — the anonymize path re-derives it from
-    /// the policy set it was handed. Pass the same policy set to
+    /// recognizer dispatch. `groups` are the [`LabelGroup`]s the
+    /// policies' `LabelInGroup` predicates reference by name; the
+    /// engine stamps a `group:<name>` synthetic tag on every
+    /// listed label at request-compile time and rejects any
+    /// group reference the request didn't submit.
+    ///
+    /// The catalog is not persisted onto the returned [`Audit`] —
+    /// the anonymize path re-derives it from the policy set it
+    /// was handed. Pass the same policy set + groups to
     /// [`Self::anonymize`] so its rule bodies match against a
     /// catalog they helped define.
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     /// [`EntityGroup`]: crate::entity::EntityGroup
+    /// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
     /// [`PolicyDefinition::labels`]: nvisy_schema::policy::PolicyDefinition::labels
     pub async fn analyze(
         &self,
         document: Document,
         policies: &[PolicyDefinition],
+        groups: &[LabelGroup],
         spec: &AnalyzerParams,
     ) -> Result<Audit> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
         let (orchestrator, context) =
-            self.build_analyze_orchestrator(spec, policies, correlation_id)?;
+            self.build_analyze_orchestrator(spec, policies, groups, correlation_id)?;
         let directives = build_analyze_directives(spec);
         let mut report = orchestrator.analyze(&mut handle, &directives).await?;
 
@@ -301,13 +335,17 @@ impl Engine {
     ///
     /// `policies` is the policy set already filtered by
     /// [`PolicyDefinition::when`] against the per-doc facts; the
-    /// engine does not re-evaluate predicates. The label catalog
-    /// is re-derived from this same policy set on every call —
-    /// policies are the sole source of label vocabulary. The
-    /// asserted scope (languages, jurisdictions, tags) travels on
-    /// [`Audit::context`] from analyze. The document's
-    /// `correlation_id` is threaded into tracing spans on the
-    /// redaction path.
+    /// engine does not re-evaluate predicates. `groups` are the
+    /// [`LabelGroup`]s the policies' `LabelInGroup` predicates
+    /// reference by name — same shape as [`Self::analyze`]. The
+    /// label catalog is re-derived from `policies` + `groups` on
+    /// every call — policies are the sole source of label
+    /// vocabulary. The asserted scope (languages, jurisdictions,
+    /// metadata) travels on [`Audit::context`] from analyze. The
+    /// document's `correlation_id` is threaded into tracing spans
+    /// on the redaction path.
+    ///
+    /// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
     ///
     /// The body's modality (read from `audit.body`'s
     /// [`EntityGroup`] variant) pins which typed handle the
@@ -322,6 +360,7 @@ impl Engine {
         &self,
         document: Document,
         policies: &[PolicyDefinition],
+        groups: &[LabelGroup],
         audit: &mut Audit,
     ) -> Result<Document> {
         let body_group = audit.body.as_ref().ok_or_else(|| {
@@ -346,6 +385,7 @@ impl Engine {
         let orchestrator = self.build_anonymize_orchestrator(
             &audit.context,
             policies,
+            groups,
             &overrides,
             correlation_id,
         )?;
@@ -403,11 +443,7 @@ fn build_analyze_directives(spec: &AnalyzerParams) -> Directives {
 /// `TypeId`. Feature-gated per modality; a part whose modality is
 /// disabled in this build falls through to `None`, and the caller
 /// treats it the same as a part the engine doesn't model.
-fn take_part_dispatch(
-    report: &mut Report,
-    id: &PartId,
-    type_id: TypeId,
-) -> Option<EntityGroup> {
+fn take_part_dispatch(report: &mut Report, id: &PartId, type_id: TypeId) -> Option<EntityGroup> {
     if type_id == TypeId::of::<Text>() {
         return take_part::<Text>(report, id);
     }

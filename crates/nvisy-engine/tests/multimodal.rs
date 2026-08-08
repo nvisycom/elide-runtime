@@ -67,7 +67,7 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
     let analyzed = engine
-        .analyze(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[], &[], &default_spec())
         .await
         .expect("analyze succeeds");
 
@@ -97,7 +97,7 @@ async fn analyze_captures_text_body_and_image_part() {
 async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
     let mut analyzed = engine
-        .analyze(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[], &[], &default_spec())
         .await
         .expect("analyze succeeds");
     let body_group = analyzed.body.as_ref().expect("body group present");
@@ -124,7 +124,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     });
 
     let outcome = engine
-        .anonymize(raw_docx(), &[], &mut analyzed)
+        .anonymize(raw_docx(), &[], &[], &mut analyzed)
         .await
         .expect("anonymize succeeds");
     write_artefact("sample", "out.docx", &outcome.bytes);
@@ -153,18 +153,28 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
     let engine = engine();
 
     let mut spec = default_spec();
-    spec.scope.tags = vec!["gdpr-request".to_owned()];
+    spec.scope.metadata.tags = vec!["gdpr-request".into()];
+    spec.scope.metadata.purpose = Some("dsar-response".into());
+    spec.scope.metadata.audience = vec!["data-subject".into(), "compliance-review".into()];
     let doc = raw_docx();
     let correlation_id = doc.correlation_id;
 
     let audit = engine
-        .analyze(doc, &[], &spec)
+        .analyze(doc, &[], &[], &spec)
         .await
         .expect("analyze succeeds");
 
     assert_eq!(
-        audit.context.tags, spec.scope.tags,
+        audit.context.metadata.tags, spec.scope.metadata.tags,
         "audit context must mirror the caller-asserted scope tags",
+    );
+    assert_eq!(
+        audit.context.metadata.purpose, spec.scope.metadata.purpose,
+        "audit context must mirror the caller-asserted scope purpose",
+    );
+    assert_eq!(
+        audit.context.metadata.audience, spec.scope.metadata.audience,
+        "audit context must mirror the caller-asserted scope audience",
     );
     assert_eq!(
         audit.context.correlation_id, correlation_id,
@@ -190,12 +200,12 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
         retention: Vec::new(),
     };
     let mut analyzed = engine
-        .analyze(raw_docx(), std::slice::from_ref(&policy), &default_spec())
+        .analyze(raw_docx(), std::slice::from_ref(&policy), &[], &default_spec())
         .await
         .expect("analyze succeeds");
 
     engine
-        .anonymize(raw_docx(), std::slice::from_ref(&policy), &mut analyzed)
+        .anonymize(raw_docx(), std::slice::from_ref(&policy), &[], &mut analyzed)
         .await
         .expect("anonymize succeeds when catalog is re-derived from the same policy set");
 }
@@ -204,7 +214,7 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
 async fn audit_rejects_missing_context_on_deserialize() {
     let engine = engine();
     let analyzed = engine
-        .analyze(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[], &[], &default_spec())
         .await
         .expect("analyze succeeds");
     let mut value = serde_json::to_value(&analyzed).expect("serialize");
@@ -223,6 +233,51 @@ async fn audit_rejects_missing_context_on_deserialize() {
 }
 
 #[tokio::test]
+async fn analyze_rejects_policy_that_references_unknown_group() {
+    use nvisy_schema::policy::predicate::Predicate;
+    use nvisy_schema::policy::redaction::TextRedaction;
+    use nvisy_schema::policy::{PolicyRule, PredicatedRule};
+
+    let engine = engine();
+    let rule = PolicyRule::Predicated(Box::new(PredicatedRule {
+        id: uuid::Uuid::now_v7(),
+        name: "sweep".into(),
+        description: None,
+        predicate: Predicate::LabelInGroup {
+            group: "definitely_no_such_group".to_owned(),
+        },
+        action: ModalityRedactions {
+            text: Some(TextRedaction::Erase),
+            ..Default::default()
+        },
+    }));
+    let policy = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "unknown-group".into(),
+        description: None,
+        when: None,
+        labels: Labels::default(),
+        rules: vec![rule],
+        fallback: None,
+        retention: Vec::new(),
+    };
+
+    let err = engine
+        .analyze(
+            raw_docx(),
+            std::slice::from_ref(&policy),
+            &[],
+            &default_spec(),
+        )
+        .await
+        .expect_err("analyze must reject unknown group references");
+    assert!(
+        err.to_string().contains("definitely_no_such_group"),
+        "error must name the unknown group, got: {err}",
+    );
+}
+
+#[tokio::test]
 async fn empty_analyzed_document_anonymize_fails_validation() {
     let engine = engine();
     let mut audit = Audit {
@@ -231,11 +286,11 @@ async fn empty_analyzed_document_anonymize_fails_validation() {
         context: AuditContext {
             languages: Default::default(),
             countries: Vec::new(),
-            tags: Vec::new(),
+            metadata: Default::default(),
             correlation_id: uuid::Uuid::now_v7(),
         },
     };
-    let outcome = engine.anonymize(raw_docx(), &[], &mut audit).await;
+    let outcome = engine.anonymize(raw_docx(), &[], &[], &mut audit).await;
     let err = outcome.expect_err("anonymize must reject a missing body group");
     assert!(
         err.to_string().contains("body group is missing"),

@@ -11,14 +11,14 @@
 
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow};
-use elide_core::Error;
+use elide_core::Result;
 use elide_core::modality::tabular::Tabular;
 use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TabularRedaction};
 use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
-use super::operator::text::TextOp;
+use super::operator::text::{TextOperatorContext, compile_and_attach};
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the
@@ -29,8 +29,11 @@ use super::operator::text::TextOp;
 pub(crate) fn attach_policies_tabular<'a>(
     anonymizer: Anonymizer<Tabular>,
     policies: impl Iterator<Item = &'a PolicyDefinition>,
-) -> Result<Anonymizer<Tabular>, Error> {
-    attach_policies(anonymizer, policies, compile_one)
+    ctx: &TextOperatorContext,
+) -> Result<Anonymizer<Tabular>> {
+    attach_policies(anonymizer, policies, |target, redactions| {
+        compile_one(target, redactions, ctx)
+    })
 }
 
 /// Attach a reviewer override for one entity. A no-op when the
@@ -39,20 +42,22 @@ pub(crate) fn attach_override_tabular(
     anonymizer: Anonymizer<Tabular>,
     entity_id: Uuid,
     redactions: &ModalityRedactions,
-) -> Result<Anonymizer<Tabular>, Error> {
-    attach_one_override(anonymizer, entity_id, redactions, compile_one)
+    ctx: &TextOperatorContext,
+) -> Result<Anonymizer<Tabular>> {
+    attach_one_override(anonymizer, entity_id, redactions, |target, redactions| {
+        compile_one(target, redactions, ctx)
+    })
 }
 
 fn compile_one(
     target: Target<'_, Tabular>,
     redactions: &ModalityRedactions,
-) -> Result<Anonymizer<Tabular>, Error> {
-    let Some(spec) = &redactions.tabular else {
-        return Ok(target.passthrough());
-    };
-    Ok(match spec {
-        TabularRedaction::Cell { spec } => TextOp::try_from(spec)?.attach_to(target),
-        TabularRedaction::DropRow => target.attach_with(DropRow),
-        TabularRedaction::DropColumn => target.attach_with(DropColumn),
-    })
+    ctx: &TextOperatorContext,
+) -> Result<Anonymizer<Tabular>> {
+    match &redactions.tabular {
+        None => Ok(target.passthrough()),
+        Some(TabularRedaction::Cell { spec }) => compile_and_attach(spec, ctx, target),
+        Some(TabularRedaction::DropRow) => Ok(target.attach_with(DropRow)),
+        Some(TabularRedaction::DropColumn) => Ok(target.attach_with(DropColumn)),
+    }
 }

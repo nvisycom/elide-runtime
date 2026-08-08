@@ -22,8 +22,7 @@ use serde::{Deserialize, Serialize};
 use super::text::TextRedaction;
 
 /// Operator spec a `redact` tabular rule carries.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TabularRedaction {
     /// Run a text-modality operator on the matched cell's

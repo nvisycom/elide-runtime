@@ -14,9 +14,9 @@
 use elide::detection::Analyzer;
 use elide::recognition::ner::NerRecognizer;
 use elide_bento::ner::BentoNer;
+use elide_core::Result;
 use elide_core::modality::TextRecognizable;
 use elide_core::recognition::Recognizer;
-use elide_core::Error;
 use nvisy_schema::plan::ProviderSelection;
 
 use super::selection::select;
@@ -37,7 +37,7 @@ pub(in crate::analyzer) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
     ner: &NerConfig,
     selection: Option<&ProviderSelection>,
-) -> Result<Analyzer<M>, Error>
+) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     NerRecognizer: Recognizer<M> + 'static,
@@ -49,10 +49,7 @@ where
     Ok(analyzer)
 }
 
-fn attach_ner_one<M>(
-    analyzer: Analyzer<M>,
-    spec: &ConfigNerRecognizer,
-) -> Result<Analyzer<M>, Error>
+fn attach_ner_one<M>(analyzer: Analyzer<M>, spec: &ConfigNerRecognizer) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     NerRecognizer: Recognizer<M> + 'static,

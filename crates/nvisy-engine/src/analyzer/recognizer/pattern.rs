@@ -31,7 +31,7 @@ use elide::recognition::pattern::{
 use elide_core::modality::TextRecognizable;
 use elide_core::primitive::LanguageTag;
 use elide_core::recognition::Recognizer;
-use elide_core::{Error, ErrorKind};
+use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::plan::{
     CustomDictionary, CustomDictionaryTerm, CustomPatternContext, CustomPatternRule,
     CustomPatternVariant, PatternRecognizerParams,
@@ -52,7 +52,7 @@ pub(in crate::analyzer) fn attach<M>(
     analyzer: Analyzer<M>,
     spec: &PatternRecognizerParams,
     guardrails: &PatternGuardrails,
-) -> Result<Analyzer<M>, Error>
+) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     PatternRecognizer: Recognizer<M> + 'static,
@@ -101,7 +101,7 @@ fn with_limits(
 fn check_custom_count(
     spec: &PatternRecognizerParams,
     guardrails: &PatternGuardrails,
-) -> Result<(), Error> {
+) -> Result<()> {
     let total = spec.custom.len() + spec.custom_dictionaries.len();
     if total > guardrails.max_custom_rules {
         return Err(Error::new(
@@ -120,10 +120,7 @@ fn check_custom_count(
     Ok(())
 }
 
-fn compile_custom_rule(
-    rule: &CustomPatternRule,
-    guardrails: &PatternGuardrails,
-) -> Result<Regex, Error> {
+fn compile_custom_rule(rule: &CustomPatternRule, guardrails: &PatternGuardrails) -> Result<Regex> {
     let variants = rule
         .variants
         .iter()
@@ -142,7 +139,7 @@ fn compile_custom_rule(
 fn compile_custom_variant(
     variant: &CustomPatternVariant,
     guardrails: &PatternGuardrails,
-) -> Result<Variant, Error> {
+) -> Result<Variant> {
     if variant.regex.len() > guardrails.max_regex_source_len {
         return Err(Error::new(
             ErrorKind::Configuration,
@@ -161,7 +158,7 @@ fn compile_custom_variant(
     Ok(out)
 }
 
-fn compile_custom_dictionary(dict: &CustomDictionary) -> Result<Dictionary, Error> {
+fn compile_custom_dictionary(dict: &CustomDictionary) -> Result<Dictionary> {
     let terms = dict
         .terms
         .iter()

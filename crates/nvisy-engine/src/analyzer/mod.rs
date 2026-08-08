@@ -39,7 +39,7 @@ mod tabular;
 mod text;
 
 use elide::detection::Analyzer;
-use elide_core::Error;
+use elide_core::Result;
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
@@ -49,7 +49,7 @@ use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_schema::plan::AnalyzerParams;
 
-pub(crate) use self::catalog::compile_catalog;
+pub(crate) use self::catalog::{GROUP_TAG_PREFIX, compile_catalog};
 pub use self::recognizer::PatternGuardrails;
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
@@ -74,14 +74,14 @@ pub(crate) trait AnalyzerCompile {
         ner: &NerConfig,
         llm: &LlmConfig,
         guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Text>, Error>;
+    ) -> Result<Analyzer<Text>>;
     /// Build the tabular-modality analyzer.
     #[cfg(feature = "internal_tabular")]
     fn compile_tabular(
         &self,
         ner: &NerConfig,
         guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Tabular>, Error>;
+    ) -> Result<Analyzer<Tabular>>;
     /// Build the image-modality analyzer.
     #[cfg(feature = "internal_image")]
     fn compile_image(
@@ -89,14 +89,14 @@ pub(crate) trait AnalyzerCompile {
         ner: &NerConfig,
         llm: &LlmConfig,
         guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Image>, Error>;
+    ) -> Result<Analyzer<Image>>;
     /// Build the audio-modality analyzer.
     #[cfg(feature = "internal_audio")]
     fn compile_audio(
         &self,
         ner: &NerConfig,
         guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Audio>, Error>;
+    ) -> Result<Analyzer<Audio>>;
 }
 
 impl AnalyzerCompile for AnalyzerParams {
@@ -105,7 +105,7 @@ impl AnalyzerCompile for AnalyzerParams {
         ner: &NerConfig,
         llm: &LlmConfig,
         guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Text>, Error> {
+    ) -> Result<Analyzer<Text>> {
         self::text::compile(self, ner, llm, guardrails)
     }
 
@@ -114,7 +114,7 @@ impl AnalyzerCompile for AnalyzerParams {
         &self,
         ner: &NerConfig,
         guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Tabular>, Error> {
+    ) -> Result<Analyzer<Tabular>> {
         self::tabular::compile(self, ner, guardrails)
     }
 
@@ -124,7 +124,7 @@ impl AnalyzerCompile for AnalyzerParams {
         ner: &NerConfig,
         llm: &LlmConfig,
         guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Image>, Error> {
+    ) -> Result<Analyzer<Image>> {
         self::image::compile(self, ner, llm, guardrails)
     }
 
@@ -133,7 +133,7 @@ impl AnalyzerCompile for AnalyzerParams {
         &self,
         ner: &NerConfig,
         guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Audio>, Error> {
+    ) -> Result<Analyzer<Audio>> {
         self::audio::compile(self, ner, guardrails)
     }
 }

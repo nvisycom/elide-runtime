@@ -7,7 +7,7 @@
 //! [`EntityGroup`] wraps a whole `Vec` of records, tagged by
 //! modality, as the unit an [`Audit`] holds in `body` and every
 //! `parts` entry. [`Label`] and [`LabelRef`] name the entity
-//! kind; each label carries per-language [`Localization`] entries
+//! kind; each label carries per-language [`LabelLocale`] entries
 //! (name + optional description) so NER and LLM backends render
 //! labels in the analysis language. [`LabelCatalog`] holds the
 //! deployment's label vocabulary and exposes tag-filter helpers
@@ -27,10 +27,10 @@ mod group;
 mod record;
 
 pub use nvisy_schema::entity::{
-    Attribution, Entity, EntityCoRef, EntityRef, Event, EventKind, Label, LabelCatalog, LabelRef,
-    Localization, ModelEvent, PatternEvent, Provenance, RuleMatch,
+    Attribution, Entity, EntityCoRef, EntityRef, Event, EventKind, Label, LabelCatalog,
+    LabelLocale, LabelRef, ModelEvent, PatternEvent, Provenance, RuleMatch,
 };
 
 pub use self::group::EntityGroup;
-pub use self::record::EntityRecord;
 pub(crate) use self::group::{take_body, take_part};
+pub use self::record::EntityRecord;

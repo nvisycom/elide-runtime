@@ -2,7 +2,7 @@
 //! [`Anonymizer<Audio>`].
 
 use elide::redaction::Anonymizer;
-use elide_core::Error;
+use elide_core::Result;
 use elide_core::modality::audio::Audio;
 use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::ModalityRedactions;
@@ -21,7 +21,7 @@ use super::operator::audio::AudioOp;
 pub(crate) fn attach_policies_audio<'a>(
     anonymizer: Anonymizer<Audio>,
     policies: impl Iterator<Item = &'a PolicyDefinition>,
-) -> Result<Anonymizer<Audio>, Error> {
+) -> Result<Anonymizer<Audio>> {
     attach_policies(anonymizer, policies, compile_one)
 }
 
@@ -31,14 +31,14 @@ pub(crate) fn attach_override_audio(
     anonymizer: Anonymizer<Audio>,
     entity_id: Uuid,
     redactions: &ModalityRedactions,
-) -> Result<Anonymizer<Audio>, Error> {
+) -> Result<Anonymizer<Audio>> {
     attach_one_override(anonymizer, entity_id, redactions, compile_one)
 }
 
 fn compile_one(
     target: Target<'_, Audio>,
     redactions: &ModalityRedactions,
-) -> Result<Anonymizer<Audio>, Error> {
+) -> Result<Anonymizer<Audio>> {
     let Some(spec) = &redactions.audio else {
         return Ok(target.passthrough());
     };

@@ -12,13 +12,19 @@
 //! storage, and multi-tenancy they need on top.
 //!
 //! - [`Engine`]: the entry point. Bundles the codec registry,
-//!   the deployment's NER / LLM lineups, and the per-request
-//!   orchestrator builder.
+//!   the deployment's NER / LLM lineups, the shared
+//!   [`KeyProvider`] for keyed operators (HMAC, AES), and the
+//!   per-request orchestrator builder.
 //! - [`Engine::analyze`] and [`Engine::anonymize`] compile and
 //!   run the full [`elide::Orchestrator`] against one document.
+//!   Both take the request's `policies` and the shared
+//!   `groups` (named [`LabelGroup`]s the policies reference by
+//!   name) alongside the document.
 //! - [`Audit`] carries the analyze → anonymize handoff: the
 //!   modality-tagged entity groups plus an [`AuditContext`] with
 //!   the request's asserted scope and correlation id.
+//!
+//! [`LabelGroup`]: nvisy_schema::policy::LabelGroup
 //!
 //! [`elide`]: elide
 
@@ -26,13 +32,15 @@ mod analyzer;
 mod anonymizer;
 pub mod entity;
 pub mod modality;
-pub mod plan;
 mod pipeline;
+pub mod plan;
 pub mod primitive;
 pub mod provider;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
+#[doc(inline)]
+pub use elide::redaction::operators::{KeyProvider, StaticKey};
 #[doc(inline)]
 pub use elide_core::{Error, ErrorKind, Result};
 #[doc(inline)]

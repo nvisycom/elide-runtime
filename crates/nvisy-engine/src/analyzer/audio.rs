@@ -16,7 +16,7 @@
 //! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 
 use elide::detection::Analyzer;
-use elide_core::Error;
+use elide_core::Result;
 use elide_core::modality::audio::Audio;
 use nvisy_schema::plan::AnalyzerParams;
 
@@ -31,7 +31,7 @@ pub(super) fn compile(
     spec: &AnalyzerParams,
     ner: &NerConfig,
     guardrails: &PatternGuardrails,
-) -> Result<Analyzer<Audio>, Error> {
+) -> Result<Analyzer<Audio>> {
     let mut analyzer = Analyzer::<Audio>::new();
 
     if let Some(stt) = &spec.enrichers.stt {

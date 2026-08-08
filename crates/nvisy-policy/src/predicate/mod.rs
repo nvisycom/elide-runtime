@@ -10,17 +10,20 @@
 //!   against the document-level facts (labels, metadata,
 //!   language, etc.).
 //!
-//! Both are serialisable. Engine compiles a `Predicate` into a
-//! closure passed to
-//! `elide::redaction::Anonymizer::with_catalog_predicate` (or
-//! routed to [`with_label`] / [`with_tag`] fast paths for the
-//! degenerate single-label / single-tag shapes). Leaf variants
-//! inspect entity facts; the composing variants
-//! ([`Predicate::All`], [`Predicate::Any`], [`Predicate::Not`])
-//! wire boolean algebra over them.
+//! Both are serialisable. Engine compiles a `Predicate` into an
+//! elide [`Rule`]: single-label predicates route through
+//! [`Rule::label`], single-tag through [`Rule::tag`], and
+//! everything else through [`Rule::predicate`] with a closure
+//! over the [`MatchContext`]. Leaf variants inspect entity
+//! facts; the composing variants ([`Predicate::All`],
+//! [`Predicate::Any`], [`Predicate::Not`]) wire boolean algebra
+//! over them.
 //!
-//! [`with_label`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_label
-//! [`with_tag`]: https://docs.rs/elide/latest/elide/redaction/Anonymizer::with_tag
+//! [`Rule`]: https://docs.rs/elide/latest/elide/redaction/struct.Rule.html
+//! [`Rule::label`]: https://docs.rs/elide/latest/elide/redaction/struct.Rule.html#method.label
+//! [`Rule::tag`]: https://docs.rs/elide/latest/elide/redaction/struct.Rule.html#method.tag
+//! [`Rule::predicate`]: https://docs.rs/elide/latest/elide/redaction/struct.Rule.html#method.predicate
+//! [`MatchContext`]: https://docs.rs/elide/latest/elide/redaction/struct.MatchContext.html
 
 mod document;
 
@@ -52,6 +55,28 @@ pub enum Predicate {
     TagOneOf {
         /// Allowed tags.
         tags: Vec<String>,
+    },
+    /// Entity label is in the named [`LabelGroup`] submitted
+    /// alongside this request.
+    ///
+    /// Sugar over [`TagOneOf`]`{ tags: ["group:<name>"] }`: the
+    /// engine synthesises a `group:<name>` tag on every label
+    /// listed in the matching group at request-compile time, then
+    /// rewrites `LabelInGroup { group }` to that `TagOneOf` form.
+    /// Same fast path as any authored tag; the group indirection
+    /// keeps the wire compact when templates target a canonical
+    /// label cluster (e.g. `hipaa_18`, `gdpr_article_9`).
+    ///
+    /// An unknown group name is a request-validation error, not a
+    /// silent no-op.
+    ///
+    /// [`LabelGroup`]: super::LabelGroup
+    /// [`TagOneOf`]: Predicate::TagOneOf
+    LabelInGroup {
+        /// Name of the [`LabelGroup`] to match against.
+        ///
+        /// [`LabelGroup`]: super::LabelGroup
+        group: String,
     },
     /// Entity carries the given coreference cluster id.
     CoRef {

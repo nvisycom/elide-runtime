@@ -114,9 +114,9 @@ impl NerBackend for BentoNer {
 
     async fn recognize(&self, request: NerRequest<'_>) -> Result<NerResponse> {
         let mut responses = self.recognize_batch(&[request]).await?;
-        responses.pop().ok_or_else(|| {
-            BentoError::Protocol("bento ner returned an empty batch".into()).into()
-        })
+        responses
+            .pop()
+            .ok_or_else(|| BentoError::Protocol("bento ner returned an empty batch".into()).into())
     }
 
     async fn recognize_batch(&self, requests: &[NerRequest<'_>]) -> Result<Vec<NerResponse>> {

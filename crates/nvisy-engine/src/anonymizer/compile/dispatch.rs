@@ -7,7 +7,7 @@
 //!   whose redaction spec carries this modality compiles its
 //!   operator and attaches it (rule predicate + attribution).
 //! - Then a policy `fallback` with this modality's arm set
-//!   becomes the anonymizer's [`with_fallback`].
+//!   attaches as a [`Rule::fallback`] on the anonymizer.
 //!
 //! The per-modality differences are exactly two: which
 //! `redactions.{modality}` field to read, and how to build (then
@@ -16,10 +16,10 @@
 //! every per-modality file stays under ~50 lines — just the
 //! `Op` enum + `build` + an `attach_to` dispatcher.
 //!
-//! [`with_fallback`]: elide::redaction::Anonymizer::with_fallback
+//! [`Rule::fallback`]: elide::redaction::Rule::fallback
 
-use elide::redaction::Anonymizer;
-use elide_core::Error;
+use elide::redaction::{Anonymizer, Rule};
+use elide_core::Result;
 use elide_core::entity::provenance::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
@@ -35,15 +35,17 @@ use super::selector::{attach, attach_override, fallback_attribution, rule_attrib
 /// `Anonymizer<M>` through the right elide entry point.
 pub(in crate::anonymizer) enum Target<'a, M: Modality> {
     /// Rule attachment: predicate-guarded redaction with a
-    /// `policy_id` + `reason` attribution. Maps to
+    /// name + description attribution. Maps to
     /// [`super::selector::attach`].
     Rule {
         anonymizer: Anonymizer<M>,
         predicate: &'a Predicate,
         attribution: Attribution,
     },
-    /// PolicyDefinition `fallback`: catch-all redaction with `reason: None`.
-    /// Maps to [`Anonymizer::with_fallback`] + `because`.
+    /// PolicyDefinition `fallback`: catch-all redaction attached
+    /// via [`Rule::fallback`] with a `because(fallback_attribution)`.
+    ///
+    /// [`Rule::fallback`]: elide::redaction::Rule::fallback
     Fallback {
         anonymizer: Anonymizer<M>,
         attribution: Attribution,
@@ -64,7 +66,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// dispatchers per modality.
     pub(in crate::anonymizer) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
     where
-        O: Operator<M> + Clone + 'static,
+        O: Operator<M> + 'static,
     {
         match self {
             Target::Rule {
@@ -75,7 +77,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
             Target::Fallback {
                 anonymizer,
                 attribution,
-            } => anonymizer.with_fallback(operator).because(attribution),
+            } => anonymizer.with(Rule::fallback(operator).because(attribution)),
             Target::Override {
                 anonymizer,
                 entity_id,
@@ -108,21 +110,24 @@ pub(in crate::anonymizer) fn attach_policies<'a, M, F>(
     mut anonymizer: Anonymizer<M>,
     policies: impl Iterator<Item = &'a PolicyDefinition>,
     mut compile_one: F,
-) -> Result<Anonymizer<M>, Error>
+) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    F: FnMut(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
+    F: FnMut(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>>,
 {
     for policy in policies {
         for rule in &policy.rules {
-            anonymizer = compile_one(
-                Target::Rule {
-                    anonymizer,
-                    predicate: &rule.predicate,
-                    attribution: rule_attribution(policy, rule),
-                },
-                &rule.action,
-            )?;
+            let attribution = rule_attribution(policy, rule);
+            for (predicate, action) in rule.attachments() {
+                anonymizer = compile_one(
+                    Target::Rule {
+                        anonymizer,
+                        predicate: &predicate,
+                        attribution: attribution.clone(),
+                    },
+                    action,
+                )?;
+            }
         }
         if let Some(redactions) = &policy.fallback {
             anonymizer = compile_one(
@@ -145,10 +150,10 @@ pub(in crate::anonymizer) fn attach_one_override<M, F>(
     entity_id: Uuid,
     redactions: &ModalityRedactions,
     compile_one: F,
-) -> Result<Anonymizer<M>, Error>
+) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    F: FnOnce(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
+    F: FnOnce(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>>,
 {
     compile_one(
         Target::Override {

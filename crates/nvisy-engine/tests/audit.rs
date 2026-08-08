@@ -52,7 +52,7 @@ fn default_spec() -> AnalyzerParams {
 
 async fn analyze() -> Audit {
     engine()
-        .analyze(raw_txt(), &[], &default_spec())
+        .analyze(raw_txt(), &[], &[], &default_spec())
         .await
         .expect("analyze succeeds")
 }
@@ -115,8 +115,7 @@ async fn write_entities_csv_has_header_and_one_row_per_entity() {
     let mut lines = output.lines();
     let header = lines.next().expect("header line present");
     assert_eq!(
-        header,
-        "part_id,modality,entity_id,label,confidence,coref",
+        header, "part_id,modality,entity_id,label,confidence,coref",
         "column order matches the row struct",
     );
 

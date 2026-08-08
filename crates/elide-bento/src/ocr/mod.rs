@@ -118,9 +118,9 @@ impl OcrBackend for BentoOcr {
 
     async fn recognize(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
         let mut responses = self.recognize_batch(&[request]).await?;
-        responses.pop().ok_or_else(|| {
-            BentoError::Protocol("bento ocr returned an empty batch".into()).into()
-        })
+        responses
+            .pop()
+            .ok_or_else(|| BentoError::Protocol("bento ocr returned an empty batch".into()).into())
     }
 
     async fn recognize_batch(&self, requests: &[OcrRequest<'_>]) -> Result<Vec<OcrResponse>> {

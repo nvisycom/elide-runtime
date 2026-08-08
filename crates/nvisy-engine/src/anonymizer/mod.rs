@@ -48,6 +48,7 @@ mod text;
 pub(crate) use self::audio::{attach_override_audio, attach_policies_audio};
 #[cfg(feature = "internal_image")]
 pub(crate) use self::image::{attach_override_image, attach_policies_image};
+pub(crate) use self::operator::text::TextOperatorContext;
 #[cfg(feature = "internal_tabular")]
 pub(crate) use self::tabular::{attach_override_tabular, attach_policies_tabular};
 pub(crate) use self::text::{attach_override_text, attach_policies_text};

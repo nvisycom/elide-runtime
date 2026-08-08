@@ -34,14 +34,17 @@
 //!
 //! [`Scope`]: elide::recognition::Scope
 
+use std::collections::HashSet;
 use std::slice;
 
 use elide::detection::Analyzer;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::{Error, Orchestrator, Result};
+use elide::redaction::vault::InMemoryVault;
+use elide::{Orchestrator, Result};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::Modality;
+use elide_core::{Error, ErrorKind};
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
@@ -50,20 +53,21 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::PolicyDefinition;
+use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::ModalityRedactions;
+use nvisy_schema::policy::{LabelGroup, PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
 use super::Engine;
 use super::audit::AuditContext;
 use crate::analyzer::{AnalyzerCompile, compile_catalog};
+use crate::anonymizer::{TextOperatorContext, attach_override_text, attach_policies_text};
 #[cfg(feature = "internal_audio")]
 use crate::anonymizer::{attach_override_audio, attach_policies_audio};
 #[cfg(feature = "internal_image")]
 use crate::anonymizer::{attach_override_image, attach_policies_image};
 #[cfg(feature = "internal_tabular")]
 use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
-use crate::anonymizer::{attach_override_text, attach_policies_text};
 
 impl Engine {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -89,13 +93,15 @@ impl Engine {
         &self,
         spec: &AnalyzerParams,
         policies: &[PolicyDefinition],
+        groups: &[LabelGroup],
         correlation_id: Uuid,
     ) -> Result<(Orchestrator<'_>, AuditContext)> {
-        let catalog = compile_catalog(policies);
+        validate_group_references(policies, groups)?;
+        let catalog = compile_catalog(policies, groups);
         let context = AuditContext {
             languages: spec.scope.languages.clone(),
             countries: spec.scope.countries.clone(),
-            tags: spec.scope.tags.clone(),
+            metadata: spec.scope.metadata.clone(),
             correlation_id,
         };
         let live_scope = build_scope(&context, catalog.clone(), correlation_id);
@@ -153,18 +159,30 @@ impl Engine {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
+        groups: &[LabelGroup],
         overrides: &[(Uuid, ModalityRedactions)],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
-        let catalog = compile_catalog(policies);
+        validate_group_references(policies, groups)?;
+        let catalog = compile_catalog(policies, groups);
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
+
+        // Fresh per-request text-operator context. `Pseudonymize`
+        // resolves consistently within one request via a per-request
+        // vault; `HmacHash`/`Encrypt` share the engine-level key
+        // provider. Cross-request pseudonym consistency is a
+        // durable-vault story (see elide #143).
+        let text_ctx = TextOperatorContext {
+            key_provider: self.key_provider.clone(),
+            pseudonym_vault: InMemoryVault::new(),
+        };
 
         let text_anon = assemble::<Text, _, _>(
             &catalog,
             overrides,
             policies,
-            attach_override_text,
-            attach_policies_text,
+            |anon, id, redactions| attach_override_text(anon, id, redactions, &text_ctx),
+            |anon, policies| attach_policies_text(anon, policies, &text_ctx),
         )?;
 
         let orchestrator = Orchestrator::new(&self.formats)
@@ -177,8 +195,8 @@ impl Engine {
                 &catalog,
                 overrides,
                 policies,
-                attach_override_tabular,
-                attach_policies_tabular,
+                |anon, id, redactions| attach_override_tabular(anon, id, redactions, &text_ctx),
+                |anon, policies| attach_policies_tabular(anon, policies, &text_ctx),
             )?;
             orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon)
         };
@@ -211,6 +229,64 @@ impl Engine {
     }
 }
 
+/// Reject a request whose policy set references a
+/// [`LabelGroup`] name that no submitted group provides.
+///
+/// Runs before catalog compilation so an authoring typo
+/// (`"gdpr_arcticle_9"`) surfaces as a
+/// [`Configuration`](ErrorKind::Configuration) error at request
+/// validation time, not as a silent underfire at apply time.
+///
+/// Complexity is O(rules × 1) in practice — the lookup uses a
+/// [`HashSet`] over the request's group names.
+///
+/// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
+fn validate_group_references(
+    policies: &[PolicyDefinition],
+    groups: &[LabelGroup],
+) -> Result<()> {
+    let known: HashSet<&str> = groups.iter().map(|g| g.name.as_str()).collect();
+    for policy in policies {
+        for rule in &policy.rules {
+            for (predicate, _) in rule.attachments() {
+                check_predicate_groups(&predicate, &known, policy, rule)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Walk a predicate tree; every [`Predicate::LabelInGroup`] leaf
+/// must name a known group. Returns the first unknown reference
+/// with policy + rule context for the error message.
+fn check_predicate_groups(
+    predicate: &Predicate,
+    known: &HashSet<&str>,
+    policy: &PolicyDefinition,
+    rule: &PolicyRule,
+) -> Result<()> {
+    match predicate {
+        Predicate::LabelInGroup { group } if !known.contains(group.as_str()) => {
+            Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "policy `{}` rule `{}` references unknown label group `{}` — \
+                     no `LabelGroup` with that name was submitted with the request",
+                    policy.id, rule.id(), group,
+                ),
+            ))
+        }
+        Predicate::All { all } => all
+            .iter()
+            .try_for_each(|p| check_predicate_groups(p, known, policy, rule)),
+        Predicate::Any { any } => any
+            .iter()
+            .try_for_each(|p| check_predicate_groups(p, known, policy, rule)),
+        Predicate::Not { not } => check_predicate_groups(not, known, policy, rule),
+        _ => Ok(()),
+    }
+}
+
 /// Combine engine-facing [`AuditContext`] with a freshly-derived
 /// [`LabelCatalog`] and the current phase's `correlation_id` into
 /// the elide-facing [`Scope`].
@@ -218,7 +294,7 @@ fn build_scope(context: &AuditContext, catalog: LabelCatalog, correlation_id: Uu
     Scope {
         languages: context.languages.clone(),
         countries: context.countries.clone(),
-        tags: context.tags.clone(),
+        metadata: context.metadata.clone(),
         catalog,
         correlation_id: Some(correlation_id),
     }
@@ -253,8 +329,8 @@ fn assemble<'a, M, O, P>(
 ) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    O: Fn(Anonymizer<M>, Uuid, &ModalityRedactions) -> Result<Anonymizer<M>, Error>,
-    P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>, Error>,
+    O: Fn(Anonymizer<M>, Uuid, &ModalityRedactions) -> Result<Anonymizer<M>>,
+    P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
     for (id, action) in overrides {

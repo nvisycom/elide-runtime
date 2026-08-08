@@ -20,8 +20,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Operator spec a `redact` audio rule carries.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AudioRedaction {
     /// Cut the matched interval out, shortening the clip.

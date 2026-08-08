@@ -122,6 +122,7 @@ tracing = { workspace = true, features = [] }
 [dev-dependencies]
 # Internal crates
 nvisy-engine = { path = ".", features = ["test-utils", "audit-json", "audit-csv"] }
+nvisy-template = { workspace = true }
 
 # Primitive datatypes
 uuid = { workspace = true, features = ["v7"] }

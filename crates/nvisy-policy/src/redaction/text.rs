@@ -64,8 +64,8 @@
 use std::collections::HashMap;
 
 use elide_core::primitive::{LanguageTag, LocalizedText};
-use elide_redaction::operators::Clamp;
-pub use elide_redaction::operators::{DateGranularity, DateStyle, Sha2Algorithm};
+use elide_operator::operators::Clamp;
+pub use elide_operator::operators::{DateGranularity, DateStyle, Sha2Algorithm};
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

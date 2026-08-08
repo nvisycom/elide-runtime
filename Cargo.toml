@@ -7,6 +7,7 @@ members = [
     "./crates/nvisy-engine",
     "./crates/nvisy-policy",
     "./crates/nvisy-schema",
+    "./crates/nvisy-template",
 ]
 # Python (uv) workspace lives in `packages/`. Excluded so cargo
 # doesn't glob-scan it or complain about missing Cargo.toml files.
@@ -32,12 +33,17 @@ documentation = "https://docs.rs/nvisy-runtime"
 
 # Elide crates
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-codec = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-context = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-detection = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-redaction = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-engine = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-pattern = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-redaction = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Elide extensions
@@ -47,6 +53,7 @@ elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-policy = { path = "./crates/nvisy-policy", version = "0.1.0" }
 nvisy-schema = { path = "./crates/nvisy-schema", version = "0.1.0" }
+nvisy-template = { path = "./crates/nvisy-template", version = "0.1.0" }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -65,6 +72,7 @@ uuid = { version = "1.23", features = ["serde", "v4", "v7"] }
 bytes = { version = "1.0", features = ["serde"] }
 hipstr = { version = "0.8", features = ["serde"] }
 jiff = { version = "0.2", features = ["serde"] }
+semver = { version = "1.0", features = ["serde"] }
 
 # Encoding and hashing
 base64 = { version = "0.23", features = [] }

@@ -1,0 +1,36 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-template"
+description = "Ready-to-run Nvisy policy templates for common regulatory postures (HIPAA, GDPR, PCI DSS, CCPA)"
+keywords = ["nvisy", "policy", "template", "hipaa", "gdpr"]
+categories = ["data-structures"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Internal crates
+nvisy-policy = { workspace = true }
+
+# Elide crates — for LabelRef in template bodies
+elide-core = { workspace = true, features = ["serde"] }
+
+# Primitive datatypes
+hipstr = { workspace = true, features = ["serde"] }
+jiff = { workspace = true, features = ["serde"] }
+semver = { workspace = true, features = ["serde"] }
+uuid = { workspace = true, features = ["v7"] }

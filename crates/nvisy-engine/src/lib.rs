@@ -24,6 +24,12 @@
 //!   modality-tagged entity groups plus an [`AuditContext`] with
 //!   the request's asserted scope and correlation id.
 //!
+//! Ready-to-run policy sets for common regulatory postures
+//! (HIPAA Safe Harbor, GDPR Article 9, PCI DSS §3.5.1, CCPA)
+//! live in the sibling `nvisy-template` crate. Each template
+//! returns a `Template` whose `policies` and `groups` fields feed
+//! straight into [`Engine::analyze`] / [`Engine::anonymize`].
+//!
 //! [`LabelGroup`]: nvisy_schema::policy::LabelGroup
 //!
 //! [`elide`]: elide

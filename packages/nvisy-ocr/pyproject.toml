@@ -7,6 +7,8 @@ requires-python = "==3.12.*"
 license = "Apache-2.0"
 authors = [{ name = "Nvisy" }]
 dependencies = [
+    # PYSEC-2026-3545/3546/3547.
+    "aiohttp>=3.14.3,<4",
     "bentoml>=1.4.39,<2",
     "nvisy-core",
     "onnx>=1.22.0",

@@ -6,22 +6,45 @@
 //!
 //! Authored vocabulary for redaction governance.
 //!
-//! A request submits `Vec<PolicyDefinition>` in precedence order. Engine
-//! walks them; for each policy whose [`PolicyDefinition::when`]
-//! holds against the document, it walks [`PolicyDefinition::rules`] in
-//! order and runs the first matching rule's redaction operators. If
-//! no rule in a policy matches, the policy's [`PolicyDefinition::fallback`]
-//! runs (and the chain halts) if set; otherwise the engine moves
-//! to the next policy. If no policy matches and no policy
-//! carries a fallback, the entity is skipped.
+//! A request submits `Vec<PolicyDefinition>` in precedence order,
+//! plus a `Vec<LabelGroup>` shared across every policy. Engine
+//! walks the policies; for each policy whose
+//! [`PolicyDefinition::when`] holds against the document, it walks
+//! [`PolicyDefinition::rules`] in order and runs the first matching
+//! rule's redaction operators. If no rule in a policy matches, the
+//! policy's [`PolicyDefinition::fallback`] runs (and the chain
+//! halts) if set; otherwise the engine moves to the next policy.
+//! If no policy matches and no policy carries a fallback, the
+//! entity is skipped.
 //!
-//! Identity is UUID-keyed: every [`PolicyDefinition`] and every [`PolicyRule`]
-//! carries a stable [`Uuid`]. Engine stamps `policy.id` and
-//! `rule.id` into the redaction event's [`Attribution`] so
-//! reviewers can trace any redaction back to the exact rule that
-//! fired.
+//! Rules have two shapes ([`PolicyRule`]):
+//! - [`Predicated`]: one composable [`Predicate`] gates a single
+//!   [`ModalityRedactions`] action.
+//! - [`Table`]: a list of per-label [`LabelEntry`] entries — the
+//!   compile-time sugar for "route each label to its own operator
+//!   under one shared rule identity" (e.g. HIPAA Safe Harbor
+//!   fan-out).
+//!
+//! [`LabelGroup`]s are named clusters of [`LabelRef`]s a
+//! [`Predicate::LabelInGroup`] references by name. Templates ship
+//! groups (`"hipaa_18"`, `"gdpr_article_9"`); rules reference
+//! them without respelling the label list. At request-compile
+//! time the engine stamps `group:<name>` tags on the listed
+//! labels; unknown group names error at validation.
+//!
+//! Identity is UUID-keyed: every [`PolicyDefinition`] and every
+//! [`PolicyRule`] carries a stable [`Uuid`]. Engine stamps
+//! `policy.id` and `rule.id` into the redaction event's
+//! [`Attribution`] so reviewers can trace any redaction back to
+//! the exact rule that fired.
 //!
 //! [`Attribution`]: elide_core::entity::provenance::Attribution
+//! [`LabelRef`]: elide_core::entity::LabelRef
+//! [`ModalityRedactions`]: redaction::ModalityRedactions
+//! [`Predicate`]: predicate::Predicate
+//! [`Predicate::LabelInGroup`]: predicate::Predicate::LabelInGroup
+//! [`Predicated`]: PolicyRule::Predicated
+//! [`Table`]: PolicyRule::Table
 
 mod label;
 pub mod predicate;
@@ -34,7 +57,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::label::Labels;
+pub use self::label::{LabelGroup, Labels};
 use self::predicate::DocumentPredicate;
 use self::redaction::ModalityRedactions;
 use self::retention::RetentionPolicy;

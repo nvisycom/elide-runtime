@@ -35,6 +35,8 @@ use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::{PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
+use crate::analyzer::GROUP_TAG_PREFIX;
+
 /// Build an [`Attribution`] for a concrete rule that fired.
 ///
 /// `name` carries the policy's stable UUID (elide's
@@ -109,6 +111,13 @@ where
         Predicate::TagOneOf { tags } if tags.len() == 1 => {
             Rule::tag(tags[0].clone(), operator)
         }
+        Predicate::LabelInGroup { group } => {
+            // Groups compile to a synthetic `group:<name>` tag on
+            // every listed label (see `analyzer::catalog`), so a
+            // group predicate takes the same fast path as any
+            // single-tag `TagOneOf`.
+            Rule::tag(format!("{GROUP_TAG_PREFIX}{group}"), operator)
+        }
         other => Rule::predicate(compile_predicate::<M>(other.clone()), operator),
     };
     anonymizer.with(rule.because(attribution))
@@ -140,6 +149,12 @@ fn eval<M: Modality>(predicate: &Predicate, cx: &MatchContext<'_, M>) -> bool {
             .catalog
             .get(&cx.entity.label)
             .is_some_and(|label| tags.iter().any(|tag| label.has_tag(tag.as_str()))),
+        Predicate::LabelInGroup { group } => {
+            let synthetic_tag = format!("{GROUP_TAG_PREFIX}{group}");
+            cx.catalog
+                .get(&cx.entity.label)
+                .is_some_and(|label| label.has_tag(&synthetic_tag))
+        }
         Predicate::CoRef { coref } => cx
             .entity
             .coref

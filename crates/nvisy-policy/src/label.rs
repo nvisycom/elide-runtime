@@ -1,26 +1,29 @@
-//! Per-policy label catalog: the vocabulary the policy's rules
-//! and predicates operate over.
+//! Per-policy label catalog vocabulary and per-request named
+//! label groups.
 //!
-//! Two distinct sources the engine unions into one
-//! `elide_core::entity::LabelCatalog` at request-compile time:
+//! Two shapes:
 //!
-//! - [`builtins`]: names of labels from `elide-core`'s shipped
-//!   builtin set (`LabelCatalog::with_builtins`). Engine looks
-//!   each name up against the full builtin catalog and copies
-//!   the matching [`Label`] across; unknown names log a warning
-//!   and are skipped (typos don't fail the request).
-//! - [`custom`]: schemas the caller defined inline, beyond the
-//!   builtin set. Names that collide with a builtin replace it
-//!   (last write wins, matching `LabelCatalog::insert` semantics).
+//! - [`Labels`] — carried on each [`PolicyDefinition`]. Selects
+//!   builtins from elide-core's shipped set and adds inline
+//!   custom schemas. The engine unions every submitted policy's
+//!   `labels` into one `elide_core::entity::LabelCatalog` at
+//!   request-compile time.
+//! - [`LabelGroup`] — a named cluster of [`LabelRef`]s shared
+//!   across a request. Templates ship groups (`"hipaa_18"`,
+//!   `"gdpr_article_9"`, `"pci_chd"`); rules reference groups by
+//!   name via [`Predicate::LabelInGroup`]. Engine synthesises a
+//!   `group:<name>` tag on every listed label at request time
+//!   and rewrites [`LabelInGroup`] to
+//!   [`TagOneOf`]`{ tags: ["group:<name>"] }` — same fast path
+//!   as any tag-based rule.
 //!
-//! Empty default. Every submitted [`PolicyDefinition`]'s labels
-//! union at request time to form the analyzer's per-run catalog.
-//!
-//! [`builtins`]: Labels::builtins
-//! [`custom`]: Labels::custom
 //! [`PolicyDefinition`]: super::PolicyDefinition
+//! [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
+//! [`LabelInGroup`]: super::predicate::Predicate::LabelInGroup
+//! [`TagOneOf`]: super::predicate::Predicate::TagOneOf
 
 use elide_core::entity::{Label, LabelRef};
+use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -47,4 +50,63 @@ impl Labels {
     pub fn is_empty(&self) -> bool {
         self.builtins.is_empty() && self.custom.is_empty()
     }
+}
+
+/// Named cluster of [`LabelRef`]s a policy predicate can reference
+/// by name via [`Predicate::LabelInGroup`].
+///
+/// Groups are the primitive regulatory templates compose on top
+/// of: a template ships one group per canonical label list
+/// (`"hipaa_18"`, `"gdpr_article_9"`, `"pci_chd"`, `"pci_sad"`),
+/// and every rule that targets that list references the group by
+/// name instead of respelling the labels. When elide adds a new
+/// label to a category, extending the group covers every rule
+/// that referenced it — no policy edit.
+///
+/// **Compilation**: at request time the engine synthesises a
+/// `group:<name>` tag on every label listed in the group, then
+/// rewrites [`Predicate::LabelInGroup { group }`] into
+/// [`Predicate::TagOneOf { tags: ["group:<name>"] }`]. That
+/// routes through the same `Anonymizer::with_tag` fast path as
+/// any authored tag — no new engine machinery, no per-request
+/// walk over group membership.
+///
+/// **Unknown group names error at request validation**, not at
+/// apply time. A typo doesn't silently underfire.
+///
+/// Groups are per-request, not per-policy: the caller (or a
+/// template loader) submits a `Vec<LabelGroup>` alongside the
+/// policy set. This keeps groups reusable across policies within
+/// one request and keeps them out of individual `PolicyDefinition`
+/// wire payloads.
+///
+/// [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
+/// [`Predicate::LabelInGroup { group }`]: super::predicate::Predicate::LabelInGroup
+/// [`Predicate::TagOneOf { tags: ["group:<name>"] }`]: super::predicate::Predicate::TagOneOf
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LabelGroup {
+    /// Stable name a [`Predicate::LabelInGroup`] references.
+    ///
+    /// Free-form; a policy layer picks the vocabulary. Recommend
+    /// snake_case identifiers (`hipaa_18`, `gdpr_article_9`) —
+    /// they compile to `group:hipaa_18` tags on the catalog and
+    /// read cleanly in audit provenance.
+    ///
+    /// [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
+    #[schemars(with = "String")]
+    pub name: HipStr<'static>,
+    /// Optional description for reviewers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Labels this group covers, by ref.
+    ///
+    /// A label that doesn't appear in the request's compiled
+    /// [`LabelCatalog`] is silently skipped at tag-synthesis time
+    /// — a group can safely list labels the current build
+    /// doesn't emit (e.g. modality-gated ones); rules keyed off
+    /// the group still fire on whatever labels *are* present.
+    ///
+    /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
+    pub labels: Vec<LabelRef>,
 }

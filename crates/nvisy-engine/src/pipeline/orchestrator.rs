@@ -34,6 +34,7 @@
 //!
 //! [`Scope`]: elide::recognition::Scope
 
+use std::collections::HashSet;
 use std::slice;
 
 use elide::detection::Analyzer;
@@ -43,6 +44,7 @@ use elide::redaction::vault::InMemoryVault;
 use elide::{Orchestrator, Result};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::Modality;
+use elide_core::{Error, ErrorKind};
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
@@ -51,8 +53,9 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_schema::plan::AnalyzerParams;
-use nvisy_schema::policy::PolicyDefinition;
+use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::ModalityRedactions;
+use nvisy_schema::policy::{LabelGroup, PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
 use super::Engine;
@@ -90,9 +93,11 @@ impl Engine {
         &self,
         spec: &AnalyzerParams,
         policies: &[PolicyDefinition],
+        groups: &[LabelGroup],
         correlation_id: Uuid,
     ) -> Result<(Orchestrator<'_>, AuditContext)> {
-        let catalog = compile_catalog(policies);
+        validate_group_references(policies, groups)?;
+        let catalog = compile_catalog(policies, groups);
         let context = AuditContext {
             languages: spec.scope.languages.clone(),
             countries: spec.scope.countries.clone(),
@@ -154,10 +159,12 @@ impl Engine {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
+        groups: &[LabelGroup],
         overrides: &[(Uuid, ModalityRedactions)],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
-        let catalog = compile_catalog(policies);
+        validate_group_references(policies, groups)?;
+        let catalog = compile_catalog(policies, groups);
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
         // Fresh per-request text-operator context. `Pseudonymize`
@@ -218,6 +225,64 @@ impl Engine {
         let orchestrator = orchestrator.with_modality::<Audio>(Analyzer::<Audio>::new(), anon);
 
         Ok(orchestrator)
+    }
+}
+
+/// Reject a request whose policy set references a
+/// [`LabelGroup`] name that no submitted group provides.
+///
+/// Runs before catalog compilation so an authoring typo
+/// (`"gdpr_arcticle_9"`) surfaces as a
+/// [`Configuration`](ErrorKind::Configuration) error at request
+/// validation time, not as a silent underfire at apply time.
+///
+/// Complexity is O(rules × 1) in practice — the lookup uses a
+/// [`HashSet`] over the request's group names.
+///
+/// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
+fn validate_group_references(
+    policies: &[PolicyDefinition],
+    groups: &[LabelGroup],
+) -> Result<()> {
+    let known: HashSet<&str> = groups.iter().map(|g| g.name.as_str()).collect();
+    for policy in policies {
+        for rule in &policy.rules {
+            for (predicate, _) in rule.attachments() {
+                check_predicate_groups(&predicate, &known, policy, rule)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Walk a predicate tree; every [`Predicate::LabelInGroup`] leaf
+/// must name a known group. Returns the first unknown reference
+/// with policy + rule context for the error message.
+fn check_predicate_groups(
+    predicate: &Predicate,
+    known: &HashSet<&str>,
+    policy: &PolicyDefinition,
+    rule: &PolicyRule,
+) -> Result<()> {
+    match predicate {
+        Predicate::LabelInGroup { group } if !known.contains(group.as_str()) => {
+            Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "policy `{}` rule `{}` references unknown label group `{}` — \
+                     no `LabelGroup` with that name was submitted with the request",
+                    policy.id, rule.id(), group,
+                ),
+            ))
+        }
+        Predicate::All { all } => all
+            .iter()
+            .try_for_each(|p| check_predicate_groups(p, known, policy, rule)),
+        Predicate::Any { any } => any
+            .iter()
+            .try_for_each(|p| check_predicate_groups(p, known, policy, rule)),
+        Predicate::Not { not } => check_predicate_groups(not, known, policy, rule),
+        _ => Ok(()),
     }
 }
 

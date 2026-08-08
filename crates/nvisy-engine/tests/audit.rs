@@ -52,7 +52,7 @@ fn default_spec() -> AnalyzerParams {
 
 async fn analyze() -> Audit {
     engine()
-        .analyze(raw_txt(), &[], &default_spec())
+        .analyze(raw_txt(), &[], &[], &default_spec())
         .await
         .expect("analyze succeeds")
 }

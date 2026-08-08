@@ -199,9 +199,7 @@ fn bulk_erase_rule() -> PolicyRule {
     PolicyRule::Predicated(Box::new(PredicatedRule {
         id: RULE_BULK_ID,
         name: "hipaa-bulk-erase".into(),
-        description: Some(
-            "Every remaining §164.514(b)(2) identifier is erased.".to_owned(),
-        ),
+        description: Some("Every remaining §164.514(b)(2) identifier is erased.".to_owned()),
         predicate: Predicate::LabelInGroup {
             group: GROUP_NAME.to_owned(),
         },

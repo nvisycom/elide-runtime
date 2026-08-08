@@ -44,7 +44,6 @@ use elide::redaction::vault::InMemoryVault;
 use elide::{Orchestrator, Result};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::Modality;
-use elide_core::{Error, ErrorKind};
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
@@ -52,6 +51,7 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
+use elide_core::{Error, ErrorKind};
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::ModalityRedactions;
@@ -241,10 +241,7 @@ impl Engine {
 /// [`HashSet`] over the request's group names.
 ///
 /// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
-fn validate_group_references(
-    policies: &[PolicyDefinition],
-    groups: &[LabelGroup],
-) -> Result<()> {
+fn validate_group_references(policies: &[PolicyDefinition], groups: &[LabelGroup]) -> Result<()> {
     let known: HashSet<&str> = groups.iter().map(|g| g.name.as_str()).collect();
     for policy in policies {
         for rule in &policy.rules {
@@ -266,16 +263,16 @@ fn check_predicate_groups(
     rule: &PolicyRule,
 ) -> Result<()> {
     match predicate {
-        Predicate::LabelInGroup { group } if !known.contains(group.as_str()) => {
-            Err(Error::new(
-                ErrorKind::Configuration,
-                format!(
-                    "policy `{}` rule `{}` references unknown label group `{}` — \
+        Predicate::LabelInGroup { group } if !known.contains(group.as_str()) => Err(Error::new(
+            ErrorKind::Configuration,
+            format!(
+                "policy `{}` rule `{}` references unknown label group `{}` — \
                      no `LabelGroup` with that name was submitted with the request",
-                    policy.id, rule.id(), group,
-                ),
-            ))
-        }
+                policy.id,
+                rule.id(),
+                group,
+            ),
+        )),
         Predicate::All { all } => all
             .iter()
             .try_for_each(|p| check_predicate_groups(p, known, policy, rule)),

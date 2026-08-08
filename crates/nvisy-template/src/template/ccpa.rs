@@ -182,15 +182,15 @@ mod tests {
         // silently regressing coverage. Categories (J) and (K)
         // aren't covered — see caveats issue.
         for anchor in [
-            "person_name",        // (A) identifiers
-            "signature",          // (B) §1798.80
-            "ethnicity",          // (C) protected classifications
-            "payment_card",       // (D) commercial info
-            "fingerprint",        // (E) biometric
-            "url",                // (F) internet/network activity
-            "coordinates",        // (G) geolocation
-            "face",               // (H) sensory
-            "occupation",         // (I) professional/employment
+            "person_name",  // (A) identifiers
+            "signature",    // (B) §1798.80
+            "ethnicity",    // (C) protected classifications
+            "payment_card", // (D) commercial info
+            "fingerprint",  // (E) biometric
+            "url",          // (F) internet/network activity
+            "coordinates",  // (G) geolocation
+            "face",         // (H) sensory
+            "occupation",   // (I) professional/employment
         ] {
             assert!(
                 CCPA_LABELS.iter().any(|l| l.as_str() == anchor),

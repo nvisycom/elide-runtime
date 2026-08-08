@@ -77,8 +77,6 @@ mod audit_csv;
 mod orchestrator;
 mod registered;
 
-pub use self::registered::RegisteredRecognizer;
-
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -101,6 +99,7 @@ use nvisy_schema::policy::{LabelGroup, PolicyDefinition};
 use uuid::Uuid;
 
 pub use self::audit::{Audit, AuditContext};
+pub use self::registered::RegisteredRecognizer;
 use crate::PatternGuardrails;
 use crate::entity::{EntityGroup, take_body, take_part};
 use crate::provider::llm::LlmConfig;

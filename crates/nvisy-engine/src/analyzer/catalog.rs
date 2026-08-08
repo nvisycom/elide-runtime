@@ -256,7 +256,11 @@ mod tests {
         let catalog = compile_catalog(std::slice::from_ref(&policy), &[group.clone(), group]);
         let stamped = catalog.get(&LabelRef::new("email_address")).unwrap();
         assert_eq!(
-            stamped.tags().iter().filter(|t| t.as_str() == "group:dup").count(),
+            stamped
+                .tags()
+                .iter()
+                .filter(|t| t.as_str() == "group:dup")
+                .count(),
             1,
         );
     }

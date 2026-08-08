@@ -108,9 +108,7 @@ where
         Predicate::LabelOneOf { labels } if labels.len() == 1 => {
             Rule::label(labels[0].clone(), operator)
         }
-        Predicate::TagOneOf { tags } if tags.len() == 1 => {
-            Rule::tag(tags[0].clone(), operator)
-        }
+        Predicate::TagOneOf { tags } if tags.len() == 1 => Rule::tag(tags[0].clone(), operator),
         Predicate::LabelInGroup { group } => {
             // Groups compile to a synthetic `group:<name>` tag on
             // every listed label (see `analyzer::catalog`), so a

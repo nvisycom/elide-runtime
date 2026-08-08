@@ -53,14 +53,7 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-publish-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-publish-
+        uses: Swatinem/rust-cache@v2
 
       - name: Publish nvisy-ontology
         run: cargo publish -p nvisy-ontology --token ${{ secrets.CARGO_TOKEN }}

@@ -44,17 +44,13 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-check-
+        uses: Swatinem/rust-cache@v2
 
       - name: Cargo check
         run: cargo check --workspace
+
+      - name: Cargo check (all features)
+        run: cargo check --workspace --all-features
 
   clippy:
     name: Clippy
@@ -71,17 +67,13 @@ jobs:
           components: clippy
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-clippy-
+        uses: Swatinem/rust-cache@v2
 
       - name: Clippy
         run: cargo clippy --workspace -- -D warnings
+
+      - name: Clippy (all features)
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
 
   docs:
     name: Docs
@@ -91,25 +83,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Nightly: the `docsrs` cfg enables `feature(doc_cfg)`.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-docs-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-docs-
+        uses: Swatinem/rust-cache@v2
 
+      # Build docs the way docs.rs publishes them: all features + docsrs on nightly.
       - name: Cargo doc
-        run: cargo doc --workspace --no-deps
+        run: cargo +nightly doc --workspace --no-deps --all-features
         env:
-          RUSTDOCFLAGS: "-D warnings"
+          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
 
   test:
     name: Test
@@ -126,17 +111,13 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-test-
+        uses: Swatinem/rust-cache@v2
 
       - name: Run tests
         run: cargo test --workspace
+
+      - name: Run tests (all features)
+        run: cargo test --workspace --all-features
 
   build:
     name: Build
@@ -153,14 +134,29 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-build-
+        uses: Swatinem/rust-cache@v2
 
       - name: Build release
         run: cargo build --release
+
+  machete:
+    name: Machete
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install cargo-machete
+        run: cargo binstall cargo-machete --no-confirm --no-symlinks
+
+      - name: Run machete
+        run: cargo machete

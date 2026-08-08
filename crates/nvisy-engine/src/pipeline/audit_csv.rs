@@ -16,8 +16,7 @@
 //! polymorphic locations. Callers that need location details or
 //! nested payloads use [`Audit::write_json`].
 
-use std::io;
-use std::result;
+use std::{io, result};
 
 use elide_core::entity::provenance::EventKind;
 use elide_core::modality::Modality;

@@ -25,7 +25,8 @@ fn engine() -> Engine {
 }
 
 fn engine_with_key() -> Engine {
-    let provider: Arc<dyn KeyProvider> = Arc::new(StaticKey::new(*b"nvisy-template-test-key-32bytes"));
+    let provider: Arc<dyn KeyProvider> =
+        Arc::new(StaticKey::new(*b"nvisy-template-test-key-32bytes"));
     Engine::new().with_key_provider(provider)
 }
 
@@ -55,7 +56,12 @@ fn default_spec() -> AnalyzerParams {
 /// and return the redacted body as a UTF-8 string.
 async fn apply(engine: &Engine, template: Template) -> String {
     let mut analyzed = engine
-        .analyze(raw_txt(), &template.policies, &template.groups, &default_spec())
+        .analyze(
+            raw_txt(),
+            &template.policies,
+            &template.groups,
+            &default_spec(),
+        )
         .await
         .expect("analyze succeeds");
     let redacted = engine
@@ -137,7 +143,12 @@ async fn pci_dss_pan_hmac_requires_key_provider() {
     // capability requirement into place.
     let template = nvisy_template::pci_dss_pan_hmac();
     let mut analyzed = engine()
-        .analyze(raw_txt(), &template.policies, &template.groups, &default_spec())
+        .analyze(
+            raw_txt(),
+            &template.policies,
+            &template.groups,
+            &default_spec(),
+        )
         .await
         .expect("analyze succeeds without a key provider");
     let err = engine()
@@ -200,7 +211,12 @@ async fn every_shipped_template_analyzes_and_anonymizes_the_sample() {
     for (name, build) in nvisy_template::ALL {
         let template = build();
         let mut analyzed = engine
-            .analyze(raw_txt(), &template.policies, &template.groups, &default_spec())
+            .analyze(
+                raw_txt(),
+                &template.policies,
+                &template.groups,
+                &default_spec(),
+            )
             .await
             .unwrap_or_else(|e| panic!("template `{name}` failed to analyze: {e}"));
         engine

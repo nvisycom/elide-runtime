@@ -100,7 +100,10 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         description: None,
         when: None,
         labels: Labels {
-            builtins: vec![LabelRef::new("email_address"), LabelRef::new("phone_number")],
+            builtins: vec![
+                LabelRef::new("email_address"),
+                LabelRef::new("phone_number"),
+            ],
             custom: Vec::new(),
         },
         rules: vec![table],
@@ -118,12 +121,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         .await
         .expect("analyze succeeds");
     let redacted = engine
-        .anonymize(
-            raw_txt(),
-            std::slice::from_ref(&policy),
-            &[],
-            &mut analyzed,
-        )
+        .anonymize(raw_txt(), std::slice::from_ref(&policy), &[], &mut analyzed)
         .await
         .expect("anonymize succeeds");
 
@@ -189,7 +187,10 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
         description: None,
         when: None,
         labels: Labels {
-            builtins: vec![LabelRef::new("email_address"), LabelRef::new("phone_number")],
+            builtins: vec![
+                LabelRef::new("email_address"),
+                LabelRef::new("phone_number"),
+            ],
             custom: Vec::new(),
         },
         rules: vec![PolicyRule::Predicated(Box::new(PredicatedRule {
@@ -210,7 +211,10 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
     let group = LabelGroup {
         name: "contact_info".into(),
         description: None,
-        labels: vec![LabelRef::new("email_address"), LabelRef::new("phone_number")],
+        labels: vec![
+            LabelRef::new("email_address"),
+            LabelRef::new("phone_number"),
+        ],
     };
 
     let mut analyzed = engine
@@ -248,4 +252,3 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
     // The positive checks above are sufficient to prove the
     // group predicate wired through the compile path.
 }
-

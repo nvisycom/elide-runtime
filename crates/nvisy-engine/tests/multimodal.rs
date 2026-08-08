@@ -200,12 +200,22 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
         retention: Vec::new(),
     };
     let mut analyzed = engine
-        .analyze(raw_docx(), std::slice::from_ref(&policy), &[], &default_spec())
+        .analyze(
+            raw_docx(),
+            std::slice::from_ref(&policy),
+            &[],
+            &default_spec(),
+        )
         .await
         .expect("analyze succeeds");
 
     engine
-        .anonymize(raw_docx(), std::slice::from_ref(&policy), &[], &mut analyzed)
+        .anonymize(
+            raw_docx(),
+            std::slice::from_ref(&policy),
+            &[],
+            &mut analyzed,
+        )
         .await
         .expect("anonymize succeeds when catalog is re-derived from the same policy set");
 }

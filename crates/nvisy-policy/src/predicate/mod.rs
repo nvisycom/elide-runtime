@@ -56,19 +56,24 @@ pub enum Predicate {
         /// Allowed tags.
         tags: Vec<String>,
     },
-    /// Entity label is in the named [`LabelGroup`] submitted
-    /// alongside this request.
+    /// Entity label is in the named [`LabelGroup`] declared by
+    /// the same [`PolicyDefinition`] this rule lives in.
     ///
-    /// Sugar over [`TagOneOf`]`{ tags: ["group:<name>"] }`: the
-    /// engine synthesises a `group:<name>` tag on every label
-    /// listed in the matching group at request-compile time, then
-    /// rewrites `LabelInGroup { group }` to that `TagOneOf` form.
-    /// Same fast path as any authored tag; the group indirection
-    /// keeps the wire compact when templates target a canonical
-    /// label cluster (e.g. `hipaa_18`, `gdpr_article_9`).
+    /// Sugar over [`TagOneOf`]`{ tags: ["group:<policy_id>:<name>"] }`:
+    /// the engine synthesises a `group:<policy_id>:<name>` tag on
+    /// every label listed in the matching group at request-compile
+    /// time, then rewrites `LabelInGroup { group }` to that
+    /// `TagOneOf` form. Same fast path as any authored tag; the
+    /// group indirection keeps the wire compact when templates
+    /// target a canonical label cluster (e.g. `hipaa_18`,
+    /// `gdpr_article_9`).
     ///
-    /// An unknown group name is a request-validation error, not a
-    /// silent no-op.
+    /// Groups are scoped to the declaring policy — a rule cannot
+    /// reference a group declared by another policy in the same
+    /// request. An unknown group name is a request-validation
+    /// error, not a silent no-op.
+    ///
+    /// [`PolicyDefinition`]: super::PolicyDefinition
     ///
     /// [`LabelGroup`]: super::LabelGroup
     /// [`TagOneOf`]: Predicate::TagOneOf

@@ -6,9 +6,8 @@
 //!
 //! Authored vocabulary for redaction governance.
 //!
-//! A request submits `Vec<PolicyDefinition>` in precedence order,
-//! plus a `Vec<LabelGroup>` shared across every policy. Engine
-//! walks the policies; for each policy whose
+//! A request submits `Vec<PolicyDefinition>` in precedence order.
+//! Engine walks the policies; for each policy whose
 //! [`PolicyDefinition::when`] holds against the document, it walks
 //! [`PolicyDefinition::rules`] in order and runs the first matching
 //! rule's redaction operators. If no rule in a policy matches, the
@@ -26,11 +25,12 @@
 //!   fan-out).
 //!
 //! [`LabelGroup`]s are named clusters of [`LabelRef`]s a
-//! [`Predicate::LabelInGroup`] references by name. Templates ship
-//! groups (`"hipaa_18"`, `"gdpr_article_9"`); rules reference
-//! them without respelling the label list. At request-compile
-//! time the engine stamps `group:<name>` tags on the listed
-//! labels; unknown group names error at validation.
+//! [`Predicate::LabelInGroup`] references by name. Groups live
+//! on the policy that declares them (`hipaa_safe_harbor` policy
+//! carries a `hipaa_18` group); a rule can reference groups its
+//! own policy declared, not another policy's. At request-compile
+//! time the engine stamps `group:<policy_id>:<name>` tags on the
+//! listed labels; unknown group names error at validation.
 //!
 //! Identity is UUID-keyed: every [`PolicyDefinition`] and every
 //! [`PolicyRule`] carries a stable [`Uuid`]. Engine stamps
@@ -98,6 +98,17 @@ pub struct PolicyDefinition {
     /// [`Predicate::TagOneOf`]: predicate::Predicate::TagOneOf
     #[serde(default, skip_serializing_if = "Labels::is_empty")]
     pub labels: Labels,
+    /// Named clusters of [`LabelRef`]s this policy's rules may
+    /// reference by name via [`Predicate::LabelInGroup`]. Scoped
+    /// to this policy — a rule can only name a group its own
+    /// policy declared; unknown references error at request
+    /// validation. Two policies that both declare `hipaa_18` with
+    /// different labelsets stay independent.
+    ///
+    /// [`LabelRef`]: elide_core::entity::LabelRef
+    /// [`Predicate::LabelInGroup`]: predicate::Predicate::LabelInGroup
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<LabelGroup>,
     /// Ordered rules. First match wins within this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<PolicyRule>,

@@ -35,7 +35,7 @@ use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::{PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
-use crate::analyzer::GROUP_TAG_PREFIX;
+use crate::analyzer::synthetic_group_tag;
 
 /// Build an [`Attribution`] for a concrete rule that fired.
 ///
@@ -90,6 +90,12 @@ where
 /// [`Predicate`], stamping `attribution` so every redaction it
 /// drives carries the policy's identity on its provenance event.
 ///
+/// `policy_id` scopes any [`Predicate::LabelInGroup`] inside the
+/// tree: the rewrite target becomes
+/// `group:<policy_id>:<group_name>`, matching how the catalog
+/// synthesised the tag. A rule can only see groups its own
+/// policy declared.
+///
 /// Pattern-matches the predicate against degenerate single-label
 /// / single-tag shapes to keep elide's indexed fast paths. Any
 /// composite predicate falls through to [`Rule::predicate`] with
@@ -99,6 +105,7 @@ pub(super) fn attach<M, O>(
     predicate: &Predicate,
     operator: O,
     attribution: Attribution,
+    policy_id: Uuid,
 ) -> Anonymizer<M>
 where
     M: Modality,
@@ -110,13 +117,14 @@ where
         }
         Predicate::TagOneOf { tags } if tags.len() == 1 => Rule::tag(tags[0].clone(), operator),
         Predicate::LabelInGroup { group } => {
-            // Groups compile to a synthetic `group:<name>` tag on
-            // every listed label (see `analyzer::catalog`), so a
-            // group predicate takes the same fast path as any
-            // single-tag `TagOneOf`.
-            Rule::tag(format!("{GROUP_TAG_PREFIX}{group}"), operator)
+            // Groups compile to a synthetic
+            // `group:<policy_id>:<group_name>` tag on every listed
+            // label (see `analyzer::catalog`), so a group predicate
+            // takes the same fast path as any single-tag
+            // `TagOneOf`.
+            Rule::tag(synthetic_group_tag(policy_id, group), operator)
         }
-        other => Rule::predicate(compile_predicate::<M>(other.clone()), operator),
+        other => Rule::predicate(compile_predicate::<M>(other.clone(), policy_id), operator),
     };
     anonymizer.with(rule.because(attribution))
 }
@@ -127,19 +135,24 @@ where
 /// the per-anonymizer [`LabelCatalog`] even inside composites
 /// ([`All`] / [`Any`] / [`Not`]).
 ///
+/// `policy_id` scopes any nested [`Predicate::LabelInGroup`] to
+/// the synthetic `group:<policy_id>:<name>` tag the catalog
+/// synthesised.
+///
 /// [`All`]: Predicate::All
 /// [`Any`]: Predicate::Any
 /// [`Not`]: Predicate::Not
 pub(super) fn compile_predicate<M>(
     predicate: Predicate,
+    policy_id: Uuid,
 ) -> impl Fn(&MatchContext<'_, M>) -> bool + Send + Sync + 'static
 where
     M: Modality,
 {
-    move |cx| eval(&predicate, cx)
+    move |cx| eval(&predicate, cx, policy_id)
 }
 
-fn eval<M: Modality>(predicate: &Predicate, cx: &MatchContext<'_, M>) -> bool {
+fn eval<M: Modality>(predicate: &Predicate, cx: &MatchContext<'_, M>, policy_id: Uuid) -> bool {
     match predicate {
         Predicate::Confidence { min } => f32::from(cx.entity.confidence) >= f32::from(*min),
         Predicate::LabelOneOf { labels } => labels.iter().any(|l| l == &cx.entity.label),
@@ -148,7 +161,7 @@ fn eval<M: Modality>(predicate: &Predicate, cx: &MatchContext<'_, M>) -> bool {
             .get(&cx.entity.label)
             .is_some_and(|label| tags.iter().any(|tag| label.has_tag(tag.as_str()))),
         Predicate::LabelInGroup { group } => {
-            let synthetic_tag = format!("{GROUP_TAG_PREFIX}{group}");
+            let synthetic_tag = synthetic_group_tag(policy_id, group);
             cx.catalog
                 .get(&cx.entity.label)
                 .is_some_and(|label| label.has_tag(&synthetic_tag))
@@ -158,8 +171,8 @@ fn eval<M: Modality>(predicate: &Predicate, cx: &MatchContext<'_, M>) -> bool {
             .coref
             .as_ref()
             .is_some_and(|c| c.as_str() == coref.as_str()),
-        Predicate::All { all } => all.iter().all(|p| eval(p, cx)),
-        Predicate::Any { any } => any.iter().any(|p| eval(p, cx)),
-        Predicate::Not { not } => !eval(not, cx),
+        Predicate::All { all } => all.iter().all(|p| eval(p, cx, policy_id)),
+        Predicate::Any { any } => any.iter().any(|p| eval(p, cx, policy_id)),
+        Predicate::Not { not } => !eval(not, cx, policy_id),
     }
 }

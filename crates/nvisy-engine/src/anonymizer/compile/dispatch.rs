@@ -36,11 +36,14 @@ use super::selector::{attach, attach_override, fallback_attribution, rule_attrib
 pub(in crate::anonymizer) enum Target<'a, M: Modality> {
     /// Rule attachment: predicate-guarded redaction with a
     /// name + description attribution. Maps to
-    /// [`super::selector::attach`].
+    /// [`super::selector::attach`]. `policy_id` scopes any
+    /// [`Predicate::LabelInGroup`] to the enclosing policy's
+    /// synthetic tag namespace.
     Rule {
         anonymizer: Anonymizer<M>,
         predicate: &'a Predicate,
         attribution: Attribution,
+        policy_id: Uuid,
     },
     /// PolicyDefinition `fallback`: catch-all redaction attached
     /// via [`Rule::fallback`] with a `because(fallback_attribution)`.
@@ -73,7 +76,8 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
                 anonymizer,
                 predicate,
                 attribution,
-            } => attach(anonymizer, predicate, operator, attribution),
+                policy_id,
+            } => attach(anonymizer, predicate, operator, attribution, policy_id),
             Target::Fallback {
                 anonymizer,
                 attribution,
@@ -124,6 +128,7 @@ where
                         anonymizer,
                         predicate: &predicate,
                         attribution: attribution.clone(),
+                        policy_id: policy.id,
                     },
                     action,
                 )?;

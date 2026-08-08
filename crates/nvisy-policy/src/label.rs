@@ -8,14 +8,15 @@
 //!   custom schemas. The engine unions every submitted policy's
 //!   `labels` into one `elide_core::entity::LabelCatalog` at
 //!   request-compile time.
-//! - [`LabelGroup`] — a named cluster of [`LabelRef`]s shared
-//!   across a request. Templates ship groups (`"hipaa_18"`,
-//!   `"gdpr_article_9"`, `"pci_chd"`); rules reference groups by
-//!   name via [`Predicate::LabelInGroup`]. Engine synthesises a
-//!   `group:<name>` tag on every listed label at request time
-//!   and rewrites [`LabelInGroup`] to
-//!   [`TagOneOf`]`{ tags: ["group:<name>"] }` — same fast path
-//!   as any tag-based rule.
+//! - [`LabelGroup`] — a named cluster of [`LabelRef`]s carried
+//!   on the policy that declares it. Templates ship groups
+//!   (`"hipaa_18"`, `"gdpr_article_9"`, `"pci_chd"`); rules
+//!   inside the same policy reference groups by name via
+//!   [`Predicate::LabelInGroup`]. Engine synthesises a
+//!   `group:<policy_id>:<name>` tag on every listed label at
+//!   request time and rewrites [`LabelInGroup`] to
+//!   [`TagOneOf`]`{ tags: ["group:<policy_id>:<name>"] }` — same
+//!   fast path as any tag-based rule.
 //!
 //! [`PolicyDefinition`]: super::PolicyDefinition
 //! [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
@@ -52,37 +53,35 @@ impl Labels {
     }
 }
 
-/// Named cluster of [`LabelRef`]s a policy predicate can reference
+/// Named cluster of [`LabelRef`]s a policy's rules can reference
 /// by name via [`Predicate::LabelInGroup`].
 ///
-/// Groups are the primitive regulatory templates compose on top
-/// of: a template ships one group per canonical label list
-/// (`"hipaa_18"`, `"gdpr_article_9"`, `"pci_chd"`, `"pci_sad"`),
-/// and every rule that targets that list references the group by
-/// name instead of respelling the labels. When elide adds a new
-/// label to a category, extending the group covers every rule
-/// that referenced it — no policy edit.
+/// Groups live on the [`PolicyDefinition`] that declares them
+/// and are visible only to that policy's own rules. Templates
+/// ship one group per canonical label list (`"hipaa_18"`,
+/// `"gdpr_article_9"`, `"pci_chd"`, `"pci_sad"`), and every
+/// rule that targets that list references the group by name
+/// instead of respelling the labels. When elide adds a new label
+/// to a category, extending the group covers every rule that
+/// referenced it — no rule edit.
 ///
 /// **Compilation**: at request time the engine synthesises a
-/// `group:<name>` tag on every label listed in the group, then
-/// rewrites [`Predicate::LabelInGroup { group }`] into
-/// [`Predicate::TagOneOf { tags: ["group:<name>"] }`]. That
-/// routes through the same `Anonymizer::with_tag` fast path as
-/// any authored tag — no new engine machinery, no per-request
-/// walk over group membership.
+/// `group:<policy_id>:<name>` tag on every label listed in the
+/// group, then rewrites [`Predicate::LabelInGroup { group }`]
+/// into [`Predicate::TagOneOf { tags: ["group:<policy_id>:<name>"] }`].
+/// That routes through the same `Anonymizer::with_tag` fast
+/// path as any authored tag — no new engine machinery, no
+/// per-request walk over group membership. Scoping the tag by
+/// `policy_id` keeps two policies that both declare `hipaa_18`
+/// with different labelsets from stepping on each other.
 ///
 /// **Unknown group names error at request validation**, not at
 /// apply time. A typo doesn't silently underfire.
 ///
-/// Groups are per-request, not per-policy: the caller (or a
-/// template loader) submits a `Vec<LabelGroup>` alongside the
-/// policy set. This keeps groups reusable across policies within
-/// one request and keeps them out of individual `PolicyDefinition`
-/// wire payloads.
-///
+/// [`PolicyDefinition`]: super::PolicyDefinition
 /// [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
 /// [`Predicate::LabelInGroup { group }`]: super::predicate::Predicate::LabelInGroup
-/// [`Predicate::TagOneOf { tags: ["group:<name>"] }`]: super::predicate::Predicate::TagOneOf
+/// [`Predicate::TagOneOf { tags: ["group:<policy_id>:<name>"] }`]: super::predicate::Predicate::TagOneOf
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelGroup {

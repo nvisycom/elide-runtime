@@ -106,22 +106,18 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
             ],
             custom: Vec::new(),
         },
+        groups: Vec::new(),
         rules: vec![table],
         fallback: None,
         retention: Vec::new(),
     };
 
     let mut analyzed = engine
-        .analyze(
-            raw_txt(),
-            std::slice::from_ref(&policy),
-            &[],
-            &default_spec(),
-        )
+        .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
         .expect("analyze succeeds");
     let redacted = engine
-        .anonymize(raw_txt(), std::slice::from_ref(&policy), &[], &mut analyzed)
+        .anonymize(raw_txt(), std::slice::from_ref(&policy), &mut analyzed)
         .await
         .expect("anonymize succeeds");
 
@@ -181,6 +177,14 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
 #[tokio::test]
 async fn label_in_group_predicate_fires_on_grouped_labels() {
     let engine = engine();
+    let group = LabelGroup {
+        name: "contact_info".into(),
+        description: None,
+        labels: vec![
+            LabelRef::new("email_address"),
+            LabelRef::new("phone_number"),
+        ],
+    };
     let policy = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
         name: "sweep".into(),
@@ -193,6 +197,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
             ],
             custom: Vec::new(),
         },
+        groups: vec![group],
         rules: vec![PolicyRule::Predicated(Box::new(PredicatedRule {
             id: uuid::Uuid::now_v7(),
             name: "erase-contacts".into(),
@@ -208,31 +213,13 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
         fallback: None,
         retention: Vec::new(),
     };
-    let group = LabelGroup {
-        name: "contact_info".into(),
-        description: None,
-        labels: vec![
-            LabelRef::new("email_address"),
-            LabelRef::new("phone_number"),
-        ],
-    };
 
     let mut analyzed = engine
-        .analyze(
-            raw_txt(),
-            std::slice::from_ref(&policy),
-            std::slice::from_ref(&group),
-            &default_spec(),
-        )
+        .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
         .expect("analyze succeeds");
     engine
-        .anonymize(
-            raw_txt(),
-            std::slice::from_ref(&policy),
-            std::slice::from_ref(&group),
-            &mut analyzed,
-        )
+        .anonymize(raw_txt(), std::slice::from_ref(&policy), &mut analyzed)
         .await
         .expect("anonymize succeeds");
 

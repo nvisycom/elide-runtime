@@ -67,7 +67,7 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
     let analyzed = engine
-        .analyze(raw_docx(), &[], &[], &default_spec())
+        .analyze(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
 
@@ -97,7 +97,7 @@ async fn analyze_captures_text_body_and_image_part() {
 async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
     let mut analyzed = engine
-        .analyze(raw_docx(), &[], &[], &default_spec())
+        .analyze(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
     let body_group = analyzed.body.as_ref().expect("body group present");
@@ -124,7 +124,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     });
 
     let outcome = engine
-        .anonymize(raw_docx(), &[], &[], &mut analyzed)
+        .anonymize(raw_docx(), &[], &mut analyzed)
         .await
         .expect("anonymize succeeds");
     write_artefact("sample", "out.docx", &outcome.bytes);
@@ -160,7 +160,7 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
     let correlation_id = doc.correlation_id;
 
     let audit = engine
-        .analyze(doc, &[], &[], &spec)
+        .analyze(doc, &[], &spec)
         .await
         .expect("analyze succeeds");
 
@@ -195,27 +195,18 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
         },
+        groups: Vec::new(),
         rules: Vec::new(),
         fallback: None,
         retention: Vec::new(),
     };
     let mut analyzed = engine
-        .analyze(
-            raw_docx(),
-            std::slice::from_ref(&policy),
-            &[],
-            &default_spec(),
-        )
+        .analyze(raw_docx(), std::slice::from_ref(&policy), &default_spec())
         .await
         .expect("analyze succeeds");
 
     engine
-        .anonymize(
-            raw_docx(),
-            std::slice::from_ref(&policy),
-            &[],
-            &mut analyzed,
-        )
+        .anonymize(raw_docx(), std::slice::from_ref(&policy), &mut analyzed)
         .await
         .expect("anonymize succeeds when catalog is re-derived from the same policy set");
 }
@@ -224,7 +215,7 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
 async fn audit_rejects_missing_context_on_deserialize() {
     let engine = engine();
     let analyzed = engine
-        .analyze(raw_docx(), &[], &[], &default_spec())
+        .analyze(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
     let mut value = serde_json::to_value(&analyzed).expect("serialize");
@@ -267,18 +258,14 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
         description: None,
         when: None,
         labels: Labels::default(),
+        groups: Vec::new(),
         rules: vec![rule],
         fallback: None,
         retention: Vec::new(),
     };
 
     let err = engine
-        .analyze(
-            raw_docx(),
-            std::slice::from_ref(&policy),
-            &[],
-            &default_spec(),
-        )
+        .analyze(raw_docx(), std::slice::from_ref(&policy), &default_spec())
         .await
         .expect_err("analyze must reject unknown group references");
     assert!(
@@ -300,7 +287,7 @@ async fn empty_analyzed_document_anonymize_fails_validation() {
             correlation_id: uuid::Uuid::now_v7(),
         },
     };
-    let outcome = engine.anonymize(raw_docx(), &[], &[], &mut audit).await;
+    let outcome = engine.anonymize(raw_docx(), &[], &mut audit).await;
     let err = outcome.expect_err("anonymize must reject a missing body group");
     assert!(
         err.to_string().contains("body group is missing"),

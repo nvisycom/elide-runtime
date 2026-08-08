@@ -1,7 +1,7 @@
 //! The [`Template`] value every template constructor returns:
-//! the [`PolicyDefinition`]s + [`LabelGroup`]s a caller submits
-//! together, plus identity metadata the engine records on every
-//! run driven by this template.
+//! the [`PolicyDefinition`]s a caller submits, plus identity
+//! metadata the engine records on every run driven by this
+//! template.
 
 pub(crate) mod ccpa;
 pub(crate) mod gdpr;
@@ -10,17 +10,18 @@ pub(crate) mod pci;
 
 use hipstr::HipStr;
 use jiff::civil::Date;
+use nvisy_policy::PolicyDefinition;
 use nvisy_policy::redaction::{ModalityRedactions, TextRedaction};
-use nvisy_policy::{LabelGroup, PolicyDefinition};
 use semver::Version;
 
 /// A regulatory posture packaged as engine-ready data.
 ///
 /// Templates are plain data; a caller wanting to diverge from
-/// the shipped defaults mutates the returned [`policies`] /
-/// [`groups`] before submitting. The engine never sees the
-/// [`Template`] itself — only its [`policies`] and [`groups`]
-/// via `Engine::analyze` / `Engine::anonymize`.
+/// the shipped defaults mutates the returned [`policies`]
+/// before submitting. The engine never sees the [`Template`]
+/// itself — only its [`policies`] via `Engine::analyze` /
+/// `Engine::anonymize`. Each policy carries its own
+/// [`LabelGroup`]s inline via [`PolicyDefinition::groups`].
 ///
 /// # Identity
 ///
@@ -33,10 +34,11 @@ use semver::Version;
 /// from under them.
 ///
 /// [`effective_date`]: Self::effective_date
-/// [`groups`]: Self::groups
 /// [`policies`]: Self::policies
 /// [`version`]: Self::version
+/// [`LabelGroup`]: nvisy_policy::LabelGroup
 /// [`PolicyDefinition::id`]: nvisy_policy::PolicyDefinition::id
+/// [`PolicyDefinition::groups`]: nvisy_policy::PolicyDefinition::groups
 #[derive(Debug, Clone)]
 pub struct Template {
     /// Stable identifier for the template, matched to the
@@ -59,16 +61,9 @@ pub struct Template {
     /// Human-readable name for reviewers. `name` is the machine
     /// identifier; this is the string a customer sees.
     pub description: HipStr<'static>,
-    /// [`LabelGroup`]s the template's [`policies`] reference by
-    /// name. Passed as-is to `Engine::analyze` / `anonymize`.
-    /// May be empty for templates whose rules address labels
-    /// directly (e.g. PAN-only templates).
-    ///
-    /// [`policies`]: Self::policies
-    /// [`LabelGroup`]: nvisy_policy::LabelGroup
-    pub groups: Vec<LabelGroup>,
     /// The [`PolicyDefinition`]s a caller submits in precedence
-    /// order. Every template ships at least one.
+    /// order. Every template ships at least one. Each policy
+    /// declares its own `LabelGroup`s inline.
     ///
     /// [`PolicyDefinition`]: nvisy_policy::PolicyDefinition
     pub policies: Vec<PolicyDefinition>,

@@ -105,7 +105,6 @@ pub(crate) fn template() -> Template {
         version: Version::new(1, 0, 0),
         effective_date: Date::constant(2003, 4, 14),
         description: "HIPAA Safe Harbor de-identification — 45 CFR §164.514(b)(2)".into(),
-        groups: vec![group()],
         policies: vec![policy()],
     }
 }
@@ -143,6 +142,7 @@ fn policy() -> PolicyDefinition {
                 .collect(),
             custom: Vec::new(),
         },
+        groups: vec![group()],
         rules: vec![special_dispatch_rule(), bulk_erase_rule()],
         fallback: None,
         retention: Vec::new(),
@@ -216,9 +216,9 @@ mod tests {
         let t = template();
         assert_eq!(t.name, "hipaa_safe_harbor");
         assert_eq!(t.version, Version::new(1, 0, 0));
-        assert_eq!(t.groups.len(), 1);
-        assert_eq!(t.groups[0].name, GROUP_NAME);
         assert_eq!(t.policies.len(), 1);
+        assert_eq!(t.policies[0].groups.len(), 1);
+        assert_eq!(t.policies[0].groups[0].name, GROUP_NAME);
     }
 
     #[test]

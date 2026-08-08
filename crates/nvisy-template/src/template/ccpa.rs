@@ -104,7 +104,6 @@ pub(crate) fn template() -> Template {
         version: Version::new(1, 0, 0),
         effective_date: Date::constant(2020, 1, 1),
         description: "CCPA / CPRA — Cal. Civ. Code §1798.140(v)(1) personal information".into(),
-        groups: vec![group()],
         policies: vec![policy()],
     }
 }
@@ -139,6 +138,7 @@ fn policy() -> PolicyDefinition {
             builtins: CCPA_LABELS.to_vec(),
             custom: Vec::new(),
         },
+        groups: vec![group()],
         rules: vec![erase_rule()],
         fallback: None,
         retention: Vec::new(),
@@ -170,9 +170,9 @@ mod tests {
         let t = template();
         assert_eq!(t.name, "ccpa");
         assert_eq!(t.version, Version::new(1, 0, 0));
-        assert_eq!(t.groups.len(), 1);
-        assert_eq!(t.groups[0].name, GROUP_NAME);
         assert_eq!(t.policies.len(), 1);
+        assert_eq!(t.policies[0].groups.len(), 1);
+        assert_eq!(t.policies[0].groups[0].name, GROUP_NAME);
     }
 
     #[test]

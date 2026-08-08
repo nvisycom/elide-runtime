@@ -17,9 +17,9 @@
 //!   per-request orchestrator builder.
 //! - [`Engine::analyze`] and [`Engine::anonymize`] compile and
 //!   run the full [`elide::Orchestrator`] against one document.
-//!   Both take the request's `policies` and the shared
-//!   `groups` (named [`LabelGroup`]s the policies reference by
-//!   name) alongside the document.
+//!   Both take the request's `policies` alongside the document;
+//!   each policy carries its own [`LabelGroup`]s inline via
+//!   [`PolicyDefinition::groups`].
 //! - [`Audit`] carries the analyze → anonymize handoff: the
 //!   modality-tagged entity groups plus an [`AuditContext`] with
 //!   the request's asserted scope and correlation id.
@@ -31,6 +31,7 @@
 //! straight into [`Engine::analyze`] / [`Engine::anonymize`].
 //!
 //! [`LabelGroup`]: nvisy_schema::policy::LabelGroup
+//! [`PolicyDefinition::groups`]: nvisy_schema::policy::PolicyDefinition::groups
 //!
 //! [`elide`]: elide
 

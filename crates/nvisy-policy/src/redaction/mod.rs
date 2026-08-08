@@ -49,7 +49,7 @@ pub use self::audio::AudioRedaction;
 pub use self::image::ImageRedaction;
 pub use self::tabular::TabularRedaction;
 pub use self::text::{
-    ClampBucket, DateGranularity, DateStyle, HashAlgorithm, TerminalFallback, TextRedaction,
+    ClampBucket, DateGranularity, DateStyle, Sha2Algorithm, TerminalFallback, TextRedaction,
 };
 
 /// Per-modality operator specs carried by a `redact` rule.

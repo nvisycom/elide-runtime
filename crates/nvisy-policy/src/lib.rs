@@ -38,7 +38,7 @@ pub use self::label::Labels;
 use self::predicate::DocumentPredicate;
 use self::redaction::ModalityRedactions;
 use self::retention::RetentionPolicy;
-pub use self::rule::PolicyRule;
+pub use self::rule::{LabelEntry, PolicyRule, PredicatedRule, TableRule};
 
 /// A named governance policy.
 ///
@@ -49,10 +49,10 @@ pub struct PolicyDefinition {
     /// Stable identifier. UUIDv7 recommended (time-ordered);
     /// customer-supplied so re-submissions carry the same id.
     /// Engine stamps this into the redaction event's
-    /// [`Attribution::policy_id`] so reviewers can find this
-    /// policy from any redaction it drove.
+    /// [`Attribution::name`] so reviewers can find this policy
+    /// from any redaction it drove.
     ///
-    /// [`Attribution::policy_id`]: elide_core::entity::provenance::Attribution::policy_id
+    /// [`Attribution::name`]: elide_core::entity::provenance::Attribution::name
     pub id: Uuid,
     /// Human-readable name. Display-only. Does not key anything.
     #[schemars(with = "String")]

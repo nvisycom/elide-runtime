@@ -29,6 +29,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use elide_core::primitive::{CountryCode, Languages};
+use elide::recognition::ScopeMetadata;
 #[cfg(feature = "audit-json")]
 use elide_core::{Error, ErrorKind, Result};
 use schemars::JsonSchema;
@@ -88,18 +89,22 @@ pub struct Audit {
 
 /// Recognition-side facts that travel from analyze to anonymize.
 ///
-/// Everything a policy predicate might key off the request's
-/// caller-asserted scope (languages, jurisdictions, document
-/// tags), plus the analyze-time correlation id so tracing spans
-/// across both phases stay linked. The label catalog is not on
-/// here — labels are policy-owned, and anonymize re-derives them
-/// from the policy set it was handed.
+/// Mirrors elide's [`Scope`] shape one-for-one: direct fields
+/// for `languages` and `countries` (typed, elide-native), a
+/// [`metadata`] sub-struct for free-form classification strings
+/// (`tags`, `purpose`, `audience`), and the analyze-time
+/// [`correlation_id`]. The label catalog is not on here —
+/// labels are policy-owned, and anonymize re-derives them from
+/// the policy set it was handed.
 ///
 /// No [`Default`] — `correlation_id` has no meaningful default
-/// (a nil UUID would silently collapse unrelated audits under one
-/// bucket in downstream trace aggregators), so callers supply one
-/// explicitly. Everything else is optional-on-the-wire and
-/// defaults to empty when missing.
+/// (a nil UUID would silently collapse unrelated audits under
+/// one bucket in downstream trace aggregators), so callers
+/// supply one explicitly. Everything else defaults to empty.
+///
+/// [`Scope`]: elide::recognition::Scope
+/// [`metadata`]: Self::metadata
+/// [`correlation_id`]: Self::correlation_id
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AuditContext {
@@ -114,11 +119,10 @@ pub struct AuditContext {
     /// Recorded from `AnalyzerParams.scope.countries`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub countries: Vec<CountryCode>,
-    /// Document-level classification tags.
-    ///
-    /// Recorded from `AnalyzerParams.scope.tags`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<String>,
+    /// Free-form request context: document tags, request purpose,
+    /// output audience. See elide's [`ScopeMetadata`].
+    #[serde(default, skip_serializing_if = "scope_metadata_is_empty")]
+    pub metadata: ScopeMetadata,
     /// Analyze-time correlation id.
     ///
     /// Threaded into every tracing span on the recognition path;
@@ -132,6 +136,17 @@ pub struct AuditContext {
     ///
     /// [`Document`]: nvisy_schema::file::Document
     pub correlation_id: Uuid,
+}
+
+/// Whether the [`ScopeMetadata`] carries no assertions.
+///
+/// Used by [`AuditContext::metadata`]'s `skip_serializing_if` to
+/// keep the serialized `context` block minimal when the caller
+/// asserts nothing beyond the typed fields. Local to this module
+/// because elide's `ScopeMetadata` doesn't ship an `is_empty` of
+/// its own; a one-line helper is cheaper than a wrapper type.
+fn scope_metadata_is_empty(metadata: &ScopeMetadata) -> bool {
+    metadata.tags.is_empty() && metadata.purpose.is_none() && metadata.audience.is_empty()
 }
 
 #[cfg(feature = "audit-json")]

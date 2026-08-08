@@ -96,7 +96,7 @@ impl Engine {
         let context = AuditContext {
             languages: spec.scope.languages.clone(),
             countries: spec.scope.countries.clone(),
-            tags: spec.scope.tags.clone(),
+            metadata: spec.scope.metadata.clone(),
             correlation_id,
         };
         let live_scope = build_scope(&context, catalog.clone(), correlation_id);
@@ -228,7 +228,7 @@ fn build_scope(context: &AuditContext, catalog: LabelCatalog, correlation_id: Uu
     Scope {
         languages: context.languages.clone(),
         countries: context.countries.clone(),
-        tags: context.tags.clone(),
+        metadata: context.metadata.clone(),
         catalog,
         correlation_id: Some(correlation_id),
     }

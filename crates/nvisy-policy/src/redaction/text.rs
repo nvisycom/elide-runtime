@@ -65,26 +65,10 @@ use std::collections::HashMap;
 
 use elide_core::primitive::{LanguageTag, LocalizedText};
 use elide_redaction::operators::Clamp;
-pub use elide_redaction::operators::{DateGranularity, DateStyle};
+pub use elide_redaction::operators::{DateGranularity, DateStyle, Sha2Algorithm};
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-/// SHA-2 variant for the [`TextRedaction::Hash`] operator.
-///
-/// Wire mirror of elide's `Sha2Algorithm`; the runtime `From`
-/// conversion is on the engine side so this crate stays free
-/// of the elide-redaction dep.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HashAlgorithm {
-    /// SHA-256, 32-byte digest, 64-char hex.
-    #[default]
-    Sha256,
-    /// SHA-512, 64-byte digest, 128-char hex.
-    Sha512,
-}
 
 /// Text a [`TextRedaction::Clamp`] emits for out-of-range values.
 ///
@@ -229,7 +213,7 @@ pub enum TextRedaction {
     Hash {
         /// SHA-256 (default) or SHA-512.
         #[serde(default)]
-        algorithm: HashAlgorithm,
+        algorithm: Sha2Algorithm,
         /// Salt prepended to the value before hashing.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         salt: Option<String>,
@@ -284,7 +268,7 @@ pub enum TextRedaction {
     HmacHash {
         /// HMAC-SHA-256 (default) or HMAC-SHA-512.
         #[serde(default)]
-        algorithm: HashAlgorithm,
+        algorithm: Sha2Algorithm,
     },
     /// Physically remove the middle of the value, keeping a
     /// leading and/or trailing run of characters. Unlike [`Mask`]

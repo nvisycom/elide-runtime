@@ -1,6 +1,7 @@
 //! Top-level analyzer params.
 
 use elide_core::primitive::{CountryCode, Languages};
+use elide_core::recognition::ScopeMetadata;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -18,19 +19,15 @@ use super::recognizer::RecognizerParams;
 /// params. Text picks up the text-applicable recognizers,
 /// image picks up the image ones, etc.
 ///
-/// The caller-asserted scope lives under [`scope`], a single
-/// nested object grouping the three knobs the engine assembles
-/// into an `elide::recognition::Scope` at compile time
-/// ([`languages`], [`countries`], [`tags`]). `Scope`'s two other
-/// knobs are engine-side: `correlation_id` is server-minted per
-/// request, and `catalog` is derived from the request's policy
-/// set (each [`PolicyDefinition::labels`] contributes).
+/// The caller-asserted scope lives under [`scope`], a narrower
+/// wire projection of `elide::recognition::Scope`: `languages`,
+/// `countries`, and elide's own [`ScopeMetadata`] block for
+/// free-form classification strings. `Scope`'s other two fields
+/// are server-owned — `correlation_id` is minted per request,
+/// and `catalog` is derived from the request's policy set — so
+/// they don't appear on the wire.
 ///
 /// [`scope`]: AnalyzerParams::scope
-/// [`languages`]: ScopeParams::languages
-/// [`countries`]: ScopeParams::countries
-/// [`tags`]: ScopeParams::tags
-/// [`PolicyDefinition::labels`]: crate::policy::PolicyDefinition::labels
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerParams {
@@ -51,12 +48,7 @@ pub struct AnalyzerParams {
     /// Calibrate → reconcile → filter.
     #[serde(default)]
     pub deduplication: DeduplicationParams,
-    /// Caller-asserted scope.
-    ///
-    /// Languages, jurisdictions, document tags. Engine assembles
-    /// this (plus a server-minted correlation id and the
-    /// policy-derived label catalog) into an
-    /// `elide::recognition::Scope` at compile time.
+    /// Caller-asserted scope. See [`ScopeParams`].
     #[serde(default)]
     pub scope: ScopeParams,
     /// Per-modality region annotations.
@@ -72,10 +64,12 @@ pub struct AnalyzerParams {
 
 /// Caller-asserted scope for one request.
 ///
-/// Mirrors the wire-visible knobs of `elide::recognition::Scope`.
-/// The engine assembles this plus a server-minted
-/// `correlation_id` into the orchestrator's `Scope` at compile
-/// time.
+/// A narrower wire projection of `elide::recognition::Scope`:
+/// `languages` and `countries` (typed, elide-native), plus
+/// elide's [`ScopeMetadata`] block for free-form classification
+/// strings (`tags`, `purpose`, `audience`). The engine assembles
+/// this plus a server-minted `correlation_id` and a policy-derived
+/// label catalog into the orchestrator's `Scope` at compile time.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ScopeParams {
@@ -94,18 +88,19 @@ pub struct ScopeParams {
     /// jurisdiction don't lose detections.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub countries: Vec<CountryCode>,
-    /// Document-level classification tags.
-    ///
-    /// E.g. `"medical"`, `"gdpr-request"`. Recognizers may use
-    /// these to bias their behaviour for domain-specific terms;
-    /// those that don't ignore the field.
-    ///
-    /// Distinct from the entity-label catalog: tags classify the
-    /// *document*, whereas labels name the entity *types* to
-    /// emit. Labels are authored on each [`PolicyDefinition`],
-    /// not here.
-    ///
-    /// [`PolicyDefinition`]: crate::policy::PolicyDefinition
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<String>,
+    /// Free-form request context: document tags, request purpose,
+    /// output audience. See elide's [`ScopeMetadata`].
+    #[serde(default, skip_serializing_if = "scope_metadata_is_empty")]
+    pub metadata: ScopeMetadata,
+}
+
+/// Whether the [`ScopeMetadata`] carries no assertions.
+///
+/// Used by [`ScopeParams::metadata`]'s `skip_serializing_if` to
+/// keep the serialized `scope` block minimal when the caller
+/// asserts nothing beyond the typed fields. Local to this module
+/// because elide's `ScopeMetadata` doesn't ship an `is_empty` of
+/// its own; a one-line helper is cheaper than a wrapper type.
+fn scope_metadata_is_empty(metadata: &ScopeMetadata) -> bool {
+    metadata.tags.is_empty() && metadata.purpose.is_none() && metadata.audience.is_empty()
 }

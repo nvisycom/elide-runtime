@@ -21,11 +21,11 @@
 //!   (inclusions / exclusions).
 //!
 //! Caller-asserted scope lives under [`AnalyzerParams::scope`],
-//! a single [`ScopeParams`] grouping `languages`, `countries`,
-//! and `tags`. The engine assembles these (plus a server-minted
-//! correlation id, plus the label catalog derived from the
-//! request's policy set) into an `elide::recognition::Scope` at
-//! compile time.
+//! a [`ScopeParams`] carrying `languages`, `countries`, and
+//! elide's own `ScopeMetadata` block (tags, purpose, audience).
+//! The engine assembles these (plus a server-minted correlation
+//! id and the policy-derived label catalog) into an
+//! `elide::recognition::Scope` at compile time.
 //!
 //! [`policy`]: crate::policy
 

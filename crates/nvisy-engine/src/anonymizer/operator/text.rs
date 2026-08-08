@@ -25,7 +25,7 @@ use elide::redaction::Anonymizer;
 use elide::redaction::generator::RandomToken;
 use elide::redaction::operators::{
     AesEncrypt, Clamp, Erase, Fake, GeneralizeDate, HmacHash, Keep, KeyProvider, Mask,
-    Pseudonymize, Replace, Sha2Algorithm, Sha2Hash, Truncate, TryOperator, WithFallback,
+    Pseudonymize, Replace, Sha2Hash, Truncate, TryOperator, WithFallback,
 };
 use elide::redaction::vault::InMemoryVault;
 use elide_core::entity::LabelRef;
@@ -33,9 +33,7 @@ use elide_core::modality::Modality;
 use elide_core::modality::text::TextReplacement;
 use elide_core::operator::Operator;
 use elide_core::{Error, ErrorKind, Result};
-use nvisy_schema::policy::redaction::{
-    ClampBucket, HashAlgorithm, TerminalFallback, TextRedaction,
-};
+use nvisy_schema::policy::redaction::{ClampBucket, TerminalFallback, TextRedaction};
 
 use crate::anonymizer::compile::Target;
 
@@ -154,7 +152,7 @@ where
         } => Arc::new(build_mask(*mask_char, *keep_prefix, *keep_suffix)),
         TextRedaction::Replace { template } => Arc::new(Replace::new(template.clone())),
         TextRedaction::Hash { algorithm, salt } => {
-            let mut op = Sha2Hash::new(to_sha2(*algorithm));
+            let mut op = Sha2Hash::new(*algorithm);
             if let Some(s) = salt {
                 op = op.with_salt(s.as_bytes().to_vec());
             }
@@ -165,7 +163,7 @@ where
                 .key_provider
                 .clone()
                 .ok_or_else(|| missing_infrastructure("hmac_hash", "KeyProvider"))?;
-            Arc::new(HmacHash::new(to_sha2(*algorithm), keys))
+            Arc::new(HmacHash::new(*algorithm, keys))
         }
         TextRedaction::Truncate {
             keep_prefix,
@@ -252,17 +250,6 @@ where
             primary,
             build_mask(*mask_char, *keep_prefix, *keep_suffix),
         )),
-    }
-}
-
-/// Runtime conversion from the wire's [`HashAlgorithm`] to
-/// elide's [`Sha2Algorithm`]. Lives here rather than as a
-/// `From` impl on the wire type so `nvisy-schema` stays free
-/// of the `elide-redaction` dep.
-fn to_sha2(algorithm: HashAlgorithm) -> Sha2Algorithm {
-    match algorithm {
-        HashAlgorithm::Sha256 => Sha2Algorithm::Sha256,
-        HashAlgorithm::Sha512 => Sha2Algorithm::Sha512,
     }
 }
 

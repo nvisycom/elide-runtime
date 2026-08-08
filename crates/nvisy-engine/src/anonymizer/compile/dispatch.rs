@@ -18,7 +18,7 @@
 //!
 //! [`with_fallback`]: elide::redaction::Anonymizer::with_fallback
 
-use elide::redaction::Anonymizer;
+use elide::redaction::{Anonymizer, Rule};
 use elide_core::Result;
 use elide_core::entity::provenance::Attribution;
 use elide_core::modality::Modality;
@@ -35,7 +35,7 @@ use super::selector::{attach, attach_override, fallback_attribution, rule_attrib
 /// `Anonymizer<M>` through the right elide entry point.
 pub(in crate::anonymizer) enum Target<'a, M: Modality> {
     /// Rule attachment: predicate-guarded redaction with a
-    /// `policy_id` + `reason` attribution. Maps to
+    /// name + description attribution. Maps to
     /// [`super::selector::attach`].
     Rule {
         anonymizer: Anonymizer<M>,
@@ -64,7 +64,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// dispatchers per modality.
     pub(in crate::anonymizer) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
     where
-        O: Operator<M> + Clone + 'static,
+        O: Operator<M> + 'static,
     {
         match self {
             Target::Rule {
@@ -75,7 +75,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
             Target::Fallback {
                 anonymizer,
                 attribution,
-            } => anonymizer.with_fallback(operator).because(attribution),
+            } => anonymizer.with(Rule::fallback(operator).because(attribution)),
             Target::Override {
                 anonymizer,
                 entity_id,
@@ -115,14 +115,17 @@ where
 {
     for policy in policies {
         for rule in &policy.rules {
-            anonymizer = compile_one(
-                Target::Rule {
-                    anonymizer,
-                    predicate: &rule.predicate,
-                    attribution: rule_attribution(policy, rule),
-                },
-                &rule.action,
-            )?;
+            let attribution = rule_attribution(policy, rule);
+            for (predicate, action) in rule.attachments() {
+                anonymizer = compile_one(
+                    Target::Rule {
+                        anonymizer,
+                        predicate: &predicate,
+                        attribution: attribution.clone(),
+                    },
+                    action,
+                )?;
+            }
         }
         if let Some(redactions) = &policy.fallback {
             anonymizer = compile_one(

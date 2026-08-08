@@ -153,7 +153,7 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
     let engine = engine();
 
     let mut spec = default_spec();
-    spec.scope.tags = vec!["gdpr-request".to_owned()];
+    spec.scope.metadata.tags = vec!["gdpr-request".into()];
     let doc = raw_docx();
     let correlation_id = doc.correlation_id;
 
@@ -163,7 +163,7 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
         .expect("analyze succeeds");
 
     assert_eq!(
-        audit.context.tags, spec.scope.tags,
+        audit.context.metadata.tags, spec.scope.metadata.tags,
         "audit context must mirror the caller-asserted scope tags",
     );
     assert_eq!(
@@ -231,7 +231,7 @@ async fn empty_analyzed_document_anonymize_fails_validation() {
         context: AuditContext {
             languages: Default::default(),
             countries: Vec::new(),
-            tags: Vec::new(),
+            metadata: Default::default(),
             correlation_id: uuid::Uuid::now_v7(),
         },
     };

@@ -31,8 +31,7 @@ elide-operator = { workspace = true, features = ["serde", "schema", "datetime", 
 serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true, features = ["uuid1"] }
 
-# Derive macros and error handling
-derive_more = { workspace = true, features = ["display"] }
+# Derive macros
 strum = { workspace = true, features = ["derive"] }
 
 # Primitive datatypes

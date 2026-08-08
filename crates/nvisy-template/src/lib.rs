@@ -5,11 +5,11 @@
 //! ## Architecture
 //!
 //! One function per regulatory posture, each returning a
-//! self-contained [`Template`] — the [`PolicyDefinition`]s plus
-//! the [`LabelGroup`]s those policies reference by name — matched
-//! to how the engine consumes them. Callers hand the [`Template`]
-//! straight to `Engine::analyze` / `Engine::anonymize` via
-//! [`Template::policies`] and [`Template::groups`].
+//! self-contained [`Template`] — the [`PolicyDefinition`]s each
+//! carrying its own inline [`LabelGroup`]s — matched to how the
+//! engine consumes them. Callers hand the [`Template`] straight
+//! to `Engine::analyze` / `Engine::anonymize` via
+//! [`Template::policies`].
 //!
 //! Templates are plain data. Nothing is registered globally, and
 //! no template constructor talks to the engine or hits I/O. A

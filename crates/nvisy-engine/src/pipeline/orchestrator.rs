@@ -55,7 +55,7 @@ use elide_core::{Error, ErrorKind};
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use nvisy_schema::policy::{LabelGroup, PolicyDefinition, PolicyRule};
+use nvisy_schema::policy::{PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
 use super::Engine;
@@ -93,11 +93,10 @@ impl Engine {
         &self,
         spec: &AnalyzerParams,
         policies: &[PolicyDefinition],
-        groups: &[LabelGroup],
         correlation_id: Uuid,
     ) -> Result<(Orchestrator<'_>, AuditContext)> {
-        validate_group_references(policies, groups)?;
-        let catalog = compile_catalog(policies, groups);
+        validate_group_references(policies)?;
+        let catalog = compile_catalog(policies);
         let context = AuditContext {
             languages: spec.scope.languages.clone(),
             countries: spec.scope.countries.clone(),
@@ -159,12 +158,11 @@ impl Engine {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
-        groups: &[LabelGroup],
         overrides: &[(Uuid, ModalityRedactions)],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
-        validate_group_references(policies, groups)?;
-        let catalog = compile_catalog(policies, groups);
+        validate_group_references(policies)?;
+        let catalog = compile_catalog(policies);
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
         // Fresh per-request text-operator context. `Pseudonymize`
@@ -229,21 +227,22 @@ impl Engine {
     }
 }
 
-/// Reject a request whose policy set references a
-/// [`LabelGroup`] name that no submitted group provides.
+/// Reject a request whose rule references a [`LabelGroup`] name
+/// its own policy didn't declare.
 ///
-/// Runs before catalog compilation so an authoring typo
-/// (`"gdpr_arcticle_9"`) surfaces as a
+/// Groups are scoped to the policy that owns them (strict
+/// per-policy namespace). A rule inside policy A can reference
+/// only groups declared in policy A's own [`groups`] slot — not
+/// groups declared by policy B. Runs before catalog compilation
+/// so an authoring typo (`"gdpr_arcticle_9"`) surfaces as a
 /// [`Configuration`](ErrorKind::Configuration) error at request
 /// validation time, not as a silent underfire at apply time.
 ///
-/// Complexity is O(rules × 1) in practice — the lookup uses a
-/// [`HashSet`] over the request's group names.
-///
 /// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
-fn validate_group_references(policies: &[PolicyDefinition], groups: &[LabelGroup]) -> Result<()> {
-    let known: HashSet<&str> = groups.iter().map(|g| g.name.as_str()).collect();
+/// [`groups`]: nvisy_schema::policy::PolicyDefinition::groups
+fn validate_group_references(policies: &[PolicyDefinition]) -> Result<()> {
     for policy in policies {
+        let known: HashSet<&str> = policy.groups.iter().map(|g| g.name.as_str()).collect();
         for rule in &policy.rules {
             for (predicate, _) in rule.attachments() {
                 check_predicate_groups(&predicate, &known, policy, rule)?;
@@ -254,8 +253,9 @@ fn validate_group_references(policies: &[PolicyDefinition], groups: &[LabelGroup
 }
 
 /// Walk a predicate tree; every [`Predicate::LabelInGroup`] leaf
-/// must name a known group. Returns the first unknown reference
-/// with policy + rule context for the error message.
+/// must name a group declared by the enclosing policy. Returns
+/// the first unknown reference with policy + rule context for the
+/// error message.
 fn check_predicate_groups(
     predicate: &Predicate,
     known: &HashSet<&str>,
@@ -267,7 +267,7 @@ fn check_predicate_groups(
             ErrorKind::Configuration,
             format!(
                 "policy `{}` rule `{}` references unknown label group `{}` — \
-                     no `LabelGroup` with that name was submitted with the request",
+                 the enclosing policy declares no `LabelGroup` with that name",
                 policy.id,
                 rule.id(),
                 group,

@@ -53,7 +53,6 @@ pub(crate) fn truncate_template() -> Template {
         effective_date: EFFECTIVE_DATE,
         description: "PCI DSS §3.5.1 — PAN render via truncation (keep first-six / last-four)"
             .into(),
-        groups: Vec::new(),
         policies: vec![PolicyDefinition {
             id: TRUNCATE_POLICY_ID,
             name: "pci-dss-pan-truncate".into(),
@@ -68,6 +67,7 @@ pub(crate) fn truncate_template() -> Template {
                 builtins: vec![PAN_LABEL.clone()],
                 custom: Vec::new(),
             },
+            groups: Vec::new(),
             rules: vec![truncate_rule()],
             fallback: None,
             retention: Vec::new(),
@@ -84,7 +84,6 @@ pub(crate) fn hmac_template() -> Template {
         effective_date: EFFECTIVE_DATE,
         description: "PCI DSS §3.5.1 — PAN render via keyed cryptographic hash (HMAC-SHA-256)"
             .into(),
-        groups: Vec::new(),
         policies: vec![PolicyDefinition {
             id: HMAC_POLICY_ID,
             name: "pci-dss-pan-hmac".into(),
@@ -100,6 +99,7 @@ pub(crate) fn hmac_template() -> Template {
                 builtins: vec![PAN_LABEL.clone()],
                 custom: Vec::new(),
             },
+            groups: Vec::new(),
             rules: vec![hmac_rule()],
             fallback: None,
             retention: Vec::new(),
@@ -155,7 +155,10 @@ mod tests {
         let t = truncate_template();
         assert_eq!(t.name, "pci_dss_pan_truncate");
         assert_eq!(t.version, Version::new(1, 0, 0));
-        assert!(t.groups.is_empty(), "PCI templates ship no LabelGroup");
+        assert!(
+            t.policies[0].groups.is_empty(),
+            "PCI templates ship no LabelGroup",
+        );
         assert_eq!(t.policies.len(), 1);
     }
 
@@ -164,7 +167,7 @@ mod tests {
         let t = hmac_template();
         assert_eq!(t.name, "pci_dss_pan_hmac");
         assert_eq!(t.version, Version::new(1, 0, 0));
-        assert!(t.groups.is_empty());
+        assert!(t.policies[0].groups.is_empty());
         assert_eq!(t.policies.len(), 1);
     }
 

@@ -94,8 +94,8 @@ use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
+use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use nvisy_schema::policy::{LabelGroup, PolicyDefinition};
 use uuid::Uuid;
 
 pub use self::audit::{Audit, AuditContext};
@@ -239,34 +239,36 @@ impl Engine {
     ///
     /// `policies` contributes the label catalog (each
     /// [`PolicyDefinition::labels`] unions in) that drives
-    /// recognizer dispatch. `groups` are the [`LabelGroup`]s the
-    /// policies' `LabelInGroup` predicates reference by name; the
-    /// engine stamps a `group:<name>` synthetic tag on every
-    /// listed label at request-compile time and rejects any
-    /// group reference the request didn't submit.
+    /// recognizer dispatch. Every policy carries its own
+    /// [`LabelGroup`]s in [`PolicyDefinition::groups`]; the
+    /// engine stamps a `group:<policy_id>:<name>` synthetic tag
+    /// on every listed label at request-compile time and rejects
+    /// any [`LabelInGroup`] reference the enclosing policy
+    /// doesn't declare.
     ///
     /// The catalog is not persisted onto the returned [`Audit`] —
     /// the anonymize path re-derives it from the policy set it
-    /// was handed. Pass the same policy set + groups to
+    /// was handed. Pass the same policy set to
     /// [`Self::anonymize`] so its rule bodies match against a
     /// catalog they helped define.
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     /// [`EntityGroup`]: crate::entity::EntityGroup
     /// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
+    /// [`LabelInGroup`]: nvisy_schema::policy::predicate::Predicate::LabelInGroup
     /// [`PolicyDefinition::labels`]: nvisy_schema::policy::PolicyDefinition::labels
+    /// [`PolicyDefinition::groups`]: nvisy_schema::policy::PolicyDefinition::groups
     pub async fn analyze(
         &self,
         document: Document,
         policies: &[PolicyDefinition],
-        groups: &[LabelGroup],
         spec: &AnalyzerParams,
     ) -> Result<Audit> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document).await?;
         let (orchestrator, context) =
-            self.build_analyze_orchestrator(spec, policies, groups, correlation_id)?;
+            self.build_analyze_orchestrator(spec, policies, correlation_id)?;
         let directives = build_analyze_directives(spec);
         let mut report = orchestrator.analyze(&mut handle, &directives).await?;
 
@@ -334,17 +336,18 @@ impl Engine {
     ///
     /// `policies` is the policy set already filtered by
     /// [`PolicyDefinition::when`] against the per-doc facts; the
-    /// engine does not re-evaluate predicates. `groups` are the
-    /// [`LabelGroup`]s the policies' `LabelInGroup` predicates
-    /// reference by name — same shape as [`Self::analyze`]. The
-    /// label catalog is re-derived from `policies` + `groups` on
-    /// every call — policies are the sole source of label
-    /// vocabulary. The asserted scope (languages, jurisdictions,
-    /// metadata) travels on [`Audit::context`] from analyze. The
-    /// document's `correlation_id` is threaded into tracing spans
-    /// on the redaction path.
+    /// engine does not re-evaluate predicates. Each policy
+    /// carries its own [`LabelGroup`]s inline via
+    /// [`PolicyDefinition::groups`] — same shape as
+    /// [`Self::analyze`]. The label catalog is re-derived from
+    /// `policies` on every call — policies are the sole source
+    /// of label vocabulary. The asserted scope (languages,
+    /// jurisdictions, metadata) travels on [`Audit::context`]
+    /// from analyze. The document's `correlation_id` is threaded
+    /// into tracing spans on the redaction path.
     ///
     /// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
+    /// [`PolicyDefinition::groups`]: nvisy_schema::policy::PolicyDefinition::groups
     ///
     /// The body's modality (read from `audit.body`'s
     /// [`EntityGroup`] variant) pins which typed handle the
@@ -359,7 +362,6 @@ impl Engine {
         &self,
         document: Document,
         policies: &[PolicyDefinition],
-        groups: &[LabelGroup],
         audit: &mut Audit,
     ) -> Result<Document> {
         let body_group = audit.body.as_ref().ok_or_else(|| {
@@ -384,7 +386,6 @@ impl Engine {
         let orchestrator = self.build_anonymize_orchestrator(
             &audit.context,
             policies,
-            groups,
             &overrides,
             correlation_id,
         )?;

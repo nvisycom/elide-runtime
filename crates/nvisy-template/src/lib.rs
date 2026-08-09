@@ -69,9 +69,8 @@ use self::template::{ccpa, gdpr, hipaa, pci};
 /// `template: "hipaa_safe_harbor"` through JSON directly into
 /// a variant. Iterate every variant via `PolicyTemplate::iter()`
 /// (from [`strum::IntoEnumIterator`]).
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PolicyTemplate {
     /// HIPAA Safe Harbor de-identification per 45 CFR

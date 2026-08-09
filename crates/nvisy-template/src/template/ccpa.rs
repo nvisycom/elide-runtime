@@ -179,7 +179,7 @@ fn erase_rule() -> PolicyRule {
             predicate: Predicate::LabelInGroup {
                 group: GROUP_NAME.to_owned(),
             },
-            action: ModalityRedactions::text(TextRedaction::Erase),
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
     }
 }

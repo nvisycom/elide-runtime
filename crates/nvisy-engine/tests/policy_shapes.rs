@@ -207,10 +207,10 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
                 predicate: Predicate::LabelInGroup {
                     group: "contact_info".to_owned(),
                 },
-                action: ModalityRedactions {
+                action: Box::new(ModalityRedactions {
                     text: Some(TextRedaction::Erase),
                     ..Default::default()
-                },
+                }),
             },
         }],
         fallback: None,
@@ -268,10 +268,10 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
                 predicate: Predicate::TagOneOf {
                     tags: vec!["pii".to_owned()],
                 },
-                action: ModalityRedactions {
+                action: Box::new(ModalityRedactions {
                     text: Some(TextRedaction::Erase),
                     ..Default::default()
-                },
+                }),
             },
         }],
         fallback: None,
@@ -359,12 +359,12 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
                 predicate: Predicate::LabelOneOf {
                     labels: vec![LabelRef::new("email_address")],
                 },
-                action: ModalityRedactions {
+                action: Box::new(ModalityRedactions {
                     text: Some(TextRedaction::Replace {
                         template: "[replaced-email]".to_owned(),
                     }),
                     ..Default::default()
-                },
+                }),
             },
         }],
         fallback: None,
@@ -419,10 +419,10 @@ async fn cross_policy_group_reference_fails_the_request() {
                 predicate: Predicate::LabelInGroup {
                     group: "contact_info".to_owned(),
                 },
-                action: ModalityRedactions {
+                action: Box::new(ModalityRedactions {
                     text: Some(TextRedaction::Erase),
                     ..Default::default()
-                },
+                }),
             },
         }],
         fallback: None,

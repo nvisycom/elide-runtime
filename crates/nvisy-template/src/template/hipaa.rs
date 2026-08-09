@@ -439,7 +439,7 @@ fn safe_harbor_bulk_erase_rule() -> PolicyRule {
             predicate: Predicate::LabelInGroup {
                 group: SAFE_HARBOR_GROUP.to_owned(),
             },
-            action: ModalityRedactions::text(TextRedaction::Erase),
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
     }
 }
@@ -456,7 +456,7 @@ fn lds_bulk_erase_rule() -> PolicyRule {
             predicate: Predicate::LabelInGroup {
                 group: LDS_GROUP.to_owned(),
             },
-            action: ModalityRedactions::text(TextRedaction::Erase),
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
     }
 }
@@ -527,7 +527,7 @@ fn ed_bulk_pseudonymize_rule() -> PolicyRule {
             predicate: Predicate::LabelInGroup {
                 group: ED_GROUP.to_owned(),
             },
-            action: ModalityRedactions::text(TextRedaction::Pseudonymize),
+            action: Box::new(ModalityRedactions::text(TextRedaction::Pseudonymize)),
         },
     }
 }

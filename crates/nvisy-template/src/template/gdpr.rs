@@ -214,7 +214,7 @@ fn erase_rule() -> PolicyRule {
             predicate: Predicate::LabelInGroup {
                 group: ERASE_GROUP.to_owned(),
             },
-            action: ModalityRedactions::text(TextRedaction::Erase),
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
     }
 }
@@ -232,7 +232,7 @@ fn pseudonymize_rule() -> PolicyRule {
             predicate: Predicate::LabelInGroup {
                 group: PSEUDONYMIZE_GROUP.to_owned(),
             },
-            action: ModalityRedactions::text(TextRedaction::Pseudonymize),
+            action: Box::new(ModalityRedactions::text(TextRedaction::Pseudonymize)),
         },
     }
 }

@@ -389,11 +389,9 @@ impl Engine {
     /// entities' provenance to see who redacted what, under which
     /// rule, and when.
     ///
-    /// `policies` is the policy set already filtered by
-    /// [`PolicyDefinition::when`] against the per-doc facts; the
-    /// engine does not re-evaluate predicates. Each policy
-    /// carries its own [`LabelGroup`]s inline via
-    /// [`PolicyDefinition::groups`] — same shape as
+    /// `policies` is the policy set the caller wants applied to
+    /// this document. Each policy carries its own [`LabelGroup`]s
+    /// inline via [`PolicyDefinition::groups`] — same shape as
     /// [`Self::analyze`]. The label catalog is re-derived from
     /// `policies` on every call — policies are the sole source
     /// of label vocabulary. The asserted scope (languages,
@@ -440,7 +438,6 @@ impl Engine {
     /// ride on.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
-    /// [`PolicyDefinition::when`]: nvisy_schema::policy::PolicyDefinition::when
     /// [`EntityGroup`]: crate::entity::EntityGroup
     pub async fn anonymize(
         &self,

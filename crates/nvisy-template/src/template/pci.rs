@@ -283,10 +283,10 @@ fn truncate_rule(keep_prefix: usize, keep_suffix: usize, rule_id: Uuid, name: &s
         description: Some(description.into()),
         dispatch: RuleDispatch::Predicated {
             predicate: single_label(PAN_LABEL.clone()),
-            action: ModalityRedactions::text(TextRedaction::Truncate {
+            action: Box::new(ModalityRedactions::text(TextRedaction::Truncate {
                 keep_prefix,
                 keep_suffix,
-            }),
+            })),
         },
     }
 }
@@ -309,7 +309,9 @@ fn hmac_rule(
         ),
         dispatch: RuleDispatch::Predicated {
             predicate: single_label(PAN_LABEL.clone()),
-            action: ModalityRedactions::text(TextRedaction::HmacHash { algorithm }),
+            action: Box::new(ModalityRedactions::text(TextRedaction::HmacHash {
+                algorithm,
+            })),
         },
     }
 }
@@ -367,7 +369,7 @@ fn sav_rule() -> PolicyRule {
             predicate: Predicate::LabelOneOf {
                 labels: SAV_LABELS.to_vec(),
             },
-            action: ModalityRedactions::text(TextRedaction::Erase),
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
     }
 }

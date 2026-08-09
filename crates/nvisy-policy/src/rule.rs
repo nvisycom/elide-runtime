@@ -79,7 +79,7 @@ impl PolicyRule {
     pub fn attachments(&self) -> Box<dyn Iterator<Item = (Predicate, &ModalityRedactions)> + '_> {
         match &self.dispatch {
             RuleDispatch::Predicated { predicate, action } => {
-                Box::new(std::iter::once((predicate.clone(), action)))
+                Box::new(std::iter::once((predicate.clone(), action.as_ref())))
             }
             RuleDispatch::Table { operators } => Box::new(operators.iter().map(|entry| {
                 (
@@ -114,7 +114,14 @@ pub enum RuleDispatch {
         /// predicate matches. Modalities the rule doesn't cover
         /// fall through to the policy fallback (or the next
         /// policy in the chain).
-        action: ModalityRedactions,
+        ///
+        /// Boxed to keep [`RuleDispatch`]'s stack footprint
+        /// small — [`ModalityRedactions`] carries four optional
+        /// per-modality operator enums and dominates the variant
+        /// size. `Table`'s `Vec<LabelEntry>` already heap-allocates
+        /// its entries, so boxing here keeps the two variants
+        /// balanced without changing the wire form.
+        action: Box<ModalityRedactions>,
     },
     /// N `(label, action)` entries under one shared identity.
     /// Every entity whose label matches a listed [`LabelRef`]

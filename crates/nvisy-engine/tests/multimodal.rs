@@ -269,10 +269,10 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
             predicate: Predicate::LabelInGroup {
                 group: "definitely_no_such_group".to_owned(),
             },
-            action: ModalityRedactions {
+            action: Box::new(ModalityRedactions {
                 text: Some(TextRedaction::Erase),
                 ..Default::default()
-            },
+            }),
         },
     };
     let policy = PolicyDefinition {

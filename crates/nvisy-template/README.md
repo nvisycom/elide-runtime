@@ -6,11 +6,15 @@ Ready-to-run Nvisy policy templates for common regulatory postures.
 
 ## Overview
 
-Each template returns a self-contained `Template` value: a set of
-`PolicyDefinition`s (each carrying its own inline `LabelGroup`s)
-matched to how the engine consumes them. Callers hand
-`template.policies` straight to `Engine::analyze` /
-`Engine::anonymize`; no assembly required.
+The `PolicyTemplate` enum names every regulatory posture this
+crate ships; `PolicyTemplate::HipaaSafeHarbor.build()` materialises
+the picked variant into a `Template` value carrying its
+`PolicyDefinition` (with inline `LabelGroup`s) matched to how the
+engine consumes it. Callers hand `template.policy` (as a
+one-element slice via `std::slice::from_ref`) to `Engine::analyze`
+/ `Engine::anonymize`, or compose several templates' policies into
+one slice when they want more than one regulatory posture per
+request.
 
 Templates ship with their own semver-tracked `version` and the
 `effective_date` of the regulatory text they encode, so customers

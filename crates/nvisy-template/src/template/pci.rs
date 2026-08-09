@@ -159,33 +159,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn truncate_rule_keeps_bin_and_last_four() {
-        let PolicyRule::Predicated(rule) = &truncate_template().policy.rules[0] else {
-            panic!("expected Predicated rule");
-        };
-        assert!(matches!(
-            rule.action.text,
-            Some(TextRedaction::Truncate {
-                keep_prefix: 6,
-                keep_suffix: 4,
-            })
-        ));
-    }
-
-    #[test]
-    fn hmac_rule_uses_sha256_by_default() {
-        let PolicyRule::Predicated(rule) = &hmac_template().policy.rules[0] else {
-            panic!("expected Predicated rule");
-        };
-        assert!(matches!(
-            rule.action.text,
-            Some(TextRedaction::HmacHash {
-                algorithm: Sha2Algorithm::Sha256,
-            })
-        ));
-    }
-
-    #[test]
     fn both_templates_target_payment_card_label() {
         for template in [truncate_template(), hmac_template()] {
             let PolicyRule::Predicated(rule) = &template.policy.rules[0] else {

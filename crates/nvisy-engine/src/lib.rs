@@ -27,8 +27,9 @@
 //! Ready-to-run policy sets for common regulatory postures
 //! (HIPAA Safe Harbor, GDPR Article 9, PCI DSS §3.5.1, CCPA)
 //! live in the sibling `nvisy-template` crate. Each template
-//! returns a `Template` whose `policies` and `groups` fields feed
-//! straight into [`Engine::analyze`] / [`Engine::anonymize`].
+//! carries a single `PolicyDefinition` (with inline
+//! [`LabelGroup`]s) that a caller hands to [`Engine::analyze`] /
+//! [`Engine::anonymize`] as a one-element slice.
 //!
 //! [`LabelGroup`]: nvisy_schema::policy::LabelGroup
 //! [`PolicyDefinition::groups`]: nvisy_schema::policy::PolicyDefinition::groups

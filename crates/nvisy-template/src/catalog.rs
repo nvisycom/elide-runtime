@@ -83,27 +83,22 @@ impl TemplateCatalog {
         Self::default()
     }
 
-    /// The regulatory templates this crate ships:
-    /// [`hipaa_safe_harbor`], [`gdpr_article_9`],
-    /// [`pci_dss_pan_truncate`], [`pci_dss_pan_hmac`], [`ccpa`].
+    /// A catalog seeded with every [`PolicyTemplate`] variant.
     /// A deployment starts here and extends with any custom
     /// templates via [`insert`].
     ///
-    /// [`ccpa`]: crate::ccpa
-    /// [`gdpr_article_9`]: crate::gdpr_article_9
-    /// [`hipaa_safe_harbor`]: crate::hipaa_safe_harbor
+    /// [`PolicyTemplate`]: crate::PolicyTemplate
     /// [`insert`]: Self::insert
-    /// [`pci_dss_pan_hmac`]: crate::pci_dss_pan_hmac
-    /// [`pci_dss_pan_truncate`]: crate::pci_dss_pan_truncate
     #[must_use]
     pub fn builtin() -> Self {
+        use strum::IntoEnumIterator;
         let mut catalog = Self::new();
-        for build in super::BUILTIN {
+        for variant in super::PolicyTemplate::iter() {
             // The shipped templates validate by construction —
             // insert only fails on caller-authored templates with
             // malformed ids.
             catalog
-                .insert(build())
+                .insert(variant.build())
                 .expect("shipped templates carry valid ids");
         }
         catalog
@@ -259,26 +254,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_ships_every_registered_template() {
+    fn builtin_variants_do_not_collide_on_id_version() {
+        // Every shipped variant must land in its own `(id, version)`
+        // slot — else two variants share a key and `builtin()`
+        // silently drops one. Counts the `(id, version)` pairs the
+        // enum produces and asserts the catalog holds all of them.
+        use strum::IntoEnumIterator;
+        let expected = super::super::PolicyTemplate::iter().count();
         let catalog = TemplateCatalog::builtin();
-        for build in super::super::BUILTIN {
-            let id = build().id;
-            assert!(
-                catalog.contains(&id),
-                "builtin catalog must carry `{id}` from the BUILTIN registry",
-            );
-        }
-        assert_eq!(catalog.len(), super::super::BUILTIN.len());
+        assert_eq!(
+            catalog.len(),
+            expected,
+            "two `PolicyTemplate` variants collide on `(id, version)` — \
+             `builtin()` silently dropped one",
+        );
     }
 
     #[test]
     fn latest_returns_the_highest_version() {
         let mut catalog = TemplateCatalog::new();
-        let mut v1 = crate::hipaa_safe_harbor();
+        let mut v1 = crate::PolicyTemplate::HipaaSafeHarbor.build();
         v1.version = Version::new(1, 0, 0);
-        let mut v2 = crate::hipaa_safe_harbor();
+        let mut v2 = crate::PolicyTemplate::HipaaSafeHarbor.build();
         v2.version = Version::new(2, 0, 0);
-        let mut v1_1 = crate::hipaa_safe_harbor();
+        let mut v1_1 = crate::PolicyTemplate::HipaaSafeHarbor.build();
         v1_1.version = Version::new(1, 1, 0);
         catalog.insert(v1).unwrap();
         catalog.insert(v2).unwrap();
@@ -290,9 +289,9 @@ mod tests {
     #[test]
     fn get_returns_the_exact_version_or_none() {
         let mut catalog = TemplateCatalog::new();
-        let mut v1 = crate::gdpr_article_9();
+        let mut v1 = crate::PolicyTemplate::GdprArticle9.build();
         v1.version = Version::new(1, 0, 0);
-        let mut v2 = crate::gdpr_article_9();
+        let mut v2 = crate::PolicyTemplate::GdprArticle9.build();
         v2.version = Version::new(2, 0, 0);
         catalog.insert(v1).unwrap();
         catalog.insert(v2).unwrap();
@@ -321,9 +320,9 @@ mod tests {
     #[test]
     fn versions_of_yields_semver_ascending() {
         let mut catalog = TemplateCatalog::new();
-        let mut v2 = crate::ccpa();
+        let mut v2 = crate::PolicyTemplate::Ccpa.build();
         v2.version = Version::new(2, 0, 0);
-        let mut v1 = crate::ccpa();
+        let mut v1 = crate::PolicyTemplate::Ccpa.build();
         v1.version = Version::new(1, 0, 0);
         // Insert out of order.
         catalog.insert(v2).unwrap();
@@ -338,9 +337,9 @@ mod tests {
     #[test]
     fn insert_same_key_replaces_the_existing_entry() {
         let mut catalog = TemplateCatalog::new();
-        let mut first = crate::hipaa_safe_harbor();
+        let mut first = crate::PolicyTemplate::HipaaSafeHarbor.build();
         first.name = "First".into();
-        let mut second = crate::hipaa_safe_harbor();
+        let mut second = crate::PolicyTemplate::HipaaSafeHarbor.build();
         second.name = "Second".into();
         catalog.insert(first).unwrap();
         catalog.insert(second).unwrap();
@@ -352,7 +351,7 @@ mod tests {
     #[test]
     fn insert_rejects_empty_id() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = crate::hipaa_safe_harbor();
+        let mut template = crate::PolicyTemplate::HipaaSafeHarbor.build();
         template.id = "".into();
         let err = catalog
             .insert(template)
@@ -363,19 +362,19 @@ mod tests {
     #[test]
     fn insert_rejects_uppercase_and_hyphen_ids() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = crate::hipaa_safe_harbor();
+        let mut template = crate::PolicyTemplate::HipaaSafeHarbor.build();
         template.id = "HIPAA".into();
         catalog
             .insert(template)
             .expect_err("uppercase id must be rejected");
 
-        let mut kebab = crate::hipaa_safe_harbor();
+        let mut kebab = crate::PolicyTemplate::HipaaSafeHarbor.build();
         kebab.id = "hipaa-safe-harbor".into();
         catalog
             .insert(kebab)
             .expect_err("hyphenated id must be rejected");
 
-        let mut leading_digit = crate::hipaa_safe_harbor();
+        let mut leading_digit = crate::PolicyTemplate::HipaaSafeHarbor.build();
         leading_digit.id = "1hipaa".into();
         catalog
             .insert(leading_digit)
@@ -385,7 +384,7 @@ mod tests {
     #[test]
     fn insert_accepts_snake_case_with_digits() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = crate::hipaa_safe_harbor();
+        let mut template = crate::PolicyTemplate::HipaaSafeHarbor.build();
         template.id = "hipaa_v2_1".into();
         catalog
             .insert(template)

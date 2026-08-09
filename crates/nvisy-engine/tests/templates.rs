@@ -16,7 +16,7 @@ use nvisy_schema::plan::{
     AnalyzerParams, EnricherParams, PatternRecognizerParams, ProviderSelection, RecognizerParams,
     ScopeParams,
 };
-use nvisy_template::Template;
+use nvisy_template::{PolicyTemplate, Template, TemplateCatalog};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -76,7 +76,7 @@ async fn apply(engine: &Engine, template: Template) -> String {
 
 #[tokio::test]
 async fn hipaa_safe_harbor_erases_contact_info_from_sample() {
-    let body = apply(&engine(), nvisy_template::hipaa_safe_harbor()).await;
+    let body = apply(&engine(), PolicyTemplate::HipaaSafeHarbor.build()).await;
     // The sample carries an email, a phone, and an SSN — every
     // one falls in a HIPAA identifier category and should be
     // gone from the output. (Address is present too but the
@@ -106,7 +106,7 @@ async fn gdpr_article_9_leaves_non_special_categories_alone() {
     // health data, biometric, sexual orientation, etc.). So the
     // GDPR template should redact nothing — the output equals
     // the input.
-    let body = apply(&engine(), nvisy_template::gdpr_article_9()).await;
+    let body = apply(&engine(), PolicyTemplate::GdprArticle9.build()).await;
     assert!(
         body.contains("jane.doe@example.com"),
         "GDPR Article 9 doesn't cover email; must survive. Body:\n{body}",
@@ -122,7 +122,7 @@ async fn pci_dss_pan_truncate_leaves_non_pan_labels_alone() {
     // The sample has no `payment_card` entity — the PCI truncate
     // template targets exactly one label, so the sample should
     // round-trip unchanged.
-    let body = apply(&engine(), nvisy_template::pci_dss_pan_truncate()).await;
+    let body = apply(&engine(), PolicyTemplate::PciDssPanTruncate.build()).await;
     assert!(
         body.contains("jane.doe@example.com"),
         "PCI PAN template doesn't cover email; must survive. Body:\n{body}",
@@ -139,7 +139,7 @@ async fn pci_dss_pan_hmac_requires_key_provider() {
     // template's HmacHash operator fails at anonymize-time with
     // a Configuration error. Proves the template wires the right
     // capability requirement into place.
-    let template = nvisy_template::pci_dss_pan_hmac();
+    let template = PolicyTemplate::PciDssPanHmac.build();
     let mut analyzed = engine()
         .analyze(
             raw_txt(),
@@ -168,7 +168,7 @@ async fn pci_dss_pan_hmac_runs_with_a_key_provider() {
     // input verbatim — the test is that anonymize succeeds when
     // the engine carries a KeyProvider, which is the only PCI-
     // template-specific setup the operator needs.
-    let body = apply(&engine_with_key(), nvisy_template::pci_dss_pan_hmac()).await;
+    let body = apply(&engine_with_key(), PolicyTemplate::PciDssPanHmac.build()).await;
     assert!(
         body.contains("jane.doe@example.com"),
         "sample carries no PAN; contact info must survive verbatim. Body:\n{body}",
@@ -181,7 +181,7 @@ async fn ccpa_erases_contact_info_and_identifiers_from_sample() {
     // every one shows up in the sample and should be redacted
     // under the shipped template. (Address is present too but
     // the spec runs NER off, so it isn't detected here.)
-    let body = apply(&engine(), nvisy_template::ccpa()).await;
+    let body = apply(&engine(), PolicyTemplate::Ccpa.build()).await;
     assert!(
         !body.contains("jane.doe@example.com"),
         "email is a CCPA §(A) identifier; must be erased. Body:\n{body}",
@@ -204,7 +204,7 @@ async fn every_shipped_template_analyzes_and_anonymizes_the_sample() {
     // unbuildable operators) that unit tests inside
     // nvisy-template can't catch without an engine.
     let engine = engine_with_key();
-    for template in nvisy_template::TemplateCatalog::builtin().iter() {
+    for template in TemplateCatalog::builtin().iter() {
         let id = &template.id;
         let mut analyzed = engine
             .analyze(

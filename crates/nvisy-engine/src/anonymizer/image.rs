@@ -9,6 +9,7 @@ use nvisy_schema::policy::redaction::ModalityRedactions;
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::image::ImageOp;
+use crate::entity::OverrideEntry;
 
 /// Attach every image-applicable rule from `policies` onto an
 /// already-constructed anonymizer.
@@ -28,7 +29,7 @@ pub(crate) fn attach_policies_image<'a>(
 /// override's redaction spec carries no image arm.
 pub(crate) fn attach_override_image(
     anonymizer: Anonymizer<Image>,
-    entry: &crate::entity::OverrideEntry,
+    entry: &OverrideEntry,
 ) -> Result<Anonymizer<Image>> {
     attach_one_override(anonymizer, entry, compile_one)
 }

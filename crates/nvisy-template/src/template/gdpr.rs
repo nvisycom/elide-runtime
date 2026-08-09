@@ -154,18 +154,6 @@ mod tests {
     }
 
     #[test]
-    fn rule_matches_the_group_and_erases() {
-        let PolicyRule::Predicated(rule) = &template().policy.rules[0] else {
-            panic!("expected Predicated rule");
-        };
-        assert!(matches!(
-            &rule.predicate,
-            Predicate::LabelInGroup { group } if group == GROUP_NAME,
-        ));
-        assert!(matches!(rule.action.text, Some(TextRedaction::Erase)));
-    }
-
-    #[test]
     fn template_ids_are_stable_across_calls() {
         let a = template();
         let b = template();

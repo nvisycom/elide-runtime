@@ -18,6 +18,7 @@ use nvisy_schema::policy::redaction::{ModalityRedactions, TabularRedaction};
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
+use crate::entity::OverrideEntry;
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the
@@ -39,7 +40,7 @@ pub(crate) fn attach_policies_tabular<'a>(
 /// override's redaction spec carries no tabular arm.
 pub(crate) fn attach_override_tabular(
     anonymizer: Anonymizer<Tabular>,
-    entry: &crate::entity::OverrideEntry,
+    entry: &OverrideEntry,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Tabular>> {
     attach_one_override(anonymizer, entry, |target, redactions| {

@@ -97,7 +97,8 @@ pub struct LabelGroup {
     pub name: HipStr<'static>,
     /// Optional description for reviewers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    #[schemars(with = "Option<String>")]
+    pub description: Option<HipStr<'static>>,
     /// Labels this group covers, by ref.
     ///
     /// A label that doesn't appear in the request's compiled

@@ -109,6 +109,7 @@ csv = { workspace = true, features = [], optional = true }
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
+hipstr = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 # Internal crates

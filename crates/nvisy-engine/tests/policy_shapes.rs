@@ -18,7 +18,7 @@ use nvisy_schema::plan::{
 use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_schema::policy::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, PredicatedRule, TableRule,
+    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDispatch,
 };
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
@@ -65,41 +65,42 @@ fn redaction_hits(audit: &Audit, label: &str) -> usize {
         .count()
 }
 
-/// Assert that a `TableRule` routes each label to its paired
+/// Assert that a `RuleDispatch` routes each label to its paired
 /// operator: both email and phone entities in the sample get a
 /// redaction event, driven by the table under one shared UUID.
 #[tokio::test]
 async fn table_rule_dispatches_per_label_under_one_identity() {
     let engine = engine();
     let rule_id = uuid::Uuid::now_v7();
-    let table = PolicyRule::Table(TableRule {
+    let table = PolicyRule {
         id: rule_id,
         name: "contact-sweep".into(),
         description: None,
-        operators: vec![
-            LabelEntry {
-                label: LabelRef::new("email_address"),
-                action: ModalityRedactions {
-                    text: Some(TextRedaction::Erase),
-                    ..Default::default()
+        dispatch: RuleDispatch::Table {
+            operators: vec![
+                LabelEntry {
+                    label: LabelRef::new("email_address"),
+                    action: ModalityRedactions {
+                        text: Some(TextRedaction::Erase),
+                        ..Default::default()
+                    },
                 },
-            },
-            LabelEntry {
-                label: LabelRef::new("phone_number"),
-                action: ModalityRedactions {
-                    text: Some(TextRedaction::Replace {
-                        template: "[phone]".to_owned(),
-                    }),
-                    ..Default::default()
+                LabelEntry {
+                    label: LabelRef::new("phone_number"),
+                    action: ModalityRedactions {
+                        text: Some(TextRedaction::Replace {
+                            template: "[phone]".to_owned(),
+                        }),
+                        ..Default::default()
+                    },
                 },
-            },
-        ],
-    });
+            ],
+        },
+    };
     let policy = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
         name: "contact-info".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![
                 LabelRef::new("email_address"),
@@ -190,7 +191,6 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
         id: uuid::Uuid::now_v7(),
         name: "sweep".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![
                 LabelRef::new("email_address"),
@@ -199,18 +199,20 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
             custom: Vec::new(),
         },
         groups: vec![group],
-        rules: vec![PolicyRule::Predicated(Box::new(PredicatedRule {
+        rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "erase-contacts".into(),
             description: None,
-            predicate: Predicate::LabelInGroup {
-                group: "contact_info".to_owned(),
+            dispatch: RuleDispatch::Predicated {
+                predicate: Predicate::LabelInGroup {
+                    group: "contact_info".to_owned(),
+                },
+                action: ModalityRedactions {
+                    text: Some(TextRedaction::Erase),
+                    ..Default::default()
+                },
             },
-            action: ModalityRedactions {
-                text: Some(TextRedaction::Erase),
-                ..Default::default()
-            },
-        }))],
+        }],
         fallback: None,
         retention: Vec::new(),
     };
@@ -253,27 +255,25 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         id: uuid::Uuid::now_v7(),
         name: "email-only".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
         },
         groups: Vec::new(),
-        rules: vec![PolicyRule::Predicated(Box::new(PredicatedRule {
+        rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "erase-pii".into(),
             description: None,
-            // A tag-based rule that would match every `pii`-tagged
-            // label in the request catalog — including `phone_number`
-            // that policy B contributes below.
-            predicate: Predicate::TagOneOf {
-                tags: vec!["pii".to_owned()],
+            dispatch: RuleDispatch::Predicated {
+                predicate: Predicate::TagOneOf {
+                    tags: vec!["pii".to_owned()],
+                },
+                action: ModalityRedactions {
+                    text: Some(TextRedaction::Erase),
+                    ..Default::default()
+                },
             },
-            action: ModalityRedactions {
-                text: Some(TextRedaction::Erase),
-                ..Default::default()
-            },
-        }))],
+        }],
         fallback: None,
         retention: Vec::new(),
     };
@@ -281,7 +281,6 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         id: uuid::Uuid::now_v7(),
         name: "phone-only-no-rules".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![LabelRef::new("phone_number")],
             custom: Vec::new(),
@@ -330,7 +329,6 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         id: uuid::Uuid::now_v7(),
         name: "coarse-baseline".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -348,27 +346,27 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         id: uuid::Uuid::now_v7(),
         name: "specific-refinement".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
         },
         groups: Vec::new(),
-        rules: vec![PolicyRule::Predicated(Box::new(PredicatedRule {
+        rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "replace-email".into(),
             description: None,
-            predicate: Predicate::LabelOneOf {
-                labels: vec![LabelRef::new("email_address")],
+            dispatch: RuleDispatch::Predicated {
+                predicate: Predicate::LabelOneOf {
+                    labels: vec![LabelRef::new("email_address")],
+                },
+                action: ModalityRedactions {
+                    text: Some(TextRedaction::Replace {
+                        template: "[replaced-email]".to_owned(),
+                    }),
+                    ..Default::default()
+                },
             },
-            // Specific refinement says "replace with a template".
-            action: ModalityRedactions {
-                text: Some(TextRedaction::Replace {
-                    template: "[replaced-email]".to_owned(),
-                }),
-                ..Default::default()
-            },
-        }))],
+        }],
         fallback: None,
         retention: Vec::new(),
     };
@@ -407,26 +405,26 @@ async fn cross_policy_group_reference_fails_the_request() {
         id: uuid::Uuid::now_v7(),
         name: "borrower".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
         },
         // No groups declared here.
         groups: Vec::new(),
-        rules: vec![PolicyRule::Predicated(Box::new(PredicatedRule {
+        rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "borrow-from-b".into(),
             description: None,
-            predicate: Predicate::LabelInGroup {
-                // Names a group only policy B declares.
-                group: "contact_info".to_owned(),
+            dispatch: RuleDispatch::Predicated {
+                predicate: Predicate::LabelInGroup {
+                    group: "contact_info".to_owned(),
+                },
+                action: ModalityRedactions {
+                    text: Some(TextRedaction::Erase),
+                    ..Default::default()
+                },
             },
-            action: ModalityRedactions {
-                text: Some(TextRedaction::Erase),
-                ..Default::default()
-            },
-        }))],
+        }],
         fallback: None,
         retention: Vec::new(),
     };
@@ -434,7 +432,6 @@ async fn cross_policy_group_reference_fails_the_request() {
         id: uuid::Uuid::now_v7(),
         name: "declares-group".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -473,7 +470,6 @@ async fn override_naming_unknown_policy_fails_the_request() {
         id: uuid::Uuid::now_v7(),
         name: "authorising".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),

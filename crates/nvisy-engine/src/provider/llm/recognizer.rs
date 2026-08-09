@@ -1,6 +1,7 @@
 //! [`LlmRecognizer`]: one entry in the deployment's LLM lineup.
 
 use elide::recognition::llm::provider::{AuthenticatedProvider, UnauthenticatedProvider};
+use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +27,8 @@ pub struct LlmRecognizer {
     /// list-recognizers accessor so operators and SDK callers
     /// can identify what each recognizer is for.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    #[schemars(with = "Option<String>")]
+    pub description: Option<HipStr<'static>>,
     /// Source selection + its per-kind fields, flattened onto
     /// the recognizer's wire shape.
     #[serde(flatten)]

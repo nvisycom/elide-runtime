@@ -7,8 +7,7 @@
 //! Authored vocabulary for redaction governance.
 //!
 //! A request submits `Vec<PolicyDefinition>` in precedence order.
-//! Engine walks the policies; for each policy whose
-//! [`PolicyDefinition::when`] holds against the document, it walks
+//! Engine walks the policies; for each policy it walks
 //! [`PolicyDefinition::rules`] in order and runs the first matching
 //! rule's redaction operators. If no rule in a policy matches, the
 //! policy's [`PolicyDefinition::fallback`] runs (and the chain
@@ -43,8 +42,8 @@
 //! [`ModalityRedactions`]: redaction::ModalityRedactions
 //! [`Predicate`]: predicate::Predicate
 //! [`Predicate::LabelInGroup`]: predicate::Predicate::LabelInGroup
-//! [`Predicated`]: PolicyRule::Predicated
-//! [`Table`]: PolicyRule::Table
+//! [`Predicated`]: RuleDispatch::Predicated
+//! [`Table`]: RuleDispatch::Table
 
 mod label;
 pub mod predicate;
@@ -58,10 +57,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::label::{LabelGroup, Labels};
-use self::predicate::DocumentPredicate;
 use self::redaction::ModalityRedactions;
 use self::retention::RetentionPolicy;
-pub use self::rule::{LabelEntry, PolicyRule, PredicatedRule, TableRule};
+pub use self::rule::{LabelEntry, PolicyRule, RuleDispatch};
 
 /// A named governance policy.
 ///
@@ -82,12 +80,8 @@ pub struct PolicyDefinition {
     pub name: HipStr<'static>,
     /// Optional description for reviewers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Document-level gate. The whole policy (rules + fallback)
-    /// is skipped when this is `Some(...)` and the predicate is
-    /// false for the document. Evaluated once per document.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub when: Option<DocumentPredicate>,
+    #[schemars(with = "Option<String>")]
+    pub description: Option<HipStr<'static>>,
     /// Vocabulary the policy operates over: builtins picked by
     /// name plus caller-authored custom label schemas. Engine
     /// unions every submitted policy's `labels` into a per-request

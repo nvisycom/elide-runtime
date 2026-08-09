@@ -50,7 +50,7 @@ use elide_core::entity::LabelRef;
 use jiff::civil::Date;
 use nvisy_policy::predicate::Predicate;
 use nvisy_policy::redaction::{ModalityRedactions, Sha2Algorithm, TextRedaction};
-use nvisy_policy::{Labels, PolicyDefinition, PolicyRule, PredicatedRule};
+use nvisy_policy::{Labels, PolicyDefinition, PolicyRule, RuleDispatch};
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -183,8 +183,7 @@ fn pan_template(render: PciPanRender) -> Template {
         policy: PolicyDefinition {
             id: spec.policy_id,
             name: spec.policy_name.into(),
-            description: Some(spec.policy_description.to_owned()),
-            when: None,
+            description: Some(spec.policy_description.into()),
             labels: Labels {
                 builtins: vec![PAN_LABEL.clone()],
                 custom: Vec::new(),
@@ -278,16 +277,18 @@ fn truncate_rule(keep_prefix: usize, keep_suffix: usize, rule_id: Uuid, name: &s
              (BIN) and last {keep_suffix} digits.",
         )
     };
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: rule_id,
         name: name.into(),
-        description: Some(description),
-        predicate: single_label(PAN_LABEL.clone()),
-        action: ModalityRedactions::text(TextRedaction::Truncate {
-            keep_prefix,
-            keep_suffix,
-        }),
-    }))
+        description: Some(description.into()),
+        dispatch: RuleDispatch::Predicated {
+            predicate: single_label(PAN_LABEL.clone()),
+            action: ModalityRedactions::text(TextRedaction::Truncate {
+                keep_prefix,
+                keep_suffix,
+            }),
+        },
+    }
 }
 
 fn hmac_rule(
@@ -296,16 +297,21 @@ fn hmac_rule(
     name: &str,
     algorithm_label: &str,
 ) -> PolicyRule {
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: rule_id,
         name: name.into(),
-        description: Some(format!(
-            "Replace every payment_card value with an HMAC-{algorithm_label} digest keyed on \
-             the engine's KeyProvider.",
-        )),
-        predicate: single_label(PAN_LABEL.clone()),
-        action: ModalityRedactions::text(TextRedaction::HmacHash { algorithm }),
-    }))
+        description: Some(
+            format!(
+                "Replace every payment_card value with an HMAC-{algorithm_label} digest keyed on \
+                 the engine's KeyProvider.",
+            )
+            .into(),
+        ),
+        dispatch: RuleDispatch::Predicated {
+            predicate: single_label(PAN_LABEL.clone()),
+            action: ModalityRedactions::text(TextRedaction::HmacHash { algorithm }),
+        },
+    }
 }
 
 fn single_label(label: LabelRef) -> Predicate {
@@ -338,9 +344,8 @@ fn sav_template() -> Template {
                  and PIN blocks. PCI DSS §3.3.1 forbids SAV storage after \
                  authorization completes; unlike PAN, SAV has no render-unreadable \
                  posture — it must be erased."
-                    .to_owned(),
+                    .into(),
             ),
-            when: None,
             labels: Labels {
                 builtins: SAV_LABELS.to_vec(),
                 custom: Vec::new(),
@@ -354,15 +359,17 @@ fn sav_template() -> Template {
 }
 
 fn sav_rule() -> PolicyRule {
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: SAV_RULE_ID,
         name: "pci-sav-erase".into(),
-        description: Some("Erase every SAV entity (CVV/CVC, track data, PIN blocks).".to_owned()),
-        predicate: Predicate::LabelOneOf {
-            labels: SAV_LABELS.to_vec(),
+        description: Some("Erase every SAV entity (CVV/CVC, track data, PIN blocks).".into()),
+        dispatch: RuleDispatch::Predicated {
+            predicate: Predicate::LabelOneOf {
+                labels: SAV_LABELS.to_vec(),
+            },
+            action: ModalityRedactions::text(TextRedaction::Erase),
         },
-        action: ModalityRedactions::text(TextRedaction::Erase),
-    }))
+    }
 }
 
 #[cfg(test)]
@@ -380,10 +387,10 @@ mod tests {
     fn every_render_targets_payment_card_label() {
         for render in ALL {
             let t = pan_template(*render);
-            let PolicyRule::Predicated(rule) = &t.policy.rules[0] else {
-                panic!("expected Predicated rule for {render:?}");
+            let RuleDispatch::Predicated { predicate, .. } = &t.policy.rules[0].dispatch else {
+                panic!("expected Predicated dispatch for {render:?}");
             };
-            let Predicate::LabelOneOf { labels } = &rule.predicate else {
+            let Predicate::LabelOneOf { labels } = predicate else {
                 panic!("expected LabelOneOf predicate for {render:?}");
             };
             assert_eq!(labels.len(), 1);
@@ -393,15 +400,15 @@ mod tests {
 
     #[test]
     fn truncate_last_four_drops_the_bin() {
-        let PolicyRule::Predicated(rule) =
-            &pan_template(PciPanRender::TruncateLastFour).policy.rules[0]
+        let RuleDispatch::Predicated { action, .. } =
+            &pan_template(PciPanRender::TruncateLastFour).policy.rules[0].dispatch
         else {
-            panic!("expected Predicated rule");
+            panic!("expected Predicated dispatch");
         };
         let TextRedaction::Truncate {
             keep_prefix,
             keep_suffix,
-        } = rule.action.text.as_ref().unwrap()
+        } = action.text.as_ref().unwrap()
         else {
             panic!("expected Truncate action");
         };
@@ -411,11 +418,12 @@ mod tests {
 
     #[test]
     fn hmac_sha512_uses_sha512_algorithm() {
-        let PolicyRule::Predicated(rule) = &pan_template(PciPanRender::HmacSha512).policy.rules[0]
+        let RuleDispatch::Predicated { action, .. } =
+            &pan_template(PciPanRender::HmacSha512).policy.rules[0].dispatch
         else {
-            panic!("expected Predicated rule");
+            panic!("expected Predicated dispatch");
         };
-        let TextRedaction::HmacHash { algorithm } = rule.action.text.as_ref().unwrap() else {
+        let TextRedaction::HmacHash { algorithm } = action.text.as_ref().unwrap() else {
             panic!("expected HmacHash action");
         };
         assert_eq!(*algorithm, Sha2Algorithm::Sha512);
@@ -451,17 +459,17 @@ mod tests {
             let b = pan_template(*render);
             assert_eq!(a.id, b.id);
             assert_eq!(a.policy.id, b.policy.id);
-            assert_eq!(a.policy.rules[0].id(), b.policy.rules[0].id());
+            assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);
         }
     }
 
     #[test]
     fn sav_template_erases_every_sav_label() {
         let t = sav_template();
-        let PolicyRule::Predicated(rule) = &t.policy.rules[0] else {
-            panic!("expected Predicated rule");
+        let RuleDispatch::Predicated { predicate, action } = &t.policy.rules[0].dispatch else {
+            panic!("expected Predicated dispatch");
         };
-        let Predicate::LabelOneOf { labels } = &rule.predicate else {
+        let Predicate::LabelOneOf { labels } = predicate else {
             panic!("expected LabelOneOf predicate");
         };
         // Every §3.3.1 SAV label must be in the rule's predicate.
@@ -472,7 +480,7 @@ mod tests {
                 expected.as_str(),
             );
         }
-        assert!(matches!(rule.action.text, Some(TextRedaction::Erase)));
+        assert!(matches!(action.text, Some(TextRedaction::Erase)));
     }
 
     #[test]

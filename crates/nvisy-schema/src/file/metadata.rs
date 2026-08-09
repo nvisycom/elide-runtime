@@ -1,7 +1,5 @@
 //! [`FileMetadata`]: the persisted descriptor for one stored file.
 
-use std::collections::HashMap;
-
 use hipstr::HipStr;
 use jiff::Timestamp;
 use schemars::JsonSchema;
@@ -42,28 +40,10 @@ pub struct FileMetadata {
     /// it from `filename` when the upload omits it explicitly.
     #[schemars(with = "String")]
     pub extension: HipStr<'static>,
-    /// Length of the raw bytes in bytes.
-    pub size: u64,
     /// Engine timestamp at upload time.
     ///
     /// UUIDv7's encoded timestamp also orders files, but this is
     /// the source of truth for display and filtering.
     #[schemars(with = "String")]
     pub uploaded_at: Timestamp,
-    /// Doc-level tags that gate `HasTag` policies.
-    ///
-    /// Consumed by [`DocumentPredicate::HasTag`] when a run
-    /// references this file.
-    ///
-    /// [`DocumentPredicate::HasTag`]: crate::policy::predicate::DocumentPredicate::HasTag
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub descriptor_tags: Vec<String>,
-    /// Doc-level metadata that gates `HasMetadata` policies.
-    ///
-    /// Consumed by [`DocumentPredicate::HasMetadata`], merged
-    /// with any per-request metadata at run-time.
-    ///
-    /// [`DocumentPredicate::HasMetadata`]: crate::policy::predicate::DocumentPredicate::HasMetadata
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub descriptor_metadata: HashMap<String, String>,
 }

@@ -115,7 +115,7 @@ fn group_lookup_entry(group: &LabelGroup) -> (String, HashSet<LabelRef>) {
 /// `description` carries the rule's UUID so an audit can trace a
 /// redaction back to the exact rule inside the policy.
 pub(super) fn rule_attribution(policy: &PolicyDefinition, rule: &PolicyRule) -> Attribution {
-    Attribution::new(policy.id.to_string()).with_description(rule.id().to_string())
+    Attribution::new(policy.id.to_string()).with_description(rule.id.to_string())
 }
 
 /// Build an [`Attribution`] for a policy's `fallback`.

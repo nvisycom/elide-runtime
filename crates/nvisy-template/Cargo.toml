@@ -29,8 +29,16 @@ elide-core = { workspace = true, features = ["serde"] }
 # Internal crates
 nvisy-policy = { workspace = true }
 
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = [] }
+
 # Primitive datatypes
 hipstr = { workspace = true, features = ["serde"] }
 jiff = { workspace = true, features = ["serde"] }
 semver = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v7"] }
+
+[dev-dependencies]
+# Serialization
+serde_json = { workspace = true, features = [] }

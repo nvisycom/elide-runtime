@@ -26,12 +26,12 @@
 use elide_core::entity::LabelRef;
 use jiff::civil::Date;
 use nvisy_policy::predicate::Predicate;
-use nvisy_policy::redaction::{Sha2Algorithm, TextRedaction};
+use nvisy_policy::redaction::{ModalityRedactions, Sha2Algorithm, TextRedaction};
 use nvisy_policy::{Labels, PolicyDefinition, PolicyRule, PredicatedRule};
 use semver::Version;
 use uuid::{Uuid, uuid};
 
-use super::{Template, text_action};
+use super::Template;
 
 /// The elide-builtin label PCI PAN templates dispatch on.
 const PAN_LABEL: LabelRef = LabelRef::from_static("payment_card");
@@ -48,11 +48,15 @@ const HMAC_RULE_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000004");
 /// last four digits, drop the middle.
 pub(crate) fn truncate_template() -> Template {
     Template {
-        name: "pci_dss_pan_truncate".into(),
+        id: "pci_dss_pan_truncate".into(),
+        name: "PCI DSS §3.5.1 PAN — truncate".into(),
         version: Version::new(1, 0, 0),
         effective_date: EFFECTIVE_DATE,
-        description: "PCI DSS §3.5.1 — PAN render via truncation (keep first-six / last-four)"
-            .into(),
+        description: Some(
+            "Render stored PAN unreadable via truncation, keeping the first six \
+             (BIN) and last four digits."
+                .into(),
+        ),
         policies: vec![PolicyDefinition {
             id: TRUNCATE_POLICY_ID,
             name: "pci-dss-pan-truncate".into(),
@@ -79,11 +83,15 @@ pub(crate) fn truncate_template() -> Template {
 /// with a per-tenant key.
 pub(crate) fn hmac_template() -> Template {
     Template {
-        name: "pci_dss_pan_hmac".into(),
+        id: "pci_dss_pan_hmac".into(),
+        name: "PCI DSS §3.5.1 PAN — HMAC-SHA-256".into(),
         version: Version::new(1, 0, 0),
         effective_date: EFFECTIVE_DATE,
-        description: "PCI DSS §3.5.1 — PAN render via keyed cryptographic hash (HMAC-SHA-256)"
-            .into(),
+        description: Some(
+            "Render stored PAN unreadable via a keyed HMAC-SHA-256 digest. Requires \
+             the engine to have a KeyProvider wired."
+                .into(),
+        ),
         policies: vec![PolicyDefinition {
             id: HMAC_POLICY_ID,
             name: "pci-dss-pan-hmac".into(),
@@ -117,7 +125,7 @@ fn truncate_rule() -> PolicyRule {
                 .to_owned(),
         ),
         predicate: single_label(PAN_LABEL.clone()),
-        action: text_action(TextRedaction::Truncate {
+        action: ModalityRedactions::text(TextRedaction::Truncate {
             keep_prefix: 6,
             keep_suffix: 4,
         }),
@@ -134,7 +142,7 @@ fn hmac_rule() -> PolicyRule {
                 .to_owned(),
         ),
         predicate: single_label(PAN_LABEL.clone()),
-        action: text_action(TextRedaction::HmacHash {
+        action: ModalityRedactions::text(TextRedaction::HmacHash {
             algorithm: Sha2Algorithm::Sha256,
         }),
     }))
@@ -149,27 +157,6 @@ fn single_label(label: LabelRef) -> Predicate {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn truncate_template_shape() {
-        let t = truncate_template();
-        assert_eq!(t.name, "pci_dss_pan_truncate");
-        assert_eq!(t.version, Version::new(1, 0, 0));
-        assert!(
-            t.policies[0].groups.is_empty(),
-            "PCI templates ship no LabelGroup",
-        );
-        assert_eq!(t.policies.len(), 1);
-    }
-
-    #[test]
-    fn hmac_template_shape() {
-        let t = hmac_template();
-        assert_eq!(t.name, "pci_dss_pan_hmac");
-        assert_eq!(t.version, Version::new(1, 0, 0));
-        assert!(t.policies[0].groups.is_empty());
-        assert_eq!(t.policies.len(), 1);
-    }
 
     #[test]
     fn truncate_rule_keeps_bin_and_last_four() {

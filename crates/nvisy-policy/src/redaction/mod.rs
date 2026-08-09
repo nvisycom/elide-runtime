@@ -79,6 +79,47 @@ pub struct ModalityRedactions {
 }
 
 impl ModalityRedactions {
+    /// Shortcut for the common "text-only" case:
+    /// `ModalityRedactions::text(TextRedaction::Erase)` builds an
+    /// action that fires on text entities and leaves every other
+    /// modality untouched. Every regulatory template constructor
+    /// uses this shape; expressing it as a builder saves the
+    /// `..Default::default()` boilerplate at every call site.
+    #[must_use]
+    pub fn text(spec: TextRedaction) -> Self {
+        Self {
+            text: Some(spec),
+            ..Self::default()
+        }
+    }
+
+    /// See [`Self::text`]. Same shortcut, tabular slot.
+    #[must_use]
+    pub fn tabular(spec: TabularRedaction) -> Self {
+        Self {
+            tabular: Some(spec),
+            ..Self::default()
+        }
+    }
+
+    /// See [`Self::text`]. Same shortcut, image slot.
+    #[must_use]
+    pub fn image(spec: ImageRedaction) -> Self {
+        Self {
+            image: Some(spec),
+            ..Self::default()
+        }
+    }
+
+    /// See [`Self::text`]. Same shortcut, audio slot.
+    #[must_use]
+    pub fn audio(spec: AudioRedaction) -> Self {
+        Self {
+            audio: Some(spec),
+            ..Self::default()
+        }
+    }
+
     /// `true` when no operator is set for any modality. A rule whose
     /// `redact` field is empty after deserialisation is an author
     /// error. The request validator rejects it.

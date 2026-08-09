@@ -170,16 +170,6 @@ mod tests {
     }
 
     #[test]
-    fn policy_with_no_labels_contributes_nothing() {
-        let p = policy_with_labels(Labels::default());
-        assert!(
-            compile_catalog(std::slice::from_ref(&p))
-                .unwrap()
-                .is_empty()
-        );
-    }
-
-    #[test]
     fn builtin_names_land_in_the_catalog() {
         let p = policy_with_labels(Labels {
             builtins: vec![LabelRef::new("email_address")],

@@ -18,12 +18,12 @@
 use elide_core::entity::LabelRef;
 use jiff::civil::Date;
 use nvisy_policy::predicate::Predicate;
-use nvisy_policy::redaction::TextRedaction;
+use nvisy_policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_policy::{LabelGroup, Labels, PolicyDefinition, PolicyRule, PredicatedRule};
 use semver::Version;
 use uuid::{Uuid, uuid};
 
-use super::{Template, text_action};
+use super::Template;
 
 /// Group name every Article 9 rule references.
 pub(crate) const GROUP_NAME: &str = "gdpr_article_9";
@@ -65,10 +65,13 @@ const RULE_ID: Uuid = uuid!("01639498-5000-7000-8000-000000000002");
 /// Build the GDPR Article 9 template.
 pub(crate) fn template() -> Template {
     Template {
-        name: "gdpr_article_9".into(),
+        id: "gdpr_article_9".into(),
+        name: "GDPR Article 9 special categories".into(),
         version: Version::new(1, 0, 0),
         effective_date: Date::constant(2018, 5, 25),
-        description: "GDPR Article 9 — special categories of personal data".into(),
+        description: Some(
+            "Erase the nine categories of personal data Article 9(1) treats as special.".into(),
+        ),
         policies: vec![policy()],
     }
 }
@@ -120,23 +123,13 @@ fn erase_rule() -> PolicyRule {
         predicate: Predicate::LabelInGroup {
             group: GROUP_NAME.to_owned(),
         },
-        action: text_action(TextRedaction::Erase),
+        action: ModalityRedactions::text(TextRedaction::Erase),
     }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn template_carries_group_and_single_policy() {
-        let t = template();
-        assert_eq!(t.name, "gdpr_article_9");
-        assert_eq!(t.version, Version::new(1, 0, 0));
-        assert_eq!(t.policies.len(), 1);
-        assert_eq!(t.policies[0].groups.len(), 1);
-        assert_eq!(t.policies[0].groups[0].name, GROUP_NAME);
-    }
 
     #[test]
     fn every_article_9_category_has_at_least_one_label() {

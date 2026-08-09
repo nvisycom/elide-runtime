@@ -182,21 +182,21 @@ async fn ccpa_erases_contact_info_and_identifiers_from_sample() {
 
 #[tokio::test]
 async fn every_shipped_template_analyzes_and_anonymizes_the_sample() {
-    // Smoke test: every template listed in `ALL` produces a
-    // valid analyze/anonymize round-trip against the sample.
-    // Catches wiring regressions (unknown group refs, unbuildable
-    // operators) that unit tests inside nvisy-template can't
-    // catch without an engine.
+    // Smoke test: every template in `TemplateCatalog::builtin()`
+    // produces a valid analyze/anonymize round-trip against the
+    // sample. Catches wiring regressions (unknown group refs,
+    // unbuildable operators) that unit tests inside
+    // nvisy-template can't catch without an engine.
     let engine = engine_with_key();
-    for (name, build) in nvisy_template::ALL {
-        let template = build();
+    for template in nvisy_template::TemplateCatalog::builtin().iter() {
+        let id = &template.id;
         let mut analyzed = engine
             .analyze(raw_txt(), &template.policies, &default_spec())
             .await
-            .unwrap_or_else(|e| panic!("template `{name}` failed to analyze: {e}"));
+            .unwrap_or_else(|e| panic!("template `{id}` failed to analyze: {e}"));
         engine
             .anonymize(raw_txt(), &template.policies, &mut analyzed)
             .await
-            .unwrap_or_else(|e| panic!("template `{name}` failed to anonymize: {e}"));
+            .unwrap_or_else(|e| panic!("template `{id}` failed to anonymize: {e}"));
     }
 }

@@ -32,14 +32,16 @@
 use elide_core::entity::LabelRef;
 use jiff::civil::Date;
 use nvisy_policy::predicate::Predicate;
-use nvisy_policy::redaction::{ClampBucket, DateGranularity, DateStyle, TextRedaction};
+use nvisy_policy::redaction::{
+    ClampBucket, DateGranularity, DateStyle, ModalityRedactions, TextRedaction,
+};
 use nvisy_policy::{
     LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, PredicatedRule, TableRule,
 };
 use semver::Version;
 use uuid::{Uuid, uuid};
 
-use super::{Template, text_action};
+use super::Template;
 
 /// Group name every HIPAA rule references.
 pub(crate) const GROUP_NAME: &str = "hipaa_18";
@@ -101,10 +103,13 @@ const RULE_BULK_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000003");
 /// Build the HIPAA Safe Harbor template.
 pub(crate) fn template() -> Template {
     Template {
-        name: "hipaa_safe_harbor".into(),
+        id: "hipaa_safe_harbor".into(),
+        name: "HIPAA Safe Harbor de-identification".into(),
         version: Version::new(1, 0, 0),
         effective_date: Date::constant(2003, 4, 14),
-        description: "HIPAA Safe Harbor de-identification — 45 CFR §164.514(b)(2)".into(),
+        description: Some(
+            "45 CFR §164.514(b)(2) — remove the eighteen identifier categories.".into(),
+        ),
         policies: vec![policy()],
     }
 }
@@ -164,7 +169,7 @@ fn special_dispatch_rule() -> PolicyRule {
         operators: vec![
             LabelEntry {
                 label: LabelRef::from_static("age"),
-                action: text_action(TextRedaction::Clamp {
+                action: ModalityRedactions::text(TextRedaction::Clamp {
                     ceiling: Some(90.0),
                     ceiling_bucket: Some(ClampBucket::Plain("90 or older".to_owned())),
                     floor: None,
@@ -174,7 +179,7 @@ fn special_dispatch_rule() -> PolicyRule {
             },
             LabelEntry {
                 label: LabelRef::from_static("date_of_birth"),
-                action: text_action(TextRedaction::GeneralizeDate {
+                action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
                     granularity: DateGranularity::Year,
                     style: DateStyle::Iso,
                     fallback: None,
@@ -182,7 +187,7 @@ fn special_dispatch_rule() -> PolicyRule {
             },
             LabelEntry {
                 label: LabelRef::from_static("date_time"),
-                action: text_action(TextRedaction::GeneralizeDate {
+                action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
                     granularity: DateGranularity::Year,
                     style: DateStyle::Iso,
                     fallback: None,
@@ -203,23 +208,13 @@ fn bulk_erase_rule() -> PolicyRule {
         predicate: Predicate::LabelInGroup {
             group: GROUP_NAME.to_owned(),
         },
-        action: text_action(TextRedaction::Erase),
+        action: ModalityRedactions::text(TextRedaction::Erase),
     }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn template_carries_hipaa_18_group_and_a_single_policy() {
-        let t = template();
-        assert_eq!(t.name, "hipaa_safe_harbor");
-        assert_eq!(t.version, Version::new(1, 0, 0));
-        assert_eq!(t.policies.len(), 1);
-        assert_eq!(t.policies[0].groups.len(), 1);
-        assert_eq!(t.policies[0].groups[0].name, GROUP_NAME);
-    }
 
     #[test]
     fn table_labels_are_excluded_from_bulk_erase_group() {

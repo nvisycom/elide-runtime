@@ -57,7 +57,7 @@ pub(crate) fn truncate_template() -> Template {
              (BIN) and last four digits."
                 .into(),
         ),
-        policies: vec![PolicyDefinition {
+        policy: PolicyDefinition {
             id: TRUNCATE_POLICY_ID,
             name: "pci-dss-pan-truncate".into(),
             description: Some(
@@ -75,7 +75,7 @@ pub(crate) fn truncate_template() -> Template {
             rules: vec![truncate_rule()],
             fallback: None,
             retention: Vec::new(),
-        }],
+        },
     }
 }
 
@@ -92,7 +92,7 @@ pub(crate) fn hmac_template() -> Template {
              the engine to have a KeyProvider wired."
                 .into(),
         ),
-        policies: vec![PolicyDefinition {
+        policy: PolicyDefinition {
             id: HMAC_POLICY_ID,
             name: "pci-dss-pan-hmac".into(),
             description: Some(
@@ -111,7 +111,7 @@ pub(crate) fn hmac_template() -> Template {
             rules: vec![hmac_rule()],
             fallback: None,
             retention: Vec::new(),
-        }],
+        },
     }
 }
 
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn truncate_rule_keeps_bin_and_last_four() {
-        let PolicyRule::Predicated(rule) = &truncate_template().policies[0].rules[0] else {
+        let PolicyRule::Predicated(rule) = &truncate_template().policy.rules[0] else {
             panic!("expected Predicated rule");
         };
         assert!(matches!(
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn hmac_rule_uses_sha256_by_default() {
-        let PolicyRule::Predicated(rule) = &hmac_template().policies[0].rules[0] else {
+        let PolicyRule::Predicated(rule) = &hmac_template().policy.rules[0] else {
             panic!("expected Predicated rule");
         };
         assert!(matches!(
@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn both_templates_target_payment_card_label() {
         for template in [truncate_template(), hmac_template()] {
-            let PolicyRule::Predicated(rule) = &template.policies[0].rules[0] else {
+            let PolicyRule::Predicated(rule) = &template.policy.rules[0] else {
                 panic!("expected Predicated rule");
             };
             let Predicate::LabelOneOf { labels } = &rule.predicate else {
@@ -203,20 +203,14 @@ mod tests {
     fn template_ids_are_stable_across_calls() {
         let trunc_a = truncate_template();
         let trunc_b = truncate_template();
-        assert_eq!(trunc_a.policies[0].id, trunc_b.policies[0].id);
-        assert_eq!(
-            trunc_a.policies[0].rules[0].id(),
-            trunc_b.policies[0].rules[0].id(),
-        );
+        assert_eq!(trunc_a.policy.id, trunc_b.policy.id);
+        assert_eq!(trunc_a.policy.rules[0].id(), trunc_b.policy.rules[0].id(),);
         let hmac_a = hmac_template();
         let hmac_b = hmac_template();
-        assert_eq!(hmac_a.policies[0].id, hmac_b.policies[0].id);
-        assert_eq!(
-            hmac_a.policies[0].rules[0].id(),
-            hmac_b.policies[0].rules[0].id(),
-        );
+        assert_eq!(hmac_a.policy.id, hmac_b.policy.id);
+        assert_eq!(hmac_a.policy.rules[0].id(), hmac_b.policy.rules[0].id(),);
         assert_ne!(
-            trunc_a.policies[0].id, hmac_a.policies[0].id,
+            trunc_a.policy.id, hmac_a.policy.id,
             "the two PCI templates must ship distinct policy identities",
         );
     }

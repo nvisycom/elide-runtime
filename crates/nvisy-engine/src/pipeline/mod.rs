@@ -95,13 +95,12 @@ use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::PolicyDefinition;
-use nvisy_schema::policy::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 pub use self::audit::{Audit, AuditContext};
 pub use self::registered::RegisteredRecognizer;
 use crate::PatternGuardrails;
-use crate::entity::{EntityGroup, take_body, take_part};
+use crate::entity::{EntityGroup, OverrideEntry, take_body, take_part};
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
 
@@ -120,6 +119,13 @@ pub struct Engine {
     llm: Arc<LlmConfig>,
     pattern_guardrails: PatternGuardrails,
     pub(super) key_provider: Option<Arc<dyn KeyProvider>>,
+    /// Per-policy [`KeyProvider`] overrides. A policy whose id
+    /// is in this map uses its own provider; policies not named
+    /// here fall back to [`Engine::key_provider`]. Wired via
+    /// [`Engine::with_policy_key_provider`].
+    ///
+    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    pub(super) policy_key_providers: HashMap<Uuid, Arc<dyn KeyProvider>>,
 }
 
 impl Engine {
@@ -141,6 +147,7 @@ impl Engine {
             llm: Arc::new(LlmConfig::default()),
             pattern_guardrails: PatternGuardrails::default(),
             key_provider: None,
+            policy_key_providers: HashMap::new(),
         }
     }
 
@@ -166,20 +173,49 @@ impl Engine {
         self
     }
 
-    /// Set the shared cryptographic [`KeyProvider`] the
+    /// Set the engine-level cryptographic [`KeyProvider`] the
     /// `HmacHash` and `Encrypt` operators resolve their keys
-    /// through.
+    /// through when the enclosing policy has no per-policy
+    /// override wired via [`with_policy_key_provider`].
     ///
     /// One provider backs both operators; per-label keys are the
     /// provider's own responsibility. A policy that names either
-    /// operator without a provider wired errors at request
-    /// compile time — the audit trail names the operator so a
-    /// misconfiguration surfaces at load, not silently.
+    /// operator without a provider wired (per-policy or default)
+    /// errors at request compile time — the audit trail names the
+    /// policy and operator so a misconfiguration surfaces at
+    /// load, not silently.
     ///
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    /// [`with_policy_key_provider`]: Self::with_policy_key_provider
     #[must_use]
     pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
         self.key_provider = Some(provider);
+        self
+    }
+
+    /// Wire a [`KeyProvider`] for one specific policy, keyed by
+    /// [`PolicyDefinition::id`].
+    ///
+    /// Every `HmacHash`/`Encrypt` operator inside the named
+    /// policy resolves through this provider instead of the
+    /// engine-level default set via [`with_key_provider`].
+    /// Multi-tenant callers wire one provider per policy (e.g. a
+    /// separate HSM slot per compliance regime) without having to
+    /// spin up separate engines.
+    ///
+    /// Calling this twice for the same `policy_id` replaces the
+    /// previous provider.
+    ///
+    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    /// [`PolicyDefinition::id`]: nvisy_schema::policy::PolicyDefinition::id
+    /// [`with_key_provider`]: Self::with_key_provider
+    #[must_use]
+    pub fn with_policy_key_provider(
+        mut self,
+        policy_id: Uuid,
+        provider: Arc<dyn KeyProvider>,
+    ) -> Self {
+        self.policy_key_providers.insert(policy_id, provider);
         self
     }
 
@@ -240,11 +276,30 @@ impl Engine {
     /// `policies` contributes the label catalog (each
     /// [`PolicyDefinition::labels`] unions in) that drives
     /// recognizer dispatch. Every policy carries its own
-    /// [`LabelGroup`]s in [`PolicyDefinition::groups`]; the
-    /// engine stamps a `group:<policy_id>:<name>` synthetic tag
-    /// on every listed label at request-compile time and rejects
-    /// any [`LabelInGroup`] reference the enclosing policy
-    /// doesn't declare.
+    /// [`LabelGroup`]s in [`PolicyDefinition::groups`]; a
+    /// [`LabelInGroup`] predicate can only name a group its own
+    /// policy declared (strict per-policy scoping, enforced at
+    /// request compile).
+    ///
+    /// **Policy precedence.** Policies are evaluated in
+    /// submission order. Within a policy, rules are tried in the
+    /// order they appear; the first that matches an entity in
+    /// the policy's declared label scope wins. Across policies,
+    /// rules attach in the order `policies` was submitted, so
+    /// policy A's rule at slot N wins over policy B's rule at
+    /// slot N+1 for any entity in both policies' scope. Policy
+    /// fallbacks fire after every policy's rules have had a
+    /// shot (two-pass attach) so a coarse baseline's fallback
+    /// does not shadow a subsequent policy's more specific rule.
+    ///
+    /// **Overlap clustering.** Elide clusters overlapping
+    /// detections and picks a single winner across the whole
+    /// request; the winner's attribution is stamped on every
+    /// clustered entity's redaction event. Two policies whose
+    /// entities overlap in the document medium can therefore see
+    /// each other's attribution recorded on shared cluster
+    /// members. See <https://github.com/nvisycom/elide/issues>
+    /// for the per-policy cluster segmentation follow-up.
     ///
     /// The catalog is not persisted onto the returned [`Audit`] —
     /// the anonymize path re-derives it from the policy set it
@@ -346,6 +401,35 @@ impl Engine {
     /// from analyze. The document's `correlation_id` is threaded
     /// into tracing spans on the redaction path.
     ///
+    /// **Composition semantics.** Rules attach in submission
+    /// order; first match wins across the whole policy set.
+    /// Every predicate filters by the enclosing policy's
+    /// declared label set — a rule inside policy A cannot fire
+    /// on labels only policy B declared. Policy fallbacks attach
+    /// after every policy's rules so a coarse baseline's
+    /// fallback doesn't shadow subsequent more-specific rules.
+    ///
+    /// **Reviewer overrides** attach before any policy rule and
+    /// carry the overriding policy's authority on the audit event.
+    ///
+    /// **`Pseudonymize` and keyed operators** —
+    /// [`TextRedaction::Pseudonymize`] draws from a per-policy
+    /// in-memory vault: the same policy pseudonymising the same
+    /// entity twice in a document resolves to the same surrogate,
+    /// but two different policies pseudonymising the same entity
+    /// draw independent surrogates.
+    /// [`TextRedaction::HmacHash`] and [`TextRedaction::Encrypt`]
+    /// resolve their [`KeyProvider`] per-policy first (see
+    /// [`Engine::with_policy_key_provider`]), then fall back to
+    /// the engine-level provider set via [`Engine::with_key_provider`].
+    ///
+    /// [`TextRedaction::Pseudonymize`]: nvisy_schema::policy::redaction::TextRedaction::Pseudonymize
+    /// [`TextRedaction::HmacHash`]: nvisy_schema::policy::redaction::TextRedaction::HmacHash
+    /// [`TextRedaction::Encrypt`]: nvisy_schema::policy::redaction::TextRedaction::Encrypt
+    /// [`Engine::with_key_provider`]: Self::with_key_provider
+    /// [`Engine::with_policy_key_provider`]: Self::with_policy_key_provider
+    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    ///
     /// [`LabelGroup`]: nvisy_schema::policy::LabelGroup
     /// [`PolicyDefinition::groups`]: nvisy_schema::policy::PolicyDefinition::groups
     ///
@@ -376,7 +460,7 @@ impl Engine {
         let mut handle = self.decode(document).await?;
 
         let mut report = body_group.insert_into_body(Report::new());
-        let mut overrides: Vec<(Uuid, ModalityRedactions)> = Vec::new();
+        let mut overrides: Vec<OverrideEntry> = Vec::new();
         body_group.collect_overrides_into(&mut overrides);
         for (id, group) in &audit.parts {
             report = group.insert_as_part(report, id);

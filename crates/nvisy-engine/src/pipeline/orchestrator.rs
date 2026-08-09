@@ -40,7 +40,6 @@ use std::slice;
 use elide::detection::Analyzer;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::redaction::vault::InMemoryVault;
 use elide::{Orchestrator, Result};
 use elide_core::entity::LabelCatalog;
 use elide_core::modality::Modality;
@@ -54,7 +53,6 @@ use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind};
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::predicate::Predicate;
-use nvisy_schema::policy::redaction::ModalityRedactions;
 use nvisy_schema::policy::{PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
@@ -68,6 +66,7 @@ use crate::anonymizer::{attach_override_audio, attach_policies_audio};
 use crate::anonymizer::{attach_override_image, attach_policies_image};
 #[cfg(feature = "internal_tabular")]
 use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
+use crate::entity::OverrideEntry;
 
 impl Engine {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -96,7 +95,7 @@ impl Engine {
         correlation_id: Uuid,
     ) -> Result<(Orchestrator<'_>, AuditContext)> {
         validate_group_references(policies)?;
-        let catalog = compile_catalog(policies);
+        let catalog = compile_catalog(policies)?;
         let context = AuditContext {
             languages: spec.scope.languages.clone(),
             countries: spec.scope.countries.clone(),
@@ -158,28 +157,29 @@ impl Engine {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
-        overrides: &[(Uuid, ModalityRedactions)],
+        overrides: &[OverrideEntry],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
         validate_group_references(policies)?;
-        let catalog = compile_catalog(policies);
+        validate_override_authorities(policies, overrides)?;
+        let catalog = compile_catalog(policies)?;
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
-        // Fresh per-request text-operator context. `Pseudonymize`
-        // resolves consistently within one request via a per-request
-        // vault; `HmacHash`/`Encrypt` share the engine-level key
-        // provider. Cross-request pseudonym consistency is a
-        // durable-vault story (see elide #143).
-        let text_ctx = TextOperatorContext {
-            key_provider: self.key_provider.clone(),
-            pseudonym_vault: InMemoryVault::new(),
-        };
+        // Fresh per-request text-operator context. Pseudonym
+        // vaults materialise per-policy on first access so two
+        // policies pseudonymising the same entity don't share a
+        // surrogate namespace. `HmacHash`/`Encrypt` resolve their
+        // `KeyProvider` per-policy first, falling back to the
+        // engine-level default. Cross-request pseudonym
+        // consistency is a durable-vault story (see elide #143).
+        let text_ctx =
+            TextOperatorContext::new(self.policy_key_providers.clone(), self.key_provider.clone());
 
         let text_anon = assemble::<Text, _, _>(
             &catalog,
             overrides,
             policies,
-            |anon, id, redactions| attach_override_text(anon, id, redactions, &text_ctx),
+            |anon, entry| attach_override_text(anon, entry, &text_ctx),
             |anon, policies| attach_policies_text(anon, policies, &text_ctx),
         )?;
 
@@ -193,7 +193,7 @@ impl Engine {
                 &catalog,
                 overrides,
                 policies,
-                |anon, id, redactions| attach_override_tabular(anon, id, redactions, &text_ctx),
+                |anon, entry| attach_override_tabular(anon, entry, &text_ctx),
                 |anon, policies| attach_policies_tabular(anon, policies, &text_ctx),
             )?;
             orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon)
@@ -225,6 +225,37 @@ impl Engine {
 
         Ok(orchestrator)
     }
+}
+
+/// Reject a request whose reviewer override names a policy id
+/// no submitted policy carries.
+///
+/// Overrides inherit the authority of the policy they name — the
+/// audit event stamps that policy, and any per-policy operator
+/// infrastructure (pseudonym vault, `KeyProvider`) is looked up
+/// under that policy id. An override that names a non-existent
+/// policy would attribute to nothing and — worse — silently draw
+/// from an empty per-policy vault or fall back to the engine
+/// default `KeyProvider`, both of which are the wrong authority.
+fn validate_override_authorities(
+    policies: &[PolicyDefinition],
+    overrides: &[OverrideEntry],
+) -> Result<()> {
+    let known: HashSet<Uuid> = policies.iter().map(|p| p.id).collect();
+    for entry in overrides {
+        if !known.contains(&entry.policy_id) {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "override for entity `{}` names policy `{}` that no submitted \
+                     policy in this request carries; overrides inherit a policy's \
+                     authority and must name one that's actually loaded",
+                    entry.entity_id, entry.policy_id,
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Reject a request whose rule references a [`LabelGroup`] name
@@ -319,19 +350,19 @@ where
 /// wrapping so each modality's callsite is one call.
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
-    overrides: &[(Uuid, ModalityRedactions)],
+    overrides: &[OverrideEntry],
     policies: &'a [PolicyDefinition],
     attach_override: O,
     attach_policies: P,
 ) -> Result<Anonymizer<M>>
 where
     M: Modality + 'static,
-    O: Fn(Anonymizer<M>, Uuid, &ModalityRedactions) -> Result<Anonymizer<M>>,
+    O: Fn(Anonymizer<M>, &OverrideEntry) -> Result<Anonymizer<M>>,
     P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
-    for (id, action) in overrides {
-        anonymizer = attach_override(anonymizer, *id, action)?;
+    for entry in overrides {
+        anonymizer = attach_override(anonymizer, entry)?;
     }
     attach_policies(anonymizer, policies.iter())
 }

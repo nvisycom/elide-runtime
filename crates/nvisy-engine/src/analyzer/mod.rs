@@ -49,7 +49,7 @@ use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use nvisy_schema::plan::AnalyzerParams;
 
-pub(crate) use self::catalog::{compile_catalog, synthetic_group_tag};
+pub(crate) use self::catalog::{compile_catalog, policy_label_scope};
 pub use self::recognizer::PatternGuardrails;
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;

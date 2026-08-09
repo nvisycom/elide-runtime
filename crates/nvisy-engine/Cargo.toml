@@ -110,9 +110,6 @@ csv = { workspace = true, features = [], optional = true }
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 
-# Observability
-tracing = { workspace = true, features = [] }
-
 [dev-dependencies]
 # Internal crates
 nvisy-engine = { path = ".", features = ["test-utils", "audit-json", "audit-csv"] }

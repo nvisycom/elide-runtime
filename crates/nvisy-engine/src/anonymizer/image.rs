@@ -6,7 +6,6 @@ use elide_core::Result;
 use elide_core::modality::image::Image;
 use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::image::ImageOp;
@@ -20,7 +19,7 @@ use super::operator::image::ImageOp;
 /// [`PolicyDefinition::when`]: nvisy_schema::policy::PolicyDefinition::when
 pub(crate) fn attach_policies_image<'a>(
     anonymizer: Anonymizer<Image>,
-    policies: impl Iterator<Item = &'a PolicyDefinition>,
+    policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,
 ) -> Result<Anonymizer<Image>> {
     attach_policies(anonymizer, policies, compile_one)
 }
@@ -29,10 +28,9 @@ pub(crate) fn attach_policies_image<'a>(
 /// override's redaction spec carries no image arm.
 pub(crate) fn attach_override_image(
     anonymizer: Anonymizer<Image>,
-    entity_id: Uuid,
-    redactions: &ModalityRedactions,
+    entry: &crate::entity::OverrideEntry,
 ) -> Result<Anonymizer<Image>> {
-    attach_one_override(anonymizer, entity_id, redactions, compile_one)
+    attach_one_override(anonymizer, entry, compile_one)
 }
 
 fn compile_one(

@@ -5,20 +5,20 @@
 //! ## Architecture
 //!
 //! [`PolicyTemplate`] enumerates the regulatory postures this
-//! crate ships. [`PolicyTemplate::build`] materialises the
-//! picked variant into a [`Template`] — the [`PolicyDefinition`]
-//! carrying its own inline [`LabelGroup`]s — matched to how the
-//! engine consumes them. Callers hand `template.policy` (as a
+//! crate ships. Variants that admit more than one operator
+//! choice the regulation permits carry a small options struct
+//! (e.g. [`PolicyTemplate::PciDssPan`] carries a [`PciPanRender`]
+//! picking truncate-vs-HMAC — both listed under PCI DSS §3.5.1);
+//! variants with a single shipped operator take no data.
+//!
+//! [`PolicyTemplate::build`] materialises the picked variant
+//! into a [`Template`] — the [`PolicyDefinition`] carrying its
+//! own inline [`LabelGroup`]s — matched to how the engine
+//! consumes it. Callers hand `template.policy` (as a
 //! one-element slice via [`std::slice::from_ref`]) to
 //! `Engine::analyze` / `Engine::anonymize`, or compose several
 //! templates' policies into one slice when they want more than
 //! one regulatory posture per request.
-//!
-//! Five variants across four regulatory postures:
-//! [`PolicyTemplate::HipaaSafeHarbor`],
-//! [`PolicyTemplate::GdprArticle9`],
-//! [`PolicyTemplate::PciDssPanTruncate`],
-//! [`PolicyTemplate::PciDssPanHmac`], [`PolicyTemplate::Ccpa`].
 //!
 //! Templates are plain data. Nothing is registered globally, and
 //! no template constructor talks to the engine or hits I/O. A
@@ -40,8 +40,8 @@
 //! endpoint via its serde derives; look one up by id at runtime
 //! via [`TemplateCatalog::latest`] or
 //! [`TemplateCatalog::get`]. [`TemplateCatalog::builtin`]
-//! returns a catalog seeded with every [`PolicyTemplate`]
-//! variant.
+//! returns a catalog seeded with every shipped
+//! `(kind, options)` pairing.
 //!
 //! [`Date`]: jiff::civil::Date
 //! [`LabelGroup`]: nvisy_policy::LabelGroup
@@ -55,38 +55,35 @@ mod template;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum::EnumIter;
 
 pub use self::catalog::TemplateCatalog;
-pub use self::template::Template;
+pub use self::template::{HipaaDeidMethod, PciPanRender, Template};
 use self::template::{ccpa, gdpr, hipaa, pci};
 
 /// A regulatory posture this crate ships a [`Template`] for.
 ///
-/// Serialises as a snake_case string matching the produced
-/// template's [`Template::id`] (`"hipaa_safe_harbor"`,
-/// `"gdpr_article_9"`, ...) so a wire caller can round-trip
-/// `template: "hipaa_safe_harbor"` through JSON directly into
-/// a variant. Iterate every variant via `PolicyTemplate::iter()`
-/// (from [`strum::IntoEnumIterator`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
+/// Serialises as an internally-tagged object under `kind`,
+/// matching the house pattern for option-bearing enums
+/// (`Predicate`, `TextRedaction`, `AnyRedaction`). A caller
+/// wire-picks a template as
+/// `{"kind": "hipaa_safe_harbor"}` or, for variants with
+/// operator options,
+/// `{"kind": "pci_dss_pan", "render": "hmac_sha256"}`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PolicyTemplate {
-    /// HIPAA Safe Harbor de-identification per 45 CFR
-    /// §164.514(b)(2). Ships a `hipaa_18` [`LabelGroup`] naming
-    /// the 18 identifier categories the rule enumerates, plus a
-    /// [`TableRule`] dispatching each identifier to the operator
-    /// called for by the safe-harbor posture (ages ≥90
-    /// [`Clamp`]ed, dates [`GeneralizeDate`]d to the year, the
-    /// remainder [`TextRedaction::Erase`]d).
-    ///
-    /// [`Clamp`]: nvisy_policy::redaction::TextRedaction::Clamp
-    /// [`GeneralizeDate`]: nvisy_policy::redaction::TextRedaction::GeneralizeDate
-    /// [`LabelGroup`]: nvisy_policy::LabelGroup
-    /// [`TableRule`]: nvisy_policy::TableRule
-    /// [`TextRedaction::Erase`]: nvisy_policy::redaction::TextRedaction::Erase
-    HipaaSafeHarbor,
+    /// HIPAA §164.514 de-identification. `method` picks between
+    /// the fixed Safe Harbor rule set (§164.514(b)(2)), the
+    /// narrower Limited Data Set subtraction (§164.514(e)(2))
+    /// that keeps dates and coarse geography for DUA-governed
+    /// research handoffs, and the Expert Determination scaffold
+    /// (§164.514(b)(1)) for statistician-signed workflows.
+    HipaaDeidentification {
+        /// Which §164.514 method to apply. See [`HipaaDeidMethod`]
+        /// for the tradeoff.
+        method: HipaaDeidMethod,
+    },
     /// GDPR Article 9 special categories of personal data. Ships
     /// a `gdpr_article_9` [`LabelGroup`] naming the nine special
     /// categories the article enumerates, plus a [`Predicated`]
@@ -98,19 +95,17 @@ pub enum PolicyTemplate {
     /// [`Predicated`]: nvisy_policy::PolicyRule::Predicated
     GdprArticle9,
     /// PCI DSS §3.5.1 — render stored Primary Account Numbers
-    /// (PAN) unreadable via truncation to the first-six /
-    /// last-four digits. Targets the elide-builtin `payment_card`
-    /// label through [`TextRedaction::Truncate`] with
-    /// `keep_prefix: 6, keep_suffix: 4`. No [`LabelGroup`] —
-    /// one label, one operator.
+    /// (PAN) unreadable. `render` picks between the truncation
+    /// and keyed-HMAC postures §3.5.1 permits. Targets the
+    /// elide-builtin `payment_card` label; no [`LabelGroup`]
+    /// (one label, one operator).
     ///
     /// [`LabelGroup`]: nvisy_policy::LabelGroup
-    /// [`TextRedaction::Truncate`]: nvisy_policy::redaction::TextRedaction::Truncate
-    PciDssPanTruncate,
-    /// PCI DSS §3.5.1 — render stored PAN unreadable via a
-    /// keyed HMAC hash. Requires the engine to have a
-    /// `KeyProvider` wired (see `Engine::with_key_provider`).
-    PciDssPanHmac,
+    PciDssPan {
+        /// Which of the §3.5.1-permitted render approaches to
+        /// apply. See [`PciPanRender`] for the tradeoff.
+        render: PciPanRender,
+    },
     /// CCPA "personal information" categories per Cal. Civ.
     /// Code §1798.140(v). Ships a `ccpa_personal_information`
     /// [`LabelGroup`] naming the enumerated categories, plus a
@@ -133,10 +128,9 @@ impl PolicyTemplate {
     #[must_use]
     pub fn build(self) -> Template {
         match self {
-            Self::HipaaSafeHarbor => hipaa::template(),
+            Self::HipaaDeidentification { method } => hipaa::template(method),
             Self::GdprArticle9 => gdpr::template(),
-            Self::PciDssPanTruncate => pci::truncate_template(),
-            Self::PciDssPanHmac => pci::hmac_template(),
+            Self::PciDssPan { render } => pci::template(render),
             Self::Ccpa => ccpa::template(),
         }
     }

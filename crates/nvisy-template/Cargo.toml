@@ -32,7 +32,6 @@ nvisy-policy = { workspace = true }
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true, features = [] }
-strum = { workspace = true }
 
 # Primitive datatypes
 hipstr = { workspace = true, features = ["serde"] }

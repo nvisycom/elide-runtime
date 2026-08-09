@@ -9,6 +9,7 @@ use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
+use nvisy_engine::entity::Review;
 use nvisy_engine::{Audit, AuditContext, Engine, EntityGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
@@ -109,6 +110,21 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         "fixture should carry at least one entity"
     );
 
+    // Reviewer overrides carry a policy authority. Ship a
+    // minimal policy the override can attribute to (no rules,
+    // no fallback — it exists only so the override validator
+    // accepts the request).
+    let review_policy = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "review-authority".into(),
+        description: None,
+        when: None,
+        labels: Labels::default(),
+        groups: Vec::new(),
+        rules: Vec::new(),
+        fallback: None,
+        retention: Vec::new(),
+    };
     let target_id = entities[0].entity.id;
     let EntityGroup::Text(muts) = analyzed.body.as_mut().unwrap() else {
         unreachable!()
@@ -116,15 +132,22 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     muts.iter_mut()
         .find(|r| r.entity.id == target_id)
         .expect("entity present")
-        .review = Some(ModalityRedactions {
-        text: Some(TextRedaction::Erase),
-        tabular: None,
-        image: None,
-        audio: None,
+        .review = Some(Review {
+        policy_id: review_policy.id,
+        action: ModalityRedactions {
+            text: Some(TextRedaction::Erase),
+            tabular: None,
+            image: None,
+            audio: None,
+        },
     });
 
     let outcome = engine
-        .anonymize(raw_docx(), &[], &mut analyzed)
+        .anonymize(
+            raw_docx(),
+            std::slice::from_ref(&review_policy),
+            &mut analyzed,
+        )
         .await
         .expect("anonymize succeeds");
     write_artefact("sample", "out.docx", &outcome.bytes);

@@ -354,7 +354,7 @@ fn extend_review_rows<M: Modality>(
 ) {
     for r in records {
         if let Some(review) = &r.review
-            && let Some(op) = operator_kind_for_modality(review, modality)
+            && let Some(op) = operator_kind_for_modality(&review.action, modality)
         {
             out.push((r.entity.id, modality, op));
         }

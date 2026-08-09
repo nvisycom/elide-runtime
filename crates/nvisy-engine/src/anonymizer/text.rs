@@ -6,10 +6,10 @@ use elide_core::Result;
 use elide_core::modality::text::Text;
 use nvisy_schema::policy::PolicyDefinition;
 use nvisy_schema::policy::redaction::ModalityRedactions;
-use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
+use crate::entity::OverrideEntry;
 
 /// Attach every text-applicable rule from `policies` onto an
 /// already-constructed anonymizer. The apply pipeline calls this
@@ -21,7 +21,7 @@ use super::operator::text::{TextOperatorContext, compile_and_attach};
 /// [`PolicyDefinition::when`]: nvisy_schema::policy::PolicyDefinition::when
 pub(crate) fn attach_policies_text<'a>(
     anonymizer: Anonymizer<Text>,
-    policies: impl Iterator<Item = &'a PolicyDefinition>,
+    policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Text>> {
     attach_policies(anonymizer, policies, |target, redactions| {
@@ -33,11 +33,10 @@ pub(crate) fn attach_policies_text<'a>(
 /// override's redaction spec carries no text arm.
 pub(crate) fn attach_override_text(
     anonymizer: Anonymizer<Text>,
-    entity_id: Uuid,
-    redactions: &ModalityRedactions,
+    entry: &OverrideEntry,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Text>> {
-    attach_one_override(anonymizer, entity_id, redactions, |target, redactions| {
+    attach_one_override(anonymizer, entry, |target, redactions| {
         compile_one(target, redactions, ctx)
     })
 }

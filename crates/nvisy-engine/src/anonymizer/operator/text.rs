@@ -22,48 +22,123 @@
 //!
 //! [`Rule::label`]: elide::redaction::Rule::label
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use elide::redaction::Anonymizer;
 use elide::redaction::generator::RandomToken;
 use elide::redaction::operators::{
     AesEncrypt, Clamp, Erase, Fake, GeneralizeDate, HmacHash, Keep, KeyProvider, Mask,
-    Pseudonymize, Replace, Sha2Hash, Truncate, TryOperator, WithFallback,
+    Pseudonymize, PseudonymizeKey, Replace, Sha2Hash, Truncate, TryOperator, WithFallback,
 };
 use elide::redaction::vault::InMemoryVault;
-use elide_core::entity::LabelRef;
 use elide_core::modality::Modality;
 use elide_core::modality::text::TextReplacement;
 use elide_core::operator::Operator;
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::policy::redaction::{ClampBucket, TerminalFallback, TextRedaction};
+use uuid::Uuid;
 
 use crate::anonymizer::compile::Target;
 
 /// Engine-side context the text operator compiler reads at
-/// build time: which stateful operators have infrastructure
-/// wired.
+/// build time.
 ///
-/// The pseudonym vault is [`InMemoryVault`] rather than a boxed
-/// trait object because [`Vault`] is generic (returns
-/// `impl Future`) and its method signatures aren't object-safe.
-/// Cross-request pseudonym consistency needs a durable backend
-/// — see elide #143 — and will require different plumbing (per-
-/// vault-id registry, likely) when that lands.
+/// Two pieces of per-request state, both keyed by
+/// [`PolicyDefinition::id`]:
 ///
-/// [`Vault`]: elide::redaction::vault::Vault
-#[derive(Clone)]
+/// - **Pseudonym vaults.** [`TextRedaction::Pseudonymize`]
+///   resolves through an [`InMemoryVault`] so every mention of
+///   the same entity within a request draws the same surrogate.
+///   The vault is *per-policy*: policy A pseudonymising `email`
+///   and policy B pseudonymising `email` on the same document
+///   don't share a namespace — a customer submitting two policies
+///   with different reasoning about coreference stays isolated.
+///   Materialised lazily on first request per policy.
+/// - **Key providers.** [`TextRedaction::HmacHash`] and
+///   [`TextRedaction::Encrypt`] resolve their [`KeyProvider`] by
+///   first checking [`policy_key_providers`] for the enclosing
+///   policy's id, then falling back to
+///   [`default_key_provider`]. Wired via
+///   [`Engine::with_policy_key_provider`] and
+///   [`Engine::with_key_provider`].
+///
+/// Both maps are per-request state assembled once by
+/// `build_anonymize_orchestrator`; every operator built during
+/// that request shares the same instance so lookups are cheap
+/// [`Arc`] clones.
+///
+/// [`Engine::with_key_provider`]: crate::pipeline::Engine::with_key_provider
+/// [`Engine::with_policy_key_provider`]: crate::pipeline::Engine::with_policy_key_provider
+/// [`InMemoryVault`]: elide::redaction::vault::InMemoryVault
+/// [`PolicyDefinition::id`]: nvisy_schema::policy::PolicyDefinition::id
+/// [`TextRedaction::Encrypt`]: nvisy_schema::policy::redaction::TextRedaction::Encrypt
+/// [`TextRedaction::HmacHash`]: nvisy_schema::policy::redaction::TextRedaction::HmacHash
+/// [`TextRedaction::Pseudonymize`]: nvisy_schema::policy::redaction::TextRedaction::Pseudonymize
+/// [`default_key_provider`]: Self::default_key_provider
+/// [`policy_key_providers`]: Self::policy_key_providers
 pub(crate) struct TextOperatorContext {
-    /// Optional key provider for `HmacHash` and `Encrypt`. When
-    /// absent, those variants fail to compile with a clear
-    /// error — a policy that names them cannot run without one.
-    pub(crate) key_provider: Option<Arc<dyn KeyProvider>>,
-    /// Per-request pseudonym vault. A `Pseudonymize` variant
-    /// resolves through this vault; every mention of the same
-    /// entity resolves to the same surrogate within the request.
-    /// Cloning shares the underlying map (internal
-    /// `Arc<Mutex<...>>`).
-    pub(crate) pseudonym_vault: InMemoryVault<(LabelRef, String), TextReplacement>,
+    /// Per-policy key providers. A policy's `HmacHash`/`Encrypt`
+    /// operator looks up its id here first.
+    pub(crate) policy_key_providers: HashMap<Uuid, Arc<dyn KeyProvider>>,
+    /// Engine-level fallback provider. Serves policies not named
+    /// in [`policy_key_providers`]. When both are absent, an
+    /// `HmacHash`/`Encrypt` policy fails to compile with a clear
+    /// error at request time.
+    ///
+    /// [`policy_key_providers`]: Self::policy_key_providers
+    pub(crate) default_key_provider: Option<Arc<dyn KeyProvider>>,
+    /// Per-policy pseudonym vaults, materialised lazily on first
+    /// access. Wrapped in [`RefCell`] because operator build is
+    /// single-threaded (per-request compile) and each vault holds
+    /// its own thread-safe [`Arc<Mutex<...>>`] for the concurrent
+    /// apply phase.
+    pseudonym_vaults: RefCell<PseudonymVaults>,
+}
+
+/// Per-policy pseudonym vault registry. One vault per policy id,
+/// materialised lazily.
+type PseudonymVaults = HashMap<Uuid, InMemoryVault<PseudonymizeKey, TextReplacement>>;
+
+impl TextOperatorContext {
+    /// Fresh context for one request. The `policy_key_providers`
+    /// map is snapshotted from the engine; the vault map is
+    /// empty and grown lazily.
+    pub(crate) fn new(
+        policy_key_providers: HashMap<Uuid, Arc<dyn KeyProvider>>,
+        default_key_provider: Option<Arc<dyn KeyProvider>>,
+    ) -> Self {
+        Self {
+            policy_key_providers,
+            default_key_provider,
+            pseudonym_vaults: RefCell::new(HashMap::new()),
+        }
+    }
+
+    /// Resolve the [`KeyProvider`] for a policy: per-policy
+    /// override first, engine-level default second.
+    fn key_provider_for(&self, policy_id: Uuid) -> Option<Arc<dyn KeyProvider>> {
+        self.policy_key_providers
+            .get(&policy_id)
+            .cloned()
+            .or_else(|| self.default_key_provider.clone())
+    }
+
+    /// Get or create the pseudonym vault for `policy_id`. The
+    /// returned [`InMemoryVault`] clones its inner
+    /// `Arc<Mutex<HashMap>>`, so multiple operators built for the
+    /// same policy share the same underlying vault state.
+    fn pseudonym_vault_for(
+        &self,
+        policy_id: Uuid,
+    ) -> InMemoryVault<PseudonymizeKey, TextReplacement> {
+        self.pseudonym_vaults
+            .borrow_mut()
+            .entry(policy_id)
+            .or_insert_with(InMemoryVault::new)
+            .clone()
+    }
 }
 
 /// Type-erased shared handle to a modality-`M` operator.
@@ -101,10 +176,11 @@ where
     Clamp: TryOperator<M>,
     GeneralizeDate: TryOperator<M>,
     Fake<Replace>: Operator<M>,
-    Pseudonymize<InMemoryVault<(LabelRef, String), TextReplacement>, RandomToken>: Operator<M>,
+    Pseudonymize<InMemoryVault<PseudonymizeKey, TextReplacement>, RandomToken>: Operator<M>,
     AesEncrypt: Operator<M>,
 {
-    Ok(target.attach_with(build(spec, ctx)?))
+    let policy_id = target.policy_id();
+    Ok(target.attach_with(build(spec, ctx, policy_id)?))
 }
 
 /// Build the concrete elide operator for `spec` and box it.
@@ -125,6 +201,7 @@ where
 pub(in crate::anonymizer) fn build<M>(
     spec: &TextRedaction,
     ctx: &TextOperatorContext,
+    policy_id: Uuid,
 ) -> Result<SharedTextOp<M>>
 where
     M: Modality + Send + Sync + 'static,
@@ -138,7 +215,7 @@ where
     Clamp: TryOperator<M>,
     GeneralizeDate: TryOperator<M>,
     Fake<Replace>: Operator<M>,
-    Pseudonymize<InMemoryVault<(LabelRef, String), TextReplacement>, RandomToken>: Operator<M>,
+    Pseudonymize<InMemoryVault<PseudonymizeKey, TextReplacement>, RandomToken>: Operator<M>,
     AesEncrypt: Operator<M>,
 {
     Ok(match spec {
@@ -159,9 +236,8 @@ where
         }
         TextRedaction::HmacHash { algorithm } => {
             let keys = ctx
-                .key_provider
-                .clone()
-                .ok_or_else(|| missing_infrastructure("hmac_hash", "KeyProvider"))?;
+                .key_provider_for(policy_id)
+                .ok_or_else(|| missing_infrastructure(policy_id, "hmac_hash", "KeyProvider"))?;
             Arc::new(HmacHash::new(*algorithm, keys))
         }
         TextRedaction::Truncate {
@@ -205,14 +281,14 @@ where
             }
             Arc::new(op)
         }
-        TextRedaction::Pseudonymize => {
-            Arc::new(Pseudonymize::new(ctx.pseudonym_vault.clone(), RandomToken))
-        }
+        TextRedaction::Pseudonymize => Arc::new(Pseudonymize::new(
+            ctx.pseudonym_vault_for(policy_id),
+            RandomToken,
+        )),
         TextRedaction::Encrypt => {
             let keys = ctx
-                .key_provider
-                .clone()
-                .ok_or_else(|| missing_infrastructure("encrypt", "KeyProvider"))?;
+                .key_provider_for(policy_id)
+                .ok_or_else(|| missing_infrastructure(policy_id, "encrypt", "KeyProvider"))?;
             Arc::new(AesEncrypt::new(keys))
         }
     })
@@ -292,12 +368,17 @@ fn validate_pair(side: &'static str, threshold_set: bool, bucket_set: bool) -> R
     Ok(())
 }
 
-fn missing_infrastructure(operator: &'static str, infrastructure: &'static str) -> Error {
+fn missing_infrastructure(
+    policy_id: Uuid,
+    operator: &'static str,
+    infrastructure: &'static str,
+) -> Error {
     Error::new(
         ErrorKind::Configuration,
         format!(
-            "policy compile: `{operator}` requires an engine-side {infrastructure}; \
-             wire one via `Engine::with_key_provider` (or the matching setter)",
+            "policy `{policy_id}` uses `{operator}` which requires a {infrastructure}; \
+             wire one per-policy via `Engine::with_policy_key_provider` or set the \
+             engine-level default via `Engine::with_key_provider`",
         ),
     )
 }

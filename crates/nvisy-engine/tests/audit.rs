@@ -10,7 +10,7 @@
 mod fixtures;
 
 use bytes::Bytes;
-use nvisy_engine::entity::EntityRecord;
+use nvisy_engine::entity::{EntityRecord, Review};
 use nvisy_engine::modality::Text;
 use nvisy_engine::{Audit, Engine, EntityGroup};
 use nvisy_schema::file::Document;
@@ -64,15 +64,25 @@ fn text_records_mut(audit: &mut Audit) -> &mut Vec<EntityRecord<Text>> {
     entities
 }
 
+/// Stable placeholder policy UUID for reviewer overrides in
+/// tests that don't submit real policies. Audit-export tests
+/// don't drive `Engine::anonymize`, so the authority validator
+/// never runs on this id.
+const REVIEW_POLICY_ID: uuid::Uuid =
+    uuid::Uuid::from_u128(0x01234567_89ab_7000_8000_000000000abc_u128);
+
 /// Tag the first detected entity with a text `Erase` review so
 /// the review-export path has something to emit.
 fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
     let records = text_records_mut(audit);
     assert!(!records.is_empty(), "sample fixture must produce entities");
     let target = records[0].entity.id;
-    records[0].review = Some(ModalityRedactions {
-        text: Some(TextRedaction::Erase),
-        ..Default::default()
+    records[0].review = Some(Review {
+        policy_id: REVIEW_POLICY_ID,
+        action: ModalityRedactions {
+            text: Some(TextRedaction::Erase),
+            ..Default::default()
+        },
     });
     target
 }

@@ -64,12 +64,11 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind, Result};
-use nvisy_schema::policy::redaction::ModalityRedactions;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::record::EntityRecord;
+use super::record::{EntityRecord, OverrideEntry};
 
 /// A modality-tagged group of recognised entities.
 ///
@@ -196,8 +195,13 @@ impl EntityGroup {
         })
     }
 
-    /// Append every reviewer override on this group to `out`.
-    pub(crate) fn collect_overrides_into(&self, out: &mut Vec<(Uuid, ModalityRedactions)>) {
+    /// Append every reviewer override on this group to `out` as
+    /// [`OverrideEntry`] triples (entity id + authoring policy
+    /// id + operator spec). Records without a review pane are
+    /// skipped.
+    ///
+    /// [`OverrideEntry`]: super::record::OverrideEntry
+    pub(crate) fn collect_overrides_into(&self, out: &mut Vec<OverrideEntry>) {
         dispatch!(self, |_M, entities| extend_overrides(out, entities))
     }
 
@@ -245,15 +249,14 @@ where
     records.iter().map(|r| r.entity.clone()).collect()
 }
 
-fn extend_overrides<M: Modality>(
-    out: &mut Vec<(Uuid, ModalityRedactions)>,
-    records: &[EntityRecord<M>],
-) {
-    out.extend(
-        records
-            .iter()
-            .filter_map(|r| r.review.as_ref().map(|a| (r.entity.id, a.clone()))),
-    );
+fn extend_overrides<M: Modality>(out: &mut Vec<OverrideEntry>, records: &[EntityRecord<M>]) {
+    out.extend(records.iter().filter_map(|r| {
+        r.review.as_ref().map(|review| OverrideEntry {
+            entity_id: r.entity.id,
+            policy_id: review.policy_id,
+            action: review.action.clone(),
+        })
+    }));
 }
 
 /// Index `records` by id, then let `walk_mutated` invoke the

@@ -15,8 +15,9 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
+pub use self::gdpr::GdprArticle9Treatment;
 pub use self::hipaa::HipaaDeidMethod;
-pub use self::pci::PciPanRender;
+pub use self::pci::{PciDssPart, PciPanRender};
 
 /// A regulatory posture packaged as engine-ready data.
 ///

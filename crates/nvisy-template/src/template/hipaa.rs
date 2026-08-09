@@ -104,11 +104,17 @@ const LDS_GROUP: &str = "hipaa_limited_data_set";
 const ED_GROUP: &str = "hipaa_expert_determination";
 
 /// Every label the Safe Harbor bulk-erase rule targets.
-/// `age`, `date_of_birth`, `date_time` are absent — the table
-/// rule owns them.
+/// `age`, `date_of_birth`, `individual_date` are absent — the
+/// table rule owns them.
 const SAFE_HARBOR_LABELS: &[LabelRef] = &[
     LabelRef::from_static("person_name"),
+    // §(B) geographic subdivisions smaller than state — every
+    // level from `address` blob down to `city` erases; `state`
+    // and `country` are permitted to survive per Safe Harbor and
+    // are deliberately absent.
     LabelRef::from_static("address"),
+    LabelRef::from_static("street_address"),
+    LabelRef::from_static("city"),
     LabelRef::from_static("postal_code"),
     LabelRef::from_static("phone_number"),
     LabelRef::from_static("fax_number"),
@@ -133,24 +139,38 @@ const SAFE_HARBOR_LABELS: &[LabelRef] = &[
     LabelRef::from_static("face"),
     LabelRef::from_static("internal_id"),
     LabelRef::from_static("case_number"),
+    // §(R) "any other unique identifying number, characteristic,
+    // or code" — the elide-builtin catch-all catches ad-hoc
+    // identifiers (badge numbers, room numbers, provider
+    // taxonomy codes) that don't map to a specific label.
+    LabelRef::from_static("unresolved"),
 ];
 
 /// Labels Safe Harbor's table rule dispatches per-operator.
 /// Kept separate from [`SAFE_HARBOR_LABELS`] so the bulk-erase
 /// rule never matches them.
+///
+/// `date_time` deliberately absent: §(C) targets dates *directly
+/// related to an individual*; generic `date_time` (invoice
+/// dates, meeting timestamps) shouldn't be generalized. Elide's
+/// `individual_date` label is the narrower fit.
 const SAFE_HARBOR_TABLE_LABELS: &[LabelRef] = &[
     LabelRef::from_static("age"),
     LabelRef::from_static("date_of_birth"),
-    LabelRef::from_static("date_time"),
+    LabelRef::from_static("individual_date"),
 ];
 
 /// Every label the Limited Data Set bulk-erase rule targets.
 /// Sixteen categories per §164.514(e)(2) — dates, ages,
 /// town/city, state, and ZIP survive (dropped from this list vs.
-/// Safe Harbor's).
+/// Safe Harbor's). Only `street_address` erases from the
+/// geographic set; if the recognizer emits the broader `address`
+/// blob rather than the fine-grained split, the LDS survivor
+/// intent is defeated for that entity — enable elide's
+/// address-split patterns to close that gap.
 const LDS_LABELS: &[LabelRef] = &[
     LabelRef::from_static("person_name"),
-    LabelRef::from_static("address"),
+    LabelRef::from_static("street_address"),
     LabelRef::from_static("phone_number"),
     LabelRef::from_static("fax_number"),
     LabelRef::from_static("email_address"),
@@ -174,6 +194,10 @@ const LDS_LABELS: &[LabelRef] = &[
     LabelRef::from_static("face"),
     LabelRef::from_static("internal_id"),
     LabelRef::from_static("case_number"),
+    // §164.514(e)(2)(xvi) "any other unique identifying number,
+    // characteristic, or code" — catch-all for ad-hoc identifiers
+    // that don't map to a specific label.
+    LabelRef::from_static("unresolved"),
 ];
 
 const SAFE_HARBOR_POLICY_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000001");
@@ -395,7 +419,7 @@ fn safe_harbor_table_rule() -> PolicyRule {
                 }),
             },
             LabelEntry {
-                label: LabelRef::from_static("date_time"),
+                label: LabelRef::from_static("individual_date"),
                 action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
                     granularity: DateGranularity::Year,
                     style: DateStyle::Iso,
@@ -469,7 +493,7 @@ fn ed_table_rule() -> PolicyRule {
                 }),
             },
             LabelEntry {
-                label: LabelRef::from_static("date_time"),
+                label: LabelRef::from_static("individual_date"),
                 action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
                     granularity: DateGranularity::Year,
                     style: DateStyle::Iso,
@@ -546,7 +570,7 @@ mod tests {
             age.action.text,
             Some(TextRedaction::Clamp { ceiling: Some(c), .. }) if (c - 90.0).abs() < f64::EPSILON,
         ));
-        for date_label in ["date_of_birth", "date_time"] {
+        for date_label in ["date_of_birth", "individual_date"] {
             let entry = table
                 .operators
                 .iter()
@@ -564,7 +588,13 @@ mod tests {
         // The whole point of LDS is that dates, ages, and coarse
         // geography survive. If any of these ends up in the LDS
         // erase set, the template is broken.
-        for survivor in ["age", "date_of_birth", "date_time", "postal_code"] {
+        for survivor in [
+            "age",
+            "date_of_birth",
+            "individual_date",
+            "date_time",
+            "postal_code",
+        ] {
             assert!(
                 !LDS_LABELS.iter().any(|l| l.as_str() == survivor),
                 "LDS must not erase `{survivor}` — it's a survivor per §164.514(e)(2)",

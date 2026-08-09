@@ -22,7 +22,7 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use super::Template;
+use super::{PolicyTemplate, Template};
 
 /// Runtime registry of [`Template`]s, keyed by
 /// `(id, version)`. Templates are stored behind [`Arc`] so
@@ -93,7 +93,7 @@ impl TemplateCatalog {
     pub fn builtin() -> Self {
         use strum::IntoEnumIterator;
         let mut catalog = Self::new();
-        for variant in super::PolicyTemplate::iter() {
+        for variant in PolicyTemplate::iter() {
             // The shipped templates validate by construction —
             // insert only fails on caller-authored templates with
             // malformed ids.
@@ -260,7 +260,7 @@ mod tests {
         // silently drops one. Counts the `(id, version)` pairs the
         // enum produces and asserts the catalog holds all of them.
         use strum::IntoEnumIterator;
-        let expected = super::super::PolicyTemplate::iter().count();
+        let expected = PolicyTemplate::iter().count();
         let catalog = TemplateCatalog::builtin();
         assert_eq!(
             catalog.len(),
@@ -273,11 +273,11 @@ mod tests {
     #[test]
     fn latest_returns_the_highest_version() {
         let mut catalog = TemplateCatalog::new();
-        let mut v1 = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut v1 = PolicyTemplate::HipaaSafeHarbor.build();
         v1.version = Version::new(1, 0, 0);
-        let mut v2 = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut v2 = PolicyTemplate::HipaaSafeHarbor.build();
         v2.version = Version::new(2, 0, 0);
-        let mut v1_1 = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut v1_1 = PolicyTemplate::HipaaSafeHarbor.build();
         v1_1.version = Version::new(1, 1, 0);
         catalog.insert(v1).unwrap();
         catalog.insert(v2).unwrap();
@@ -289,9 +289,9 @@ mod tests {
     #[test]
     fn get_returns_the_exact_version_or_none() {
         let mut catalog = TemplateCatalog::new();
-        let mut v1 = crate::PolicyTemplate::GdprArticle9.build();
+        let mut v1 = PolicyTemplate::GdprArticle9.build();
         v1.version = Version::new(1, 0, 0);
-        let mut v2 = crate::PolicyTemplate::GdprArticle9.build();
+        let mut v2 = PolicyTemplate::GdprArticle9.build();
         v2.version = Version::new(2, 0, 0);
         catalog.insert(v1).unwrap();
         catalog.insert(v2).unwrap();
@@ -320,9 +320,9 @@ mod tests {
     #[test]
     fn versions_of_yields_semver_ascending() {
         let mut catalog = TemplateCatalog::new();
-        let mut v2 = crate::PolicyTemplate::Ccpa.build();
+        let mut v2 = PolicyTemplate::Ccpa.build();
         v2.version = Version::new(2, 0, 0);
-        let mut v1 = crate::PolicyTemplate::Ccpa.build();
+        let mut v1 = PolicyTemplate::Ccpa.build();
         v1.version = Version::new(1, 0, 0);
         // Insert out of order.
         catalog.insert(v2).unwrap();
@@ -337,9 +337,9 @@ mod tests {
     #[test]
     fn insert_same_key_replaces_the_existing_entry() {
         let mut catalog = TemplateCatalog::new();
-        let mut first = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut first = PolicyTemplate::HipaaSafeHarbor.build();
         first.name = "First".into();
-        let mut second = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut second = PolicyTemplate::HipaaSafeHarbor.build();
         second.name = "Second".into();
         catalog.insert(first).unwrap();
         catalog.insert(second).unwrap();
@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn insert_rejects_empty_id() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut template = PolicyTemplate::HipaaSafeHarbor.build();
         template.id = "".into();
         let err = catalog
             .insert(template)
@@ -362,19 +362,19 @@ mod tests {
     #[test]
     fn insert_rejects_uppercase_and_hyphen_ids() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut template = PolicyTemplate::HipaaSafeHarbor.build();
         template.id = "HIPAA".into();
         catalog
             .insert(template)
             .expect_err("uppercase id must be rejected");
 
-        let mut kebab = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut kebab = PolicyTemplate::HipaaSafeHarbor.build();
         kebab.id = "hipaa-safe-harbor".into();
         catalog
             .insert(kebab)
             .expect_err("hyphenated id must be rejected");
 
-        let mut leading_digit = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut leading_digit = PolicyTemplate::HipaaSafeHarbor.build();
         leading_digit.id = "1hipaa".into();
         catalog
             .insert(leading_digit)
@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn insert_accepts_snake_case_with_digits() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = crate::PolicyTemplate::HipaaSafeHarbor.build();
+        let mut template = PolicyTemplate::HipaaSafeHarbor.build();
         template.id = "hipaa_v2_1".into();
         catalog
             .insert(template)

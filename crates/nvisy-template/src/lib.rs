@@ -5,11 +5,14 @@
 //! ## Architecture
 //!
 //! [`PolicyTemplate`] enumerates the regulatory postures this
-//! crate ships. Variants that admit more than one operator
-//! choice the regulation permits carry a small options struct
-//! (e.g. [`PolicyTemplate::PciDssPan`] carries a [`PciPanRender`]
-//! picking truncate-vs-HMAC — both listed under PCI DSS §3.5.1);
-//! variants with a single shipped operator take no data.
+//! crate ships. Variants that admit more than one shipped
+//! posture carry a small options enum — e.g.
+//! [`PolicyTemplate::PciDss`] carries a [`PciDssPart`] picking
+//! between §3.5.1 PAN render (with a nested [`PciPanRender`]
+//! choice) and §3.3.1 SAV erasure;
+//! [`PolicyTemplate::GdprArticle9`] carries a
+//! [`GdprArticle9Treatment`] picking erasure vs.
+//! pseudonymization for the Article 9(2) lawful-basis case.
 //!
 //! [`PolicyTemplate::build`] materialises the picked variant
 //! into a [`Template`] — the [`PolicyDefinition`] carrying its
@@ -57,7 +60,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::catalog::TemplateCatalog;
-pub use self::template::{HipaaDeidMethod, PciPanRender, Template};
+pub use self::template::{
+    GdprArticle9Treatment, HipaaDeidMethod, PciDssPart, PciPanRender, Template,
+};
 use self::template::{ccpa, gdpr, hipaa, pci};
 
 /// A regulatory posture this crate ships a [`Template`] for.
@@ -84,27 +89,23 @@ pub enum PolicyTemplate {
         /// for the tradeoff.
         method: HipaaDeidMethod,
     },
-    /// GDPR Article 9 special categories of personal data. Ships
-    /// a `gdpr_article_9` [`LabelGroup`] naming the nine special
-    /// categories the article enumerates, plus a [`Predicated`]
-    /// rule using [`Predicate::LabelInGroup`] to erase every
-    /// match.
-    ///
-    /// [`LabelGroup`]: nvisy_policy::LabelGroup
-    /// [`Predicate::LabelInGroup`]: nvisy_policy::predicate::Predicate::LabelInGroup
-    /// [`Predicated`]: nvisy_policy::PolicyRule::Predicated
-    GdprArticle9,
-    /// PCI DSS §3.5.1 — render stored Primary Account Numbers
-    /// (PAN) unreadable. `render` picks between the truncation
-    /// and keyed-HMAC postures §3.5.1 permits. Targets the
-    /// elide-builtin `payment_card` label; no [`LabelGroup`]
-    /// (one label, one operator).
-    ///
-    /// [`LabelGroup`]: nvisy_policy::LabelGroup
-    PciDssPan {
-        /// Which of the §3.5.1-permitted render approaches to
-        /// apply. See [`PciPanRender`] for the tradeoff.
-        render: PciPanRender,
+    /// GDPR Article 9 special categories of personal data.
+    /// `treatment` picks between erasure (the default no-basis
+    /// posture) and pseudonymization (identity-preserving,
+    /// requires an Article 9(2) lawful-basis carve-out
+    /// established out-of-band).
+    GdprArticle9 {
+        /// Which operator to apply to Article 9 matches. See
+        /// [`GdprArticle9Treatment`] for the tradeoff.
+        treatment: GdprArticle9Treatment,
+    },
+    /// PCI DSS. `part` picks between §3.5.1 stored-PAN render
+    /// postures (with a nested [`PciPanRender`] choice) and
+    /// §3.3.1 Sensitive Authentication Data erasure.
+    PciDss {
+        /// Which DSS subsection this template addresses. See
+        /// [`PciDssPart`] for the shipped subsections.
+        part: PciDssPart,
     },
     /// CCPA "personal information" categories per Cal. Civ.
     /// Code §1798.140(v). Ships a `ccpa_personal_information`
@@ -129,8 +130,8 @@ impl PolicyTemplate {
     pub fn build(self) -> Template {
         match self {
             Self::HipaaDeidentification { method } => hipaa::template(method),
-            Self::GdprArticle9 => gdpr::template(),
-            Self::PciDssPan { render } => pci::template(render),
+            Self::GdprArticle9 { treatment } => gdpr::template(treatment),
+            Self::PciDss { part } => pci::template(part),
             Self::Ccpa => ccpa::template(),
         }
     }

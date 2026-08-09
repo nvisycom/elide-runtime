@@ -128,7 +128,7 @@ fn compile_custom_rule(rule: &CustomPatternRule, guardrails: &PatternGuardrails)
         .collect::<Result<Vec<_>, _>>()?;
     Regex::builder()
         .with_name(rule.name.clone())
-        .with_label(rule.label.clone())
+        .with_labels(vec![rule.label.clone()])
         .with_variants(variants)
         .with_context(compile_context(&rule.context))
         .with_languages(rule.languages.clone())
@@ -166,7 +166,7 @@ fn compile_custom_dictionary(dict: &CustomDictionary) -> Result<Dictionary> {
         .collect::<Vec<_>>();
     Dictionary::builder()
         .with_name(dict.name.clone())
-        .with_label(dict.label.clone())
+        .with_labels(vec![dict.label.clone()])
         .with_terms(terms)
         .with_scoring(Scoring::Uniform(dict.score))
         .with_context(compile_context(&dict.context))

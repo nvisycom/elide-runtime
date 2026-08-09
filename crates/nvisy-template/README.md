@@ -20,7 +20,7 @@ diverges from the shipped default.
 
 ## What's covered
 
-Four regulatory postures across seven shipped variants:
+Four regulatory postures across eleven shipped variants:
 
 - **HIPAA §164.514 de-identification**. Ships all three methods
   the rule permits: Safe Harbor (fixed 18-identifier removal),
@@ -30,12 +30,22 @@ Four regulatory postures across seven shipped variants:
   (identity-preserving pseudonymization; requires a qualified
   statistician to attest that re-identification risk is "very
   small" before the output can be treated as de-identified).
-- **GDPR Article 9** — special-category personal data.
-- **PCI DSS §3.5.1** — Primary Account Number render posture.
-  Ships both permitted approaches: truncation (BIN + last-four,
-  no key material) and keyed HMAC-SHA-256 (preserves per-row
-  identity for downstream joins and dedup; requires a key
-  provider wired into the engine).
+- **GDPR Article 9** — special-category personal data. Ships
+  two treatments: erasure (the default no-basis posture) and
+  pseudonymization (identity-preserving; requires an Article
+  9(2) lawful-basis carve-out established out-of-band).
+- **PCI DSS**. Two families:
+  - **§3.5.1 Primary Account Number render posture.** Ships four
+    render variants covering the truncation and keyed-hash
+    approaches §3.5.1 permits: keep-BIN-and-last-four truncation,
+    last-four-only truncation (the stricter §3.5.1.1 posture
+    required when a hashed copy of the same PAN coexists in the
+    environment), HMAC-SHA-256, and HMAC-SHA-512. HMAC variants
+    require a key provider wired into the engine.
+  - **§3.3.1 Sensitive Authentication Data erasure.** SAV
+    (CVV/CVC, track data, PIN blocks) is prohibited from storage
+    after authorization — the correct posture is erasure, not
+    render-unreadable. Currently covers CVV/CVC.
 - **CCPA** — Cal. Civ. Code §1798.140 personal-information
   categories.
 

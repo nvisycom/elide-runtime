@@ -16,7 +16,10 @@ use nvisy_schema::plan::{
     AnalyzerParams, EnricherParams, PatternRecognizerParams, ProviderSelection, RecognizerParams,
     ScopeParams,
 };
-use nvisy_template::{HipaaDeidMethod, PciPanRender, PolicyTemplate, Template, TemplateCatalog};
+use nvisy_template::{
+    GdprArticle9Treatment, HipaaDeidMethod, PciDssPart, PciPanRender, PolicyTemplate, Template,
+    TemplateCatalog,
+};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -164,7 +167,14 @@ async fn gdpr_article_9_leaves_non_special_categories_alone() {
     // health data, biometric, sexual orientation, etc.). So the
     // GDPR template should redact nothing — the output equals
     // the input.
-    let body = apply(&engine(), PolicyTemplate::GdprArticle9.build()).await;
+    let body = apply(
+        &engine(),
+        PolicyTemplate::GdprArticle9 {
+            treatment: GdprArticle9Treatment::Erase,
+        }
+        .build(),
+    )
+    .await;
     assert!(
         body.contains("jane.doe@example.com"),
         "GDPR Article 9 doesn't cover email; must survive. Body:\n{body}",
@@ -182,8 +192,10 @@ async fn pci_dss_pan_truncate_leaves_non_pan_labels_alone() {
     // round-trip unchanged.
     let body = apply(
         &engine(),
-        PolicyTemplate::PciDssPan {
-            render: PciPanRender::Truncate,
+        PolicyTemplate::PciDss {
+            part: PciDssPart::PanRender {
+                render: PciPanRender::Truncate,
+            },
         }
         .build(),
     )
@@ -199,13 +211,40 @@ async fn pci_dss_pan_truncate_leaves_non_pan_labels_alone() {
 }
 
 #[tokio::test]
+async fn pci_dss_sav_erase_leaves_non_sav_labels_alone() {
+    // The sample has no `card_security_code` entity — the PCI SAV
+    // template targets exactly one label, so the sample should
+    // round-trip unchanged. (The distinguishing behavior — erasing
+    // a real CVV — needs the richer sample fixture tracked in
+    // #366.)
+    let body = apply(
+        &engine(),
+        PolicyTemplate::PciDss {
+            part: PciDssPart::SavErase,
+        }
+        .build(),
+    )
+    .await;
+    assert!(
+        body.contains("jane.doe@example.com"),
+        "PCI SAV template doesn't cover email; must survive. Body:\n{body}",
+    );
+    assert!(
+        body.contains("123-45-6789"),
+        "PCI SAV template doesn't cover SSN; must survive. Body:\n{body}",
+    );
+}
+
+#[tokio::test]
 async fn pci_dss_pan_hmac_requires_key_provider() {
     // Without a key provider on the engine, compiling the HMAC
     // template's HmacHash operator fails at anonymize-time with
     // a Configuration error. Proves the template wires the right
     // capability requirement into place.
-    let template = PolicyTemplate::PciDssPan {
-        render: PciPanRender::HmacSha256,
+    let template = PolicyTemplate::PciDss {
+        part: PciDssPart::PanRender {
+            render: PciPanRender::HmacSha256,
+        },
     }
     .build();
     let mut analyzed = engine()
@@ -238,8 +277,10 @@ async fn pci_dss_pan_hmac_runs_with_a_key_provider() {
     // template-specific setup the operator needs.
     let body = apply(
         &engine_with_key(),
-        PolicyTemplate::PciDssPan {
-            render: PciPanRender::HmacSha256,
+        PolicyTemplate::PciDss {
+            part: PciDssPart::PanRender {
+                render: PciPanRender::HmacSha256,
+            },
         }
         .build(),
     )

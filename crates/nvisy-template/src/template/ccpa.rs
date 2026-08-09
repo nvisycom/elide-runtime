@@ -37,13 +37,15 @@ use super::Template;
 pub(crate) const GROUP_NAME: &str = "ccpa_personal_information";
 
 /// Elide-builtin labels the group covers, mapped from
-/// §1798.140(v)(1) categories. See the caveats issue for two
-/// known coverage gaps ((J) non-public education info, (K)
-/// inferences — neither has a dedicated label today).
+/// §1798.140(v)(1) categories.
 const CCPA_LABELS: &[LabelRef] = &[
-    // (A) Identifiers
+    // (A) Identifiers — includes geographic subdivisions (finer
+    // than country / state), account credentials, and dates
+    // directly related to an individual.
     LabelRef::from_static("person_name"),
     LabelRef::from_static("address"),
+    LabelRef::from_static("street_address"),
+    LabelRef::from_static("city"),
     LabelRef::from_static("postal_code"),
     LabelRef::from_static("email_address"),
     LabelRef::from_static("phone_number"),
@@ -51,18 +53,23 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("mac_address"),
     LabelRef::from_static("device_id"),
     LabelRef::from_static("username"),
+    LabelRef::from_static("password"),
+    LabelRef::from_static("security_question_answer"),
     LabelRef::from_static("government_id"),
     LabelRef::from_static("national_insurance_number"),
     LabelRef::from_static("drivers_license"),
     LabelRef::from_static("passport_number"),
+    LabelRef::from_static("individual_date"),
     // (B) §1798.80 categories overlap with (A) + adds signature,
     // physical description, education/employment, financial /
-    // medical / insurance.
+    // medical / insurance. `health_narrative` catches the
+    // free-form clinical content that specific IDs miss.
     LabelRef::from_static("signature"),
     LabelRef::from_static("handwriting"),
     LabelRef::from_static("occupation"),
     LabelRef::from_static("medical_id"),
     LabelRef::from_static("insurance_id"),
+    LabelRef::from_static("health_narrative"),
     LabelRef::from_static("bank_account"),
     // (C) Protected classifications (CA/federal)
     LabelRef::from_static("ethnicity"),
@@ -70,6 +77,7 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("religion"),
     LabelRef::from_static("gender"),
     LabelRef::from_static("sexual_orientation"),
+    LabelRef::from_static("sex_life"),
     LabelRef::from_static("age"),
     LabelRef::from_static("date_of_birth"),
     // (D) Commercial information
@@ -81,17 +89,26 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("retina_scan"),
     LabelRef::from_static("facial_geometry"),
     LabelRef::from_static("genetic_data"),
-    // (F) Internet / network activity
+    // (F) Internet / network activity — includes CPRA §1798.140(ae)(4)
+    // communications content (mail/email/text/chat bodies).
     LabelRef::from_static("url"),
-    // (G) Geolocation data
+    LabelRef::from_static("communications_content"),
+    // (G) Geolocation data — CPRA §1798.140(ae)(2) singles out
+    // precise geolocation (≤1850 ft) as SPI; both survive erase
+    // under regular PI.
     LabelRef::from_static("coordinates"),
     LabelRef::from_static("geolocation_metadata"),
+    LabelRef::from_static("precise_geolocation"),
     // (H) Sensory (audio, visual, thermal, olfactory)
     LabelRef::from_static("face"),
     // (I) Professional / employment information
     LabelRef::from_static("certificate_number"),
     LabelRef::from_static("company_id"),
     LabelRef::from_static("department_name"),
+    // (J) Non-public education information per FERPA
+    LabelRef::from_static("education_record"),
+    // (K) Inferences drawn to build a consumer profile
+    LabelRef::from_static("inference"),
 ];
 
 const POLICY_ID: Uuid = uuid!("016806b5-bc00-7000-8000-000000000001");
@@ -174,18 +191,19 @@ mod tests {
     fn every_shipped_ccpa_category_has_at_least_one_anchor_label() {
         // Spot-check one label per shipped category so a future
         // edit dropping a whole category trips this rather than
-        // silently regressing coverage. Categories (J) and (K)
-        // aren't covered — see caveats issue.
+        // silently regressing coverage.
         for anchor in [
-            "person_name",  // (A) identifiers
-            "signature",    // (B) §1798.80
-            "ethnicity",    // (C) protected classifications
-            "payment_card", // (D) commercial info
-            "fingerprint",  // (E) biometric
-            "url",          // (F) internet/network activity
-            "coordinates",  // (G) geolocation
-            "face",         // (H) sensory
-            "occupation",   // (I) professional/employment
+            "person_name",      // (A) identifiers
+            "signature",        // (B) §1798.80
+            "ethnicity",        // (C) protected classifications
+            "payment_card",     // (D) commercial info
+            "fingerprint",      // (E) biometric
+            "url",              // (F) internet/network activity
+            "coordinates",      // (G) geolocation
+            "face",             // (H) sensory
+            "occupation",       // (I) professional/employment
+            "education_record", // (J) non-public education info
+            "inference",        // (K) inferences
         ] {
             assert!(
                 CCPA_LABELS.iter().any(|l| l.as_str() == anchor),

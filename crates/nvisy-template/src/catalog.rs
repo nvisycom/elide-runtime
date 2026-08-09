@@ -22,7 +22,9 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use super::{HipaaDeidMethod, PciPanRender, PolicyTemplate, Template};
+use super::{
+    GdprArticle9Treatment, HipaaDeidMethod, PciDssPart, PciPanRender, PolicyTemplate, Template,
+};
 
 /// Runtime registry of [`Template`]s, keyed by
 /// `(id, version)`. Templates are stored behind [`Arc`] so
@@ -101,12 +103,34 @@ impl TemplateCatalog {
             PolicyTemplate::HipaaDeidentification {
                 method: HipaaDeidMethod::ExpertDetermination,
             },
-            PolicyTemplate::GdprArticle9,
-            PolicyTemplate::PciDssPan {
-                render: PciPanRender::Truncate,
+            PolicyTemplate::GdprArticle9 {
+                treatment: GdprArticle9Treatment::Erase,
             },
-            PolicyTemplate::PciDssPan {
-                render: PciPanRender::HmacSha256,
+            PolicyTemplate::GdprArticle9 {
+                treatment: GdprArticle9Treatment::Pseudonymize,
+            },
+            PolicyTemplate::PciDss {
+                part: PciDssPart::PanRender {
+                    render: PciPanRender::Truncate,
+                },
+            },
+            PolicyTemplate::PciDss {
+                part: PciDssPart::PanRender {
+                    render: PciPanRender::TruncateLastFour,
+                },
+            },
+            PolicyTemplate::PciDss {
+                part: PciDssPart::PanRender {
+                    render: PciPanRender::HmacSha256,
+                },
+            },
+            PolicyTemplate::PciDss {
+                part: PciDssPart::PanRender {
+                    render: PciPanRender::HmacSha512,
+                },
+            },
+            PolicyTemplate::PciDss {
+                part: PciDssPart::SavErase,
             },
             PolicyTemplate::Ccpa,
         ];
@@ -319,25 +343,31 @@ mod tests {
     #[test]
     fn get_returns_the_exact_version_or_none() {
         let mut catalog = TemplateCatalog::new();
-        let mut v1 = PolicyTemplate::GdprArticle9.build();
+        let mut v1 = PolicyTemplate::GdprArticle9 {
+            treatment: GdprArticle9Treatment::Erase,
+        }
+        .build();
         v1.version = Version::new(1, 0, 0);
-        let mut v2 = PolicyTemplate::GdprArticle9.build();
+        let mut v2 = PolicyTemplate::GdprArticle9 {
+            treatment: GdprArticle9Treatment::Erase,
+        }
+        .build();
         v2.version = Version::new(2, 0, 0);
         catalog.insert(v1).unwrap();
         catalog.insert(v2).unwrap();
         assert!(
             catalog
-                .get("gdpr_article_9", &Version::new(1, 0, 0))
+                .get("gdpr_article_9_erase", &Version::new(1, 0, 0))
                 .is_some()
         );
         assert!(
             catalog
-                .get("gdpr_article_9", &Version::new(2, 0, 0))
+                .get("gdpr_article_9_erase", &Version::new(2, 0, 0))
                 .is_some()
         );
         assert!(
             catalog
-                .get("gdpr_article_9", &Version::new(3, 0, 0))
+                .get("gdpr_article_9_erase", &Version::new(3, 0, 0))
                 .is_none()
         );
         assert!(

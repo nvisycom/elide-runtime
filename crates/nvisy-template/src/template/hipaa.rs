@@ -36,9 +36,9 @@
 //! [`HmacHash`]: nvisy_policy::redaction::TextRedaction::HmacHash
 //! [`LabelGroup`]: nvisy_policy::LabelGroup
 //! [`PolicyDefinition`]: nvisy_policy::PolicyDefinition
-//! [`Predicated`]: nvisy_policy::PolicyRule::Predicated
+//! [`Predicated`]: nvisy_policy::RuleDispatch::Predicated
 //! [`Pseudonymize`]: nvisy_policy::redaction::TextRedaction::Pseudonymize
-//! [`TableRule`]: nvisy_policy::TableRule
+//! [`RuleDispatch`]: nvisy_policy::RuleDispatch
 
 use elide_core::entity::LabelRef;
 use jiff::civil::Date;
@@ -46,9 +46,7 @@ use nvisy_policy::predicate::Predicate;
 use nvisy_policy::redaction::{
     ClampBucket, DateGranularity, DateStyle, ModalityRedactions, TextRedaction,
 };
-use nvisy_policy::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, PredicatedRule, TableRule,
-};
+use nvisy_policy::{LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDispatch};
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -279,7 +277,7 @@ fn safe_harbor_group() -> LabelGroup {
              an individual, contact info, government/medical/account/certificate \
              identifiers, vehicle and device ids, URLs, IPs, biometrics, faces, \
              and other unique identifiers)."
-                .to_owned(),
+                .into(),
         ),
         labels: SAFE_HARBOR_LABELS.to_vec(),
     }
@@ -293,7 +291,7 @@ fn lds_group() -> LabelGroup {
              Limited Data Set. Dates, ages, town/city, state, and ZIP survive \
              verbatim under this posture; a Data Use Agreement governs the \
              recipient's use out-of-band."
-                .to_owned(),
+                .into(),
         ),
         labels: LDS_LABELS.to_vec(),
     }
@@ -306,7 +304,7 @@ fn ed_group() -> LabelGroup {
             "The 18 identifier categories carried into the Expert Determination \
              scaffold. Same label membership as Safe Harbor; the separate group \
              name lets audits distinguish the two postures by group id alone."
-                .to_owned(),
+                .into(),
         ),
         labels: SAFE_HARBOR_LABELS.to_vec(),
     }
@@ -319,9 +317,8 @@ fn safe_harbor_policy() -> PolicyDefinition {
         description: Some(
             "HIPAA Safe Harbor de-identification. Ages ≥ 90 collapse to a bucket, \
              dates reduce to the year, every other identifier is erased."
-                .to_owned(),
+                .into(),
         ),
-        when: None,
         labels: Labels {
             builtins: SAFE_HARBOR_LABELS
                 .iter()
@@ -344,9 +341,8 @@ fn limited_data_set_policy() -> PolicyDefinition {
         description: Some(
             "HIPAA Limited Data Set. Sixteen identifier categories erase; dates, \
              ages, town/city, state, and ZIP survive verbatim."
-                .to_owned(),
+                .into(),
         ),
-        when: None,
         labels: Labels {
             builtins: LDS_LABELS.to_vec(),
             custom: Vec::new(),
@@ -369,9 +365,8 @@ fn expert_determination_policy() -> PolicyDefinition {
              must attest that re-identification risk is `very small` for the \
              recipient's dataset before the output can be treated as \
              de-identified."
-                .to_owned(),
+                .into(),
         ),
-        when: None,
         labels: Labels {
             builtins: SAFE_HARBOR_LABELS
                 .iter()
@@ -391,73 +386,79 @@ fn expert_determination_policy() -> PolicyDefinition {
 /// related to an individual reduce to the year. Anything the
 /// rule doesn't match falls through to the bulk erase.
 fn safe_harbor_table_rule() -> PolicyRule {
-    PolicyRule::Table(TableRule {
+    PolicyRule {
         id: SAFE_HARBOR_TABLE_RULE_ID,
         name: "hipaa-age-and-dates".into(),
         description: Some(
             "§164.514(b)(2)(i)(C) — ages over 89 aggregate into a `90 or older` \
              bucket; dates related to the individual reduce to the year."
-                .to_owned(),
+                .into(),
         ),
-        operators: vec![
-            LabelEntry {
-                label: LabelRef::from_static("age"),
-                action: ModalityRedactions::text(TextRedaction::Clamp {
-                    ceiling: Some(90.0),
-                    ceiling_bucket: Some(ClampBucket::Plain("90 or older".to_owned())),
-                    floor: None,
-                    floor_bucket: None,
-                    fallback: None,
-                }),
-            },
-            LabelEntry {
-                label: LabelRef::from_static("date_of_birth"),
-                action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
-                    granularity: DateGranularity::Year,
-                    style: DateStyle::Iso,
-                    fallback: None,
-                }),
-            },
-            LabelEntry {
-                label: LabelRef::from_static("individual_date"),
-                action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
-                    granularity: DateGranularity::Year,
-                    style: DateStyle::Iso,
-                    fallback: None,
-                }),
-            },
-        ],
-    })
+        dispatch: RuleDispatch::Table {
+            operators: vec![
+                LabelEntry {
+                    label: LabelRef::from_static("age"),
+                    action: ModalityRedactions::text(TextRedaction::Clamp {
+                        ceiling: Some(90.0),
+                        ceiling_bucket: Some(ClampBucket::Plain("90 or older".to_owned())),
+                        floor: None,
+                        floor_bucket: None,
+                        fallback: None,
+                    }),
+                },
+                LabelEntry {
+                    label: LabelRef::from_static("date_of_birth"),
+                    action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
+                        granularity: DateGranularity::Year,
+                        style: DateStyle::Iso,
+                        fallback: None,
+                    }),
+                },
+                LabelEntry {
+                    label: LabelRef::from_static("individual_date"),
+                    action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
+                        granularity: DateGranularity::Year,
+                        style: DateStyle::Iso,
+                        fallback: None,
+                    }),
+                },
+            ],
+        },
+    }
 }
 
 /// Everything the Safe Harbor group covers → [`Erase`].
 ///
 /// [`Erase`]: nvisy_policy::redaction::TextRedaction::Erase
 fn safe_harbor_bulk_erase_rule() -> PolicyRule {
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: SAFE_HARBOR_BULK_RULE_ID,
         name: "hipaa-safe-harbor-bulk-erase".into(),
-        description: Some("Every remaining §164.514(b)(2) identifier is erased.".to_owned()),
-        predicate: Predicate::LabelInGroup {
-            group: SAFE_HARBOR_GROUP.to_owned(),
+        description: Some("Every remaining §164.514(b)(2) identifier is erased.".into()),
+        dispatch: RuleDispatch::Predicated {
+            predicate: Predicate::LabelInGroup {
+                group: SAFE_HARBOR_GROUP.to_owned(),
+            },
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
-        action: ModalityRedactions::text(TextRedaction::Erase),
-    }))
+    }
 }
 
 /// Everything the Limited Data Set group covers → [`Erase`].
 ///
 /// [`Erase`]: nvisy_policy::redaction::TextRedaction::Erase
 fn lds_bulk_erase_rule() -> PolicyRule {
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: LDS_BULK_RULE_ID,
         name: "hipaa-lds-bulk-erase".into(),
-        description: Some("Every §164.514(e)(2) identifier is erased.".to_owned()),
-        predicate: Predicate::LabelInGroup {
-            group: LDS_GROUP.to_owned(),
+        description: Some("Every §164.514(e)(2) identifier is erased.".into()),
+        dispatch: RuleDispatch::Predicated {
+            predicate: Predicate::LabelInGroup {
+                group: LDS_GROUP.to_owned(),
+            },
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
-        action: ModalityRedactions::text(TextRedaction::Erase),
-    }))
+    }
 }
 
 /// Same table dispatch as Safe Harbor — ages ≥ 90 collapse to
@@ -465,43 +466,45 @@ fn lds_bulk_erase_rule() -> PolicyRule {
 /// Expert Determination scaffold as sensible defaults the
 /// statistician can override.
 fn ed_table_rule() -> PolicyRule {
-    PolicyRule::Table(TableRule {
+    PolicyRule {
         id: ED_TABLE_RULE_ID,
         name: "hipaa-ed-age-and-dates".into(),
         description: Some(
             "Age/date dispatch carried into the Expert Determination scaffold. \
              The statistician's risk analysis may override these defaults."
-                .to_owned(),
+                .into(),
         ),
-        operators: vec![
-            LabelEntry {
-                label: LabelRef::from_static("age"),
-                action: ModalityRedactions::text(TextRedaction::Clamp {
-                    ceiling: Some(90.0),
-                    ceiling_bucket: Some(ClampBucket::Plain("90 or older".to_owned())),
-                    floor: None,
-                    floor_bucket: None,
-                    fallback: None,
-                }),
-            },
-            LabelEntry {
-                label: LabelRef::from_static("date_of_birth"),
-                action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
-                    granularity: DateGranularity::Year,
-                    style: DateStyle::Iso,
-                    fallback: None,
-                }),
-            },
-            LabelEntry {
-                label: LabelRef::from_static("individual_date"),
-                action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
-                    granularity: DateGranularity::Year,
-                    style: DateStyle::Iso,
-                    fallback: None,
-                }),
-            },
-        ],
-    })
+        dispatch: RuleDispatch::Table {
+            operators: vec![
+                LabelEntry {
+                    label: LabelRef::from_static("age"),
+                    action: ModalityRedactions::text(TextRedaction::Clamp {
+                        ceiling: Some(90.0),
+                        ceiling_bucket: Some(ClampBucket::Plain("90 or older".to_owned())),
+                        floor: None,
+                        floor_bucket: None,
+                        fallback: None,
+                    }),
+                },
+                LabelEntry {
+                    label: LabelRef::from_static("date_of_birth"),
+                    action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
+                        granularity: DateGranularity::Year,
+                        style: DateStyle::Iso,
+                        fallback: None,
+                    }),
+                },
+                LabelEntry {
+                    label: LabelRef::from_static("individual_date"),
+                    action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
+                        granularity: DateGranularity::Year,
+                        style: DateStyle::Iso,
+                        fallback: None,
+                    }),
+                },
+            ],
+        },
+    }
 }
 
 /// Everything the Expert Determination group covers →
@@ -510,7 +513,7 @@ fn ed_table_rule() -> PolicyRule {
 ///
 /// [`Pseudonymize`]: nvisy_policy::redaction::TextRedaction::Pseudonymize
 fn ed_bulk_pseudonymize_rule() -> PolicyRule {
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: ED_BULK_RULE_ID,
         name: "hipaa-ed-bulk-pseudonymize".into(),
         description: Some(
@@ -518,13 +521,15 @@ fn ed_bulk_pseudonymize_rule() -> PolicyRule {
              pseudonymized (identity-preserving surrogate). Statistician may \
              override to Erase / HmacHash / Encrypt as their risk analysis \
              demands."
-                .to_owned(),
+                .into(),
         ),
-        predicate: Predicate::LabelInGroup {
-            group: ED_GROUP.to_owned(),
+        dispatch: RuleDispatch::Predicated {
+            predicate: Predicate::LabelInGroup {
+                group: ED_GROUP.to_owned(),
+            },
+            action: Box::new(ModalityRedactions::text(TextRedaction::Pseudonymize)),
         },
-        action: ModalityRedactions::text(TextRedaction::Pseudonymize),
-    }))
+    }
 }
 
 #[cfg(test)]
@@ -549,20 +554,23 @@ mod tests {
     fn safe_harbor_special_dispatch_rule_precedes_bulk_erase() {
         let policy = &template(HipaaDeidMethod::SafeHarbor).policy;
         assert!(
-            matches!(&policy.rules[0], PolicyRule::Table(_)),
+            matches!(&policy.rules[0].dispatch, RuleDispatch::Table { .. }),
             "table rule must fire first so `age` and dates reach their generalizers",
         );
-        assert!(matches!(&policy.rules[1], PolicyRule::Predicated(_)));
+        assert!(matches!(
+            &policy.rules[1].dispatch,
+            RuleDispatch::Predicated { .. }
+        ));
     }
 
     #[test]
     fn safe_harbor_table_rule_dispatches_age_to_clamp_and_dates_to_generalize() {
-        let PolicyRule::Table(table) = &template(HipaaDeidMethod::SafeHarbor).policy.rules[0]
+        let RuleDispatch::Table { operators } =
+            &template(HipaaDeidMethod::SafeHarbor).policy.rules[0].dispatch
         else {
-            panic!("first rule must be Table");
+            panic!("first rule must be Table dispatch");
         };
-        let age = table
-            .operators
+        let age = operators
             .iter()
             .find(|e| e.label.as_str() == "age")
             .expect("age entry present");
@@ -571,8 +579,7 @@ mod tests {
             Some(TextRedaction::Clamp { ceiling: Some(c), .. }) if (c - 90.0).abs() < f64::EPSILON,
         ));
         for date_label in ["date_of_birth", "individual_date"] {
-            let entry = table
-                .operators
+            let entry = operators
                 .iter()
                 .find(|e| e.label.as_str() == date_label)
                 .unwrap_or_else(|| panic!("{date_label} entry present"));
@@ -620,15 +627,12 @@ mod tests {
         // The whole point of the ED scaffold vs Safe Harbor is
         // that the bulk terminal is Pseudonymize (identity-
         // preserving), not Erase.
-        let PolicyRule::Predicated(rule) =
-            &template(HipaaDeidMethod::ExpertDetermination).policy.rules[1]
+        let RuleDispatch::Predicated { action, .. } =
+            &template(HipaaDeidMethod::ExpertDetermination).policy.rules[1].dispatch
         else {
-            panic!("second rule must be Predicated");
+            panic!("second rule must be Predicated dispatch");
         };
-        assert!(matches!(
-            rule.action.text,
-            Some(TextRedaction::Pseudonymize)
-        ));
+        assert!(matches!(action.text, Some(TextRedaction::Pseudonymize)));
     }
 
     #[test]
@@ -643,7 +647,7 @@ mod tests {
             assert_eq!(a.id, b.id);
             assert_eq!(a.policy.id, b.policy.id);
             for (r_a, r_b) in a.policy.rules.iter().zip(b.policy.rules.iter()) {
-                assert_eq!(r_a.id(), r_b.id());
+                assert_eq!(r_a.id, r_b.id);
             }
         }
     }

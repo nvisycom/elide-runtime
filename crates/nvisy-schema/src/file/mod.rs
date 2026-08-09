@@ -8,16 +8,6 @@
 //! JSON keyspace. The split lets `list_files` enumerate every
 //! file for an actor without paying the cost of loading the
 //! bytes. Both keyspaces key by `(actor_id, file_id)`.
-//!
-//! The descriptor mirrors what [`DocumentInput`] carries on a
-//! [`StartBatch`]. The same `descriptor_tags` and
-//! `descriptor_metadata` gate policies via
-//! [`DocumentPredicate`]. When a run references a stored file,
-//! the run inherits these gates.
-//!
-//! [`DocumentInput`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/runs/struct.DocumentInput.html
-//! [`StartBatch`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/runs/struct.StartBatch.html
-//! [`DocumentPredicate`]: crate::policy::predicate::DocumentPredicate
 
 mod document;
 mod metadata;

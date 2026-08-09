@@ -299,9 +299,7 @@ fn check_predicate_groups(
             format!(
                 "policy `{}` rule `{}` references unknown label group `{}` — \
                  the enclosing policy declares no `LabelGroup` with that name",
-                policy.id,
-                rule.id(),
-                group,
+                policy.id, rule.id, group,
             ),
         )),
         Predicate::All { all } => all

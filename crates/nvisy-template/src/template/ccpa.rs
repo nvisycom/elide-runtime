@@ -20,14 +20,14 @@
 //!
 //! [`LabelGroup`]: nvisy_policy::LabelGroup
 //! [`PolicyDefinition`]: nvisy_policy::PolicyDefinition
-//! [`Predicated`]: nvisy_policy::PolicyRule::Predicated
+//! [`Predicated`]: nvisy_policy::RuleDispatch::Predicated
 //! [`Pseudonymize`]: nvisy_policy::redaction::TextRedaction::Pseudonymize
 
 use elide_core::entity::LabelRef;
 use jiff::civil::Date;
 use nvisy_policy::predicate::Predicate;
 use nvisy_policy::redaction::{ModalityRedactions, TextRedaction};
-use nvisy_policy::{LabelGroup, Labels, PolicyDefinition, PolicyRule, PredicatedRule};
+use nvisy_policy::{LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDispatch};
 use semver::Version;
 use uuid::{Uuid, uuid};
 
@@ -139,7 +139,7 @@ fn group() -> LabelGroup {
              protected classifications, commercial information, biometric data, \
              internet/network activity, geolocation, sensory data, professional/\
              employment information, non-public education info, inferences)."
-                .to_owned(),
+                .into(),
         ),
         labels: CCPA_LABELS.to_vec(),
     }
@@ -153,9 +153,8 @@ fn policy() -> PolicyDefinition {
             "Erase every §1798.140(v)(1) personal-information entity by default. \
              Callers under a §1798.145 retention exception override the operator \
              to Pseudonymize on the returned rule."
-                .to_owned(),
+                .into(),
         ),
-        when: None,
         labels: Labels {
             builtins: CCPA_LABELS.to_vec(),
             custom: Vec::new(),
@@ -168,19 +167,21 @@ fn policy() -> PolicyDefinition {
 }
 
 fn erase_rule() -> PolicyRule {
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: RULE_ID,
         name: "ccpa-personal-information-erase".into(),
         description: Some(
             "Erase any entity whose label falls in the ccpa_personal_information \
              group."
-                .to_owned(),
+                .into(),
         ),
-        predicate: Predicate::LabelInGroup {
-            group: GROUP_NAME.to_owned(),
+        dispatch: RuleDispatch::Predicated {
+            predicate: Predicate::LabelInGroup {
+                group: GROUP_NAME.to_owned(),
+            },
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
-        action: ModalityRedactions::text(TextRedaction::Erase),
-    }))
+    }
 }
 
 #[cfg(test)]
@@ -217,6 +218,6 @@ mod tests {
         let a = template();
         let b = template();
         assert_eq!(a.policy.id, b.policy.id);
-        assert_eq!(a.policy.rules[0].id(), b.policy.rules[0].id());
+        assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);
     }
 }

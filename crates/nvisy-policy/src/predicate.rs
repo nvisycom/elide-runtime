@@ -1,23 +1,17 @@
-//! Predicates that gate whether a policy or rule fires.
+//! Predicate that gates whether a rule fires against a
+//! candidate entity.
 //!
-//! Two axes:
+//! [`Predicate`] runs per entity; a rule fires only when its
+//! predicate holds against the candidate entity's facts (label,
+//! tag, confidence, coref).
 //!
-//! - [`Predicate`] runs per entity; a rule fires only when its
-//!   predicate holds against the candidate entity's facts (label,
-//!   tag, confidence, coref).
-//! - [`DocumentPredicate`] runs once per document; a policy is
-//!   evaluated only when its `when` predicate holds
-//!   against the document-level facts (labels, metadata,
-//!   language, etc.).
-//!
-//! Both are serialisable. Engine compiles a `Predicate` into an
-//! elide [`Rule`]: single-label predicates route through
-//! [`Rule::label`], single-tag through [`Rule::tag`], and
-//! everything else through [`Rule::predicate`] with a closure
-//! over the [`MatchContext`]. Leaf variants inspect entity
-//! facts; the composing variants ([`Predicate::All`],
-//! [`Predicate::Any`], [`Predicate::Not`]) wire boolean algebra
-//! over them.
+//! Engine compiles a `Predicate` into an elide [`Rule`]:
+//! single-label predicates route through [`Rule::label`],
+//! single-tag through [`Rule::tag`], and everything else through
+//! [`Rule::predicate`] with a closure over the [`MatchContext`].
+//! Leaf variants inspect entity facts; the composing variants
+//! ([`Predicate::All`], [`Predicate::Any`], [`Predicate::Not`])
+//! wire boolean algebra over them.
 //!
 //! [`Rule`]: https://docs.rs/elide/latest/elide/redaction/struct.Rule.html
 //! [`Rule::label`]: https://docs.rs/elide/latest/elide/redaction/struct.Rule.html#method.label
@@ -25,14 +19,10 @@
 //! [`Rule::predicate`]: https://docs.rs/elide/latest/elide/redaction/struct.Rule.html#method.predicate
 //! [`MatchContext`]: https://docs.rs/elide/latest/elide/redaction/struct.MatchContext.html
 
-mod document;
-
 use elide_core::entity::LabelRef;
 use elide_core::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-pub use self::document::DocumentPredicate;
 
 /// Predicate over a recognised entity. The wire format uses an
 /// internally tagged enum so authors write

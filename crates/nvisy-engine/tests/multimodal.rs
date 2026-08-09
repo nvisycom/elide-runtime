@@ -118,7 +118,6 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         id: uuid::Uuid::now_v7(),
         name: "review-authority".into(),
         description: None,
-        when: None,
         labels: Labels::default(),
         groups: Vec::new(),
         rules: Vec::new(),
@@ -213,7 +212,6 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
         id: uuid::Uuid::now_v7(),
         name: "test".into(),
         description: None,
-        when: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -260,26 +258,27 @@ async fn audit_rejects_missing_context_on_deserialize() {
 async fn analyze_rejects_policy_that_references_unknown_group() {
     use nvisy_schema::policy::predicate::Predicate;
     use nvisy_schema::policy::redaction::TextRedaction;
-    use nvisy_schema::policy::{PolicyRule, PredicatedRule};
+    use nvisy_schema::policy::{PolicyRule, RuleDispatch};
 
     let engine = engine();
-    let rule = PolicyRule::Predicated(Box::new(PredicatedRule {
+    let rule = PolicyRule {
         id: uuid::Uuid::now_v7(),
         name: "sweep".into(),
         description: None,
-        predicate: Predicate::LabelInGroup {
-            group: "definitely_no_such_group".to_owned(),
+        dispatch: RuleDispatch::Predicated {
+            predicate: Predicate::LabelInGroup {
+                group: "definitely_no_such_group".to_owned(),
+            },
+            action: Box::new(ModalityRedactions {
+                text: Some(TextRedaction::Erase),
+                ..Default::default()
+            }),
         },
-        action: ModalityRedactions {
-            text: Some(TextRedaction::Erase),
-            ..Default::default()
-        },
-    }));
+    };
     let policy = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
         name: "unknown-group".into(),
         description: None,
-        when: None,
         labels: Labels::default(),
         groups: Vec::new(),
         rules: vec![rule],

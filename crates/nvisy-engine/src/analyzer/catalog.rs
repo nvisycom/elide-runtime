@@ -151,7 +151,6 @@ mod tests {
             id,
             name: HipStr::from("test"),
             description: None,
-            when: None,
             labels,
             groups,
             rules: Vec::new(),

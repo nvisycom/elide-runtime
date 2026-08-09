@@ -19,13 +19,13 @@
 //! [`Pseudonymize`](GdprArticle9Treatment::Pseudonymize) for the
 //! carve-out-backed retention posture.
 //!
-//! [`Predicated`]: nvisy_policy::PolicyRule::Predicated
+//! [`Predicated`]: nvisy_policy::RuleDispatch::Predicated
 
 use elide_core::entity::LabelRef;
 use jiff::civil::Date;
 use nvisy_policy::predicate::Predicate;
 use nvisy_policy::redaction::{ModalityRedactions, TextRedaction};
-use nvisy_policy::{LabelGroup, Labels, PolicyDefinition, PolicyRule, PredicatedRule};
+use nvisy_policy::{LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDispatch};
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -142,7 +142,7 @@ fn pseudonymize_template() -> Template {
 fn erase_group() -> LabelGroup {
     LabelGroup {
         name: ERASE_GROUP.into(),
-        description: Some(article_9_group_description().to_owned()),
+        description: Some(article_9_group_description().into()),
         labels: GDPR_LABELS.to_vec(),
     }
 }
@@ -150,7 +150,7 @@ fn erase_group() -> LabelGroup {
 fn pseudonymize_group() -> LabelGroup {
     LabelGroup {
         name: PSEUDONYMIZE_GROUP.into(),
-        description: Some(article_9_group_description().to_owned()),
+        description: Some(article_9_group_description().into()),
         labels: GDPR_LABELS.to_vec(),
     }
 }
@@ -169,9 +169,8 @@ fn erase_policy() -> PolicyDefinition {
         description: Some(
             "Erase every Article 9(1) special-category entity by default. The posture for \
              callers without an Article 9(2) lawful-basis carve-out."
-                .to_owned(),
+                .into(),
         ),
-        when: None,
         labels: Labels {
             builtins: GDPR_LABELS.to_vec(),
             custom: Vec::new(),
@@ -191,9 +190,8 @@ fn pseudonymize_policy() -> PolicyDefinition {
             "Pseudonymize every Article 9(1) special-category entity (identity-preserving \
              surrogate). Requires an Article 9(2) lawful-basis carve-out established \
              out-of-band; the template does not verify or record the basis."
-                .to_owned(),
+                .into(),
         ),
-        when: None,
         labels: Labels {
             builtins: GDPR_LABELS.to_vec(),
             custom: Vec::new(),
@@ -206,34 +204,37 @@ fn pseudonymize_policy() -> PolicyDefinition {
 }
 
 fn erase_rule() -> PolicyRule {
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: ERASE_RULE_ID,
         name: "gdpr-article-9-erase".into(),
         description: Some(
-            "Erase any entity whose label falls in the Article 9 special-category group."
-                .to_owned(),
+            "Erase any entity whose label falls in the Article 9 special-category group.".into(),
         ),
-        predicate: Predicate::LabelInGroup {
-            group: ERASE_GROUP.to_owned(),
+        dispatch: RuleDispatch::Predicated {
+            predicate: Predicate::LabelInGroup {
+                group: ERASE_GROUP.to_owned(),
+            },
+            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
-        action: ModalityRedactions::text(TextRedaction::Erase),
-    }))
+    }
 }
 
 fn pseudonymize_rule() -> PolicyRule {
-    PolicyRule::Predicated(Box::new(PredicatedRule {
+    PolicyRule {
         id: PSEUDONYMIZE_RULE_ID,
         name: "gdpr-article-9-pseudonymize".into(),
         description: Some(
             "Pseudonymize any entity whose label falls in the Article 9 special-category \
              group (identity-preserving surrogate)."
-                .to_owned(),
+                .into(),
         ),
-        predicate: Predicate::LabelInGroup {
-            group: PSEUDONYMIZE_GROUP.to_owned(),
+        dispatch: RuleDispatch::Predicated {
+            predicate: Predicate::LabelInGroup {
+                group: PSEUDONYMIZE_GROUP.to_owned(),
+            },
+            action: Box::new(ModalityRedactions::text(TextRedaction::Pseudonymize)),
         },
-        action: ModalityRedactions::text(TextRedaction::Pseudonymize),
-    }))
+    }
 }
 
 #[cfg(test)]
@@ -266,24 +267,22 @@ mod tests {
 
     #[test]
     fn erase_treatment_uses_erase_action() {
-        let PolicyRule::Predicated(rule) = &template(GdprArticle9Treatment::Erase).policy.rules[0]
+        let RuleDispatch::Predicated { action, .. } =
+            &template(GdprArticle9Treatment::Erase).policy.rules[0].dispatch
         else {
-            panic!("expected Predicated rule");
+            panic!("expected Predicated dispatch");
         };
-        assert!(matches!(rule.action.text, Some(TextRedaction::Erase)));
+        assert!(matches!(action.text, Some(TextRedaction::Erase)));
     }
 
     #[test]
     fn pseudonymize_treatment_uses_pseudonymize_action() {
-        let PolicyRule::Predicated(rule) =
-            &template(GdprArticle9Treatment::Pseudonymize).policy.rules[0]
+        let RuleDispatch::Predicated { action, .. } =
+            &template(GdprArticle9Treatment::Pseudonymize).policy.rules[0].dispatch
         else {
-            panic!("expected Predicated rule");
+            panic!("expected Predicated dispatch");
         };
-        assert!(matches!(
-            rule.action.text,
-            Some(TextRedaction::Pseudonymize)
-        ));
+        assert!(matches!(action.text, Some(TextRedaction::Pseudonymize)));
     }
 
     #[test]
@@ -304,7 +303,7 @@ mod tests {
             let b = template(treatment);
             assert_eq!(a.id, b.id);
             assert_eq!(a.policy.id, b.policy.id);
-            assert_eq!(a.policy.rules[0].id(), b.policy.rules[0].id());
+            assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);
         }
     }
 }

@@ -16,7 +16,7 @@ use nvisy_schema::plan::{
     AnalyzerParams, EnricherParams, PatternRecognizerParams, ProviderSelection, RecognizerParams,
     ScopeParams,
 };
-use nvisy_template::{PolicyTemplate, Template, TemplateCatalog};
+use nvisy_template::{HipaaDeidMethod, PciPanRender, PolicyTemplate, Template, TemplateCatalog};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -76,7 +76,11 @@ async fn apply(engine: &Engine, template: Template) -> String {
 
 #[tokio::test]
 async fn hipaa_safe_harbor_erases_contact_info_from_sample() {
-    let body = apply(&engine(), PolicyTemplate::HipaaSafeHarbor.build()).await;
+    let template = PolicyTemplate::HipaaDeidentification {
+        method: HipaaDeidMethod::SafeHarbor,
+    }
+    .build();
+    let body = apply(&engine(), template).await;
     // The sample carries an email, a phone, and an SSN — every
     // one falls in a HIPAA identifier category and should be
     // gone from the output. (Address is present too but the
@@ -96,6 +100,60 @@ async fn hipaa_safe_harbor_erases_contact_info_from_sample() {
     assert!(
         !body.contains("123-45-6789"),
         "SSN must be erased under HIPAA Safe Harbor; body was:\n{body}",
+    );
+}
+
+#[tokio::test]
+async fn hipaa_limited_data_set_erases_contact_info_from_sample() {
+    // The sample carries only labels that erase under both Safe
+    // Harbor and LDS (email, phone, SSN, address, name). The
+    // distinguishing survivor set for LDS (dates, ages, ZIP)
+    // isn't in this sample — that split is proved by
+    // `nvisy-template`'s unit tests. This test's job is to
+    // confirm the LDS template wires end-to-end through the
+    // engine and erases what §164.514(e)(2) tells it to.
+    let template = PolicyTemplate::HipaaDeidentification {
+        method: HipaaDeidMethod::LimitedDataSet,
+    }
+    .build();
+    let body = apply(&engine(), template).await;
+    assert!(
+        !body.contains("jane.doe@example.com"),
+        "email must be erased under HIPAA LDS; body was:\n{body}",
+    );
+    assert!(
+        !body.contains("415-555-0142"),
+        "phone must be erased under HIPAA LDS; body was:\n{body}",
+    );
+    assert!(
+        !body.contains("123-45-6789"),
+        "SSN must be erased under HIPAA LDS; body was:\n{body}",
+    );
+}
+
+#[tokio::test]
+async fn hipaa_expert_determination_pseudonymizes_contact_info_from_sample() {
+    // Expert Determination's bulk terminal is Pseudonymize, so
+    // the raw identifiers must be gone even though the surrogate
+    // value is random. The unit tests prove the operator wiring;
+    // this test confirms end-to-end that the scaffold analyzes
+    // and anonymizes the sample.
+    let template = PolicyTemplate::HipaaDeidentification {
+        method: HipaaDeidMethod::ExpertDetermination,
+    }
+    .build();
+    let body = apply(&engine(), template).await;
+    assert!(
+        !body.contains("jane.doe@example.com"),
+        "email must not survive verbatim under HIPAA ED; body was:\n{body}",
+    );
+    assert!(
+        !body.contains("415-555-0142"),
+        "phone must not survive verbatim under HIPAA ED; body was:\n{body}",
+    );
+    assert!(
+        !body.contains("123-45-6789"),
+        "SSN must not survive verbatim under HIPAA ED; body was:\n{body}",
     );
 }
 
@@ -122,7 +180,14 @@ async fn pci_dss_pan_truncate_leaves_non_pan_labels_alone() {
     // The sample has no `payment_card` entity — the PCI truncate
     // template targets exactly one label, so the sample should
     // round-trip unchanged.
-    let body = apply(&engine(), PolicyTemplate::PciDssPanTruncate.build()).await;
+    let body = apply(
+        &engine(),
+        PolicyTemplate::PciDssPan {
+            render: PciPanRender::Truncate,
+        }
+        .build(),
+    )
+    .await;
     assert!(
         body.contains("jane.doe@example.com"),
         "PCI PAN template doesn't cover email; must survive. Body:\n{body}",
@@ -139,7 +204,10 @@ async fn pci_dss_pan_hmac_requires_key_provider() {
     // template's HmacHash operator fails at anonymize-time with
     // a Configuration error. Proves the template wires the right
     // capability requirement into place.
-    let template = PolicyTemplate::PciDssPanHmac.build();
+    let template = PolicyTemplate::PciDssPan {
+        render: PciPanRender::HmacSha256,
+    }
+    .build();
     let mut analyzed = engine()
         .analyze(
             raw_txt(),
@@ -168,7 +236,14 @@ async fn pci_dss_pan_hmac_runs_with_a_key_provider() {
     // input verbatim — the test is that anonymize succeeds when
     // the engine carries a KeyProvider, which is the only PCI-
     // template-specific setup the operator needs.
-    let body = apply(&engine_with_key(), PolicyTemplate::PciDssPanHmac.build()).await;
+    let body = apply(
+        &engine_with_key(),
+        PolicyTemplate::PciDssPan {
+            render: PciPanRender::HmacSha256,
+        }
+        .build(),
+    )
+    .await;
     assert!(
         body.contains("jane.doe@example.com"),
         "sample carries no PAN; contact info must survive verbatim. Body:\n{body}",

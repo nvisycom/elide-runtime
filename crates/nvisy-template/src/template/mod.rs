@@ -15,6 +15,9 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
+pub use self::hipaa::HipaaDeidMethod;
+pub use self::pci::PciPanRender;
+
 /// A regulatory posture packaged as engine-ready data.
 ///
 /// Templates are plain data; a caller wanting to diverge from

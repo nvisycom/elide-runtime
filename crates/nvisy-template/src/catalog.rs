@@ -22,7 +22,7 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use super::{PolicyTemplate, Template};
+use super::{HipaaDeidMethod, PciPanRender, PolicyTemplate, Template};
 
 /// Runtime registry of [`Template`]s, keyed by
 /// `(id, version)`. Templates are stored behind [`Arc`] so
@@ -83,22 +83,40 @@ impl TemplateCatalog {
         Self::default()
     }
 
-    /// A catalog seeded with every [`PolicyTemplate`] variant.
-    /// A deployment starts here and extends with any custom
-    /// templates via [`insert`].
+    /// A catalog seeded with every shipped
+    /// [`PolicyTemplate`] pairing. A deployment starts here and
+    /// extends with any custom templates via [`insert`].
     ///
     /// [`PolicyTemplate`]: crate::PolicyTemplate
     /// [`insert`]: Self::insert
     #[must_use]
     pub fn builtin() -> Self {
-        use strum::IntoEnumIterator;
+        const SHIPPED: &[PolicyTemplate] = &[
+            PolicyTemplate::HipaaDeidentification {
+                method: HipaaDeidMethod::SafeHarbor,
+            },
+            PolicyTemplate::HipaaDeidentification {
+                method: HipaaDeidMethod::LimitedDataSet,
+            },
+            PolicyTemplate::HipaaDeidentification {
+                method: HipaaDeidMethod::ExpertDetermination,
+            },
+            PolicyTemplate::GdprArticle9,
+            PolicyTemplate::PciDssPan {
+                render: PciPanRender::Truncate,
+            },
+            PolicyTemplate::PciDssPan {
+                render: PciPanRender::HmacSha256,
+            },
+            PolicyTemplate::Ccpa,
+        ];
         let mut catalog = Self::new();
-        for variant in PolicyTemplate::iter() {
+        for template in SHIPPED {
             // The shipped templates validate by construction —
             // insert only fails on caller-authored templates with
             // malformed ids.
             catalog
-                .insert(variant.build())
+                .insert(template.build())
                 .expect("shipped templates carry valid ids");
         }
         catalog
@@ -254,35 +272,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_variants_do_not_collide_on_id_version() {
-        // Every shipped variant must land in its own `(id, version)`
-        // slot — else two variants share a key and `builtin()`
-        // silently drops one. Counts the `(id, version)` pairs the
-        // enum produces and asserts the catalog holds all of them.
-        use strum::IntoEnumIterator;
-        let expected = PolicyTemplate::iter().count();
+    fn builtin_pairings_do_not_collide_on_id_version() {
+        // Every shipped `(kind, options)` pairing must land in
+        // its own `(id, version)` slot — else two pairings share
+        // a key and `builtin()` silently drops one. Counts the
+        // distinct ids the shipped set produces and asserts the
+        // catalog holds all of them.
         let catalog = TemplateCatalog::builtin();
+        let distinct_ids: std::collections::HashSet<HipStr<'static>> =
+            catalog.iter().map(|t| t.id.clone()).collect();
         assert_eq!(
             catalog.len(),
-            expected,
-            "two `PolicyTemplate` variants collide on `(id, version)` — \
-             `builtin()` silently dropped one",
+            distinct_ids.len(),
+            "two shipped `(kind, options)` pairings collide on \
+             `(id, version)` — `builtin()` silently dropped one",
         );
     }
 
     #[test]
     fn latest_returns_the_highest_version() {
         let mut catalog = TemplateCatalog::new();
-        let mut v1 = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut v1 = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         v1.version = Version::new(1, 0, 0);
-        let mut v2 = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut v2 = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         v2.version = Version::new(2, 0, 0);
-        let mut v1_1 = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut v1_1 = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         v1_1.version = Version::new(1, 1, 0);
         catalog.insert(v1).unwrap();
         catalog.insert(v2).unwrap();
         catalog.insert(v1_1).unwrap();
-        let latest = catalog.latest("hipaa_safe_harbor").expect("id registered");
+        let latest = catalog
+            .latest("hipaa_deid_safe_harbor")
+            .expect("id registered");
         assert_eq!(latest.version, Version::new(2, 0, 0));
     }
 
@@ -337,21 +367,30 @@ mod tests {
     #[test]
     fn insert_same_key_replaces_the_existing_entry() {
         let mut catalog = TemplateCatalog::new();
-        let mut first = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut first = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         first.name = "First".into();
-        let mut second = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut second = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         second.name = "Second".into();
         catalog.insert(first).unwrap();
         catalog.insert(second).unwrap();
         assert_eq!(catalog.len(), 1);
-        let latest = catalog.latest("hipaa_safe_harbor").unwrap();
+        let latest = catalog.latest("hipaa_deid_safe_harbor").unwrap();
         assert_eq!(latest.name.as_str(), "Second");
     }
 
     #[test]
     fn insert_rejects_empty_id() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut template = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         template.id = "".into();
         let err = catalog
             .insert(template)
@@ -362,19 +401,28 @@ mod tests {
     #[test]
     fn insert_rejects_uppercase_and_hyphen_ids() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut template = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         template.id = "HIPAA".into();
         catalog
             .insert(template)
             .expect_err("uppercase id must be rejected");
 
-        let mut kebab = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut kebab = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         kebab.id = "hipaa-safe-harbor".into();
         catalog
             .insert(kebab)
             .expect_err("hyphenated id must be rejected");
 
-        let mut leading_digit = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut leading_digit = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         leading_digit.id = "1hipaa".into();
         catalog
             .insert(leading_digit)
@@ -384,7 +432,10 @@ mod tests {
     #[test]
     fn insert_accepts_snake_case_with_digits() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = PolicyTemplate::HipaaSafeHarbor.build();
+        let mut template = PolicyTemplate::HipaaDeidentification {
+            method: HipaaDeidMethod::SafeHarbor,
+        }
+        .build();
         template.id = "hipaa_v2_1".into();
         catalog
             .insert(template)

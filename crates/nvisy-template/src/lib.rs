@@ -7,8 +7,11 @@
 //! One function per shipped template, each returning a
 //! self-contained [`Template`] — the [`PolicyDefinition`]s each
 //! carrying its own inline [`LabelGroup`]s — matched to how the
-//! engine consumes them. Callers hand `template.policies`
-//! straight to `Engine::analyze` / `Engine::anonymize`.
+//! engine consumes them. Callers hand `template.policy`
+//! (as a one-element slice via `std::slice::from_ref`) to
+//! `Engine::analyze` / `Engine::anonymize`, or compose several
+//! templates' policies into one slice when they want more than
+//! one regulatory posture per request.
 //!
 //! Five templates across four regulatory postures:
 //! [`hipaa_safe_harbor`], [`gdpr_article_9`],

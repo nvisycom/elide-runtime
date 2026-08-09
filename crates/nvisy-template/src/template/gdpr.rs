@@ -72,7 +72,7 @@ pub(crate) fn template() -> Template {
         description: Some(
             "Erase the nine categories of personal data Article 9(1) treats as special.".into(),
         ),
-        policies: vec![policy()],
+        policy: policy(),
     }
 }
 
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn rule_matches_the_group_and_erases() {
-        let PolicyRule::Predicated(rule) = &template().policies[0].rules[0] else {
+        let PolicyRule::Predicated(rule) = &template().policy.rules[0] else {
             panic!("expected Predicated rule");
         };
         assert!(matches!(
@@ -169,7 +169,7 @@ mod tests {
     fn template_ids_are_stable_across_calls() {
         let a = template();
         let b = template();
-        assert_eq!(a.policies[0].id, b.policies[0].id);
-        assert_eq!(a.policies[0].rules[0].id(), b.policies[0].rules[0].id());
+        assert_eq!(a.policy.id, b.policy.id);
+        assert_eq!(a.policy.rules[0].id(), b.policy.rules[0].id());
     }
 }

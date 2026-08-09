@@ -110,7 +110,7 @@ pub(crate) fn template() -> Template {
         description: Some(
             "45 CFR §164.514(b)(2) — remove the eighteen identifier categories.".into(),
         ),
-        policies: vec![policy()],
+        policy: policy(),
     }
 }
 
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn special_dispatch_rule_precedes_bulk_erase() {
-        let policy = &template().policies[0];
+        let policy = &template().policy;
         assert!(
             matches!(&policy.rules[0], PolicyRule::Table(_)),
             "table rule must fire first so `age` and dates reach their generalizers",
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn table_rule_dispatches_age_to_clamp_and_dates_to_generalize() {
-        let PolicyRule::Table(table) = &template().policies[0].rules[0] else {
+        let PolicyRule::Table(table) = &template().policy.rules[0] else {
             panic!("first rule must be Table");
         };
         let age = table
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn bulk_rule_matches_the_group() {
-        let PolicyRule::Predicated(rule) = &template().policies[0].rules[1] else {
+        let PolicyRule::Predicated(rule) = &template().policy.rules[1] else {
             panic!("second rule must be Predicated");
         };
         assert!(matches!(
@@ -283,8 +283,8 @@ mod tests {
     fn template_ids_are_stable_across_calls() {
         let a = template();
         let b = template();
-        assert_eq!(a.policies[0].id, b.policies[0].id);
-        assert_eq!(a.policies[0].rules[0].id(), b.policies[0].rules[0].id());
-        assert_eq!(a.policies[0].rules[1].id(), b.policies[0].rules[1].id());
+        assert_eq!(a.policy.id, b.policy.id);
+        assert_eq!(a.policy.rules[0].id(), b.policy.rules[0].id());
+        assert_eq!(a.policy.rules[1].id(), b.policy.rules[1].id());
     }
 }

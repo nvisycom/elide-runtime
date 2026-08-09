@@ -18,10 +18,10 @@ use serde::{Deserialize, Serialize};
 /// A regulatory posture packaged as engine-ready data.
 ///
 /// Templates are plain data; a caller wanting to diverge from
-/// the shipped defaults mutates the returned [`policies`]
+/// the shipped defaults mutates the returned [`policy`]
 /// before submitting. The engine never sees the [`Template`]
-/// itself — only its [`policies`] via `Engine::analyze` /
-/// `Engine::anonymize`. Each policy carries its own
+/// itself — only its [`policy`] via `Engine::analyze` /
+/// `Engine::anonymize`. The policy carries its own
 /// [`LabelGroup`]s inline via [`PolicyDefinition::groups`].
 ///
 /// # Identity
@@ -62,7 +62,7 @@ use serde::{Deserialize, Serialize};
 /// [`effective_date`]: Self::effective_date
 /// [`id`]: Self::id
 /// [`name`]: Self::name
-/// [`policies`]: Self::policies
+/// [`policy`]: Self::policy
 /// [`version`]: Self::version
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -87,10 +87,13 @@ pub struct Template {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub description: Option<HipStr<'static>>,
-    /// The [`PolicyDefinition`]s a caller submits in precedence
-    /// order. Every template ships at least one. Each policy
-    /// declares its own `LabelGroup`s inline.
+    /// The [`PolicyDefinition`] this template encodes. Carries
+    /// its own [`LabelGroup`]s inline. A caller composing
+    /// several regulatory postures in one request submits
+    /// multiple templates and unions their policies into the
+    /// engine's `&[PolicyDefinition]` slice.
     ///
+    /// [`LabelGroup`]: nvisy_policy::LabelGroup
     /// [`PolicyDefinition`]: nvisy_policy::PolicyDefinition
-    pub policies: Vec<PolicyDefinition>,
+    pub policy: PolicyDefinition,
 }

@@ -411,11 +411,11 @@ mod tests {
             assert_eq!(recovered.version, template.version);
             assert_eq!(recovered.effective_date, template.effective_date);
             assert_eq!(recovered.description, template.description);
-            let round_policies = serde_json::to_value(&recovered.policies).unwrap();
-            let orig_policies = serde_json::to_value(&template.policies).unwrap();
+            let round_policy = serde_json::to_value(&recovered.policy).unwrap();
+            let orig_policy = serde_json::to_value(&template.policy).unwrap();
             assert_eq!(
-                round_policies, orig_policies,
-                "template `{}` policies must round-trip byte-identical",
+                round_policy, orig_policy,
+                "template `{}` policy must round-trip byte-identical",
                 template.id,
             );
         }

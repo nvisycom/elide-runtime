@@ -56,11 +56,19 @@ fn default_spec() -> AnalyzerParams {
 /// and return the redacted body as a UTF-8 string.
 async fn apply(engine: &Engine, template: Template) -> String {
     let mut analyzed = engine
-        .analyze(raw_txt(), &template.policies, &default_spec())
+        .analyze(
+            raw_txt(),
+            std::slice::from_ref(&template.policy),
+            &default_spec(),
+        )
         .await
         .expect("analyze succeeds");
     let redacted = engine
-        .anonymize(raw_txt(), &template.policies, &mut analyzed)
+        .anonymize(
+            raw_txt(),
+            std::slice::from_ref(&template.policy),
+            &mut analyzed,
+        )
         .await
         .expect("anonymize succeeds");
     String::from_utf8(redacted.bytes.to_vec()).expect("body is utf-8")
@@ -133,11 +141,19 @@ async fn pci_dss_pan_hmac_requires_key_provider() {
     // capability requirement into place.
     let template = nvisy_template::pci_dss_pan_hmac();
     let mut analyzed = engine()
-        .analyze(raw_txt(), &template.policies, &default_spec())
+        .analyze(
+            raw_txt(),
+            std::slice::from_ref(&template.policy),
+            &default_spec(),
+        )
         .await
         .expect("analyze succeeds without a key provider");
     let err = engine()
-        .anonymize(raw_txt(), &template.policies, &mut analyzed)
+        .anonymize(
+            raw_txt(),
+            std::slice::from_ref(&template.policy),
+            &mut analyzed,
+        )
         .await
         .expect_err("anonymize must fail without a key provider");
     assert!(
@@ -191,11 +207,19 @@ async fn every_shipped_template_analyzes_and_anonymizes_the_sample() {
     for template in nvisy_template::TemplateCatalog::builtin().iter() {
         let id = &template.id;
         let mut analyzed = engine
-            .analyze(raw_txt(), &template.policies, &default_spec())
+            .analyze(
+                raw_txt(),
+                std::slice::from_ref(&template.policy),
+                &default_spec(),
+            )
             .await
             .unwrap_or_else(|e| panic!("template `{id}` failed to analyze: {e}"));
         engine
-            .anonymize(raw_txt(), &template.policies, &mut analyzed)
+            .anonymize(
+                raw_txt(),
+                std::slice::from_ref(&template.policy),
+                &mut analyzed,
+            )
             .await
             .unwrap_or_else(|e| panic!("template `{id}` failed to anonymize: {e}"));
     }

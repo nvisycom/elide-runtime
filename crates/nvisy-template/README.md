@@ -7,26 +7,42 @@ Ready-to-run Nvisy policy templates for common regulatory postures.
 ## Overview
 
 Each template returns a self-contained `Template` value: a set of
-`PolicyDefinition`s plus the `LabelGroup`s those policies reference,
-matched to how the engine consumes them. Callers hand the template
-straight to `Engine::analyze` / `Engine::anonymize`; no assembly
-required.
+`PolicyDefinition`s (each carrying its own inline `LabelGroup`s)
+matched to how the engine consumes them. Callers hand
+`template.policies` straight to `Engine::analyze` /
+`Engine::anonymize`; no assembly required.
 
 Templates ship with their own semver-tracked `version` and the
 `effective_date` of the regulatory text they encode, so customers
 can pin to a snapshot when compliance requires it and audit which
 version drove a given run.
 
+Every template also carries a machine `id` (snake_case, stable)
+distinct from its display `name` — mirroring how elide's `Label`
+splits identity from display.
+
 ## What's covered
 
+Five templates across four regulatory postures:
+
 - **HIPAA Safe Harbor** — 18-identifier de-identification per
-  §164.514(b)(2).
+  §164.514(b)(2). `id = "hipaa_safe_harbor"`.
 - **GDPR Article 9** — special-category personal data.
-- **PCI DSS §3.5.1** — Primary Account Number (PAN) render posture.
-  Ships two variants (truncate / keyed hash) so callers pick per
-  their control choice.
+  `id = "gdpr_article_9"`.
+- **PCI DSS §3.5.1** — Primary Account Number (PAN) render
+  posture. Ships two templates so callers pick per their control
+  choice: `id = "pci_dss_pan_truncate"` and
+  `id = "pci_dss_pan_hmac"`.
 - **CCPA** — Cal. Civ. Code §1798.140 personal-information
-  categories.
+  categories. `id = "ccpa"`.
+
+## Discovery
+
+`TemplateCatalog::builtin()` returns a `(id, version)`-keyed
+registry of every shipped template. Look up by `id + version`
+via `catalog.get(id, version)`, or `catalog.latest(id)` for the
+newest version. Serialises as a flat JSON array for discovery
+endpoints.
 
 Every template is a starting point. Customers override the
 per-label operator or fallback where their internal posture

@@ -4,12 +4,15 @@
 
 //! ## Architecture
 //!
-//! One function per regulatory posture, each returning a
+//! One function per shipped template, each returning a
 //! self-contained [`Template`] — the [`PolicyDefinition`]s each
 //! carrying its own inline [`LabelGroup`]s — matched to how the
-//! engine consumes them. Callers hand the [`Template`] straight
-//! to `Engine::analyze` / `Engine::anonymize` via
-//! [`Template::policies`].
+//! engine consumes them. Callers hand `template.policies`
+//! straight to `Engine::analyze` / `Engine::anonymize`.
+//!
+//! Five templates across four regulatory postures:
+//! [`hipaa_safe_harbor`], [`gdpr_article_9`],
+//! [`pci_dss_pan_truncate`], [`pci_dss_pan_hmac`], [`ccpa`].
 //!
 //! Templates are plain data. Nothing is registered globally, and
 //! no template constructor talks to the engine or hits I/O. A
@@ -18,12 +21,20 @@
 //! [`TextRedaction::Pseudonymize`] for retained analytics use)
 //! mutates the returned [`PolicyDefinition`] before submitting.
 //!
-//! Each [`Template`] carries its own [`Version`] and the
-//! [`Date`] the regulatory text became effective, distinct from
-//! the crate's release version. A customer that must pin to a
-//! snapshot for compliance reasons pins the [`Template::version`]
-//! field, not the crate version; the two update on independent
-//! cadences.
+//! Every [`Template`] carries a machine [`Template::id`]
+//! (snake_case) distinct from its display [`Template::name`],
+//! mirroring how elide's `Label` splits identity from display.
+//! Plus its own [`Version`] and the [`Date`] the regulatory
+//! text became effective, distinct from the crate's release
+//! version — a customer that must pin to a snapshot pins
+//! [`Template::version`], not the crate version.
+//!
+//! [`TemplateCatalog`] wraps every shipped template in a
+//! `(id, version)`-keyed registry. Serve one from a discovery
+//! endpoint via its serde derives; look one up by id at runtime
+//! via [`TemplateCatalog::latest`] or
+//! [`TemplateCatalog::get`]. [`TemplateCatalog::builtin`]
+//! returns a catalog seeded with the five shipped templates.
 //!
 //! [`Date`]: jiff::civil::Date
 //! [`LabelGroup`]: nvisy_policy::LabelGroup
@@ -32,8 +43,10 @@
 //! [`TextRedaction::Pseudonymize`]: nvisy_policy::redaction::TextRedaction::Pseudonymize
 //! [`Version`]: semver::Version
 
+mod catalog;
 mod template;
 
+pub use self::catalog::TemplateCatalog;
 pub use self::template::Template;
 use self::template::{ccpa, gdpr, hipaa, pci};
 
@@ -119,20 +132,17 @@ pub fn ccpa() -> Template {
     ccpa::template()
 }
 
-/// A [`Template`] constructor keyed by machine name. One entry
-/// per shipped template in [`ALL`].
-pub type Registered = (&'static str, fn() -> Template);
-
-/// Every template this crate ships, keyed by [`Template::name`].
-///
-/// Constructors, not values — the caller pays for whichever
-/// templates they use and no more. Iterate for coverage tests or
-/// discovery UIs; index by name for a caller-configurable
-/// registry.
-pub const ALL: &[Registered] = &[
-    ("hipaa_safe_harbor", hipaa_safe_harbor),
-    ("gdpr_article_9", gdpr_article_9),
-    ("pci_dss_pan_truncate", pci_dss_pan_truncate),
-    ("pci_dss_pan_hmac", pci_dss_pan_hmac),
-    ("ccpa", ccpa),
+/// Every template this crate ships, as constructor pointers.
+/// Consumed by [`TemplateCatalog::builtin`] to seed a fresh
+/// catalog; not public because [`TemplateCatalog`] is the
+/// discovery / lookup surface — callers who want the shipped set
+/// go through it (`TemplateCatalog::builtin()`), and callers who
+/// want one template call the constructor by name directly
+/// ([`hipaa_safe_harbor`] etc.).
+pub(crate) const BUILTIN: &[fn() -> Template] = &[
+    hipaa_safe_harbor,
+    gdpr_article_9,
+    pci_dss_pan_truncate,
+    pci_dss_pan_hmac,
+    ccpa,
 ];

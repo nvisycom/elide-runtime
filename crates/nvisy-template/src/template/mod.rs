@@ -11,8 +11,9 @@ pub(crate) mod pci;
 use hipstr::HipStr;
 use jiff::civil::Date;
 use nvisy_policy::PolicyDefinition;
-use nvisy_policy::redaction::{ModalityRedactions, TextRedaction};
+use schemars::JsonSchema;
 use semver::Version;
+use serde::{Deserialize, Serialize};
 
 /// A regulatory posture packaged as engine-ready data.
 ///
@@ -25,57 +26,71 @@ use semver::Version;
 ///
 /// # Identity
 ///
-/// Templates carry their own [`version`] and [`effective_date`],
-/// distinct from the crate's release version and the individual
-/// [`PolicyDefinition::id`]s inside. That separation matters
-/// because regulatory text updates on its own cadence: a
-/// customer pinned to `hipaa_safe_harbor` v1 doesn't want a
-/// point-release of `nvisy-template` shifting the labelset out
-/// from under them.
+/// Three separate identity fields, mirroring how elide's
+/// [`Label`] separates identity from display:
 ///
+/// - [`id`] — the machine key (`"hipaa_safe_harbor"`,
+///   snake_case, ASCII, kebab-safe). Stable across template
+///   version bumps. What audits, registries, and API paths key
+///   on.
+/// - [`name`] — the short display string
+///   (`"HIPAA Safe Harbor de-identification"`). What a customer
+///   sees in a UI or a picker.
+/// - [`description`] — optional longer prose for reviewers.
+///
+/// Plus [`version`] and [`effective_date`]:
+///
+/// - [`version`] — semver-tracked version of *this* template,
+///   distinct from the crate's release version. A change to the
+///   shipped labelset or operator dispatch bumps this field.
+///   Multiple versions of the same [`id`] can coexist in a
+///   [`TemplateCatalog`] simultaneously — a customer transitioning
+///   between regulatory revisions might hold `v1` and `v2` at
+///   once and pin per document class.
+/// - [`effective_date`] — the date the regulatory text this
+///   template encodes became effective (not the date the
+///   template was authored). Reviewers reading an audit trail
+///   check this against the run date to confirm the template
+///   that fired was the one in force at the time.
+///
+/// [`Label`]: elide_core::entity::Label
+/// [`LabelGroup`]: nvisy_policy::LabelGroup
+/// [`PolicyDefinition`]: nvisy_policy::PolicyDefinition
+/// [`PolicyDefinition::groups`]: nvisy_policy::PolicyDefinition::groups
+/// [`TemplateCatalog`]: super::TemplateCatalog
+/// [`description`]: Self::description
 /// [`effective_date`]: Self::effective_date
+/// [`id`]: Self::id
+/// [`name`]: Self::name
 /// [`policies`]: Self::policies
 /// [`version`]: Self::version
-/// [`LabelGroup`]: nvisy_policy::LabelGroup
-/// [`PolicyDefinition::id`]: nvisy_policy::PolicyDefinition::id
-/// [`PolicyDefinition::groups`]: nvisy_policy::PolicyDefinition::groups
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Template {
-    /// Stable identifier for the template, matched to the
-    /// constructor that produced it (`"hipaa_safe_harbor"`,
-    /// `"gdpr_article_9"`, ...). Not a display string —
-    /// snake_case, ASCII, kebab-safe. Used to key registries and
-    /// to name the template in audit annotations.
+    /// Machine key — snake_case, ASCII, kebab-safe. Stable
+    /// across version bumps; audits and registries key on this.
+    #[schemars(with = "String")]
+    pub id: HipStr<'static>,
+    /// Short human-readable display string.
+    #[schemars(with = "String")]
     pub name: HipStr<'static>,
-    /// Semver-tracked version of *this* template, distinct from
-    /// the crate version. A change to the shipped labelset or
-    /// operator dispatch bumps this field. See [`semver::Version`]
-    /// for the parse / comparison semantics.
+    /// Semver version. See [`semver::Version`] for parse /
+    /// comparison semantics.
+    #[schemars(with = "String")]
     pub version: Version,
     /// The date the regulatory text this template encodes became
-    /// effective. Not the date the template was authored — the
-    /// date the *rule* took force. Reviewers reading an audit
-    /// trail check this against the run date to confirm the
-    /// template that fired was the one in force at the time.
+    /// effective.
+    #[schemars(with = "String")]
     pub effective_date: Date,
-    /// Human-readable name for reviewers. `name` is the machine
-    /// identifier; this is the string a customer sees.
-    pub description: HipStr<'static>,
+    /// Optional longer prose for reviewers. `None` when the
+    /// short `name` says enough.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub description: Option<HipStr<'static>>,
     /// The [`PolicyDefinition`]s a caller submits in precedence
     /// order. Every template ships at least one. Each policy
     /// declares its own `LabelGroup`s inline.
     ///
     /// [`PolicyDefinition`]: nvisy_policy::PolicyDefinition
     pub policies: Vec<PolicyDefinition>,
-}
-
-/// Wrap a text-modality [`TextRedaction`] in a
-/// [`ModalityRedactions`] with every other modality slot left
-/// empty. The common case across every shipped template — text
-/// is where the regulatory action lives.
-pub(crate) fn text_action(spec: TextRedaction) -> ModalityRedactions {
-    ModalityRedactions {
-        text: Some(spec),
-        ..Default::default()
-    }
 }

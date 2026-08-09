@@ -2680,7 +2680,10 @@ dependencies = [
  "hipstr",
  "jiff",
  "nvisy-policy",
+ "schemars",
  "semver",
+ "serde",
+ "serde_json",
  "uuid",
 ]
 

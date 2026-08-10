@@ -46,6 +46,7 @@ fn default_spec() -> AnalyzerParams {
         deduplication: Default::default(),
         scope: ScopeParams::default(),
         annotations: Default::default(),
+        ocr_mode: Default::default(),
     }
 }
 

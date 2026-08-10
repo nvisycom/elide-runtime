@@ -99,6 +99,7 @@ elide-bento = { workspace = true, features = ["ner", "ocr"] }
 
 # Internal crates
 nvisy-schema = { workspace = true, features = [] }
+nvisy-template = { workspace = true }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
@@ -114,7 +115,6 @@ hipstr = { workspace = true, features = ["serde"] }
 [dev-dependencies]
 # Internal crates
 nvisy-engine = { path = ".", features = ["test-utils", "audit-json", "audit-csv"] }
-nvisy-template = { workspace = true }
 
 # Serialization
 serde_json = { workspace = true, features = [] }

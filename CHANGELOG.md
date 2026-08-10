@@ -24,16 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Rust crates (`crates/`)
 
-- **nvisy-context:** wire schema for reference-data collections.
 - **nvisy-policy:** wire schema for redaction governance (rules,
-  predicates, retention, audit).
-- **nvisy-schema:** umbrella re-exporting `nvisy-context` +
-  `nvisy-policy` alongside `plan` and `file`. Consumed by SDKs on
-  both sides of the HTTP boundary.
-- **nvisy-core:** deployment-side runtime configuration (NER and LLM
-  recognizer lineups, error vocabulary).
+  predicates, operators).
+- **nvisy-schema:** umbrella re-exporting `nvisy-policy` alongside
+  `plan` and `file`. Consumed by SDKs on both sides of the HTTP
+  boundary.
+- **nvisy-template:** ready-to-run policy templates for common
+  regulatory postures (HIPAA §164.514, GDPR Article 9, PCI DSS,
+  CCPA / CPRA).
 - **nvisy-engine:** stateless pipeline: decode, analyze, apply. Wraps
-  elide and hosts the per-modality orchestrator.
+  elide and hosts the per-modality orchestrator plus the
+  deployment-side NER / LLM recognizer configuration.
 - **elide-bento:** BentoML-hosted NER and OCR client implementing
   elide's recognizer traits.
 

@@ -13,9 +13,9 @@ pub(crate) mod ocr;
 pub(crate) mod stt;
 
 pub use self::llm::{
-    AttachTo, AuthenticatedProvider, LlmConfig, LlmPrompt, LlmRecognizer, LlmSource,
+    AttachTo, AuthenticatedProvider, LlmConfig, LlmPrompt, LlmRecognizerConfig, LlmSource,
     UnauthenticatedProvider,
 };
-pub use self::ner::{NerBackend, NerConfig, NerRecognizer};
+pub use self::ner::{NerBackend, NerConfig, NerRecognizerConfig};
 pub use self::ocr::OcrBackend;
 pub use self::stt::SttBackend;

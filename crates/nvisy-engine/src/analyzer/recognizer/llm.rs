@@ -1,7 +1,7 @@
 //! Attach the deployment's LLM lineup to a per-modality
 //! [`Analyzer`]. Walks [`LlmConfig::recognizers`], filters by
-//! declared modality, and builds one `LlmRecognizer<M>` per
-//! matching entry via elide's `RigBackend` (or `MockBackend`
+//! declared modality, and builds one elide `LlmRecognizer<M>`
+//! per matching entry via elide's `RigBackend` (or `MockBackend`
 //! under the `test-utils` feature).
 //!
 //! Every configured recognizer whose `modalities` list contains
@@ -21,9 +21,7 @@ use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide_core::{Error, ErrorKind, Result};
 
-use crate::provider::llm::{
-    AttachTo, LlmConfig, LlmPrompt, LlmRecognizer as ConfigRecognizer, LlmSource,
-};
+use crate::provider::llm::{AttachTo, LlmConfig, LlmPrompt, LlmRecognizerConfig, LlmSource};
 
 /// Attach every LLM recognizer whose `modalities` list contains
 /// `modality`.
@@ -69,7 +67,7 @@ where
     Ok(analyzer)
 }
 
-fn attach_one<M>(analyzer: Analyzer<M>, spec: &ConfigRecognizer) -> Result<Analyzer<M>>
+fn attach_one<M>(analyzer: Analyzer<M>, spec: &LlmRecognizerConfig) -> Result<Analyzer<M>>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,
@@ -90,7 +88,7 @@ where
 
 fn attach_source<M>(
     builder: LlmRecognizerBuilder<M>,
-    spec: &ConfigRecognizer,
+    spec: &LlmRecognizerConfig,
 ) -> Result<LlmRecognizerBuilder<M>>
 where
     M: LlmModality,

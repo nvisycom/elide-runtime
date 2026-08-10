@@ -75,7 +75,6 @@ mod audit;
 #[cfg(feature = "audit-csv")]
 mod audit_csv;
 mod orchestrator;
-mod registered;
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -98,7 +97,6 @@ use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::PolicyDefinition;
 
 pub use self::audit::{Audit, AuditContext};
-pub use self::registered::RegisteredRecognizer;
 use crate::entity::{EntityGroup, OverrideEntry, take_body, take_part};
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
@@ -113,7 +111,7 @@ use crate::provider::stt::SttBackend;
 /// per-request orchestrator constructor.
 ///
 /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Engine {
     formats: Arc<FormatRegistry>,
     ner: Arc<NerConfig>,
@@ -208,35 +206,6 @@ impl Engine {
     pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
         self.key_provider = Some(provider);
         self
-    }
-
-    /// The codec registry.
-    ///
-    /// Pipeline calls reach for it to decode raw bytes into an
-    /// [`UntypedDocumentHandle`].
-    pub fn formats(&self) -> &FormatRegistry {
-        &self.formats
-    }
-
-    /// Every NER recognizer this engine has registered, in
-    /// configuration order.
-    ///
-    /// Feeds a "list recognizers" endpoint. Each entry carries
-    /// name, optional description, and provider slug; connection
-    /// details and (future) credentials stay in the private
-    /// [`NerConfig`].
-    pub fn ner_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
-        self.ner.recognizers.iter().map(Into::into)
-    }
-
-    /// Every LLM recognizer this engine has registered, in
-    /// configuration order.
-    ///
-    /// Same shape as [`ner_recognizers`], for the LLM lineup.
-    ///
-    /// [`ner_recognizers`]: Self::ner_recognizers
-    pub fn llm_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
-        self.llm.recognizers.iter().map(Into::into)
     }
 
     /// Analyze one document into an [`Audit`].

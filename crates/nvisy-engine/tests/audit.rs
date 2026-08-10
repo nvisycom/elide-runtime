@@ -10,8 +10,8 @@
 mod fixtures;
 
 use bytes::Bytes;
+use elide_core::modality::text::Text;
 use nvisy_engine::entity::{EntityRecord, Review};
-use nvisy_engine::modality::Text;
 use nvisy_engine::{Audit, Engine, EntityGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;

@@ -24,6 +24,7 @@ pipeline) embed the engine directly.
 
 - **[nvisy-policy](crates/nvisy-policy/)**: wire schema for redaction governance (rules, predicates, operators)
 - **[nvisy-schema](crates/nvisy-schema/)**: wire schema for plan, file, and the `elide-core` slice; re-exports `nvisy-policy`
+- **[nvisy-template](crates/nvisy-template/)**: ready-to-run policy templates for common regulatory postures (HIPAA, GDPR, PCI DSS, CCPA)
 - **[nvisy-engine](crates/nvisy-engine/)**: stateless pipeline (decode, analyze, apply) wrapping elide, hosting the per-modality orchestrator and the deployment-side NER / LLM recognizer configuration
 - **[elide-bento](crates/elide-bento/)**: BentoML-hosted NER and OCR client implementing elide's recognizer traits
 

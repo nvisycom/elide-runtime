@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use elide::recognition::ScopeMetadata;
-use elide_core::primitive::{CountryCode, Languages};
+use elide_core::primitive::{CountryCode, Languages, OcrMode};
 #[cfg(feature = "audit-json")]
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::plan::scope_metadata_is_empty;
@@ -137,6 +137,14 @@ pub struct AuditContext {
     ///
     /// [`Document`]: nvisy_schema::file::Document
     pub correlation_id: Uuid,
+    /// OCR mode the analyze call decoded with. Recorded so the
+    /// anonymize call re-decodes the same document under the same
+    /// codec configuration — otherwise entity offsets stored in
+    /// the audit wouldn't line up against a differently-rendered
+    /// second decode. Defaults to [`OcrMode::Auto`] (the codec's
+    /// built-in behaviour) when omitted.
+    #[serde(default)]
+    pub ocr_mode: OcrMode,
 }
 
 #[cfg(feature = "audit-json")]

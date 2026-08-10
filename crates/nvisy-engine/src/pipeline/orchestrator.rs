@@ -101,6 +101,7 @@ impl Engine {
             countries: spec.scope.countries.clone(),
             metadata: spec.scope.metadata.clone(),
             correlation_id,
+            ocr_mode: spec.ocr_mode,
         };
         let live_scope = build_scope(&context, catalog.clone(), correlation_id);
 

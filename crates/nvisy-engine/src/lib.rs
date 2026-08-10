@@ -50,6 +50,7 @@ pub use elide::codec::FormatRegistry;
 #[doc(inline)]
 pub use elide::redaction::operators::{KeyProvider, StaticKey};
 #[doc(inline)]
+pub use elide_core::primitive::OcrMode;
 pub use elide_core::{Error, ErrorKind, Result};
 #[doc(inline)]
 pub use nvisy_schema::file::{Document, FileMetadata};

@@ -1,17 +1,16 @@
 //! Wire → engine tests for caller-inlined custom patterns and
-//! dictionaries on [`PatternRecognizerParams`], plus the two
-//! request-level guardrails currently enforced end-to-end (source
-//! length, rule count). See #317 for the automaton-size follow-up.
+//! dictionaries on [`RecognizerParams`], plus the two guardrails
+//! currently enforced end-to-end (source length, rule count).
+//! See #317 for the automaton-size follow-up.
 
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
 use elide_core::primitive::Confidence;
-use nvisy_engine::{Engine, EntityGroup, PatternGuardrails};
+use nvisy_engine::{Engine, EntityGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::{
     AnalyzerParams, CustomDictionary, CustomDictionaryTerm, CustomPatternContext,
-    CustomPatternRule, CustomPatternVariant, MAX_REGEX_SOURCE_LEN, PatternRecognizerParams,
-    ProviderSelection, RecognizerParams,
+    CustomPatternRule, CustomPatternVariant, MAX_REGEX_SOURCE_LEN, RecognizerParams,
 };
 
 const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
@@ -24,13 +23,9 @@ fn engine() -> Engine {
     Engine::new()
 }
 
-fn spec_with_pattern_params(params: PatternRecognizerParams) -> AnalyzerParams {
+fn spec_with_recognizers(recognizers: RecognizerParams) -> AnalyzerParams {
     AnalyzerParams {
-        recognizers: RecognizerParams {
-            pattern: Some(params),
-            ner: Some(ProviderSelection::All(false)),
-            llm: Some(ProviderSelection::All(false)),
-        },
+        recognizers,
         ..Default::default()
     }
 }
@@ -57,9 +52,7 @@ fn one_rule(name: &str, label: &str, regex: &str) -> CustomPatternRule {
 #[tokio::test]
 async fn custom_regex_produces_entity_with_caller_label() {
     let engine = engine();
-    let spec = spec_with_pattern_params(PatternRecognizerParams {
-        builtins: false,
-        context_enhanced: false,
+    let spec = spec_with_recognizers(RecognizerParams {
         custom: vec![one_rule("alice_rule", "alice_id", r"\balice\b")],
         custom_dictionaries: Vec::new(),
     });
@@ -84,9 +77,7 @@ async fn custom_regex_produces_entity_with_caller_label() {
 #[tokio::test]
 async fn custom_dictionary_produces_entity_with_caller_label() {
     let engine = engine();
-    let spec = spec_with_pattern_params(PatternRecognizerParams {
-        builtins: false,
-        context_enhanced: false,
+    let spec = spec_with_recognizers(RecognizerParams {
         custom: Vec::new(),
         custom_dictionaries: vec![CustomDictionary {
             name: "greetings".to_owned(),
@@ -145,9 +136,7 @@ async fn too_many_custom_rules_rejects_at_analyze() {
     let rules: Vec<CustomPatternRule> = (0..33)
         .map(|i| one_rule(&format!("rule_{i}"), "custom", r"\balice\b"))
         .collect();
-    let spec = spec_with_pattern_params(PatternRecognizerParams {
-        builtins: false,
-        context_enhanced: false,
+    let spec = spec_with_recognizers(RecognizerParams {
         custom: rules,
         custom_dictionaries: Vec::new(),
     });
@@ -160,98 +149,5 @@ async fn too_many_custom_rules_rejects_at_analyze() {
     assert!(
         msg.contains("exceeds the per-request cap"),
         "expected `exceeds the per-request cap` error, got: {msg}",
-    );
-}
-
-#[tokio::test]
-async fn tightened_rule_count_guardrail_takes_effect() {
-    // A deployment tightens the per-request rule cap to 4; five
-    // rules must now fail even though they'd pass the default of
-    // 32.
-    let engine = Engine::new().with_pattern_guardrails(PatternGuardrails {
-        max_custom_rules: 4,
-        ..PatternGuardrails::default()
-    });
-    let rules: Vec<CustomPatternRule> = (0..5)
-        .map(|i| one_rule(&format!("rule_{i}"), "custom", r"\balice\b"))
-        .collect();
-    let spec = spec_with_pattern_params(PatternRecognizerParams {
-        builtins: false,
-        context_enhanced: false,
-        custom: rules,
-        custom_dictionaries: Vec::new(),
-    });
-
-    let err = engine
-        .analyze(raw_docx(), &[], &spec)
-        .await
-        .expect_err("5 rules must exceed a tightened cap of 4");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("per-request cap of 4"),
-        "expected the tightened cap in the error, got: {msg}",
-    );
-}
-
-#[tokio::test]
-async fn tightened_regex_source_len_guardrail_takes_effect() {
-    // A deployment tightens the regex source cap to 16 bytes; a
-    // wire-legal 60-byte source (well below the 512 ceiling) must
-    // now fail at engine-side.
-    let engine = Engine::new().with_pattern_guardrails(PatternGuardrails {
-        max_regex_source_len: 16,
-        ..PatternGuardrails::default()
-    });
-    let regex = "a".repeat(60);
-    let spec = spec_with_pattern_params(PatternRecognizerParams {
-        builtins: false,
-        context_enhanced: false,
-        custom: vec![one_rule("long_source", "custom", &regex)],
-        custom_dictionaries: Vec::new(),
-    });
-
-    let err = engine
-        .analyze(raw_docx(), &[], &spec)
-        .await
-        .expect_err("60-byte source must exceed a tightened cap of 16 bytes");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("deployment cap of 16 bytes"),
-        "expected the tightened cap in the error, got: {msg}",
-    );
-}
-
-#[tokio::test]
-async fn regex_source_len_config_above_ceiling_is_clamped() {
-    // A deployment tries to raise the source-length cap above the
-    // wire-layer ceiling. `Engine::with_pattern_guardrails` clamps
-    // it. A source between the ceiling and the requested (would-be)
-    // cap must still fail — either at the wire (if it goes through
-    // deserialize) or engine-side.
-    let engine = Engine::new().with_pattern_guardrails(PatternGuardrails {
-        max_regex_source_len: 4096,
-        ..PatternGuardrails::default()
-    });
-    // Just over the wire ceiling. Building via the struct
-    // literal skips the schema's `Deserialize` check, so a
-    // pathological caller who constructs `CustomPatternVariant`
-    // in code (not via the wire) still gets rejected at engine
-    // compile time — the ceiling is enforced there too.
-    let regex = "a".repeat(MAX_REGEX_SOURCE_LEN + 1);
-    let spec = spec_with_pattern_params(PatternRecognizerParams {
-        builtins: false,
-        context_enhanced: false,
-        custom: vec![one_rule("above_ceiling", "custom", &regex)],
-        custom_dictionaries: Vec::new(),
-    });
-
-    let err = engine
-        .analyze(raw_docx(), &[], &spec)
-        .await
-        .expect_err("engine must clamp max_regex_source_len to the wire ceiling");
-    let msg = err.to_string();
-    assert!(
-        msg.contains(&format!("deployment cap of {MAX_REGEX_SOURCE_LEN} bytes")),
-        "expected the clamped ceiling in the error, got: {msg}",
     );
 }

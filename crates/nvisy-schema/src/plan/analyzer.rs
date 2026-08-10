@@ -6,8 +6,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::annotation::AnyAnnotations;
-use super::deduplication::DeduplicationParams;
-use super::enricher::EnricherParams;
 use super::recognizer::RecognizerParams;
 
 /// Full description of how to build an analyzer for one
@@ -27,27 +25,20 @@ use super::recognizer::RecognizerParams;
 /// and `catalog` is derived from the request's policy set — so
 /// they don't appear on the wire.
 ///
+/// Everything else — the built-in pattern recognizer, every
+/// wired NER and LLM recognizer, every wired enricher, the
+/// dedup pipeline — always runs on every request. Deployment
+/// controls the lineup via `Engine::with_ner` / `Engine::with_llm`;
+/// per-request opt-outs aren't shipped.
+///
 /// [`scope`]: AnalyzerParams::scope
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerParams {
-    /// Recognizer slots.
-    ///
-    /// Pattern (at-most-one), ner, llm (each a list, identified
-    /// by name).
+    /// Caller-inlined pattern rules and dictionaries. Adds to
+    /// the built-in `elide-pattern` set that always attaches.
     #[serde(default)]
     pub recognizers: RecognizerParams,
-    /// Enricher slots: language, ocr, stt (each at-most-one).
-    ///
-    /// Enrichers run sequentially before recognition; the engine
-    /// picks a canonical order (language → ocr → stt).
-    #[serde(default)]
-    pub enrichers: EnricherParams,
-    /// Deduplication pipeline applied after recognition.
-    ///
-    /// Calibrate → reconcile → filter.
-    #[serde(default)]
-    pub deduplication: DeduplicationParams,
     /// Caller-asserted scope. See [`ScopeParams`].
     #[serde(default)]
     pub scope: ScopeParams,

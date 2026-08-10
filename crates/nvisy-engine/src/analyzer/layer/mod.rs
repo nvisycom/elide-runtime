@@ -1,9 +1,9 @@
 //! Post-recognition analyzer layers.
 //!
 //! Runs after every recognizer + enricher has attached. Today
-//! this is just [`dedup`] (calibrate → reconcile → filter); the
-//! module is a placeholder for future post-processing layers
-//! (e.g. entity resolution, cross-modality dedup).
+//! this is just [`dedup`] (reconcile → filter); the module is a
+//! placeholder for future post-processing layers (e.g. entity
+//! resolution, cross-modality dedup).
 
 mod dedup;
 

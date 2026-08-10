@@ -64,6 +64,5 @@ pub use nvisy_schema::policy;
 #[doc(inline)]
 pub use nvisy_template as template;
 
-pub use self::analyzer::PatternGuardrails;
 pub use self::entity::EntityGroup;
 pub use self::pipeline::{Audit, AuditContext, Engine, RegisteredRecognizer};

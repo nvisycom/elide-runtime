@@ -1,6 +1,6 @@
 //! Top-level analyzer params.
 
-use elide_core::primitive::{CountryCode, Languages};
+use elide_core::primitive::{CountryCode, Languages, OcrMode};
 use elide_core::recognition::ScopeMetadata;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -60,6 +60,18 @@ pub struct AnalyzerParams {
     /// slot to the modality's pipeline at compile time.
     #[serde(default)]
     pub annotations: AnyAnnotations,
+    /// How container formats that carry both a text layer and
+    /// page images (PDF today; DOCX, EPUB, TIFF as elide widens
+    /// coverage) treat OCR. See [`OcrMode`] for the three states.
+    ///
+    /// The default [`OcrMode::Auto`] matches the codec's built-in
+    /// behaviour — extract the text layer where present, render
+    /// missing pages for OCR. `Force { dpi }` rasterises every
+    /// page (real CPU / memory cost; opt-in when scanned pages
+    /// need OCR even alongside a text layer). `Never` skips
+    /// rendering entirely.
+    #[serde(default)]
+    pub ocr_mode: OcrMode,
 }
 
 /// Caller-asserted scope for one request.

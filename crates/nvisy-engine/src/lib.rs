@@ -25,11 +25,12 @@
 //!   the request's asserted scope and correlation id.
 //!
 //! Ready-to-run policy sets for common regulatory postures
-//! (HIPAA Safe Harbor, GDPR Article 9, PCI DSS §3.5.1, CCPA)
-//! live in the sibling `nvisy-template` crate. Each template
-//! carries a single `PolicyDefinition` (with inline
-//! [`LabelGroup`]s) that a caller hands to [`Engine::analyze`] /
-//! [`Engine::anonymize`] as a one-element slice.
+//! (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA)
+//! live in the sibling `nvisy-template` crate, re-exported here
+//! as [`template`]. Each template carries a single
+//! `PolicyDefinition` (with inline [`LabelGroup`]s) that a caller
+//! hands to [`Engine::analyze`] / [`Engine::anonymize`] as a
+//! one-element slice.
 //!
 //! [`LabelGroup`]: nvisy_schema::policy::LabelGroup
 //! [`PolicyDefinition::groups`]: nvisy_schema::policy::PolicyDefinition::groups
@@ -50,6 +51,7 @@ pub use elide::codec::FormatRegistry;
 #[doc(inline)]
 pub use elide::redaction::operators::{KeyProvider, StaticKey};
 #[doc(inline)]
+pub use elide_core::primitive::OcrMode;
 pub use elide_core::{Error, ErrorKind, Result};
 #[doc(inline)]
 pub use nvisy_schema::file::{Document, FileMetadata};
@@ -57,6 +59,10 @@ pub use nvisy_schema::file::{Document, FileMetadata};
 /// operators.
 #[doc(inline)]
 pub use nvisy_schema::policy;
+/// Ready-to-run policy templates for common regulatory postures
+/// (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA).
+#[doc(inline)]
+pub use nvisy_template as template;
 
 pub use self::analyzer::PatternGuardrails;
 pub use self::entity::EntityGroup;

@@ -9,6 +9,6 @@
 
 pub use elide_core::primitive::{
     BoundingBox, Color, Confidence, ConfidenceThreshold, CountryCode, Dimensions, Dpi, Language,
-    LanguageProvenance, LanguageSpan, LanguageTag, Languages, PixelRegion, Point, Polygon,
+    LanguageProvenance, LanguageSpan, LanguageTag, Languages, OcrMode, PixelRegion, Point, Polygon,
     TimeSpan, UnitBoundingBox,
 };

@@ -8,12 +8,11 @@ Wire schema for Nvisy policies: authored redaction governance.
 
 A `Policy` is authored vocabulary that tells the engine *what to do*
 when detection fires. Each request submits a `Vec<Policy>` in
-precedence order; the engine walks them and, for each policy whose
-predicate holds against the document, walks its rules in order and
-runs the first matching rule's action. Policies carry per-modality
-redaction operators (erase, mask, replace, hash, encrypt, blur,
-pixelate, ...), predicates (document / entity match), retention
-schedules, audit envelopes, and suppression rules.
+precedence order; the engine walks them and, for each policy, walks
+its rules in order and runs the first matching rule's action.
+Policies carry per-modality redaction operators (erase, mask,
+replace, hash, encrypt, blur, pixelate, ...), entity-match
+predicates, and label groups the predicates reference by name.
 
 Sibling to `nvisy-schema`, which re-exports this crate alongside its
 own plan and file types.

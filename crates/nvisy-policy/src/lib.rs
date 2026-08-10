@@ -48,7 +48,6 @@
 mod label;
 pub mod predicate;
 pub mod redaction;
-pub mod retention;
 mod rule;
 
 use hipstr::HipStr;
@@ -58,7 +57,6 @@ use uuid::Uuid;
 
 pub use self::label::{LabelGroup, Labels};
 use self::redaction::ModalityRedactions;
-use self::retention::RetentionPolicy;
 pub use self::rule::{LabelEntry, PolicyRule, RuleDispatch};
 
 /// A named governance policy.
@@ -112,7 +110,4 @@ pub struct PolicyDefinition {
     /// fallback per policy" at the type level.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback: Option<ModalityRedactions>,
-    /// Lifecycle rules for content under this policy.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub retention: Vec<RetentionPolicy>,
 }

@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-policy"
-description = "Wire schema for Nvisy policies: authored redaction governance (rules, predicates, retention, audit)"
+description = "Wire schema for Nvisy policies: authored redaction governance (rules, predicates, operators)"
 keywords = ["nvisy", "schema", "policy", "redaction", "governance"]
 categories = ["data-structures", "api-bindings"]
 readme = "README.md"

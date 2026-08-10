@@ -162,7 +162,6 @@ fn policy() -> PolicyDefinition {
         groups: vec![group()],
         rules: vec![erase_rule()],
         fallback: None,
-        retention: Vec::new(),
     }
 }
 

@@ -330,7 +330,6 @@ fn safe_harbor_policy() -> PolicyDefinition {
         groups: vec![safe_harbor_group()],
         rules: vec![safe_harbor_table_rule(), safe_harbor_bulk_erase_rule()],
         fallback: None,
-        retention: Vec::new(),
     }
 }
 
@@ -350,7 +349,6 @@ fn limited_data_set_policy() -> PolicyDefinition {
         groups: vec![lds_group()],
         rules: vec![lds_bulk_erase_rule()],
         fallback: None,
-        retention: Vec::new(),
     }
 }
 
@@ -378,7 +376,6 @@ fn expert_determination_policy() -> PolicyDefinition {
         groups: vec![ed_group()],
         rules: vec![ed_table_rule(), ed_bulk_pseudonymize_rule()],
         fallback: None,
-        retention: Vec::new(),
     }
 }
 

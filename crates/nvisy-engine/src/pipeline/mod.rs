@@ -208,6 +208,11 @@ impl Engine {
         self
     }
 
+    /// The codec registry the engine decodes documents through.
+    pub fn formats(&self) -> &FormatRegistry {
+        &self.formats
+    }
+
     /// Analyze one document into an [`Audit`].
     ///
     /// Decodes `document`, drives [`Orchestrator::analyze`], and

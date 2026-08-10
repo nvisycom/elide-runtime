@@ -75,6 +75,7 @@ mod audit;
 #[cfg(feature = "audit-csv")]
 mod audit_csv;
 mod orchestrator;
+mod registered;
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -97,6 +98,7 @@ use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::PolicyDefinition;
 
 pub use self::audit::{Audit, AuditContext};
+pub use self::registered::RegisteredRecognizer;
 use crate::entity::{EntityGroup, OverrideEntry, take_body, take_part};
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
@@ -211,6 +213,18 @@ impl Engine {
     /// The codec registry the engine decodes documents through.
     pub fn formats(&self) -> &FormatRegistry {
         &self.formats
+    }
+
+    /// Every NER recognizer this engine has registered, in
+    /// configuration order.
+    pub fn ner_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
+        self.ner.recognizers.iter().map(Into::into)
+    }
+
+    /// Every LLM recognizer this engine has registered, in
+    /// configuration order.
+    pub fn llm_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
+        self.llm.recognizers.iter().map(Into::into)
     }
 
     /// Analyze one document into an [`Audit`].

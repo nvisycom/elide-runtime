@@ -111,7 +111,6 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         groups: Vec::new(),
         rules: vec![table],
         fallback: None,
-        retention: Vec::new(),
     };
 
     let mut analyzed = engine
@@ -214,7 +213,6 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
             },
         }],
         fallback: None,
-        retention: Vec::new(),
     };
 
     let mut analyzed = engine
@@ -275,7 +273,6 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
             },
         }],
         fallback: None,
-        retention: Vec::new(),
     };
     let policy_b = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
@@ -289,7 +286,6 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         // No rules — policy B only contributes vocabulary.
         rules: Vec::new(),
         fallback: None,
-        retention: Vec::new(),
     };
 
     let policies = vec![policy_a, policy_b];
@@ -340,7 +336,6 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
             text: Some(TextRedaction::Erase),
             ..Default::default()
         }),
-        retention: Vec::new(),
     };
     let specific = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
@@ -368,7 +363,6 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
             },
         }],
         fallback: None,
-        retention: Vec::new(),
     };
 
     let policies = vec![coarse, specific];
@@ -426,7 +420,6 @@ async fn cross_policy_group_reference_fails_the_request() {
             },
         }],
         fallback: None,
-        retention: Vec::new(),
     };
     let policy_b = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
@@ -443,7 +436,6 @@ async fn cross_policy_group_reference_fails_the_request() {
         }],
         rules: Vec::new(),
         fallback: None,
-        retention: Vec::new(),
     };
 
     let err = engine
@@ -477,7 +469,6 @@ async fn override_naming_unknown_policy_fails_the_request() {
         groups: Vec::new(),
         rules: Vec::new(),
         fallback: None,
-        retention: Vec::new(),
     };
     let mut analyzed = engine
         .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())

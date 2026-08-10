@@ -122,7 +122,6 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         groups: Vec::new(),
         rules: Vec::new(),
         fallback: None,
-        retention: Vec::new(),
     };
     let target_id = entities[0].entity.id;
     let EntityGroup::Text(muts) = analyzed.body.as_mut().unwrap() else {
@@ -219,7 +218,6 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
         groups: Vec::new(),
         rules: Vec::new(),
         fallback: None,
-        retention: Vec::new(),
     };
     let mut analyzed = engine
         .analyze(raw_docx(), std::slice::from_ref(&policy), &default_spec())
@@ -283,7 +281,6 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
         groups: Vec::new(),
         rules: vec![rule],
         fallback: None,
-        retention: Vec::new(),
     };
 
     let err = engine

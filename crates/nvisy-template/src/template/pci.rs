@@ -191,7 +191,6 @@ fn pan_template(render: PciPanRender) -> Template {
             groups: Vec::new(),
             rules: vec![spec.rule],
             fallback: None,
-            retention: Vec::new(),
         },
     }
 }
@@ -355,7 +354,6 @@ fn sav_template() -> Template {
             groups: Vec::new(),
             rules: vec![sav_rule()],
             fallback: None,
-            retention: Vec::new(),
         },
     }
 }

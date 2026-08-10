@@ -54,7 +54,7 @@ pub use elide_core::{Error, ErrorKind, Result};
 #[doc(inline)]
 pub use nvisy_schema::file::{Document, FileMetadata};
 /// Authored redaction governance: policies, rules, predicates,
-/// operators, retention.
+/// operators.
 #[doc(inline)]
 pub use nvisy_schema::policy;
 

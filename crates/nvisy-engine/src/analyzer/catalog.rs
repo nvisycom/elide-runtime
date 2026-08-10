@@ -155,7 +155,6 @@ mod tests {
             groups,
             rules: Vec::new(),
             fallback: None,
-            retention: Vec::new(),
         }
     }
 

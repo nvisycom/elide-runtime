@@ -178,7 +178,6 @@ fn erase_policy() -> PolicyDefinition {
         groups: vec![erase_group()],
         rules: vec![erase_rule()],
         fallback: None,
-        retention: Vec::new(),
     }
 }
 
@@ -199,7 +198,6 @@ fn pseudonymize_policy() -> PolicyDefinition {
         groups: vec![pseudonymize_group()],
         rules: vec![pseudonymize_rule()],
         fallback: None,
-        retention: Vec::new(),
     }
 }
 

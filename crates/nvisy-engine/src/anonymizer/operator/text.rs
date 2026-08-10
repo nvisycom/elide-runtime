@@ -56,39 +56,29 @@ use crate::anonymizer::compile::Target;
 ///   don't share a namespace — a customer submitting two policies
 ///   with different reasoning about coreference stays isolated.
 ///   Materialised lazily on first request per policy.
-/// - **Key providers.** [`TextRedaction::HmacHash`] and
-///   [`TextRedaction::Encrypt`] resolve their [`KeyProvider`] by
-///   first checking [`policy_key_providers`] for the enclosing
-///   policy's id, then falling back to
-///   [`default_key_provider`]. Wired via
-///   [`Engine::with_policy_key_provider`] and
-///   [`Engine::with_key_provider`].
+/// - **Key provider.** [`TextRedaction::HmacHash`] and
+///   [`TextRedaction::Encrypt`] resolve their [`KeyProvider`]
+///   through [`key_provider`]. When it is absent, an
+///   `HmacHash`/`Encrypt` policy fails to compile with a clear
+///   error at request time.
 ///
-/// Both maps are per-request state assembled once by
+/// The provider is per-request state assembled once by
 /// `build_anonymize_orchestrator`; every operator built during
-/// that request shares the same instance so lookups are cheap
+/// that request shares the same handle so lookups are cheap
 /// [`Arc`] clones.
 ///
-/// [`Engine::with_key_provider`]: crate::pipeline::Engine::with_key_provider
-/// [`Engine::with_policy_key_provider`]: crate::pipeline::Engine::with_policy_key_provider
 /// [`InMemoryVault`]: elide::redaction::vault::InMemoryVault
 /// [`PolicyDefinition::id`]: nvisy_schema::policy::PolicyDefinition::id
 /// [`TextRedaction::Encrypt`]: nvisy_schema::policy::redaction::TextRedaction::Encrypt
 /// [`TextRedaction::HmacHash`]: nvisy_schema::policy::redaction::TextRedaction::HmacHash
 /// [`TextRedaction::Pseudonymize`]: nvisy_schema::policy::redaction::TextRedaction::Pseudonymize
-/// [`default_key_provider`]: Self::default_key_provider
-/// [`policy_key_providers`]: Self::policy_key_providers
+/// [`key_provider`]: Self::key_provider
 pub(crate) struct TextOperatorContext {
-    /// Per-policy key providers. A policy's `HmacHash`/`Encrypt`
-    /// operator looks up its id here first.
-    pub(crate) policy_key_providers: HashMap<Uuid, Arc<dyn KeyProvider>>,
-    /// Engine-level fallback provider. Serves policies not named
-    /// in [`policy_key_providers`]. When both are absent, an
-    /// `HmacHash`/`Encrypt` policy fails to compile with a clear
-    /// error at request time.
-    ///
-    /// [`policy_key_providers`]: Self::policy_key_providers
-    pub(crate) default_key_provider: Option<Arc<dyn KeyProvider>>,
+    /// Engine-level key provider used by every policy's
+    /// `HmacHash`/`Encrypt` operator. When absent, those
+    /// operators fail to compile with a clear error at request
+    /// time.
+    pub(crate) key_provider: Option<Arc<dyn KeyProvider>>,
     /// Per-policy pseudonym vaults, materialised lazily on first
     /// access. Wrapped in [`RefCell`] because operator build is
     /// single-threaded (per-request compile) and each vault holds
@@ -102,27 +92,13 @@ pub(crate) struct TextOperatorContext {
 type PseudonymVaults = HashMap<Uuid, InMemoryVault<PseudonymizeKey, TextReplacement>>;
 
 impl TextOperatorContext {
-    /// Fresh context for one request. The `policy_key_providers`
-    /// map is snapshotted from the engine; the vault map is
-    /// empty and grown lazily.
-    pub(crate) fn new(
-        policy_key_providers: HashMap<Uuid, Arc<dyn KeyProvider>>,
-        default_key_provider: Option<Arc<dyn KeyProvider>>,
-    ) -> Self {
+    /// Fresh context for one request. The vault map is empty and
+    /// grown lazily.
+    pub(crate) fn new(key_provider: Option<Arc<dyn KeyProvider>>) -> Self {
         Self {
-            policy_key_providers,
-            default_key_provider,
+            key_provider,
             pseudonym_vaults: RefCell::new(HashMap::new()),
         }
-    }
-
-    /// Resolve the [`KeyProvider`] for a policy: per-policy
-    /// override first, engine-level default second.
-    fn key_provider_for(&self, policy_id: Uuid) -> Option<Arc<dyn KeyProvider>> {
-        self.policy_key_providers
-            .get(&policy_id)
-            .cloned()
-            .or_else(|| self.default_key_provider.clone())
     }
 
     /// Get or create the pseudonym vault for `policy_id`. The
@@ -236,7 +212,8 @@ where
         }
         TextRedaction::HmacHash { algorithm } => {
             let keys = ctx
-                .key_provider_for(policy_id)
+                .key_provider
+                .clone()
                 .ok_or_else(|| missing_infrastructure(policy_id, "hmac_hash", "KeyProvider"))?;
             Arc::new(HmacHash::new(*algorithm, keys))
         }
@@ -287,7 +264,8 @@ where
         )),
         TextRedaction::Encrypt => {
             let keys = ctx
-                .key_provider_for(policy_id)
+                .key_provider
+                .clone()
                 .ok_or_else(|| missing_infrastructure(policy_id, "encrypt", "KeyProvider"))?;
             Arc::new(AesEncrypt::new(keys))
         }
@@ -377,8 +355,7 @@ fn missing_infrastructure(
         ErrorKind::Configuration,
         format!(
             "policy `{policy_id}` uses `{operator}` which requires a {infrastructure}; \
-             wire one per-policy via `Engine::with_policy_key_provider` or set the \
-             engine-level default via `Engine::with_key_provider`",
+             wire one via `Engine::with_key_provider`",
         ),
     )
 }

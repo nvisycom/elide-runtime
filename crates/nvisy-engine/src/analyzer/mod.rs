@@ -1,9 +1,11 @@
 //! Compile a [`nvisy_schema::plan::AnalyzerParams`] into an
 //! [`elide::detection::Analyzer`] per modality.
 //!
-//! Symmetric with [`crate::anonymizer`]: the spec is pure data
-//! (recognizer + enricher + dedup choices); engine walks it and
-//! assembles the matching elide runtime values.
+//! Symmetric with [`crate::anonymizer`]: the spec carries the
+//! caller-inlined pattern extras; the engine holds the
+//! deployment-owned recognizer and enricher lineups
+//! (`NerConfig` / `LlmConfig` / language / OCR / STT). Compile
+//! walks both.
 //!
 //! Scope is **not** per-modality — [`Scope`] is modality-free
 //! and is built once in [`crate::pipeline`]'s orchestrator
@@ -50,9 +52,12 @@ use elide_core::modality::text::Text;
 use nvisy_schema::plan::AnalyzerParams;
 
 pub(crate) use self::catalog::{compile_catalog, policy_label_scope};
-pub use self::recognizer::PatternGuardrails;
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
+#[cfg(feature = "internal_image")]
+use crate::provider::ocr::OcrBackend;
+#[cfg(feature = "internal_audio")]
+use crate::provider::stt::SttBackend;
 
 /// Compile a [`nvisy_schema::plan::AnalyzerParams`] into a
 /// per-modality [`elide::detection::Analyzer`].
@@ -60,62 +65,39 @@ use crate::provider::ner::NerConfig;
 /// One method per modality; each picks the recognizers and
 /// enrichers the modality supports and rejects the rest at
 /// compile time (e.g. OCR on text, LLM on tabular). Every
-/// compile fn consults the deployment [`NerConfig`] when the
-/// request's `recognizers.ner` selects any recognizer; text
-/// and image also consult [`LlmConfig`] when
-/// `recognizers.llm` does. Every method consults
-/// [`PatternGuardrails`] when the pattern recognizer is enabled.
+/// compile fn consults the deployment [`NerConfig`]; text and
+/// image also consult [`LlmConfig`]. Language detection always
+/// attaches to text; OCR and STT enrichers attach when their
+/// per-modality backend is wired on the engine.
 ///
 /// Non-text methods are gated on their modality's feature.
 pub(crate) trait AnalyzerCompile {
     /// Build the text-modality analyzer.
-    fn compile_text(
-        &self,
-        ner: &NerConfig,
-        llm: &LlmConfig,
-        guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Text>>;
+    fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>>;
     /// Build the tabular-modality analyzer.
     #[cfg(feature = "internal_tabular")]
-    fn compile_tabular(
-        &self,
-        ner: &NerConfig,
-        guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Tabular>>;
+    fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>>;
     /// Build the image-modality analyzer.
     #[cfg(feature = "internal_image")]
     fn compile_image(
         &self,
         ner: &NerConfig,
         llm: &LlmConfig,
-        guardrails: &PatternGuardrails,
+        ocr: Option<&OcrBackend>,
     ) -> Result<Analyzer<Image>>;
     /// Build the audio-modality analyzer.
     #[cfg(feature = "internal_audio")]
-    fn compile_audio(
-        &self,
-        ner: &NerConfig,
-        guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Audio>>;
+    fn compile_audio(&self, ner: &NerConfig, stt: Option<&SttBackend>) -> Result<Analyzer<Audio>>;
 }
 
 impl AnalyzerCompile for AnalyzerParams {
-    fn compile_text(
-        &self,
-        ner: &NerConfig,
-        llm: &LlmConfig,
-        guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Text>> {
-        self::text::compile(self, ner, llm, guardrails)
+    fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>> {
+        self::text::compile(self, ner, llm)
     }
 
     #[cfg(feature = "internal_tabular")]
-    fn compile_tabular(
-        &self,
-        ner: &NerConfig,
-        guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Tabular>> {
-        self::tabular::compile(self, ner, guardrails)
+    fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>> {
+        self::tabular::compile(self, ner)
     }
 
     #[cfg(feature = "internal_image")]
@@ -123,17 +105,13 @@ impl AnalyzerCompile for AnalyzerParams {
         &self,
         ner: &NerConfig,
         llm: &LlmConfig,
-        guardrails: &PatternGuardrails,
+        ocr: Option<&OcrBackend>,
     ) -> Result<Analyzer<Image>> {
-        self::image::compile(self, ner, llm, guardrails)
+        self::image::compile(self, ner, llm, ocr)
     }
 
     #[cfg(feature = "internal_audio")]
-    fn compile_audio(
-        &self,
-        ner: &NerConfig,
-        guardrails: &PatternGuardrails,
-    ) -> Result<Analyzer<Audio>> {
-        self::audio::compile(self, ner, guardrails)
+    fn compile_audio(&self, ner: &NerConfig, stt: Option<&SttBackend>) -> Result<Analyzer<Audio>> {
+        self::audio::compile(self, ner, stt)
     }
 }

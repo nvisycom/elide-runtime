@@ -106,7 +106,7 @@ impl Engine {
         let live_scope = build_scope(&context, catalog.clone(), correlation_id);
 
         let text_anon = assemble_empty::<Text>(&catalog);
-        let text_analyzer = spec.compile_text(&self.ner, &self.llm, &self.pattern_guardrails)?;
+        let text_analyzer = spec.compile_text(&self.ner, &self.llm)?;
 
         let orchestrator = Orchestrator::new(&self.formats)
             .with_scope(live_scope)
@@ -115,21 +115,21 @@ impl Engine {
         #[cfg(feature = "internal_tabular")]
         let orchestrator = {
             let anon = assemble_empty::<Tabular>(&catalog);
-            let analyzer = spec.compile_tabular(&self.ner, &self.pattern_guardrails)?;
+            let analyzer = spec.compile_tabular(&self.ner)?;
             orchestrator.with_modality::<Tabular>(analyzer, anon)
         };
 
         #[cfg(feature = "internal_image")]
         let orchestrator = {
             let anon = assemble_empty::<Image>(&catalog);
-            let analyzer = spec.compile_image(&self.ner, &self.llm, &self.pattern_guardrails)?;
+            let analyzer = spec.compile_image(&self.ner, &self.llm, self.ocr.as_deref())?;
             orchestrator.with_modality::<Image>(analyzer, anon)
         };
 
         #[cfg(feature = "internal_audio")]
         let orchestrator = {
             let anon = assemble_empty::<Audio>(&catalog);
-            let analyzer = spec.compile_audio(&self.ner, &self.pattern_guardrails)?;
+            let analyzer = spec.compile_audio(&self.ner, self.stt.as_deref())?;
             orchestrator.with_modality::<Audio>(analyzer, anon)
         };
 
@@ -170,11 +170,10 @@ impl Engine {
         // vaults materialise per-policy on first access so two
         // policies pseudonymising the same entity don't share a
         // surrogate namespace. `HmacHash`/`Encrypt` resolve their
-        // `KeyProvider` per-policy first, falling back to the
-        // engine-level default. Cross-request pseudonym
-        // consistency is a durable-vault story (see elide #143).
-        let text_ctx =
-            TextOperatorContext::new(self.policy_key_providers.clone(), self.key_provider.clone());
+        // `KeyProvider` through the engine-level default. Cross-
+        // request pseudonym consistency is a durable-vault story
+        // (see elide #143).
+        let text_ctx = TextOperatorContext::new(self.key_provider.clone());
 
         let text_anon = assemble::<Text, _, _>(
             &catalog,

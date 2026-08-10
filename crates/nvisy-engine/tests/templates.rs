@@ -12,10 +12,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use nvisy_engine::{Engine, KeyProvider, StaticKey};
 use nvisy_schema::file::Document;
-use nvisy_schema::plan::{
-    AnalyzerParams, EnricherParams, PatternRecognizerParams, ProviderSelection, RecognizerParams,
-    ScopeParams,
-};
+use nvisy_schema::plan::AnalyzerParams;
 use nvisy_template::{
     GdprArticle9Treatment, HipaaDeidMethod, PciDssPart, PciPanRender, PolicyTemplate, Template,
     TemplateCatalog,
@@ -38,22 +35,7 @@ fn raw_txt() -> Document {
 }
 
 fn default_spec() -> AnalyzerParams {
-    AnalyzerParams {
-        recognizers: RecognizerParams {
-            pattern: Some(PatternRecognizerParams {
-                builtins: true,
-                context_enhanced: true,
-                ..Default::default()
-            }),
-            ner: Some(ProviderSelection::All(false)),
-            llm: Some(ProviderSelection::All(false)),
-        },
-        enrichers: EnricherParams::default(),
-        deduplication: Default::default(),
-        scope: ScopeParams::default(),
-        annotations: Default::default(),
-        ocr_mode: Default::default(),
-    }
+    AnalyzerParams::default()
 }
 
 /// Run `template` through analyze + anonymize against the sample

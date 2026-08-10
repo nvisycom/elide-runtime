@@ -12,8 +12,5 @@
 pub use nvisy_schema::annotation::{Annotations, Exclusion, Inclusion};
 pub use nvisy_schema::plan::{
     AnalyzerParams, AnyAnnotations, CustomDictionary, CustomDictionaryTerm, CustomPatternContext,
-    CustomPatternRule, CustomPatternVariant, DeduplicationParams, EnricherParams,
-    LanguageEnricherParams, MAX_REGEX_SOURCE_LEN, MergingStrategyParams, OcrBackendParams,
-    OcrEnricherParams, PatternRecognizerParams, ProviderSelection, RecognizerParams, ScopeParams,
-    SttBackendParams, SttEnricherParams, TiebreakerParams,
+    CustomPatternRule, CustomPatternVariant, MAX_REGEX_SOURCE_LEN, RecognizerParams, ScopeParams,
 };

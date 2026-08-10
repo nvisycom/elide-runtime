@@ -10,12 +10,10 @@ use std::io::{Cursor, Read};
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
 use nvisy_engine::entity::Review;
+use nvisy_engine::provider::OcrBackend;
 use nvisy_engine::{Audit, AuditContext, Engine, EntityGroup};
 use nvisy_schema::file::Document;
-use nvisy_schema::plan::{
-    AnalyzerParams, EnricherParams, OcrBackendParams, OcrEnricherParams, PatternRecognizerParams,
-    ProviderSelection, RecognizerParams, ScopeParams,
-};
+use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_schema::policy::{Labels, PolicyDefinition};
 
@@ -29,32 +27,11 @@ fn raw_docx() -> Document {
 }
 
 fn engine() -> Engine {
-    Engine::new()
+    Engine::new().with_ocr(OcrBackend::Mock)
 }
 
 fn default_spec() -> AnalyzerParams {
-    AnalyzerParams {
-        recognizers: RecognizerParams {
-            pattern: Some(PatternRecognizerParams {
-                builtins: true,
-                context_enhanced: true,
-                ..Default::default()
-            }),
-            ner: Some(ProviderSelection::All(false)),
-            llm: Some(ProviderSelection::All(false)),
-        },
-        enrichers: EnricherParams {
-            language: None,
-            ocr: Some(OcrEnricherParams {
-                backend: OcrBackendParams::Mock,
-            }),
-            stt: None,
-        },
-        deduplication: Default::default(),
-        scope: ScopeParams::default(),
-        annotations: Default::default(),
-        ocr_mode: Default::default(),
-    }
+    AnalyzerParams::default()
 }
 
 fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {

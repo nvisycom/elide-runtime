@@ -1,12 +1,16 @@
 //! Attach the deployment's LLM lineup to a per-modality
 //! [`Analyzer`]. Walks [`LlmConfig::recognizers`], filters by
-//! [`ProviderSelection`] and then by modality, and builds one
-//! `LlmRecognizer<M>` per matching entry via elide's `RigBackend`
-//! (or `MockBackend` under the `test-utils` feature).
+//! declared modality, and builds one `LlmRecognizer<M>` per
+//! matching entry via elide's `RigBackend` (or `MockBackend`
+//! under the `test-utils` feature).
+//!
+//! Every configured recognizer whose `modalities` list contains
+//! the analyzer's modality attaches to every request. Recognizers
+//! scoped to a different modality are silently skipped for this
+//! analyzer.
 //!
 //! [`Analyzer`]: elide::detection::Analyzer
 //! [`LlmConfig::recognizers`]: crate::provider::llm::LlmConfig::recognizers
-//! [`ProviderSelection`]: nvisy_schema::plan::ProviderSelection
 
 use elide::detection::Analyzer;
 #[cfg(feature = "test-utils")]
@@ -16,22 +20,13 @@ use elide::recognition::llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide_core::{Error, ErrorKind, Result};
-use nvisy_schema::plan::ProviderSelection;
 
-use super::selection::select;
 use crate::provider::llm::{
     AttachTo, LlmConfig, LlmPrompt, LlmRecognizer as ConfigRecognizer, LlmSource,
 };
 
-/// Attach LLM recognizers selected by `selection` whose modality
-/// list includes `modality`.
-///
-/// The name allowlist runs first; the modality filter then drops
-/// any allowlisted recognizer that doesn't attach to this
-/// analyzer's modality. Only `All(true)` requires at least one
-/// modality-matching recognizer to remain — `Only(names)`
-/// silently skips if every named recognizer is scoped to a
-/// different modality.
+/// Attach every LLM recognizer whose `modalities` list contains
+/// `modality`.
 ///
 /// Errors on: any recognizer whose `modalities` list is empty
 /// (bad config), Jinja2 prompt load/compile failure, provider
@@ -48,7 +43,6 @@ pub(in crate::analyzer) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &LlmConfig,
     modality: AttachTo,
-    selection: Option<&ProviderSelection>,
 ) -> Result<Analyzer<M>>
 where
     M: LlmModality,
@@ -56,9 +50,7 @@ where
     DefaultPrompt: Prompt<M>,
     Jinja2Prompt<M>: Prompt<M>,
 {
-    let selected = select(selection, &llm.recognizers, "llm")?;
-    let mut modality_matched = 0usize;
-    for recognizer in &selected {
+    for recognizer in &llm.recognizers {
         if recognizer.modalities.is_empty() {
             return Err(Error::new(
                 ErrorKind::Configuration,
@@ -72,18 +64,7 @@ where
         if !recognizer.modalities.contains(&modality) {
             continue;
         }
-        modality_matched += 1;
         analyzer = attach_one(analyzer, recognizer)?;
-    }
-    if modality_matched == 0 && matches!(selection, Some(ProviderSelection::All(true))) {
-        return Err(Error::new(
-            ErrorKind::Configuration,
-            format!(
-                "AnalyzerParams.recognizers.llm = true but the deployment has no LLM \
-                 recognizer configured for the {modality:?} modality; add one to \
-                 `[[llm.recognizers]]` in the deployment config or leave `llm` unset / false",
-            ),
-        ));
     }
     Ok(analyzer)
 }

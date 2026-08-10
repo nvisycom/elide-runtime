@@ -1,4 +1,5 @@
-//! Authored recognition plan: recognizers, enrichers, dedup, scope.
+//! Authored recognition plan: caller-inlined pattern extras,
+//! scope, annotations, and per-request codec knobs.
 //!
 //! Serialisable description of how to build an analyzer for a
 //! request. Symmetric with [`policy`]. Where policy describes
@@ -9,14 +10,12 @@
 //!
 //! ## Layout
 //!
-//! - [`AnalyzerParams`]: top-level. Recognizers, enrichers,
-//!   dedup pipeline, scope.
-//! - [`RecognizerParams`]: per-recognizer specs (Pattern, NER,
-//!   LLM).
-//! - [`EnricherParams`]: per-enricher specs (language detection,
-//!   OCR, STT).
-//! - [`DeduplicationParams`]: calibrate / reconcile / filter
-//!   strategies.
+//! - [`AnalyzerParams`]: top-level. Caller-inlined pattern
+//!   extras, scope, region annotations, per-request OCR mode.
+//! - [`RecognizerParams`]: caller-inlined regex rules and
+//!   dictionaries. The bare built-in pattern recognizer is
+//!   always attached; NER and LLM recognizers wired via
+//!   `Engine::with_ner` / `Engine::with_llm` always run.
 //! - [`AnyAnnotations`]: per-modality region annotations
 //!   (inclusions / exclusions).
 //!
@@ -31,20 +30,13 @@
 
 mod analyzer;
 mod annotation;
-mod deduplication;
-mod enricher;
 mod pattern;
 mod recognizer;
 
 pub use self::analyzer::{AnalyzerParams, ScopeParams, scope_metadata_is_empty};
 pub use self::annotation::AnyAnnotations;
-pub use self::deduplication::{DeduplicationParams, MergingStrategyParams, TiebreakerParams};
-pub use self::enricher::{
-    EnricherParams, LanguageEnricherParams, OcrBackendParams, OcrEnricherParams, SttBackendParams,
-    SttEnricherParams,
-};
 pub use self::pattern::{
     CustomDictionary, CustomDictionaryTerm, CustomPatternContext, CustomPatternRule,
     CustomPatternVariant, MAX_REGEX_SOURCE_LEN,
 };
-pub use self::recognizer::{PatternRecognizerParams, ProviderSelection, RecognizerParams};
+pub use self::recognizer::RecognizerParams;

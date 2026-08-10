@@ -68,10 +68,8 @@ pub struct CustomPatternRule {
     /// a match.
     ///
     /// Either a flat list (any language) or a per-language map.
-    /// Consumed only when the analyzer's
-    /// [`PatternRecognizerParams`]`.context_enhanced` is `true`.
-    ///
-    /// [`PatternRecognizerParams`]: super::PatternRecognizerParams
+    /// The pattern recognizer always applies these keywords via
+    /// elide's `Enhanced` layer.
     #[serde(default, skip_serializing_if = "CustomPatternContext::is_empty")]
     pub context: CustomPatternContext,
     /// BCP-47 language tags scoping the rule.
@@ -172,10 +170,8 @@ pub struct CustomDictionary {
     pub score: Confidence,
     /// Context keywords lifting confidence near matches.
     ///
-    /// Consumed only when the analyzer's
-    /// [`PatternRecognizerParams`]`.context_enhanced` is `true`.
-    ///
-    /// [`PatternRecognizerParams`]: super::PatternRecognizerParams
+    /// The pattern recognizer always applies these keywords via
+    /// elide's `Enhanced` layer.
     #[serde(default, skip_serializing_if = "CustomPatternContext::is_empty")]
     pub context: CustomPatternContext,
     /// BCP-47 language tags scoping the dictionary.

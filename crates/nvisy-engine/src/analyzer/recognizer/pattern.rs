@@ -1,24 +1,21 @@
 //! Attach [`elide::recognition::pattern::PatternRecognizer`] to
 //! a per-modality [`Analyzer`]. Modality-generic — a single
-//! recognizer instance (bare or `Enhanced`-wrapped) serves every
-//! `M: TextRecognizable`.
+//! recognizer instance serves every `M: TextRecognizable`.
 //!
-//! Wire specs the compile path consumes:
+//! The bare shipped `elide-pattern` set (built-in regex +
+//! dictionaries) always attaches; the request supplies any
+//! caller-inlined [`CustomPatternRule`] / [`CustomDictionary`]
+//! on [`RecognizerParams`]. Wrapped in elide's `Enhanced` layer
+//! so per-label context keywords always boost low-confidence
+//! matches.
 //!
-//! - [`PatternRecognizerParams`] — the top-level toggle: builtins,
-//!   context enhancement, and the two caller-inlined slots.
-//! - [`CustomPatternRule`] / [`CustomPatternVariant`] — inline
-//!   regex rules; converted one field at a time to
-//!   [`elide_pattern::Regex`] / [`Variant`].
-//! - [`CustomDictionary`] / [`CustomDictionaryTerm`] — inline
-//!   literal-term rules; converted to
-//!   [`elide_pattern::Dictionary`] / [`Term`].
-//!
-//! [`PatternGuardrails`] bounds runaway compile cost from any of
-//! those slots. See [`guardrails`] for the per-request budget
-//! shape.
-//!
-//! [`guardrails`]: super::guardrails
+//! Compile cost is bounded by hardcoded guardrails on rule
+//! count, dictionary automaton size, and per-regex source
+//! length. The regex NFA/DFA size limits are not applied here:
+//! elide's single-budget API cannot separate individual regex
+//! NFA size from shared `RegexSet` union size, and the two want
+//! very different bounds — the shipped builtins union past any
+//! budget that would still catch a runaway custom rule.
 
 use std::collections::HashMap;
 
@@ -34,76 +31,62 @@ use elide_core::recognition::Recognizer;
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::plan::{
     CustomDictionary, CustomDictionaryTerm, CustomPatternContext, CustomPatternRule,
-    CustomPatternVariant, PatternRecognizerParams,
+    CustomPatternVariant, MAX_REGEX_SOURCE_LEN, RecognizerParams,
 };
 
-use super::PatternGuardrails;
+/// Maximum number of caller-inlined rules per request across
+/// `custom` and `custom_dictionaries` combined.
+const MAX_CUSTOM_RULES: usize = 32;
+
+/// Aggregate cap on total dictionary terms across every
+/// dictionary — builtin and custom — compiled into one shared
+/// Aho-Corasick automaton.
+const MAX_DICTIONARY_TERM_COUNT: usize = 100_000;
+
+/// Aggregate byte budget across every dictionary's terms.
+const MAX_DICTIONARY_TERM_BYTES: usize = 8 * 1024 * 1024;
 
 /// Attach a [`PatternRecognizer`] built from `spec`.
 ///
-/// The same recognizer instance — bare or wrapped in elide's
-/// `Enhanced` layer — serves any `M: TextRecognizable`, so the
-/// helper is uniform across modalities.
-///
-/// `guardrails` bounds runaway compile cost: rule count,
-/// dictionary automaton size, and (below the wire ceiling)
-/// per-regex source length.
+/// The bare shipped built-in pattern + dictionary sets always
+/// load; caller-inlined `custom` / `custom_dictionaries` fold in
+/// alongside. The recognizer is always wrapped in elide's
+/// `Enhanced` layer so per-label context keywords boost
+/// low-confidence matches.
 pub(in crate::analyzer) fn attach<M>(
     analyzer: Analyzer<M>,
-    spec: &PatternRecognizerParams,
-    guardrails: &PatternGuardrails,
+    spec: &RecognizerParams,
 ) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     PatternRecognizer: Recognizer<M> + 'static,
     Enhanced<PatternRecognizer>: Recognizer<M> + 'static,
 {
-    check_custom_count(spec, guardrails)?;
+    check_custom_count(spec)?;
 
-    let mut builder = with_limits(PatternRecognizer::builder(), guardrails);
-    if spec.builtins {
-        builder = builder.with_builtin_patterns().with_builtin_dictionaries();
-    }
+    let mut builder = with_limits(PatternRecognizer::builder())
+        .with_builtin_patterns()
+        .with_builtin_dictionaries();
     for rule in &spec.custom {
-        builder = builder.with_pattern(compile_custom_rule(rule, guardrails)?);
+        builder = builder.with_pattern(compile_custom_rule(rule)?);
     }
     for dict in &spec.custom_dictionaries {
         builder = builder.with_dictionary(compile_custom_dictionary(dict)?);
     }
-    if spec.context_enhanced {
-        Ok(analyzer.with_recognizer(builder.build_context_enhanced()?))
-    } else {
-        Ok(analyzer.with_recognizer(builder.build()?))
-    }
+    Ok(analyzer.with_recognizer(builder.build_context_enhanced()?))
 }
 
-/// Apply the request-level dictionary-size limits to the pattern
-/// recognizer builder.
-///
-/// Every attach path — with or without builtins, with or without
-/// customs — inherits the same budgets.
-///
-/// The regex NFA/DFA `size_limit` / `dfa_size_limit` knobs are
-/// not applied here: elide's single-budget API cannot separate
-/// "individual regex NFA size" from "shared `RegexSet` union
-/// size", and the two want very different bounds — the shipped
-/// builtins union past any budget that would still catch a
-/// runaway custom rule. See #317 for the follow-up plan.
-fn with_limits(
-    builder: PatternRecognizerBuilder,
-    guardrails: &PatternGuardrails,
-) -> PatternRecognizerBuilder {
+/// Apply the dictionary-size limits to the pattern recognizer
+/// builder.
+fn with_limits(builder: PatternRecognizerBuilder) -> PatternRecognizerBuilder {
     builder
-        .with_term_count_limit(guardrails.max_dictionary_term_count)
-        .with_term_bytes_limit(guardrails.max_dictionary_term_bytes)
+        .with_term_count_limit(MAX_DICTIONARY_TERM_COUNT)
+        .with_term_bytes_limit(MAX_DICTIONARY_TERM_BYTES)
 }
 
-fn check_custom_count(
-    spec: &PatternRecognizerParams,
-    guardrails: &PatternGuardrails,
-) -> Result<()> {
+fn check_custom_count(spec: &RecognizerParams) -> Result<()> {
     let total = spec.custom.len() + spec.custom_dictionaries.len();
-    if total > guardrails.max_custom_rules {
+    if total > MAX_CUSTOM_RULES {
         return Err(Error::new(
             ErrorKind::Configuration,
             format!(
@@ -113,18 +96,18 @@ fn check_custom_count(
                 total,
                 spec.custom.len(),
                 spec.custom_dictionaries.len(),
-                guardrails.max_custom_rules,
+                MAX_CUSTOM_RULES,
             ),
         ));
     }
     Ok(())
 }
 
-fn compile_custom_rule(rule: &CustomPatternRule, guardrails: &PatternGuardrails) -> Result<Regex> {
+fn compile_custom_rule(rule: &CustomPatternRule) -> Result<Regex> {
     let variants = rule
         .variants
         .iter()
-        .map(|variant| compile_custom_variant(variant, guardrails))
+        .map(compile_custom_variant)
         .collect::<Result<Vec<_>, _>>()?;
     Regex::builder()
         .with_name(rule.name.clone())
@@ -136,18 +119,15 @@ fn compile_custom_rule(rule: &CustomPatternRule, guardrails: &PatternGuardrails)
         .build()
 }
 
-fn compile_custom_variant(
-    variant: &CustomPatternVariant,
-    guardrails: &PatternGuardrails,
-) -> Result<Variant> {
-    if variant.regex.len() > guardrails.max_regex_source_len {
+fn compile_custom_variant(variant: &CustomPatternVariant) -> Result<Variant> {
+    if variant.regex.len() > MAX_REGEX_SOURCE_LEN {
         return Err(Error::new(
             ErrorKind::Configuration,
             format!(
                 "pattern recognizer: regex source of {} bytes exceeds \
-                 the deployment cap of {} bytes",
+                 the cap of {} bytes",
                 variant.regex.len(),
-                guardrails.max_regex_source_len,
+                MAX_REGEX_SOURCE_LEN,
             ),
         ));
     }

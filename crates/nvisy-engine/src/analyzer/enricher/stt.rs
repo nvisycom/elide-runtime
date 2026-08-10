@@ -2,39 +2,32 @@
 //!
 //! Audio-modality only. The deployment's `Bento` backend returns
 //! a clean "not wired yet" error until `elide-bento` ships a
-//! `BentoStt` client; unknown non-exhaustive variants surface as
-//! Validation.
+//! `BentoStt` client.
 
 use elide::detection::Analyzer;
 #[cfg(feature = "test-utils")]
 use elide::enrichment::stt::{MockBackend as MockSttBackend, SttEnricher};
 use elide_core::modality::audio::Audio;
 use elide_core::{Error, ErrorKind, Result};
-use nvisy_schema::plan::{SttBackendParams, SttEnricherParams};
+
+use crate::provider::stt::SttBackend;
 
 /// Attach an [`SttEnricher`] for the audio modality.
 ///
 /// [`SttEnricher`]: elide::enrichment::stt::SttEnricher
 pub(in crate::analyzer) fn attach(
     analyzer: Analyzer<Audio>,
-    spec: &SttEnricherParams,
+    backend: &SttBackend,
 ) -> Result<Analyzer<Audio>> {
     #[cfg(not(feature = "test-utils"))]
     let _ = analyzer;
-    match &spec.backend {
-        SttBackendParams::Bento { .. } => Err(Error::new(
+    match backend {
+        SttBackend::Bento { .. } => Err(Error::new(
             ErrorKind::CapabilityUnavailable,
             "analyzer compile: BentoML STT backend needs an elide-bento `BentoStt` \
              client; not wired into the compile surface yet",
         )),
         #[cfg(feature = "test-utils")]
-        SttBackendParams::Mock => Ok(analyzer.with_enricher(SttEnricher::new(MockSttBackend))),
-        // `SttBackendParams` is `#[non_exhaustive]`. Unknown
-        // variants surface as Validation.
-        _ => Err(Error::new(
-            ErrorKind::CapabilityUnavailable,
-            "analyzer compile: STT enricher uses a backend kind this engine binary \
-             doesn't understand; upgrade the engine or downgrade the config",
-        )),
+        SttBackend::Mock => Ok(analyzer.with_enricher(SttEnricher::new(MockSttBackend))),
     }
 }

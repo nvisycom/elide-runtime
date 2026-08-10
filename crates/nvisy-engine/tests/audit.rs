@@ -14,10 +14,7 @@ use nvisy_engine::entity::{EntityRecord, Review};
 use nvisy_engine::modality::Text;
 use nvisy_engine::{Audit, Engine, EntityGroup};
 use nvisy_schema::file::Document;
-use nvisy_schema::plan::{
-    AnalyzerParams, EnricherParams, PatternRecognizerParams, ProviderSelection, RecognizerParams,
-    ScopeParams,
-};
+use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
 
 use self::fixtures::write_artefact;
@@ -33,22 +30,7 @@ fn engine() -> Engine {
 }
 
 fn default_spec() -> AnalyzerParams {
-    AnalyzerParams {
-        recognizers: RecognizerParams {
-            pattern: Some(PatternRecognizerParams {
-                builtins: true,
-                context_enhanced: true,
-                ..Default::default()
-            }),
-            ner: Some(ProviderSelection::All(false)),
-            llm: Some(ProviderSelection::All(false)),
-        },
-        enrichers: EnricherParams::default(),
-        deduplication: Default::default(),
-        scope: ScopeParams::default(),
-        annotations: Default::default(),
-        ocr_mode: Default::default(),
-    }
+    AnalyzerParams::default()
 }
 
 async fn analyze() -> Audit {

@@ -96,19 +96,19 @@ use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::PolicyDefinition;
-use uuid::Uuid;
 
 pub use self::audit::{Audit, AuditContext};
 pub use self::registered::RegisteredRecognizer;
-use crate::PatternGuardrails;
 use crate::entity::{EntityGroup, OverrideEntry, take_body, take_part};
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
+use crate::provider::ocr::OcrBackend;
+use crate::provider::stt::SttBackend;
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
-/// Bundles the codec registry, the deployment's NER / LLM
-/// lineups, the pattern-recognizer guardrails, the shared
+/// Bundles the codec registry, the deployment's recognizer and
+/// enricher lineups (NER, LLM, OCR, STT), the shared
 /// [`KeyProvider`] (for `HmacHash` and `Encrypt`), and the
 /// per-request orchestrator constructor.
 ///
@@ -118,121 +118,95 @@ pub struct Engine {
     formats: Arc<FormatRegistry>,
     ner: Arc<NerConfig>,
     llm: Arc<LlmConfig>,
-    pattern_guardrails: PatternGuardrails,
+    ocr: Option<Arc<OcrBackend>>,
+    stt: Option<Arc<SttBackend>>,
     pub(super) key_provider: Option<Arc<dyn KeyProvider>>,
-    /// Per-policy [`KeyProvider`] overrides. A policy whose id
-    /// is in this map uses its own provider; policies not named
-    /// here fall back to [`Engine::key_provider`]. Wired via
-    /// [`Engine::with_policy_key_provider`].
-    ///
-    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
-    pub(super) policy_key_providers: HashMap<Uuid, Arc<dyn KeyProvider>>,
 }
 
 impl Engine {
     /// New engine paired with elide's built-in codec set.
     ///
-    /// Uses [`FormatRegistry::with_builtin`] plus empty NER and
-    /// LLM lineups. Callers that want NER or LLM recognition
-    /// must chain [`with_ner`] or [`with_llm`]. Callers whose
-    /// policies use `HmacHash` or `Encrypt` must wire a key
-    /// provider via [`with_key_provider`].
+    /// Uses [`FormatRegistry::with_builtin`] plus empty NER, LLM,
+    /// OCR, and STT lineups. Callers that want any inference
+    /// recognizer or enricher wire it via the corresponding
+    /// builder: [`with_ner`], [`with_llm`], [`with_ocr`],
+    /// [`with_stt`]. Callers whose policies use `HmacHash` or
+    /// `Encrypt` must wire a key provider via
+    /// [`with_key_provider`]. The language-detection enricher
+    /// always attaches to text with elide's unrestricted lingua
+    /// default.
     ///
-    /// [`with_ner`]: Self::with_ner
-    /// [`with_llm`]: Self::with_llm
     /// [`with_key_provider`]: Self::with_key_provider
+    /// [`with_llm`]: Self::with_llm
+    /// [`with_ner`]: Self::with_ner
+    /// [`with_ocr`]: Self::with_ocr
+    /// [`with_stt`]: Self::with_stt
     pub fn new() -> Self {
         Self {
             formats: Arc::new(FormatRegistry::with_builtin()),
             ner: Arc::new(NerConfig::default()),
             llm: Arc::new(LlmConfig::default()),
-            pattern_guardrails: PatternGuardrails::default(),
+            ocr: None,
+            stt: None,
             key_provider: None,
-            policy_key_providers: HashMap::new(),
         }
     }
 
-    /// Set the deployment's NER configuration.
+    /// Set the deployment's NER lineup.
     ///
-    /// Consumed once at setup; the analyzer compile reads it on
-    /// every request whose `AnalyzerParams.recognizers.ner`
-    /// selects any of the configured recognizers.
+    /// Consumed once at setup; every wired recognizer attaches to
+    /// every request whose modality matches.
     #[must_use]
     pub fn with_ner(mut self, ner: NerConfig) -> Self {
         self.ner = Arc::new(ner);
         self
     }
 
-    /// Set the deployment's LLM configuration.
+    /// Set the deployment's LLM lineup.
     ///
-    /// Consumed once at setup; the analyzer compile reads it on
-    /// every request whose `AnalyzerParams.recognizers.llm`
-    /// selects any of the configured recognizers.
+    /// Consumed once at setup; every wired recognizer whose
+    /// modality list matches the analyzer's modality attaches to
+    /// every request.
     #[must_use]
     pub fn with_llm(mut self, llm: LlmConfig) -> Self {
         self.llm = Arc::new(llm);
         self
     }
 
+    /// Wire the deployment's OCR enricher.
+    ///
+    /// Attaches to the image-modality analyzer on every request.
+    /// Skipped when unset.
+    #[must_use]
+    pub fn with_ocr(mut self, backend: OcrBackend) -> Self {
+        self.ocr = Some(Arc::new(backend));
+        self
+    }
+
+    /// Wire the deployment's speech-to-text enricher.
+    ///
+    /// Attaches to the audio-modality analyzer on every request.
+    /// Skipped when unset.
+    #[must_use]
+    pub fn with_stt(mut self, backend: SttBackend) -> Self {
+        self.stt = Some(Arc::new(backend));
+        self
+    }
+
     /// Set the engine-level cryptographic [`KeyProvider`] the
     /// `HmacHash` and `Encrypt` operators resolve their keys
-    /// through when the enclosing policy has no per-policy
-    /// override wired via [`with_policy_key_provider`].
+    /// through.
     ///
     /// One provider backs both operators; per-label keys are the
     /// provider's own responsibility. A policy that names either
-    /// operator without a provider wired (per-policy or default)
-    /// errors at request compile time — the audit trail names the
-    /// policy and operator so a misconfiguration surfaces at
-    /// load, not silently.
+    /// operator without a provider wired errors at request compile
+    /// time — the audit trail names the policy and operator so a
+    /// misconfiguration surfaces at load, not silently.
     ///
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
-    /// [`with_policy_key_provider`]: Self::with_policy_key_provider
     #[must_use]
     pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
         self.key_provider = Some(provider);
-        self
-    }
-
-    /// Wire a [`KeyProvider`] for one specific policy, keyed by
-    /// [`PolicyDefinition::id`].
-    ///
-    /// Every `HmacHash`/`Encrypt` operator inside the named
-    /// policy resolves through this provider instead of the
-    /// engine-level default set via [`with_key_provider`].
-    /// Multi-tenant callers wire one provider per policy (e.g. a
-    /// separate HSM slot per compliance regime) without having to
-    /// spin up separate engines.
-    ///
-    /// Calling this twice for the same `policy_id` replaces the
-    /// previous provider.
-    ///
-    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
-    /// [`PolicyDefinition::id`]: nvisy_schema::policy::PolicyDefinition::id
-    /// [`with_key_provider`]: Self::with_key_provider
-    #[must_use]
-    pub fn with_policy_key_provider(
-        mut self,
-        policy_id: Uuid,
-        provider: Arc<dyn KeyProvider>,
-    ) -> Self {
-        self.policy_key_providers.insert(policy_id, provider);
-        self
-    }
-
-    /// Set the pattern-recognizer guardrails.
-    ///
-    /// Bounds the ReDoS attack surface and automaton compile
-    /// cost when callers inline custom regex rules and
-    /// dictionaries on
-    /// [`PatternRecognizerParams`]. `max_regex_source_len` is
-    /// clamped to the wire-layer ceiling on construction; every
-    /// other knob applies as-is at analyzer-compile time.
-    ///
-    /// [`PatternRecognizerParams`]: nvisy_schema::plan::PatternRecognizerParams
-    #[must_use]
-    pub fn with_pattern_guardrails(mut self, guardrails: PatternGuardrails) -> Self {
-        self.pattern_guardrails = guardrails.clamped();
         self
     }
 
@@ -418,15 +392,13 @@ impl Engine {
     /// but two different policies pseudonymising the same entity
     /// draw independent surrogates.
     /// [`TextRedaction::HmacHash`] and [`TextRedaction::Encrypt`]
-    /// resolve their [`KeyProvider`] per-policy first (see
-    /// [`Engine::with_policy_key_provider`]), then fall back to
-    /// the engine-level provider set via [`Engine::with_key_provider`].
+    /// resolve their [`KeyProvider`] through the engine-level
+    /// provider set via [`Engine::with_key_provider`].
     ///
     /// [`TextRedaction::Pseudonymize`]: nvisy_schema::policy::redaction::TextRedaction::Pseudonymize
     /// [`TextRedaction::HmacHash`]: nvisy_schema::policy::redaction::TextRedaction::HmacHash
     /// [`TextRedaction::Encrypt`]: nvisy_schema::policy::redaction::TextRedaction::Encrypt
     /// [`Engine::with_key_provider`]: Self::with_key_provider
-    /// [`Engine::with_policy_key_provider`]: Self::with_policy_key_provider
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     ///
     /// [`LabelGroup`]: nvisy_schema::policy::LabelGroup

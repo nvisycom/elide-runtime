@@ -11,10 +11,7 @@ use elide_core::entity::provenance::EventKind;
 use nvisy_engine::entity::Review;
 use nvisy_engine::{Audit, Engine, EntityGroup};
 use nvisy_schema::file::Document;
-use nvisy_schema::plan::{
-    AnalyzerParams, EnricherParams, PatternRecognizerParams, ProviderSelection, RecognizerParams,
-    ScopeParams,
-};
+use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::predicate::Predicate;
 use nvisy_schema::policy::redaction::{ModalityRedactions, TextRedaction};
 use nvisy_schema::policy::{
@@ -32,22 +29,7 @@ fn raw_txt() -> Document {
 }
 
 fn default_spec() -> AnalyzerParams {
-    AnalyzerParams {
-        recognizers: RecognizerParams {
-            pattern: Some(PatternRecognizerParams {
-                builtins: true,
-                context_enhanced: true,
-                ..Default::default()
-            }),
-            ner: Some(ProviderSelection::All(false)),
-            llm: Some(ProviderSelection::All(false)),
-        },
-        enrichers: EnricherParams::default(),
-        deduplication: Default::default(),
-        scope: ScopeParams::default(),
-        annotations: Default::default(),
-        ocr_mode: Default::default(),
-    }
+    AnalyzerParams::default()
 }
 
 /// Count redaction events on every text-modality entity of

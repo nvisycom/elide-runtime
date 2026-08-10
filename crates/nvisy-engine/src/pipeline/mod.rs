@@ -250,7 +250,7 @@ impl Engine {
     /// name, optional description, and provider slug; connection
     /// details and (future) credentials stay in the private
     /// [`NerConfig`].
-    pub fn ner_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer<'_>> {
+    pub fn ner_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
         self.ner.recognizers.iter().map(Into::into)
     }
 
@@ -260,7 +260,7 @@ impl Engine {
     /// Same shape as [`ner_recognizers`], for the LLM lineup.
     ///
     /// [`ner_recognizers`]: Self::ner_recognizers
-    pub fn llm_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer<'_>> {
+    pub fn llm_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
         self.llm.recognizers.iter().map(Into::into)
     }
 

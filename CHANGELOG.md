@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **nvisy-context:** wire schema for reference-data collections.
 - **nvisy-policy:** wire schema for redaction governance (rules,
-  predicates, retention, audit).
+  predicates, operators).
 - **nvisy-schema:** umbrella re-exporting `nvisy-context` +
   `nvisy-policy` alongside `plan` and `file`. Consumed by SDKs on
   both sides of the HTTP boundary.

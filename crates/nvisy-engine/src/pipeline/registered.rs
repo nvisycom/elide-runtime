@@ -6,6 +6,7 @@
 //! callers can list what's registered without seeing backend
 //! connection details or (future) credentials.
 
+use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -19,35 +20,42 @@ use crate::provider::ner::NerRecognizer;
 /// human-readable description, and a provider slug identifying
 /// the backend kind. Connection details and (future)
 /// credentials stay in the private `NerConfig` / `LlmConfig`.
+///
+/// Owned rather than borrowing from the engine so callers can
+/// carry the value past the borrow that produced it. Cloning is
+/// cheap — [`HipStr`] shares the backing string via an `Arc`
+/// header.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct RegisteredRecognizer<'a> {
+pub struct RegisteredRecognizer {
     /// Recognizer name — the identifier a request's allowlist
     /// picks by.
-    pub name: &'a str,
+    #[schemars(with = "String")]
+    pub name: HipStr<'static>,
     /// Optional human-readable description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<&'a str>,
+    #[schemars(with = "Option<String>")]
+    pub description: Option<HipStr<'static>>,
     /// Provider slug. NER: `"bento"`, `"mock"`. LLM: `"openai"`,
     /// `"anthropic"`, `"gemini"`, `"ollama"`, `"mock"`.
     pub provider: &'static str,
 }
 
-impl<'a> From<&'a NerRecognizer> for RegisteredRecognizer<'a> {
-    fn from(r: &'a NerRecognizer) -> Self {
+impl From<&NerRecognizer> for RegisteredRecognizer {
+    fn from(r: &NerRecognizer) -> Self {
         Self {
-            name: &r.name,
-            description: r.description.as_deref(),
+            name: r.name.clone(),
+            description: r.description.clone(),
             provider: r.backend.provider(),
         }
     }
 }
 
-impl<'a> From<&'a LlmRecognizer> for RegisteredRecognizer<'a> {
-    fn from(r: &'a LlmRecognizer) -> Self {
+impl From<&LlmRecognizer> for RegisteredRecognizer {
+    fn from(r: &LlmRecognizer) -> Self {
         Self {
-            name: &r.name,
-            description: r.description.as_deref(),
+            name: r.name.clone(),
+            description: r.description.clone(),
             provider: r.source.provider(),
         }
     }

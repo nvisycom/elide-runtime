@@ -17,7 +17,8 @@ pub struct NerRecognizer {
     /// trail so audits can attribute detections to a specific
     /// configured recognizer. Must be unique across the
     /// deployment's NER lineup.
-    pub name: String,
+    #[schemars(with = "String")]
+    pub name: HipStr<'static>,
     /// Optional human-readable description. Surfaces on the
     /// list-recognizers accessor so operators and SDK callers
     /// can identify what each recognizer is for.

@@ -482,6 +482,12 @@ impl Engine {
     }
 }
 
+impl Default for Engine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Assemble the per-analyze [`Directives`] from `spec.annotations`,
 /// registering each feature-gated modality's regions with the set.
 ///

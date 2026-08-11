@@ -37,6 +37,7 @@ elide-core = { git = "https://github.com/nvisycom/elide", branch = "main", defau
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Elide extensions
 elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }

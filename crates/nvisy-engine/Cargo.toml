@@ -95,7 +95,7 @@ elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner",
 elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
 # Elide extensions
-elide-bento = { workspace = true, features = ["ner", "ocr"] }
+elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }
 
 # Internal crates
 nvisy-schema = { workspace = true, features = [] }

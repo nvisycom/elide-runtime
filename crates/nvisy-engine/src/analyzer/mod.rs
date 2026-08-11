@@ -1,11 +1,9 @@
-//! Compile a [`nvisy_schema::plan::AnalyzerParams`] into an
-//! [`elide::detection::Analyzer`] per modality.
+//! Compile the deployment's recognizer + enricher lineups into
+//! an [`elide::detection::Analyzer`] per modality.
 //!
-//! Symmetric with [`crate::anonymizer`]: the spec carries the
-//! caller-inlined pattern extras; the engine holds the
-//! deployment-owned recognizer and enricher lineups
-//! (`NerConfig` / `LlmConfig` / language / OCR / STT). Compile
-//! walks both.
+//! Symmetric with [`crate::anonymizer`]: the engine holds the
+//! deployment-owned recognizer and enricher configuration
+//! (`NerConfig` / `LlmConfig` / OCR / STT); compile walks it.
 //!
 //! Scope is **not** per-modality — [`Scope`] is modality-free
 //! and is built once in [`crate::pipeline`]'s orchestrator
@@ -24,94 +22,20 @@
 //! | Audio    | yes     | yes | (no upstream `LlmModality` impl) |
 //!
 //! [`Analyzer`]: elide::detection::Analyzer
-//! [`AnalyzerParams`]: nvisy_schema::plan::AnalyzerParams
 //! [`Orchestrator`]: elide::Orchestrator
 //! [`Orchestrator::with_scope`]: elide::Orchestrator::with_scope
 
-#[cfg(feature = "internal_audio")]
-mod audio;
 mod catalog;
-mod enricher;
-#[cfg(feature = "internal_image")]
-mod image;
+mod enrichers;
 mod layer;
-mod recognizer;
-#[cfg(feature = "internal_tabular")]
-mod tabular;
-mod text;
-
-use elide::detection::Analyzer;
-use elide_core::Result;
-#[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
-use nvisy_schema::plan::AnalyzerParams;
+mod modality;
+mod recognizers;
 
 pub(crate) use self::catalog::{compile_catalog, policy_label_scope};
-use crate::provider::llm::LlmConfig;
-use crate::provider::ner::NerConfig;
-#[cfg(feature = "internal_image")]
-use crate::provider::ocr::OcrBackend;
 #[cfg(feature = "internal_audio")]
-use crate::provider::stt::SttBackend;
-
-/// Compile a [`nvisy_schema::plan::AnalyzerParams`] into a
-/// per-modality [`elide::detection::Analyzer`].
-///
-/// One method per modality; each picks the recognizers and
-/// enrichers the modality supports and rejects the rest at
-/// compile time (e.g. OCR on text, LLM on tabular). Every
-/// compile fn consults the deployment [`NerConfig`]; text and
-/// image also consult [`LlmConfig`]. Language detection always
-/// attaches to text; OCR and STT enrichers attach when their
-/// per-modality backend is wired on the engine.
-///
-/// Non-text methods are gated on their modality's feature.
-pub(crate) trait AnalyzerCompile {
-    /// Build the text-modality analyzer.
-    fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>>;
-    /// Build the tabular-modality analyzer.
-    #[cfg(feature = "internal_tabular")]
-    fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>>;
-    /// Build the image-modality analyzer.
-    #[cfg(feature = "internal_image")]
-    fn compile_image(
-        &self,
-        ner: &NerConfig,
-        llm: &LlmConfig,
-        ocr: Option<&OcrBackend>,
-    ) -> Result<Analyzer<Image>>;
-    /// Build the audio-modality analyzer.
-    #[cfg(feature = "internal_audio")]
-    fn compile_audio(&self, ner: &NerConfig, stt: Option<&SttBackend>) -> Result<Analyzer<Audio>>;
-}
-
-impl AnalyzerCompile for AnalyzerParams {
-    fn compile_text(&self, ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>> {
-        self::text::compile(self, ner, llm)
-    }
-
-    #[cfg(feature = "internal_tabular")]
-    fn compile_tabular(&self, ner: &NerConfig) -> Result<Analyzer<Tabular>> {
-        self::tabular::compile(self, ner)
-    }
-
-    #[cfg(feature = "internal_image")]
-    fn compile_image(
-        &self,
-        ner: &NerConfig,
-        llm: &LlmConfig,
-        ocr: Option<&OcrBackend>,
-    ) -> Result<Analyzer<Image>> {
-        self::image::compile(self, ner, llm, ocr)
-    }
-
-    #[cfg(feature = "internal_audio")]
-    fn compile_audio(&self, ner: &NerConfig, stt: Option<&SttBackend>) -> Result<Analyzer<Audio>> {
-        self::audio::compile(self, ner, stt)
-    }
-}
+pub(crate) use self::modality::compile_audio;
+#[cfg(feature = "internal_image")]
+pub(crate) use self::modality::compile_image;
+#[cfg(feature = "internal_tabular")]
+pub(crate) use self::modality::compile_tabular;
+pub(crate) use self::modality::compile_text;

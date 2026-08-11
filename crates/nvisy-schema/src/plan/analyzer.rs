@@ -6,7 +6,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::annotation::AnyAnnotations;
-use super::recognizer::RecognizerParams;
 
 /// Full description of how to build an analyzer for one
 /// request.
@@ -35,10 +34,6 @@ use super::recognizer::RecognizerParams;
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerParams {
-    /// Caller-inlined pattern rules and dictionaries. Adds to
-    /// the built-in `elide-pattern` set that always attaches.
-    #[serde(default)]
-    pub recognizers: RecognizerParams,
     /// Caller-asserted scope. See [`ScopeParams`].
     #[serde(default)]
     pub scope: ScopeParams,

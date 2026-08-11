@@ -931,7 +931,7 @@ checksum = "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d"
 [[package]]
 name = "elide"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "elide-codec",
@@ -969,7 +969,7 @@ dependencies = [
 [[package]]
 name = "elide-codec"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "bytes",
@@ -995,7 +995,7 @@ dependencies = [
 [[package]]
 name = "elide-context"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1006,7 +1006,7 @@ dependencies = [
 [[package]]
 name = "elide-core"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1024,7 +1024,7 @@ dependencies = [
 [[package]]
 name = "elide-detection"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "elide-core",
  "futures",
@@ -1036,7 +1036,7 @@ dependencies = [
 [[package]]
 name = "elide-engine"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "bytes",
  "elide-codec",
@@ -1051,7 +1051,7 @@ dependencies = [
 [[package]]
 name = "elide-fake"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1062,7 +1062,7 @@ dependencies = [
 [[package]]
 name = "elide-lingua"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1073,7 +1073,7 @@ dependencies = [
 [[package]]
 name = "elide-llm"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1095,7 +1095,7 @@ dependencies = [
 [[package]]
 name = "elide-ner"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1109,7 +1109,7 @@ dependencies = [
 [[package]]
 name = "elide-ocr"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1119,7 +1119,7 @@ dependencies = [
 [[package]]
 name = "elide-operator"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -1141,7 +1141,7 @@ dependencies = [
 [[package]]
 name = "elide-pattern"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "aho-corasick",
  "async-trait",
@@ -1161,7 +1161,7 @@ dependencies = [
 [[package]]
 name = "elide-redaction"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1175,7 +1175,7 @@ dependencies = [
 [[package]]
 name = "elide-stt"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c9599770b9ccef4acc077ba45c285af57e64a5f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#a743ed3a2eb8f63a01a8bb4a0e302e1f6b15d314"
 dependencies = [
  "async-trait",
  "elide-core",

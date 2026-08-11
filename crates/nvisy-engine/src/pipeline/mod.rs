@@ -98,12 +98,12 @@ use nvisy_schema::plan::AnalyzerParams;
 use nvisy_schema::policy::PolicyDefinition;
 
 pub use self::audit::{Audit, AuditContext};
-pub use self::registered::RegisteredRecognizer;
+pub use self::registered::{RegisteredEnricher, RegisteredRecognizer};
 use crate::entity::{EntityGroup, OverrideEntry, take_body, take_part};
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
-use crate::provider::ocr::OcrBackend;
-use crate::provider::stt::SttBackend;
+use crate::provider::ocr::OcrConfig;
+use crate::provider::stt::SttConfig;
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
@@ -118,8 +118,8 @@ pub struct Engine {
     formats: Arc<FormatRegistry>,
     ner: Arc<NerConfig>,
     llm: Arc<LlmConfig>,
-    ocr: Option<Arc<OcrBackend>>,
-    stt: Option<Arc<SttBackend>>,
+    ocr: Arc<OcrConfig>,
+    stt: Arc<SttConfig>,
     pub(super) key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
@@ -146,8 +146,8 @@ impl Engine {
             formats: Arc::new(FormatRegistry::with_builtin()),
             ner: Arc::new(NerConfig::default()),
             llm: Arc::new(LlmConfig::default()),
-            ocr: None,
-            stt: None,
+            ocr: Arc::new(OcrConfig::default()),
+            stt: Arc::new(SttConfig::default()),
             key_provider: None,
         }
     }
@@ -173,23 +173,29 @@ impl Engine {
         self
     }
 
-    /// Wire the deployment's OCR enricher.
+    /// Set the deployment's OCR enricher lineup.
     ///
-    /// Attaches to the image-modality analyzer on every request.
-    /// Skipped when unset.
+    /// The enricher attaches to the image-modality analyzer on
+    /// every request. Only one enricher attaches per analyzer
+    /// today; the request compile rejects `enrichers.len() > 1`
+    /// with a Configuration error. An empty lineup skips the
+    /// enricher attach.
     #[must_use]
-    pub fn with_ocr(mut self, backend: OcrBackend) -> Self {
-        self.ocr = Some(Arc::new(backend));
+    pub fn with_ocr(mut self, ocr: OcrConfig) -> Self {
+        self.ocr = Arc::new(ocr);
         self
     }
 
-    /// Wire the deployment's speech-to-text enricher.
+    /// Set the deployment's STT enricher lineup.
     ///
-    /// Attaches to the audio-modality analyzer on every request.
-    /// Skipped when unset.
+    /// The enricher attaches to the audio-modality analyzer on
+    /// every request. Only one enricher attaches per analyzer
+    /// today; the request compile rejects `enrichers.len() > 1`
+    /// with a Configuration error. An empty lineup skips the
+    /// enricher attach.
     #[must_use]
-    pub fn with_stt(mut self, backend: SttBackend) -> Self {
-        self.stt = Some(Arc::new(backend));
+    pub fn with_stt(mut self, stt: SttConfig) -> Self {
+        self.stt = Arc::new(stt);
         self
     }
 
@@ -225,6 +231,18 @@ impl Engine {
     /// configuration order.
     pub fn llm_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
         self.llm.recognizers.iter().map(Into::into)
+    }
+
+    /// Every OCR enricher this engine has registered, in
+    /// configuration order.
+    pub fn ocr_enrichers(&self) -> impl ExactSizeIterator<Item = RegisteredEnricher> {
+        self.ocr.enrichers.iter().map(Into::into)
+    }
+
+    /// Every STT enricher this engine has registered, in
+    /// configuration order.
+    pub fn stt_enrichers(&self) -> impl ExactSizeIterator<Item = RegisteredEnricher> {
+        self.stt.enrichers.iter().map(Into::into)
     }
 
     /// Analyze one document into an [`Audit`].

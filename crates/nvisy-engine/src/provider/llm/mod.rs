@@ -9,7 +9,7 @@
 //! ## Layout
 //!
 //! - [`LlmConfig`] is the top-level bag: the recognizer lineup.
-//! - [`LlmRecognizer`] declares one recognizer instance: source
+//! - [`LlmRecognizerConfig`] declares one recognizer instance: source
 //!   + optional prompt + which modalities it attaches to.
 //! - [`LlmSource`] is the discriminated source enum, wrapping
 //!   [`elide::recognition::llm::provider::Provider`]'s variants
@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::attach::AttachTo;
 pub use self::prompt::LlmPrompt;
-pub use self::recognizer::{LlmRecognizer, LlmSource};
+pub use self::recognizer::{LlmRecognizerConfig, LlmSource};
 
 /// Top-level LLM configuration. Loaded from the deployment's
 /// `[llm]` config section.
@@ -41,7 +41,7 @@ pub use self::recognizer::{LlmRecognizer, LlmSource};
 pub struct LlmConfig {
     /// The recognizer lineup. Every entry runs on every analyzer
     /// whose modality it declares (see
-    /// [`LlmRecognizer::modalities`]).
+    /// [`LlmRecognizerConfig::modalities`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub recognizers: Vec<LlmRecognizer>,
+    pub recognizers: Vec<LlmRecognizerConfig>,
 }

@@ -40,16 +40,11 @@
 mod analyzer;
 mod anonymizer;
 pub mod entity;
-pub mod modality;
 mod pipeline;
-pub mod plan;
-pub mod primitive;
 pub mod provider;
 
 #[doc(inline)]
-pub use elide::codec::FormatRegistry;
-#[doc(inline)]
-pub use elide::redaction::operators::{KeyProvider, StaticKey};
+pub use elide::redaction::operators::KeyProvider;
 #[doc(inline)]
 pub use elide_core::primitive::OcrMode;
 pub use elide_core::{Error, ErrorKind, Result};

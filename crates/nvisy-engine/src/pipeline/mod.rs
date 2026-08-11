@@ -113,7 +113,7 @@ use crate::provider::stt::SttBackend;
 /// per-request orchestrator constructor.
 ///
 /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Engine {
     formats: Arc<FormatRegistry>,
     ner: Arc<NerConfig>,
@@ -210,31 +210,19 @@ impl Engine {
         self
     }
 
-    /// The codec registry.
-    ///
-    /// Pipeline calls reach for it to decode raw bytes into an
-    /// [`UntypedDocumentHandle`].
+    /// The codec registry the engine decodes documents through.
     pub fn formats(&self) -> &FormatRegistry {
         &self.formats
     }
 
     /// Every NER recognizer this engine has registered, in
     /// configuration order.
-    ///
-    /// Feeds a "list recognizers" endpoint. Each entry carries
-    /// name, optional description, and provider slug; connection
-    /// details and (future) credentials stay in the private
-    /// [`NerConfig`].
     pub fn ner_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
         self.ner.recognizers.iter().map(Into::into)
     }
 
     /// Every LLM recognizer this engine has registered, in
     /// configuration order.
-    ///
-    /// Same shape as [`ner_recognizers`], for the LLM lineup.
-    ///
-    /// [`ner_recognizers`]: Self::ner_recognizers
     pub fn llm_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
         self.llm.recognizers.iter().map(Into::into)
     }
@@ -510,6 +498,12 @@ impl Engine {
         _ocr_mode: OcrMode,
     ) -> std::result::Result<UntypedDocumentHandle, elide_core::Error> {
         self.formats.decode(bytes, extension).await
+    }
+}
+
+impl Default for Engine {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

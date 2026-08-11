@@ -11,7 +11,7 @@
 //! ## Layout
 //!
 //! - [`NerConfig`] is the top-level bag: the recognizer lineup.
-//! - [`NerRecognizer`] declares one recognizer instance:
+//! - [`NerRecognizerConfig`] declares one recognizer instance:
 //!   name (for provenance) + backend selection with its
 //!   per-kind fields flattened onto the wire.
 //! - [`NerBackend`] is the discriminated backend enum:
@@ -22,7 +22,7 @@ mod recognizer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::recognizer::{NerBackend, NerRecognizer};
+pub use self::recognizer::{NerBackend, NerRecognizerConfig};
 
 /// Top-level NER configuration. Loaded from the deployment's
 /// `[ner]` config section.
@@ -33,5 +33,5 @@ pub struct NerConfig {
     /// `recognizers.ner` selects it (by allowlist name or by
     /// running the whole lineup).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub recognizers: Vec<NerRecognizer>,
+    pub recognizers: Vec<NerRecognizerConfig>,
 }

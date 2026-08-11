@@ -1,4 +1,4 @@
-//! [`LlmRecognizer`]: one entry in the deployment's LLM lineup.
+//! [`LlmRecognizerConfig`]: one entry in the deployment's LLM lineup.
 
 use elide::recognition::llm::provider::{AuthenticatedProvider, UnauthenticatedProvider};
 use hipstr::HipStr;
@@ -17,7 +17,7 @@ use super::{AttachTo, LlmPrompt};
 /// [`modalities`]: Self::modalities
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct LlmRecognizer {
+pub struct LlmRecognizerConfig {
     /// Recognizer name. Surfaces on the per-entity provenance
     /// trail so audits can attribute detections to a specific
     /// configured recognizer. Must be unique across the

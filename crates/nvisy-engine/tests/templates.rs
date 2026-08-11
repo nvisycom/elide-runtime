@@ -10,7 +10,8 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use nvisy_engine::{Engine, KeyProvider, StaticKey};
+use elide::redaction::operators::StaticKey;
+use nvisy_engine::{Engine, KeyProvider};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_template::{

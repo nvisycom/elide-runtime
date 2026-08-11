@@ -1,4 +1,4 @@
-//! [`NerRecognizer`]: one entry in the deployment's NER lineup.
+//! [`NerRecognizerConfig`]: one entry in the deployment's NER lineup.
 
 use hipstr::HipStr;
 use schemars::JsonSchema;
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// [`NerConfig::recognizers`]: super::NerConfig::recognizers
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct NerRecognizer {
+pub struct NerRecognizerConfig {
     /// Recognizer name. Surfaces on the per-entity provenance
     /// trail so audits can attribute detections to a specific
     /// configured recognizer. Must be unique across the

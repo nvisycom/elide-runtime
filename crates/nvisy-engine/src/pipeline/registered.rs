@@ -10,8 +10,8 @@ use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::provider::llm::LlmRecognizer;
-use crate::provider::ner::NerRecognizer;
+use crate::provider::llm::LlmRecognizerConfig;
+use crate::provider::ner::NerRecognizerConfig;
 
 /// Public view of one recognizer in the engine's NER or LLM
 /// lineup.
@@ -41,8 +41,8 @@ pub struct RegisteredRecognizer {
     pub provider: &'static str,
 }
 
-impl From<&NerRecognizer> for RegisteredRecognizer {
-    fn from(r: &NerRecognizer) -> Self {
+impl From<&NerRecognizerConfig> for RegisteredRecognizer {
+    fn from(r: &NerRecognizerConfig) -> Self {
         Self {
             name: r.name.clone(),
             description: r.description.clone(),
@@ -51,8 +51,8 @@ impl From<&NerRecognizer> for RegisteredRecognizer {
     }
 }
 
-impl From<&LlmRecognizer> for RegisteredRecognizer {
-    fn from(r: &LlmRecognizer) -> Self {
+impl From<&LlmRecognizerConfig> for RegisteredRecognizer {
+    fn from(r: &LlmRecognizerConfig) -> Self {
         Self {
             name: r.name.clone(),
             description: r.description.clone(),

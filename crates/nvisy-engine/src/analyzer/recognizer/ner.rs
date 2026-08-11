@@ -1,6 +1,6 @@
 //! Attach the deployment's NER lineup to a per-modality
 //! [`Analyzer`]. Walks [`NerConfig::recognizers`] and builds one
-//! `NerRecognizer` per entry via `elide-bento`'s `BentoNer`
+//! elide `NerRecognizer` per entry via `elide-bento`'s `BentoNer`
 //! backend (or `MockBackend` under the `test-utils` feature).
 //!
 //! Every configured recognizer attaches to every request; the
@@ -16,7 +16,7 @@ use elide_core::Result;
 use elide_core::modality::TextRecognizable;
 use elide_core::recognition::Recognizer;
 
-use crate::provider::ner::{NerBackend, NerConfig, NerRecognizer as ConfigNerRecognizer};
+use crate::provider::ner::{NerBackend, NerConfig, NerRecognizerConfig};
 
 /// Attach every recognizer in `ner` to `analyzer`.
 pub(in crate::analyzer) fn attach_ner_lineup<M>(
@@ -33,7 +33,7 @@ where
     Ok(analyzer)
 }
 
-fn attach_ner_one<M>(analyzer: Analyzer<M>, spec: &ConfigNerRecognizer) -> Result<Analyzer<M>>
+fn attach_ner_one<M>(analyzer: Analyzer<M>, spec: &NerRecognizerConfig) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     NerRecognizer: Recognizer<M> + 'static,

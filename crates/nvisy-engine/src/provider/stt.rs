@@ -4,8 +4,7 @@
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum SttBackend {
-    /// BentoML-hosted STT service. Not wired into the compile
-    /// surface yet — `elide-bento` needs a `BentoStt` client.
+    /// BentoML-hosted STT service.
     Bento {
         /// Base URL of the BentoML service.
         base_url: String,

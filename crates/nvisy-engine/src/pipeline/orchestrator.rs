@@ -58,7 +58,13 @@ use uuid::Uuid;
 
 use super::Engine;
 use super::audit::AuditContext;
-use crate::analyzer::{AnalyzerCompile, compile_catalog};
+#[cfg(feature = "internal_audio")]
+use crate::analyzer::compile_audio;
+#[cfg(feature = "internal_image")]
+use crate::analyzer::compile_image;
+#[cfg(feature = "internal_tabular")]
+use crate::analyzer::compile_tabular;
+use crate::analyzer::{compile_catalog, compile_text};
 use crate::anonymizer::{TextOperatorContext, attach_override_text, attach_policies_text};
 #[cfg(feature = "internal_audio")]
 use crate::anonymizer::{attach_override_audio, attach_policies_audio};
@@ -106,7 +112,7 @@ impl Engine {
         let live_scope = build_scope(&context, catalog.clone(), correlation_id);
 
         let text_anon = assemble_empty::<Text>(&catalog);
-        let text_analyzer = spec.compile_text(&self.ner, &self.llm)?;
+        let text_analyzer = compile_text(&self.ner, &self.llm)?;
 
         let orchestrator = Orchestrator::new(&self.formats)
             .with_scope(live_scope)
@@ -115,21 +121,21 @@ impl Engine {
         #[cfg(feature = "internal_tabular")]
         let orchestrator = {
             let anon = assemble_empty::<Tabular>(&catalog);
-            let analyzer = spec.compile_tabular(&self.ner)?;
+            let analyzer = compile_tabular(&self.ner)?;
             orchestrator.with_modality::<Tabular>(analyzer, anon)
         };
 
         #[cfg(feature = "internal_image")]
         let orchestrator = {
             let anon = assemble_empty::<Image>(&catalog);
-            let analyzer = spec.compile_image(&self.ner, &self.llm, self.ocr.as_deref())?;
+            let analyzer = compile_image(&self.ner, &self.llm, self.ocr.as_deref())?;
             orchestrator.with_modality::<Image>(analyzer, anon)
         };
 
         #[cfg(feature = "internal_audio")]
         let orchestrator = {
             let anon = assemble_empty::<Audio>(&catalog);
-            let analyzer = spec.compile_audio(&self.ner, self.stt.as_deref())?;
+            let analyzer = compile_audio(&self.ner, self.stt.as_deref())?;
             orchestrator.with_modality::<Audio>(analyzer, anon)
         };
 

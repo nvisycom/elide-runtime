@@ -24,7 +24,7 @@ use elide_core::modality::Modality;
 use elide_core::primitive::ConfidenceThreshold;
 
 /// Append the deduplication layers to `analyzer`.
-pub(in crate::analyzer) fn attach<M>(analyzer: Analyzer<M>) -> Analyzer<M>
+pub(super) fn attach_dedup<M>(analyzer: Analyzer<M>) -> Analyzer<M>
 where
     M: Modality,
 {

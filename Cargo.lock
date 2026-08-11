@@ -959,6 +959,7 @@ dependencies = [
  "elide-core",
  "elide-ner",
  "elide-ocr",
+ "elide-stt",
  "hipstr",
  "serde",
  "thiserror",

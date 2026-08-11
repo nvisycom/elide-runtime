@@ -1,5 +1,5 @@
-//! Authored recognition plan: caller-inlined pattern extras,
-//! scope, annotations, and per-request codec knobs.
+//! Authored recognition plan: scope, annotations, and per-request
+//! codec knobs.
 //!
 //! Serialisable description of how to build an analyzer for a
 //! request. Symmetric with [`policy`]. Where policy describes
@@ -10,12 +10,8 @@
 //!
 //! ## Layout
 //!
-//! - [`AnalyzerParams`]: top-level. Caller-inlined pattern
-//!   extras, scope, region annotations, per-request OCR mode.
-//! - [`RecognizerParams`]: caller-inlined regex rules and
-//!   dictionaries. The bare built-in pattern recognizer is
-//!   always attached; NER and LLM recognizers wired via
-//!   `Engine::with_ner` / `Engine::with_llm` always run.
+//! - [`AnalyzerParams`]: top-level. Scope, region annotations,
+//!   per-request OCR mode.
 //! - [`AnyAnnotations`]: per-modality region annotations
 //!   (inclusions / exclusions).
 //!
@@ -30,13 +26,6 @@
 
 mod analyzer;
 mod annotation;
-mod pattern;
-mod recognizer;
 
 pub use self::analyzer::{AnalyzerParams, ScopeParams, scope_metadata_is_empty};
 pub use self::annotation::AnyAnnotations;
-pub use self::pattern::{
-    CustomDictionary, CustomDictionaryTerm, CustomPatternContext, CustomPatternRule,
-    CustomPatternVariant, MAX_REGEX_SOURCE_LEN,
-};
-pub use self::recognizer::RecognizerParams;

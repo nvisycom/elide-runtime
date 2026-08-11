@@ -11,3 +11,7 @@ pub mod ner;
 #[cfg(feature = "ocr")]
 #[cfg_attr(docsrs, doc(cfg(feature = "ocr")))]
 pub mod ocr;
+
+#[cfg(feature = "stt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stt")))]
+pub mod stt;

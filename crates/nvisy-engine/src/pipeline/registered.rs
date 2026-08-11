@@ -5,6 +5,10 @@
 //! [`crate::Engine::llm_recognizers`] so operators and SDK
 //! callers can list what's registered without seeing backend
 //! connection details or (future) credentials.
+//!
+//! [`RegisteredEnricher`] is a type alias for the same shape,
+//! returned by [`crate::Engine::ocr_enrichers`] and
+//! [`crate::Engine::stt_enrichers`].
 
 use hipstr::HipStr;
 use schemars::JsonSchema;
@@ -12,6 +16,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::provider::llm::LlmRecognizerConfig;
 use crate::provider::ner::NerRecognizerConfig;
+use crate::provider::ocr::OcrEnricherConfig;
+use crate::provider::stt::SttEnricherConfig;
 
 /// Public view of one recognizer in the engine's NER or LLM
 /// lineup.
@@ -57,6 +63,31 @@ impl From<&LlmRecognizerConfig> for RegisteredRecognizer {
             name: r.name.clone(),
             description: r.description.clone(),
             provider: r.source.provider(),
+        }
+    }
+}
+
+/// Public view of one enricher in the engine's OCR or STT
+/// lineup. Same shape as [`RegisteredRecognizer`] because both
+/// carry a name, an optional description, and a provider slug.
+pub type RegisteredEnricher = RegisteredRecognizer;
+
+impl From<&OcrEnricherConfig> for RegisteredRecognizer {
+    fn from(e: &OcrEnricherConfig) -> Self {
+        Self {
+            name: e.name.clone(),
+            description: e.description.clone(),
+            provider: e.backend.provider(),
+        }
+    }
+}
+
+impl From<&SttEnricherConfig> for RegisteredRecognizer {
+    fn from(e: &SttEnricherConfig) -> Self {
+        Self {
+            name: e.name.clone(),
+            description: e.description.clone(),
+            provider: e.backend.provider(),
         }
     }
 }

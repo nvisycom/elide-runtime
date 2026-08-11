@@ -17,5 +17,5 @@ pub use self::llm::{
     UnauthenticatedProvider,
 };
 pub use self::ner::{NerBackend, NerConfig, NerRecognizerConfig};
-pub use self::ocr::OcrBackend;
-pub use self::stt::SttBackend;
+pub use self::ocr::{OcrBackend, OcrConfig, OcrEnricherConfig};
+pub use self::stt::{SttBackend, SttConfig, SttEnricherConfig};

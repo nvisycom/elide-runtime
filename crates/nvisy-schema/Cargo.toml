@@ -25,10 +25,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 
-## Test-only wire variants (`NerBackendParams::Mock`, `OcrBackendParams::Mock`,
-## `SttBackendParams::Mock`). Off in production so `Nvisy.toml` and inbound
-## requests cannot ship a mock backend; on in downstream crates'
-## dev-dependencies so integration tests can construct a working analyzer.
+## Reserved for future wire-level test-only variants. No schema
+## types gate on it today; downstream crates can still enable it
+## in their dev-dependencies without effect.
 test-utils = []
 
 [dependencies]

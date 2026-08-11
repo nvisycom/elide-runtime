@@ -73,6 +73,10 @@ use crate::anonymizer::{attach_override_image, attach_policies_image};
 #[cfg(feature = "internal_tabular")]
 use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
 use crate::entity::OverrideEntry;
+#[cfg(feature = "internal_image")]
+use crate::provider::ocr::{OcrBackend, OcrConfig};
+#[cfg(feature = "internal_audio")]
+use crate::provider::stt::{SttBackend, SttConfig};
 
 impl Engine {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -128,14 +132,14 @@ impl Engine {
         #[cfg(feature = "internal_image")]
         let orchestrator = {
             let anon = assemble_empty::<Image>(&catalog);
-            let analyzer = compile_image(&self.ner, &self.llm, self.ocr.as_deref())?;
+            let analyzer = compile_image(&self.ner, &self.llm, pick_ocr(&self.ocr)?)?;
             orchestrator.with_modality::<Image>(analyzer, anon)
         };
 
         #[cfg(feature = "internal_audio")]
         let orchestrator = {
             let anon = assemble_empty::<Audio>(&catalog);
-            let analyzer = compile_audio(&self.ner, self.stt.as_deref())?;
+            let analyzer = compile_audio(&self.ner, pick_stt(&self.stt)?)?;
             orchestrator.with_modality::<Audio>(analyzer, anon)
         };
 
@@ -352,6 +356,46 @@ where
 /// `ModalityRedactions` field to read and how to build the typed
 /// operator. This helper owns the invariant order and the error
 /// wrapping so each modality's callsite is one call.
+/// Pick the single OCR backend from the engine's lineup, or
+/// return `None` when nothing was wired. Rejects a lineup with
+/// more than one entry — elide's `Enricher<Image>` attaches at
+/// most one OCR enricher per analyzer.
+#[cfg(feature = "internal_image")]
+fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrBackend>> {
+    match ocr.enrichers.as_slice() {
+        [] => Ok(None),
+        [one] => Ok(Some(&one.backend)),
+        many => Err(Error::new(
+            ErrorKind::Configuration,
+            format!(
+                "OCR enricher lineup carries {} entries; elide attaches at most one \
+                 per analyzer today. Wire exactly one enricher.",
+                many.len(),
+            ),
+        )),
+    }
+}
+
+/// Pick the single STT backend from the engine's lineup, or
+/// return `None` when nothing was wired. Rejects a lineup with
+/// more than one entry — elide's `Enricher<Audio>` attaches at
+/// most one STT enricher per analyzer.
+#[cfg(feature = "internal_audio")]
+fn pick_stt(stt: &SttConfig) -> Result<Option<&SttBackend>> {
+    match stt.enrichers.as_slice() {
+        [] => Ok(None),
+        [one] => Ok(Some(&one.backend)),
+        many => Err(Error::new(
+            ErrorKind::Configuration,
+            format!(
+                "STT enricher lineup carries {} entries; elide attaches at most one \
+                 per analyzer today. Wire exactly one enricher.",
+                many.len(),
+            ),
+        )),
+    }
+}
+
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
     overrides: &[OverrideEntry],

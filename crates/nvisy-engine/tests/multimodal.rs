@@ -10,7 +10,7 @@ use std::io::{Cursor, Read};
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
 use nvisy_engine::entity::Review;
-use nvisy_engine::provider::OcrBackend;
+use nvisy_engine::provider::{OcrBackend, OcrConfig, OcrEnricherConfig};
 use nvisy_engine::{Audit, AuditContext, Engine, EntityGroup};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
@@ -27,7 +27,13 @@ fn raw_docx() -> Document {
 }
 
 fn engine() -> Engine {
-    Engine::new().with_ocr(OcrBackend::Mock)
+    Engine::new().with_ocr(OcrConfig {
+        enrichers: vec![OcrEnricherConfig {
+            name: "mock".into(),
+            description: None,
+            backend: OcrBackend::Mock,
+        }],
+    })
 }
 
 fn default_spec() -> AnalyzerParams {

@@ -1,7 +1,7 @@
 # Nvisy Runtime
 
 [![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/runtime-build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/runtime-build.yml)
-[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/inference-build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/inference-build.yml)
+[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/bento/inference-build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/bento/actions/workflows/inference-build.yml)
 
 Multimodal redaction library and its inference services.
 
@@ -26,15 +26,10 @@ pipeline) embed the engine directly.
 - **[nvisy-schema](crates/nvisy-schema/)**: wire schema for plan, file, and the `elide-core` slice; re-exports `nvisy-policy`
 - **[nvisy-template](crates/nvisy-template/)**: ready-to-run policy templates for common regulatory postures (HIPAA, GDPR, PCI DSS, CCPA)
 - **[nvisy-engine](crates/nvisy-engine/)**: stateless pipeline (decode, analyze, apply) wrapping elide, hosting the per-modality orchestrator and the deployment-side NER / LLM recognizer configuration
-- **[elide-bento](crates/elide-bento/)**: BentoML-hosted NER and OCR client implementing elide's recognizer traits
 
-Python packages ([`packages/`](packages/)) — BentoML services shipped
-as Docker containers, called over HTTP by `elide-bento`.
-
-- **[nvisy-core](packages/nvisy-core/)**: shared Python types and runtime helpers
-- **[nvisy-ner](packages/nvisy-ner/)**: GLiNER-based named-entity recognition
-- **[nvisy-ocr](packages/nvisy-ocr/)**: docTR-based detection OCR (text plus word-level geometry)
-- **[nvisy-vl](packages/nvisy-vl/)**: PaddleOCR-VL vision-language OCR (high-accuracy transcription and layout)
+The BentoML inference services and their Rust client (`elide-bento`)
+live in a sibling repository, [nvisycom/bento](https://github.com/nvisycom/bento);
+this workspace consumes `elide-bento` as a git dependency.
 
 ## Features
 

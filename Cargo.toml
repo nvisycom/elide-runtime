@@ -3,15 +3,11 @@
 [workspace]
 resolver = "3"
 members = [
-    "./crates/elide-bento",
     "./crates/nvisy-engine",
     "./crates/nvisy-policy",
     "./crates/nvisy-schema",
     "./crates/nvisy-template",
 ]
-# Python (uv) workspace lives in `packages/`. Excluded so cargo
-# doesn't glob-scan it or complain about missing Cargo.toml files.
-exclude = ["packages/"]
 
 [workspace.package]
 version = "0.1.0"
@@ -40,7 +36,7 @@ elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", d
 elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Elide extensions
-elide-bento = { path = "./crates/elide-bento", version = "0.1.0" }
+elide-bento = { git = "https://github.com/nvisycom/bento", branch = "main", default-features = false }
 
 # Internal crates
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }

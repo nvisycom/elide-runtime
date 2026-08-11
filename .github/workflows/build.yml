@@ -1,4 +1,4 @@
-name: Runtime Build
+name: Build
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rustfmt.toml"
-      - ".github/workflows/runtime-build.yml"
+      - ".github/workflows/build.yml"
   pull_request:
     branches:
       - "main"
@@ -20,7 +20,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rustfmt.toml"
-      - ".github/workflows/runtime-build.yml"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 env:

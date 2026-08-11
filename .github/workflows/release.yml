@@ -1,4 +1,4 @@
-name: Runtime Release
+name: Release
 
 on:
   push:

@@ -1,6 +1,6 @@
 # nvisy-schema
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/runtime-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/runtime-build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
 Wire schema for the Nvisy platform: plan, file, and the `elide-core`
 slice, plus a re-export of `nvisy-policy`.

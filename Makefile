@@ -1,4 +1,4 @@
-# Makefile for the Nvisy runtime workspace (Rust crates).
+# Makefile for the Nvisy runtime (Rust workspace).
 
 # Default to a single recipe shell so a failure inside a piped
 # command (e.g. server panics under `tee`) is reported by make.

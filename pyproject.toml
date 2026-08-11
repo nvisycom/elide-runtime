@@ -1,5 +1,5 @@
 [project]
-name = "nvisy-inference"
+name = "elide-bento"
 version = "0.1.0"
 description = "Externalized model inference for nvisy (BentoML HTTP services)"
 readme = "README.md"
@@ -11,7 +11,7 @@ authors = [{ name = "Nvisy" }]
 members = ["packages/*"]
 
 [tool.uv.sources]
-nvisy-core = { workspace = true }
+elide-bento-core = { workspace = true }
 
 [tool.uv]
 required-version = ">=0.7"

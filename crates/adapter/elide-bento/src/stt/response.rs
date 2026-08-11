@@ -1,6 +1,6 @@
 //! Incoming wire types for the STT `/transcribe` endpoint.
 //!
-//! Mirrors `nvisy_core.stt.v1.SttResponse` from the inference
+//! Mirrors `elide_bento_core.stt.v1.SttResponse` from the inference
 //! repository: ordered `segments`, each with millisecond timings,
 //! the recognised text, and optional diarization / language /
 //! confidence / per-word breakdowns. Fields the service emits but

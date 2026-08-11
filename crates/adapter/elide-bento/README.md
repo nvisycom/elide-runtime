@@ -1,6 +1,6 @@
 # elide-bento
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/bento/inference-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/bento/actions/workflows/inference-build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/bento/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/bento/actions/workflows/build.yml)
 
 Shared BentoML HTTP client wrapper for elide backends.
 

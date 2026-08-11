@@ -1,5 +1,5 @@
 //! [`BentoStt`]: an [`SttBackend`] backed by the
-//! `nvisy-inference-stt` BentoML service.
+//! `elide-bento-stt` BentoML service.
 //!
 //! Wire contract: `POST /transcribe` accepts a single request
 //! (base64-encoded audio bytes plus optional filename and
@@ -35,7 +35,7 @@ const ROUTE: &str = "transcribe";
 
 /// BentoML STT backend.
 ///
-/// Owns a cached [`Endpoint`] pointing at the `nvisy-inference-stt`
+/// Owns a cached [`Endpoint`] pointing at the `elide-bento-stt`
 /// `/transcribe` route, plus the per-deployment model id (echoed
 /// into [`SttBackend::provenance`]).
 #[derive(Debug, Clone)]

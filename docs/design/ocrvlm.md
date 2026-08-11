@@ -1,6 +1,6 @@
 # Vision-language OCR — why we use it
 
-`nvisy-vl` (PaddleOCR-VL) is the vision-language OCR service. It reads a
+`elide-bento-vl` (PaddleOCR-VL) is the vision-language OCR service. It reads a
 document image and returns block-level **regions** — each with text, a layout
 kind (text/table/figure/other), a bounding box, and a reading-order index. It is
 the source of high-accuracy *text* the runtime uses to refine the detection-OCR
@@ -35,10 +35,10 @@ docTR's and aren't safe to bet mask precision on.
 - **Multilingual.** 109 languages out of the box, no per-language routing.
 
 Contract:
-[`nvisy_core.ocrvl.v1`](../../packages/nvisy-core/src/nvisy_core/ocrvl/v1.py).
+[`elide_bento_core.ocrvl.v1`](../../packages/elide-bento-core/src/elide_bento_core/ocrvl/v1.py).
 Maps the engine's fine-grained labels onto the canonical `BlockKind` via the
 service's
-[`block_map`](../../packages/nvisy-vl/src/nvisy_vl/block_map.py).
+[`block_map`](../../packages/elide-bento-vl/src/elide_bento_vl/block_map.py).
 
 ## What it is *not*
 
@@ -80,4 +80,4 @@ worth tracking:
   worth evaluating as the model landscape moves.
 
 A formal SOTA review is tracked at
-[issue #19](https://github.com/nvisycom/runtime/issues/297).
+[issue #2](https://github.com/nvisycom/bento/issues/2).

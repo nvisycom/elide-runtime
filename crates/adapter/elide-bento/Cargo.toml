@@ -25,13 +25,13 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["ner", "ocr", "stt"]
 ## Ship the NER backend (implements `elide_ner::backend::NerBackend`
-## against the `nvisy-inference-ner` BentoML service).
+## against the `elide-bento-ner` BentoML service).
 ner = ["dep:elide-ner"]
 ## Ship the OCR backend (implements `elide_ocr::OcrBackend`
-## against the `nvisy-inference-ocr` BentoML service).
+## against the `elide-bento-ocr` BentoML service).
 ocr = ["dep:elide-ocr", "dep:base64", "elide-core/image"]
 ## Ship the STT backend (implements `elide_stt::backend::SttBackend`
-## against the `nvisy-inference-stt` BentoML service).
+## against the `elide-bento-stt` BentoML service).
 stt = ["dep:elide-stt", "dep:base64", "elide-core/audio"]
 
 [dependencies]

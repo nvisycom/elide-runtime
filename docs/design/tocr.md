@@ -1,6 +1,6 @@
 # Traditional OCR (docTR) — why we use it
 
-`nvisy-ocr` (docTR) is the default OCR engine. It turns an image into a
+`elide-bento-ocr` (docTR) is the default OCR engine. It turns an image into a
 `Page → Block → Line → Word` hierarchy with geometry, and is the source of the
 text regions the runtime masks.
 
@@ -35,7 +35,7 @@ Per word: text, confidence, an axis-aligned pixel `BoundingBox`, and a `polygon`
 when the region is rotated. Confidence is word-level only (docTR does not
 aggregate to the line). Base docTR has no layout classification, so blocks
 default to `BlockKind.TEXT`. Contract:
-[`nvisy_core.ocr.v1`](../../packages/nvisy-core/src/nvisy_core/ocr/v1.py).
+[`elide_bento_core.ocr.v1`](../../packages/elide-bento-core/src/elide_bento_core/ocr/v1.py).
 
 ## What it is *not*
 
@@ -51,7 +51,7 @@ default to `BlockKind.TEXT`. Contract:
 Geometry is always produced by this service; the wire contract is ours, so any
 detection+recognition engine that fills `Page → Block → Line → Word` can replace
 docTR without touching the runtime. Model selection is the `det+rec` pair via
-`NVISY_MODEL_NAME`, with BYO weights via `NVISY_MODEL_PATH`.
+`ELIDE_BENTO_MODEL_NAME`, with BYO weights via `ELIDE_BENTO_MODEL_PATH`.
 
 A formal SOTA review is tracked at
-[issue #18](https://github.com/nvisycom/runtime/issues/298).
+[issue #3](https://github.com/nvisycom/bento/issues/3).

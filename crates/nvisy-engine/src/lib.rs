@@ -44,12 +44,18 @@ mod pipeline;
 pub mod provider;
 
 #[doc(inline)]
+pub use elide::codec::FormatRegistry;
+#[doc(inline)]
 pub use elide::redaction::operators::KeyProvider;
 #[doc(inline)]
 pub use elide_core::primitive::OcrMode;
 pub use elide_core::{Error, ErrorKind, Result};
 #[doc(inline)]
 pub use nvisy_schema::file::{Document, FileMetadata};
+/// Authored recognition plan: `AnalyzerParams`, caller-inlined
+/// pattern extras, scope, region annotations.
+#[doc(inline)]
+pub use nvisy_schema::plan;
 /// Authored redaction governance: policies, rules, predicates,
 /// operators.
 #[doc(inline)]

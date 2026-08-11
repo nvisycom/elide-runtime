@@ -15,11 +15,11 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "nvisy-core",
-    "nvisy-inference",
-    "nvisy-ner",
-    "nvisy-ocr",
-    "nvisy-vl",
+    "elide-bento",
+    "elide-bento-core",
+    "elide-bento-ner",
+    "elide-bento-ocr",
+    "elide-bento-vl",
 ]
 constraints = [
     { name = "aiohttp", specifier = ">=3.14.0" },
@@ -561,6 +561,113 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2c/77/850bef8d72ffb9219f0b1aac23fbc1bf7d038ee6ea666f331fa273031aa2/einops-0.8.2.tar.gz", hash = "sha256:609da665570e5e265e27283aab09e7f279ade90c4f01bcfca111f3d3e13f2827", size = 56261, upload-time = "2026-01-26T04:13:17.638Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/09/f8d8f8f31e4483c10a906437b4ce31bdf3d6d417b73fe33f1a8b59e34228/einops-0.8.2-py3-none-any.whl", hash = "sha256:54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193", size = 65638, upload-time = "2026-01-26T04:13:18.546Z" },
+]
+
+[[package]]
+name = "elide-bento"
+version = "0.1.0"
+source = { virtual = "." }
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.0" },
+]
+
+[[package]]
+name = "elide-bento-core"
+version = "0.1.0"
+source = { editable = "packages/elide-bento-core" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.7,<3" }]
+
+[[package]]
+name = "elide-bento-ner"
+version = "0.1.0"
+source = { editable = "packages/elide-bento-ner" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "bentoml" },
+    { name = "elide-bento-core" },
+    { name = "gliner2" },
+    { name = "prometheus-client" },
+    { name = "transformers" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14.3,<4" },
+    { name = "bentoml", specifier = ">=1.4.39,<2" },
+    { name = "elide-bento-core", editable = "packages/elide-bento-core" },
+    { name = "gliner2", specifier = ">=1.3.2,<2" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "transformers", specifier = ">=5.14.1" },
+]
+
+[[package]]
+name = "elide-bento-ocr"
+version = "0.1.0"
+source = { editable = "packages/elide-bento-ocr" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "bentoml" },
+    { name = "elide-bento-core" },
+    { name = "onnx" },
+    { name = "pillow" },
+    { name = "prometheus-client" },
+    { name = "python-doctr" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14.3,<4" },
+    { name = "bentoml", specifier = ">=1.4.39,<2" },
+    { name = "elide-bento-core", editable = "packages/elide-bento-core" },
+    { name = "onnx", specifier = ">=1.22.0" },
+    { name = "pillow", specifier = ">=12.3.0,<13" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "python-doctr", specifier = ">=1.0,<2" },
+]
+
+[[package]]
+name = "elide-bento-vl"
+version = "0.1.0"
+source = { editable = "packages/elide-bento-vl" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "bentoml" },
+    { name = "elide-bento-core" },
+    { name = "paddleocr" },
+    { name = "paddlepaddle" },
+    { name = "paddlex", extra = ["ocr"] },
+    { name = "pillow" },
+    { name = "prometheus-client" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14.3,<4" },
+    { name = "bentoml", specifier = ">=1.4.39,<2" },
+    { name = "elide-bento-core", editable = "packages/elide-bento-core" },
+    { name = "paddleocr", specifier = ">=3.5,<4" },
+    { name = "paddlepaddle", specifier = ">=3.0,<4" },
+    { name = "paddlex", extras = ["ocr"], specifier = ">=3.7.2,<4" },
+    { name = "pillow", specifier = ">=12.3.0,<13" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
 ]
 
 [[package]]
@@ -1182,113 +1289,6 @@ source = { registry = "https://pypi.org/simple" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/f3/d86c845465a2723ad7e1e5c36dcd75ddb82898b3f53be47ebd429fb2fa5d/nvidia_nvtx-13.0.85-py3-none-manylinux1_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:4936d1d6780fbe68db454f5e72a42ff64d1fd6397df9f363ae786930fd5c1cd4", size = 148047, upload-time = "2025-09-04T08:29:01.761Z" },
     { url = "https://files.pythonhosted.org/packages/a8/64/3708a90d1ebe202ffdeb7185f878a3c84d15c2b2c31858da2ce0583e2def/nvidia_nvtx-13.0.85-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:cb7780edb6b14107373c835bf8b72e7a178bac7367e23da7acb108f973f157a6", size = 148878, upload-time = "2025-09-04T08:28:53.627Z" },
-]
-
-[[package]]
-name = "nvisy-core"
-version = "0.1.0"
-source = { editable = "packages/nvisy-core" }
-dependencies = [
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.7,<3" }]
-
-[[package]]
-name = "nvisy-inference"
-version = "0.1.0"
-source = { virtual = "." }
-
-[package.dev-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "ruff", specifier = ">=0.16.0" },
-]
-
-[[package]]
-name = "nvisy-ner"
-version = "0.1.0"
-source = { editable = "packages/nvisy-ner" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "bentoml" },
-    { name = "gliner2" },
-    { name = "nvisy-core" },
-    { name = "prometheus-client" },
-    { name = "transformers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.14.3,<4" },
-    { name = "bentoml", specifier = ">=1.4.39,<2" },
-    { name = "gliner2", specifier = ">=1.3.2,<2" },
-    { name = "nvisy-core", editable = "packages/nvisy-core" },
-    { name = "prometheus-client", specifier = ">=0.26.0" },
-    { name = "transformers", specifier = ">=5.14.1" },
-]
-
-[[package]]
-name = "nvisy-ocr"
-version = "0.1.0"
-source = { editable = "packages/nvisy-ocr" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "bentoml" },
-    { name = "nvisy-core" },
-    { name = "onnx" },
-    { name = "pillow" },
-    { name = "prometheus-client" },
-    { name = "python-doctr" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.14.3,<4" },
-    { name = "bentoml", specifier = ">=1.4.39,<2" },
-    { name = "nvisy-core", editable = "packages/nvisy-core" },
-    { name = "onnx", specifier = ">=1.22.0" },
-    { name = "pillow", specifier = ">=12.3.0,<13" },
-    { name = "prometheus-client", specifier = ">=0.26.0" },
-    { name = "python-doctr", specifier = ">=1.0,<2" },
-]
-
-[[package]]
-name = "nvisy-vl"
-version = "0.1.0"
-source = { editable = "packages/nvisy-vl" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "bentoml" },
-    { name = "nvisy-core" },
-    { name = "paddleocr" },
-    { name = "paddlepaddle" },
-    { name = "paddlex", extra = ["ocr"] },
-    { name = "pillow" },
-    { name = "prometheus-client" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.14.3,<4" },
-    { name = "bentoml", specifier = ">=1.4.39,<2" },
-    { name = "nvisy-core", editable = "packages/nvisy-core" },
-    { name = "paddleocr", specifier = ">=3.5,<4" },
-    { name = "paddlepaddle", specifier = ">=3.0,<4" },
-    { name = "paddlex", extras = ["ocr"], specifier = ">=3.7.2,<4" },
-    { name = "pillow", specifier = ">=12.3.0,<13" },
-    { name = "prometheus-client", specifier = ">=0.26.0" },
 ]
 
 [[package]]

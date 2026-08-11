@@ -1,6 +1,6 @@
 //! Incoming wire types for the NER `/recognize` endpoint.
 //!
-//! Mirrors `nvisy_core.ner.v1.NerResponse` from the inference
+//! Mirrors `elide_bento_core.ner.v1.NerResponse` from the inference
 //! repository. Classifications, structures, and the response-level
 //! `modelId` are deserialised-and-discarded — this backend surfaces
 //! entity-extraction results only.

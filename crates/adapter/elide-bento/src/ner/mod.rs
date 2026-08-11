@@ -1,5 +1,5 @@
 //! [`BentoNer`]: an [`NerBackend`] backed by the
-//! `nvisy-inference-ner` BentoML service.
+//! `elide-bento-ner` BentoML service.
 //!
 //! Wire contract: `POST /recognize` accepts a batched list of
 //! requests (one schema-driven entity-extraction call per item)
@@ -31,7 +31,7 @@ const ROUTE: &str = "recognize";
 
 /// BentoML NER backend.
 ///
-/// Owns a cached [`Endpoint`] pointing at the `nvisy-inference-ner`
+/// Owns a cached [`Endpoint`] pointing at the `elide-bento-ner`
 /// `/recognize` route, plus the per-deployment model id (echoed
 /// into [`NerBackend::provenance`]) and a default per-label
 /// confidence threshold the service applies when a schema entry

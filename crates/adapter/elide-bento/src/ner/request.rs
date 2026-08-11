@@ -1,6 +1,6 @@
 //! Outgoing wire types for the NER `/recognize` endpoint.
 //!
-//! Mirrors `nvisy_core.ner.v1.NerRequest` from the inference
+//! Mirrors `elide_bento_core.ner.v1.NerRequest` from the inference
 //! repository: a `(text, schema, threshold)` triple where the
 //! schema lists the entities to extract. Classifications and
 //! structured records (also part of the upstream schema) are

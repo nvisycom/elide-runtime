@@ -3,7 +3,7 @@
 BentoML builds each service image from a flat requirements file (the service's
 ``Image.requirements_file``). We export that file per service from the single
 workspace ``uv.lock`` so the image installs exactly the service's resolved
-dependency subtree (including the editable ``nvisy-core``), pinned and hashed —
+dependency subtree (including the editable ``elide-bento-core``), pinned and hashed —
 no resolution at image-build time.
 
 Run::
@@ -22,15 +22,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 # service package -> where its requirements.txt is written (next to pyproject).
 SERVICES = {
-    "nvisy-ocr": ROOT / "packages" / "nvisy-ocr" / "requirements.txt",
-    "nvisy-vl": ROOT / "packages" / "nvisy-vl" / "requirements.txt",
-    "nvisy-ner": ROOT / "packages" / "nvisy-ner" / "requirements.txt",
+    "elide-bento-ocr": ROOT / "packages" / "elide-bento-ocr" / "requirements.txt",
+    "elide-bento-vl": ROOT / "packages" / "elide-bento-vl" / "requirements.txt",
+    "elide-bento-ner": ROOT / "packages" / "elide-bento-ner" / "requirements.txt",
 }
 
 
 def export(package: str) -> str:
     # --no-emit-project drops the service itself (BentoML installs the source);
-    # nvisy-core stays as an editable path dep, its source bundled via
+    # elide-bento-core stays as an editable path dep, its source bundled via
     # Image.build_include.
     out = subprocess.run(
         [

@@ -1,6 +1,6 @@
 //! Outgoing wire types for the OCR `/recognize` endpoint.
 //!
-//! Mirrors `nvisy_core.ocr.v1.OcrRequest` from the inference
+//! Mirrors `elide_bento_core.ocr.v1.OcrRequest` from the inference
 //! repository: base64-encoded image bytes plus a per-word
 //! confidence floor the service applies before returning.
 

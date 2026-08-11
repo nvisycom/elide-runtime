@@ -17,10 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Context-aware redaction operators: mask, replace, hash, encrypt,
   blur, block, pixelate, policy-driven with per-entity confidence
   thresholds.
-- Deployment-owned NER and LLM recognizer lineups (deployment picks
-  the providers; the wire only toggles NER or LLM on or off).
-- BentoML inference services shipped as Docker containers:
-  docTR (OCR), PaddleOCR-VL (vision-language OCR), and GLiNER (NER).
+- Deployment-owned NER, LLM, OCR, and STT recognizer/enricher lineups
+  (deployment picks the providers; the wire only toggles them on or off).
+- HTTP client integration with the inference services shipped separately
+  from [nvisycom/bento](https://github.com/nvisycom/bento) via the
+  `elide-bento` git dependency.
 
 ### Rust crates (`crates/`)
 

@@ -72,6 +72,9 @@ allow-wildcard-paths = true
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-# elide is consumed straight from the in-house GitHub mirror until its
-# crates publish to crates.io. Scoped to this single repo on purpose.
-allow-git = ["https://github.com/nvisycom/elide"]
+# elide and bento are consumed straight from the in-house GitHub mirror
+# until their crates publish to crates.io. Scoped to these repos on purpose.
+allow-git = [
+    "https://github.com/nvisycom/elide",
+    "https://github.com/nvisycom/bento",
+]

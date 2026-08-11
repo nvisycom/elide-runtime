@@ -35,14 +35,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **nvisy-engine:** stateless pipeline: decode, analyze, apply. Wraps
   elide and hosts the per-modality orchestrator plus the
   deployment-side NER / LLM recognizer configuration.
-- **elide-bento:** BentoML-hosted NER and OCR client implementing
-  elide's recognizer traits.
-
-### Python packages (`packages/`)
-
-- **nvisy-core:** shared Python types and runtime helpers.
-- **nvisy-ner:** GLiNER-based named-entity recognition service.
-- **nvisy-ocr:** docTR-based detection OCR service.
-- **nvisy-vl:** PaddleOCR-VL vision-language OCR service.
-
 [Unreleased]: https://github.com/nvisycom/runtime/commits/main

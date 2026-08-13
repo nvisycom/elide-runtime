@@ -137,6 +137,7 @@ impl TemplateCatalog {
                 part: PciDssPart::SavErase,
             },
             PolicyTemplate::Ccpa,
+            PolicyTemplate::Soc2Secrets,
         ];
         let mut catalog = Self::new();
         for template in SHIPPED {

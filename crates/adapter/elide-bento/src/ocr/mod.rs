@@ -24,7 +24,7 @@ mod response;
 
 use bentoml::{Client, Endpoint};
 use elide_core::Result;
-use elide_core::entity::provenance::ModelEvent;
+use elide_core::entity::audit::ModelEvent;
 use elide_ocr::{OcrBackend, OcrRequest, OcrResponse};
 use hipstr::HipStr;
 

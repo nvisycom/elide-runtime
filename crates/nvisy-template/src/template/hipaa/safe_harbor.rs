@@ -37,7 +37,7 @@ pub(super) const SAFE_HARBOR_LABELS: &[LabelRef] = &[
     LabelRef::from_static("medical_id"),
     LabelRef::from_static("insurance_id"),
     // §(J) account numbers are appended per-request from
-    // `HipaaAccountNumbers::account_labels`, so the caller's
+    // `HipaaAccountNumbers::labels`, so the caller's
     // Standard/Extended pick decides whether crypto addresses
     // count. `bank_account`, `iban`, and `payment_card` land
     // via Standard; `crypto_address` via Extended.
@@ -78,12 +78,13 @@ pub(super) const SAFE_HARBOR_TABLE_LABELS: &[LabelRef] = &[
 ];
 
 /// `SAFE_HARBOR_LABELS` fused with the caller's §(J) account
-/// tier. Shared with the Expert Determination posture, which
-/// carries the same 18-identifier label set.
-pub(super) fn safe_harbor_labels_with_accounts(accounts: HipaaAccountNumbers) -> Vec<LabelRef> {
+/// tier — the full Safe Harbor label set. Shared with the
+/// Expert Determination posture, which carries the same
+/// 18-identifier scope.
+pub(super) fn labels(accounts: HipaaAccountNumbers) -> Vec<LabelRef> {
     SAFE_HARBOR_LABELS
         .iter()
-        .chain(accounts.account_labels().iter())
+        .chain(accounts.labels().iter())
         .cloned()
         .collect()
 }
@@ -111,7 +112,7 @@ fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
                 .into(),
         ),
         labels: Labels {
-            builtins: safe_harbor_labels_with_accounts(accounts)
+            builtins: labels(accounts)
                 .into_iter()
                 .chain(SAFE_HARBOR_TABLE_LABELS.iter().cloned())
                 .collect(),
@@ -134,7 +135,7 @@ fn safe_harbor_group(accounts: HipaaAccountNumbers) -> LabelGroup {
              and other unique identifiers)."
                 .into(),
         ),
-        labels: safe_harbor_labels_with_accounts(accounts),
+        labels: labels(accounts),
     }
 }
 

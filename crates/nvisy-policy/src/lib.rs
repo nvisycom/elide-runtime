@@ -37,7 +37,7 @@
 //! [`Attribution`] so reviewers can trace any redaction back to
 //! the exact rule that fired.
 //!
-//! [`Attribution`]: elide_core::entity::provenance::Attribution
+//! [`Attribution`]: elide_core::entity::audit::Attribution
 //! [`LabelRef`]: elide_core::entity::LabelRef
 //! [`ModalityRedactions`]: redaction::ModalityRedactions
 //! [`Predicate`]: predicate::Predicate
@@ -71,7 +71,7 @@ pub struct PolicyDefinition {
     /// [`Attribution::name`] so reviewers can find this policy
     /// from any redaction it drove.
     ///
-    /// [`Attribution::name`]: elide_core::entity::provenance::Attribution::name
+    /// [`Attribution::name`]: elide_core::entity::audit::Attribution::name
     pub id: Uuid,
     /// Human-readable name. Display-only. Does not key anything.
     #[schemars(with = "String")]

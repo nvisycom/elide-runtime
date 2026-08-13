@@ -61,9 +61,10 @@ use serde::{Deserialize, Serialize};
 
 pub use self::catalog::TemplateCatalog;
 pub use self::template::{
-    GdprArticle9Treatment, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart, PciPanRender, Template,
+    GdprArticle9, GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod,
+    HipaaDeidentification, PciDssPart, PciPanRender, Template,
 };
-use self::template::{ccpa, gdpr, hipaa, pci, soc2};
+use self::template::{ccpa, pci, soc2};
 
 /// A regulatory posture this crate ships a [`Template`] for.
 ///
@@ -78,34 +79,17 @@ use self::template::{ccpa, gdpr, hipaa, pci, soc2};
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PolicyTemplate {
-    /// HIPAA §164.514 de-identification. `method` picks between
-    /// the fixed Safe Harbor rule set (§164.514(b)(2)), the
-    /// narrower Limited Data Set subtraction (§164.514(e)(2))
-    /// that keeps dates and coarse geography for DUA-governed
-    /// research handoffs, and the Expert Determination scaffold
-    /// (§164.514(b)(1)) for statistician-signed workflows.
-    HipaaDeidentification {
-        /// Which §164.514 method to apply. See [`HipaaDeidMethod`]
-        /// for the tradeoff.
-        method: HipaaDeidMethod,
-        /// Which §(J) account-identifier labels to remove.
-        /// Defaults to [`HipaaAccountNumbers::Standard`] (bank
-        /// account + IBAN + payment card). Pick
-        /// [`HipaaAccountNumbers::Extended`] to add crypto
-        /// wallet addresses under the §(R) catch-all reading.
-        #[serde(default)]
-        accounts: HipaaAccountNumbers,
-    },
-    /// GDPR Article 9 special categories of personal data.
-    /// `treatment` picks between erasure (the default no-basis
-    /// posture) and pseudonymization (identity-preserving,
-    /// requires an Article 9(2) lawful-basis carve-out
-    /// established out-of-band).
-    GdprArticle9 {
-        /// Which operator to apply to Article 9 matches. See
-        /// [`GdprArticle9Treatment`] for the tradeoff.
-        treatment: GdprArticle9Treatment,
-    },
+    /// HIPAA §164.514 de-identification. See
+    /// [`HipaaDeidentification`] for the method + account-tier
+    /// axes.
+    HipaaDeidentification(HipaaDeidentification),
+    /// GDPR Article 9 special categories of personal data,
+    /// optionally widened with Recital 26 re-identification
+    /// hardening (`date_of_birth`, `postal_code`) or Article 10
+    /// criminal-justice labels (`criminal_record`,
+    /// `criminal_charge`, `judicial_narrative`). See
+    /// [`GdprArticle9`] for the config axes.
+    GdprArticle9(GdprArticle9),
     /// PCI DSS. `part` picks between §3.5.1 stored-PAN render
     /// postures (with a nested [`PciPanRender`] choice) and
     /// §3.3.1 Sensitive Authentication Data erasure.
@@ -143,8 +127,8 @@ impl PolicyTemplate {
     #[must_use]
     pub fn build(self) -> Template {
         match self {
-            Self::HipaaDeidentification { method, accounts } => hipaa::template(method, accounts),
-            Self::GdprArticle9 { treatment } => gdpr::template(treatment),
+            Self::HipaaDeidentification(cfg) => cfg.template(),
+            Self::GdprArticle9(cfg) => cfg.template(),
             Self::PciDss { part } => pci::template(part),
             Self::Ccpa => ccpa::template(),
             Self::Soc2Secrets => soc2::template(),

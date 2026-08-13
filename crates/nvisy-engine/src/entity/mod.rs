@@ -14,7 +14,7 @@
 //! ([`LabelCatalog::tagged`], [`LabelCatalog::refs_tagged`],
 //! [`LabelCatalog::filter_tag`]) — the primitive regulatory policy
 //! templates compose on top of to resolve `tags: ["phi"]`-style
-//! selectors into concrete label sets. [`Provenance`] carries
+//! selectors into concrete label sets. [`AuditLog`] carries
 //! the audit trail (which rule / model / pattern produced each
 //! detection).
 //!
@@ -27,8 +27,8 @@ mod group;
 mod record;
 
 pub use nvisy_schema::entity::{
-    Attribution, Entity, EntityCoRef, EntityRef, Event, EventKind, Label, LabelCatalog,
-    LabelLocale, LabelRef, ModelEvent, PatternEvent, Provenance, RuleMatch,
+    Attribution, AuditEvent, AuditKind, AuditLog, Entity, EntityCoRef, EntityRef, Label,
+    LabelCatalog, LabelLocale, LabelRef, ModelEvent, PatternEvent, RuleMatch,
 };
 
 pub use self::group::EntityGroup;

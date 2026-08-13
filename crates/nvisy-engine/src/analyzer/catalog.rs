@@ -322,9 +322,13 @@ mod tests {
                 .any(|t| t.as_str().starts_with("group:")),
             "no synthetic `group:*` tag should appear on the catalog",
         );
-        // Shipped elide tags are preserved.
+        // Shipped elide tags + category are preserved.
         assert!(stamped.has_tag("pii"));
-        assert!(stamped.has_tag("contact_info"));
+        assert_eq!(
+            stamped.category().map(|c| c.as_str()),
+            Some("contact"),
+            "elide's category on `email_address` must survive catalog compile",
+        );
     }
 
     #[test]

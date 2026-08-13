@@ -272,7 +272,7 @@ fn merge_provenance<M: Modality>(
         records.iter_mut().map(|r| (r.entity.id, r)).collect();
     walk_mutated(&mut |entity| {
         if let Some(record) = by_id.get_mut(&entity.id) {
-            record.entity.provenance = mem::take(&mut entity.provenance);
+            record.entity.audit = mem::take(&mut entity.audit);
         }
     });
 }

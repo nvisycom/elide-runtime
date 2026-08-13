@@ -31,14 +31,14 @@
 //! `name` from the policy's UUID, `description` from the rule's
 //! UUID (or omitted for the policy fallback).
 //!
-//! [`Attribution`]: elide_core::entity::provenance::Attribution
+//! [`Attribution`]: elide_core::entity::audit::Attribution
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use elide::redaction::{Anonymizer, MatchContext, Rule};
 use elide_core::entity::LabelRef;
-use elide_core::entity::provenance::Attribution;
+use elide_core::entity::audit::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
 use nvisy_schema::policy::predicate::Predicate;

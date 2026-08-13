@@ -61,7 +61,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::catalog::TemplateCatalog;
 pub use self::template::{
-    GdprArticle9Treatment, HipaaDeidMethod, PciDssPart, PciPanRender, Template,
+    GdprArticle9Treatment, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart, PciPanRender, Template,
 };
 use self::template::{ccpa, gdpr, hipaa, pci};
 
@@ -88,6 +88,13 @@ pub enum PolicyTemplate {
         /// Which §164.514 method to apply. See [`HipaaDeidMethod`]
         /// for the tradeoff.
         method: HipaaDeidMethod,
+        /// Which §(J) account-identifier labels to remove.
+        /// Defaults to [`HipaaAccountNumbers::Standard`] (bank
+        /// account + IBAN + payment card). Pick
+        /// [`HipaaAccountNumbers::Extended`] to add crypto
+        /// wallet addresses under the §(R) catch-all reading.
+        #[serde(default)]
+        accounts: HipaaAccountNumbers,
     },
     /// GDPR Article 9 special categories of personal data.
     /// `treatment` picks between erasure (the default no-basis
@@ -129,7 +136,7 @@ impl PolicyTemplate {
     #[must_use]
     pub fn build(self) -> Template {
         match self {
-            Self::HipaaDeidentification { method } => hipaa::template(method),
+            Self::HipaaDeidentification { method, accounts } => hipaa::template(method, accounts),
             Self::GdprArticle9 { treatment } => gdpr::template(treatment),
             Self::PciDss { part } => pci::template(part),
             Self::Ccpa => ccpa::template(),

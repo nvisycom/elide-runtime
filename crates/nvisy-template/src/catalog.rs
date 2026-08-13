@@ -23,7 +23,8 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    GdprArticle9Treatment, HipaaDeidMethod, PciDssPart, PciPanRender, PolicyTemplate, Template,
+    GdprArticle9Treatment, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart, PciPanRender,
+    PolicyTemplate, Template,
 };
 
 /// Runtime registry of [`Template`]s, keyed by
@@ -96,12 +97,15 @@ impl TemplateCatalog {
         const SHIPPED: &[PolicyTemplate] = &[
             PolicyTemplate::HipaaDeidentification {
                 method: HipaaDeidMethod::SafeHarbor,
+                accounts: HipaaAccountNumbers::Standard,
             },
             PolicyTemplate::HipaaDeidentification {
                 method: HipaaDeidMethod::LimitedDataSet,
+                accounts: HipaaAccountNumbers::Standard,
             },
             PolicyTemplate::HipaaDeidentification {
                 method: HipaaDeidMethod::ExpertDetermination,
+                accounts: HipaaAccountNumbers::Standard,
             },
             PolicyTemplate::GdprArticle9 {
                 treatment: GdprArticle9Treatment::Erase,
@@ -318,16 +322,19 @@ mod tests {
         let mut catalog = TemplateCatalog::new();
         let mut v1 = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         v1.version = Version::new(1, 0, 0);
         let mut v2 = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         v2.version = Version::new(2, 0, 0);
         let mut v1_1 = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         v1_1.version = Version::new(1, 1, 0);
@@ -399,11 +406,13 @@ mod tests {
         let mut catalog = TemplateCatalog::new();
         let mut first = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         first.name = "First".into();
         let mut second = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         second.name = "Second".into();
@@ -419,6 +428,7 @@ mod tests {
         let mut catalog = TemplateCatalog::new();
         let mut template = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         template.id = "".into();
@@ -433,6 +443,7 @@ mod tests {
         let mut catalog = TemplateCatalog::new();
         let mut template = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         template.id = "HIPAA".into();
@@ -442,6 +453,7 @@ mod tests {
 
         let mut kebab = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         kebab.id = "hipaa-safe-harbor".into();
@@ -451,6 +463,7 @@ mod tests {
 
         let mut leading_digit = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         leading_digit.id = "1hipaa".into();
@@ -464,6 +477,7 @@ mod tests {
         let mut catalog = TemplateCatalog::new();
         let mut template = PolicyTemplate::HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
+            accounts: HipaaAccountNumbers::Standard,
         }
         .build();
         template.id = "hipaa_v2_1".into();

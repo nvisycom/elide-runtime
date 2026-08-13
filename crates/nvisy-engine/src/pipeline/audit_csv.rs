@@ -18,7 +18,7 @@
 
 use std::{io, result};
 
-use elide_core::entity::provenance::EventKind;
+use elide_core::entity::audit::AuditKind;
 use elide_core::modality::Modality;
 use elide_core::{Error, ErrorKind, Result};
 use nvisy_schema::policy::redaction::ModalityRedactions;
@@ -90,11 +90,12 @@ impl Audit {
 
     /// Serialize the provenance table as CSV into `writer`.
     ///
-    /// Columns: `entity_id, event_index, kind, source, before,
-    /// after, at, payload_id`. One row per event, sorted by
-    /// `entity_id` then `event_index`. `before` is empty on the
-    /// first (birth) event; `payload_id` carries the model name
-    /// or pattern rule id when the event's `kind` has one,
+    /// Columns: `entity_id, event_index, kind, source,
+    /// confidence, timestamp, payload_id`. One row per event,
+    /// sorted by `entity_id` then `event_index`. `confidence` is
+    /// the entity's effective confidence at that step in the
+    /// hash-linked audit DAG; `payload_id` carries the model
+    /// name or pattern rule id when the event's `kind` has one,
     /// empty otherwise.
     ///
     /// Joins with [`Self::write_entities_csv`] on `entity_id`.
@@ -111,11 +112,9 @@ impl Audit {
             event_index: usize,
             kind: &'a str,
             source: &'a str,
-            #[serde(serialize_with = "serialize_optional_confidence")]
-            before: Option<f32>,
             #[serde(serialize_with = "serialize_confidence")]
-            after: f32,
-            at: String,
+            confidence: f32,
+            timestamp: String,
             payload_id: Option<&'a str>,
         }
 
@@ -127,9 +126,8 @@ impl Audit {
             "event_index",
             "kind",
             "source",
-            "before",
-            "after",
-            "at",
+            "confidence",
+            "timestamp",
             "payload_id",
         ])
         .map_err(csv_err)?;
@@ -139,9 +137,8 @@ impl Audit {
                 event_index: row.event_index,
                 kind: row.kind,
                 source: row.source,
-                before: row.before,
-                after: row.after,
-                at: row.at,
+                confidence: row.confidence,
+                timestamp: row.timestamp,
                 payload_id: row.payload_id,
             })
             .map_err(csv_err)?;
@@ -257,9 +254,8 @@ struct ProvenanceRow<'a> {
     event_index: usize,
     kind: &'static str,
     source: &'a str,
-    before: Option<f32>,
-    after: f32,
-    at: String,
+    confidence: f32,
+    timestamp: String,
     payload_id: Option<&'a str>,
 }
 
@@ -331,16 +327,15 @@ fn extend_provenance_rows<'a, M: Modality>(
     out: &mut Vec<ProvenanceRow<'a>>,
 ) {
     for r in records {
-        for (i, event) in r.entity.provenance.events.iter().enumerate() {
+        for (i, event) in r.entity.audit.events().iter().enumerate() {
             let (kind, payload_id) = event_kind_and_payload(&event.kind);
             out.push(ProvenanceRow {
                 entity_id: r.entity.id,
                 event_index: i,
                 kind,
                 source: event.source.as_str(),
-                before: event.before.map(f32::from),
-                after: f32::from(event.after),
-                at: event.at.to_string(),
+                confidence: f32::from(event.confidence),
+                timestamp: event.timestamp.to_string(),
                 payload_id,
             });
         }
@@ -364,16 +359,16 @@ fn extend_review_rows<M: Modality>(
 /// Discriminator + optional payload id for a provenance event
 /// kind. Payload id carries the pattern rule name or model name
 /// when the variant has one; empty otherwise.
-fn event_kind_and_payload<M: Modality>(kind: &EventKind<M>) -> (&'static str, Option<&str>) {
+fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Option<&str>) {
     match kind {
-        EventKind::Pattern { pattern, .. } => ("pattern", Some(pattern.name.as_str())),
-        EventKind::Model { model, .. } => ("model", Some(model.name.as_str())),
-        EventKind::Deduplication { strategy } => ("deduplication", Some(strategy.as_str())),
-        EventKind::Conflict { resolved_by, .. } => ("conflict", Some(resolved_by.as_str())),
-        EventKind::Contested { flagged_by, .. } => ("contested", Some(flagged_by.as_str())),
-        EventKind::Calibration { .. } => ("calibration", None),
-        EventKind::Refinement { .. } => ("refinement", None),
-        EventKind::Redaction { .. } => ("redaction", None),
+        AuditKind::Pattern { pattern, .. } => ("pattern", Some(pattern.name.as_str())),
+        AuditKind::Model { model, .. } => ("model", Some(model.name.as_str())),
+        AuditKind::Deduplication { strategy } => ("deduplication", Some(strategy.as_str())),
+        AuditKind::Conflict { resolved_by, .. } => ("conflict", Some(resolved_by.as_str())),
+        AuditKind::Contested { flagged_by, .. } => ("contested", Some(flagged_by.as_str())),
+        AuditKind::Calibration { .. } => ("calibration", None),
+        AuditKind::Refinement { .. } => ("refinement", None),
+        AuditKind::Redaction { .. } => ("redaction", None),
         _ => ("unknown", None),
     }
 }
@@ -412,18 +407,6 @@ fn operator_kind_for_modality(review: &ModalityRedactions, modality: &str) -> Op
 /// Format a `f32` confidence with three decimal places.
 fn serialize_confidence<S: Serializer>(value: &f32, s: S) -> result::Result<S::Ok, S::Error> {
     s.serialize_str(&format!("{value:.3}"))
-}
-
-/// Format an `Option<f32>` confidence; `None` serializes to an
-/// empty string (CSV column left blank).
-fn serialize_optional_confidence<S: Serializer>(
-    value: &Option<f32>,
-    s: S,
-) -> result::Result<S::Ok, S::Error> {
-    match value {
-        Some(v) => s.serialize_str(&format!("{v:.3}")),
-        None => s.serialize_str(""),
-    }
 }
 
 /// Map a `csv::Error` into an engine [`Error`].

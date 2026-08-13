@@ -24,7 +24,7 @@ const LDS_BULK_RULE_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000005");
 ///
 /// `bank_account`, `iban`, `payment_card`, and (with the
 /// Extended tier) `crypto_address` are appended per-request from
-/// [`HipaaAccountNumbers::account_labels`] — §164.514(e)(2)(x)
+/// [`HipaaAccountNumbers::labels`] — §164.514(e)(2)(x)
 /// treats account numbers the same as Safe Harbor's §(J).
 pub(super) const LDS_LABELS: &[LabelRef] = &[
     LabelRef::from_static("person_name"),
@@ -58,10 +58,10 @@ pub(super) const LDS_LABELS: &[LabelRef] = &[
 ];
 
 /// `LDS_LABELS` fused with the caller's account tier.
-fn lds_labels_with_accounts(accounts: HipaaAccountNumbers) -> Vec<LabelRef> {
+fn labels(accounts: HipaaAccountNumbers) -> Vec<LabelRef> {
     LDS_LABELS
         .iter()
-        .chain(accounts.account_labels().iter())
+        .chain(accounts.labels().iter())
         .cloned()
         .collect()
 }
@@ -91,7 +91,7 @@ fn limited_data_set_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
                 .into(),
         ),
         labels: Labels {
-            builtins: lds_labels_with_accounts(accounts),
+            builtins: labels(accounts),
             custom: Vec::new(),
         },
         groups: vec![lds_group(accounts)],
@@ -110,7 +110,7 @@ fn lds_group(accounts: HipaaAccountNumbers) -> LabelGroup {
              recipient's use out-of-band."
                 .into(),
         ),
-        labels: lds_labels_with_accounts(accounts),
+        labels: labels(accounts),
     }
 }
 

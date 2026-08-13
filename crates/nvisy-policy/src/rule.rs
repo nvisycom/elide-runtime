@@ -49,7 +49,7 @@ pub struct PolicyRule {
     /// reviewers can trace which rule fired. Every attachment a
     /// [`RuleDispatch::Table`] expands into shares this UUID.
     ///
-    /// [`Attribution::description`]: elide_core::entity::provenance::Attribution::description
+    /// [`Attribution::description`]: elide_core::entity::audit::Attribution::description
     pub id: Uuid,
     /// Human-readable name. Display-only.
     #[schemars(with = "String")]

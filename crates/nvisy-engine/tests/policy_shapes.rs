@@ -7,7 +7,7 @@
 
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
-use elide_core::entity::provenance::EventKind;
+use elide_core::entity::audit::AuditKind;
 use nvisy_engine::entity::Review;
 use nvisy_engine::{Audit, Engine, EntityGroup};
 use nvisy_schema::file::Document;
@@ -43,8 +43,8 @@ fn redaction_hits(audit: &Audit, label: &str) -> usize {
     entities
         .iter()
         .filter(|r| r.entity.label.as_str() == label)
-        .flat_map(|r| r.entity.provenance.events.iter())
-        .filter(|e| matches!(e.kind, EventKind::Redaction { .. }))
+        .flat_map(|r| r.entity.audit.events().iter())
+        .filter(|e| matches!(e.kind, AuditKind::Redaction { .. }))
         .count()
 }
 
@@ -137,14 +137,10 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         .iter()
         .find(|r| r.entity.label.as_str() == "email_address")
         .and_then(|r| {
-            r.entity
-                .provenance
-                .events
-                .iter()
-                .find_map(|e| match &e.kind {
-                    EventKind::Redaction { attribution, .. } => attribution.as_ref(),
-                    _ => None,
-                })
+            r.entity.audit.events().iter().find_map(|e| match &e.kind {
+                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
+                _ => None,
+            })
         })
         .expect("email entity must have a redaction event with an attribution");
     assert_eq!(

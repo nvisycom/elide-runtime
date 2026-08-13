@@ -23,8 +23,8 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    GdprArticle9Treatment, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart, PciPanRender,
-    PolicyTemplate, Template,
+    GdprArticle9, GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod,
+    HipaaDeidentification, PciDssPart, PciPanRender, PolicyTemplate, Template,
 };
 
 /// Runtime registry of [`Template`]s, keyed by
@@ -95,24 +95,26 @@ impl TemplateCatalog {
     #[must_use]
     pub fn builtin() -> Self {
         const SHIPPED: &[PolicyTemplate] = &[
-            PolicyTemplate::HipaaDeidentification {
+            PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
                 method: HipaaDeidMethod::SafeHarbor,
                 accounts: HipaaAccountNumbers::Standard,
-            },
-            PolicyTemplate::HipaaDeidentification {
+            }),
+            PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
                 method: HipaaDeidMethod::LimitedDataSet,
                 accounts: HipaaAccountNumbers::Standard,
-            },
-            PolicyTemplate::HipaaDeidentification {
+            }),
+            PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
                 method: HipaaDeidMethod::ExpertDetermination,
                 accounts: HipaaAccountNumbers::Standard,
-            },
-            PolicyTemplate::GdprArticle9 {
+            }),
+            PolicyTemplate::GdprArticle9(GdprArticle9 {
                 treatment: GdprArticle9Treatment::Erase,
-            },
-            PolicyTemplate::GdprArticle9 {
+                scope: GdprSensitiveScope::Article9,
+            }),
+            PolicyTemplate::GdprArticle9(GdprArticle9 {
                 treatment: GdprArticle9Treatment::Pseudonymize,
-            },
+                scope: GdprSensitiveScope::Article9,
+            }),
             PolicyTemplate::PciDss {
                 part: PciDssPart::PanRender {
                     render: PciPanRender::Truncate,
@@ -321,22 +323,22 @@ mod tests {
     #[test]
     fn latest_returns_the_highest_version() {
         let mut catalog = TemplateCatalog::new();
-        let mut v1 = PolicyTemplate::HipaaDeidentification {
+        let mut v1 = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         v1.version = Version::new(1, 0, 0);
-        let mut v2 = PolicyTemplate::HipaaDeidentification {
+        let mut v2 = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         v2.version = Version::new(2, 0, 0);
-        let mut v1_1 = PolicyTemplate::HipaaDeidentification {
+        let mut v1_1 = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         v1_1.version = Version::new(1, 1, 0);
         catalog.insert(v1).unwrap();
@@ -351,14 +353,16 @@ mod tests {
     #[test]
     fn get_returns_the_exact_version_or_none() {
         let mut catalog = TemplateCatalog::new();
-        let mut v1 = PolicyTemplate::GdprArticle9 {
+        let mut v1 = PolicyTemplate::GdprArticle9(GdprArticle9 {
             treatment: GdprArticle9Treatment::Erase,
-        }
+            scope: GdprSensitiveScope::Article9,
+        })
         .build();
         v1.version = Version::new(1, 0, 0);
-        let mut v2 = PolicyTemplate::GdprArticle9 {
+        let mut v2 = PolicyTemplate::GdprArticle9(GdprArticle9 {
             treatment: GdprArticle9Treatment::Erase,
-        }
+            scope: GdprSensitiveScope::Article9,
+        })
         .build();
         v2.version = Version::new(2, 0, 0);
         catalog.insert(v1).unwrap();
@@ -405,16 +409,16 @@ mod tests {
     #[test]
     fn insert_same_key_replaces_the_existing_entry() {
         let mut catalog = TemplateCatalog::new();
-        let mut first = PolicyTemplate::HipaaDeidentification {
+        let mut first = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         first.name = "First".into();
-        let mut second = PolicyTemplate::HipaaDeidentification {
+        let mut second = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         second.name = "Second".into();
         catalog.insert(first).unwrap();
@@ -427,10 +431,10 @@ mod tests {
     #[test]
     fn insert_rejects_empty_id() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = PolicyTemplate::HipaaDeidentification {
+        let mut template = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         template.id = "".into();
         let err = catalog
@@ -442,30 +446,30 @@ mod tests {
     #[test]
     fn insert_rejects_uppercase_and_hyphen_ids() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = PolicyTemplate::HipaaDeidentification {
+        let mut template = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         template.id = "HIPAA".into();
         catalog
             .insert(template)
             .expect_err("uppercase id must be rejected");
 
-        let mut kebab = PolicyTemplate::HipaaDeidentification {
+        let mut kebab = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         kebab.id = "hipaa-safe-harbor".into();
         catalog
             .insert(kebab)
             .expect_err("hyphenated id must be rejected");
 
-        let mut leading_digit = PolicyTemplate::HipaaDeidentification {
+        let mut leading_digit = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         leading_digit.id = "1hipaa".into();
         catalog
@@ -476,10 +480,10 @@ mod tests {
     #[test]
     fn insert_accepts_snake_case_with_digits() {
         let mut catalog = TemplateCatalog::new();
-        let mut template = PolicyTemplate::HipaaDeidentification {
+        let mut template = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
             method: HipaaDeidMethod::SafeHarbor,
             accounts: HipaaAccountNumbers::Standard,
-        }
+        })
         .build();
         template.id = "hipaa_v2_1".into();
         catalog

@@ -7,7 +7,7 @@ use nvisy_policy::{LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule,
 use semver::Version;
 use uuid::{Uuid, uuid};
 
-use super::safe_harbor::{SAFE_HARBOR_TABLE_LABELS, safe_harbor_labels_with_accounts};
+use super::safe_harbor::{SAFE_HARBOR_TABLE_LABELS, labels as safe_harbor_labels};
 use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template};
 
 /// Group name Expert Determination's bulk-pseudonymize rule
@@ -55,7 +55,7 @@ fn expert_determination_policy(accounts: HipaaAccountNumbers) -> PolicyDefinitio
                 .into(),
         ),
         labels: Labels {
-            builtins: safe_harbor_labels_with_accounts(accounts)
+            builtins: safe_harbor_labels(accounts)
                 .into_iter()
                 .chain(SAFE_HARBOR_TABLE_LABELS.iter().cloned())
                 .collect(),
@@ -76,7 +76,7 @@ fn ed_group(accounts: HipaaAccountNumbers) -> LabelGroup {
              name lets audits distinguish the two postures by group id alone."
                 .into(),
         ),
-        labels: safe_harbor_labels_with_accounts(accounts),
+        labels: safe_harbor_labels(accounts),
     }
 }
 

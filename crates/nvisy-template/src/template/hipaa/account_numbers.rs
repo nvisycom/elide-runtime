@@ -51,8 +51,10 @@ const EXTENDED_ACCOUNT_LABELS: &[LabelRef] = &[
 ];
 
 impl HipaaAccountNumbers {
-    /// The account-identifier labels this tier covers.
-    pub(crate) fn account_labels(self) -> &'static [LabelRef] {
+    /// The account-identifier labels this tier covers. Just the
+    /// account delta — each posture's own base label set fuses
+    /// this in via its own `labels()` helper.
+    pub(crate) fn labels(self) -> &'static [LabelRef] {
         match self {
             Self::Standard => STANDARD_ACCOUNT_LABELS,
             Self::Extended => EXTENDED_ACCOUNT_LABELS,

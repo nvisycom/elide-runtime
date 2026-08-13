@@ -26,7 +26,7 @@
 
 use elide::redaction::{Anonymizer, MatchContext, Rule};
 use elide_core::Result;
-use elide_core::entity::provenance::Attribution;
+use elide_core::entity::audit::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
 use nvisy_schema::policy::PolicyDefinition;

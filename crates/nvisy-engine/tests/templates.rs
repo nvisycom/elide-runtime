@@ -15,8 +15,8 @@ use nvisy_engine::{Engine, KeyProvider};
 use nvisy_schema::file::Document;
 use nvisy_schema::plan::AnalyzerParams;
 use nvisy_template::{
-    GdprArticle9Treatment, HipaaDeidMethod, PciDssPart, PciPanRender, PolicyTemplate, Template,
-    TemplateCatalog,
+    GdprArticle9Treatment, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart, PciPanRender,
+    PolicyTemplate, Template, TemplateCatalog,
 };
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
@@ -65,6 +65,7 @@ async fn apply(engine: &Engine, template: Template) -> String {
 async fn hipaa_safe_harbor_erases_contact_info_from_sample() {
     let template = PolicyTemplate::HipaaDeidentification {
         method: HipaaDeidMethod::SafeHarbor,
+        accounts: HipaaAccountNumbers::Standard,
     }
     .build();
     let body = apply(&engine(), template).await;
@@ -101,6 +102,7 @@ async fn hipaa_limited_data_set_erases_contact_info_from_sample() {
     // engine and erases what §164.514(e)(2) tells it to.
     let template = PolicyTemplate::HipaaDeidentification {
         method: HipaaDeidMethod::LimitedDataSet,
+        accounts: HipaaAccountNumbers::Standard,
     }
     .build();
     let body = apply(&engine(), template).await;
@@ -127,6 +129,7 @@ async fn hipaa_expert_determination_pseudonymizes_contact_info_from_sample() {
     // and anonymizes the sample.
     let template = PolicyTemplate::HipaaDeidentification {
         method: HipaaDeidMethod::ExpertDetermination,
+        accounts: HipaaAccountNumbers::Standard,
     }
     .build();
     let body = apply(&engine(), template).await;

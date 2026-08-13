@@ -7,6 +7,7 @@ pub(crate) mod ccpa;
 pub(crate) mod gdpr;
 pub(crate) mod hipaa;
 pub(crate) mod pci;
+pub(crate) mod soc2;
 
 use hipstr::HipStr;
 use jiff::civil::Date;

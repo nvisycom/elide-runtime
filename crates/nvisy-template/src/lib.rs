@@ -63,7 +63,7 @@ pub use self::catalog::TemplateCatalog;
 pub use self::template::{
     GdprArticle9Treatment, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart, PciPanRender, Template,
 };
-use self::template::{ccpa, gdpr, hipaa, pci};
+use self::template::{ccpa, gdpr, hipaa, pci, soc2};
 
 /// A regulatory posture this crate ships a [`Template`] for.
 ///
@@ -127,6 +127,13 @@ pub enum PolicyTemplate {
     /// [`Predicate::LabelInGroup`]: nvisy_policy::predicate::Predicate::LabelInGroup
     /// [`TextRedaction::Pseudonymize`]: nvisy_policy::redaction::TextRedaction::Pseudonymize
     Ccpa,
+    /// SOC 2 secrets scan. Erases API keys, auth tokens, private
+    /// keys, and wallet addresses from evidence artifacts before
+    /// external sharing. Covers SOC 2 Trust Services Criteria
+    /// CC6.1 / CC6.7 and ISO 27001 A.9.2.4; label scope is
+    /// framework-agnostic — the same set applies to any
+    /// evidence-artifact secrets-scan workflow.
+    Soc2Secrets,
 }
 
 impl PolicyTemplate {
@@ -140,6 +147,7 @@ impl PolicyTemplate {
             Self::GdprArticle9 { treatment } => gdpr::template(treatment),
             Self::PciDss { part } => pci::template(part),
             Self::Ccpa => ccpa::template(),
+            Self::Soc2Secrets => soc2::template(),
         }
     }
 }

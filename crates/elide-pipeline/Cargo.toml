@@ -19,7 +19,17 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["tabular", "image", "audio", "document"]
+default = ["all-modalities"]
+
+## Every modality this crate ships: tabular, image, audio, and the
+## container-document codecs. Text is unconditional, so it needs no
+## toggle. This is what `default` turns on.
+##
+## Deliberately excludes `codec-mp3` (MP3 patent licensing may not
+## be satisfiable downstream) and `codec-pdf-render` (drags in a
+## native rendering dep). Both stay opt-in: a caller asking for
+## every modality should not silently take on either.
+all-modalities = ["tabular", "image", "audio", "document"]
 
 ## Tabular modality (analyzer + anonymizer + redaction operators)
 ## plus every tabular codec elide ships (CSV, XLSX).

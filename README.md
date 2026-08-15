@@ -1,7 +1,7 @@
 # Elide Runtime
 
 [![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-runtime/build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/elide-runtime/actions/workflows/build.yml)
-[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/bento/build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/bento/actions/workflows/build.yml)
+[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-bento/build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/elide-bento/actions/workflows/build.yml)
 
 Multimodal redaction pipeline as a stateless Rust library.
 

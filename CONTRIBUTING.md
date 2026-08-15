@@ -5,14 +5,13 @@ Thank you for your interest in contributing to Nvisy Runtime.
 ## Requirements
 
 - Rust 1.85+ (stable)
-- Python 3.12+
-- Cargo and pip
+- Cargo
 
 ## Setup
 
 ```bash
 git clone https://github.com/nvisycom/elide-runtime.git
-cd runtime
+cd elide-runtime
 cargo build
 ```
 

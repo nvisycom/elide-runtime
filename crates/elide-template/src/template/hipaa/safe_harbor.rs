@@ -26,6 +26,17 @@ pub(super) const SAFE_HARBOR_LABELS: &[LabelRef] = &[
     // level from `address` blob down to `city` erases; `state`
     // and `country` are permitted to survive per Safe Harbor and
     // are deliberately absent.
+    //
+    // `postal_code` erases whole even though §(B) permits keeping
+    // the initial three ZIP digits: that allowance is conditional
+    // on a Census population test (a 3-digit unit covering ≤20,000
+    // people must be changed to `000`, currently 17 prefixes), and
+    // a per-label operator cannot evaluate it. Truncating
+    // unconditionally would be non-compliant for those prefixes,
+    // so the template takes the strictly-conservative branch and
+    // gives up the geographic yield §(B) would have allowed.
+    // Callers who need the prefix override this entry and own the
+    // population test themselves.
     LabelRef::from_static("address"),
     LabelRef::from_static("street_address"),
     LabelRef::from_static("city"),

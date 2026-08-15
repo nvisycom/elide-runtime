@@ -39,9 +39,12 @@ pub(crate) const GROUP_NAME: &str = "ccpa_personal_information";
 /// Elide-builtin labels the group covers, mapped from
 /// §1798.140(v)(1) categories.
 const CCPA_LABELS: &[LabelRef] = &[
-    // (A) Identifiers — includes geographic subdivisions (finer
-    // than country / state), account credentials, and dates
-    // directly related to an individual.
+    // (A) Identifiers — the enumerated list: real name, alias,
+    // postal address, unique/online identifier, IP address, email,
+    // account name, SSN, driver's license, passport, "or other
+    // similar identifiers". Geographic subdivisions finer than
+    // country/state and dates tied to an individual come in as
+    // "similar identifiers"; `username` is the "account name".
     LabelRef::from_static("person_name"),
     LabelRef::from_static("address"),
     LabelRef::from_static("street_address"),
@@ -53,24 +56,29 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("mac_address"),
     LabelRef::from_static("device_id"),
     LabelRef::from_static("username"),
-    LabelRef::from_static("password"),
-    LabelRef::from_static("security_question_answer"),
     LabelRef::from_static("government_id"),
     LabelRef::from_static("national_insurance_number"),
     LabelRef::from_static("drivers_license"),
     LabelRef::from_static("passport_number"),
     LabelRef::from_static("individual_date"),
     // (B) §1798.80 categories overlap with (A) + adds signature,
-    // physical description, education/employment, financial /
-    // medical / insurance. `health_narrative` catches the
-    // free-form clinical content that specific IDs miss.
+    // physical description, financial / medical / insurance.
+    // `health_narrative` catches the free-form clinical content
+    // that specific IDs miss.
     LabelRef::from_static("signature"),
     LabelRef::from_static("handwriting"),
-    LabelRef::from_static("occupation"),
     LabelRef::from_static("medical_id"),
     LabelRef::from_static("insurance_id"),
     LabelRef::from_static("health_narrative"),
     LabelRef::from_static("bank_account"),
+    LabelRef::from_static("payment_card"),
+    // CPRA §1798.140(ae)(1)(D) — account log-in credentials.
+    // Sensitive personal information is a subset of PI, so these
+    // erase under the same rule; §1798.121's right-to-limit is a
+    // separate obligation the caller handles out-of-band. Not
+    // §(v)(1)(A) identifiers: that list stops at "account name".
+    LabelRef::from_static("password"),
+    LabelRef::from_static("security_question_answer"),
     // (C) Protected classifications (CA/federal)
     LabelRef::from_static("ethnicity"),
     LabelRef::from_static("nationality"),
@@ -80,9 +88,14 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("sex_life"),
     LabelRef::from_static("age"),
     LabelRef::from_static("date_of_birth"),
-    // (D) Commercial information
-    LabelRef::from_static("payment_card"),
-    LabelRef::from_static("amount"),
+    // (D) Commercial information — "products or services
+    // purchased, obtained, or considered, or other purchasing or
+    // consuming histories". A purchasing record, not the payment
+    // instrument (that is §1798.80 financial information, above).
+    // `amount` is deliberately absent: a bare monetary figure is
+    // not a purchasing history, and erasing every number in a
+    // document would corrupt invoices and statements wholesale.
+    LabelRef::from_static("product"),
     // (E) Biometric information
     LabelRef::from_static("fingerprint"),
     LabelRef::from_static("voiceprint"),
@@ -101,10 +114,13 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("precise_geolocation"),
     // (H) Sensory (audio, visual, thermal, olfactory)
     LabelRef::from_static("face"),
-    // (I) Professional / employment information
+    // (I) Professional / employment-related information about the
+    // consumer. `company_id` and `department_name` are deliberately
+    // absent: both identify the *employer* (a public company-registry
+    // id, a business-unit name), not the consumer's employment
+    // relationship, so erasing them removes non-personal data.
+    LabelRef::from_static("occupation"),
     LabelRef::from_static("certificate_number"),
-    LabelRef::from_static("company_id"),
-    LabelRef::from_static("department_name"),
     // (J) Non-public education information per FERPA
     LabelRef::from_static("education_record"),
     // (K) Inferences drawn to build a consumer profile
@@ -188,6 +204,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn scope_excludes_non_consumer_business_data() {
+        // These identify an employer or a bare monetary figure, not
+        // a consumer. §1798.140(v)(1) reaches personal information
+        // about a consumer, so erasing them would strip ordinary
+        // business data — invoice totals, registry ids, business-unit
+        // names — from every document the policy touches.
+        for outside in ["amount", "company_id", "department_name"] {
+            assert!(
+                !CCPA_LABELS.iter().any(|l| l.as_str() == outside),
+                "`{outside}` is not consumer personal information; \
+                 it must stay out of the CCPA default scope",
+            );
+        }
+    }
+
+    #[test]
     fn every_shipped_ccpa_category_has_at_least_one_anchor_label() {
         // Spot-check one label per shipped category so a future
         // edit dropping a whole category trips this rather than
@@ -196,7 +228,7 @@ mod tests {
             "person_name",      // (A) identifiers
             "signature",        // (B) §1798.80
             "ethnicity",        // (C) protected classifications
-            "payment_card",     // (D) commercial info
+            "product",          // (D) commercial info
             "fingerprint",      // (E) biometric
             "url",              // (F) internet/network activity
             "coordinates",      // (G) geolocation

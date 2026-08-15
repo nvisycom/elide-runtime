@@ -14,13 +14,18 @@ const LDS_POLICY_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000004");
 const LDS_BULK_RULE_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000005");
 
 /// Every label the Limited Data Set bulk-erase rule targets.
-/// Sixteen categories per §164.514(e)(2) — dates, ages,
-/// town/city, state, and ZIP survive (dropped from this list vs.
-/// Safe Harbor's). Only `street_address` erases from the
-/// geographic set; if the recognizer emits the broader `address`
-/// blob rather than the fine-grained split, the LDS survivor
-/// intent is defeated for that entity — enable elide's
-/// address-split patterns to close that gap.
+/// The sixteen direct-identifier categories §164.514(e)(2)
+/// enumerates — dates, ages, town/city, state, and ZIP survive
+/// (dropped from this list vs. Safe Harbor's).
+///
+/// §(e)(2)(ii) excludes "postal address information, other than
+/// town or city, State, and zip code", so both `street_address`
+/// and the coarser `address` blob erase. Erasing the blob costs
+/// the town/city and ZIP inside it, which §(e)(2)(ii) would have
+/// let survive — the conservative trade, since letting it through
+/// would leak a full street address under a policy claiming
+/// §(e)(2) compliance. Enable elide's address-split patterns to
+/// recover the survivors.
 ///
 /// `bank_account`, `iban`, `payment_card`, and (with the
 /// Extended tier) `crypto_address` are appended per-request from
@@ -29,6 +34,7 @@ const LDS_BULK_RULE_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000005");
 pub(super) const LDS_LABELS: &[LabelRef] = &[
     LabelRef::from_static("person_name"),
     LabelRef::from_static("street_address"),
+    LabelRef::from_static("address"),
     LabelRef::from_static("phone_number"),
     LabelRef::from_static("fax_number"),
     LabelRef::from_static("email_address"),
@@ -48,12 +54,16 @@ pub(super) const LDS_LABELS: &[LabelRef] = &[
     LabelRef::from_static("retina_scan"),
     LabelRef::from_static("facial_geometry"),
     LabelRef::from_static("genetic_data"),
+    // §164.514(e)(2)(xvi) full face photographic images and any
+    // comparable images.
     LabelRef::from_static("face"),
     LabelRef::from_static("internal_id"),
     LabelRef::from_static("case_number"),
-    // §164.514(e)(2)(xvi) "any other unique identifying number,
-    // characteristic, or code" — catch-all for ad-hoc identifiers
-    // that don't map to a specific label.
+    // Not an §164.514(e)(2) category. The LDS list is sixteen
+    // enumerated direct identifiers with no residual catch-all —
+    // that clause is Safe Harbor's §(b)(2)(i)(R), and its absence
+    // here is why an LDS is still PHI requiring a DUA. Retained as
+    // a defensive default; drop it for a strict-reading LDS.
     LabelRef::from_static("unresolved"),
 ];
 

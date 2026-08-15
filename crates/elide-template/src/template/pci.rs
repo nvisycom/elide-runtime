@@ -15,16 +15,20 @@
 //!   — the historical PCI truncation posture. Keeps BIN and
 //!   last-four for downstream lookups. No key material involved.
 //! - [`PciPanRender::TruncateLastFour`] → `Truncate { keep_prefix: 0, keep_suffix: 4 }`
-//!   — the stricter §3.5.1.1 posture (mandatory 2025-03-31): safe
-//!   when a downstream system also stores a hashed version of the
-//!   same PAN. Loses the BIN.
+//!   — the conservative truncation posture for environments that
+//!   also store a hashed version of the same PAN. §3.5.1 requires
+//!   controls preventing correlation between the hashed and
+//!   truncated representations; dropping the BIN shrinks that
+//!   correlation surface. Not itself a named requirement.
 //! - [`PciPanRender::HmacSha256`] → `HmacHash { algorithm: Sha256 }`
-//!   — the "keyed cryptographic hash" posture PCI DSS v4.0.1
-//!   introduces. Requires the engine to have a `KeyProvider`
-//!   wired.
+//!   — the keyed-hash posture §3.5.1.1 mandates (effective
+//!   2025-03-31): hashes rendering PAN unreadable must be keyed
+//!   cryptographic hashes of the entire PAN, so an unkeyed digest
+//!   no longer satisfies §3.5.1. Requires the engine to have a
+//!   `KeyProvider` wired.
 //! - [`PciPanRender::HmacSha512`] → `HmacHash { algorithm: Sha512 }`
-//!   — same posture as `HmacSha256` with SHA-512 (§A2.1 allows
-//!   SHA-256 or better).
+//!   — same posture with SHA-512. PCI DSS's "strong cryptography"
+//!   glossary definition covers the SHA-2 family; both qualify.
 //!
 //! All render variants target the elide-builtin `payment_card`
 //! label. No [`LabelGroup`] — one label, one rule per template.
@@ -112,16 +116,23 @@ pub enum PciPanRender {
     /// digits.
     Truncate,
     /// Truncate stored PAN to the last four digits only (BIN
-    /// dropped). The §3.5.1.1 posture required when a downstream
-    /// system stores a hashed version of the same PAN — see
-    /// PCI DSS v4.0.1 §3.5.1.1.
+    /// dropped). The conservative posture where a hashed copy of
+    /// the same PAN coexists: §3.5.1 requires controls preventing
+    /// the two representations from being correlated back to the
+    /// original, and dropping the BIN shrinks that surface. Not a
+    /// named requirement — §3.5.1.1 governs hashing, not
+    /// truncation.
     TruncateLastFour,
     /// Replace stored PAN with an HMAC-SHA-256 digest keyed on
-    /// the engine's `KeyProvider`.
+    /// the engine's `KeyProvider`. Satisfies §3.5.1.1 (effective
+    /// 2025-03-31), which requires hashes rendering PAN unreadable
+    /// to be keyed cryptographic hashes of the entire PAN.
     HmacSha256,
     /// Replace stored PAN with an HMAC-SHA-512 digest keyed on
-    /// the engine's `KeyProvider`. §A2.1 permits SHA-512 for
-    /// §3.5.1's keyed-hash posture.
+    /// the engine's `KeyProvider`. Same §3.5.1.1 posture as
+    /// [`HmacSha256`](Self::HmacSha256) with a wider digest; PCI
+    /// DSS's "strong cryptography" definition covers the SHA-2
+    /// family.
     HmacSha512,
 }
 
@@ -138,8 +149,15 @@ const SAV_LABELS: &[LabelRef] = &[
     LabelRef::from_static("pin_block"),
 ];
 
-/// PCI DSS §3.5.1 effective date (v4.0.1 mandatory compliance).
-const EFFECTIVE_DATE: Date = Date::constant(2025, 3, 31);
+/// PCI DSS v4.0 effective date. The base for requirements that
+/// are not future-dated: §3.3.1's SAV prohibition (a core
+/// requirement since v1.0) and §3.5.1's truncation approaches.
+const V4_EFFECTIVE_DATE: Date = Date::constant(2022, 3, 31);
+
+/// §3.5.1.1 effective date — the keyed-hash mandate is
+/// future-dated and became mandatory on this day. Applies only to
+/// the HMAC render variants.
+const KEYED_HASH_EFFECTIVE_DATE: Date = Date::constant(2025, 3, 31);
 
 const TRUNCATE_POLICY_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000001");
 const TRUNCATE_RULE_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000002");
@@ -175,11 +193,17 @@ pub(crate) fn template(part: PciDssPart) -> Template {
 /// PCI DSS §3.5.1 render template dispatched by `render`.
 fn pan_template(render: PciPanRender) -> Template {
     let spec = spec(render);
+    // Only the keyed-hash variants carry §3.5.1.1's future-dated
+    // mandate; truncation has been available since v4.0.
+    let effective_date = match render {
+        PciPanRender::HmacSha256 | PciPanRender::HmacSha512 => KEYED_HASH_EFFECTIVE_DATE,
+        PciPanRender::Truncate | PciPanRender::TruncateLastFour => V4_EFFECTIVE_DATE,
+    };
     Template {
         id: spec.id.into(),
         name: spec.name.into(),
         version: Version::new(1, 0, 0),
-        effective_date: EFFECTIVE_DATE,
+        effective_date,
         description: Some(spec.description.into()),
         policy: PolicyDefinition {
             id: spec.policy_id,
@@ -215,15 +239,15 @@ fn spec(render: PciPanRender) -> RenderSpec {
             id: "pci_dss_pan_truncate_last_four",
             name: "PCI DSS §3.5.1 PAN — truncate to last four",
             description: "Render stored PAN unreadable via truncation to the last four digits \
-                          only. The stricter §3.5.1.1 posture (mandatory 2025-03-31) required \
-                          when a downstream system also stores a hashed version of the same PAN.",
+                          only. The conservative posture where a hashed copy of the same PAN \
+                          also exists in the environment.",
             policy_id: TRUNCATE_LAST_FOUR_POLICY_ID,
             policy_name: "pci-dss-pan-truncate-last-four",
             policy_description: "Truncate stored PAN to the last four digits, dropping BIN and \
-                                 middle. Required by PCI DSS v4.0.1 §3.5.1.1 when the same \
-                                 environment also stores a hashed version of the same PAN — \
-                                 first-six + last-four coexistence with a hash requires \
-                                 additional controls.",
+                                 middle. PCI DSS §3.5.1 requires controls preventing hashed and \
+                                 truncated versions of one PAN from being correlated to \
+                                 reconstruct it; dropping the BIN shrinks that surface. Not a \
+                                 named requirement — §3.5.1.1 governs hashing, not truncation.",
             rule: truncate_rule(
                 0,
                 4,
@@ -264,9 +288,11 @@ fn spec(render: PciPanRender) -> RenderSpec {
     }
 }
 
-const HMAC_POLICY_DESCRIPTION: &str = "Replace stored PAN with a keyed HMAC digest. Requires the engine to have a KeyProvider \
-     wired via `Engine::with_key_provider`. The key must stay secret; a leaked key permits \
-     offline PAN enumeration against the shipped hash.";
+const HMAC_POLICY_DESCRIPTION: &str = "Replace stored PAN with a keyed HMAC digest. Satisfies PCI DSS §3.5.1.1 (mandatory \
+     2025-03-31), which requires hashes rendering PAN unreadable to be keyed cryptographic \
+     hashes of the entire PAN — an unkeyed digest no longer satisfies §3.5.1. Requires the \
+     engine to have a KeyProvider wired via `Engine::with_key_provider`. The key must stay \
+     secret; a leaked key permits offline PAN enumeration against the shipped hash.";
 
 fn truncate_rule(keep_prefix: usize, keep_suffix: usize, rule_id: Uuid, name: &str) -> PolicyRule {
     let description = if keep_prefix == 0 {
@@ -331,7 +357,7 @@ fn sav_template() -> Template {
         id: "pci_dss_sav_erase".into(),
         name: "PCI DSS §3.3.1 SAV — erase".into(),
         version: Version::new(1, 0, 0),
-        effective_date: EFFECTIVE_DATE,
+        effective_date: V4_EFFECTIVE_DATE,
         description: Some(
             "Erase Sensitive Authentication Data (CVV/CVC, track data, PIN blocks). \
              §3.3.1 prohibits storing SAV after authorization — the correct posture is \
@@ -383,6 +409,28 @@ mod tests {
         PciPanRender::HmacSha256,
         PciPanRender::HmacSha512,
     ];
+
+    #[test]
+    fn only_keyed_hash_variants_carry_the_future_dated_effective_date() {
+        // Reviewers check `effective_date` against the run date to
+        // confirm the template that fired was in force at the time.
+        // §3.5.1.1's keyed-hash mandate is future-dated to
+        // 2025-03-31; truncation and the §3.3.1 SAV prohibition are
+        // not, so stamping them with 2025 would imply no obligation
+        // existed before then.
+        for render in ALL {
+            let want = match render {
+                PciPanRender::HmacSha256 | PciPanRender::HmacSha512 => KEYED_HASH_EFFECTIVE_DATE,
+                PciPanRender::Truncate | PciPanRender::TruncateLastFour => V4_EFFECTIVE_DATE,
+            };
+            assert_eq!(
+                pan_template(*render).effective_date,
+                want,
+                "{render:?} carries the wrong effective date",
+            );
+        }
+        assert_eq!(sav_template().effective_date, V4_EFFECTIVE_DATE);
+    }
 
     #[test]
     fn every_render_targets_payment_card_label() {

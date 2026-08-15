@@ -260,6 +260,21 @@ mod tests {
     }
 
     #[test]
+    fn limited_data_set_erases_both_address_shapes() {
+        // §164.514(e)(2)(ii) excludes postal address information
+        // other than town/city, state, and ZIP. If the recognizer
+        // emits the coarse `address` blob rather than the split, a
+        // full street address would otherwise survive under a
+        // policy claiming §(e)(2) compliance.
+        for erased in ["address", "street_address"] {
+            assert!(
+                LDS_LABELS.iter().any(|l| l.as_str() == erased),
+                "LDS must erase `{erased}` per §164.514(e)(2)(ii)",
+            );
+        }
+    }
+
+    #[test]
     fn every_method_ships_a_distinct_policy_identity() {
         let accounts = HipaaAccountNumbers::default();
         let sh = template(HipaaDeidMethod::SafeHarbor, accounts);

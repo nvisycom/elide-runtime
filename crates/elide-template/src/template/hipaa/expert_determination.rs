@@ -72,9 +72,12 @@ fn ed_group(accounts: HipaaAccountNumbers) -> LabelGroup {
     LabelGroup {
         name: ED_GROUP.into(),
         description: Some(
-            "The 18 identifier categories carried into the Expert Determination \
-             scaffold. Same label membership as Safe Harbor; the separate group \
-             name lets audits distinguish the two postures by group id alone."
+            "Safe Harbor's 18 identifier categories, carried into the Expert \
+             Determination scaffold as a starting scope — §164.514(b)(1) itself \
+             enumerates no identifiers, leaving the actual scope to the \
+             statistician's risk analysis. Same label membership as Safe Harbor; \
+             the separate group name lets audits distinguish the two postures by \
+             group id alone."
                 .into(),
         ),
         labels: safe_harbor_labels(accounts),

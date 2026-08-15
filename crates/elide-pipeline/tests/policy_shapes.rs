@@ -595,3 +595,66 @@ async fn fallback_carries_the_scope_attribution() {
         "fallback must cite the scope's authority, not a generic label",
     );
 }
+
+/// A cited scope beside an uncited one is ambiguous: stamping the
+/// citation on entities from the uncited scope would attribute a
+/// redaction to an authority that does not cover it. The fallback
+/// falls back to the policy's own name instead.
+#[tokio::test]
+async fn mixed_scope_attribution_does_not_borrow_a_citation() {
+    use elide_core::entity::audit::AttributionKind;
+
+    let engine = engine();
+    let policy = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "half-cited".into(),
+        description: None,
+        template: None,
+        scopes: vec![
+            LabelScope::new("cited", vec![LabelRef::new("email_address")]).with_attribution(
+                AttributionKind::Cited {
+                    authority: "CCPA".into(),
+                    citation: "Cal. Civ. Code §1798.140(v)(1)".into(),
+                    rationale: "personal information".into(),
+                },
+            ),
+            // No attribution: `phone_number` answers to nothing the
+            // policy declared.
+            LabelScope::new("uncited", vec![LabelRef::new("phone_number")]),
+        ],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: Some(ModalityRedactions {
+            text: Some(TextRedaction::Erase),
+            ..Default::default()
+        }),
+    };
+
+    let mut analyzed = engine
+        .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
+        .await
+        .expect("analyze succeeds");
+    engine
+        .anonymize(raw_txt(), std::slice::from_ref(&policy), &mut analyzed)
+        .await
+        .expect("anonymize succeeds");
+
+    let Some(EntityGroup::Text(entities)) = analyzed.body.as_ref() else {
+        panic!("expected text body");
+    };
+    let attribution = entities
+        .iter()
+        .find(|r| r.entity.label.as_str() == "phone_number")
+        .and_then(|r| {
+            r.entity.audit.events().iter().find_map(|e| match &e.kind {
+                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
+                _ => None,
+            })
+        })
+        .expect("the fallback must stamp an attribution");
+    assert!(
+        matches!(&attribution.kind, AttributionKind::Freeform { name, .. } if name == "half-cited"),
+        "a mixed-attribution policy must not borrow one scope's citation, got: {:?}",
+        attribution.kind,
+    );
+}

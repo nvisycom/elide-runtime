@@ -36,9 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   set; their union (plus `custom`) is what the policy detects. Rules
   act within it and may target one scope by name via
   `Predicate::LabelInScope` (was `labelInGroup`, with the field
-  renamed `group` -> `scope`); `fallback` applies to anything no rule
-  claimed. Previously the same labels were written twice, once as
-  vocabulary and again as a group, with nothing reconciling the two.
+  renamed `group` -> `scope`). `fallback` applies to anything no rule
+  in that policy claimed, bounded to the labels it scopes; setting
+  one halts the chain for that entity, leaving it unset falls through
+  to the next policy. Previously the same labels were written twice,
+  once as vocabulary and again as a group, with nothing reconciling
+  the two.
 - Language detection attaches to every text-carrying modality
   (tabular, image, audio) rather than text alone, so the same value
   is analyzed with a language regardless of the container it arrives

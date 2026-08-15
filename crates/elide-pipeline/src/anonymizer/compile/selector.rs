@@ -149,11 +149,15 @@ pub(super) fn fallback_attribution(policy: &PolicyDefinition) -> Attribution {
     // A policy whose scopes all answer to one authority can cite it:
     // CCPA and GDPR do every redaction through the fallback, so
     // without this their audit events would lose the citation their
-    // scope carries. Several distinct attributions are ambiguous, so
-    // those fall back to the policy's own name.
-    let mut cited = policy.scopes.iter().filter_map(|s| s.attribution.as_ref());
-    if let Some(first) = cited.next()
-        && cited.all(|other| other == first)
+    // scope carries.
+    //
+    // Compares `Option`s rather than filtering the uncited ones out,
+    // so a cited scope beside an uncited one disagrees. Skipping the
+    // uncited scope would stamp its labels with an authority that
+    // does not cover them, which is worse than no citation at all.
+    let mut declared = policy.scopes.iter().map(|s| s.attribution.as_ref());
+    if let Some(Some(first)) = declared.next()
+        && declared.all(|other| other == Some(first))
     {
         return Attribution {
             kind: first.clone(),

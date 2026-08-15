@@ -12,6 +12,11 @@ claimed). Each request submits policies in precedence order; the
 engine walks them and, for each policy, walks its rules in order and
 runs the first matching rule's action.
 
+A fallback runs only when no rule in its own policy matched, and only
+on labels that policy scopes. Setting one halts the chain for that
+entity, so lower-precedence policies never see it; leaving it unset
+falls through to the next policy.
+
 Scopes let a policy detect more than its rules act on: scope a whole
 regulatory category, write rules for the labels needing special
 treatment, and let the fallback sweep the rest. Policies carry

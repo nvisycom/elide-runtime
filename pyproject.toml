@@ -1,7 +1,7 @@
 [project]
 name = "elide-bento"
 version = "0.1.0"
-description = "Externalized model inference for nvisy (BentoML HTTP services)"
+description = "Externalized model inference for elide (BentoML HTTP services)"
 readme = "README.md"
 requires-python = "==3.12.*"
 license = "Apache-2.0"

@@ -1,7 +1,7 @@
 [project]
 name = "elide-bento-ner"
 version = "0.1.0"
-description = "Schema-driven NER inference service for nvisy (GLiNER2)"
+description = "Schema-driven NER inference service for elide (GLiNER2)"
 readme = "README.md"
 requires-python = "==3.12.*"
 license = "Apache-2.0"

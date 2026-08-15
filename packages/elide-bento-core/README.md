@@ -2,7 +2,7 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-bento/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-bento/actions/workflows/build.yml)
 
-Shared wire-contract types for the Nvisy inference services. The OCR, NER,
+Shared wire-contract types for the elide-bento inference services. The OCR, NER,
 and vision-language OCR services all depend on this package, so the HTTP
 contract is defined once on the Python side.
 

@@ -1,7 +1,7 @@
 [project]
 name = "elide-bento-ocr"
 version = "0.1.0"
-description = "Default OCR inference service for nvisy (docTR)"
+description = "Default OCR inference service for elide (docTR)"
 readme = "README.md"
 requires-python = "==3.12.*"
 license = "Apache-2.0"

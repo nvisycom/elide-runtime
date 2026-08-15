@@ -2,7 +2,7 @@
 
 [package]
 name = "elide-bento"
-description = "BentoML-backed NER and OCR backends for the elide toolkit"
+description = "BentoML-backed NER, OCR, and STT backends for the elide toolkit"
 keywords = ["elide", "bento", "bentoml", "ner", "ocr"]
 categories = ["api-bindings"]
 readme = "README.md"

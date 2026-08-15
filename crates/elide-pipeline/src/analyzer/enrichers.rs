@@ -24,11 +24,11 @@ use elide_bento::ocr::BentoOcr;
 use elide_bento::stt::BentoStt;
 #[cfg(any(feature = "internal_image", feature = "internal_audio"))]
 use elide_core::Result;
+use elide_core::modality::TextRecognizable;
 #[cfg(feature = "internal_audio")]
 use elide_core::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
 use elide_core::modality::image::Image;
-use elide_core::modality::text::Text;
 
 #[cfg(feature = "internal_image")]
 use crate::provider::ocr::OcrBackend;
@@ -37,11 +37,19 @@ use crate::provider::stt::SttBackend;
 
 /// Attach the lingua language-detection enricher.
 ///
-/// Text-modality only: writes the detected language into the
-/// per-request recognizer context, so pattern/NER/LLM downstream
-/// see what it wrote. The detector considers every language
-/// lingua was compiled with.
-pub(super) fn attach_language(analyzer: Analyzer<Text>) -> Analyzer<Text> {
+/// Writes the detected language into the per-request recognizer
+/// context, so pattern/NER/LLM downstream see what it wrote. The
+/// detector considers every language lingua was compiled with.
+///
+/// Generic over [`TextRecognizable`], the modalities whose payload
+/// is recognizable text: [`Text`] reads its body directly, and
+/// tabular reads each cell. A caller-asserted language on the
+/// request scope wins; the enricher skips detection entirely when
+/// one is present.
+///
+/// [`TextRecognizable`]: elide_core::modality::TextRecognizable
+/// [`Text`]: elide_core::modality::text::Text
+pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Analyzer<M> {
     analyzer.with_enricher(LinguaEnricher::unrestricted())
 }
 

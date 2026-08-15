@@ -288,7 +288,7 @@ async fn empty_analyzed_document_anonymize_fails_validation() {
             countries: Vec::new(),
             metadata: Default::default(),
             correlation_id: uuid::Uuid::now_v7(),
-            ocr_mode: Default::default(),
+            raster_mode: Default::default(),
         },
     };
     let outcome = engine.anonymize(raw_docx(), &[], &mut audit).await;

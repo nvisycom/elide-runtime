@@ -91,7 +91,7 @@ use elide_core::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
-use elide_core::primitive::OcrMode;
+use elide_core::primitive::RasterMode;
 use elide_core::{Error, ErrorKind, Result};
 use elide_governance::PolicyDefinition;
 use elide_wire::file::Document;
@@ -302,7 +302,7 @@ impl Engine {
     ) -> Result<Audit> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
-        let mut handle = self.decode(document, spec.ocr_mode).await?;
+        let mut handle = self.decode(document, spec.raster_mode).await?;
         let (orchestrator, context) =
             self.build_analyze_orchestrator(spec, policies, correlation_id)?;
         let directives = build_analyze_directives(spec);
@@ -433,7 +433,7 @@ impl Engine {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let content_type = document.content_type.clone();
-        let mut handle = self.decode(document, audit.context.ocr_mode).await?;
+        let mut handle = self.decode(document, audit.context.raster_mode).await?;
 
         let mut report = body_group.insert_into_body(Report::new());
         let mut overrides: Vec<OverrideEntry> = Vec::new();
@@ -467,14 +467,18 @@ impl Engine {
         })
     }
 
-    async fn decode(&self, document: Document, ocr_mode: OcrMode) -> Result<UntypedDocumentHandle> {
+    async fn decode(
+        &self,
+        document: Document,
+        raster_mode: RasterMode,
+    ) -> Result<UntypedDocumentHandle> {
         let Document {
             bytes, extension, ..
         } = document;
-        let result = match ocr_mode {
-            OcrMode::Auto => self.formats.decode(bytes, extension.as_str()).await,
+        let result = match raster_mode {
+            RasterMode::Auto => self.formats.decode(bytes, extension.as_str()).await,
             _ => {
-                self.decode_with_ocr_mode(bytes, extension.as_str(), ocr_mode)
+                self.decode_with_raster_mode(bytes, extension.as_str(), raster_mode)
                     .await
             }
         };
@@ -488,32 +492,32 @@ impl Engine {
 
     /// Slow-path decode for requests overriding the default OCR
     /// mode. Rebuilds a [`FormatRegistry`] with the PDF handler
-    /// replaced by one wired to `ocr_mode`; other codecs come
+    /// replaced by one wired to `raster_mode`; other codecs come
     /// from the built-in set. Callers pay one registry build per
     /// non-default request — trivial next to the OCR render
     /// itself (`Force { dpi }` pages the whole document at the
     /// chosen DPI), but not free, so the default path skips it.
     #[cfg(feature = "codec-pdf-render")]
-    async fn decode_with_ocr_mode(
+    async fn decode_with_raster_mode(
         &self,
         bytes: bytes::Bytes,
         extension: &str,
-        ocr_mode: OcrMode,
+        raster_mode: RasterMode,
     ) -> std::result::Result<UntypedDocumentHandle, elide_core::Error> {
         use elide::codec::handler::pdf_format_with;
         let registry =
-            FormatRegistry::with_builtin().with_replaced_format(pdf_format_with(ocr_mode));
+            FormatRegistry::with_builtin().with_replaced_format(pdf_format_with(raster_mode));
         registry.decode(bytes, extension).await
     }
 
     /// Fallback when the render feature is off: any non-default
     /// mode falls through to the shared registry.
     #[cfg(not(feature = "codec-pdf-render"))]
-    async fn decode_with_ocr_mode(
+    async fn decode_with_raster_mode(
         &self,
         bytes: bytes::Bytes,
         extension: &str,
-        _ocr_mode: OcrMode,
+        _raster_mode: RasterMode,
     ) -> std::result::Result<UntypedDocumentHandle, elide_core::Error> {
         self.formats.decode(bytes, extension).await
     }

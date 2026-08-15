@@ -57,7 +57,7 @@ pub use elide::codec::FormatRegistry;
 #[doc(inline)]
 pub use elide::redaction::operators::KeyProvider;
 #[doc(inline)]
-pub use elide_core::primitive::OcrMode;
+pub use elide_core::primitive::RasterMode;
 pub use elide_core::{Error, ErrorKind, Result};
 /// Authored redaction governance: policies, rules, predicates,
 /// operators.

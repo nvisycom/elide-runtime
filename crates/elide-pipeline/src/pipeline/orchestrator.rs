@@ -103,7 +103,7 @@ impl Engine {
         policies: &[PolicyDefinition],
         correlation_id: Uuid,
     ) -> Result<(Orchestrator<'_>, AuditContext)> {
-        validate_group_references(policies)?;
+        validate_scope_references(policies)?;
         let catalog = compile_catalog(policies)?;
         let context = AuditContext {
             languages: spec.scope.languages.clone(),
@@ -170,7 +170,7 @@ impl Engine {
         overrides: &[OverrideEntry],
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
-        validate_group_references(policies)?;
+        validate_scope_references(policies)?;
         validate_override_authorities(policies, overrides)?;
         let catalog = compile_catalog(policies)?;
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
@@ -270,22 +270,40 @@ fn validate_override_authorities(
 /// Reject a request whose rule references a [`LabelScope`] name
 /// its own policy didn't declare.
 ///
-/// Groups are scoped to the policy that owns them (strict
+/// Scopes are local to the policy that owns them (strict
 /// per-policy namespace). A rule inside policy A can reference
-/// only groups declared in policy A's own [`groups`] slot: not
-/// groups declared by policy B. Runs before catalog compilation
+/// only scopes declared in policy A's own [`scopes`]: not scopes
+/// declared by policy B. Also rejects a policy declaring the same
+/// scope name twice. Runs before catalog compilation
 /// so an authoring typo (`"gdpr_arcticle_9"`) surfaces as a
 /// [`Configuration`](ErrorKind::Configuration) error at request
 /// validation time, not as a silent underfire at apply time.
 ///
 /// [`LabelScope`]: elide_governance::LabelScope
-/// [`groups`]: elide_governance::PolicyDefinition::scopes
-fn validate_group_references(policies: &[PolicyDefinition]) -> Result<()> {
+/// [`scopes`]: elide_governance::PolicyDefinition::scopes
+fn validate_scope_references(policies: &[PolicyDefinition]) -> Result<()> {
     for policy in policies {
-        let known: HashSet<&str> = policy.scopes.iter().map(|g| g.name.as_str()).collect();
+        let mut known: HashSet<&str> = HashSet::new();
+        for declared in &policy.scopes {
+            // Duplicate names would make a `LabelInScope` rule
+            // resolve one labelset while `label_scope()` unions
+            // both, so recognition and redaction would disagree
+            // about what the name means.
+            if !known.insert(declared.name.as_str()) {
+                return Err(Error::new(
+                    ErrorKind::Configuration,
+                    format!(
+                        "policy `{}` declares scope `{}` more than once; scope names \
+                         must be unique within a policy",
+                        policy.id,
+                        declared.name.as_str(),
+                    ),
+                ));
+            }
+        }
         for rule in &policy.rules {
             for (predicate, _) in rule.attachments() {
-                check_predicate_groups(&predicate, &known, policy, rule)?;
+                check_predicate_scopes(&predicate, &known, policy, rule)?;
             }
         }
     }
@@ -293,10 +311,10 @@ fn validate_group_references(policies: &[PolicyDefinition]) -> Result<()> {
 }
 
 /// Walk a predicate tree; every [`Predicate::LabelInScope`] leaf
-/// must name a group declared by the enclosing policy. Returns
+/// must name a scope declared by the enclosing policy. Returns
 /// the first unknown reference with policy + rule context for the
 /// error message.
-fn check_predicate_groups(
+fn check_predicate_scopes(
     predicate: &Predicate,
     known: &HashSet<&str>,
     policy: &PolicyDefinition,
@@ -306,18 +324,18 @@ fn check_predicate_groups(
         Predicate::LabelInScope { scope } if !known.contains(scope.as_str()) => Err(Error::new(
             ErrorKind::Configuration,
             format!(
-                "policy `{}` rule `{}` references unknown label group `{}`: \
+                "policy `{}` rule `{}` references unknown label scope `{}`: \
                  the enclosing policy declares no `LabelScope` with that name",
                 policy.id, rule.id, scope,
             ),
         )),
         Predicate::All { all } => all
             .iter()
-            .try_for_each(|p| check_predicate_groups(p, known, policy, rule)),
+            .try_for_each(|p| check_predicate_scopes(p, known, policy, rule)),
         Predicate::Any { any } => any
             .iter()
-            .try_for_each(|p| check_predicate_groups(p, known, policy, rule)),
-        Predicate::Not { not } => check_predicate_groups(not, known, policy, rule),
+            .try_for_each(|p| check_predicate_scopes(p, known, policy, rule)),
+        Predicate::Not { not } => check_predicate_scopes(not, known, policy, rule),
         _ => Ok(()),
     }
 }

@@ -53,13 +53,13 @@ use uuid::Uuid;
 ///   candidate entity's label is in this set, so a policy that
 ///   lists only `email_address` never fires on a `phone_number`
 ///   another policy pulled into the request's recognition pass.
-/// - `groups`: resolved group name → labelset lookup, materialised
-///   from the policy's [`groups`] block once. A rule can only
-///   name a group its own policy declared (validated separately
-///   in `pipeline::orchestrator::validate_group_references`).
+/// - `scopes`: resolved scope name → labelset lookup, materialised
+///   from the policy's [`scopes`] once. A rule can only
+///   name a scope its own policy declared (validated separately
+///   in `pipeline::orchestrator::validate_scope_references`).
 ///
-/// [`labels`]: elide_governance::PolicyDefinition::label_scope
-/// [`groups`]: elide_governance::PolicyDefinition::scopes
+/// [`label_scope`]: elide_governance::PolicyDefinition::label_scope
+/// [`scopes`]: elide_governance::PolicyDefinition::scopes
 #[derive(Clone)]
 pub(in crate::anonymizer) struct PolicyContext {
     /// The enclosing policy's UUID. Threaded into per-policy
@@ -75,11 +75,10 @@ pub(in crate::anonymizer) struct PolicyContext {
 }
 
 impl PolicyContext {
-    /// Materialise a policy's scoping context from its
-    /// [`labels`] and [`groups`] blocks.
+    /// Materialise a policy's scoping context from its declared
+    /// [`scopes`] and inline custom schemas.
     ///
-    /// [`labels`]: elide_governance::PolicyDefinition::label_scope
-    /// [`groups`]: elide_governance::PolicyDefinition::scopes
+    /// [`scopes`]: elide_governance::PolicyDefinition::scopes
     pub(in crate::anonymizer) fn from_policy(policy: &PolicyDefinition) -> Self {
         let label_scope: HashSet<LabelRef> = policy.label_scope().into_iter().collect();
         let scopes: HashMap<String, HashSet<LabelRef>> =
@@ -147,6 +146,20 @@ pub(super) fn rule_attribution(policy: &PolicyDefinition, rule: &PolicyRule) -> 
 /// because no rule claimed the entity, so there is no provision
 /// to cite. No `source_id` either, since no rule fired.
 pub(super) fn fallback_attribution(policy: &PolicyDefinition) -> Attribution {
+    // A policy whose scopes all answer to one authority can cite it:
+    // CCPA and GDPR do every redaction through the fallback, so
+    // without this their audit events would lose the citation their
+    // scope carries. Several distinct attributions are ambiguous, so
+    // those fall back to the policy's own name.
+    let mut cited = policy.scopes.iter().filter_map(|s| s.attribution.as_ref());
+    if let Some(first) = cited.next()
+        && cited.all(|other| other == first)
+    {
+        return Attribution {
+            kind: first.clone(),
+            source_id: None,
+        };
+    }
     Attribution::freeform(policy.name.clone())
         .with_description("policy fallback: no rule matched this entity")
 }

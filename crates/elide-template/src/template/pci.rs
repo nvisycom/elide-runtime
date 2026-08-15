@@ -31,7 +31,7 @@
 //!   glossary definition covers the SHA-2 family; both qualify.
 //!
 //! All render variants target the elide-builtin `payment_card`
-//! label. No [`LabelScope`]: one label, one rule per template.
+//! label. Each template declares its own local [`LabelScope`].
 //! Callers wanting more than one dispatched from one policy
 //! compose the [`PolicyDefinition`]s themselves.
 //!

@@ -20,8 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deployment-owned NER, LLM, OCR, and STT recognizer/enricher lineups
   (deployment picks the providers; the wire only toggles them on or off).
 - HTTP client integration with the inference services shipped separately
-  from [nvisycom/bento](https://github.com/nvisycom/bento) via the
-  `elide-bento` git dependency.
+  from [nvisycom/elide-bento](https://github.com/nvisycom/elide-bento)
+  via the `elide-bento` git dependency.
+- `all-modalities` feature on `elide-pipeline` enabling every shipped
+  modality (tabular, image, audio, container documents) under one
+  toggle; `default` delegates to it. Text is unconditional and needs
+  no toggle. `codec-mp3` and `codec-pdf-render` stay opt-in: MP3
+  patent licensing may not be satisfiable downstream, and PDF
+  rasterisation pulls in a native rendering dependency.
+
+### Changed
+
+- The `elide-bento` dependency points at
+  [nvisycom/elide-bento](https://github.com/nvisycom/elide-bento),
+  matching the repository rename. The former `nvisycom/bento` URL
+  still redirects, so this names the canonical target rather than
+  fixing a break.
 
 ### Rust crates (`crates/`)
 

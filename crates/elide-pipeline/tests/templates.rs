@@ -69,7 +69,7 @@ async fn hipaa_safe_harbor_erases_contact_info_from_sample() {
     }
     .build();
     let body = apply(&engine(), template).await;
-    // The sample carries an email, a phone, and an SSN — every
+    // The sample carries an email, a phone, and an SSN: every
     // one falls in a HIPAA identifier category and should be
     // gone from the output. (Address is present too but the
     // spec runs NER off, so it isn't detected here.)
@@ -96,7 +96,7 @@ async fn hipaa_limited_data_set_erases_contact_info_from_sample() {
     // The sample carries only labels that erase under both Safe
     // Harbor and LDS (email, phone, SSN, address, name). The
     // distinguishing survivor set for LDS (dates, ages, ZIP)
-    // isn't in this sample — that split is proved by
+    // isn't in this sample: that split is proved by
     // `elide-template`'s unit tests. This test's job is to
     // confirm the LDS template wires end-to-end through the
     // engine and erases what §164.514(e)(2) tells it to.
@@ -152,7 +152,7 @@ async fn gdpr_article_9_leaves_non_special_categories_alone() {
     // The sample contains contact info + an SSN but nothing from
     // the Article 9 special categories (no religion, ethnicity,
     // health data, biometric, sexual orientation, etc.). So the
-    // GDPR template should redact nothing — the output equals
+    // GDPR template should redact nothing: the output equals
     // the input.
     let body = apply(
         &engine(),
@@ -175,7 +175,7 @@ async fn gdpr_article_9_leaves_non_special_categories_alone() {
 
 #[tokio::test]
 async fn pci_dss_pan_truncate_leaves_non_pan_labels_alone() {
-    // The sample has no `payment_card` entity — the PCI truncate
+    // The sample has no `payment_card` entity: the PCI truncate
     // template targets exactly one label, so the sample should
     // round-trip unchanged.
     let body = apply(
@@ -200,10 +200,10 @@ async fn pci_dss_pan_truncate_leaves_non_pan_labels_alone() {
 
 #[tokio::test]
 async fn pci_dss_sav_erase_leaves_non_sav_labels_alone() {
-    // The sample has no `card_security_code` entity — the PCI SAV
+    // The sample has no `card_security_code` entity: the PCI SAV
     // template targets exactly one label, so the sample should
-    // round-trip unchanged. (The distinguishing behavior — erasing
-    // a real CVV — needs the richer sample fixture tracked in
+    // round-trip unchanged. (The distinguishing behavior: erasing
+    // a real CVV: needs the richer sample fixture tracked in
     // #366.)
     let body = apply(
         &engine(),
@@ -260,7 +260,7 @@ async fn pci_dss_pan_hmac_requires_key_provider() {
 #[tokio::test]
 async fn pci_dss_pan_hmac_runs_with_a_key_provider() {
     // Sample has no PAN, so the redacted body still matches the
-    // input verbatim — the test is that anonymize succeeds when
+    // input verbatim: the test is that anonymize succeeds when
     // the engine carries a KeyProvider, which is the only PCI-
     // template-specific setup the operator needs.
     let body = apply(
@@ -281,7 +281,7 @@ async fn pci_dss_pan_hmac_runs_with_a_key_provider() {
 
 #[tokio::test]
 async fn ccpa_erases_contact_info_and_identifiers_from_sample() {
-    // CCPA §(A) identifiers include email, phone, and SSN —
+    // CCPA §(A) identifiers include email, phone, and SSN -
     // every one shows up in the sample and should be redacted
     // under the shipped template. (Address is present too but
     // the spec runs NER off, so it isn't detected here.)

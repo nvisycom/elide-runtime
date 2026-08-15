@@ -5,7 +5,7 @@
 //! deployment-owned recognizer and enricher configuration
 //! (`NerConfig` / `LlmConfig` / OCR / STT); compile walks it.
 //!
-//! Scope is **not** per-modality — [`Scope`] is modality-free
+//! Scope is **not** per-modality: [`Scope`] is modality-free
 //! and is built once in [`crate::pipeline`]'s orchestrator
 //! builder, then attached to the [`Orchestrator`] via
 //! [`Orchestrator::with_scope`].

@@ -14,7 +14,7 @@ use crate::anonymizer::compile::Target;
 
 /// Discriminated builder result so [`Target::attach_with`] can
 /// attach the right concrete operator type. Same reason as
-/// [`super::text::TextOp`] — [`Anonymizer::with_label`] takes
+/// [`super::text::TextOp`]: [`Anonymizer::with_label`] takes
 /// `O: Operator<M> + 'static` by value.
 ///
 /// [`Anonymizer::with_label`]: elide::redaction::Anonymizer::with_label

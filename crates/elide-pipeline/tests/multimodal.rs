@@ -96,12 +96,13 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
 
     // Reviewer overrides carry a policy authority. Ship a
     // minimal policy the override can attribute to (no rules,
-    // no fallback — it exists only so the override validator
+    // no fallback: it exists only so the override validator
     // accepts the request).
     let review_policy = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
         name: "review-authority".into(),
         description: None,
+        template: None,
         labels: Labels::default(),
         groups: Vec::new(),
         rules: Vec::new(),
@@ -195,6 +196,7 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
         id: uuid::Uuid::now_v7(),
         name: "test".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -247,6 +249,7 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
         id: uuid::Uuid::now_v7(),
         name: "sweep".into(),
         description: None,
+        attribution: None,
         dispatch: RuleDispatch::Predicated {
             predicate: Predicate::LabelInGroup {
                 group: "definitely_no_such_group".to_owned(),
@@ -261,6 +264,7 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
         id: uuid::Uuid::now_v7(),
         name: "unknown-group".into(),
         description: None,
+        template: None,
         labels: Labels::default(),
         groups: Vec::new(),
         rules: vec![rule],

@@ -1,9 +1,9 @@
-//! PCI DSS — Primary Account Number (PAN) and Sensitive
+//! PCI DSS: Primary Account Number (PAN) and Sensitive
 //! Authentication Data (SAV) postures.
 //!
 //! Two families ship from this module:
 //!
-//! ## §3.5.1 — render stored PAN unreadable
+//! ## §3.5.1: render stored PAN unreadable
 //!
 //! §3.5.1 lists four acceptable render approaches: one-way hashes
 //! based on strong cryptography, truncation, index tokens with
@@ -12,34 +12,34 @@
 //! variants covering (a) and (b):
 //!
 //! - [`PciPanRender::Truncate`] → `Truncate { keep_prefix: 6, keep_suffix: 4 }`
-//!   — the historical PCI truncation posture. Keeps BIN and
+//!   is the historical PCI truncation posture. Keeps BIN and
 //!   last-four for downstream lookups. No key material involved.
 //! - [`PciPanRender::TruncateLastFour`] → `Truncate { keep_prefix: 0, keep_suffix: 4 }`
-//!   — the conservative truncation posture for environments that
+//!   is the conservative truncation posture for environments that
 //!   also store a hashed version of the same PAN. §3.5.1 requires
 //!   controls preventing correlation between the hashed and
 //!   truncated representations; dropping the BIN shrinks that
 //!   correlation surface. Not itself a named requirement.
 //! - [`PciPanRender::HmacSha256`] → `HmacHash { algorithm: Sha256 }`
-//!   — the keyed-hash posture §3.5.1.1 mandates (effective
+//!   is the keyed-hash posture §3.5.1.1 mandates (effective
 //!   2025-03-31): hashes rendering PAN unreadable must be keyed
 //!   cryptographic hashes of the entire PAN, so an unkeyed digest
 //!   no longer satisfies §3.5.1. Requires the engine to have a
 //!   `KeyProvider` wired.
 //! - [`PciPanRender::HmacSha512`] → `HmacHash { algorithm: Sha512 }`
-//!   — same posture with SHA-512. PCI DSS's "strong cryptography"
+//!   is the same posture with SHA-512. PCI DSS's "strong cryptography"
 //!   glossary definition covers the SHA-2 family; both qualify.
 //!
 //! All render variants target the elide-builtin `payment_card`
-//! label. No [`LabelGroup`] — one label, one rule per template.
+//! label. No [`LabelGroup`]: one label, one rule per template.
 //! Callers wanting more than one dispatched from one policy
 //! compose the [`PolicyDefinition`]s themselves.
 //!
-//! ## §3.3.1 — never store Sensitive Authentication Data
+//! ## §3.3.1: never store Sensitive Authentication Data
 //!
 //! §3.3.1 prohibits storage of SAV after authorization completes
 //! (CVV/CVC, track data, PIN blocks). Unlike PAN, the correct
-//! posture is not "render unreadable" but *erase* — SAV is never
+//! posture is not "render unreadable" but *erase*: SAV is never
 //! allowed to persist. [`sav_template`] ships a single-posture
 //! template targeting every elide-builtin SAV label
 //! (`card_security_code`, `card_track_data`, `pin_block`) with
@@ -61,16 +61,16 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::{Uuid, uuid};
 
-use super::Template;
+use super::{Template, cited, origin};
 
 /// Which PCI DSS subsection this template addresses.
 ///
-/// - [`PanRender`](Self::PanRender) — §3.5.1 render posture for
+/// - [`PanRender`](Self::PanRender): §3.5.1 render posture for
 ///   stored Primary Account Numbers. Carries a [`PciPanRender`]
 ///   picking between the shipped render approaches.
-/// - [`SavErase`](Self::SavErase) — §3.3.1 prohibition on
+/// - [`SavErase`](Self::SavErase): §3.3.1 prohibition on
 ///   storing Sensitive Authentication Data (CVV/CVC, track data,
-///   PIN blocks) after authorization. No options — SAV has one
+///   PIN blocks) after authorization. No options: SAV has one
 ///   posture: erase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -120,7 +120,7 @@ pub enum PciPanRender {
     /// the same PAN coexists: §3.5.1 requires controls preventing
     /// the two representations from being correlated back to the
     /// original, and dropping the BIN shrinks that surface. Not a
-    /// named requirement — §3.5.1.1 governs hashing, not
+    /// named requirement: §3.5.1.1 governs hashing, not
     /// truncation.
     TruncateLastFour,
     /// Replace stored PAN with an HMAC-SHA-256 digest keyed on
@@ -154,7 +154,7 @@ const SAV_LABELS: &[LabelRef] = &[
 /// requirement since v1.0) and §3.5.1's truncation approaches.
 const V4_EFFECTIVE_DATE: Date = Date::constant(2022, 3, 31);
 
-/// §3.5.1.1 effective date — the keyed-hash mandate is
+/// §3.5.1.1 effective date: the keyed-hash mandate is
 /// future-dated and became mandatory on this day. Applies only to
 /// the HMAC render variants.
 const KEYED_HASH_EFFECTIVE_DATE: Date = Date::constant(2025, 3, 31);
@@ -209,6 +209,7 @@ fn pan_template(render: PciPanRender) -> Template {
             id: spec.policy_id,
             name: spec.policy_name.into(),
             description: Some(spec.policy_description.into()),
+            template: Some(origin(spec.id, Version::new(1, 0, 0))),
             labels: Labels {
                 builtins: vec![PAN_LABEL.clone()],
                 custom: Vec::new(),
@@ -224,7 +225,7 @@ fn spec(render: PciPanRender) -> RenderSpec {
     match render {
         PciPanRender::Truncate => RenderSpec {
             id: "pci_dss_pan_truncate",
-            name: "PCI DSS §3.5.1 PAN — truncate",
+            name: "PCI DSS §3.5.1 PAN: truncate",
             description: "Render stored PAN unreadable via truncation, keeping the first six \
                           (BIN) and last four digits.",
             policy_id: TRUNCATE_POLICY_ID,
@@ -237,7 +238,7 @@ fn spec(render: PciPanRender) -> RenderSpec {
         },
         PciPanRender::TruncateLastFour => RenderSpec {
             id: "pci_dss_pan_truncate_last_four",
-            name: "PCI DSS §3.5.1 PAN — truncate to last four",
+            name: "PCI DSS §3.5.1 PAN: truncate to last four",
             description: "Render stored PAN unreadable via truncation to the last four digits \
                           only. The conservative posture where a hashed copy of the same PAN \
                           also exists in the environment.",
@@ -247,7 +248,7 @@ fn spec(render: PciPanRender) -> RenderSpec {
                                  middle. PCI DSS §3.5.1 requires controls preventing hashed and \
                                  truncated versions of one PAN from being correlated to \
                                  reconstruct it; dropping the BIN shrinks that surface. Not a \
-                                 named requirement — §3.5.1.1 governs hashing, not truncation.",
+                                 named requirement: §3.5.1.1 governs hashing, not truncation.",
             rule: truncate_rule(
                 0,
                 4,
@@ -257,7 +258,7 @@ fn spec(render: PciPanRender) -> RenderSpec {
         },
         PciPanRender::HmacSha256 => RenderSpec {
             id: "pci_dss_pan_hmac_sha256",
-            name: "PCI DSS §3.5.1 PAN — HMAC-SHA-256",
+            name: "PCI DSS §3.5.1 PAN: HMAC-SHA-256",
             description: "Render stored PAN unreadable via a keyed HMAC-SHA-256 digest. Requires \
                           the engine to have a KeyProvider wired.",
             policy_id: HMAC_SHA256_POLICY_ID,
@@ -272,7 +273,7 @@ fn spec(render: PciPanRender) -> RenderSpec {
         },
         PciPanRender::HmacSha512 => RenderSpec {
             id: "pci_dss_pan_hmac_sha512",
-            name: "PCI DSS §3.5.1 PAN — HMAC-SHA-512",
+            name: "PCI DSS §3.5.1 PAN: HMAC-SHA-512",
             description: "Render stored PAN unreadable via a keyed HMAC-SHA-512 digest. Requires \
                           the engine to have a KeyProvider wired.",
             policy_id: HMAC_SHA512_POLICY_ID,
@@ -290,7 +291,7 @@ fn spec(render: PciPanRender) -> RenderSpec {
 
 const HMAC_POLICY_DESCRIPTION: &str = "Replace stored PAN with a keyed HMAC digest. Satisfies PCI DSS §3.5.1.1 (mandatory \
      2025-03-31), which requires hashes rendering PAN unreadable to be keyed cryptographic \
-     hashes of the entire PAN — an unkeyed digest no longer satisfies §3.5.1. Requires the \
+     hashes of the entire PAN: an unkeyed digest no longer satisfies §3.5.1. Requires the \
      engine to have a KeyProvider wired via `Engine::with_key_provider`. The key must stay \
      secret; a leaked key permits offline PAN enumeration against the shipped hash.";
 
@@ -307,6 +308,12 @@ fn truncate_rule(keep_prefix: usize, keep_suffix: usize, rule_id: Uuid, name: &s
         id: rule_id,
         name: name.into(),
         description: Some(description.into()),
+        attribution: Some(cited(
+            "PCI DSS",
+            "§3.5.1",
+            "stored PAN must be rendered unreadable; truncation is one of the \
+             four approaches the requirement permits",
+        )),
         dispatch: RuleDispatch::Predicated {
             predicate: single_label(PAN_LABEL.clone()),
             action: Box::new(ModalityRedactions::text(TextRedaction::Truncate {
@@ -333,6 +340,13 @@ fn hmac_rule(
             )
             .into(),
         ),
+        attribution: Some(cited(
+            "PCI DSS",
+            "§3.5.1.1",
+            "a hash rendering stored PAN unreadable must be a keyed \
+             cryptographic hash of the entire PAN; an unkeyed digest no longer \
+             satisfies §3.5.1",
+        )),
         dispatch: RuleDispatch::Predicated {
             predicate: single_label(PAN_LABEL.clone()),
             action: Box::new(ModalityRedactions::text(TextRedaction::HmacHash {
@@ -348,30 +362,31 @@ fn single_label(label: LabelRef) -> Predicate {
     }
 }
 
-/// PCI DSS §3.3.1 — erase stored Sensitive Authentication Data
+/// PCI DSS §3.3.1: erase stored Sensitive Authentication Data
 /// (SAV). Covers all three §3.3.1 categories: CVV/CVC
 /// (`card_security_code`), magnetic-stripe / chip track data
 /// (`card_track_data`), and PIN blocks (`pin_block`).
 fn sav_template() -> Template {
     Template {
         id: "pci_dss_sav_erase".into(),
-        name: "PCI DSS §3.3.1 SAV — erase".into(),
+        name: "PCI DSS §3.3.1 SAV: erase".into(),
         version: Version::new(1, 0, 0),
         effective_date: V4_EFFECTIVE_DATE,
         description: Some(
             "Erase Sensitive Authentication Data (CVV/CVC, track data, PIN blocks). \
-             §3.3.1 prohibits storing SAV after authorization — the correct posture is \
+             §3.3.1 prohibits storing SAV after authorization: the correct posture is \
              erasure, not render-unreadable."
                 .into(),
         ),
         policy: PolicyDefinition {
             id: SAV_POLICY_ID,
             name: "pci-dss-sav-erase".into(),
+            template: Some(origin("pci_dss_sav_erase", Version::new(1, 0, 0))),
             description: Some(
-                "Erase every SAV entity — CVV/CVC, magnetic-stripe/chip track data, \
+                "Erase every SAV entity: CVV/CVC, magnetic-stripe/chip track data, \
                  and PIN blocks. PCI DSS §3.3.1 forbids SAV storage after \
                  authorization completes; unlike PAN, SAV has no render-unreadable \
-                 posture — it must be erased."
+                 posture: it must be erased."
                     .into(),
             ),
             labels: Labels {
@@ -390,6 +405,13 @@ fn sav_rule() -> PolicyRule {
         id: SAV_RULE_ID,
         name: "pci-sav-erase".into(),
         description: Some("Erase every SAV entity (CVV/CVC, track data, PIN blocks).".into()),
+        attribution: Some(cited(
+            "PCI DSS",
+            "§3.3.1",
+            "sensitive authentication data must not be retained after \
+             authorization; erasure is the only posture, with no \
+             render-unreadable alternative",
+        )),
         dispatch: RuleDispatch::Predicated {
             predicate: Predicate::LabelOneOf {
                 labels: SAV_LABELS.to_vec(),
@@ -480,7 +502,7 @@ mod tests {
 
     #[test]
     fn every_render_ships_a_distinct_policy_identity() {
-        // Distinct template ids and policy ids across all four —
+        // Distinct template ids and policy ids across all four -
         // audits key on these to tell the postures apart, and
         // `TemplateCatalog::builtin()` inserts by (id, version)
         // so any collision silently drops one.
@@ -535,7 +557,7 @@ mod tests {
     #[test]
     fn sav_and_pan_ship_distinct_identities() {
         // The SAV template must not collide with any PAN render on
-        // template id or policy id — different regulatory subsection
+        // template id or policy id: different regulatory subsection
         // (§3.3.1 vs §3.5.1), different label, different posture.
         let sav = sav_template();
         for render in ALL {

@@ -12,7 +12,7 @@
 //!
 //! - `text` / `tabular` consume the text-backed redaction specs
 //!   (the full elide built-in vocabulary: Erase, Keep, Mask,
-//!   Replace, Hash, Pseudonymize, Encrypt — plus the structural
+//!   Replace, Hash, Pseudonymize, Encrypt: plus the structural
 //!   DropRow / DropColumn on tabular).
 //! - `image` handles the image specs (Erase, Keep, Blur, Pixelate,
 //!   Blackbox).
@@ -29,7 +29,7 @@
 //! Each compiled operator will be wrapped in a thin decorator that
 //! stamps the policy/rule attribution onto the audit when the
 //! operator runs. The decoration lives outside the per-modality
-//! compile helpers — they assemble naked operators today; the audit
+//! compile helpers: they assemble naked operators today; the audit
 //! pass wraps them in a follow-up.
 //!
 //! [`Anonymizer`]: elide::redaction::Anonymizer

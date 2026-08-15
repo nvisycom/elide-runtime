@@ -6,23 +6,23 @@ use elide_governance::{
 };
 use elide_operator::operators::{DateGranularity, DateStyle};
 use semver::Version;
-use uuid::{Uuid, uuid};
 
-use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template};
+use super::super::{cited, derived_id, origin};
+use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template, template_id};
 
 /// Group name Safe Harbor's bulk-erase rule references.
 pub(super) const SAFE_HARBOR_GROUP: &str = "hipaa_safe_harbor";
 
-pub(super) const SAFE_HARBOR_POLICY_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000001");
-pub(super) const SAFE_HARBOR_TABLE_RULE_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000002");
-pub(super) const SAFE_HARBOR_BULK_RULE_ID: Uuid = uuid!("0197c348-8800-7000-8000-000000000003");
+/// Machine key for the Safe Harbor template, before the account
+/// tier is folded in.
+pub(super) const SAFE_HARBOR_ID: &str = "hipaa_deid_safe_harbor";
 
 /// Every label the Safe Harbor bulk-erase rule targets.
-/// `age`, `date_of_birth`, `individual_date` are absent — the
+/// `age`, `date_of_birth`, `individual_date` are absent: the
 /// table rule owns them.
 pub(super) const SAFE_HARBOR_LABELS: &[LabelRef] = &[
     LabelRef::from_static("person_name"),
-    // §(B) geographic subdivisions smaller than state — every
+    // §(B) geographic subdivisions smaller than state: every
     // level from `address` blob down to `city` erases; `state`
     // and `country` are permitted to survive per Safe Harbor and
     // are deliberately absent.
@@ -69,7 +69,7 @@ pub(super) const SAFE_HARBOR_LABELS: &[LabelRef] = &[
     LabelRef::from_static("internal_id"),
     LabelRef::from_static("case_number"),
     // §(R) "any other unique identifying number, characteristic,
-    // or code" — the elide-builtin catch-all catches ad-hoc
+    // or code": the elide-builtin catch-all catches ad-hoc
     // identifiers (badge numbers, room numbers, provider
     // taxonomy codes) that don't map to a specific label.
     LabelRef::from_static("unresolved"),
@@ -90,7 +90,7 @@ pub(super) const SAFE_HARBOR_TABLE_LABELS: &[LabelRef] = &[
 ];
 
 /// `SAFE_HARBOR_LABELS` fused with the caller's §(J) account
-/// tier — the full Safe Harbor label set. Shared with the
+/// tier: the full Safe Harbor label set. Shared with the
 /// Expert Determination posture, which carries the same
 /// 18-identifier scope.
 pub(super) fn labels(accounts: HipaaAccountNumbers) -> Vec<LabelRef> {
@@ -103,7 +103,7 @@ pub(super) fn labels(accounts: HipaaAccountNumbers) -> Vec<LabelRef> {
 
 pub(super) fn safe_harbor_template(accounts: HipaaAccountNumbers) -> Template {
     Template {
-        id: "hipaa_deid_safe_harbor".into(),
+        id: template_id(SAFE_HARBOR_ID, accounts).into(),
         name: "HIPAA §164.514(b)(2) Safe Harbor".into(),
         version: Version::new(1, 0, 0),
         effective_date: EFFECTIVE_DATE,
@@ -116,13 +116,14 @@ pub(super) fn safe_harbor_template(accounts: HipaaAccountNumbers) -> Template {
 
 fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
     PolicyDefinition {
-        id: SAFE_HARBOR_POLICY_ID,
+        id: derived_id(&format!("{}:policy", template_id(SAFE_HARBOR_ID, accounts))),
         name: "hipaa-safe-harbor".into(),
         description: Some(
             "HIPAA Safe Harbor de-identification. Ages ≥ 90 collapse to a bucket, \
              dates reduce to the year, every other identifier is erased."
                 .into(),
         ),
+        template: Some(origin("hipaa_deid_safe_harbor", Version::new(1, 0, 0))),
         labels: Labels {
             builtins: labels(accounts)
                 .into_iter()
@@ -131,7 +132,10 @@ fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
             custom: Vec::new(),
         },
         groups: vec![safe_harbor_group(accounts)],
-        rules: vec![safe_harbor_table_rule(), safe_harbor_bulk_erase_rule()],
+        rules: vec![
+            safe_harbor_table_rule(accounts),
+            safe_harbor_bulk_erase_rule(accounts),
+        ],
         fallback: None,
     }
 }
@@ -147,6 +151,12 @@ fn safe_harbor_group(accounts: HipaaAccountNumbers) -> LabelGroup {
              and other unique identifiers)."
                 .into(),
         ),
+        attribution: Some(cited(
+            "HIPAA",
+            "§164.514(b)(2)",
+            "the eighteen identifier categories Safe Harbor requires be removed \
+             before PHI counts as de-identified",
+        )),
         labels: labels(accounts),
     }
 }
@@ -154,15 +164,24 @@ fn safe_harbor_group(accounts: HipaaAccountNumbers) -> LabelGroup {
 /// §(C) ages > 89 collapse to `"90 or older"`; dates directly
 /// related to an individual reduce to the year. Anything the
 /// rule doesn't match falls through to the bulk erase.
-fn safe_harbor_table_rule() -> PolicyRule {
+fn safe_harbor_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
     PolicyRule {
-        id: SAFE_HARBOR_TABLE_RULE_ID,
+        id: derived_id(&format!(
+            "{}:rule:age-and-dates",
+            template_id(SAFE_HARBOR_ID, accounts)
+        )),
         name: "hipaa-age-and-dates".into(),
         description: Some(
-            "§164.514(b)(2)(i)(C) — ages over 89 aggregate into a `90 or older` \
+            "§164.514(b)(2)(i)(C): ages over 89 aggregate into a `90 or older` \
              bucket; dates related to the individual reduce to the year."
                 .into(),
         ),
+        attribution: Some(cited(
+            "HIPAA",
+            "§164.514(b)(2)(i)(C)",
+            "all date elements except year must go, and ages over 89 aggregate \
+             into a single `90 or older` category",
+        )),
         dispatch: RuleDispatch::Table {
             operators: vec![
                 LabelEntry {
@@ -199,11 +218,20 @@ fn safe_harbor_table_rule() -> PolicyRule {
 /// Everything the Safe Harbor group covers → [`Erase`].
 ///
 /// [`Erase`]: elide_governance::redaction::TextRedaction::Erase
-fn safe_harbor_bulk_erase_rule() -> PolicyRule {
+fn safe_harbor_bulk_erase_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
     PolicyRule {
-        id: SAFE_HARBOR_BULK_RULE_ID,
+        id: derived_id(&format!(
+            "{}:rule:bulk-erase",
+            template_id(SAFE_HARBOR_ID, accounts)
+        )),
         name: "hipaa-safe-harbor-bulk-erase".into(),
         description: Some("Every remaining §164.514(b)(2) identifier is erased.".into()),
+        attribution: Some(cited(
+            "HIPAA",
+            "§164.514(b)(2)(i)(A)-(R)",
+            "the identifier categories Safe Harbor removes outright, everything \
+             the age and date dispatch above does not claim",
+        )),
         dispatch: RuleDispatch::Predicated {
             predicate: Predicate::LabelInGroup {
                 group: SAFE_HARBOR_GROUP.to_owned(),

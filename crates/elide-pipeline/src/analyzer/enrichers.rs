@@ -37,7 +37,7 @@ use crate::provider::stt::SttBackend;
 
 /// Attach the lingua language-detection enricher.
 ///
-/// Text-modality only — writes the detected language into the
+/// Text-modality only: writes the detected language into the
 /// per-request recognizer context, so pattern/NER/LLM downstream
 /// see what it wrote. The detector considers every language
 /// lingua was compiled with.

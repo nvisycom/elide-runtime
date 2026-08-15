@@ -2,7 +2,7 @@
 //!
 //! Symmetric with [`super::ner`]: deployment operator owns
 //! backend choice, connection details, and (future) credentials.
-//! The request wire holds nothing about OCR — every image-modality
+//! The request wire holds nothing about OCR: every image-modality
 //! analyzer picks up the operator's OCR enricher automatically.
 //!
 //! ## Layout

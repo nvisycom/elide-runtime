@@ -42,7 +42,7 @@ allow = [
 exceptions = [
     # libmp3lame Rust bindings used by the MP3 codec for the
     # decode → mutate → re-encode redaction round-trip. LGPL-3.0
-    # imposes redistribution constraints — see
+    # imposes redistribution constraints: see
     # https://www.gnu.org/licenses/lgpl-3.0.html. Static linking
     # (the default for `mp3lame-sys`) obliges us to either ship
     # the LGPL source alongside the binary or provide a means for

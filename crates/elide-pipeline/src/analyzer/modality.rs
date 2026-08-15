@@ -1,6 +1,6 @@
 //! Per-modality [`Analyzer`] compile functions.
 //!
-//! One function per modality — each picks the recognizers and
+//! One function per modality: each picks the recognizers and
 //! enrichers the modality supports and rejects the rest at
 //! compile time (e.g. OCR on text, LLM on tabular). Every
 //! compile fn consults the deployment [`NerConfig`]; [`compile_text`]

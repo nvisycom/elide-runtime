@@ -40,8 +40,8 @@
 //! an [`AnalyzerParams`] to anonymize.
 //!
 //! Hosts hold the returned [`Audit`] between analyze and
-//! anonymize however they see fit — in memory, in a run store, in
-//! a reviewer UI's state — and hand it back to
+//! anonymize however they see fit: in memory, in a run store, in
+//! a reviewer UI's state, and hand it back to
 //! [`Engine::anonymize`] with any per-entity reviewer overrides
 //! folded in.
 //!
@@ -206,7 +206,7 @@ impl Engine {
     /// One provider backs both operators; per-label keys are the
     /// provider's own responsibility. A policy that names either
     /// operator without a provider wired errors at request compile
-    /// time — the audit trail names the policy and operator so a
+    /// time: the audit trail names the policy and operator so a
     /// misconfiguration surfaces at load, not silently.
     ///
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
@@ -282,7 +282,7 @@ impl Engine {
     /// members. See <https://github.com/nvisycom/elide/issues>
     /// for the per-policy cluster segmentation follow-up.
     ///
-    /// The catalog is not persisted onto the returned [`Audit`] —
+    /// The catalog is not persisted onto the returned [`Audit`] -
     /// the anonymize path re-derives it from the policy set it
     /// was handed. Pass the same policy set to
     /// [`Self::anonymize`] so its rule bodies match against a
@@ -372,9 +372,9 @@ impl Engine {
     ///
     /// `policies` is the policy set the caller wants applied to
     /// this document. Each policy carries its own [`LabelGroup`]s
-    /// inline via [`PolicyDefinition::groups`] — same shape as
+    /// inline via [`PolicyDefinition::groups`]: same shape as
     /// [`Self::analyze`]. The label catalog is re-derived from
-    /// `policies` on every call — policies are the sole source
+    /// `policies` on every call: policies are the sole source
     /// of label vocabulary. The asserted scope (languages,
     /// jurisdictions, metadata) travels on [`Audit::context`]
     /// from analyze. The document's `correlation_id` is threaded
@@ -383,7 +383,7 @@ impl Engine {
     /// **Composition semantics.** Rules attach in submission
     /// order; first match wins across the whole policy set.
     /// Every predicate filters by the enclosing policy's
-    /// declared label set — a rule inside policy A cannot fire
+    /// declared label set: a rule inside policy A cannot fire
     /// on labels only policy B declared. Policy fallbacks attach
     /// after every policy's rules so a coarse baseline's
     /// fallback doesn't shadow subsequent more-specific rules.
@@ -391,7 +391,7 @@ impl Engine {
     /// **Reviewer overrides** attach before any policy rule and
     /// carry the overriding policy's authority on the audit event.
     ///
-    /// **`Pseudonymize` and keyed operators** —
+    /// **`Pseudonymize` and keyed operators** -
     /// [`TextRedaction::Pseudonymize`] draws from a per-policy
     /// in-memory vault: the same policy pseudonymising the same
     /// entity twice in a document resolves to the same surrogate,
@@ -427,7 +427,7 @@ impl Engine {
         let body_group = audit.body.as_ref().ok_or_else(|| {
             Error::new(
                 ErrorKind::Configuration,
-                "anonymize: body group is missing — analyze must run first",
+                "anonymize: body group is missing: analyze must run first",
             )
         })?;
         let correlation_id = document.correlation_id;
@@ -500,7 +500,7 @@ impl Engine {
     /// mode. Rebuilds a [`FormatRegistry`] with the PDF handler
     /// replaced by one wired to `raster_mode`; other codecs come
     /// from the built-in set. Callers pay one registry build per
-    /// non-default request — trivial next to the render itself
+    /// non-default request: trivial next to the render itself
     /// (`Always { dpi }` pages the whole document at the chosen
     /// DPI), but not free, so the default path skips it.
     #[cfg(feature = "codec-pdf-render")]

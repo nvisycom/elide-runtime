@@ -1,4 +1,4 @@
-# elide-runtime
+# Elide Runtime
 
 [![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-runtime/build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/elide-runtime/actions/workflows/build.yml)
 [![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/bento/build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/bento/actions/workflows/build.yml)
@@ -6,8 +6,8 @@
 Multimodal redaction pipeline as a stateless Rust library.
 
 Elide Runtime layers on top of the [Elide](https://github.com/nvisycom/elide)
-toolkit. Elide provides the low-level primitives — the recognizers,
-anonymizers, and the tamper-evident audit log — and Elide Runtime
+toolkit. Elide provides the low-level primitives: the recognizers,
+anonymizers, and the tamper-evident audit log, and Elide Runtime
 wires them into a document-oriented pipeline with governance
 vocabulary, regulatory policy templates, and a stateless engine. Use
 this crate set alongside Elide, not instead of it.

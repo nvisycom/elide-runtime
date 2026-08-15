@@ -1,26 +1,26 @@
 //! HIPAA §164.514 de-identification.
 //!
 //! §164.514(b) offers two paths to de-identification: **Safe
-//! Harbor** (a fixed rule set — remove eighteen identifier
+//! Harbor** (a fixed rule set: remove eighteen identifier
 //! categories with age/date special dispatch) and **Expert
 //! Determination** (a statistician-signed attestation of "very
 //! small" re-identification risk). §164.514(e) then defines the
-//! **Limited Data Set** — a narrower subtraction that keeps
+//! **Limited Data Set**: a narrower subtraction that keeps
 //! dates and coarse geography for research handoffs governed by
 //! a Data Use Agreement.
 //!
 //! This module ships all three:
 //!
-//! - [`HipaaDeidMethod::SafeHarbor`] — every §164.514(b)(2)
+//! - [`HipaaDeidMethod::SafeHarbor`]: every §164.514(b)(2)
 //!   identifier removed. Ages ≥ 90 [`Clamp`]ed to `"90 or older"`,
 //!   dates related to an individual [`GeneralizeDate`]d to the
 //!   year, the remainder [`Erase`]d.
-//! - [`HipaaDeidMethod::LimitedDataSet`] — §164.514(e)(2)'s
-//!   sixteen-identifier subtraction. Names, street address,
+//! - [`HipaaDeidMethod::LimitedDataSet`]: the sixteen-identifier
+//!   subtraction §164.514(e)(2) defines. Names, street address,
 //!   contact info, IDs, biometrics, and other unique identifiers
 //!   erase; dates, town/city, state, ZIP, and ages survive
 //!   verbatim (the DUA is the caller's out-of-band obligation).
-//! - [`HipaaDeidMethod::ExpertDetermination`] — a starting
+//! - [`HipaaDeidMethod::ExpertDetermination`]: a starting
 //!   scaffold for §164.514(b)(1). Same 18-identifier label set
 //!   as Safe Harbor, same age/date table dispatch, but the bulk
 //!   terminal is [`Pseudonymize`] instead of [`Erase`] to
@@ -64,20 +64,20 @@ pub(super) const EFFECTIVE_DATE: Date = Date::constant(2003, 4, 14);
 ///
 /// The tradeoff is analytic yield vs. downstream constraint:
 ///
-/// - [`SafeHarbor`](Self::SafeHarbor) — strips all eighteen
+/// - [`SafeHarbor`](Self::SafeHarbor): strips all eighteen
 ///   identifier categories. No Data Use Agreement or statistician
 ///   required, but dates, coarse geography, and ages ≥ 90 all
 ///   disappear or collapse.
-/// - [`LimitedDataSet`](Self::LimitedDataSet) — narrower
+/// - [`LimitedDataSet`](Self::LimitedDataSet): narrower
 ///   subtraction (§164.514(e)(2)) that keeps dates, town/city,
 ///   state, ZIP, and ages verbatim. Suitable for research and
 ///   public-health handoffs *only when* a Data Use Agreement
 ///   governs the recipient's use.
-/// - [`ExpertDetermination`](Self::ExpertDetermination) —
+/// - [`ExpertDetermination`](Self::ExpertDetermination) -
 ///   starting scaffold for §164.514(b)(1). Same label set as
 ///   Safe Harbor with pseudonymization as the default terminal
 ///   (identity-preserving across mentions). **Does not certify
-///   de-identification** — a qualified statistician must
+///   de-identification**: a qualified statistician must
 ///   document that re-identification risk is "very small" under
 ///   the applicable methodology before the output can be treated
 ///   as de-identified.
@@ -93,9 +93,31 @@ pub enum HipaaDeidMethod {
     LimitedDataSet,
     /// Expert Determination scaffold for §164.514(b)(1). Requires
     /// a qualified statistician to document that re-identification
-    /// risk is "very small" — the shipped template alone does not
+    /// risk is "very small": the shipped template alone does not
     /// certify de-identification.
     ExpertDetermination,
+}
+
+impl HipaaDeidMethod {
+    /// Every shipped method, in widening-constraint order.
+    ///
+    /// Exhaustive by construction: adding a variant without adding
+    /// it here leaves the `match` below non-exhaustive, so the
+    /// compiler catches the omission rather than a test silently
+    /// covering one fewer posture.
+    pub const ALL: &[Self] = &[
+        Self::SafeHarbor,
+        Self::LimitedDataSet,
+        Self::ExpertDetermination,
+    ];
+
+    /// Compile-time proof that [`ALL`](Self::ALL) lists every
+    /// variant. Never called.
+    const fn _exhaustive(self) {
+        match self {
+            Self::SafeHarbor | Self::LimitedDataSet | Self::ExpertDetermination => {}
+        }
+    }
 }
 
 /// Build the §164.514 template for `method` at the given account
@@ -106,6 +128,20 @@ pub(crate) fn template(method: HipaaDeidMethod, accounts: HipaaAccountNumbers) -
         HipaaDeidMethod::SafeHarbor => safe_harbor_template(accounts),
         HipaaDeidMethod::LimitedDataSet => limited_data_set_template(accounts),
         HipaaDeidMethod::ExpertDetermination => expert_determination_template(accounts),
+    }
+}
+
+/// `base` with the account tier folded in.
+///
+/// The tiers emit different label sets (`Extended` adds
+/// `crypto_address`), so they must not share a template id: an
+/// audit keyed on one could not tell the coverages apart.
+/// `Standard` is the default and appends nothing, so its ids stay
+/// as originally shipped.
+pub(super) fn template_id(base: &str, accounts: HipaaAccountNumbers) -> String {
+    match accounts {
+        HipaaAccountNumbers::Standard => base.to_owned(),
+        HipaaAccountNumbers::Extended => format!("{base}_extended_accounts"),
     }
 }
 
@@ -210,11 +246,7 @@ mod tests {
         // Expert Determination), the account tier must widen the
         // policy's builtin label scope so the account labels are
         // eligible for the bulk rule.
-        for method in [
-            HipaaDeidMethod::SafeHarbor,
-            HipaaDeidMethod::LimitedDataSet,
-            HipaaDeidMethod::ExpertDetermination,
-        ] {
+        for &method in HipaaDeidMethod::ALL {
             let extended = template(method, HipaaAccountNumbers::Extended);
             for want in ["bank_account", "iban", "payment_card", "crypto_address"] {
                 assert!(
@@ -254,7 +286,7 @@ mod tests {
         ] {
             assert!(
                 !LDS_LABELS.iter().any(|l| l.as_str() == survivor),
-                "LDS must not erase `{survivor}` — it's a survivor per §164.514(e)(2)",
+                "LDS must not erase `{survivor}`: it's a survivor per §164.514(e)(2)",
             );
         }
     }
@@ -275,13 +307,41 @@ mod tests {
     }
 
     #[test]
+    fn every_method_account_pair_has_a_distinct_identity() {
+        // `Extended` adds `crypto_address` to the emitted labels,
+        // so it must not share an identity with `Standard`: an
+        // audit keyed on one could not tell the coverages apart.
+        let mut seen = std::collections::HashSet::new();
+        for &method in HipaaDeidMethod::ALL {
+            for &accounts in HipaaAccountNumbers::ALL {
+                let built = template(method, accounts);
+                assert!(
+                    seen.insert(built.id.to_string()),
+                    "template id `{}` repeats across configurations",
+                    built.id,
+                );
+                assert!(
+                    seen.insert(built.policy.id.to_string()),
+                    "policy UUID repeats for {method:?} / {accounts:?}",
+                );
+                for rule in &built.policy.rules {
+                    assert!(
+                        seen.insert(rule.id.to_string()),
+                        "rule UUID repeats for {method:?} / {accounts:?}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn every_method_ships_a_distinct_policy_identity() {
         let accounts = HipaaAccountNumbers::default();
         let sh = template(HipaaDeidMethod::SafeHarbor, accounts);
         let lds = template(HipaaDeidMethod::LimitedDataSet, accounts);
         let ed = template(HipaaDeidMethod::ExpertDetermination, accounts);
         // Distinct template ids and policy ids across all three
-        // — audits key on these to tell the postures apart.
+        //: audits key on these to tell the postures apart.
         for (a, b) in [(&sh, &lds), (&sh, &ed), (&lds, &ed)] {
             assert_ne!(a.id, b.id, "template ids must differ");
             assert_ne!(a.policy.id, b.policy.id, "policy ids must differ");
@@ -309,11 +369,7 @@ mod tests {
     #[test]
     fn template_ids_are_stable_across_calls() {
         let accounts = HipaaAccountNumbers::default();
-        for method in [
-            HipaaDeidMethod::SafeHarbor,
-            HipaaDeidMethod::LimitedDataSet,
-            HipaaDeidMethod::ExpertDetermination,
-        ] {
+        for &method in HipaaDeidMethod::ALL {
             let a = template(method, accounts);
             let b = template(method, accounts);
             assert_eq!(a.id, b.id);

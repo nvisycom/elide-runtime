@@ -59,6 +59,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         id: rule_id,
         name: "contact-sweep".into(),
         description: None,
+        attribution: None,
         dispatch: RuleDispatch::Table {
             operators: vec![
                 LabelEntry {
@@ -84,6 +85,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         id: uuid::Uuid::now_v7(),
         name: "contact-info".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![
                 LabelRef::new("email_address"),
@@ -115,7 +117,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
     );
 
     // The interesting invariant: each label routes to *its own*
-    // operator. Inspect the redacted body — the phone entries must
+    // operator. Inspect the redacted body: the phone entries must
     // read `[phone]` (Replace template), and the raw email address
     // must be gone (Erase). Both are strong enough that a bug
     // routing everything through one operator would trip them.
@@ -144,14 +146,14 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         })
         .expect("email entity must have a redaction event with an attribution");
     assert_eq!(
-        attribution.description.as_deref(),
-        Some(rule_id.to_string().as_str()),
-        "attribution.description must carry the shared rule UUID",
+        attribution.source_id,
+        Some(rule_id),
+        "attribution.source_id must carry the shared rule UUID",
     );
 }
 
 /// A `Predicate::LabelInGroup` predicate drives the same redaction
-/// path as a `TagOneOf` over the synthetic `group:<name>` tag —
+/// path as a `TagOneOf` over the synthetic `group:<name>` tag -
 /// asserts the group compilation and predicate rewrite are wired
 /// end-to-end.
 #[tokio::test]
@@ -160,6 +162,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
     let group = LabelGroup {
         name: "contact_info".into(),
         description: None,
+        attribution: None,
         labels: vec![
             LabelRef::new("email_address"),
             LabelRef::new("phone_number"),
@@ -169,6 +172,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
         id: uuid::Uuid::now_v7(),
         name: "sweep".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![
                 LabelRef::new("email_address"),
@@ -181,6 +185,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
             id: uuid::Uuid::now_v7(),
             name: "erase-contacts".into(),
             description: None,
+            attribution: None,
             dispatch: RuleDispatch::Predicated {
                 predicate: Predicate::LabelInGroup {
                     group: "contact_info".to_owned(),
@@ -232,6 +237,7 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         id: uuid::Uuid::now_v7(),
         name: "email-only".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -241,6 +247,7 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
             id: uuid::Uuid::now_v7(),
             name: "erase-pii".into(),
             description: None,
+            attribution: None,
             dispatch: RuleDispatch::Predicated {
                 predicate: Predicate::TagOneOf {
                     tags: vec!["pii".to_owned()],
@@ -257,12 +264,13 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         id: uuid::Uuid::now_v7(),
         name: "phone-only-no-rules".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![LabelRef::new("phone_number")],
             custom: Vec::new(),
         },
         groups: Vec::new(),
-        // No rules — policy B only contributes vocabulary.
+        // No rules: policy B only contributes vocabulary.
         rules: Vec::new(),
         fallback: None,
     };
@@ -280,7 +288,7 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
     assert!(
         redaction_hits(&analyzed, "email_address") >= 1,
         "policy A declares email_address and matches its own pii \
-         tag — email must be redacted",
+         tag: email must be redacted",
     );
     assert_eq!(
         redaction_hits(&analyzed, "phone_number"),
@@ -304,6 +312,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         id: uuid::Uuid::now_v7(),
         name: "coarse-baseline".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -320,6 +329,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         id: uuid::Uuid::now_v7(),
         name: "specific-refinement".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -329,6 +339,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
             id: uuid::Uuid::now_v7(),
             name: "replace-email".into(),
             description: None,
+            attribution: None,
             dispatch: RuleDispatch::Predicated {
                 predicate: Predicate::LabelOneOf {
                     labels: vec![LabelRef::new("email_address")],
@@ -368,7 +379,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
 }
 
 /// The engine rejects a rule inside policy A that references a
-/// group name only policy B declares — groups are per-policy
+/// group name only policy B declares: groups are per-policy
 /// namespaces (strict scoping), enforced at request-compile
 /// before any redaction runs.
 #[tokio::test]
@@ -378,6 +389,7 @@ async fn cross_policy_group_reference_fails_the_request() {
         id: uuid::Uuid::now_v7(),
         name: "borrower".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -388,6 +400,7 @@ async fn cross_policy_group_reference_fails_the_request() {
             id: uuid::Uuid::now_v7(),
             name: "borrow-from-b".into(),
             description: None,
+            attribution: None,
             dispatch: RuleDispatch::Predicated {
                 predicate: Predicate::LabelInGroup {
                     group: "contact_info".to_owned(),
@@ -404,6 +417,7 @@ async fn cross_policy_group_reference_fails_the_request() {
         id: uuid::Uuid::now_v7(),
         name: "declares-group".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),
@@ -411,6 +425,7 @@ async fn cross_policy_group_reference_fails_the_request() {
         groups: vec![LabelGroup {
             name: "contact_info".into(),
             description: None,
+            attribution: None,
             labels: vec![LabelRef::new("email_address")],
         }],
         rules: Vec::new(),
@@ -431,7 +446,7 @@ async fn cross_policy_group_reference_fails_the_request() {
 /// Reviewer overrides carry a `policy_id` naming the policy
 /// whose authority the override exercises. Anonymize must reject
 /// a request whose override names a policy no submitted policy
-/// carries — that authority doesn't exist in the request, and
+/// carries: that authority doesn't exist in the request, and
 /// silently attributing to nothing (or falling back to engine
 /// defaults) would misroute per-policy operator infrastructure.
 #[tokio::test]
@@ -441,6 +456,7 @@ async fn override_naming_unknown_policy_fails_the_request() {
         id: uuid::Uuid::now_v7(),
         name: "authorising".into(),
         description: None,
+        template: None,
         labels: Labels {
             builtins: vec![LabelRef::new("email_address")],
             custom: Vec::new(),

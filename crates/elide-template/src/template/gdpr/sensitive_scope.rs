@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 /// Three tiers, each strictly widening the previous one so a
 /// caller upgrading through the tiers never loses coverage:
 ///
-/// - [`Article9`](Self::Article9) — the nine Article 9(1)
+/// - [`Article9`](Self::Article9): the nine Article 9(1)
 ///   special categories only. The default.
-/// - [`Article9WithReidHardening`](Self::Article9WithReidHardening) —
+/// - [`Article9WithReidHardening`](Self::Article9WithReidHardening) -
 ///   Article 9 plus the quasi-identifiers that carry the most join
 ///   risk against public datasets: `date_of_birth`, `postal_code`,
 ///   and `gender` (the combination that re-identifies most of a
@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 ///   the caller's own data and adversary, so no fixed label list
 ///   can satisfy it. Callers whose threat model reaches wider
 ///   extend the policy after building it.
-/// - [`Article9And10`](Self::Article9And10) — Article 9 + Recital
+/// - [`Article9And10`](Self::Article9And10): Article 9 + Recital
 ///   26 hardening + Article 10's criminal-justice labels
 ///   (`criminal_record`, `criminal_charge`, `judicial_narrative`).
 ///   Article 10 governs "personal data relating to criminal
@@ -46,12 +46,30 @@ pub enum GdprSensitiveScope {
     /// Article 9 plus the quasi-identifier set, so pseudonymized
     /// output is harder to re-identify via joins against public
     /// datasets. A product-defined tier rather than a complete
-    /// Recital 26 posture — see the type docstring.
+    /// Recital 26 posture: see the type docstring.
     Article9WithReidHardening,
     /// Article 9 + Recital 26 hardening + Article 10
     /// criminal-justice labels (`criminal_record`,
     /// `criminal_charge`, `judicial_narrative`).
     Article9And10,
+}
+
+impl GdprSensitiveScope {
+    /// Every shipped scope, narrowest first. The tiers strictly
+    /// widen, so this order is also coverage order.
+    pub const ALL: &[Self] = &[
+        Self::Article9,
+        Self::Article9WithReidHardening,
+        Self::Article9And10,
+    ];
+
+    /// Compile-time proof that [`ALL`](Self::ALL) lists every
+    /// variant. Never called.
+    const fn _exhaustive(self) {
+        match self {
+            Self::Article9 | Self::Article9WithReidHardening | Self::Article9And10 => {}
+        }
+    }
 }
 
 impl GdprSensitiveScope {
@@ -81,7 +99,7 @@ pub(super) const GDPR_LABELS: &[LabelRef] = &[
     // Racial or ethnic origin. `nationality` is deliberately absent:
     // Article 9(1) covers ethnic origin, while nationality is a legal
     // status the GDPR treats as ordinary personal data. It earns its
-    // place as a quasi-identifier instead — see `RECITAL_26_LABELS`.
+    // place as a quasi-identifier instead: see `RECITAL_26_LABELS`.
     LabelRef::from_static("ethnicity"),
     // Political opinions
     LabelRef::from_static("political_opinion"),
@@ -96,7 +114,7 @@ pub(super) const GDPR_LABELS: &[LabelRef] = &[
     LabelRef::from_static("voiceprint"),
     LabelRef::from_static("retina_scan"),
     LabelRef::from_static("facial_geometry"),
-    // Health data — specific identifiers plus the broader
+    // Health data: specific identifiers plus the broader
     // Article 4(15) health-narrative catch-all (blood pressure,
     // appointment notes, therapy references, care plans).
     LabelRef::from_static("medical_id"),
@@ -114,12 +132,12 @@ pub(super) const GDPR_LABELS: &[LabelRef] = &[
 /// join risk when combined with special-category data. Added by
 /// the `Article9WithReidHardening` and `Article9And10` scopes.
 ///
-/// A product-defined set, not an enumeration from Recital 26 —
+/// A product-defined set, not an enumeration from Recital 26 -
 /// the Recital states a reasonableness test rather than naming
 /// fields, so treat this as a floor to extend against a real
 /// threat model, not a sufficient hardening set.
 const RECITAL_26_LABELS: &[LabelRef] = &[
-    // The Sweeney triple — ZIP + date of birth + sex re-identifies
+    // The Sweeney triple: ZIP + date of birth + sex re-identifies
     // the large majority of a population on its own, and is the
     // best-evidenced join vector of the set.
     LabelRef::from_static("date_of_birth"),
@@ -131,7 +149,7 @@ const RECITAL_26_LABELS: &[LabelRef] = &[
     LabelRef::from_static("age"),
     LabelRef::from_static("city"),
     // `nationality` and `citizenship` are quasi-identifiers, not
-    // Article 9(1) special categories — this tier is where they
+    // Article 9(1) special categories: this tier is where they
     // carry their weight, and `GDPR_LABELS` deliberately omits
     // them.
     LabelRef::from_static("nationality"),
@@ -139,7 +157,7 @@ const RECITAL_26_LABELS: &[LabelRef] = &[
     LabelRef::from_static("occupation"),
 ];
 
-/// Article 10 criminal-justice labels — personal data relating
+/// Article 10 criminal-justice labels: personal data relating
 /// to criminal convictions and offences. Added by the
 /// `Article9And10` scope.
 const ARTICLE_10_LABELS: &[LabelRef] = &[

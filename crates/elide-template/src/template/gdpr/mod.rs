@@ -1,4 +1,4 @@
-//! GDPR Article 9 — special categories of personal data, with
+//! GDPR Article 9: special categories of personal data, with
 //! optional extensions to Article 10 and Recital 26.
 //!
 //! Article 9(1) prohibits processing of nine categories of
@@ -12,7 +12,7 @@
 //! public health, ...) that permit processing. Callers invoking
 //! one of those carve-outs commonly need to retain the
 //! special-category data with per-entity identity preserved
-//! across mentions — pseudonymization rather than erasure.
+//! across mentions: pseudonymization rather than erasure.
 //!
 //! Two shape axes:
 //!
@@ -37,7 +37,9 @@ use jiff::civil::Date;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::Template;
+use elide_core::entity::audit::AttributionKind;
+
+use super::{Template, cited};
 
 mod erase;
 mod pseudonymize;
@@ -50,9 +52,9 @@ pub(super) const EFFECTIVE_DATE: Date = Date::constant(2018, 5, 25);
 
 /// Which operator to apply to Article 9 special-category entities.
 ///
-/// - [`Erase`](Self::Erase) — the default no-lawful-basis posture.
+/// - [`Erase`](Self::Erase): the default no-lawful-basis posture.
 ///   Every match is removed.
-/// - [`Pseudonymize`](Self::Pseudonymize) — identity-preserving
+/// - [`Pseudonymize`](Self::Pseudonymize): identity-preserving
 ///   surrogate. Suitable when an Article 9(2) carve-out
 ///   (explicit consent, employment law, public-health public
 ///   interest, ...) authorizes retention and downstream
@@ -73,6 +75,24 @@ pub enum GdprArticle9Treatment {
     Pseudonymize,
 }
 
+impl GdprArticle9Treatment {
+    /// Every shipped treatment.
+    ///
+    /// Exhaustive by construction: adding a variant without adding
+    /// it here leaves `_exhaustive` non-exhaustive, so the compiler
+    /// catches the omission rather than a test silently covering
+    /// one fewer posture.
+    pub const ALL: &[Self] = &[Self::Erase, Self::Pseudonymize];
+
+    /// Compile-time proof that [`ALL`](Self::ALL) lists every
+    /// variant. Never called.
+    const fn _exhaustive(self) {
+        match self {
+            Self::Erase | Self::Pseudonymize => {}
+        }
+    }
+}
+
 /// Build the Article 9 template for `treatment` over `scope`.
 /// Dispatched from [`crate::PolicyTemplate::GdprArticle9`].
 pub(crate) fn template(treatment: GdprArticle9Treatment, scope: GdprSensitiveScope) -> Template {
@@ -82,12 +102,39 @@ pub(crate) fn template(treatment: GdprArticle9Treatment, scope: GdprSensitiveSco
     }
 }
 
+/// The Article 9(1) authority both postures' groups answer to.
+/// Shared so erase and pseudonymize cite it identically.
+fn article_9_attribution() -> AttributionKind {
+    cited(
+        "GDPR",
+        "Article 9(1)",
+        "special categories of personal data: processing prohibited by default, \
+         absent an Article 9(2) carve-out",
+    )
+}
+
 const fn article_9_group_description() -> &'static str {
     "The nine special categories of personal data enumerated in GDPR Article 9(1) \
      (racial/ethnic origin, political opinions, religious/philosophical beliefs, \
      trade-union membership, genetic data, biometric data for unique identification, \
      health data, sex life, sexual orientation). Scope may widen with \
      re-identification quasi-identifiers and Article 10 criminal-justice labels."
+}
+
+/// `base` with the sensitive scope folded in.
+///
+/// The scopes emit materially different label sets (Article 9(1)
+/// alone versus Article 9 plus quasi-identifiers plus Article 10
+/// criminal-justice data), so they must not share a template id: an
+/// audit keyed on one could not tell whether criminal-justice data
+/// was in scope. `Article9` is the default and appends nothing, so
+/// its ids stay as originally shipped.
+pub(super) fn template_id(base: &str, scope: GdprSensitiveScope) -> String {
+    match scope {
+        GdprSensitiveScope::Article9 => base.to_owned(),
+        GdprSensitiveScope::Article9WithReidHardening => format!("{base}_reid_hardened"),
+        GdprSensitiveScope::Article9And10 => format!("{base}_with_article_10"),
+    }
 }
 
 #[cfg(test)]
@@ -153,12 +200,69 @@ mod tests {
     }
 
     #[test]
+    fn every_treatment_scope_pair_has_a_distinct_identity() {
+        // Scope changes what the policy covers: Article 9 alone is
+        // 17 labels, Article 9 + 10 is 28. Sharing an id across
+        // those would leave an audit unable to tell whether
+        // criminal-justice data was in scope.
+        let mut seen = std::collections::HashSet::new();
+        for &treatment in GdprArticle9Treatment::ALL {
+            for &scope in GdprSensitiveScope::ALL {
+                let built = template(treatment, scope);
+                assert!(
+                    seen.insert(built.id.clone()),
+                    "template id `{}` repeats across configurations",
+                    built.id,
+                );
+                assert!(
+                    seen.insert(built.policy.id.to_string().into()),
+                    "policy UUID repeats for {treatment:?} / {scope:?}",
+                );
+                for rule in &built.policy.rules {
+                    assert!(
+                        seen.insert(rule.id.to_string().into()),
+                        "rule UUID repeats for {treatment:?} / {scope:?}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn identities_are_reproducible_across_calls() {
+        // v5 derivation must be stable: an id that shifts between
+        // builds would break every audit that recorded the old one.
+        for scope in [
+            GdprSensitiveScope::Article9,
+            GdprSensitiveScope::Article9And10,
+        ] {
+            let a = template(GdprArticle9Treatment::Erase, scope);
+            let b = template(GdprArticle9Treatment::Erase, scope);
+            assert_eq!(a.id, b.id);
+            assert_eq!(a.policy.id, b.policy.id);
+            assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);
+        }
+    }
+
+    #[test]
+    fn policies_record_the_template_they_came_from() {
+        // Provenance: a policy built from a template names it, so a
+        // reviewer holding only the policy can tell it apart from a
+        // hand-authored one.
+        let built = template(GdprArticle9Treatment::Erase, GdprSensitiveScope::default());
+        let origin = built
+            .policy
+            .template
+            .as_ref()
+            .expect("a template-built policy must record its origin");
+        assert_eq!(origin.id, built.id);
+        assert_eq!(origin.version, built.version);
+    }
+
+    #[test]
     fn template_ids_are_stable_across_calls() {
         let scope = GdprSensitiveScope::default();
-        for treatment in [
-            GdprArticle9Treatment::Erase,
-            GdprArticle9Treatment::Pseudonymize,
-        ] {
+        for &treatment in GdprArticle9Treatment::ALL {
             let a = template(treatment, scope);
             let b = template(treatment, scope);
             assert_eq!(a.id, b.id);
@@ -241,7 +345,7 @@ mod tests {
     #[test]
     fn scopes_are_strictly_widening() {
         // Every label in the narrower scope must appear in the
-        // broader scope — else a caller upgrading through the
+        // broader scope: else a caller upgrading through the
         // tiers would lose coverage, defeating the point of the
         // ordered widening.
         let article_9 = GdprSensitiveScope::Article9.labels();

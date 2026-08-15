@@ -7,7 +7,7 @@
 //!
 //! Pattern is modality-generic (`M: TextRecognizable`); NER and
 //! LLM constrain over their upstream `Recognizer<M>` /
-//! `LlmModality<M>` impls respectively — modalities that lack
+//! `LlmModality<M>` impls respectively: modalities that lack
 //! the impl either fail the compile with a Validation error
 //! (NER: cheap trait bound) or are silently skipped upstream
 //! (LLM: no `LlmModality` impl for Tabular / Audio).
@@ -105,11 +105,11 @@ where
 ///
 /// Bound explanation:
 ///
-/// - `RigBackend: LlmBackend<M>` — rig implements both `Text` and
+/// - `RigBackend: LlmBackend<M>`: rig implements both `Text` and
 ///   `Image`.
-/// - `DefaultPrompt: Prompt<M>` — elide ships text + image
+/// - `DefaultPrompt: Prompt<M>`: elide ships text + image
 ///   default prompts.
-/// - `Jinja2Prompt<M>: Prompt<M>` — same coverage.
+/// - `Jinja2Prompt<M>: Prompt<M>`: same coverage.
 pub(super) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &LlmConfig,

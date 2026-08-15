@@ -9,13 +9,13 @@
 //! their [`Target`] here.
 //!
 //! Every arm returns an `Arc<dyn Operator<M> + Send + Sync +
-//! 'static>` — an [`Arc`] rather than a [`Box`] so the same
+//! 'static>`: an [`Arc`] rather than a [`Box`] so the same
 //! handle can seed a [`Fake`] fallback as easily as it can
 //! attach on its own. Elide ships a blanket
 //! `impl<M, T: Operator<M> + ?Sized> Operator<M> for Arc<T>`
 //! (elide #160), so the shared handle is itself an operator and
 //! drops straight into [`Rule::label`]. That turns the wire →
-//! runtime bridge into a `match` returning one type — no
+//! runtime bridge into a `match` returning one type: no
 //! per-variant enum, no fan-out of concrete
 //! `WithFallback<primary, fallback>` combinations at the source
 //! level.
@@ -53,7 +53,7 @@ use crate::anonymizer::compile::Target;
 ///   the same entity within a request draws the same surrogate.
 ///   The vault is *per-policy*: policy A pseudonymising `email`
 ///   and policy B pseudonymising `email` on the same document
-///   don't share a namespace — a customer submitting two policies
+///   don't share a namespace: a customer submitting two policies
 ///   with different reasoning about coreference stays isolated.
 ///   Materialised lazily on first request per policy.
 /// - **Key provider.** [`TextRedaction::HmacHash`] and
@@ -119,7 +119,7 @@ impl TextOperatorContext {
 
 /// Type-erased shared handle to a modality-`M` operator.
 ///
-/// `Arc<dyn Operator<M>>` — [`Arc`] rather than [`Box`] so the
+/// `Arc<dyn Operator<M>>`: [`Arc`] rather than [`Box`] so the
 /// same handle can seed a [`Fake`] fallback and still attach as
 /// its own operator. Elide's blanket forward
 /// `impl<M, T: Operator<M> + ?Sized> Operator<M> for Arc<T>`
@@ -274,7 +274,7 @@ where
 
 /// Box `primary` bare, or box `WithFallback::new(primary, terminal)`
 /// when a fallback is set. One inner match over the 4 terminal
-/// variants — the concrete `WithFallback<primary, terminal>` never
+/// variants: the concrete `WithFallback<primary, terminal>` never
 /// escapes this function.
 fn box_with_optional_fallback<M, P>(
     primary: P,

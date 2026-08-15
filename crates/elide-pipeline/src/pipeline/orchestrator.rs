@@ -5,9 +5,9 @@
 //! One pipeline per modality, all wired against a single
 //! [`Scope`]. The orchestrator is built fresh per call: a small
 //! map of trait objects keyed by modality `TypeId`. The anonymize
-//! path is cheap — empty analyzers, per-request policy + override
-//! attachment. The analyze path is not free — LLM recognizers
-//! construct their [`RigBackend`] client on every compile — but
+//! path is cheap: empty analyzers, per-request policy + override
+//! attachment. The analyze path is not free: LLM recognizers
+//! construct their [`RigBackend`] client on every compile: but
 //! the per-call shape is what lets us re-resolve policies and
 //! overrides per document at anonymize time without mutating a
 //! shared anonymizer.
@@ -240,11 +240,11 @@ impl Engine {
 /// Reject a request whose reviewer override names a policy id
 /// no submitted policy carries.
 ///
-/// Overrides inherit the authority of the policy they name — the
+/// Overrides inherit the authority of the policy they name: the
 /// audit event stamps that policy, and any per-policy operator
 /// infrastructure (pseudonym vault, `KeyProvider`) is looked up
 /// under that policy id. An override that names a non-existent
-/// policy would attribute to nothing and — worse — silently draw
+/// policy would attribute to nothing and: worse: silently draw
 /// from an empty per-policy vault or fall back to the engine
 /// default `KeyProvider`, both of which are the wrong authority.
 fn validate_override_authorities(
@@ -273,7 +273,7 @@ fn validate_override_authorities(
 ///
 /// Groups are scoped to the policy that owns them (strict
 /// per-policy namespace). A rule inside policy A can reference
-/// only groups declared in policy A's own [`groups`] slot — not
+/// only groups declared in policy A's own [`groups`] slot: not
 /// groups declared by policy B. Runs before catalog compilation
 /// so an authoring typo (`"gdpr_arcticle_9"`) surfaces as a
 /// [`Configuration`](ErrorKind::Configuration) error at request
@@ -307,7 +307,7 @@ fn check_predicate_groups(
         Predicate::LabelInGroup { group } if !known.contains(group.as_str()) => Err(Error::new(
             ErrorKind::Configuration,
             format!(
-                "policy `{}` rule `{}` references unknown label group `{}` — \
+                "policy `{}` rule `{}` references unknown label group `{}`: \
                  the enclosing policy declares no `LabelGroup` with that name",
                 policy.id, rule.id, group,
             ),
@@ -358,7 +358,7 @@ where
 /// wrapping so each modality's callsite is one call.
 /// Pick the single OCR backend from the engine's lineup, or
 /// return `None` when nothing was wired. Rejects a lineup with
-/// more than one entry — elide's `Enricher<Image>` attaches at
+/// more than one entry: elide's `Enricher<Image>` attaches at
 /// most one OCR enricher per analyzer.
 #[cfg(feature = "internal_image")]
 fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrBackend>> {
@@ -378,7 +378,7 @@ fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrBackend>> {
 
 /// Pick the single STT backend from the engine's lineup, or
 /// return `None` when nothing was wired. Rejects a lineup with
-/// more than one entry — elide's `Enricher<Audio>` attaches at
+/// more than one entry: elide's `Enricher<Audio>` attaches at
 /// most one STT enricher per analyzer.
 #[cfg(feature = "internal_audio")]
 fn pick_stt(stt: &SttConfig) -> Result<Option<&SttBackend>> {

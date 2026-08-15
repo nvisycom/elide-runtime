@@ -9,8 +9,8 @@
 //!   policy A rule at slot N wins over a policy B rule at slot
 //!   N+1 for entities in both policies' scope.
 //! - **Fallbacks pass.** Walk every policy again and attach every
-//!   `fallback` after all rules. Attaching fallbacks second — not
-//!   interleaved between policies — is load-bearing: a policy A
+//!   `fallback` after all rules. Attaching fallbacks second: not
+//!   interleaved between policies: is load-bearing: a policy A
 //!   fallback attached before policy B's rules would fire on any
 //!   in-A-scope entity before B's more specific rules had a
 //!   chance, silently shadowing B.
@@ -19,7 +19,7 @@
 //! `redactions.{modality}` field to read, and how to build (then
 //! attach) the typed operator. This module captures the
 //! invariant outer loop and parameterises both via a callback so
-//! every per-modality file stays under ~50 lines — just the
+//! every per-modality file stays under ~50 lines: just the
 //! `Op` enum + `build` + an `attach_to` dispatcher.
 //!
 //! [`Rule::fallback`]: elide::redaction::Rule::fallback
@@ -82,7 +82,7 @@ pub(in crate::anonymizer) enum Target<'a, M: Modality> {
 impl<'a, M: Modality + 'static> Target<'a, M> {
     /// Attach `operator` to whichever target this is. Centralises
     /// the per-target dispatch so each per-modality `Op` enum
-    /// needs exactly one match on its own variants — no separate
+    /// needs exactly one match on its own variants: no separate
     /// `attach_rule` / `attach_fallback` / `attach_override`
     /// dispatchers per modality.
     pub(in crate::anonymizer) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
@@ -110,7 +110,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     }
 
     /// Recover the anonymizer unchanged. Per-modality callbacks
-    /// use this when this modality's redaction slot is absent —
+    /// use this when this modality's redaction slot is absent -
     /// they take no action, return the input.
     pub(in crate::anonymizer) fn passthrough(self) -> Anonymizer<M> {
         match self {
@@ -139,9 +139,9 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
 /// [`Rule::fallback`] for two reasons:
 ///
 /// - Elide's `Rule::fallback` uses `Matcher::Always`, making
-///   every subsequent rule (including later policies') unreachable
-///   — a per-policy fallback wired that way would shadow every
-///   policy declared after it.
+///   every subsequent rule (including later policies')
+///   unreachable, so a per-policy fallback wired that way would
+///   shadow every policy declared after it.
 /// - A `Rule::fallback` runs on every unmatched entity in the
 ///   request, ignoring the enclosing policy's declared vocabulary,
 ///   which would silently redact entities the policy never named.
@@ -175,14 +175,14 @@ where
 ///
 /// The two-pass structure is load-bearing for cross-policy
 /// composition. Attaching each policy's fallback immediately
-/// after its own rules — before the next policy's rules — would
+/// after its own rules: before the next policy's rules: would
 /// let a coarse baseline policy's fallback silently shadow every
 /// later policy's more specific rules on any label the baseline
 /// declared. Fallbacks pass last so they fire only after every
 /// policy has had a shot at the entity.
 ///
 /// `compile_one` returns `Ok(anonymizer)` even when the
-/// redaction spec is absent or wrong-modality — those are no-ops
+/// redaction spec is absent or wrong-modality: those are no-ops
 /// at the per-modality dispatch boundary. Operator build errors
 /// propagate.
 pub(in crate::anonymizer) fn attach_policies<'a, M, F>(

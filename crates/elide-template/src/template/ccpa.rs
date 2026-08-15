@@ -1,4 +1,4 @@
-//! CCPA / CPRA — "personal information" categories per
+//! CCPA / CPRA: "personal information" categories per
 //! Cal. Civ. Code §1798.140(v)(1).
 //!
 //! The statute enumerates eleven categories of personal
@@ -9,12 +9,12 @@
 //!
 //! Consumer requests under CCPA fall into two large buckets:
 //! disclosure (right to know) and deletion (right to delete). The
-//! shipped template targets the deletion posture — a workflow
+//! shipped template targets the deletion posture: a workflow
 //! that surfaces PI and hands the caller a redacted copy on
 //! request. Callers whose posture retains PI under a
 //! §1798.145 exception (fraud detection, security incident,
 //! transactional necessity, ...) override the operator on the
-//! returned [`PolicyDefinition`] — commonly to [`Pseudonymize`]
+//! returned [`PolicyDefinition`]: commonly to [`Pseudonymize`]
 //! for retained analytics that keep coreference without exposing
 //! the underlying identifier.
 //!
@@ -31,7 +31,7 @@ use jiff::civil::Date;
 use semver::Version;
 use uuid::{Uuid, uuid};
 
-use super::Template;
+use super::{Template, cited, origin};
 
 /// Group name every CCPA rule references.
 pub(crate) const GROUP_NAME: &str = "ccpa_personal_information";
@@ -39,7 +39,7 @@ pub(crate) const GROUP_NAME: &str = "ccpa_personal_information";
 /// Elide-builtin labels the group covers, mapped from
 /// §1798.140(v)(1) categories.
 const CCPA_LABELS: &[LabelRef] = &[
-    // (A) Identifiers — the enumerated list: real name, alias,
+    // (A) Identifiers: the enumerated list: real name, alias,
     // postal address, unique/online identifier, IP address, email,
     // account name, SSN, driver's license, passport, "or other
     // similar identifiers". Geographic subdivisions finer than
@@ -72,7 +72,7 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("health_narrative"),
     LabelRef::from_static("bank_account"),
     LabelRef::from_static("payment_card"),
-    // CPRA §1798.140(ae)(1)(D) — account log-in credentials.
+    // CPRA §1798.140(ae)(1)(D): account log-in credentials.
     // Sensitive personal information is a subset of PI, so these
     // erase under the same rule; §1798.121's right-to-limit is a
     // separate obligation the caller handles out-of-band. Not
@@ -88,7 +88,7 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("sex_life"),
     LabelRef::from_static("age"),
     LabelRef::from_static("date_of_birth"),
-    // (D) Commercial information — "products or services
+    // (D) Commercial information: "products or services
     // purchased, obtained, or considered, or other purchasing or
     // consuming histories". A purchasing record, not the payment
     // instrument (that is §1798.80 financial information, above).
@@ -102,11 +102,11 @@ const CCPA_LABELS: &[LabelRef] = &[
     LabelRef::from_static("retina_scan"),
     LabelRef::from_static("facial_geometry"),
     LabelRef::from_static("genetic_data"),
-    // (F) Internet / network activity — includes CPRA §1798.140(ae)(4)
+    // (F) Internet / network activity: includes CPRA §1798.140(ae)(4)
     // communications content (mail/email/text/chat bodies).
     LabelRef::from_static("url"),
     LabelRef::from_static("communications_content"),
-    // (G) Geolocation data — CPRA §1798.140(ae)(2) singles out
+    // (G) Geolocation data: CPRA §1798.140(ae)(2) singles out
     // precise geolocation (≤1850 ft) as SPI; both survive erase
     // under regular PI.
     LabelRef::from_static("coordinates"),
@@ -138,7 +138,7 @@ pub(crate) fn template() -> Template {
         version: Version::new(1, 0, 0),
         effective_date: Date::constant(2020, 1, 1),
         description: Some(
-            "Cal. Civ. Code §1798.140(v)(1) — erase every enumerated personal information \
+            "Cal. Civ. Code §1798.140(v)(1): erase every enumerated personal information \
              category."
                 .into(),
         ),
@@ -157,6 +157,12 @@ fn group() -> LabelGroup {
              employment information, non-public education info, inferences)."
                 .into(),
         ),
+        attribution: Some(cited(
+            "CCPA",
+            "Cal. Civ. Code §1798.140(v)(1)",
+            "personal information: information that identifies, relates to, or \
+             could reasonably be linked with a consumer or household",
+        )),
         labels: CCPA_LABELS.to_vec(),
     }
 }
@@ -171,6 +177,7 @@ fn policy() -> PolicyDefinition {
              to Pseudonymize on the returned rule."
                 .into(),
         ),
+        template: Some(origin("ccpa", Version::new(1, 0, 0))),
         labels: Labels {
             builtins: CCPA_LABELS.to_vec(),
             custom: Vec::new(),
@@ -190,6 +197,12 @@ fn erase_rule() -> PolicyRule {
              group."
                 .into(),
         ),
+        attribution: Some(cited(
+            "CCPA",
+            "Cal. Civ. Code §1798.105",
+            "right to deletion: a consumer may request erasure of personal \
+             information collected about them",
+        )),
         dispatch: RuleDispatch::Predicated {
             predicate: Predicate::LabelInGroup {
                 group: GROUP_NAME.to_owned(),
@@ -208,8 +221,8 @@ mod tests {
         // These identify an employer or a bare monetary figure, not
         // a consumer. §1798.140(v)(1) reaches personal information
         // about a consumer, so erasing them would strip ordinary
-        // business data — invoice totals, registry ids, business-unit
-        // names — from every document the policy touches.
+        // business data: invoice totals, registry ids, business-unit
+        // names: from every document the policy touches.
         for outside in ["amount", "company_id", "department_name"] {
             assert!(
                 !CCPA_LABELS.iter().any(|l| l.as_str() == outside),

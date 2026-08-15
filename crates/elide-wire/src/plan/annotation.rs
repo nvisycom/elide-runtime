@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 /// decodes to text pulls its annotations from [`text`], a
 /// document that decodes to an image pulls from [`image`], etc.
 ///
-/// Empty by default — the common case is no per-request
+/// Empty by default: the common case is no per-request
 /// annotations.
 ///
 /// [`text`]: AnyAnnotations::text

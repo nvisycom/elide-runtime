@@ -14,7 +14,7 @@
 //!
 //! [`PolicyTemplate`] enumerates the regulatory postures this
 //! crate ships. Variants that admit more than one shipped posture
-//! carry their axes as fields — e.g.
+//! carry their axes as fields: e.g.
 //! [`PolicyTemplate::PciDss`] carries a [`PciDssPart`] picking
 //! between §3.5.1 PAN render (with a nested [`PciPanRender`]
 //! choice) and §3.3.1 SAV erasure;
@@ -24,8 +24,8 @@
 //! [`GdprSensitiveScope`] widening the label set.
 //!
 //! [`PolicyTemplate::build`] materialises the picked variant
-//! into a [`Template`] — the [`PolicyDefinition`] carrying its
-//! own inline [`LabelGroup`]s — matched to how the engine
+//! into a [`Template`]: the [`PolicyDefinition`] carrying its
+//! own inline [`LabelGroup`]s, matched to how the engine
 //! consumes it. Callers hand `template.policy` (as a
 //! one-element slice via [`std::slice::from_ref`]) to
 //! `Engine::analyze` / `Engine::anonymize`, or compose several
@@ -44,7 +44,7 @@
 //! mirroring how elide's `Label` splits identity from display.
 //! Plus its own [`Version`] and the [`Date`] the regulatory
 //! text became effective, distinct from the crate's release
-//! version — a customer that must pin to a snapshot pins
+//! version: a customer that must pin to a snapshot pins
 //! [`Template::version`], not the crate version.
 //!
 //! [`Date`]: jiff::civil::Date

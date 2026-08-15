@@ -5,14 +5,14 @@
 //! `impl Write`; callers decide where the bytes land (a file,
 //! an HTTP body, an S3 upload):
 //!
-//! - [`Audit::write_entities_csv`] — one row per detected
+//! - [`Audit::write_entities_csv`]: one row per detected
 //!   entity. Scalar essentials only.
-//! - [`Audit::write_provenance_csv`] — one row per event on
+//! - [`Audit::write_provenance_csv`]: one row per event on
 //!   every entity's provenance chain.
-//! - [`Audit::write_reviews_csv`] — one row per reviewed entity.
+//! - [`Audit::write_reviews_csv`]: one row per reviewed entity.
 //!
 //! All three join on `entity_id`. The design choice for CSV is
-//! honest scalar columns everywhere — no JSON blobs, no
+//! honest scalar columns everywhere: no JSON blobs, no
 //! polymorphic locations. Callers that need location details or
 //! nested payloads use [`Audit::write_json`].
 
@@ -41,7 +41,7 @@ impl Audit {
     /// [`Self::write_reviews_csv`] on `entity_id`.
     ///
     /// Location details and provenance are dropped from this
-    /// export — CSV can't cleanly hold polymorphic locations or
+    /// export: CSV can't cleanly hold polymorphic locations or
     /// nested event chains. Callers that need those use
     /// [`Self::write_json`].
     ///
@@ -149,7 +149,7 @@ impl Audit {
     /// Serialize the review table as CSV into `writer`.
     ///
     /// Columns: `entity_id, modality, operator`. One row per
-    /// reviewed entity — entities without a reviewer override
+    /// reviewed entity: entities without a reviewer override
     /// are absent from the file. `operator` is the kind
     /// discriminator name (`erase`, `mask`, `fake`, ...);
     /// operator parameters are dropped.
@@ -376,7 +376,7 @@ fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Op
 /// Extract the operator `kind` discriminator from the modality
 /// slot on a review's [`ModalityRedactions`]. Uses serde JSON
 /// as a universal `kind` reader across the four operator enums
-/// — each one is `#[serde(tag = "kind")]` so the top-level JSON
+///: each one is `#[serde(tag = "kind")]` so the top-level JSON
 /// object always has a `"kind"` field.
 fn operator_kind_for_modality(review: &ModalityRedactions, modality: &str) -> Option<String> {
     let value = match modality {

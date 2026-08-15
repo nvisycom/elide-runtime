@@ -3,8 +3,8 @@
 #![doc = include_str!("../README.md")]
 
 //! Layers on top of the [elide] toolkit. This crate adds the
-//! `elide-runtime` wire schemas — plan (analyzer parameters) and
-//! file (document envelope) — while primitives, entities,
+//! `elide-runtime` wire schemas: plan (analyzer parameters) and
+//! file (document envelope): while primitives, entities,
 //! modalities, and annotations stay in [`elide_core`].
 //!
 //! ## Reference

@@ -3,8 +3,8 @@
 //!
 //! Tabular cells are `TextBacked` in elide, so cell-level ops
 //! share the [`super::operator::text`] builder with the text
-//! modality. The two structural operators — [`DropRow`] and
-//! [`DropColumn`] — sit alongside as tabular-only.
+//! modality. The two structural operators: [`DropRow`] and
+//! [`DropColumn`]: sit alongside as tabular-only.
 //!
 //! [`DropRow`]: elide::redaction::operators::DropRow
 //! [`DropColumn`]: elide::redaction::operators::DropColumn

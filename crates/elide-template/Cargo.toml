@@ -38,7 +38,7 @@ schemars = { workspace = true, features = [] }
 hipstr = { workspace = true, features = ["serde"] }
 jiff = { workspace = true, features = ["serde"] }
 semver = { workspace = true, features = ["serde"] }
-uuid = { workspace = true, features = ["v7"] }
+uuid = { workspace = true, features = ["v5", "v7"] }
 
 [dev-dependencies]
 # Serialization

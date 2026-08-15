@@ -29,12 +29,12 @@ use crate::provider::stt::SttEnricherConfig;
 ///
 /// Owned rather than borrowing from the engine so callers can
 /// carry the value past the borrow that produced it. Cloning is
-/// cheap — [`HipStr`] shares the backing string via an `Arc`
+/// cheap: [`HipStr`] shares the backing string via an `Arc`
 /// header.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisteredRecognizer {
-    /// Recognizer name — the identifier a request's allowlist
+    /// Recognizer name: the identifier a request's allowlist
     /// picks by.
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
@@ -48,7 +48,7 @@ pub struct RegisteredRecognizer {
     /// Owned so the type deserializes from a runtime buffer: a
     /// `&'static str` field would make the derive emit
     /// `Deserialize<'static>` only, which compiles against string
-    /// literals but not against an owned `String` or a reader —
+    /// literals but not against an owned `String` or a reader -
     /// the shapes a host actually decodes from. Borrowing a
     /// `&'static str` into a [`HipStr`] does not allocate, so
     /// engine-side construction stays free.

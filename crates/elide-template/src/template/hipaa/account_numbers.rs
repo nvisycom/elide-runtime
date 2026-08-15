@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// The regulation names "account numbers" without enumerating
 /// them; HHS OCR's 2012 guidance doesn't narrow it either. In
 /// practice, covered entities and de-ID vendors treat bank
-/// accounts, IBANs, and payment cards as the core §(J) set —
+/// accounts, IBANs, and payment cards as the core §(J) set -
 /// [`Standard`](Self::Standard). Cryptocurrency wallet addresses
 /// are the newer case: they identify a specific holder's account
 /// by function, and the §(R) catch-all pulls in "any other unique
@@ -37,6 +37,19 @@ pub enum HipaaAccountNumbers {
     Extended,
 }
 
+impl HipaaAccountNumbers {
+    /// Every shipped account tier, narrowest first.
+    pub const ALL: &[Self] = &[Self::Standard, Self::Extended];
+
+    /// Compile-time proof that [`ALL`](Self::ALL) lists every
+    /// variant. Never called.
+    const fn _exhaustive(self) {
+        match self {
+            Self::Standard | Self::Extended => {}
+        }
+    }
+}
+
 const STANDARD_ACCOUNT_LABELS: &[LabelRef] = &[
     LabelRef::from_static("bank_account"),
     LabelRef::from_static("iban"),
@@ -52,7 +65,7 @@ const EXTENDED_ACCOUNT_LABELS: &[LabelRef] = &[
 
 impl HipaaAccountNumbers {
     /// The account-identifier labels this tier covers. Just the
-    /// account delta — each posture's own base label set fuses
+    /// account delta: each posture's own base label set fuses
     /// this in via its own `labels()` helper.
     pub(crate) fn labels(self) -> &'static [LabelRef] {
         match self {

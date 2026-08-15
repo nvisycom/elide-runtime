@@ -3,8 +3,8 @@
 #![doc = include_str!("../README.md")]
 
 //! Layers on top of the [elide] toolkit. This crate adds the
-//! wire schema for redaction governance — policies, rules,
-//! predicates, and operator specs — that the engine walks at
+//! wire schema for redaction governance: policies, rules,
+//! predicates, and operator specs: that the engine walks at
 //! apply time.
 //!
 //! [elide]: https://github.com/nvisycom/elide
@@ -25,7 +25,7 @@
 //! Rules have two shapes ([`PolicyRule`]):
 //! - [`Predicated`]: one composable [`Predicate`] gates a single
 //!   [`ModalityRedactions`] action.
-//! - [`Table`]: a list of per-label [`LabelEntry`] entries — the
+//! - [`Table`]: a list of per-label [`LabelEntry`] entries: the
 //!   compile-time sugar for "route each label to its own operator
 //!   under one shared rule identity" (e.g. HIPAA Safe Harbor
 //!   fan-out).
@@ -57,4 +57,5 @@ pub mod redaction;
 
 pub use self::policy::{
     LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
+    TemplateOrigin,
 };

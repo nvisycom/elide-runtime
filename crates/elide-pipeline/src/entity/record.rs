@@ -28,7 +28,7 @@ pub struct EntityRecord<M: Modality> {
     /// `Some(...)` overrides that rule for this specific entity
     /// at apply time. Reviewer overrides take precedence over
     /// every policy rule and inherit the authority of the
-    /// [`Review::policy_id`] they name — the audit event's
+    /// [`Review::policy_id`] they name: the audit event's
     /// attribution stamps that policy so the trail names the
     /// authority under which the override fired.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -38,7 +38,7 @@ pub struct EntityRecord<M: Modality> {
 /// A reviewer-supplied redaction override with the policy
 /// authority it draws from.
 ///
-/// The `policy_id` isn't just for audit — it also picks which
+/// The `policy_id` isn't just for audit: it also picks which
 /// per-policy pseudonym vault and per-policy [`KeyProvider`] the
 /// override's operator resolves against, so an override using
 /// [`Pseudonymize`] or [`HmacHash`] stays consistent with the

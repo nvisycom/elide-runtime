@@ -4,17 +4,17 @@
 //! [`description`]) plus a [`RuleDispatch`] picking how targets are
 //! selected:
 //!
-//! - [`RuleDispatch::Predicated`] — one predicate, one action.
+//! - [`RuleDispatch::Predicated`]: one predicate, one action.
 //!   Fires when the predicate holds on the candidate entity. Fast
 //!   paths in the engine compile [`Predicate::LabelOneOf`] with a
 //!   single label to `Rule::label`, [`Predicate::TagOneOf`] with a
 //!   single tag to `Rule::tag`, everything else to
 //!   `Rule::predicate`.
-//! - [`RuleDispatch::Table`] — N `(label, action)` entries under
+//! - [`RuleDispatch::Table`]: N `(label, action)` entries under
 //!   one shared identity. Every entry attaches as `Rule::label`
 //!   directly and fires under the same rule id in the audit trail.
-//!   Sugar over N predicated rules with identical id/name/description
-//!   — keeps templates that fan out per-label operators (HIPAA
+//!   Sugar over N predicated rules with identical
+//!   id/name/description: keeps templates that fan out per-label operators (HIPAA
 //!   Safe Harbor `age`→clamp, `date`→generalize, remainder→erase)
 //!   from ballooning to one predicated rule per label with the
 //!   same identity boilerplate repeated.
@@ -28,6 +28,7 @@
 //! [`name`]: PolicyRule::name
 
 use elide_core::entity::LabelRef;
+use elide_core::entity::audit::AttributionKind;
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -45,11 +46,11 @@ use crate::redaction::ModalityRedactions;
 #[serde(rename_all = "camelCase")]
 pub struct PolicyRule {
     /// Stable identifier. UUIDv7 recommended. Engine stamps it
-    /// into the redaction event's [`Attribution::description`] so
+    /// into the redaction event's [`Attribution::source_id`] so
     /// reviewers can trace which rule fired. Every attachment a
     /// [`RuleDispatch::Table`] expands into shares this UUID.
     ///
-    /// [`Attribution::description`]: elide_core::entity::audit::Attribution::description
+    /// [`Attribution::source_id`]: elide_core::entity::audit::Attribution::source_id
     pub id: Uuid,
     /// Human-readable name. Display-only.
     #[schemars(with = "String")]
@@ -58,6 +59,19 @@ pub struct PolicyRule {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub description: Option<HipStr<'static>>,
+    /// Why this rule exists: the authority it answers to.
+    ///
+    /// The engine renders it into the redaction event's
+    /// [`Attribution`], so a reviewer sees the provision rather
+    /// than a bare UUID. `None` falls back to recording the
+    /// policy and rule ids alone.
+    ///
+    /// Optional so ad-hoc and hand-authored rules stay cheap to
+    /// write; the shipped templates set it on every rule.
+    ///
+    /// [`Attribution`]: elide_core::entity::audit::Attribution
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attribution: Option<AttributionKind>,
     /// How this rule selects targets and picks operators. See
     /// [`RuleDispatch`] for the two shipped strategies.
     #[serde(flatten)]
@@ -72,7 +86,7 @@ impl PolicyRule {
     /// that single label. The engine attaches every yielded pair
     /// under this rule's shared UUID.
     ///
-    /// Iteration order is stable — `Predicated` yields once;
+    /// Iteration order is stable: `Predicated` yields once;
     /// `Table` yields in the entries' declared order.
     ///
     /// [`Predicate::LabelOneOf`]: crate::Predicate::LabelOneOf
@@ -116,7 +130,7 @@ pub enum RuleDispatch {
         /// policy in the chain).
         ///
         /// Boxed to keep [`RuleDispatch`]'s stack footprint
-        /// small — [`ModalityRedactions`] carries four optional
+        /// small: [`ModalityRedactions`] carries four optional
         /// per-modality operator enums and dominates the variant
         /// size. `Table`'s `Vec<LabelEntry>` already heap-allocates
         /// its entries, so boxing here keeps the two variants
@@ -130,7 +144,7 @@ pub enum RuleDispatch {
     /// through to the next rule or the policy fallback.
     ///
     /// A [`Vec`] rather than a map keeps the author-supplied
-    /// order — elide's anonymizer is first-match-wins, so wire
+    /// order: elide's anonymizer is first-match-wins, so wire
     /// order determines which entry fires when two match the
     /// same entity. Duplicate labels are the caller's bug; the
     /// engine attaches every entry, and the first one wins.

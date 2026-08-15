@@ -9,7 +9,7 @@
 //! fail the request with a [`Configuration`](ErrorKind::Configuration)
 //! error at request-compile time. Silent last-write-wins semantics
 //! would let policy A's authoring intent be quietly overwritten by
-//! policy B's — the wrong posture for a governance surface.
+//! policy B's: the wrong posture for a governance surface.
 //!
 //! Groups do not stamp synthetic tags on the catalog. Group
 //! membership is resolved by the selector when it compiles
@@ -83,7 +83,7 @@ fn insert_params(catalog: &mut LabelCatalog, policy: &PolicyDefinition) -> Resul
                 ErrorKind::Configuration,
                 format!(
                     "policy `{}` declares custom label `{}` whose id collides with a \
-                     shipped builtin — customs cannot shadow builtins",
+                     shipped builtin: customs cannot shadow builtins",
                     policy.id,
                     label.id(),
                 ),
@@ -109,7 +109,7 @@ fn insert_params(catalog: &mut LabelCatalog, policy: &PolicyDefinition) -> Resul
 
 /// The full builtin label catalog from `elide-core`, built once
 /// and reused for every request. [`LabelCatalog::with_builtins`]
-/// walks `BUILT_INS` and clones every label — cheap once, wasteful
+/// walks `BUILT_INS` and clones every label: cheap once, wasteful
 /// per-request.
 ///
 /// [`LabelCatalog::with_builtins`]: elide_core::entity::LabelCatalog::with_builtins
@@ -121,7 +121,7 @@ fn builtin_catalog() -> &'static LabelCatalog {
 /// The set of [`LabelRef`]s a policy declares in its [`labels`]
 /// block, materialised for per-policy scoping at match time. Every
 /// predicate the selector compiles filters by whether the
-/// candidate entity's label is in this set — a policy that lists
+/// candidate entity's label is in this set: a policy that lists
 /// only `email_address` cannot fire on a `phone_number` entity
 /// another policy pulled into the request's recognition pass.
 ///
@@ -151,6 +151,7 @@ mod tests {
             id,
             name: HipStr::from("test"),
             description: None,
+            template: None,
             labels,
             groups,
             rules: Vec::new(),
@@ -303,6 +304,7 @@ mod tests {
         let group = LabelGroup {
             name: HipStr::from("contact_sweep"),
             description: None,
+            attribution: None,
             labels: vec![LabelRef::new("email_address")],
         };
         let p = policy_named(

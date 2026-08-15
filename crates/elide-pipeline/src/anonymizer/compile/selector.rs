@@ -51,12 +51,12 @@ use crate::analyzer::policy_label_scope;
 /// selector compiles. Built once per policy at attach time; every
 /// rule inside that policy shares the same reference-counted copy.
 ///
-/// - `label_scope` — the [`LabelRef`]s the policy declares in its
+/// - `label_scope`: the [`LabelRef`]s the policy declares in its
 ///   [`labels`] block. Every predicate filters by whether the
 ///   candidate entity's label is in this set, so a policy that
 ///   lists only `email_address` never fires on a `phone_number`
 ///   another policy pulled into the request's recognition pass.
-/// - `groups` — resolved group name → labelset lookup, materialised
+/// - `groups`: resolved group name → labelset lookup, materialised
 ///   from the policy's [`groups`] block once. A rule can only
 ///   name a group its own policy declared (validated separately
 ///   in `pipeline::orchestrator::validate_group_references`).
@@ -95,8 +95,8 @@ impl PolicyContext {
     }
 
     /// Whether the enclosing policy declared vocabulary for
-    /// `label`. The gate every predicate — including the policy
-    /// fallback — passes through before any per-predicate logic
+    /// `label`. The gate every predicate: including the policy
+    /// fallback: passes through before any per-predicate logic
     /// evaluates.
     pub(in crate::anonymizer) fn label_scope_contains(&self, label: &LabelRef) -> bool {
         self.label_scope.contains(label)
@@ -110,38 +110,68 @@ fn group_lookup_entry(group: &LabelGroup) -> (String, HashSet<LabelRef>) {
 
 /// Build an [`Attribution`] for a concrete rule that fired.
 ///
-/// `name` carries the policy's stable UUID (elide's
-/// [`Attribution::name`] is the "policy authority" slot) and
-/// `description` carries the rule's UUID so an audit can trace a
-/// redaction back to the exact rule inside the policy.
+/// A rule carrying a attribution passes it through verbatim, so
+/// an audit records the provision rather than prose a consumer
+/// would have to parse.
+///
+/// Without one the attribution falls back to [`Freeform`] under
+/// the policy's own name and description.
+///
+/// Either way `source_id` carries the rule's UUID: it is
+/// orthogonal to whether the author supplied a citation, and it
+/// is what keeps two rules citing the same provision (Safe
+/// Harbor's age/date table and its bulk erase both cite
+/// §164.514(b)(2)) distinguishable in the trail.
+///
+/// [`Freeform`]: elide_core::entity::audit::AttributionKind::Freeform
 pub(super) fn rule_attribution(policy: &PolicyDefinition, rule: &PolicyRule) -> Attribution {
-    Attribution::new(policy.id.to_string()).with_description(rule.id.to_string())
+    let attribution = match &rule.attribution {
+        // No public constructor takes a prebuilt kind, and both
+        // fields are public, so a literal beats destructuring the
+        // enum only to rebuild it.
+        Some(kind) => Attribution {
+            kind: kind.clone(),
+            source_id: None,
+        },
+        None => {
+            let freeform = Attribution::freeform(policy.name.clone());
+            match &policy.description {
+                Some(description) => freeform.with_description(description.clone()),
+                None => freeform,
+            }
+        }
+    };
+    attribution.with_source_id(rule.id)
 }
 
 /// Build an [`Attribution`] for a policy's `fallback`.
 ///
-/// No `description` — the fallback is the policy's catch-all,
-/// there is no per-rule id to record.
+/// Freeform under the policy's own name: a catch-all fires
+/// because no rule claimed the entity, so there is no provision
+/// to cite. No `source_id` either, since no rule fired.
 pub(super) fn fallback_attribution(policy: &PolicyDefinition) -> Attribution {
-    Attribution::new(policy.id.to_string())
+    Attribution::freeform(policy.name.clone())
+        .with_description("policy fallback: no rule matched this entity")
 }
 
 /// Build an [`Attribution`] for a reviewer override.
 ///
-/// `name` carries the policy UUID the reviewer exercised
-/// authority under — same slot as any policy-driven rule so an
-/// auditor grepping by policy id sees override-driven redactions
-/// too. `description` combines a fixed `"override:"` prefix with
-/// the overridden entity's id so audits can still distinguish
-/// override events from rule events at a glance.
+/// A reviewer's decision cites no provision, so it is freeform,
+/// named for the policy whose authority the reviewer exercised.
+/// `source_id` carries the overridden entity rather than a rule
+/// id, since the entity *is* the source record here, and the
+/// description marks the event as reviewer-driven so audits
+/// separate the two at a glance.
 pub(super) fn override_attribution(entity_id: Uuid, policy_id: Uuid) -> Attribution {
-    Attribution::new(policy_id.to_string()).with_description(format!("override:{entity_id}"))
+    Attribution::freeform(policy_id.to_string())
+        .with_description("reviewer override")
+        .with_source_id(entity_id)
 }
 
 /// Attach an `operator` to `anonymizer` for the single entity
 /// identified by `entity_id`. Used by the apply pipeline to give
 /// reviewer overrides higher precedence than any policy-driven
-/// rule. `policy_id` names the overriding policy — attribution
+/// rule. `policy_id` names the overriding policy: attribution
 /// stamps it, and per-policy operator infrastructure (pseudonym
 /// vault, `KeyProvider`) resolves against it.
 pub(super) fn attach_override<M, O>(

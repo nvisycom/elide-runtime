@@ -30,7 +30,7 @@ Four regulatory postures across eleven shipped variants:
   (identity-preserving pseudonymization; requires a qualified
   statistician to attest that re-identification risk is "very
   small" before the output can be treated as de-identified).
-- **GDPR Article 9** — special-category personal data. Ships
+- **GDPR Article 9**: special-category personal data. Ships
   two treatments: erasure (the default no-basis posture) and
   pseudonymization (identity-preserving; requires an Article
   9(2) lawful-basis carve-out established out-of-band).
@@ -44,9 +44,9 @@ Four regulatory postures across eleven shipped variants:
     require a key provider wired into the engine.
   - **§3.3.1 Sensitive Authentication Data erasure.** SAV
     (CVV/CVC, track data, PIN blocks) is prohibited from storage
-    after authorization — the correct posture is erasure, not
+    after authorization: the correct posture is erasure, not
     render-unreadable. Currently covers CVV/CVC.
-- **CCPA** — Cal. Civ. Code §1798.140 personal-information
+- **CCPA**: Cal. Civ. Code §1798.140 personal-information
   categories.
 
 ## Versioning

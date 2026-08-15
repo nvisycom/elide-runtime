@@ -56,7 +56,7 @@ pub enum Predicate {
     /// target a canonical label cluster (e.g. `hipaa_18`,
     /// `gdpr_article_9`).
     ///
-    /// Groups are scoped to the declaring policy — a rule cannot
+    /// Groups are scoped to the declaring policy: a rule cannot
     /// reference a group declared by another policy in the same
     /// request. An unknown group name is a request-validation
     /// error, not a silent no-op.

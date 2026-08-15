@@ -1,7 +1,7 @@
 //! Modality-tagged group of recognised entities.
 //!
 //! [`EntityGroup`] is the unit [`Audit`] stores in `body` and in
-//! every `parts` entry — one enum tagged by `modality` (snake_case)
+//! every `parts` entry: one enum tagged by `modality` (snake_case)
 //! so deserialisation picks the right variant and the entity vec
 //! inside is statically typed per modality. Apply-time we hand
 //! each variant back to elide as a `Vec<Entity<M>>` for the
@@ -77,7 +77,7 @@ use super::record::{EntityRecord, OverrideEntry};
 ///
 /// Tagged by `modality` (snake_case) so deserialization picks the
 /// right variant and the entity vec inside is statically typed
-/// per modality — apply-time we hand each variant back to elide
+/// per modality: apply-time we hand each variant back to elide
 /// as a `Vec<Entity<M>>` for the appropriate `M`.
 ///
 /// [`Audit`]: crate::Audit
@@ -145,7 +145,7 @@ pub(crate) fn take_part<M: GroupCarrier>(report: &mut Report, id: &PartId) -> Op
 
 /// Dispatch on an [`EntityGroup`] variant, binding the modality
 /// type as `$m` and the entities slot as `$entities` in the body.
-/// The modality list lives here — every method on [`EntityGroup`]
+/// The modality list lives here: every method on [`EntityGroup`]
 /// below reuses this macro instead of re-writing four
 /// feature-gated match arms.
 ///

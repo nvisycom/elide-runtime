@@ -23,12 +23,12 @@
 //!   `elide::redaction::operators::HmacHash` (engine wires the
 //!   per-tenant [`KeyProvider`]; distinct from [`Hash`] because the
 //!   HMAC key stays secret, blocking offline dictionary attacks a
-//!   public salt does not — the PCI DSS v4.0.1 §3.5.1 "keyed hash"
+//!   public salt does not: the PCI DSS v4.0.1 §3.5.1 "keyed hash"
 //!   posture)
 //! - [`TextRedaction::Truncate`] →
 //!   `elide::redaction::operators::Truncate` (physically drop the
 //!   middle of the value; distinct from [`Mask`] which preserves
-//!   length — the PCI DSS §3.5.1 truncation posture for stored PAN)
+//!   length: the PCI DSS §3.5.1 truncation posture for stored PAN)
 //! - [`TextRedaction::Clamp`] →
 //!   `elide::redaction::operators::Clamp` (numeric ceiling/floor →
 //!   bucket label; the HIPAA §164.514(b)(2)(i)(C) age-cap posture)
@@ -40,8 +40,8 @@
 //! [`Clamp`] and [`GeneralizeDate`] each carry an optional
 //! `fallback` field that runs when the entity value isn't the
 //! operator's shape (a non-numeric age, a free-text date). The
-//! fallback is one of the four terminal operators — [`Erase`],
-//! [`Keep`], [`Replace`], [`Mask`] — so the engine builds a
+//! fallback is one of the four terminal operators: [`Erase`],
+//! [`Keep`], [`Replace`], [`Mask`]: so the engine builds a
 //! concrete `elide::WithFallback<primary, fallback>` without
 //! type erasure. `None` erases (elide's baked-in default).
 //!
@@ -74,11 +74,11 @@ use serde::{Deserialize, Serialize};
 /// Three forms, deserialized untagged so callers can pick the
 /// terser one for the case at hand:
 ///
-/// - **Plain string** (`"90 or older"`) — English-only shorthand.
-/// - **Localized map** (`{"en": "90 or older", "fr": "90 ou plus"}`)
-///   — one entry per language the deployment ships; missing
-///   locales fall back to English at render time.
-/// - **Format template** (`{"format": "{n} or older"}`) — the
+/// - **Plain string** (`"90 or older"`): English-only shorthand.
+/// - **Localized map** (`{"en": "90 or older", "fr": "90 ou plus"}`):
+///   one entry per language the deployment ships; missing locales
+///   fall back to English at render time.
+/// - **Format template** (`{"format": "{n} or older"}`): the
 ///   engine substitutes `{n}` for the threshold, so a ceiling of
 ///   `90` renders `"90 or older"` without the caller repeating the
 ///   number. Same rendering in every language.
@@ -89,7 +89,7 @@ use serde::{Deserialize, Serialize};
 pub enum ClampBucket {
     /// Plain English-only string.
     Plain(String),
-    /// Format template — the engine substitutes `{n}` for the
+    /// Format template: the engine substitutes `{n}` for the
     /// threshold. Same rendering in every language.
     Format {
         /// The template string. `{n}` is substituted; other text
@@ -142,7 +142,7 @@ fn localized(map: &HashMap<LanguageTag, String>) -> LocalizedText<HipStr<'static
 /// or `→ Mask` / `→ Keep` on the rare occasion those fit.
 ///
 /// Absent from the primary's spec, elide's baked-in default is
-/// [`Erase`] — a bare [`TextRedaction::Clamp`] without a `fallback`
+/// [`Erase`]: a bare [`TextRedaction::Clamp`] without a `fallback`
 /// erases values that aren't numeric.
 ///
 /// [`Erase`]: TerminalFallback::Erase
@@ -255,7 +255,7 @@ pub enum TextRedaction {
     Encrypt,
     /// Keyed HMAC-SHA-2 digest. The key stays secret, so an
     /// attacker who obtains the redacted output cannot enumerate
-    /// a small input space without the key — the PCI DSS v4.0.1
+    /// a small input space without the key: the PCI DSS v4.0.1
     /// §3.5.1 "keyed hash" posture. Distinct from [`Hash`], whose
     /// salt is public. Requires the engine to have a key provider
     /// wired via `Engine::with_key_provider`.
@@ -268,7 +268,7 @@ pub enum TextRedaction {
     },
     /// Physically remove the middle of the value, keeping a
     /// leading and/or trailing run of characters. Unlike [`Mask`]
-    /// this *shortens* the string — the dropped characters leave
+    /// this *shortens* the string: the dropped characters leave
     /// no placeholder. The PCI DSS §3.5.1 truncation posture for
     /// stored PAN: `Truncate { keep_prefix: 6, keep_suffix: 4 }`
     /// on `"4111111111111234"` yields `"4111111234"` (10 chars),
@@ -297,7 +297,7 @@ pub enum TextRedaction {
     /// Values that don't parse as finite numbers are *declined*.
     /// `fallback` names what runs on a declined value; when
     /// absent, elide's baked-in default is [`Erase`] (the safe
-    /// posture — a non-numeric age never survives redaction).
+    /// posture: a non-numeric age never survives redaction).
     ///
     /// [`Erase`]: TextRedaction::Erase
     Clamp {

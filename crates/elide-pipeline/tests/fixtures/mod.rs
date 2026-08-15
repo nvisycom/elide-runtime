@@ -5,7 +5,7 @@ use std::path::PathBuf;
 /// Write `bytes` to `tests/testdata/{stem}.{tag}` so a human
 /// can open the artefact after a run. Gitignored.
 ///
-/// `tag` is the full "suffix" — everything after the stem's dot.
+/// `tag` is the full "suffix": everything after the stem's dot.
 /// Callers pass e.g. `"out.docx"` for a redacted document,
 /// `"audit.json"` for a JSON audit, `"audit-entities.csv"` for
 /// a CSV table.

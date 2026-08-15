@@ -3,7 +3,7 @@
 //! Symmetric with [`super::ner`] and [`super::ocr`]: deployment
 //! operator owns backend choice, connection details, and
 //! (future) credentials. The request wire holds nothing about
-//! STT — every audio-modality analyzer picks up the operator's
+//! STT: every audio-modality analyzer picks up the operator's
 //! STT enricher automatically.
 //!
 //! ## Layout

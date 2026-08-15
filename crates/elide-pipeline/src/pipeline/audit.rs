@@ -11,7 +11,7 @@
 //! [`AuditContext`] carries the recognition-side facts the
 //! anonymize step needs to rebuild an orchestrator against the
 //! exact vocabulary the analyze step used, minus the label
-//! catalog — labels are policy-owned and re-derived from the
+//! catalog: labels are policy-owned and re-derived from the
 //! policy set on every anonymize call.
 //!
 //! Hosts hold this value between analyze and anonymize and may
@@ -52,7 +52,7 @@ use crate::entity::EntityGroup;
 /// here; labels are re-derived from the policy set on each
 /// anonymize call.
 ///
-/// No [`Default`] — a well-formed audit must carry a real
+/// No [`Default`]: a well-formed audit must carry a real
 /// [`AuditContext`] with a real correlation id. Callers building
 /// an audit outside the analyze path construct it explicitly.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -80,7 +80,7 @@ pub struct Audit {
     /// vocabulary analyze used without the caller re-passing an
     /// `AnalyzerParams`.
     ///
-    /// Required on the wire — a missing context on an incoming
+    /// Required on the wire: a missing context on an incoming
     /// [`Audit`] rejects at deserialize time so the shape
     /// mismatch surfaces at load, not at apply.
     ///
@@ -94,11 +94,11 @@ pub struct Audit {
 /// for `languages` and `countries` (typed, elide-native), a
 /// [`metadata`] sub-struct for free-form classification strings
 /// (`tags`, `purpose`, `audience`), and the analyze-time
-/// [`correlation_id`]. The label catalog is not on here —
+/// [`correlation_id`]. The label catalog is not on here -
 /// labels are policy-owned, and anonymize re-derives them from
 /// the policy set it was handed.
 ///
-/// No [`Default`] — `correlation_id` has no meaningful default
+/// No [`Default`]: `correlation_id` has no meaningful default
 /// (a nil UUID would silently collapse unrelated audits under
 /// one bucket in downstream trace aggregators), so callers
 /// supply one explicitly. Everything else defaults to empty.
@@ -130,7 +130,7 @@ pub struct AuditContext {
     /// carried over so the anonymize path can link its own spans
     /// to the same request. The anonymize call supplies a fresh
     /// id from the passed [`Document`] as the anonymize-side
-    /// correlation id — this one stays as the analyze-side
+    /// correlation id: this one stays as the analyze-side
     /// pointer.
     ///
     /// Required on the wire.
@@ -139,7 +139,7 @@ pub struct AuditContext {
     pub correlation_id: Uuid,
     /// OCR mode the analyze call decoded with. Recorded so the
     /// anonymize call re-decodes the same document under the same
-    /// codec configuration — otherwise entity offsets stored in
+    /// codec configuration: otherwise entity offsets stored in
     /// the audit wouldn't line up against a differently-rendered
     /// second decode. Defaults to [`RasterMode::Auto`] (the codec's
     /// built-in behaviour) when omitted.
@@ -152,7 +152,7 @@ pub struct AuditContext {
 impl Audit {
     /// Serialize the audit as pretty JSON into `writer`.
     ///
-    /// Preserves the full structure — body + parts + context, and
+    /// Preserves the full structure: body + parts + context, and
     /// every entity's provenance chain. This is the canonical
     /// export; callers without a specific reason to reach for
     /// another format use this.

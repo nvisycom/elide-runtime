@@ -3,12 +3,12 @@
 //! Runs after recognition, on every modality. Assembles in
 //! canonical order:
 //!
-//! 1. **Reconcile same-label** — merge overlapping findings that
+//! 1. **Reconcile same-label**: merge overlapping findings that
 //!    share a label into one entity using max-confidence.
-//! 2. **Reconcile cross-label** — pick a winner when overlapping
+//! 2. **Reconcile cross-label**: pick a winner when overlapping
 //!    entities carry different labels, using the
 //!    highest-confidence tiebreaker.
-//! 3. **Filter** — drop entities below
+//! 3. **Filter**: drop entities below
 //!    [`ConfidenceThreshold::BASELINE`].
 //!
 //! No calibration layer: no per-recognizer reweighting today.

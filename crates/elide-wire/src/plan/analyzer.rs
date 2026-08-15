@@ -20,13 +20,13 @@ use super::annotation::AnyAnnotations;
 /// wire projection of `elide::recognition::Scope`: `languages`,
 /// `countries`, and elide's own [`ScopeMetadata`] block for
 /// free-form classification strings. `Scope`'s other two fields
-/// are server-owned — `correlation_id` is minted per request,
-/// and `catalog` is derived from the request's policy set — so
+/// are server-owned: `correlation_id` is minted per request,
+/// and `catalog` is derived from the request's policy set: so
 /// they don't appear on the wire.
 ///
-/// Everything else — the built-in pattern recognizer, every
+/// Everything else: the built-in pattern recognizer, every
 /// wired NER and LLM recognizer, every wired enricher, the
-/// dedup pipeline — always runs on every request. Deployment
+/// dedup pipeline: always runs on every request. Deployment
 /// controls the lineup via `Engine::with_ner` / `Engine::with_llm`;
 /// per-request opt-outs aren't shipped.
 ///
@@ -51,7 +51,7 @@ pub struct AnalyzerParams {
     /// coverage) treat OCR. See [`RasterMode`] for the three states.
     ///
     /// The default [`RasterMode::Auto`] matches the codec's built-in
-    /// behaviour — extract the text layer where present, render
+    /// behaviour: extract the text layer where present, render
     /// missing pages for OCR. `Force { dpi }` rasterises every
     /// page (real CPU / memory cost; opt-in when scanned pages
     /// need OCR even alongside a text layer). `Never` skips
@@ -92,7 +92,7 @@ pub struct ScopeParams {
     pub metadata: ScopeMetadata,
 }
 
-/// Whether a [`ScopeMetadata`] carries no assertions — all three
+/// Whether a [`ScopeMetadata`] carries no assertions: all three
 /// fields (`tags`, `purpose`, `audience`) empty.
 ///
 /// Used as the `skip_serializing_if` for every wire type that

@@ -3,6 +3,7 @@
 //! the operator specs the rules dispatch to.
 
 mod label;
+mod origin;
 mod predicate;
 mod rule;
 
@@ -12,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::label::{LabelGroup, Labels};
+pub use self::origin::TemplateOrigin;
 pub use self::rule::{LabelEntry, PolicyRule, RuleDispatch};
 use crate::redaction::ModalityRedactions;
 pub use predicate::Predicate;
@@ -24,19 +26,30 @@ pub use predicate::Predicate;
 pub struct PolicyDefinition {
     /// Stable identifier. UUIDv7 recommended (time-ordered);
     /// customer-supplied so re-submissions carry the same id.
-    /// Engine stamps this into the redaction event's
-    /// [`Attribution::name`] so reviewers can find this policy
-    /// from any redaction it drove.
-    ///
-    /// [`Attribution::name`]: elide_core::entity::audit::Attribution::name
     pub id: Uuid,
     /// Human-readable name. Display-only. Does not key anything.
+    ///
+    /// Names the policy in a redaction event's [`Attribution`]
+    /// when a rule that fired carried no [`AttributionKind::Cited`]
+    /// attribution to render.
+    ///
+    /// [`Attribution`]: elide_core::entity::audit::Attribution
+    /// [`AttributionKind::Cited`]: elide_core::entity::audit::AttributionKind::Cited
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
     /// Optional description for reviewers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub description: Option<HipStr<'static>>,
+    /// The shipped template this policy was built from, when it
+    /// was.
+    ///
+    /// Provenance, not fidelity: callers are expected to mutate a
+    /// template's policy before submitting, so this records where
+    /// the policy came from and says nothing about whether it
+    /// still matches. `None` means hand-authored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template: Option<TemplateOrigin>,
     /// Vocabulary the policy operates over: builtins picked by
     /// name plus caller-authored custom label schemas. Engine
     /// unions every submitted policy's `labels` into a per-request
@@ -49,7 +62,7 @@ pub struct PolicyDefinition {
     pub labels: Labels,
     /// Named clusters of [`LabelRef`]s this policy's rules may
     /// reference by name via [`Predicate::LabelInGroup`]. Scoped
-    /// to this policy — a rule can only name a group its own
+    /// to this policy: a rule can only name a group its own
     /// policy declared; unknown references error at request
     /// validation. Two policies that both declare `hipaa_18` with
     /// different labelsets stay independent.

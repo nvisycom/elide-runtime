@@ -483,20 +483,26 @@ impl Engine {
             }
         };
         result.map_err(|err| {
+            // A missing renderer is not malformed input; keep the kind so
+            // callers can tell "unsupported build" from "bad document".
+            let kind = match err.kind() {
+                ErrorKind::CapabilityUnavailable => ErrorKind::CapabilityUnavailable,
+                _ => ErrorKind::MalformedInput,
+            };
             Error::new(
-                ErrorKind::MalformedInput,
+                kind,
                 format!("codec decode failed for extension {extension:?}: {err}"),
             )
         })
     }
 
-    /// Slow-path decode for requests overriding the default OCR
+    /// Slow-path decode for requests overriding the default raster
     /// mode. Rebuilds a [`FormatRegistry`] with the PDF handler
     /// replaced by one wired to `raster_mode`; other codecs come
     /// from the built-in set. Callers pay one registry build per
-    /// non-default request — trivial next to the OCR render
-    /// itself (`Force { dpi }` pages the whole document at the
-    /// chosen DPI), but not free, so the default path skips it.
+    /// non-default request — trivial next to the render itself
+    /// (`Always { dpi }` pages the whole document at the chosen
+    /// DPI), but not free, so the default path skips it.
     #[cfg(feature = "codec-pdf-render")]
     async fn decode_with_raster_mode(
         &self,
@@ -510,16 +516,25 @@ impl Engine {
         registry.decode(bytes, extension).await
     }
 
-    /// Fallback when the render feature is off: any non-default
-    /// mode falls through to the shared registry.
+    /// Fallback when the render feature is off. Only non-default
+    /// modes reach here, and none of them can be honoured without
+    /// the renderer, so refuse rather than decode with the shared
+    /// registry: silently substituting `Auto` would hand back a
+    /// text-layer extraction to a caller who asked to rasterize.
     #[cfg(not(feature = "codec-pdf-render"))]
     async fn decode_with_raster_mode(
         &self,
-        bytes: bytes::Bytes,
-        extension: &str,
-        _raster_mode: RasterMode,
+        _bytes: bytes::Bytes,
+        _extension: &str,
+        raster_mode: RasterMode,
     ) -> std::result::Result<UntypedDocumentHandle, elide_core::Error> {
-        self.formats.decode(bytes, extension).await
+        Err(elide_core::Error::new(
+            elide_core::ErrorKind::CapabilityUnavailable,
+            format!(
+                "raster mode {raster_mode:?} requires the `codec-pdf-render` feature; \
+                 rebuild with it enabled or request the default mode"
+            ),
+        ))
     }
 }
 

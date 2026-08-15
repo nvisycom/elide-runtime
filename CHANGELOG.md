@@ -27,13 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **elide-governance:** wire schema for redaction governance (rules,
   predicates, operators).
-- **elide-wire:** umbrella re-exporting `elide-governance` alongside
-  `plan` and `file`. Consumed by SDKs on both sides of the HTTP
+- **elide-wire:** wire schemas for plan (analyzer parameters) and file
+  (document envelope); peer to `elide-governance`, which consumers
+  depend on directly. Consumed by SDKs on both sides of the HTTP
   boundary.
 - **elide-template:** ready-to-run policy templates for common
   regulatory postures (HIPAA §164.514, GDPR Article 9, PCI DSS,
   CCPA / CPRA).
 - **elide-pipeline:** stateless pipeline: decode, analyze, apply. Wraps
   elide and hosts the per-modality orchestrator plus the
-  deployment-side NER / LLM recognizer configuration.
+  deployment-side NER / LLM recognizer configuration. The umbrella
+  entry point: re-exports elide and `elide-governance` so callers
+  reach everything from here.
 [Unreleased]: https://github.com/nvisycom/elide-runtime/commits/main

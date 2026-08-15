@@ -2,7 +2,7 @@
 
 use elide_core::entity::Entity;
 use elide_core::modality::Modality;
-use elide_wire::policy::redaction::ModalityRedactions;
+use elide_governance::redaction::ModalityRedactions;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -55,7 +55,7 @@ pub struct Review {
     /// the anonymize request. The audit event stamps this UUID
     /// as the attribution `name`.
     ///
-    /// [`PolicyDefinition`]: elide_wire::policy::PolicyDefinition
+    /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
     pub policy_id: Uuid,
     /// The per-modality redaction operators to run for this
     /// entity. Overrides whatever the policy set would have

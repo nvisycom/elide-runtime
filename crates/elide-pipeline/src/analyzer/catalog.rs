@@ -21,16 +21,16 @@
 //! collision policy stay out of `elide-governance`.
 //!
 //! [`Label`]: elide_core::entity::Label
-//! [`PolicyDefinition`]: elide_wire::policy::PolicyDefinition
-//! [`labels`]: elide_wire::policy::PolicyDefinition::labels
-//! [`Predicate::LabelInGroup`]: elide_wire::policy::predicate::Predicate::LabelInGroup
-//! [`Predicate::TagOneOf`]: elide_wire::policy::predicate::Predicate::TagOneOf
+//! [`PolicyDefinition`]: elide_governance::PolicyDefinition
+//! [`labels`]: elide_governance::PolicyDefinition::labels
+//! [`Predicate::LabelInGroup`]: elide_governance::predicate::Predicate::LabelInGroup
+//! [`Predicate::TagOneOf`]: elide_governance::predicate::Predicate::TagOneOf
 
 use std::sync::OnceLock;
 
 use elide_core::entity::{Label, LabelCatalog, LabelRef};
 use elide_core::{Error, ErrorKind, Result};
-use elide_wire::policy::PolicyDefinition;
+use elide_governance::PolicyDefinition;
 
 /// Compile the label catalog for a request from its policy set.
 ///
@@ -51,7 +51,7 @@ use elide_wire::policy::PolicyDefinition;
 ///   same id but structurally different contents (byte-identical
 ///   redeclaration across templates is fine).
 ///
-/// [`labels`]: elide_wire::policy::PolicyDefinition::labels
+/// [`labels`]: elide_governance::PolicyDefinition::labels
 /// [`Label`]: elide_core::entity::Label
 pub(crate) fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCatalog> {
     let mut catalog = LabelCatalog::new();
@@ -125,7 +125,7 @@ fn builtin_catalog() -> &'static LabelCatalog {
 /// only `email_address` cannot fire on a `phone_number` entity
 /// another policy pulled into the request's recognition pass.
 ///
-/// [`labels`]: elide_wire::policy::PolicyDefinition::labels
+/// [`labels`]: elide_governance::PolicyDefinition::labels
 pub(crate) fn policy_label_scope(policy: &PolicyDefinition) -> Vec<LabelRef> {
     let mut scope: Vec<LabelRef> =
         Vec::with_capacity(policy.labels.builtins.len() + policy.labels.custom.len());
@@ -137,7 +137,7 @@ pub(crate) fn policy_label_scope(policy: &PolicyDefinition) -> Vec<LabelRef> {
 #[cfg(test)]
 mod tests {
     use elide_core::entity::{Label, LabelRef};
-    use elide_wire::policy::{LabelGroup, Labels, PolicyDefinition};
+    use elide_governance::{LabelGroup, Labels, PolicyDefinition};
     use hipstr::HipStr;
     use uuid::Uuid;
 

@@ -14,20 +14,17 @@
 //! talks to the server, and consumers generating bindings from
 //! the OpenAPI spec.
 //!
-//! - [`policy`]: governance documents. Re-exported from
-//!   [`elide-governance`].
 //! - [`plan`]: analyzer plans. `AnalyzerParams`, per-recognizer
 //!   configuration, dedup pipeline, request scope.
 //! - [`file`](mod@file): persisted file descriptor and the
 //!   in-memory carrier for codec input.
 //!
+//! Governance documents (policies, rules, predicates, operators)
+//! live in the sibling [`elide-governance`] crate. Consumers
+//! reach it directly rather than through this crate's re-export.
+//!
 //! [elide]: https://github.com/nvisycom/elide
 //! [`elide-governance`]: https://docs.rs/elide-governance
-
-/// Authored redaction governance: policies, rules, predicates,
-/// operators.
-#[doc(inline)]
-pub use elide_governance as policy;
 
 pub mod file;
 pub mod plan;

@@ -8,7 +8,7 @@
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
 use elide_core::modality::audio::Audio;
-use elide_wire::policy::redaction::AudioRedaction;
+use elide_governance::redaction::AudioRedaction;
 
 use crate::anonymizer::compile::Target;
 

@@ -9,13 +9,13 @@ use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
+use elide_governance::redaction::{ModalityRedactions, TextRedaction};
+use elide_governance::{Labels, PolicyDefinition};
 use elide_pipeline::entity::Review;
 use elide_pipeline::provider::{OcrBackend, OcrConfig, OcrEnricherConfig};
 use elide_pipeline::{Audit, AuditContext, Engine, EntityGroup};
 use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
-use elide_wire::policy::redaction::{ModalityRedactions, TextRedaction};
-use elide_wire::policy::{Labels, PolicyDefinition};
 
 use self::fixtures::write_artefact;
 
@@ -238,9 +238,9 @@ async fn audit_rejects_missing_context_on_deserialize() {
 
 #[tokio::test]
 async fn analyze_rejects_policy_that_references_unknown_group() {
-    use elide_wire::policy::predicate::Predicate;
-    use elide_wire::policy::redaction::TextRedaction;
-    use elide_wire::policy::{PolicyRule, RuleDispatch};
+    use elide_governance::predicate::Predicate;
+    use elide_governance::redaction::TextRedaction;
+    use elide_governance::{PolicyRule, RuleDispatch};
 
     let engine = engine();
     let rule = PolicyRule {

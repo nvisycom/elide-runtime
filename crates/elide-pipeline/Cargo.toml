@@ -98,6 +98,7 @@ elide-core = { workspace = true, features = ["serde", "schema", "image", "audio"
 elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }
 
 # Internal crates
+elide-governance = { workspace = true, features = [] }
 elide-wire = { workspace = true, features = [] }
 elide-template = { workspace = true }
 

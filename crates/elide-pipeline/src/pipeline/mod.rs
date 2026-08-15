@@ -93,9 +93,9 @@ use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use elide_core::primitive::OcrMode;
 use elide_core::{Error, ErrorKind, Result};
+use elide_governance::PolicyDefinition;
 use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
-use elide_wire::policy::PolicyDefinition;
 
 pub use self::audit::{Audit, AuditContext};
 pub use self::registered::{RegisteredEnricher, RegisteredRecognizer};
@@ -290,10 +290,10 @@ impl Engine {
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     /// [`EntityGroup`]: crate::entity::EntityGroup
-    /// [`LabelGroup`]: elide_wire::policy::LabelGroup
-    /// [`LabelInGroup`]: elide_wire::policy::predicate::Predicate::LabelInGroup
-    /// [`PolicyDefinition::labels`]: elide_wire::policy::PolicyDefinition::labels
-    /// [`PolicyDefinition::groups`]: elide_wire::policy::PolicyDefinition::groups
+    /// [`LabelGroup`]: elide_governance::LabelGroup
+    /// [`LabelInGroup`]: elide_governance::predicate::Predicate::LabelInGroup
+    /// [`PolicyDefinition::labels`]: elide_governance::PolicyDefinition::labels
+    /// [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
     pub async fn analyze(
         &self,
         document: Document,
@@ -401,14 +401,14 @@ impl Engine {
     /// resolve their [`KeyProvider`] through the engine-level
     /// provider set via [`Engine::with_key_provider`].
     ///
-    /// [`TextRedaction::Pseudonymize`]: elide_wire::policy::redaction::TextRedaction::Pseudonymize
-    /// [`TextRedaction::HmacHash`]: elide_wire::policy::redaction::TextRedaction::HmacHash
-    /// [`TextRedaction::Encrypt`]: elide_wire::policy::redaction::TextRedaction::Encrypt
+    /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
+    /// [`TextRedaction::HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
+    /// [`TextRedaction::Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
     /// [`Engine::with_key_provider`]: Self::with_key_provider
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     ///
-    /// [`LabelGroup`]: elide_wire::policy::LabelGroup
-    /// [`PolicyDefinition::groups`]: elide_wire::policy::PolicyDefinition::groups
+    /// [`LabelGroup`]: elide_governance::LabelGroup
+    /// [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
     ///
     /// The body's modality (read from `audit.body`'s
     /// [`EntityGroup`] variant) pins which typed handle the

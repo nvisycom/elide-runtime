@@ -8,7 +8,7 @@
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
 use elide_core::modality::image::Image;
-use elide_wire::policy::redaction::ImageRedaction;
+use elide_governance::redaction::ImageRedaction;
 
 use crate::anonymizer::compile::Target;
 

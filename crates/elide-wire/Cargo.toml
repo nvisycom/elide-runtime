@@ -34,9 +34,6 @@ test-utils = []
 # Elide crates
 elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
 
-# Internal crates
-elide-governance = { workspace = true, features = [] }
-
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true, features = ["uuid1"] }

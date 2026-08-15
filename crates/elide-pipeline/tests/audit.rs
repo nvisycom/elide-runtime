@@ -11,11 +11,11 @@ mod fixtures;
 
 use bytes::Bytes;
 use elide_core::modality::text::Text;
+use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::entity::{EntityRecord, Review};
 use elide_pipeline::{Audit, Engine, EntityGroup};
 use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
-use elide_wire::policy::redaction::{ModalityRedactions, TextRedaction};
 
 use self::fixtures::write_artefact;
 

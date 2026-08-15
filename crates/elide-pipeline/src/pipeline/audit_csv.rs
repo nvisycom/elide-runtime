@@ -21,7 +21,7 @@ use std::{io, result};
 use elide_core::entity::audit::AuditKind;
 use elide_core::modality::Modality;
 use elide_core::{Error, ErrorKind, Result};
-use elide_wire::policy::redaction::ModalityRedactions;
+use elide_governance::redaction::ModalityRedactions;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 

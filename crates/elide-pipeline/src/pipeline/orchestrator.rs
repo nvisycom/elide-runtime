@@ -51,9 +51,9 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind};
+use elide_governance::predicate::Predicate;
+use elide_governance::{PolicyDefinition, PolicyRule};
 use elide_wire::plan::AnalyzerParams;
-use elide_wire::policy::predicate::Predicate;
-use elide_wire::policy::{PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
 use super::Engine;
@@ -97,7 +97,7 @@ impl Engine {
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
-    /// [`PolicyDefinition::labels`]: elide_wire::policy::PolicyDefinition::labels
+    /// [`PolicyDefinition::labels`]: elide_governance::PolicyDefinition::labels
     pub(super) fn build_analyze_orchestrator(
         &self,
         spec: &AnalyzerParams,
@@ -279,8 +279,8 @@ fn validate_override_authorities(
 /// [`Configuration`](ErrorKind::Configuration) error at request
 /// validation time, not as a silent underfire at apply time.
 ///
-/// [`LabelGroup`]: elide_wire::policy::LabelGroup
-/// [`groups`]: elide_wire::policy::PolicyDefinition::groups
+/// [`LabelGroup`]: elide_governance::LabelGroup
+/// [`groups`]: elide_governance::PolicyDefinition::groups
 fn validate_group_references(policies: &[PolicyDefinition]) -> Result<()> {
     for policy in policies {
         let known: HashSet<&str> = policy.groups.iter().map(|g| g.name.as_str()).collect();

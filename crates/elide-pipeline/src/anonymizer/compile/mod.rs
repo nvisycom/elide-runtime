@@ -1,5 +1,5 @@
 //! Modality-generic dispatch machinery for
-//! [`elide_wire::policy::PolicyDefinition`] compilation.
+//! [`elide_governance::PolicyDefinition`] compilation.
 //!
 //! Two files:
 //!
@@ -16,7 +16,7 @@
 //! files ([`super::text`] etc.) pass their [`operator::Op`]
 //! builders in as callbacks.
 //!
-//! [`Predicate`]: elide_wire::policy::predicate::Predicate
+//! [`Predicate`]: elide_governance::predicate::Predicate
 //! [`operator::Op`]: super::operator
 
 mod dispatch;

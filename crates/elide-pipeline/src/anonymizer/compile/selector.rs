@@ -19,10 +19,10 @@
 //!
 //! [`Anonymizer`]: elide::redaction::Anonymizer
 //! [`MatchContext`]: elide::redaction::MatchContext
-//! [`PolicyRule`]: elide_wire::policy::PolicyRule
-//! [`Predicate`]: elide_wire::policy::predicate::Predicate
-//! [`Predicate::LabelInGroup`]: elide_wire::policy::predicate::Predicate::LabelInGroup
-//! [`Predicate::TagOneOf`]: elide_wire::policy::predicate::Predicate::TagOneOf
+//! [`PolicyRule`]: elide_governance::PolicyRule
+//! [`Predicate`]: elide_governance::predicate::Predicate
+//! [`Predicate::LabelInGroup`]: elide_governance::predicate::Predicate::LabelInGroup
+//! [`Predicate::TagOneOf`]: elide_governance::predicate::Predicate::TagOneOf
 //! [`Rule::label`]: elide::redaction::Rule::label
 //! [`Rule::predicate`]: elide::redaction::Rule::predicate
 //! [`Rule::tag`]: elide::redaction::Rule::tag
@@ -41,8 +41,8 @@ use elide_core::entity::LabelRef;
 use elide_core::entity::audit::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
-use elide_wire::policy::predicate::Predicate;
-use elide_wire::policy::{LabelGroup, PolicyDefinition, PolicyRule};
+use elide_governance::predicate::Predicate;
+use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
 use crate::analyzer::policy_label_scope;
@@ -61,8 +61,8 @@ use crate::analyzer::policy_label_scope;
 ///   name a group its own policy declared (validated separately
 ///   in `pipeline::orchestrator::validate_group_references`).
 ///
-/// [`labels`]: elide_wire::policy::PolicyDefinition::labels
-/// [`groups`]: elide_wire::policy::PolicyDefinition::groups
+/// [`labels`]: elide_governance::PolicyDefinition::labels
+/// [`groups`]: elide_governance::PolicyDefinition::groups
 #[derive(Clone)]
 pub(in crate::anonymizer) struct PolicyContext {
     /// The enclosing policy's UUID. Threaded into per-policy
@@ -81,8 +81,8 @@ impl PolicyContext {
     /// Materialise a policy's scoping context from its
     /// [`labels`] and [`groups`] blocks.
     ///
-    /// [`labels`]: elide_wire::policy::PolicyDefinition::labels
-    /// [`groups`]: elide_wire::policy::PolicyDefinition::groups
+    /// [`labels`]: elide_governance::PolicyDefinition::labels
+    /// [`groups`]: elide_governance::PolicyDefinition::groups
     pub(in crate::anonymizer) fn from_policy(policy: &PolicyDefinition) -> Self {
         let label_scope: HashSet<LabelRef> = policy_label_scope(policy).into_iter().collect();
         let groups: HashMap<String, HashSet<LabelRef>> =
@@ -171,7 +171,7 @@ where
 /// `context.label_scope` before evaluating the tree; a rule
 /// cannot fire on labels its policy did not declare.
 ///
-/// [`Predicate`]: elide_wire::policy::predicate::Predicate
+/// [`Predicate`]: elide_governance::predicate::Predicate
 pub(super) fn attach<M, O>(
     anonymizer: Anonymizer<M>,
     predicate: &Predicate,

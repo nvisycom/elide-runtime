@@ -4,8 +4,8 @@
 use elide::redaction::Anonymizer;
 use elide_core::Result;
 use elide_core::modality::audio::Audio;
-use elide_wire::policy::PolicyDefinition;
-use elide_wire::policy::redaction::ModalityRedactions;
+use elide_governance::PolicyDefinition;
+use elide_governance::redaction::ModalityRedactions;
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::audio::AudioOp;
@@ -17,7 +17,7 @@ use crate::entity::OverrideEntry;
 /// Takes an iterator so the apply pipeline can pre-filter by
 /// [`PolicyDefinition::when`] without cloning.
 ///
-/// [`PolicyDefinition::when`]: elide_wire::policy::PolicyDefinition::when
+/// [`PolicyDefinition::when`]: elide_governance::PolicyDefinition::when
 pub(crate) fn attach_policies_audio<'a>(
     anonymizer: Anonymizer<Audio>,
     policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,

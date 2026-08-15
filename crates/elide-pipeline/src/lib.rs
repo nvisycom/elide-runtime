@@ -41,8 +41,8 @@
 //! hands to [`Engine::analyze`] / [`Engine::anonymize`] as a
 //! one-element slice.
 //!
-//! [`LabelGroup`]: elide_wire::policy::LabelGroup
-//! [`PolicyDefinition::groups`]: elide_wire::policy::PolicyDefinition::groups
+//! [`LabelGroup`]: elide_governance::LabelGroup
+//! [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
 //!
 //! [`elide`]: elide
 
@@ -59,6 +59,10 @@ pub use elide::redaction::operators::KeyProvider;
 #[doc(inline)]
 pub use elide_core::primitive::OcrMode;
 pub use elide_core::{Error, ErrorKind, Result};
+/// Authored redaction governance: policies, rules, predicates,
+/// operators.
+#[doc(inline)]
+pub use elide_governance as policy;
 /// Ready-to-run policy templates for common regulatory postures
 /// (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA).
 #[doc(inline)]
@@ -69,10 +73,6 @@ pub use elide_wire::file::{Document, FileMetadata};
 /// pattern extras, scope, region annotations.
 #[doc(inline)]
 pub use elide_wire::plan;
-/// Authored redaction governance: policies, rules, predicates,
-/// operators.
-#[doc(inline)]
-pub use elide_wire::policy;
 
 pub use self::entity::EntityGroup;
 pub use self::pipeline::{Audit, AuditContext, Engine, RegisteredRecognizer};

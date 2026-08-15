@@ -2,9 +2,9 @@
 //! codec knobs.
 //!
 //! Serialisable description of how to build an analyzer for a
-//! request. Symmetric with [`policy`]. Where policy describes
-//! redaction governance (which entities to hide and how), the
-//! plan describes recognition (which entities to find and how).
+//! request. Symmetric with the [`elide-governance`] crate. Where
+//! governance describes redaction (which entities to hide and how),
+//! the plan describes recognition (which entities to find and how).
 //! Both are pure data; the engine compiles them into elide
 //! runtime values at request time.
 //!
@@ -22,7 +22,7 @@
 //! id and the policy-derived label catalog) into an
 //! `elide::recognition::Scope` at compile time.
 //!
-//! [`policy`]: crate::policy
+//! [`elide-governance`]: https://docs.rs/elide-governance
 
 mod analyzer;
 mod annotation;

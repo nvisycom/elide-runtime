@@ -1208,6 +1208,7 @@ dependencies = [
  "elide",
  "elide-bento",
  "elide-core",
+ "elide-governance",
  "elide-pipeline",
  "elide-template",
  "elide-wire",
@@ -1266,7 +1267,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "elide-core",
- "elide-governance",
  "hipstr",
  "jiff",
  "schemars",

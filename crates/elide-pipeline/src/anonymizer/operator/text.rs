@@ -37,7 +37,7 @@ use elide_core::modality::Modality;
 use elide_core::modality::text::TextReplacement;
 use elide_core::operator::Operator;
 use elide_core::{Error, ErrorKind, Result};
-use elide_wire::policy::redaction::{ClampBucket, TerminalFallback, TextRedaction};
+use elide_governance::redaction::{ClampBucket, TerminalFallback, TextRedaction};
 use uuid::Uuid;
 
 use crate::anonymizer::compile::Target;
@@ -68,10 +68,10 @@ use crate::anonymizer::compile::Target;
 /// [`Arc`] clones.
 ///
 /// [`InMemoryVault`]: elide::redaction::vault::InMemoryVault
-/// [`PolicyDefinition::id`]: elide_wire::policy::PolicyDefinition::id
-/// [`TextRedaction::Encrypt`]: elide_wire::policy::redaction::TextRedaction::Encrypt
-/// [`TextRedaction::HmacHash`]: elide_wire::policy::redaction::TextRedaction::HmacHash
-/// [`TextRedaction::Pseudonymize`]: elide_wire::policy::redaction::TextRedaction::Pseudonymize
+/// [`PolicyDefinition::id`]: elide_governance::PolicyDefinition::id
+/// [`TextRedaction::Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
+/// [`TextRedaction::HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
+/// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
 /// [`key_provider`]: Self::key_provider
 pub(crate) struct TextOperatorContext {
     /// Engine-level key provider used by every policy's

@@ -1,4 +1,4 @@
-//! Compile a [`elide_wire::policy::PolicyDefinition`] set into an
+//! Compile a [`elide_governance::PolicyDefinition`] set into an
 //! [`Anonymizer`] per modality at request time.
 //!
 //! PolicyDefinition specs are serialisable and modality-agnostic; elide's

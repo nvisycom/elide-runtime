@@ -1,0 +1,58 @@
+# elide-template
+
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-runtime/actions/workflows/build.yml)
+
+Ready-to-run Nvisy policy templates for common regulatory postures.
+
+## Overview
+
+Each template packages a regulatory posture as engine-ready data:
+the labels the regulation targets, the operator dispatched at
+each label, and the identity metadata (machine id, display name,
+semver version, and the effective date of the regulatory text)
+audits key on. Where a regulation permits more than one operator,
+the template exposes the shipped choices as options; where it
+doesn't, no options.
+
+Templates are plain data. Callers submit them to the engine as-is,
+or mutate the returned policy where their internal posture
+diverges from the shipped default.
+
+## What's covered
+
+Four regulatory postures across eleven shipped variants:
+
+- **HIPAA §164.514 de-identification**. Ships all three methods
+  the rule permits: Safe Harbor (fixed 18-identifier removal),
+  Limited Data Set (narrower subtraction that keeps dates,
+  ages, and coarse geography for research handoffs governed by
+  a Data Use Agreement), and an Expert Determination scaffold
+  (identity-preserving pseudonymization; requires a qualified
+  statistician to attest that re-identification risk is "very
+  small" before the output can be treated as de-identified).
+- **GDPR Article 9**: special-category personal data. Ships
+  two treatments: erasure (the default no-basis posture) and
+  pseudonymization (identity-preserving; requires an Article
+  9(2) lawful-basis carve-out established out-of-band).
+- **PCI DSS**. Two families:
+  - **§3.5.1 Primary Account Number render posture.** Ships four
+    render variants covering the truncation and keyed-hash
+    approaches §3.5.1 permits: keep-BIN-and-last-four truncation,
+    last-four-only truncation (the stricter §3.5.1.1 posture
+    required when a hashed copy of the same PAN coexists in the
+    environment), HMAC-SHA-256, and HMAC-SHA-512. HMAC variants
+    require a key provider wired into the engine.
+  - **§3.3.1 Sensitive Authentication Data erasure.** SAV
+    (CVV/CVC, track data, PIN blocks) is prohibited from storage
+    after authorization: the correct posture is erasure, not
+    render-unreadable. Currently covers CVV/CVC.
+- **CCPA**: Cal. Civ. Code §1798.140 personal-information
+  categories.
+
+## Versioning
+
+Each template carries its own version alongside the effective date
+of the regulatory text it encodes, both independent of the crate
+release. A customer transitioning between regulatory revisions
+pins the template version per document class rather than pinning
+the crate.

@@ -39,7 +39,7 @@ ci: lint test doc deny ## Run the full CI matrix.
 
 
 # `help` parses the `## …` doc comment after each target name and
-# prints `target — description`. Keeping help auto-generated from
+# prints `target  description`. Keeping help auto-generated from
 # the targets themselves means new targets don't need a manual
 # entry to show up.
 .PHONY: help

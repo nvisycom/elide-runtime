@@ -1,0 +1,41 @@
+# elide-pipeline
+
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-runtime/actions/workflows/build.yml)
+
+Stateless multimodal redaction pipeline over elide.
+
+## Overview
+
+The engine bundles Elide's codec, detection, recognition, redaction,
+and orchestration layers into a single per-request pipeline. Callers
+construct an engine paired with the deployment's NER and LLM lineups,
+then drive documents through analyze and apply verbs. Every call is
+self-contained: no persistence, no HTTP layer, no long-running
+background tasks. Hosts (a SaaS backend, a Tauri app, a CLI, an SDK)
+own their own workflow and storage on top.
+
+Owns the per-request orchestration that wires Elide's per-modality
+analyzers and anonymizers against a request-scoped view of the
+document, with policies and reviewer overrides layered onto each
+modality. Recognizers come from [elide-wire](../elide-wire)-shaped
+analyzer parameters plus the deployment's NER and LLM configurations.
+The analyze verb returns a modality-tagged document body that hosts
+hold between analyze and apply, however they see fit.
+
+This crate is the umbrella entry point: everything a caller needs is
+surfaced here, including the underlying Elide toolkit and the
+governance vocabulary.
+
+## Changelog
+
+See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
+
+## License
+
+Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
+
+## Support
+
+- **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-runtime/issues)
+- **Email**: [support@nvisy.com](mailto:support@nvisy.com)

@@ -13,15 +13,18 @@ use serde::{Deserialize, Serialize};
 /// - [`Article9`](Self::Article9) — the nine Article 9(1)
 ///   special categories only. The default.
 /// - [`Article9WithReidHardening`](Self::Article9WithReidHardening) —
-///   Article 9 plus `date_of_birth` and `postal_code`. A
-///   product-defined starting tier, not a complete answer to
-///   Recital 26: the Recital sets a reasonableness test over "all
-///   the means reasonably likely to be used" to re-identify, which
-///   depends on the caller's data and adversary, so no fixed label
-///   list can satisfy it. These two are the quasi-identifiers that
-///   most often carry a join risk against public datasets. Callers
-///   whose threat model reaches wider extend the policy after
-///   building it.
+///   Article 9 plus the quasi-identifiers that carry the most join
+///   risk against public datasets: `date_of_birth`, `postal_code`,
+///   and `gender` (the combination that re-identifies most of a
+///   population on its own), widened with `age`, `city`,
+///   `nationality`, `citizenship`, and `occupation`.
+///
+///   A product-defined tier, not a complete answer to Recital 26:
+///   the Recital sets a reasonableness test over "all the means
+///   reasonably likely to be used" to re-identify, judged against
+///   the caller's own data and adversary, so no fixed label list
+///   can satisfy it. Callers whose threat model reaches wider
+///   extend the policy after building it.
 /// - [`Article9And10`](Self::Article9And10) — Article 9 + Recital
 ///   26 hardening + Article 10's criminal-justice labels
 ///   (`criminal_record`, `criminal_charge`, `judicial_narrative`).
@@ -40,10 +43,10 @@ pub enum GdprSensitiveScope {
     /// data.
     #[default]
     Article9,
-    /// Article 9 plus `date_of_birth` and `postal_code`, so
-    /// pseudonymized output is harder to re-identify via joins
-    /// against public datasets. A product-defined tier rather than
-    /// a complete Recital 26 posture — see the type docstring.
+    /// Article 9 plus the quasi-identifier set, so pseudonymized
+    /// output is harder to re-identify via joins against public
+    /// datasets. A product-defined tier rather than a complete
+    /// Recital 26 posture — see the type docstring.
     Article9WithReidHardening,
     /// Article 9 + Recital 26 hardening + Article 10
     /// criminal-justice labels (`criminal_record`,
@@ -77,9 +80,8 @@ impl GdprSensitiveScope {
 pub(super) const GDPR_LABELS: &[LabelRef] = &[
     // Racial or ethnic origin. `nationality` is deliberately absent:
     // Article 9(1) covers ethnic origin, while nationality is a legal
-    // status that the GDPR treats as ordinary personal data. Callers
-    // whose threat model ties the two together add the label to their
-    // own policy rather than inheriting it from this default.
+    // status the GDPR treats as ordinary personal data. It earns its
+    // place as a quasi-identifier instead — see `RECITAL_26_LABELS`.
     LabelRef::from_static("ethnicity"),
     // Political opinions
     LabelRef::from_static("political_opinion"),
@@ -112,13 +114,29 @@ pub(super) const GDPR_LABELS: &[LabelRef] = &[
 /// join risk when combined with special-category data. Added by
 /// the `Article9WithReidHardening` and `Article9And10` scopes.
 ///
-/// A product-defined pair, not an enumeration from Recital 26 —
+/// A product-defined set, not an enumeration from Recital 26 —
 /// the Recital states a reasonableness test rather than naming
 /// fields, so treat this as a floor to extend against a real
 /// threat model, not a sufficient hardening set.
 const RECITAL_26_LABELS: &[LabelRef] = &[
+    // The Sweeney triple — ZIP + date of birth + sex re-identifies
+    // the large majority of a population on its own, and is the
+    // best-evidenced join vector of the set.
     LabelRef::from_static("date_of_birth"),
     LabelRef::from_static("postal_code"),
+    LabelRef::from_static("gender"),
+    // Coarser demographic and geographic axes. Weaker alone, but
+    // they sharpen the triple and appear in most public datasets
+    // an adversary would join against.
+    LabelRef::from_static("age"),
+    LabelRef::from_static("city"),
+    // `nationality` and `citizenship` are quasi-identifiers, not
+    // Article 9(1) special categories — this tier is where they
+    // carry their weight, and `GDPR_LABELS` deliberately omits
+    // them.
+    LabelRef::from_static("nationality"),
+    LabelRef::from_static("citizenship"),
+    LabelRef::from_static("occupation"),
 ];
 
 /// Article 10 criminal-justice labels — personal data relating

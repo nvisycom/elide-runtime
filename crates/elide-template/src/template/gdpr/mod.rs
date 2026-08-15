@@ -25,8 +25,8 @@
 //!   [`Article9`](GdprSensitiveScope::Article9) covers the nine
 //!   Article 9(1) categories only;
 //!   [`Article9WithReidHardening`](GdprSensitiveScope::Article9WithReidHardening)
-//!   adds `date_of_birth` and `postal_code` to defeat
-//!   re-identification joins under Recital 26 guidance; and
+//!   adds a product-defined quasi-identifier set to raise the cost
+//!   of re-identification joins; and
 //!   [`Article9And10`](GdprSensitiveScope::Article9And10) further
 //!   adds Article 10's criminal-justice labels
 //!   (`criminal_record`, `criminal_charge`, `judicial_narrative`).
@@ -88,7 +88,7 @@ pub struct GdprArticle9 {
     /// [`GdprSensitiveScope::Article9`] (nine Article 9(1)
     /// categories only). Pick
     /// [`GdprSensitiveScope::Article9WithReidHardening`] to add
-    /// Recital 26 quasi-identifiers, or
+    /// the quasi-identifier set, or
     /// [`GdprSensitiveScope::Article9And10`] to also cover
     /// Article 10 criminal-justice data.
     #[serde(default)]
@@ -117,8 +117,8 @@ const fn article_9_group_description() -> &'static str {
     "The nine special categories of personal data enumerated in GDPR Article 9(1) \
      (racial/ethnic origin, political opinions, religious/philosophical beliefs, \
      trade-union membership, genetic data, biometric data for unique identification, \
-     health data, sex life, sexual orientation). Scope may widen with Recital 26 \
-     quasi-identifiers and Article 10 criminal-justice labels."
+     health data, sex life, sexual orientation). Scope may widen with \
+     re-identification quasi-identifiers and Article 10 criminal-justice labels."
 }
 
 #[cfg(test)]
@@ -211,8 +211,14 @@ mod tests {
         assert_eq!(GdprSensitiveScope::default(), GdprSensitiveScope::Article9);
         let labels = GdprSensitiveScope::Article9.labels();
         for outside in [
-            "date_of_birth",      // Recital 26
-            "postal_code",        // Recital 26
+            "date_of_birth", // quasi-identifier
+            "postal_code",   // quasi-identifier
+            "gender",        // quasi-identifier
+            // Article 9(1) covers ethnic origin; nationality and
+            // citizenship are legal statuses, so they belong to the
+            // quasi-identifier tier rather than the default scope.
+            "nationality",
+            "citizenship",
             "criminal_record",    // Article 10
             "criminal_charge",    // Article 10
             "judicial_narrative", // Article 10
@@ -227,7 +233,16 @@ mod tests {
     #[test]
     fn reid_hardening_adds_only_recital_26_labels() {
         let labels = GdprSensitiveScope::Article9WithReidHardening.labels();
-        for want in ["date_of_birth", "postal_code"] {
+        for want in [
+            "date_of_birth",
+            "postal_code",
+            "gender",
+            "age",
+            "city",
+            "nationality",
+            "citizenship",
+            "occupation",
+        ] {
             assert!(
                 labels.iter().any(|l| l.as_str() == want),
                 "reid-hardening scope must include Recital 26 label `{want}`",

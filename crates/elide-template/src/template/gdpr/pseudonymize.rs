@@ -23,7 +23,7 @@ pub(super) fn template(cfg: GdprArticle9) -> Template {
         description: Some(
             "Pseudonymize the nine categories of personal data Article 9(1) treats as special. \
              Requires an Article 9(2) lawful-basis carve-out established out-of-band. \
-             `scope` widens coverage with Recital 26 re-identification quasi-identifiers \
+             `scope` widens coverage with re-identification quasi-identifiers \
              and Article 10 criminal-justice labels."
                 .into(),
         ),

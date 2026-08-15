@@ -20,7 +20,7 @@ pub(super) fn template(cfg: GdprArticle9) -> Template {
         effective_date: EFFECTIVE_DATE,
         description: Some(
             "Erase the nine categories of personal data Article 9(1) treats as special. \
-             `scope` widens coverage with Recital 26 re-identification quasi-identifiers \
+             `scope` widens coverage with re-identification quasi-identifiers \
              and Article 10 criminal-justice labels."
                 .into(),
         ),

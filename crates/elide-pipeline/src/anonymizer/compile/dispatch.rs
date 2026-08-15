@@ -29,9 +29,8 @@ use elide_core::Result;
 use elide_core::entity::audit::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
-use elide_governance::PolicyDefinition;
-use elide_governance::Predicate;
 use elide_governance::redaction::ModalityRedactions;
+use elide_governance::{PolicyDefinition, Predicate};
 use uuid::Uuid;
 
 use super::selector::{

@@ -8,6 +8,7 @@ mod predicate;
 mod rule;
 
 use hipstr::HipStr;
+pub use predicate::Predicate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -16,7 +17,6 @@ pub use self::label::{LabelGroup, Labels};
 pub use self::origin::TemplateOrigin;
 pub use self::rule::{LabelEntry, PolicyRule, RuleDispatch};
 use crate::redaction::ModalityRedactions;
-pub use predicate::Predicate;
 
 /// A named governance policy.
 ///

@@ -1,8 +1,7 @@
 use elide_core::entity::LabelRef;
-use elide_governance::Predicate;
 use elide_governance::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
 use elide_governance::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDispatch,
+    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
 use elide_operator::operators::{DateGranularity, DateStyle};
 use semver::Version;

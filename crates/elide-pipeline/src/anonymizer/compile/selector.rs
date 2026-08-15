@@ -41,8 +41,7 @@ use elide_core::entity::LabelRef;
 use elide_core::entity::audit::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
-use elide_governance::Predicate;
-use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule};
+use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule, Predicate};
 use uuid::Uuid;
 
 use crate::analyzer::policy_label_scope;

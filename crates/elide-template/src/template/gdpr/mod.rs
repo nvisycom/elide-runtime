@@ -33,11 +33,10 @@
 //!
 //! [`Predicated`]: elide_governance::RuleDispatch::Predicated
 
+use elide_core::entity::audit::AttributionKind;
 use jiff::civil::Date;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use elide_core::entity::audit::AttributionKind;
 
 use super::{Template, cited};
 

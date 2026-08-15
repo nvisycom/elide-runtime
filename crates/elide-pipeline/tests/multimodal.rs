@@ -240,9 +240,8 @@ async fn audit_rejects_missing_context_on_deserialize() {
 
 #[tokio::test]
 async fn analyze_rejects_policy_that_references_unknown_group() {
-    use elide_governance::Predicate;
     use elide_governance::redaction::TextRedaction;
-    use elide_governance::{PolicyRule, RuleDispatch};
+    use elide_governance::{PolicyRule, Predicate, RuleDispatch};
 
     let engine = engine();
     let rule = PolicyRule {

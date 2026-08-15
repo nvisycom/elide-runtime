@@ -24,9 +24,8 @@
 //! [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
 
 use elide_core::entity::LabelRef;
-use elide_governance::Predicate;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDispatch};
+use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
 use jiff::civil::Date;
 use semver::Version;
 use uuid::{Uuid, uuid};

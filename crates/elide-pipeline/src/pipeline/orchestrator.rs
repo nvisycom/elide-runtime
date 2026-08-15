@@ -51,8 +51,7 @@ use elide_core::modality::image::Image;
 use elide_core::modality::tabular::Tabular;
 use elide_core::modality::text::Text;
 use elide_core::{Error, ErrorKind};
-use elide_governance::Predicate;
-use elide_governance::{PolicyDefinition, PolicyRule};
+use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
 use elide_wire::plan::AnalyzerParams;
 use uuid::Uuid;
 

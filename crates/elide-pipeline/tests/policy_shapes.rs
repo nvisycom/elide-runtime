@@ -8,10 +8,9 @@
 use bytes::Bytes;
 use elide_core::entity::LabelRef;
 use elide_core::entity::audit::AuditKind;
-use elide_governance::Predicate;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDispatch,
+    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
 use elide_pipeline::entity::Review;
 use elide_pipeline::{Audit, Engine, EntityGroup};

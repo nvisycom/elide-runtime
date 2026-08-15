@@ -1,6 +1,6 @@
 # elide-bento-core
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/bento/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/bento/actions/workflows/build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-bento/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-bento/actions/workflows/build.yml)
 
 Shared wire-contract types for the Nvisy inference services. The OCR, NER,
 and vision-language OCR services all depend on this package, so the HTTP
@@ -32,5 +32,5 @@ Apache 2.0 License, see [LICENSE](../../LICENSE)
 ## Support
 
 - **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
-- **Issues**: [GitHub Issues](https://github.com/nvisycom/bento/issues)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-bento/issues)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)

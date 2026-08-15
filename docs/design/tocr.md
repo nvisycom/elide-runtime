@@ -54,4 +54,4 @@ docTR without touching the runtime. Model selection is the `det+rec` pair via
 `ELIDE_BENTO_MODEL_NAME`, with BYO weights via `ELIDE_BENTO_MODEL_PATH`.
 
 A formal SOTA review is tracked at
-[issue #3](https://github.com/nvisycom/bento/issues/3).
+[issue #3](https://github.com/nvisycom/elide-bento/issues/3).

@@ -80,4 +80,4 @@ worth tracking:
   worth evaluating as the model landscape moves.
 
 A formal SOTA review is tracked at
-[issue #2](https://github.com/nvisycom/bento/issues/2).
+[issue #2](https://github.com/nvisycom/elide-bento/issues/2).

@@ -11,7 +11,7 @@ Thank you for your interest in contributing to Nvisy Runtime.
 ## Setup
 
 ```bash
-git clone https://github.com/nvisycom/runtime.git
+git clone https://github.com/nvisycom/elide-runtime.git
 cd runtime
 cargo build
 ```

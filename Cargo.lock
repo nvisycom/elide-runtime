@@ -1088,6 +1088,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "elide-governance"
+version = "0.1.0"
+dependencies = [
+ "elide-core",
+ "elide-operator",
+ "hipstr",
+ "schemars",
+ "serde",
+ "strum 0.28.0",
+ "uuid",
+]
+
+[[package]]
 name = "elide-lingua"
 version = "0.1.0"
 source = "git+https://github.com/nvisycom/elide?branch=main#3facedc82c16584f00a69ce64d45126c3bcc0380"
@@ -1187,6 +1200,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "elide-pipeline"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "csv",
+ "elide",
+ "elide-bento",
+ "elide-core",
+ "elide-pipeline",
+ "elide-template",
+ "elide-wire",
+ "hipstr",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+ "zip",
+]
+
+[[package]]
 name = "elide-redaction"
 version = "0.1.0"
 source = "git+https://github.com/nvisycom/elide?branch=main#3facedc82c16584f00a69ce64d45126c3bcc0380"
@@ -1207,6 +1241,36 @@ source = "git+https://github.com/nvisycom/elide?branch=main#3facedc82c16584f00a6
 dependencies = [
  "async-trait",
  "elide-core",
+ "uuid",
+]
+
+[[package]]
+name = "elide-template"
+version = "0.1.0"
+dependencies = [
+ "elide-core",
+ "elide-governance",
+ "elide-operator",
+ "hipstr",
+ "jiff",
+ "schemars",
+ "semver",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "elide-wire"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "elide-core",
+ "elide-governance",
+ "hipstr",
+ "jiff",
+ "schemars",
+ "serde",
  "uuid",
 ]
 
@@ -2651,69 +2715,6 @@ checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
  "libm",
-]
-
-[[package]]
-name = "nvisy-engine"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "csv",
- "elide",
- "elide-bento",
- "elide-core",
- "hipstr",
- "nvisy-engine",
- "nvisy-schema",
- "nvisy-template",
- "schemars",
- "serde",
- "serde_json",
- "tokio",
- "uuid",
- "zip",
-]
-
-[[package]]
-name = "nvisy-policy"
-version = "0.1.0"
-dependencies = [
- "elide-core",
- "elide-operator",
- "hipstr",
- "schemars",
- "serde",
- "strum 0.28.0",
- "uuid",
-]
-
-[[package]]
-name = "nvisy-schema"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "elide-core",
- "hipstr",
- "jiff",
- "nvisy-policy",
- "schemars",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "nvisy-template"
-version = "0.1.0"
-dependencies = [
- "elide-core",
- "hipstr",
- "jiff",
- "nvisy-policy",
- "schemars",
- "semver",
- "serde",
- "serde_json",
- "uuid",
 ]
 
 [[package]]

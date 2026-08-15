@@ -1,0 +1,48 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "elide-wire"
+description = "Wire schemas for the elide-runtime pipeline: plan and file (analyzer parameters, document envelope)"
+keywords = ["elide", "schema", "sdk", "types"]
+categories = ["data-structures", "api-bindings"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+
+## Reserved for future wire-level test-only variants. No schema
+## types gate on it today; downstream crates can still enable it
+## in their dev-dependencies without effect.
+test-utils = []
+
+[dependencies]
+# Elide crates
+elide-core = { workspace = true, features = ["serde", "schema", "image", "audio", "tabular"] }
+
+# Internal crates
+elide-governance = { workspace = true, features = [] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = ["uuid1"] }
+
+# Primitive datatypes
+bytes = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v7"] }
+hipstr = { workspace = true, features = ["serde"] }
+jiff = { workspace = true, features = ["serde"] }

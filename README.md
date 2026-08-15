@@ -5,29 +5,27 @@
 
 Multimodal redaction pipeline as a stateless Rust library.
 
-`elide-runtime` layers on top of the [elide](https://github.com/nvisycom/elide)
+Elide Runtime layers on top of the [Elide](https://github.com/nvisycom/elide)
 toolkit. Elide provides the low-level primitives — the recognizers,
-anonymizers, and the tamper-evident audit log — and `elide-runtime`
-wires them into a document-oriented pipeline with governance types,
-regulatory policy templates, and a stateless engine. Use this crate
-set alongside elide-core (which it depends on directly), not instead
-of it.
+anonymizers, and the tamper-evident audit log — and Elide Runtime
+wires them into a document-oriented pipeline with governance
+vocabulary, regulatory policy templates, and a stateless engine. Use
+this crate set alongside Elide, not instead of it.
 
 A workspace of library crates hosts (a SaaS backend, a Tauri app, a
 language SDK, a custom pipeline) embed directly. No long-running
 process, no HTTP layer of its own. Inference is delegated over HTTP to
 model services that live in the sibling
 [nvisycom/bento](https://github.com/nvisycom/bento) repository; the
-engine ships with a git-dep client (`elide-bento`) that speaks their
-wire contract, and any service reproducing that contract is a drop-in
-replacement.
+engine ships with a client that speaks their wire contract, and any
+service reproducing that contract is a drop-in replacement.
 
 ## Crates
 
-- `elide-wire` — wire schemas for plan and file (analyzer parameters, document envelope)
-- `elide-governance` — wire schema for redaction governance (rules, predicates, operators)
-- `elide-template` — ready-to-run policy templates (HIPAA, GDPR, PCI DSS, CCPA, SOC 2)
-- `elide-pipeline` — stateless document pipeline (decode, analyze, apply)
+- **elide-wire** — wire schemas for plan and file (analyzer parameters, document envelope)
+- **elide-governance** — wire schema for redaction governance (rules, predicates, operators)
+- **elide-template** — ready-to-run policy templates (HIPAA, GDPR, PCI DSS, CCPA, SOC 2)
+- **elide-pipeline** — stateless document pipeline (decode, analyze, apply)
 
 > [!WARNING]
 > **Active development: API not stable.** This project is under active
@@ -61,6 +59,6 @@ Apache 2.0 License, see [LICENSE.txt](LICENSE.txt)
 
 ## Support
 
-- **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
+- **Documentation**: [docs.nvisy.com](https://docs.nvisy.com), or [docs/](docs/) in this repo
 - **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-runtime/issues)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)

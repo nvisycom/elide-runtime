@@ -11,8 +11,8 @@ the labels the regulation targets, the operator dispatched at
 each label, and the identity metadata (machine id, display name,
 semver version, and the effective date of the regulatory text)
 audits key on. Where a regulation permits more than one operator,
-the template exposes a small options type naming the shipped
-choices; where it doesn't, no options.
+the template exposes the shipped choices as options; where it
+doesn't, no options.
 
 Templates are plain data. Callers submit them to the engine as-is,
 or mutate the returned policy where their internal posture
@@ -51,9 +51,9 @@ Four regulatory postures across eleven shipped variants:
 
 ## Discovery
 
-A built-in catalog registers every shipped template keyed by
-`(id, version)`. Look up an exact template or the newest version
-of a family, iterate the full set, or serialise the catalog for
+A built-in catalog registers every shipped template by id and
+version. Look up an exact template or the newest version of a
+family, iterate the full set, or serialise the catalog for
 a discovery endpoint — a customer transitioning between
 regulatory revisions can hold multiple versions of the same
 posture simultaneously and pin per document class.

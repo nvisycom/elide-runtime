@@ -101,7 +101,7 @@ pub(crate) fn template(treatment: GdprArticle9Treatment, scope: GdprSensitiveSco
     }
 }
 
-/// The Article 9(1) authority both postures' groups answer to.
+/// The Article 9(1) authority both postures' scopes answer to.
 /// Shared so erase and pseudonymize cite it identically.
 fn article_9_attribution() -> AttributionKind {
     cited(

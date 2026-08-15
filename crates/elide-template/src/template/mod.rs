@@ -102,7 +102,7 @@ pub struct Template {
     pub policy: PolicyDefinition,
 }
 
-/// A [`Cited`] attribution for a rule or group.
+/// A [`Cited`] attribution for a rule or scope.
 ///
 /// Shorthand for the struct-variant literal, which every shipped
 /// template writes and which reads poorly inline at the call

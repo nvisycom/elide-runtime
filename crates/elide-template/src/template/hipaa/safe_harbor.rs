@@ -7,8 +7,8 @@ use semver::Version;
 use super::super::{cited, derived_id, origin};
 use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template, template_id};
 
-/// Group name Safe Harbor's bulk-erase rule references.
-pub(super) const SAFE_HARBOR_GROUP: &str = "hipaa_safe_harbor";
+/// Name of the scope Safe Harbor declares.
+pub(super) const SAFE_HARBOR_SCOPE_NAME: &str = "hipaa_safe_harbor";
 
 /// Machine key for the Safe Harbor template, before the account
 /// tier is folded in.
@@ -135,7 +135,7 @@ fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
 
 fn safe_harbor_scope(accounts: HipaaAccountNumbers) -> LabelScope {
     LabelScope {
-        name: SAFE_HARBOR_GROUP.into(),
+        name: SAFE_HARBOR_SCOPE_NAME.into(),
         description: Some(
             "The 18 identifier categories the HIPAA Safe Harbor rule enumerates \
              (names, geographic subdivisions smaller than state, dates related to \

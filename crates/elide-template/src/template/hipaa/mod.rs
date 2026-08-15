@@ -155,14 +155,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn safe_harbor_table_labels_are_excluded_from_bulk_erase_group() {
-        // Table-dispatched labels (age, dates) must not appear in
-        // the bulk-erase group, else a rule reorder could silently
-        // convert Clamp / GeneralizeDate into Erase.
-        for label in SAFE_HARBOR_TABLE_LABELS {
+    fn safe_harbor_scope_covers_both_the_table_and_bulk_labels() {
+        // The scope is what gets detected, so it must span the bulk
+        // labels *and* the table-dispatched ones. Miss the table
+        // labels and `age` is never found, so the Clamp never runs.
+        //
+        // The old invariant this test guarded (table labels absent
+        // from the bulk-erase set) is now structural: the fallback
+        // only ever sees labels no rule claimed, so rule order
+        // cannot convert a Clamp into an Erase.
+        let scope = template(HipaaDeidMethod::SafeHarbor, HipaaAccountNumbers::default())
+            .policy
+            .label_scope();
+        for label in SAFE_HARBOR_TABLE_LABELS.iter().chain(SAFE_HARBOR_LABELS) {
             assert!(
-                !SAFE_HARBOR_LABELS.contains(label),
-                "table label `{}` must not appear in SAFE_HARBOR_LABELS bulk-erase set",
+                scope.contains(label),
+                "scope must detect `{}`",
                 label.as_str(),
             );
         }

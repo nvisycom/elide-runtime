@@ -10,9 +10,9 @@ use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template, template_id};
 
 /// Group name Expert Determination's bulk-pseudonymize rule
 /// references. Same label membership as Safe Harbor; the
-/// separate group name lets audits distinguish the two postures
-/// by the group id alone.
-const ED_SCOPE: &str = "hipaa_expert_determination";
+/// separate scope name lets audits distinguish the two postures
+/// by the scope name alone.
+const ED_SCOPE_NAME: &str = "hipaa_expert_determination";
 
 /// Machine key for the Expert Determination scaffold, before the
 /// account tier is folded in.
@@ -67,7 +67,7 @@ fn expert_determination_policy(accounts: HipaaAccountNumbers) -> PolicyDefinitio
 
 fn ed_scope(accounts: HipaaAccountNumbers) -> LabelScope {
     LabelScope {
-        name: ED_SCOPE.into(),
+        name: ED_SCOPE_NAME.into(),
         description: Some(
             "Safe Harbor's 18 identifier categories, carried into the Expert \
              Determination scaffold as a starting scope: §164.514(b)(1) itself \

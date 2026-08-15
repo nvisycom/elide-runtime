@@ -7,7 +7,7 @@ use super::super::{cited, derived_id, origin};
 use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template, template_id};
 
 /// Name of the scope the Limited Data Set declares.
-const LDS_SCOPE: &str = "hipaa_limited_data_set";
+const LDS_SCOPE_NAME: &str = "hipaa_limited_data_set";
 
 /// Machine key for the Limited Data Set template, before the
 /// account tier is folded in.
@@ -112,7 +112,7 @@ fn limited_data_set_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
 
 fn lds_scope(accounts: HipaaAccountNumbers) -> LabelScope {
     LabelScope {
-        name: LDS_SCOPE.into(),
+        name: LDS_SCOPE_NAME.into(),
         description: Some(
             "The 16 identifier categories §164.514(e)(2) enumerates for the \
              Limited Data Set. Dates, ages, town/city, state, and ZIP survive \

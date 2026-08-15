@@ -5,7 +5,7 @@ use elide_core::entity::LabelRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Which sensitive-data labels the template's group covers.
+/// Which sensitive-data labels the template's scope covers.
 ///
 /// Three tiers, each strictly widening the previous one so a
 /// caller upgrading through the tiers never loses coverage:
@@ -92,7 +92,7 @@ impl GdprSensitiveScope {
     }
 }
 
-/// Elide-builtin labels the group covers, mapped from Article
+/// Elide-builtin labels the scope covers, mapped from Article
 /// 9(1) categories. `pub(super)` so the erase / pseudonymize
 /// posture modules can also assert on membership in tests.
 pub(super) const GDPR_LABELS: &[LabelRef] = &[

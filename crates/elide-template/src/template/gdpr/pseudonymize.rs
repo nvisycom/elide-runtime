@@ -9,9 +9,9 @@ use super::{
 };
 
 /// Group name Pseudonymize's bulk rule references. Separate name
-/// from Erase's group so audits distinguish the two postures by
-/// group id alone.
-const PSEUDONYMIZE_SCOPE: &str = "gdpr_article_9_pseudonymize";
+/// from Erase's scope so audits distinguish the two postures by
+/// scope name alone.
+const PSEUDONYMIZE_SCOPE_NAME: &str = "gdpr_article_9_pseudonymize";
 
 /// Machine key for this posture, before the scope is folded in.
 const PSEUDONYMIZE_ID: &str = "gdpr_article_9_pseudonymize";
@@ -54,7 +54,7 @@ fn policy(scope: GdprSensitiveScope) -> PolicyDefinition {
 
 fn label_scope(scope: GdprSensitiveScope) -> LabelScope {
     LabelScope {
-        name: PSEUDONYMIZE_SCOPE.into(),
+        name: PSEUDONYMIZE_SCOPE_NAME.into(),
         description: Some(article_9_group_description().into()),
         attribution: Some(article_9_attribution()),
         labels: scope.labels(),

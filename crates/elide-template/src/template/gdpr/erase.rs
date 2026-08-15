@@ -9,7 +9,7 @@ use super::{
 };
 
 /// Group name Erase's bulk rule references.
-const ERASE_SCOPE: &str = "gdpr_article_9_erase";
+const ERASE_SCOPE_NAME: &str = "gdpr_article_9_erase";
 
 /// Machine key for this posture, before the scope is folded in.
 const ERASE_ID: &str = "gdpr_article_9_erase";
@@ -50,7 +50,7 @@ fn policy(scope: GdprSensitiveScope) -> PolicyDefinition {
 
 fn label_scope(scope: GdprSensitiveScope) -> LabelScope {
     LabelScope {
-        name: ERASE_SCOPE.into(),
+        name: ERASE_SCOPE_NAME.into(),
         description: Some(article_9_group_description().into()),
         attribution: Some(article_9_attribution()),
         labels: scope.labels(),

@@ -33,9 +33,9 @@ use uuid::{Uuid, uuid};
 use super::{Template, cited, origin};
 
 /// Name of the scope this template declares.
-pub(crate) const SCOPE_NAME: &str = "ccpa_personal_information";
+pub(crate) const CCPA_SCOPE_NAME: &str = "ccpa_personal_information";
 
-/// Elide-builtin labels the group covers, mapped from
+/// Elide-builtin labels the scope covers, mapped from
 /// §1798.140(v)(1) categories.
 const CCPA_LABELS: &[LabelRef] = &[
     // (A) Identifiers: the enumerated list: real name, alias,
@@ -146,7 +146,7 @@ pub(crate) fn template() -> Template {
 
 fn scope() -> LabelScope {
     LabelScope {
-        name: SCOPE_NAME.into(),
+        name: CCPA_SCOPE_NAME.into(),
         description: Some(
             "The eleven personal-information categories enumerated in \
              Cal. Civ. Code §1798.140(v)(1) (identifiers, §1798.80 categories, \

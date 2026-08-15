@@ -231,7 +231,7 @@ where
 /// [`Rule::predicate`]. The closure filters every candidate
 /// entity through the enclosing policy's [`label_scope`] before
 /// evaluating the tree; any [`Predicate::LabelInScope`] leaf
-/// resolves against the policy's own materialised group table.
+/// resolves against the policy's own materialised scope table.
 ///
 /// [`label_scope`]: PolicyContext
 /// [`Rule::predicate`]: elide::redaction::Rule::predicate

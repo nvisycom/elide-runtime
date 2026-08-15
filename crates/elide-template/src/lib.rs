@@ -25,7 +25,7 @@
 //!
 //! [`PolicyTemplate::build`] materialises the picked variant
 //! into a [`Template`]: the [`PolicyDefinition`] carrying its
-//! own inline [`LabelGroup`]s, matched to how the engine
+//! own inline [`LabelScope`]s, matched to how the engine
 //! consumes it. Callers hand `template.policy` (as a
 //! one-element slice via [`std::slice::from_ref`]) to
 //! `Engine::analyze` / `Engine::anonymize`, or compose several
@@ -48,7 +48,7 @@
 //! [`Template::version`], not the crate version.
 //!
 //! [`Date`]: jiff::civil::Date
-//! [`LabelGroup`]: elide_governance::LabelGroup
+//! [`LabelScope`]: elide_governance::LabelScope
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
 //! [`TextRedaction::Erase`]: elide_governance::redaction::TextRedaction::Erase
 //! [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
@@ -118,15 +118,15 @@ pub enum PolicyTemplate {
     },
     /// CCPA "personal information" categories per Cal. Civ.
     /// Code §1798.140(v). Ships a `ccpa_personal_information`
-    /// [`LabelGroup`] naming the enumerated categories, plus a
-    /// [`PolicyDefinition`] using [`Predicate::LabelInGroup`]
+    /// [`LabelScope`] naming the enumerated categories, plus a
+    /// [`PolicyDefinition`] using [`Predicate::LabelInScope`]
     /// to erase every match. Customers commonly override the
     /// operator to [`TextRedaction::Pseudonymize`] where the
     /// retained data drives analytics.
     ///
-    /// [`LabelGroup`]: elide_governance::LabelGroup
+    /// [`LabelScope`]: elide_governance::LabelScope
     /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
-    /// [`Predicate::LabelInGroup`]: elide_governance::Predicate::LabelInGroup
+    /// [`Predicate::LabelInScope`]: elide_governance::Predicate::LabelInScope
     /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
     Ccpa,
 }

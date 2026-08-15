@@ -34,7 +34,7 @@
 //! [`Erase`]: elide_governance::redaction::TextRedaction::Erase
 //! [`GeneralizeDate`]: elide_governance::redaction::TextRedaction::GeneralizeDate
 //! [`HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
-//! [`LabelGroup`]: elide_governance::LabelGroup
+//! [`LabelScope`]: elide_governance::LabelScope
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
 //! [`Predicated`]: elide_governance::RuleDispatch::Predicated
 //! [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
@@ -155,30 +155,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn safe_harbor_table_labels_are_excluded_from_bulk_erase_group() {
-        // Table-dispatched labels (age, dates) must not appear in
-        // the bulk-erase group, else a rule reorder could silently
-        // convert Clamp / GeneralizeDate into Erase.
-        for label in SAFE_HARBOR_TABLE_LABELS {
+    fn safe_harbor_scope_covers_both_the_table_and_bulk_labels() {
+        // The scope is what gets detected, so it must span the bulk
+        // labels *and* the table-dispatched ones. Miss the table
+        // labels and `age` is never found, so the Clamp never runs.
+        //
+        // The old invariant this test guarded (table labels absent
+        // from the bulk-erase set) is now structural: the fallback
+        // only ever sees labels no rule claimed, so rule order
+        // cannot convert a Clamp into an Erase.
+        let scope = template(HipaaDeidMethod::SafeHarbor, HipaaAccountNumbers::default())
+            .policy
+            .label_scope();
+        for label in SAFE_HARBOR_TABLE_LABELS.iter().chain(SAFE_HARBOR_LABELS) {
             assert!(
-                !SAFE_HARBOR_LABELS.contains(label),
-                "table label `{}` must not appear in SAFE_HARBOR_LABELS bulk-erase set",
+                scope.contains(label),
+                "scope must detect `{}`",
                 label.as_str(),
             );
         }
     }
 
     #[test]
-    fn safe_harbor_special_dispatch_rule_precedes_bulk_erase() {
+    fn safe_harbor_table_claims_age_and_dates_before_the_fallback() {
+        // The table is the only rule; everything it does not claim
+        // reaches the fallback. That makes the §(C) carve-out
+        // structural rather than a matter of rule ordering.
         let policy = &template(HipaaDeidMethod::SafeHarbor, HipaaAccountNumbers::default()).policy;
+        assert_eq!(policy.rules.len(), 1);
         assert!(
             matches!(&policy.rules[0].dispatch, RuleDispatch::Table { .. }),
-            "table rule must fire first so `age` and dates reach their generalizers",
+            "age and dates must reach their generalizers via the table",
         );
-        assert!(matches!(
-            &policy.rules[1].dispatch,
-            RuleDispatch::Predicated { .. }
-        ));
+        let fallback = policy
+            .fallback
+            .as_ref()
+            .expect("Safe Harbor erases the rest of the scope via the fallback");
+        assert!(matches!(fallback.text, Some(TextRedaction::Erase)));
     }
 
     #[test]
@@ -252,8 +265,7 @@ mod tests {
                 assert!(
                     extended
                         .policy
-                        .labels
-                        .builtins
+                        .label_scope()
                         .iter()
                         .any(|l| l.as_str() == want),
                     "{method:?} Extended must carry `{want}` in policy builtins",
@@ -263,8 +275,7 @@ mod tests {
             assert!(
                 !standard
                     .policy
-                    .labels
-                    .builtins
+                    .label_scope()
                     .iter()
                     .any(|l| l.as_str() == "crypto_address"),
                 "{method:?} Standard must not carry `crypto_address`",
@@ -349,21 +360,18 @@ mod tests {
     }
 
     #[test]
-    fn expert_determination_pseudonymizes_the_bulk_group() {
+    fn expert_determination_pseudonymizes_the_rest_of_the_scope() {
         // The whole point of the ED scaffold vs Safe Harbor is
         // that the bulk terminal is Pseudonymize (identity-
         // preserving), not Erase.
-        let RuleDispatch::Predicated { action, .. } = &template(
+        let fallback = template(
             HipaaDeidMethod::ExpertDetermination,
             HipaaAccountNumbers::default(),
         )
         .policy
-        .rules[1]
-            .dispatch
-        else {
-            panic!("second rule must be Predicated dispatch");
-        };
-        assert!(matches!(action.text, Some(TextRedaction::Pseudonymize)));
+        .fallback
+        .expect("ED pseudonymizes the rest of the scope via the fallback");
+        assert!(matches!(fallback.text, Some(TextRedaction::Pseudonymize)));
     }
 
     #[test]

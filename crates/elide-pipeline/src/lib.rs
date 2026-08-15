@@ -27,8 +27,8 @@
 //! - [`Engine::analyze`] and [`Engine::anonymize`] compile and
 //!   run the full [`elide::Orchestrator`] against one document.
 //!   Both take the request's `policies` alongside the document;
-//!   each policy carries its own [`LabelGroup`]s inline via
-//!   [`PolicyDefinition::groups`].
+//!   each policy carries its own [`LabelScope`]s inline via
+//!   [`PolicyDefinition::scopes`].
 //! - [`Audit`] carries the analyze → anonymize handoff: the
 //!   modality-tagged entity groups plus an [`AuditContext`] with
 //!   the request's asserted scope and correlation id.
@@ -37,12 +37,12 @@
 //! (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA)
 //! live in the sibling `elide-template` crate, re-exported here
 //! as [`template`]. Each template carries a single
-//! `PolicyDefinition` (with inline [`LabelGroup`]s) that a caller
+//! `PolicyDefinition` (with inline [`LabelScope`]s) that a caller
 //! hands to [`Engine::analyze`] / [`Engine::anonymize`] as a
 //! one-element slice.
 //!
-//! [`LabelGroup`]: elide_governance::LabelGroup
-//! [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
+//! [`LabelScope`]: elide_governance::LabelScope
+//! [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
 //!
 //! [`elide`]: elide
 

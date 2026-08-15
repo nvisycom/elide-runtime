@@ -30,13 +30,17 @@
 //!   under one shared rule identity" (e.g. HIPAA Safe Harbor
 //!   fan-out).
 //!
-//! [`LabelGroup`]s are named clusters of [`LabelRef`]s a
-//! [`Predicate::LabelInGroup`] references by name. Groups live
-//! on the policy that declares them (`hipaa_safe_harbor` policy
-//! carries a `hipaa_18` group); a rule can reference groups its
-//! own policy declared, not another policy's. Membership resolves
-//! when the predicate is evaluated, against the group table the
-//! policy carries; unknown group names error at validation.
+//! [`LabelScope`]s are what a policy detects: named, attributed
+//! sets of [`LabelRef`]s. Their union is the policy's recognition
+//! vocabulary, so a label no scope names is never detected. Rules
+//! act within that vocabulary and may target one scope by name via
+//! [`Predicate::LabelInScope`]; whatever no rule claims reaches
+//! [`fallback`]. Detecting more than the rules act on is the
+//! point: scope a regulatory category, write rules for the labels
+//! needing special treatment, let the fallback sweep the rest.
+//!
+//! Scopes are policy-local: a rule can only name a scope its own
+//! policy declared, and unknown names error at validation.
 //!
 //! Identity is UUID-keyed: every [`PolicyDefinition`] and every
 //! [`PolicyRule`] carries a stable [`Uuid`](uuid::Uuid). Engine stamps
@@ -48,7 +52,8 @@
 //! [`LabelRef`]: elide_core::entity::LabelRef
 //! [`ModalityRedactions`]: redaction::ModalityRedactions
 //! [`Predicate`]: Predicate
-//! [`Predicate::LabelInGroup`]: Predicate::LabelInGroup
+//! [`Predicate::LabelInScope`]: Predicate::LabelInScope
+//! [`fallback`]: PolicyDefinition::fallback
 //! [`Predicated`]: RuleDispatch::Predicated
 //! [`Table`]: RuleDispatch::Table
 
@@ -56,6 +61,5 @@ mod policy;
 pub mod redaction;
 
 pub use self::policy::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
-    TemplateOrigin,
+    LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch, TemplateOrigin,
 };

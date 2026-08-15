@@ -5,8 +5,8 @@
 //! Every predicate compiles into a closure passed to
 //! [`Rule::predicate`]. A rule declared inside policy A can only
 //! fire on entities whose label is in `policy.labels` (its own
-//! declared vocabulary), and any [`Predicate::LabelInGroup`] leaf
-//! resolves against `policy.groups`, not the shared label catalog.
+//! declared vocabulary), and any [`Predicate::LabelInScope`] leaf
+//! resolves against `policy.scopes`, not the shared label catalog.
 //! There is no request-shared string namespace (like a synthetic
 //! `group:*` tag) that another policy's [`Predicate::TagOneOf`]
 //! could exploit to bypass scoping.
@@ -21,7 +21,7 @@
 //! [`MatchContext`]: elide::redaction::MatchContext
 //! [`PolicyRule`]: elide_governance::PolicyRule
 //! [`Predicate`]: elide_governance::Predicate
-//! [`Predicate::LabelInGroup`]: elide_governance::Predicate::LabelInGroup
+//! [`Predicate::LabelInScope`]: elide_governance::Predicate::LabelInScope
 //! [`Predicate::TagOneOf`]: elide_governance::Predicate::TagOneOf
 //! [`Rule::label`]: elide::redaction::Rule::label
 //! [`Rule::predicate`]: elide::redaction::Rule::predicate
@@ -41,10 +41,8 @@ use elide_core::entity::LabelRef;
 use elide_core::entity::audit::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
-use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule, Predicate};
+use elide_governance::{LabelScope, PolicyDefinition, PolicyRule, Predicate};
 use uuid::Uuid;
-
-use crate::analyzer::policy_label_scope;
 
 /// Per-policy scoping context threaded into every predicate the
 /// selector compiles. Built once per policy at attach time; every
@@ -55,13 +53,13 @@ use crate::analyzer::policy_label_scope;
 ///   candidate entity's label is in this set, so a policy that
 ///   lists only `email_address` never fires on a `phone_number`
 ///   another policy pulled into the request's recognition pass.
-/// - `groups`: resolved group name → labelset lookup, materialised
-///   from the policy's [`groups`] block once. A rule can only
-///   name a group its own policy declared (validated separately
-///   in `pipeline::orchestrator::validate_group_references`).
+/// - `scopes`: resolved scope name → labelset lookup, materialised
+///   from the policy's [`scopes`] once. A rule can only
+///   name a scope its own policy declared (validated separately
+///   in `pipeline::orchestrator::validate_scope_references`).
 ///
-/// [`labels`]: elide_governance::PolicyDefinition::labels
-/// [`groups`]: elide_governance::PolicyDefinition::groups
+/// [`label_scope`]: elide_governance::PolicyDefinition::label_scope
+/// [`scopes`]: elide_governance::PolicyDefinition::scopes
 #[derive(Clone)]
 pub(in crate::anonymizer) struct PolicyContext {
     /// The enclosing policy's UUID. Threaded into per-policy
@@ -73,23 +71,22 @@ pub(in crate::anonymizer) struct PolicyContext {
     /// [`Pseudonymize`]: elide::redaction::operators::Pseudonymize
     pub(in crate::anonymizer) policy_id: Uuid,
     label_scope: Arc<HashSet<LabelRef>>,
-    groups: Arc<HashMap<String, HashSet<LabelRef>>>,
+    scopes: Arc<HashMap<String, HashSet<LabelRef>>>,
 }
 
 impl PolicyContext {
-    /// Materialise a policy's scoping context from its
-    /// [`labels`] and [`groups`] blocks.
+    /// Materialise a policy's scoping context from its declared
+    /// [`scopes`] and inline custom schemas.
     ///
-    /// [`labels`]: elide_governance::PolicyDefinition::labels
-    /// [`groups`]: elide_governance::PolicyDefinition::groups
+    /// [`scopes`]: elide_governance::PolicyDefinition::scopes
     pub(in crate::anonymizer) fn from_policy(policy: &PolicyDefinition) -> Self {
-        let label_scope: HashSet<LabelRef> = policy_label_scope(policy).into_iter().collect();
-        let groups: HashMap<String, HashSet<LabelRef>> =
-            policy.groups.iter().map(group_lookup_entry).collect();
+        let label_scope: HashSet<LabelRef> = policy.label_scope().into_iter().collect();
+        let scopes: HashMap<String, HashSet<LabelRef>> =
+            policy.scopes.iter().map(scope_lookup_entry).collect();
         Self {
             policy_id: policy.id,
             label_scope: Arc::new(label_scope),
-            groups: Arc::new(groups),
+            scopes: Arc::new(scopes),
         }
     }
 
@@ -102,9 +99,9 @@ impl PolicyContext {
     }
 }
 
-fn group_lookup_entry(group: &LabelGroup) -> (String, HashSet<LabelRef>) {
-    let labels: HashSet<LabelRef> = group.labels.iter().cloned().collect();
-    (group.name.to_string(), labels)
+fn scope_lookup_entry(scope: &LabelScope) -> (String, HashSet<LabelRef>) {
+    let labels: HashSet<LabelRef> = scope.labels.iter().cloned().collect();
+    (scope.name.to_string(), labels)
 }
 
 /// Build an [`Attribution`] for a concrete rule that fired.
@@ -149,6 +146,24 @@ pub(super) fn rule_attribution(policy: &PolicyDefinition, rule: &PolicyRule) -> 
 /// because no rule claimed the entity, so there is no provision
 /// to cite. No `source_id` either, since no rule fired.
 pub(super) fn fallback_attribution(policy: &PolicyDefinition) -> Attribution {
+    // A policy whose scopes all answer to one authority can cite it:
+    // CCPA and GDPR do every redaction through the fallback, so
+    // without this their audit events would lose the citation their
+    // scope carries.
+    //
+    // Compares `Option`s rather than filtering the uncited ones out,
+    // so a cited scope beside an uncited one disagrees. Skipping the
+    // uncited scope would stamp its labels with an authority that
+    // does not cover them, which is worse than no citation at all.
+    let mut declared = policy.scopes.iter().map(|s| s.attribution.as_ref());
+    if let Some(Some(first)) = declared.next()
+        && declared.all(|other| other == Some(first))
+    {
+        return Attribution {
+            kind: first.clone(),
+            source_id: None,
+        };
+    }
     Attribution::freeform(policy.name.clone())
         .with_description("policy fallback: no rule matched this entity")
 }
@@ -219,8 +234,8 @@ where
 /// Compile a [`Predicate`] tree into a closure consumed by
 /// [`Rule::predicate`]. The closure filters every candidate
 /// entity through the enclosing policy's [`label_scope`] before
-/// evaluating the tree; any [`Predicate::LabelInGroup`] leaf
-/// resolves against the policy's own materialised group table.
+/// evaluating the tree; any [`Predicate::LabelInScope`] leaf
+/// resolves against the policy's own materialised scope table.
 ///
 /// [`label_scope`]: PolicyContext
 /// [`Rule::predicate`]: elide::redaction::Rule::predicate
@@ -246,9 +261,9 @@ fn eval<M: Modality>(
             .catalog
             .get(&cx.entity.label)
             .is_some_and(|label| tags.iter().any(|tag| label.has_tag(tag.as_str()))),
-        Predicate::LabelInGroup { group } => context
-            .groups
-            .get(group.as_str())
+        Predicate::LabelInScope { scope } => context
+            .scopes
+            .get(scope.as_str())
             .is_some_and(|labels| labels.contains(&cx.entity.label)),
         Predicate::CoRef { coref } => cx
             .entity

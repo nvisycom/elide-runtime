@@ -10,7 +10,7 @@ use elide_core::entity::LabelRef;
 use elide_core::entity::audit::AuditKind;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
+    LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
 use elide_pipeline::entity::Review;
 use elide_pipeline::{Audit, Engine, EntityGroup};
@@ -85,14 +85,15 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         name: "contact-info".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![
+        // The table targets both; the scope must detect both.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![
                 LabelRef::new("email_address"),
                 LabelRef::new("phone_number"),
             ],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        )],
+        custom: Vec::new(),
         rules: vec![table],
         fallback: None,
     };
@@ -151,14 +152,14 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
     );
 }
 
-/// A `Predicate::LabelInGroup` predicate drives the same redaction
+/// A `Predicate::LabelInScope` predicate drives the same redaction
 /// path as a `TagOneOf` over the synthetic `group:<name>` tag -
 /// asserts the group compilation and predicate rewrite are wired
 /// end-to-end.
 #[tokio::test]
 async fn label_in_group_predicate_fires_on_grouped_labels() {
     let engine = engine();
-    let group = LabelGroup {
+    let group = LabelScope {
         name: "contact_info".into(),
         description: None,
         attribution: None,
@@ -172,22 +173,16 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
         name: "sweep".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![
-                LabelRef::new("email_address"),
-                LabelRef::new("phone_number"),
-            ],
-            custom: Vec::new(),
-        },
-        groups: vec![group],
+        scopes: vec![group],
+        custom: Vec::new(),
         rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "erase-contacts".into(),
             description: None,
             attribution: None,
             dispatch: RuleDispatch::Predicated {
-                predicate: Predicate::LabelInGroup {
-                    group: "contact_info".to_owned(),
+                predicate: Predicate::LabelInScope {
+                    scope: "contact_info".to_owned(),
                 },
                 action: Box::new(ModalityRedactions {
                     text: Some(TextRedaction::Erase),
@@ -237,11 +232,13 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         name: "email-only".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        // A TagOneOf rule names no label, so the scope is what
+        // bounds which entities it can reach.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![LabelRef::new("email_address")],
+        )],
+        custom: Vec::new(),
         rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "erase-pii".into(),
@@ -264,11 +261,15 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         name: "phone-only-no-rules".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("phone_number")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        // Policy B contributes `phone_number` to the request's
+        // recognition vocabulary. Without it the entity is never
+        // detected and the zero-hit assertion below would pass for
+        // the wrong reason.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![LabelRef::new("phone_number")],
+        )],
+        custom: Vec::new(),
         // No rules: policy B only contributes vocabulary.
         rules: Vec::new(),
         fallback: None,
@@ -312,11 +313,15 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         name: "coarse-baseline".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        // The fallback sweeps whatever this scope detects.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![
+                LabelRef::new("email_address"),
+                LabelRef::new("phone_number"),
+            ],
+        )],
+        custom: Vec::new(),
         rules: Vec::new(),
         fallback: Some(ModalityRedactions {
             // Coarse baseline says "erase" as a catch-all.
@@ -329,11 +334,12 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         name: "specific-refinement".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        // Refines just email; the coarse policy keeps the rest.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![LabelRef::new("email_address")],
+        )],
+        custom: Vec::new(),
         rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "replace-email".into(),
@@ -389,20 +395,21 @@ async fn cross_policy_group_reference_fails_the_request() {
         name: "borrower".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
+        // Scope carries what this policy detects.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![LabelRef::new("email_address")],
+        )],
         // No groups declared here.
-        groups: Vec::new(),
+        custom: Vec::new(),
         rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "borrow-from-b".into(),
             description: None,
             attribution: None,
             dispatch: RuleDispatch::Predicated {
-                predicate: Predicate::LabelInGroup {
-                    group: "contact_info".to_owned(),
+                predicate: Predicate::LabelInScope {
+                    scope: "contact_info".to_owned(),
                 },
                 action: Box::new(ModalityRedactions {
                     text: Some(TextRedaction::Erase),
@@ -417,16 +424,11 @@ async fn cross_policy_group_reference_fails_the_request() {
         name: "declares-group".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: vec![LabelGroup {
-            name: "contact_info".into(),
-            description: None,
-            attribution: None,
-            labels: vec![LabelRef::new("email_address")],
-        }],
+        scopes: vec![LabelScope::new(
+            "contact_info",
+            vec![LabelRef::new("email_address")],
+        )],
+        custom: Vec::new(),
         rules: Vec::new(),
         fallback: None,
     };
@@ -456,11 +458,8 @@ async fn override_naming_unknown_policy_fails_the_request() {
         name: "authorising".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        scopes: Vec::new(),
+        custom: Vec::new(),
         rules: Vec::new(),
         fallback: None,
     };
@@ -488,5 +487,174 @@ async fn override_naming_unknown_policy_fails_the_request() {
     assert!(
         msg.contains("no submitted policy") || msg.contains("policy"),
         "error must explain the missing authority; got: {msg}",
+    );
+}
+
+/// Two scopes sharing a name make `LabelInScope` resolve one
+/// labelset while `label_scope()` unions both, so recognition and
+/// redaction would disagree about what the name means. Reject the
+/// request instead.
+#[tokio::test]
+async fn duplicate_scope_names_fail_the_request() {
+    let engine = engine();
+    let policy = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "ambiguous".into(),
+        description: None,
+        template: None,
+        scopes: vec![
+            LabelScope::new("contact", vec![LabelRef::new("email_address")]),
+            LabelScope::new("contact", vec![LabelRef::new("phone_number")]),
+        ],
+        custom: Vec::new(),
+        rules: vec![PolicyRule {
+            id: uuid::Uuid::now_v7(),
+            name: "erase-contact".into(),
+            description: None,
+            attribution: None,
+            dispatch: RuleDispatch::Predicated {
+                predicate: Predicate::LabelInScope {
+                    scope: "contact".to_owned(),
+                },
+                action: Box::new(ModalityRedactions {
+                    text: Some(TextRedaction::Erase),
+                    ..Default::default()
+                }),
+            },
+        }],
+        fallback: None,
+    };
+
+    let err = engine
+        .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
+        .await
+        .expect_err("a duplicate scope name must reject the request");
+    let msg = err.to_string();
+    assert!(msg.contains("contact"), "error must name the scope: {msg}");
+    assert!(
+        msg.contains("more than once"),
+        "error must say why it was rejected: {msg}",
+    );
+}
+
+/// A policy that redacts entirely through its fallback still cites
+/// the authority its scope carries. Without this, CCPA and GDPR
+/// would lose their regulatory attribution: every one of their
+/// redactions runs through the fallback.
+#[tokio::test]
+async fn fallback_carries_the_scope_attribution() {
+    use elide_core::entity::audit::AttributionKind;
+
+    let engine = engine();
+    let cited = AttributionKind::Cited {
+        authority: "CCPA".into(),
+        citation: "Cal. Civ. Code §1798.140(v)(1)".into(),
+        rationale: "personal information".into(),
+    };
+    let policy = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "sweep-everything".into(),
+        description: None,
+        template: None,
+        scopes: vec![
+            LabelScope::new("pi", vec![LabelRef::new("email_address")])
+                .with_attribution(cited.clone()),
+        ],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: Some(ModalityRedactions {
+            text: Some(TextRedaction::Erase),
+            ..Default::default()
+        }),
+    };
+
+    let mut analyzed = engine
+        .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
+        .await
+        .expect("analyze succeeds");
+    engine
+        .anonymize(raw_txt(), std::slice::from_ref(&policy), &mut analyzed)
+        .await
+        .expect("anonymize succeeds");
+
+    let Some(EntityGroup::Text(entities)) = analyzed.body.as_ref() else {
+        panic!("expected text body");
+    };
+    let attribution = entities
+        .iter()
+        .find(|r| r.entity.label.as_str() == "email_address")
+        .and_then(|r| {
+            r.entity.audit.events().iter().find_map(|e| match &e.kind {
+                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
+                _ => None,
+            })
+        })
+        .expect("the fallback must stamp an attribution");
+    assert_eq!(
+        attribution.kind, cited,
+        "fallback must cite the scope's authority, not a generic label",
+    );
+}
+
+/// A cited scope beside an uncited one is ambiguous: stamping the
+/// citation on entities from the uncited scope would attribute a
+/// redaction to an authority that does not cover it. The fallback
+/// falls back to the policy's own name instead.
+#[tokio::test]
+async fn mixed_scope_attribution_does_not_borrow_a_citation() {
+    use elide_core::entity::audit::AttributionKind;
+
+    let engine = engine();
+    let policy = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "half-cited".into(),
+        description: None,
+        template: None,
+        scopes: vec![
+            LabelScope::new("cited", vec![LabelRef::new("email_address")]).with_attribution(
+                AttributionKind::Cited {
+                    authority: "CCPA".into(),
+                    citation: "Cal. Civ. Code §1798.140(v)(1)".into(),
+                    rationale: "personal information".into(),
+                },
+            ),
+            // No attribution: `phone_number` answers to nothing the
+            // policy declared.
+            LabelScope::new("uncited", vec![LabelRef::new("phone_number")]),
+        ],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: Some(ModalityRedactions {
+            text: Some(TextRedaction::Erase),
+            ..Default::default()
+        }),
+    };
+
+    let mut analyzed = engine
+        .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
+        .await
+        .expect("analyze succeeds");
+    engine
+        .anonymize(raw_txt(), std::slice::from_ref(&policy), &mut analyzed)
+        .await
+        .expect("anonymize succeeds");
+
+    let Some(EntityGroup::Text(entities)) = analyzed.body.as_ref() else {
+        panic!("expected text body");
+    };
+    let attribution = entities
+        .iter()
+        .find(|r| r.entity.label.as_str() == "phone_number")
+        .and_then(|r| {
+            r.entity.audit.events().iter().find_map(|e| match &e.kind {
+                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
+                _ => None,
+            })
+        })
+        .expect("the fallback must stamp an attribution");
+    assert!(
+        matches!(&attribution.kind, AttributionKind::Freeform { name, .. } if name == "half-cited"),
+        "a mixed-attribution policy must not borrow one scope's citation, got: {:?}",
+        attribution.kind,
     );
 }

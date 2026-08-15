@@ -255,10 +255,10 @@ impl Engine {
     /// modality tag via its [`EntityGroup`] variant.
     ///
     /// `policies` contributes the label catalog (each
-    /// [`PolicyDefinition::labels`] unions in) that drives
+    /// [`PolicyDefinition::label_scope`] unions in) that drives
     /// recognizer dispatch. Every policy carries its own
-    /// [`LabelGroup`]s in [`PolicyDefinition::groups`]; a
-    /// [`LabelInGroup`] predicate can only name a group its own
+    /// [`LabelScope`]s in [`PolicyDefinition::scopes`]; a
+    /// [`LabelInScope`] predicate can only name a group its own
     /// policy declared (strict per-policy scoping, enforced at
     /// request compile).
     ///
@@ -290,10 +290,10 @@ impl Engine {
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     /// [`EntityGroup`]: crate::entity::EntityGroup
-    /// [`LabelGroup`]: elide_governance::LabelGroup
-    /// [`LabelInGroup`]: elide_governance::Predicate::LabelInGroup
-    /// [`PolicyDefinition::labels`]: elide_governance::PolicyDefinition::labels
-    /// [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
+    /// [`LabelScope`]: elide_governance::LabelScope
+    /// [`LabelInScope`]: elide_governance::Predicate::LabelInScope
+    /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
+    /// [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
     pub async fn analyze(
         &self,
         document: Document,
@@ -371,8 +371,8 @@ impl Engine {
     /// rule, and when.
     ///
     /// `policies` is the policy set the caller wants applied to
-    /// this document. Each policy carries its own [`LabelGroup`]s
-    /// inline via [`PolicyDefinition::groups`]: same shape as
+    /// this document. Each policy carries its own [`LabelScope`]s
+    /// inline via [`PolicyDefinition::scopes`]: same shape as
     /// [`Self::analyze`]. The label catalog is re-derived from
     /// `policies` on every call: policies are the sole source
     /// of label vocabulary. The asserted scope (languages,
@@ -407,8 +407,8 @@ impl Engine {
     /// [`Engine::with_key_provider`]: Self::with_key_provider
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     ///
-    /// [`LabelGroup`]: elide_governance::LabelGroup
-    /// [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
+    /// [`LabelScope`]: elide_governance::LabelScope
+    /// [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
     ///
     /// The body's modality (read from `audit.body`'s
     /// [`EntityGroup`] variant) pins which typed handle the

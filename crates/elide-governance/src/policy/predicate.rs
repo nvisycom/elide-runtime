@@ -46,29 +46,28 @@ pub enum Predicate {
         /// Allowed tags.
         tags: Vec<String>,
     },
-    /// Entity label is in the named [`LabelGroup`] declared by
+    /// Entity label is in the named [`LabelScope`] declared by
     /// the same [`PolicyDefinition`] this rule lives in.
     ///
-    /// Evaluated by looking the group name up in the declaring
-    /// policy's group table and testing the entity's label for
-    /// membership. Nothing is stamped onto the label catalog. The
-    /// group indirection keeps the wire compact when templates
-    /// target a canonical label cluster (e.g. `hipaa_18`,
-    /// `gdpr_article_9`).
+    /// Only useful when a policy declares more than one scope, or
+    /// when a rule should act on part of the vocabulary while
+    /// [`fallback`] sweeps the rest. A policy with one scope whose
+    /// rule targets all of it can drop the rule and let the
+    /// fallback do the work.
     ///
-    /// Groups are scoped to the declaring policy: a rule cannot
-    /// reference a group declared by another policy in the same
-    /// request. An unknown group name is a request-validation
-    /// error, not a silent no-op.
+    /// Scopes are policy-local: a rule cannot reference a scope
+    /// declared by another policy in the same request. An unknown
+    /// scope name is a request-validation error, not a silent
+    /// no-op.
     ///
+    /// [`LabelScope`]: super::LabelScope
     /// [`PolicyDefinition`]: super::PolicyDefinition
-    ///
-    /// [`LabelGroup`]: super::LabelGroup
-    LabelInGroup {
-        /// Name of the [`LabelGroup`] to match against.
+    /// [`fallback`]: super::PolicyDefinition::fallback
+    LabelInScope {
+        /// Name of the [`LabelScope`] to match against.
         ///
-        /// [`LabelGroup`]: super::LabelGroup
-        group: String,
+        /// [`LabelScope`]: super::LabelScope
+        scope: String,
     },
     /// Entity carries the given coreference cluster id.
     CoRef {

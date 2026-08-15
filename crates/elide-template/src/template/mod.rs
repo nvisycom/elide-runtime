@@ -28,7 +28,7 @@ pub use self::pci::{PciDssPart, PciPanRender};
 /// before submitting. The engine never sees the [`Template`]
 /// itself: only its [`policy`] via `Engine::analyze` /
 /// `Engine::anonymize`. The policy carries its own
-/// [`LabelGroup`]s inline via [`PolicyDefinition::groups`].
+/// [`LabelScope`]s inline via [`PolicyDefinition::scopes`].
 ///
 /// # Identity
 ///
@@ -59,9 +59,9 @@ pub use self::pci::{PciDssPart, PciPanRender};
 ///   that fired was the one in force at the time.
 ///
 /// [`Label`]: elide_core::entity::Label
-/// [`LabelGroup`]: elide_governance::LabelGroup
+/// [`LabelScope`]: elide_governance::LabelScope
 /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
-/// [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
+/// [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
 /// [`description`]: Self::description
 /// [`effective_date`]: Self::effective_date
 /// [`id`]: Self::id
@@ -92,17 +92,17 @@ pub struct Template {
     #[schemars(with = "Option<String>")]
     pub description: Option<HipStr<'static>>,
     /// The [`PolicyDefinition`] this template encodes. Carries
-    /// its own [`LabelGroup`]s inline. A caller composing
+    /// its own [`LabelScope`]s inline. A caller composing
     /// several regulatory postures in one request submits
     /// multiple templates and unions their policies into the
     /// engine's `&[PolicyDefinition]` slice.
     ///
-    /// [`LabelGroup`]: elide_governance::LabelGroup
+    /// [`LabelScope`]: elide_governance::LabelScope
     /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
     pub policy: PolicyDefinition,
 }
 
-/// A [`Cited`] attribution for a rule or group.
+/// A [`Cited`] attribution for a rule or scope.
 ///
 /// Shorthand for the struct-variant literal, which every shipped
 /// template writes and which reads poorly inline at the call

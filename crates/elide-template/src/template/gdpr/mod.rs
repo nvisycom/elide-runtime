@@ -101,7 +101,7 @@ pub(crate) fn template(treatment: GdprArticle9Treatment, scope: GdprSensitiveSco
     }
 }
 
-/// The Article 9(1) authority both postures' groups answer to.
+/// The Article 9(1) authority both postures' scopes answer to.
 /// Shared so erase and pseudonymize cite it identically.
 fn article_9_attribution() -> AttributionKind {
     cited(
@@ -138,7 +138,6 @@ pub(super) fn template_id(base: &str, scope: GdprSensitiveScope) -> String {
 
 #[cfg(test)]
 mod tests {
-    use elide_governance::RuleDispatch;
     use elide_governance::redaction::TextRedaction;
 
     use super::sensitive_scope::GDPR_LABELS;
@@ -170,11 +169,14 @@ mod tests {
 
     #[test]
     fn erase_treatment_uses_erase_action() {
+        // The whole scope gets one treatment, carried by the
+        // fallback rather than a rule.
         let built = template(GdprArticle9Treatment::Erase, GdprSensitiveScope::default());
-        let RuleDispatch::Predicated { action, .. } = &built.policy.rules[0].dispatch else {
-            panic!("expected Predicated dispatch");
-        };
-        assert!(matches!(action.text, Some(TextRedaction::Erase)));
+        let fallback = built
+            .policy
+            .fallback
+            .expect("erase posture sets a fallback");
+        assert!(matches!(fallback.text, Some(TextRedaction::Erase)));
     }
 
     #[test]
@@ -183,10 +185,11 @@ mod tests {
             GdprArticle9Treatment::Pseudonymize,
             GdprSensitiveScope::default(),
         );
-        let RuleDispatch::Predicated { action, .. } = &built.policy.rules[0].dispatch else {
-            panic!("expected Predicated dispatch");
-        };
-        assert!(matches!(action.text, Some(TextRedaction::Pseudonymize)));
+        let fallback = built
+            .policy
+            .fallback
+            .expect("pseudonymize posture sets a fallback");
+        assert!(matches!(fallback.text, Some(TextRedaction::Pseudonymize)));
     }
 
     #[test]
@@ -223,6 +226,12 @@ mod tests {
                         "rule UUID repeats for {treatment:?} / {scope:?}",
                     );
                 }
+                for declared in &built.policy.scopes {
+                    assert!(
+                        !declared.labels.is_empty(),
+                        "{treatment:?} / {scope:?} declares an empty scope",
+                    );
+                }
             }
         }
     }
@@ -239,7 +248,6 @@ mod tests {
             let b = template(GdprArticle9Treatment::Erase, scope);
             assert_eq!(a.id, b.id);
             assert_eq!(a.policy.id, b.policy.id);
-            assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);
         }
     }
 
@@ -266,7 +274,6 @@ mod tests {
             let b = template(treatment, scope);
             assert_eq!(a.id, b.id);
             assert_eq!(a.policy.id, b.policy.id);
-            assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);
         }
     }
 

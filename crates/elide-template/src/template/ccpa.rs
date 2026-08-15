@@ -4,7 +4,7 @@
 //! The statute enumerates eleven categories of personal
 //! information (subsections (A)–(K)). The shipped template
 //! rolls the elide-builtin labels that map onto those categories
-//! into a `ccpa_personal_information` [`LabelGroup`], and ships
+//! into a `ccpa_personal_information` [`LabelScope`], and ships
 //! a single [`Predicated`] rule that erases every match.
 //!
 //! Consumer requests under CCPA fall into two large buckets:
@@ -18,24 +18,24 @@
 //! for retained analytics that keep coreference without exposing
 //! the underlying identifier.
 //!
-//! [`LabelGroup`]: elide_governance::LabelGroup
+//! [`LabelScope`]: elide_governance::LabelScope
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
 //! [`Predicated`]: elide_governance::RuleDispatch::Predicated
 //! [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
 
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
+use elide_governance::{LabelScope, PolicyDefinition};
 use jiff::civil::Date;
 use semver::Version;
 use uuid::{Uuid, uuid};
 
 use super::{Template, cited, origin};
 
-/// Group name every CCPA rule references.
-pub(crate) const GROUP_NAME: &str = "ccpa_personal_information";
+/// Name of the scope this template declares.
+pub(crate) const CCPA_SCOPE_NAME: &str = "ccpa_personal_information";
 
-/// Elide-builtin labels the group covers, mapped from
+/// Elide-builtin labels the scope covers, mapped from
 /// §1798.140(v)(1) categories.
 const CCPA_LABELS: &[LabelRef] = &[
     // (A) Identifiers: the enumerated list: real name, alias,
@@ -127,7 +127,6 @@ const CCPA_LABELS: &[LabelRef] = &[
 ];
 
 const POLICY_ID: Uuid = uuid!("016806b5-bc00-7000-8000-000000000001");
-const RULE_ID: Uuid = uuid!("016806b5-bc00-7000-8000-000000000002");
 
 /// Build the CCPA template.
 pub(crate) fn template() -> Template {
@@ -145,9 +144,9 @@ pub(crate) fn template() -> Template {
     }
 }
 
-fn group() -> LabelGroup {
-    LabelGroup {
-        name: GROUP_NAME.into(),
+fn scope() -> LabelScope {
+    LabelScope {
+        name: CCPA_SCOPE_NAME.into(),
         description: Some(
             "The eleven personal-information categories enumerated in \
              Cal. Civ. Code §1798.140(v)(1) (identifiers, §1798.80 categories, \
@@ -177,37 +176,12 @@ fn policy() -> PolicyDefinition {
                 .into(),
         ),
         template: Some(origin("ccpa", Version::new(1, 0, 0))),
-        labels: Labels {
-            builtins: CCPA_LABELS.to_vec(),
-            custom: Vec::new(),
-        },
-        groups: vec![group()],
-        rules: vec![erase_rule()],
-        fallback: None,
-    }
-}
-
-fn erase_rule() -> PolicyRule {
-    PolicyRule {
-        id: RULE_ID,
-        name: "ccpa-personal-information-erase".into(),
-        description: Some(
-            "Erase any entity whose label falls in the ccpa_personal_information \
-             group."
-                .into(),
-        ),
-        attribution: Some(cited(
-            "CCPA",
-            "Cal. Civ. Code §1798.105",
-            "right to deletion: a consumer may request erasure of personal \
-             information collected about them",
-        )),
-        dispatch: RuleDispatch::Predicated {
-            predicate: Predicate::LabelInGroup {
-                group: GROUP_NAME.to_owned(),
-            },
-            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
-        },
+        scopes: vec![scope()],
+        custom: Vec::new(),
+        // No rules: every label in scope gets the same treatment,
+        // which is exactly what the fallback expresses.
+        rules: Vec::new(),
+        fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
     }
 }
 
@@ -261,6 +235,6 @@ mod tests {
         let a = template();
         let b = template();
         assert_eq!(a.policy.id, b.policy.id);
-        assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);
+        assert_eq!(a.policy.scopes[0].name, b.policy.scopes[0].name);
     }
 }

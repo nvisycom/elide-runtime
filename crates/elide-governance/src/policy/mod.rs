@@ -2,20 +2,21 @@
 //! rules inside them, the predicates that gate those rules, and
 //! the operator specs the rules dispatch to.
 
-mod label;
 mod origin;
 mod predicate;
 mod rule;
+mod scope;
 
+use elide_core::entity::{Label, LabelRef};
 use hipstr::HipStr;
 pub use predicate::Predicate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::label::{LabelGroup, Labels};
 pub use self::origin::TemplateOrigin;
 pub use self::rule::{LabelEntry, PolicyRule, RuleDispatch};
+pub use self::scope::LabelScope;
 use crate::redaction::ModalityRedactions;
 
 /// A named governance policy.
@@ -50,34 +51,87 @@ pub struct PolicyDefinition {
     /// still matches. `None` means hand-authored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub template: Option<TemplateOrigin>,
-    /// Vocabulary the policy operates over: builtins picked by
-    /// name plus caller-authored custom label schemas. Engine
-    /// unions every submitted policy's `labels` into a per-request
-    /// [`LabelCatalog`] used to drive recognizer dispatch and
-    /// tag-based [`Predicate::TagOneOf`] matching.
+    /// What this policy detects: one or more named, attributed
+    /// label sets.
     ///
-    /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
-    /// [`Predicate::TagOneOf`]: crate::Predicate::TagOneOf
-    #[serde(default, skip_serializing_if = "Labels::is_empty")]
-    pub labels: Labels,
-    /// Named clusters of [`LabelRef`]s this policy's rules may
-    /// reference by name via [`Predicate::LabelInGroup`]. Scoped
-    /// to this policy: a rule can only name a group its own
-    /// policy declared; unknown references error at request
-    /// validation. Two policies that both declare `hipaa_18` with
-    /// different labelsets stay independent.
+    /// The union of every scope, plus [`custom`], is the policy's
+    /// recognition vocabulary. A label no scope names is never
+    /// detected, so no rule can fire on it and the policy is inert
+    /// with respect to it.
     ///
-    /// [`LabelRef`]: elide_core::entity::LabelRef
-    /// [`Predicate::LabelInGroup`]: crate::Predicate::LabelInGroup
+    /// Detecting more than the rules act on is deliberate: scope a
+    /// whole regulatory category, write rules for the labels
+    /// needing special treatment, and let [`fallback`] sweep the
+    /// rest.
+    ///
+    /// [`custom`]: Self::custom
+    /// [`fallback`]: Self::fallback
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub groups: Vec<LabelGroup>,
+    pub scopes: Vec<LabelScope>,
+    /// Caller-authored label schemas this policy introduces.
+    ///
+    /// Only for labels elide does not ship. These join the
+    /// recognition vocabulary alongside [`scopes`], and a rule may
+    /// target them the same way.
+    ///
+    /// [`scopes`]: Self::scopes
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom: Vec<Label>,
     /// Ordered rules. First match wins within this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<PolicyRule>,
-    /// Per-policy catch-all. Fires when no rule in this policy
-    /// matched. Presence halts the chain; absence falls through
+    /// Per-policy catch-all, applied to any detected entity in
+    /// the policy's vocabulary that no rule claimed. Fires when no
+    /// rule in this policy matched. Presence halts the chain; absence falls through
     /// to the next policy. [`Option`] enforces "at most one
     /// fallback per policy" at the type level.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback: Option<ModalityRedactions>,
+}
+
+impl PolicyDefinition {
+    /// Every label this policy detects: the union of its
+    /// [`scopes`] and its [`custom`] schemas.
+    ///
+    /// The engine unions this across all submitted policies into
+    /// the per-request `LabelCatalog` that drives recognizer
+    /// dispatch, and applies it again at match time so one policy
+    /// cannot act on an entity another policy pulled in.
+    ///
+    /// Order follows declaration order, scopes first, and a label
+    /// named twice appears once.
+    ///
+    /// [`custom`]: Self::custom
+    /// [`scopes`]: Self::scopes
+    #[must_use]
+    pub fn label_scope(&self) -> Vec<LabelRef> {
+        let mut scope: Vec<LabelRef> = Vec::new();
+        let mut push = |label: LabelRef| {
+            if !scope.contains(&label) {
+                scope.push(label);
+            }
+        };
+        for declared in &self.scopes {
+            for label in &declared.labels {
+                push(label.clone());
+            }
+        }
+        for label in &self.custom {
+            push(label.to_ref());
+        }
+        scope
+    }
+
+    /// The labels of the scope named `name`, if this policy
+    /// declares one.
+    ///
+    /// Scopes are policy-local: a rule can only name a scope its
+    /// own policy declared.
+    #[must_use]
+    pub fn scope_named(&self, name: &str) -> Option<&[LabelRef]> {
+        self.scopes
+            .iter()
+            .find(|s| s.name == name)
+            .map(|s| s.labels.as_slice())
+    }
 }

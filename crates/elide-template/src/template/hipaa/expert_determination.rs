@@ -1,8 +1,6 @@
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
-use elide_governance::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
-};
+use elide_governance::{LabelEntry, LabelScope, PolicyDefinition, PolicyRule, RuleDispatch};
 use elide_operator::operators::{DateGranularity, DateStyle};
 use semver::Version;
 
@@ -14,7 +12,7 @@ use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template, template_id};
 /// references. Same label membership as Safe Harbor; the
 /// separate group name lets audits distinguish the two postures
 /// by the group id alone.
-const ED_GROUP: &str = "hipaa_expert_determination";
+const ED_SCOPE: &str = "hipaa_expert_determination";
 
 /// Machine key for the Expert Determination scaffold, before the
 /// account tier is folded in.
@@ -58,22 +56,18 @@ fn expert_determination_policy(accounts: HipaaAccountNumbers) -> PolicyDefinitio
             "hipaa_deid_expert_determination",
             Version::new(1, 0, 0),
         )),
-        labels: Labels {
-            builtins: safe_harbor_labels(accounts)
-                .into_iter()
-                .chain(SAFE_HARBOR_TABLE_LABELS.iter().cloned())
-                .collect(),
-            custom: Vec::new(),
-        },
-        groups: vec![ed_group(accounts)],
-        rules: vec![ed_table_rule(accounts), ed_bulk_pseudonymize_rule(accounts)],
-        fallback: None,
+        scopes: vec![ed_scope(accounts)],
+        custom: Vec::new(),
+        // Same split as Safe Harbor: the table claims age and the
+        // dates, the fallback pseudonymizes the rest of the scope.
+        rules: vec![ed_table_rule(accounts)],
+        fallback: Some(ModalityRedactions::text(TextRedaction::Pseudonymize)),
     }
 }
 
-fn ed_group(accounts: HipaaAccountNumbers) -> LabelGroup {
-    LabelGroup {
-        name: ED_GROUP.into(),
+fn ed_scope(accounts: HipaaAccountNumbers) -> LabelScope {
+    LabelScope {
+        name: ED_SCOPE.into(),
         description: Some(
             "Safe Harbor's 18 identifier categories, carried into the Expert \
              Determination scaffold as a starting scope: §164.514(b)(1) itself \
@@ -89,7 +83,10 @@ fn ed_group(accounts: HipaaAccountNumbers) -> LabelGroup {
             "a starting scope borrowed from Safe Harbor; the provision itself \
              enumerates no identifiers, leaving scope to the statistician",
         )),
-        labels: safe_harbor_labels(accounts),
+        labels: safe_harbor_labels(accounts)
+            .into_iter()
+            .chain(SAFE_HARBOR_TABLE_LABELS.iter().cloned())
+            .collect(),
     }
 }
 
@@ -144,41 +141,6 @@ fn ed_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
                     }),
                 },
             ],
-        },
-    }
-}
-
-/// Everything the Expert Determination group covers →
-/// [`Pseudonymize`]. Preserves coreference across mentions so
-/// downstream analytics can still join on the surrogate.
-///
-/// [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
-fn ed_bulk_pseudonymize_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
-    PolicyRule {
-        id: derived_id(&format!(
-            "{}:rule:bulk-pseudonymize",
-            template_id(ED_ID, accounts)
-        )),
-        name: "hipaa-ed-bulk-pseudonymize".into(),
-        description: Some(
-            "Every identifier in the Expert Determination label set is \
-             pseudonymized (identity-preserving surrogate). Statistician may \
-             override to Erase / HmacHash / Encrypt as their risk analysis \
-             demands."
-                .into(),
-        ),
-        attribution: Some(cited(
-            "HIPAA",
-            "§164.514(b)(1)",
-            "identity preserved across mentions for the analytics the expert \
-             determination path exists to serve; does not itself certify \
-             de-identification, which requires the statistician's attestation",
-        )),
-        dispatch: RuleDispatch::Predicated {
-            predicate: Predicate::LabelInGroup {
-                group: ED_GROUP.to_owned(),
-            },
-            action: Box::new(ModalityRedactions::text(TextRedaction::Pseudonymize)),
         },
     }
 }

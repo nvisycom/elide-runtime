@@ -31,7 +31,7 @@ mod layer;
 mod modality;
 mod recognizers;
 
-pub(crate) use self::catalog::{compile_catalog, policy_label_scope};
+pub(crate) use self::catalog::compile_catalog;
 #[cfg(feature = "internal_audio")]
 pub(crate) use self::modality::compile_audio;
 #[cfg(feature = "internal_image")]

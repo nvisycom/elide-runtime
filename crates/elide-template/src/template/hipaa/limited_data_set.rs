@@ -1,13 +1,13 @@
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
+use elide_governance::{LabelScope, PolicyDefinition};
 use semver::Version;
 
 use super::super::{cited, derived_id, origin};
 use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template, template_id};
 
-/// Group name Limited Data Set's bulk-erase rule references.
-const LDS_GROUP: &str = "hipaa_limited_data_set";
+/// Name of the scope the Limited Data Set declares.
+const LDS_SCOPE: &str = "hipaa_limited_data_set";
 
 /// Machine key for the Limited Data Set template, before the
 /// account tier is folded in.
@@ -101,19 +101,18 @@ fn limited_data_set_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
                 .into(),
         ),
         template: Some(origin("hipaa_deid_limited_data_set", Version::new(1, 0, 0))),
-        labels: Labels {
-            builtins: labels(accounts),
-            custom: Vec::new(),
-        },
-        groups: vec![lds_group(accounts)],
-        rules: vec![lds_bulk_erase_rule(accounts)],
-        fallback: None,
+        scopes: vec![lds_scope(accounts)],
+        custom: Vec::new(),
+        // No rules: every §164.514(e)(2) identifier gets the same
+        // treatment, which is what the fallback expresses.
+        rules: Vec::new(),
+        fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
     }
 }
 
-fn lds_group(accounts: HipaaAccountNumbers) -> LabelGroup {
-    LabelGroup {
-        name: LDS_GROUP.into(),
+fn lds_scope(accounts: HipaaAccountNumbers) -> LabelScope {
+    LabelScope {
+        name: LDS_SCOPE.into(),
         description: Some(
             "The 16 identifier categories §164.514(e)(2) enumerates for the \
              Limited Data Set. Dates, ages, town/city, state, and ZIP survive \
@@ -128,31 +127,5 @@ fn lds_group(accounts: HipaaAccountNumbers) -> LabelGroup {
              the individual and of their relatives, employers, and household",
         )),
         labels: labels(accounts),
-    }
-}
-
-/// Everything the Limited Data Set group covers → [`Erase`].
-///
-/// [`Erase`]: elide_governance::redaction::TextRedaction::Erase
-fn lds_bulk_erase_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
-    PolicyRule {
-        id: derived_id(&format!(
-            "{}:rule:bulk-erase",
-            template_id(LDS_ID, accounts)
-        )),
-        name: "hipaa-lds-bulk-erase".into(),
-        description: Some("Every §164.514(e)(2) identifier is erased.".into()),
-        attribution: Some(cited(
-            "HIPAA",
-            "§164.514(e)(2)",
-            "direct identifiers excluded from a limited data set; dates, ages, \
-             and coarse geography survive for the recipient's research use",
-        )),
-        dispatch: RuleDispatch::Predicated {
-            predicate: Predicate::LabelInGroup {
-                group: LDS_GROUP.to_owned(),
-            },
-            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
-        },
     }
 }

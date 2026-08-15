@@ -1,8 +1,6 @@
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
-use elide_governance::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
-};
+use elide_governance::{LabelEntry, LabelScope, PolicyDefinition, PolicyRule, RuleDispatch};
 use elide_operator::operators::{DateGranularity, DateStyle};
 use semver::Version;
 
@@ -123,24 +121,20 @@ fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
                 .into(),
         ),
         template: Some(origin("hipaa_deid_safe_harbor", Version::new(1, 0, 0))),
-        labels: Labels {
-            builtins: labels(accounts)
-                .into_iter()
-                .chain(SAFE_HARBOR_TABLE_LABELS.iter().cloned())
-                .collect(),
-            custom: Vec::new(),
-        },
-        groups: vec![safe_harbor_group(accounts)],
-        rules: vec![
-            safe_harbor_table_rule(accounts),
-            safe_harbor_bulk_erase_rule(accounts),
-        ],
-        fallback: None,
+        scopes: vec![safe_harbor_scope(accounts)],
+        custom: Vec::new(),
+        // The table claims `age` and the two date labels; the
+        // fallback erases the rest of the scope. Splitting it this
+        // way makes the §(C) carve-out structural: the fallback
+        // only ever sees labels the table did not take, so no rule
+        // ordering can turn a Clamp into an Erase.
+        rules: vec![safe_harbor_table_rule(accounts)],
+        fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
     }
 }
 
-fn safe_harbor_group(accounts: HipaaAccountNumbers) -> LabelGroup {
-    LabelGroup {
+fn safe_harbor_scope(accounts: HipaaAccountNumbers) -> LabelScope {
+    LabelScope {
         name: SAFE_HARBOR_GROUP.into(),
         description: Some(
             "The 18 identifier categories the HIPAA Safe Harbor rule enumerates \
@@ -156,7 +150,10 @@ fn safe_harbor_group(accounts: HipaaAccountNumbers) -> LabelGroup {
             "the eighteen identifier categories Safe Harbor requires be removed \
              before PHI counts as de-identified",
         )),
-        labels: labels(accounts),
+        labels: labels(accounts)
+            .into_iter()
+            .chain(SAFE_HARBOR_TABLE_LABELS.iter().cloned())
+            .collect(),
     }
 }
 
@@ -210,32 +207,6 @@ fn safe_harbor_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
                     }),
                 },
             ],
-        },
-    }
-}
-
-/// Everything the Safe Harbor group covers → [`Erase`].
-///
-/// [`Erase`]: elide_governance::redaction::TextRedaction::Erase
-fn safe_harbor_bulk_erase_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
-    PolicyRule {
-        id: derived_id(&format!(
-            "{}:rule:bulk-erase",
-            template_id(SAFE_HARBOR_ID, accounts)
-        )),
-        name: "hipaa-safe-harbor-bulk-erase".into(),
-        description: Some("Every remaining §164.514(b)(2) identifier is erased.".into()),
-        attribution: Some(cited(
-            "HIPAA",
-            "§164.514(b)(2)(i)(A)-(R)",
-            "the identifier categories Safe Harbor removes outright, everything \
-             the age and date dispatch above does not claim",
-        )),
-        dispatch: RuleDispatch::Predicated {
-            predicate: Predicate::LabelInGroup {
-                group: SAFE_HARBOR_GROUP.to_owned(),
-            },
-            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
         },
     }
 }

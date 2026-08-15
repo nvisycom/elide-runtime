@@ -13,7 +13,7 @@
 //!
 //! Groups do not stamp synthetic tags on the catalog. Group
 //! membership is resolved by the selector when it compiles
-//! [`Predicate::LabelInGroup`], so no shared string namespace
+//! [`Predicate::LabelInScope`], so no shared string namespace
 //! exists that a [`Predicate::TagOneOf`] could exploit to bypass
 //! per-policy group scoping.
 //!
@@ -22,13 +22,13 @@
 //!
 //! [`Label`]: elide_core::entity::Label
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
-//! [`labels`]: elide_governance::PolicyDefinition::labels
-//! [`Predicate::LabelInGroup`]: elide_governance::Predicate::LabelInGroup
+//! [`labels`]: elide_governance::PolicyDefinition::label_scope
+//! [`Predicate::LabelInScope`]: elide_governance::Predicate::LabelInScope
 //! [`Predicate::TagOneOf`]: elide_governance::Predicate::TagOneOf
 
 use std::sync::OnceLock;
 
-use elide_core::entity::{Label, LabelCatalog, LabelRef};
+use elide_core::entity::LabelCatalog;
 use elide_core::{Error, ErrorKind, Result};
 use elide_governance::PolicyDefinition;
 
@@ -51,7 +51,7 @@ use elide_governance::PolicyDefinition;
 ///   same id but structurally different contents (byte-identical
 ///   redeclaration across templates is fine).
 ///
-/// [`labels`]: elide_governance::PolicyDefinition::labels
+/// [`labels`]: elide_governance::PolicyDefinition::label_scope
 /// [`Label`]: elide_core::entity::Label
 pub(crate) fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCatalog> {
     let mut catalog = LabelCatalog::new();
@@ -63,21 +63,10 @@ pub(crate) fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCata
 
 fn insert_params(catalog: &mut LabelCatalog, policy: &PolicyDefinition) -> Result<()> {
     let builtins = builtin_catalog();
-    for label_ref in &policy.labels.builtins {
-        let label = builtins.get(label_ref).ok_or_else(|| {
-            Error::new(
-                ErrorKind::Configuration,
-                format!(
-                    "policy `{}` declares builtin label `{}` that no elide-shipped \
-                     catalog entry provides",
-                    policy.id,
-                    label_ref.as_str(),
-                ),
-            )
-        })?;
-        catalog.insert(label.clone());
-    }
-    for label in &policy.labels.custom {
+
+    // Customs first: a scope may name one, and the builtin lookup
+    // below would otherwise reject it as unknown.
+    for label in &policy.custom {
         if builtins.contains(&label.to_ref()) {
             return Err(Error::new(
                 ErrorKind::Configuration,
@@ -104,6 +93,28 @@ fn insert_params(catalog: &mut LabelCatalog, policy: &PolicyDefinition) -> Resul
         }
         catalog.insert(label.clone());
     }
+
+    // Then every label the policy's scopes name. Resolution is
+    // policy-local: an earlier policy's custom schema must not make
+    // this policy's reference to it resolve, or a rule could act on
+    // a label its own policy never declared.
+    for label_ref in policy.label_scope() {
+        if policy.custom.iter().any(|l| l.to_ref() == label_ref) {
+            continue;
+        }
+        let label = builtins.get(&label_ref).ok_or_else(|| {
+            Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "policy `{}` scopes label `{}`, which is neither a shipped elide \
+                     builtin nor one of the policy's own custom labels",
+                    policy.id,
+                    label_ref.as_str(),
+                ),
+            )
+        })?;
+        catalog.insert(label.clone());
+    }
     Ok(())
 }
 
@@ -118,26 +129,10 @@ fn builtin_catalog() -> &'static LabelCatalog {
     BUILTINS.get_or_init(LabelCatalog::with_builtins)
 }
 
-/// The set of [`LabelRef`]s a policy declares in its [`labels`]
-/// block, materialised for per-policy scoping at match time. Every
-/// predicate the selector compiles filters by whether the
-/// candidate entity's label is in this set: a policy that lists
-/// only `email_address` cannot fire on a `phone_number` entity
-/// another policy pulled into the request's recognition pass.
-///
-/// [`labels`]: elide_governance::PolicyDefinition::labels
-pub(crate) fn policy_label_scope(policy: &PolicyDefinition) -> Vec<LabelRef> {
-    let mut scope: Vec<LabelRef> =
-        Vec::with_capacity(policy.labels.builtins.len() + policy.labels.custom.len());
-    scope.extend(policy.labels.builtins.iter().cloned());
-    scope.extend(policy.labels.custom.iter().map(Label::to_ref));
-    scope
-}
-
 #[cfg(test)]
 mod tests {
     use elide_core::entity::{Label, LabelRef};
-    use elide_governance::{LabelGroup, Labels, PolicyDefinition};
+    use elide_governance::{LabelScope, PolicyDefinition};
     use hipstr::HipStr;
     use uuid::Uuid;
 
@@ -146,21 +141,28 @@ mod tests {
     const POLICY_A: Uuid = Uuid::from_u128(0x01234567_89ab_7000_8000_000000000010_u128);
     const POLICY_B: Uuid = Uuid::from_u128(0x01234567_89ab_7000_8000_000000000011_u128);
 
-    fn policy_named(id: Uuid, labels: Labels, groups: Vec<LabelGroup>) -> PolicyDefinition {
+    fn policy_named(id: Uuid, custom: Vec<Label>, scopes: Vec<LabelScope>) -> PolicyDefinition {
         PolicyDefinition {
             id,
             name: HipStr::from("test"),
             description: None,
             template: None,
-            labels,
-            groups,
+            scopes,
+            custom,
             rules: Vec::new(),
             fallback: None,
         }
     }
 
-    fn policy_with_labels(labels: Labels) -> PolicyDefinition {
-        policy_named(POLICY_A, labels, Vec::new())
+    /// A policy whose vocabulary is one scope naming `builtins`,
+    /// plus any inline `custom` schemas.
+    fn policy_with_labels(builtins: Vec<LabelRef>, custom: Vec<Label>) -> PolicyDefinition {
+        let scopes = if builtins.is_empty() {
+            Vec::new()
+        } else {
+            vec![LabelScope::new("scope", builtins)]
+        };
+        policy_named(POLICY_A, custom, scopes)
     }
 
     #[test]
@@ -170,10 +172,7 @@ mod tests {
 
     #[test]
     fn builtin_names_land_in_the_catalog() {
-        let p = policy_with_labels(Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        });
+        let p = policy_with_labels(vec![LabelRef::new("email_address")], Vec::new());
         let catalog = compile_catalog(std::slice::from_ref(&p)).unwrap();
         assert!(catalog.contains(&LabelRef::new("email_address")));
         assert_eq!(catalog.len(), 1);
@@ -181,10 +180,10 @@ mod tests {
 
     #[test]
     fn unknown_builtin_name_fails_the_request() {
-        let p = policy_with_labels(Labels {
-            builtins: vec![LabelRef::new("definitely_not_a_real_label")],
-            custom: Vec::new(),
-        });
+        let p = policy_with_labels(
+            vec![LabelRef::new("definitely_not_a_real_label")],
+            Vec::new(),
+        );
         let err = compile_catalog(std::slice::from_ref(&p))
             .expect_err("unknown builtin must reject the request");
         assert!(err.to_string().contains("definitely_not_a_real_label"));
@@ -193,10 +192,7 @@ mod tests {
 
     #[test]
     fn custom_labels_land_in_the_catalog() {
-        let p = policy_with_labels(Labels {
-            builtins: Vec::new(),
-            custom: vec![Label::new("project_code", "Project code")],
-        });
+        let p = policy_with_labels(Vec::new(), vec![Label::new("project_code", "Project code")]);
         let catalog = compile_catalog(std::slice::from_ref(&p)).unwrap();
         assert!(catalog.contains(&LabelRef::new("project_code")));
     }
@@ -205,19 +201,19 @@ mod tests {
     fn multiple_policies_union_their_labels() {
         let a = policy_named(
             POLICY_A,
-            Labels {
-                builtins: vec![LabelRef::new("email_address")],
-                custom: Vec::new(),
-            },
             Vec::new(),
+            vec![LabelScope::new(
+                "scope",
+                vec![LabelRef::new("email_address")],
+            )],
         );
         let b = policy_named(
             POLICY_B,
-            Labels {
-                builtins: vec![LabelRef::new("phone_number")],
-                custom: Vec::new(),
-            },
             Vec::new(),
+            vec![LabelScope::new(
+                "scope",
+                vec![LabelRef::new("phone_number")],
+            )],
         );
         let catalog = compile_catalog(&[a, b]).unwrap();
         assert!(catalog.contains(&LabelRef::new("email_address")));
@@ -231,10 +227,10 @@ mod tests {
         // declares a custom label with that id would silently strip
         // elide's `contact_info`/`pii` tags for every rule in the
         // request. Reject it.
-        let p = policy_with_labels(Labels {
-            builtins: Vec::new(),
-            custom: vec![Label::new("email_address", "Adresse électronique")],
-        });
+        let p = policy_with_labels(
+            Vec::new(),
+            vec![Label::new("email_address", "Adresse électronique")],
+        );
         let err = compile_catalog(std::slice::from_ref(&p))
             .expect_err("shadowing a builtin must reject the request");
         assert!(err.to_string().contains("email_address"));
@@ -249,19 +245,13 @@ mod tests {
         let label = Label::new("project_code", "Project code");
         let a = policy_named(
             POLICY_A,
-            Labels {
-                builtins: Vec::new(),
-                custom: vec![label.clone()],
-            },
-            Vec::new(),
+            vec![label.clone()],
+            vec![LabelScope::new("scope", Vec::new())],
         );
         let b = policy_named(
             POLICY_B,
-            Labels {
-                builtins: Vec::new(),
-                custom: vec![label],
-            },
-            Vec::new(),
+            vec![label],
+            vec![LabelScope::new("scope", Vec::new())],
         );
         let catalog = compile_catalog(&[a, b]).unwrap();
         assert!(catalog.contains(&LabelRef::new("project_code")));
@@ -276,19 +266,13 @@ mod tests {
         // templates) and picking a winner would silently misredact.
         let a = policy_named(
             POLICY_A,
-            Labels {
-                builtins: Vec::new(),
-                custom: vec![Label::new("project_code", "Project code")],
-            },
-            Vec::new(),
+            vec![Label::new("project_code", "Project code")],
+            vec![LabelScope::new("scope", Vec::new())],
         );
         let b = policy_named(
             POLICY_B,
-            Labels {
-                builtins: Vec::new(),
-                custom: vec![Label::new("project_code", "Legacy code")],
-            },
-            Vec::new(),
+            vec![Label::new("project_code", "Legacy code")],
+            vec![LabelScope::new("scope", Vec::new())],
         );
         let err = compile_catalog(&[a, b])
             .expect_err("conflicting custom labels must reject the request");
@@ -297,23 +281,18 @@ mod tests {
     }
 
     #[test]
-    fn groups_do_not_stamp_synthetic_tags_on_the_catalog() {
-        // The engine resolves group membership at predicate compile
-        // time; nothing on the catalog carries a `group:*` tag that
-        // a `TagOneOf` predicate could exploit.
-        let group = LabelGroup {
-            name: HipStr::from("contact_sweep"),
-            description: None,
-            attribution: None,
-            labels: vec![LabelRef::new("email_address")],
-        };
+    fn scopes_do_not_stamp_synthetic_tags_on_the_catalog() {
+        // Scope membership resolves against the policy's own table
+        // at predicate-evaluation time; nothing on the catalog
+        // carries a `scope:*` tag a `TagOneOf` could exploit to
+        // reach across policies.
         let p = policy_named(
             POLICY_A,
-            Labels {
-                builtins: vec![LabelRef::new("email_address")],
-                custom: Vec::new(),
-            },
-            vec![group],
+            Vec::new(),
+            vec![LabelScope::new(
+                "scope",
+                vec![LabelRef::new("email_address")],
+            )],
         );
         let catalog = compile_catalog(std::slice::from_ref(&p)).unwrap();
         let stamped = catalog.get(&LabelRef::new("email_address")).unwrap();
@@ -334,15 +313,15 @@ mod tests {
     }
 
     #[test]
-    fn policy_label_scope_unions_builtins_and_customs() {
-        let p = policy_with_labels(Labels {
-            builtins: vec![
+    fn label_scope_unions_scopes_and_customs() {
+        let p = policy_with_labels(
+            vec![
                 LabelRef::new("email_address"),
                 LabelRef::new("phone_number"),
             ],
-            custom: vec![Label::new("project_code", "Project code")],
-        });
-        let scope = policy_label_scope(&p);
+            vec![Label::new("project_code", "Project code")],
+        );
+        let scope = p.label_scope();
         assert!(scope.contains(&LabelRef::new("email_address")));
         assert!(scope.contains(&LabelRef::new("phone_number")));
         assert!(scope.contains(&LabelRef::new("project_code")));

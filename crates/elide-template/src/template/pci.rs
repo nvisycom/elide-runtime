@@ -31,7 +31,7 @@
 //!   glossary definition covers the SHA-2 family; both qualify.
 //!
 //! All render variants target the elide-builtin `payment_card`
-//! label. No [`LabelGroup`]: one label, one rule per template.
+//! label. No [`LabelScope`]: one label, one rule per template.
 //! Callers wanting more than one dispatched from one policy
 //! compose the [`PolicyDefinition`]s themselves.
 //!
@@ -47,12 +47,12 @@
 //!
 //! [`Erase`]: elide_governance::redaction::TextRedaction::Erase
 //!
-//! [`LabelGroup`]: elide_governance::LabelGroup
+//! [`LabelScope`]: elide_governance::LabelScope
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
 
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
+use elide_governance::{LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
 use elide_operator::operators::Sha2Algorithm;
 use jiff::civil::Date;
 use schemars::JsonSchema;
@@ -209,11 +209,8 @@ fn pan_template(render: PciPanRender) -> Template {
             name: spec.policy_name.into(),
             description: Some(spec.policy_description.into()),
             template: Some(origin(spec.id, Version::new(1, 0, 0))),
-            labels: Labels {
-                builtins: vec![PAN_LABEL.clone()],
-                custom: Vec::new(),
-            },
-            groups: Vec::new(),
+            scopes: vec![LabelScope::new("pci_pan", [PAN_LABEL.clone()])],
+            custom: Vec::new(),
             rules: vec![spec.rule],
             fallback: None,
         },
@@ -388,11 +385,8 @@ fn sav_template() -> Template {
                  posture: it must be erased."
                     .into(),
             ),
-            labels: Labels {
-                builtins: SAV_LABELS.to_vec(),
-                custom: Vec::new(),
-            },
-            groups: Vec::new(),
+            scopes: vec![LabelScope::new("pci_sav", SAV_LABELS.to_vec())],
+            custom: Vec::new(),
             rules: vec![sav_rule()],
             fallback: None,
         },

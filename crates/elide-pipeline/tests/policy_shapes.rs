@@ -10,7 +10,7 @@ use elide_core::entity::LabelRef;
 use elide_core::entity::audit::AuditKind;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
+    LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
 use elide_pipeline::entity::Review;
 use elide_pipeline::{Audit, Engine, EntityGroup};
@@ -85,14 +85,15 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         name: "contact-info".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![
+        // The table targets both; the scope must detect both.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![
                 LabelRef::new("email_address"),
                 LabelRef::new("phone_number"),
             ],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        )],
+        custom: Vec::new(),
         rules: vec![table],
         fallback: None,
     };
@@ -151,14 +152,14 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
     );
 }
 
-/// A `Predicate::LabelInGroup` predicate drives the same redaction
+/// A `Predicate::LabelInScope` predicate drives the same redaction
 /// path as a `TagOneOf` over the synthetic `group:<name>` tag -
 /// asserts the group compilation and predicate rewrite are wired
 /// end-to-end.
 #[tokio::test]
 async fn label_in_group_predicate_fires_on_grouped_labels() {
     let engine = engine();
-    let group = LabelGroup {
+    let group = LabelScope {
         name: "contact_info".into(),
         description: None,
         attribution: None,
@@ -172,22 +173,16 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
         name: "sweep".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![
-                LabelRef::new("email_address"),
-                LabelRef::new("phone_number"),
-            ],
-            custom: Vec::new(),
-        },
-        groups: vec![group],
+        scopes: vec![group],
+        custom: Vec::new(),
         rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "erase-contacts".into(),
             description: None,
             attribution: None,
             dispatch: RuleDispatch::Predicated {
-                predicate: Predicate::LabelInGroup {
-                    group: "contact_info".to_owned(),
+                predicate: Predicate::LabelInScope {
+                    scope: "contact_info".to_owned(),
                 },
                 action: Box::new(ModalityRedactions {
                     text: Some(TextRedaction::Erase),
@@ -237,11 +232,13 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         name: "email-only".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        // A TagOneOf rule names no label, so the scope is what
+        // bounds which entities it can reach.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![LabelRef::new("email_address")],
+        )],
+        custom: Vec::new(),
         rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "erase-pii".into(),
@@ -264,11 +261,8 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         name: "phone-only-no-rules".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("phone_number")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        scopes: Vec::new(),
+        custom: Vec::new(),
         // No rules: policy B only contributes vocabulary.
         rules: Vec::new(),
         fallback: None,
@@ -312,11 +306,15 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         name: "coarse-baseline".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        // The fallback sweeps whatever this scope detects.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![
+                LabelRef::new("email_address"),
+                LabelRef::new("phone_number"),
+            ],
+        )],
+        custom: Vec::new(),
         rules: Vec::new(),
         fallback: Some(ModalityRedactions {
             // Coarse baseline says "erase" as a catch-all.
@@ -329,11 +327,12 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         name: "specific-refinement".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        // Refines just email; the coarse policy keeps the rest.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![LabelRef::new("email_address")],
+        )],
+        custom: Vec::new(),
         rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "replace-email".into(),
@@ -389,20 +388,21 @@ async fn cross_policy_group_reference_fails_the_request() {
         name: "borrower".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
+        // Scope carries what this policy detects.
+        scopes: vec![LabelScope::new(
+            "scope",
+            vec![LabelRef::new("email_address")],
+        )],
         // No groups declared here.
-        groups: Vec::new(),
+        custom: Vec::new(),
         rules: vec![PolicyRule {
             id: uuid::Uuid::now_v7(),
             name: "borrow-from-b".into(),
             description: None,
             attribution: None,
             dispatch: RuleDispatch::Predicated {
-                predicate: Predicate::LabelInGroup {
-                    group: "contact_info".to_owned(),
+                predicate: Predicate::LabelInScope {
+                    scope: "contact_info".to_owned(),
                 },
                 action: Box::new(ModalityRedactions {
                     text: Some(TextRedaction::Erase),
@@ -417,16 +417,11 @@ async fn cross_policy_group_reference_fails_the_request() {
         name: "declares-group".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: vec![LabelGroup {
-            name: "contact_info".into(),
-            description: None,
-            attribution: None,
-            labels: vec![LabelRef::new("email_address")],
-        }],
+        scopes: vec![LabelScope::new(
+            "contact_info",
+            vec![LabelRef::new("email_address")],
+        )],
+        custom: Vec::new(),
         rules: Vec::new(),
         fallback: None,
     };
@@ -456,11 +451,8 @@ async fn override_naming_unknown_policy_fails_the_request() {
         name: "authorising".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
-        groups: Vec::new(),
+        scopes: Vec::new(),
+        custom: Vec::new(),
         rules: Vec::new(),
         fallback: None,
     };

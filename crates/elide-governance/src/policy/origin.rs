@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Records **provenance, not fidelity**. Templates are plain data
 /// and callers are expected to mutate the returned policy before
-/// submitting it (swapping an operator, widening a group), so this
+/// submitting it (swapping an operator, widening a scope), so this
 /// says "built from `hipaa_deid_safe_harbor` v1.0.0" and nothing
 /// about whether the policy still matches what that template
 /// ships. A reviewer who needs that rebuilds the template and

@@ -84,7 +84,7 @@ impl Engine {
     /// request-scoped [`Scope`].
     ///
     /// The label catalog is derived from `policies`: every
-    /// submitted [`PolicyDefinition::labels`] unions into one
+    /// submitted [`PolicyDefinition::label_scope`] unions into one
     /// [`LabelCatalog`] used to drive recognizer dispatch and
     /// tag-based selector matching.
     ///
@@ -96,7 +96,7 @@ impl Engine {
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
-    /// [`PolicyDefinition::labels`]: elide_governance::PolicyDefinition::labels
+    /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
     pub(super) fn build_analyze_orchestrator(
         &self,
         spec: &AnalyzerParams,
@@ -267,7 +267,7 @@ fn validate_override_authorities(
     Ok(())
 }
 
-/// Reject a request whose rule references a [`LabelGroup`] name
+/// Reject a request whose rule references a [`LabelScope`] name
 /// its own policy didn't declare.
 ///
 /// Groups are scoped to the policy that owns them (strict
@@ -278,11 +278,11 @@ fn validate_override_authorities(
 /// [`Configuration`](ErrorKind::Configuration) error at request
 /// validation time, not as a silent underfire at apply time.
 ///
-/// [`LabelGroup`]: elide_governance::LabelGroup
-/// [`groups`]: elide_governance::PolicyDefinition::groups
+/// [`LabelScope`]: elide_governance::LabelScope
+/// [`groups`]: elide_governance::PolicyDefinition::scopes
 fn validate_group_references(policies: &[PolicyDefinition]) -> Result<()> {
     for policy in policies {
-        let known: HashSet<&str> = policy.groups.iter().map(|g| g.name.as_str()).collect();
+        let known: HashSet<&str> = policy.scopes.iter().map(|g| g.name.as_str()).collect();
         for rule in &policy.rules {
             for (predicate, _) in rule.attachments() {
                 check_predicate_groups(&predicate, &known, policy, rule)?;
@@ -292,7 +292,7 @@ fn validate_group_references(policies: &[PolicyDefinition]) -> Result<()> {
     Ok(())
 }
 
-/// Walk a predicate tree; every [`Predicate::LabelInGroup`] leaf
+/// Walk a predicate tree; every [`Predicate::LabelInScope`] leaf
 /// must name a group declared by the enclosing policy. Returns
 /// the first unknown reference with policy + rule context for the
 /// error message.
@@ -303,12 +303,12 @@ fn check_predicate_groups(
     rule: &PolicyRule,
 ) -> Result<()> {
     match predicate {
-        Predicate::LabelInGroup { group } if !known.contains(group.as_str()) => Err(Error::new(
+        Predicate::LabelInScope { scope } if !known.contains(scope.as_str()) => Err(Error::new(
             ErrorKind::Configuration,
             format!(
                 "policy `{}` rule `{}` references unknown label group `{}`: \
-                 the enclosing policy declares no `LabelGroup` with that name",
-                policy.id, rule.id, group,
+                 the enclosing policy declares no `LabelScope` with that name",
+                policy.id, rule.id, scope,
             ),
         )),
         Predicate::All { all } => all

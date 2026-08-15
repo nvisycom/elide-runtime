@@ -4,8 +4,9 @@
 //!
 //! Every predicate compiles into a closure passed to
 //! [`Rule::predicate`]. A rule declared inside policy A can only
-//! fire on entities whose label is in `policy.labels` (its own
-//! declared vocabulary), and any [`Predicate::LabelInGroup`] leaf
+//! fire on entities whose label is in `policy.label_scope()`,
+//! derived from what its own groups and rules target, and any
+//! [`Predicate::LabelInGroup`] leaf
 //! resolves against `policy.groups`, not the shared label catalog.
 //! There is no request-shared string namespace (like a synthetic
 //! `group:*` tag) that another policy's [`Predicate::TagOneOf`]
@@ -44,23 +45,21 @@ use elide_core::operator::Operator;
 use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule, Predicate};
 use uuid::Uuid;
 
-use crate::analyzer::policy_label_scope;
-
 /// Per-policy scoping context threaded into every predicate the
 /// selector compiles. Built once per policy at attach time; every
 /// rule inside that policy shares the same reference-counted copy.
 ///
-/// - `label_scope`: the [`LabelRef`]s the policy declares in its
-///   [`labels`] block. Every predicate filters by whether the
+/// - `label_scope`: the [`LabelRef`]s the policy's own groups and
+///   rules target. Every predicate filters by whether the
 ///   candidate entity's label is in this set, so a policy that
-///   lists only `email_address` never fires on a `phone_number`
+///   only reaches `email_address` never fires on a `phone_number`
 ///   another policy pulled into the request's recognition pass.
 /// - `groups`: resolved group name → labelset lookup, materialised
 ///   from the policy's [`groups`] block once. A rule can only
 ///   name a group its own policy declared (validated separately
 ///   in `pipeline::orchestrator::validate_group_references`).
 ///
-/// [`labels`]: elide_governance::PolicyDefinition::labels
+/// [`label_scope`]: elide_governance::PolicyDefinition::label_scope
 /// [`groups`]: elide_governance::PolicyDefinition::groups
 #[derive(Clone)]
 pub(in crate::anonymizer) struct PolicyContext {
@@ -80,10 +79,10 @@ impl PolicyContext {
     /// Materialise a policy's scoping context from its
     /// [`labels`] and [`groups`] blocks.
     ///
-    /// [`labels`]: elide_governance::PolicyDefinition::labels
+    /// [`label_scope`]: elide_governance::PolicyDefinition::label_scope
     /// [`groups`]: elide_governance::PolicyDefinition::groups
     pub(in crate::anonymizer) fn from_policy(policy: &PolicyDefinition) -> Self {
-        let label_scope: HashSet<LabelRef> = policy_label_scope(policy).into_iter().collect();
+        let label_scope: HashSet<LabelRef> = policy.label_scope().into_iter().collect();
         let groups: HashMap<String, HashSet<LabelRef>> =
             policy.groups.iter().map(group_lookup_entry).collect();
         Self {
@@ -93,10 +92,9 @@ impl PolicyContext {
         }
     }
 
-    /// Whether the enclosing policy declared vocabulary for
-    /// `label`. The gate every predicate: including the policy
-    /// fallback: passes through before any per-predicate logic
-    /// evaluates.
+    /// Whether the enclosing policy's rules reach `label`. The
+    /// gate every predicate, including the policy fallback,
+    /// passes through before any per-predicate logic evaluates.
     pub(in crate::anonymizer) fn label_scope_contains(&self, label: &LabelRef) -> bool {
         self.label_scope.contains(label)
     }
@@ -198,7 +196,7 @@ where
 ///
 /// Compiles the predicate into a closure that filters by
 /// `context.label_scope` before evaluating the tree; a rule
-/// cannot fire on labels its policy did not declare.
+/// cannot fire on labels its policy does not reach.
 ///
 /// [`Predicate`]: elide_governance::Predicate
 pub(super) fn attach<M, O>(

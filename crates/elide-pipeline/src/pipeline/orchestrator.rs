@@ -84,7 +84,7 @@ impl Engine {
     /// request-scoped [`Scope`].
     ///
     /// The label catalog is derived from `policies`: every
-    /// submitted [`PolicyDefinition::labels`] unions into one
+    /// submitted [`PolicyDefinition::label_scope`] unions into one
     /// [`LabelCatalog`] used to drive recognizer dispatch and
     /// tag-based selector matching.
     ///
@@ -96,7 +96,7 @@ impl Engine {
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
-    /// [`PolicyDefinition::labels`]: elide_governance::PolicyDefinition::labels
+    /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
     pub(super) fn build_analyze_orchestrator(
         &self,
         spec: &AnalyzerParams,

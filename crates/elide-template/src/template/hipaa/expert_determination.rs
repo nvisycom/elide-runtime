@@ -1,13 +1,13 @@
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
 use elide_governance::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
+    LabelEntry, LabelGroup, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
 use elide_operator::operators::{DateGranularity, DateStyle};
 use semver::Version;
 
 use super::super::{cited, derived_id, origin};
-use super::safe_harbor::{SAFE_HARBOR_TABLE_LABELS, labels as safe_harbor_labels};
+use super::safe_harbor::labels as safe_harbor_labels;
 use super::{EFFECTIVE_DATE, HipaaAccountNumbers, Template, template_id};
 
 /// Group name Expert Determination's bulk-pseudonymize rule
@@ -58,13 +58,7 @@ fn expert_determination_policy(accounts: HipaaAccountNumbers) -> PolicyDefinitio
             "hipaa_deid_expert_determination",
             Version::new(1, 0, 0),
         )),
-        labels: Labels {
-            builtins: safe_harbor_labels(accounts)
-                .into_iter()
-                .chain(SAFE_HARBOR_TABLE_LABELS.iter().cloned())
-                .collect(),
-            custom: Vec::new(),
-        },
+        custom: Vec::new(),
         groups: vec![ed_group(accounts)],
         rules: vec![ed_table_rule(accounts), ed_bulk_pseudonymize_rule(accounts)],
         fallback: None,

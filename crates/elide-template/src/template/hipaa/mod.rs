@@ -252,19 +252,17 @@ mod tests {
                 assert!(
                     extended
                         .policy
-                        .labels
-                        .builtins
+                        .label_scope()
                         .iter()
                         .any(|l| l.as_str() == want),
-                    "{method:?} Extended must carry `{want}` in policy builtins",
+                    "{method:?} Extended must reach `{want}`",
                 );
             }
             let standard = template(method, HipaaAccountNumbers::Standard);
             assert!(
                 !standard
                     .policy
-                    .labels
-                    .builtins
+                    .label_scope()
                     .iter()
                     .any(|l| l.as_str() == "crypto_address"),
                 "{method:?} Standard must not carry `crypto_address`",

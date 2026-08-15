@@ -25,7 +25,7 @@
 
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
+use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
 use jiff::civil::Date;
 use semver::Version;
 use uuid::{Uuid, uuid};
@@ -177,10 +177,7 @@ fn policy() -> PolicyDefinition {
                 .into(),
         ),
         template: Some(origin("ccpa", Version::new(1, 0, 0))),
-        labels: Labels {
-            builtins: CCPA_LABELS.to_vec(),
-            custom: Vec::new(),
-        },
+        custom: Vec::new(),
         groups: vec![group()],
         rules: vec![erase_rule()],
         fallback: None,

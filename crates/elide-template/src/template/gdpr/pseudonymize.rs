@@ -1,5 +1,5 @@
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
+use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
 use semver::Version;
 
 use super::super::{cited, derived_id, origin};
@@ -44,10 +44,7 @@ fn policy(scope: GdprSensitiveScope) -> PolicyDefinition {
                 .into(),
         ),
         template: Some(origin("gdpr_article_9_pseudonymize", Version::new(1, 0, 0))),
-        labels: Labels {
-            builtins: scope.labels(),
-            custom: Vec::new(),
-        },
+        custom: Vec::new(),
         groups: vec![group(scope)],
         rules: vec![rule(scope)],
         fallback: None,

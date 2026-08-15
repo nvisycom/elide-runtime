@@ -1,7 +1,7 @@
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
 use elide_governance::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
+    LabelEntry, LabelGroup, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
 use elide_operator::operators::{DateGranularity, DateStyle};
 use semver::Version;
@@ -82,6 +82,7 @@ pub(super) const SAFE_HARBOR_LABELS: &[LabelRef] = &[
 /// related to an individual*; generic `date_time` (invoice
 /// dates, meeting timestamps) shouldn't be generalized. Elide's
 /// `individual_date` label is the narrower fit.
+#[cfg(test)]
 pub(super) const SAFE_HARBOR_TABLE_LABELS: &[LabelRef] = &[
     LabelRef::from_static("age"),
     LabelRef::from_static("date_of_birth"),
@@ -123,13 +124,7 @@ fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
                 .into(),
         ),
         template: Some(origin("hipaa_deid_safe_harbor", Version::new(1, 0, 0))),
-        labels: Labels {
-            builtins: labels(accounts)
-                .into_iter()
-                .chain(SAFE_HARBOR_TABLE_LABELS.iter().cloned())
-                .collect(),
-            custom: Vec::new(),
-        },
+        custom: Vec::new(),
         groups: vec![safe_harbor_group(accounts)],
         rules: vec![
             safe_harbor_table_rule(accounts),

@@ -8,9 +8,8 @@ mod fixtures;
 use std::io::{Cursor, Read};
 
 use bytes::Bytes;
-use elide_core::entity::LabelRef;
+use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{Labels, PolicyDefinition};
 use elide_pipeline::entity::Review;
 use elide_pipeline::provider::{OcrBackend, OcrConfig, OcrEnricherConfig};
 use elide_pipeline::{Audit, AuditContext, Engine, EntityGroup};
@@ -103,7 +102,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         name: "review-authority".into(),
         description: None,
         template: None,
-        labels: Labels::default(),
+        custom: Vec::new(),
         groups: Vec::new(),
         rules: Vec::new(),
         fallback: None,
@@ -197,10 +196,7 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
         name: "test".into(),
         description: None,
         template: None,
-        labels: Labels {
-            builtins: vec![LabelRef::new("email_address")],
-            custom: Vec::new(),
-        },
+        custom: Vec::new(),
         groups: Vec::new(),
         rules: Vec::new(),
         fallback: None,
@@ -264,7 +260,7 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
         name: "unknown-group".into(),
         description: None,
         template: None,
-        labels: Labels::default(),
+        custom: Vec::new(),
         groups: Vec::new(),
         rules: vec![rule],
         fallback: None,

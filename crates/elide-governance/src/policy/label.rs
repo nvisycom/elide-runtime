@@ -1,14 +1,6 @@
-//! Per-policy label catalog vocabulary and per-request named
-//! label groups.
+//! Per-request named label groups.
 //!
-//! Two shapes:
-//!
-//! - [`Labels`]: carried on each [`PolicyDefinition`]. Selects
-//!   builtins from elide-core's shipped set and adds inline
-//!   custom schemas. The engine unions every submitted policy's
-//!   `labels` into one `elide_core::entity::LabelCatalog` at
-//!   request-compile time.
-//! - [`LabelGroup`]: a named cluster of [`LabelRef`]s carried
+//! [`LabelGroup`] is a named cluster of [`LabelRef`]s carried
 //!   on the policy that declares it. Templates ship groups
 //!   (`"hipaa_18"`, `"gdpr_article_9"`, `"pci_chd"`); rules
 //!   inside the same policy reference groups by name via
@@ -19,37 +11,11 @@
 //! [`PolicyDefinition`]: super::PolicyDefinition
 //! [`Predicate::LabelInGroup`]: crate::Predicate::LabelInGroup
 
+use elide_core::entity::LabelRef;
 use elide_core::entity::audit::AttributionKind;
-use elide_core::entity::{Label, LabelRef};
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-/// Per-policy label-catalog selection.
-///
-/// Picks builtins by name + adds inline custom schemas.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Labels {
-    /// Builtin label names to enable.
-    ///
-    /// E.g. `"email_address"`, `"phone_number"`. An unknown name
-    /// is rejected at request compile time: a typo fails loudly
-    /// rather than quietly dropping the label from the policy.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub builtins: Vec<LabelRef>,
-    /// Custom labels defined inline by the caller.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub custom: Vec<Label>,
-}
-
-impl Labels {
-    /// `true` when neither source contributes any label.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.builtins.is_empty() && self.custom.is_empty()
-    }
-}
 
 /// Named cluster of [`LabelRef`]s a policy's rules can reference
 /// by name via [`Predicate::LabelInGroup`].

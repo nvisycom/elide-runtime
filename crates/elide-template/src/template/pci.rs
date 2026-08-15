@@ -52,7 +52,7 @@
 
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
+use elide_governance::{PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
 use elide_operator::operators::Sha2Algorithm;
 use jiff::civil::Date;
 use schemars::JsonSchema;
@@ -209,10 +209,7 @@ fn pan_template(render: PciPanRender) -> Template {
             name: spec.policy_name.into(),
             description: Some(spec.policy_description.into()),
             template: Some(origin(spec.id, Version::new(1, 0, 0))),
-            labels: Labels {
-                builtins: vec![PAN_LABEL.clone()],
-                custom: Vec::new(),
-            },
+            custom: Vec::new(),
             groups: Vec::new(),
             rules: vec![spec.rule],
             fallback: None,
@@ -388,10 +385,7 @@ fn sav_template() -> Template {
                  posture: it must be erased."
                     .into(),
             ),
-            labels: Labels {
-                builtins: SAV_LABELS.to_vec(),
-                custom: Vec::new(),
-            },
+            custom: Vec::new(),
             groups: Vec::new(),
             rules: vec![sav_rule()],
             fallback: None,

@@ -56,6 +56,5 @@ mod policy;
 pub mod redaction;
 
 pub use self::policy::{
-    LabelEntry, LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
-    TemplateOrigin,
+    LabelEntry, LabelGroup, PolicyDefinition, PolicyRule, Predicate, RuleDispatch, TemplateOrigin,
 };

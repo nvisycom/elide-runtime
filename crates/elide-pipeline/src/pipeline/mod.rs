@@ -255,7 +255,7 @@ impl Engine {
     /// modality tag via its [`EntityGroup`] variant.
     ///
     /// `policies` contributes the label catalog (each
-    /// [`PolicyDefinition::labels`] unions in) that drives
+    /// [`PolicyDefinition::label_scope`] unions in) that drives
     /// recognizer dispatch. Every policy carries its own
     /// [`LabelGroup`]s in [`PolicyDefinition::groups`]; a
     /// [`LabelInGroup`] predicate can only name a group its own
@@ -292,7 +292,7 @@ impl Engine {
     /// [`EntityGroup`]: crate::entity::EntityGroup
     /// [`LabelGroup`]: elide_governance::LabelGroup
     /// [`LabelInGroup`]: elide_governance::Predicate::LabelInGroup
-    /// [`PolicyDefinition::labels`]: elide_governance::PolicyDefinition::labels
+    /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
     /// [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
     pub async fn analyze(
         &self,

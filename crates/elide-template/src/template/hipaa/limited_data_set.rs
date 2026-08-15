@@ -1,6 +1,6 @@
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
+use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
 use semver::Version;
 
 use super::super::{cited, derived_id, origin};
@@ -101,10 +101,7 @@ fn limited_data_set_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
                 .into(),
         ),
         template: Some(origin("hipaa_deid_limited_data_set", Version::new(1, 0, 0))),
-        labels: Labels {
-            builtins: labels(accounts),
-            custom: Vec::new(),
-        },
+        custom: Vec::new(),
         groups: vec![lds_group(accounts)],
         rules: vec![lds_bulk_erase_rule(accounts)],
         fallback: None,

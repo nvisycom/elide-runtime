@@ -47,7 +47,7 @@
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
 
 use elide_core::entity::LabelRef;
-use elide_governance::predicate::Predicate;
+use elide_governance::Predicate;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{Labels, PolicyDefinition, PolicyRule, RuleDispatch};
 use elide_operator::operators::Sha2Algorithm;

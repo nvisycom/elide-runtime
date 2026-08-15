@@ -49,11 +49,10 @@ Four regulatory postures across eleven shipped variants:
 - **CCPA** — Cal. Civ. Code §1798.140 personal-information
   categories.
 
-## Discovery
+## Versioning
 
-A built-in catalog registers every shipped template by id and
-version. Look up an exact template or the newest version of a
-family, iterate the full set, or serialise the catalog for
-a discovery endpoint — a customer transitioning between
-regulatory revisions can hold multiple versions of the same
-posture simultaneously and pin per document class.
+Each template carries its own version alongside the effective date
+of the regulatory text it encodes, both independent of the crate
+release. A customer transitioning between regulatory revisions
+pins the template version per document class rather than pinning
+the crate.

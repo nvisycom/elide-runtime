@@ -30,7 +30,7 @@ use elide_core::entity::audit::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
 use elide_governance::PolicyDefinition;
-use elide_governance::predicate::Predicate;
+use elide_governance::Predicate;
 use elide_governance::redaction::ModalityRedactions;
 use uuid::Uuid;
 

@@ -4,8 +4,8 @@
 
 //! Layers on top of the [elide] toolkit. This crate adds
 //! ready-to-run [`PolicyDefinition`]s for common regulatory
-//! postures (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA,
-//! SOC 2) so callers submit a template instead of authoring the
+//! postures (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA)
+//! so callers submit a template instead of authoring the
 //! governance surface by hand.
 //!
 //! [elide]: https://github.com/nvisycom/elide
@@ -46,14 +46,6 @@
 //! version — a customer that must pin to a snapshot pins
 //! [`Template::version`], not the crate version.
 //!
-//! [`TemplateCatalog`] wraps every shipped template in a
-//! `(id, version)`-keyed registry. Serve one from a discovery
-//! endpoint via its serde derives; look one up by id at runtime
-//! via [`TemplateCatalog::latest`] or
-//! [`TemplateCatalog::get`]. [`TemplateCatalog::builtin`]
-//! returns a catalog seeded with every shipped
-//! `(kind, options)` pairing.
-//!
 //! [`Date`]: jiff::civil::Date
 //! [`LabelGroup`]: elide_governance::LabelGroup
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
@@ -61,18 +53,16 @@
 //! [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
 //! [`Version`]: semver::Version
 
-mod catalog;
 mod template;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::catalog::TemplateCatalog;
 pub use self::template::{
     GdprArticle9, GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod,
     HipaaDeidentification, PciDssPart, PciPanRender, Template,
 };
-use self::template::{ccpa, pci, soc2};
+use self::template::{ccpa, pci};
 
 /// A regulatory posture this crate ships a [`Template`] for.
 ///
@@ -116,16 +106,9 @@ pub enum PolicyTemplate {
     ///
     /// [`LabelGroup`]: elide_governance::LabelGroup
     /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
-    /// [`Predicate::LabelInGroup`]: elide_governance::predicate::Predicate::LabelInGroup
+    /// [`Predicate::LabelInGroup`]: elide_governance::Predicate::LabelInGroup
     /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
     Ccpa,
-    /// SOC 2 secrets scan. Erases API keys, auth tokens, private
-    /// keys, and wallet addresses from evidence artifacts before
-    /// external sharing. Covers SOC 2 Trust Services Criteria
-    /// CC6.1 / CC6.7 and ISO 27001 A.9.2.4; label scope is
-    /// framework-agnostic — the same set applies to any
-    /// evidence-artifact secrets-scan workflow.
-    Soc2Secrets,
 }
 
 impl PolicyTemplate {
@@ -139,7 +122,6 @@ impl PolicyTemplate {
             Self::GdprArticle9(cfg) => cfg.template(),
             Self::PciDss { part } => pci::template(part),
             Self::Ccpa => ccpa::template(),
-            Self::Soc2Secrets => soc2::template(),
         }
     }
 }

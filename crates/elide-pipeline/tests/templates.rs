@@ -14,7 +14,7 @@ use elide::redaction::operators::StaticKey;
 use elide_pipeline::{Engine, KeyProvider};
 use elide_template::{
     GdprArticle9, GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod,
-    HipaaDeidentification, PciDssPart, PciPanRender, PolicyTemplate, Template, TemplateCatalog,
+    HipaaDeidentification, PciDssPart, PciPanRender, PolicyTemplate, Template,
 };
 use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
@@ -298,33 +298,4 @@ async fn ccpa_erases_contact_info_and_identifiers_from_sample() {
         !body.contains("123-45-6789"),
         "SSN is a CCPA §(A) identifier; must be erased. Body:\n{body}",
     );
-}
-
-#[tokio::test]
-async fn every_shipped_template_analyzes_and_anonymizes_the_sample() {
-    // Smoke test: every template in `TemplateCatalog::builtin()`
-    // produces a valid analyze/anonymize round-trip against the
-    // sample. Catches wiring regressions (unknown group refs,
-    // unbuildable operators) that unit tests inside
-    // elide-template can't catch without an engine.
-    let engine = engine_with_key();
-    for template in TemplateCatalog::builtin().iter() {
-        let id = &template.id;
-        let mut analyzed = engine
-            .analyze(
-                raw_txt(),
-                std::slice::from_ref(&template.policy),
-                &default_spec(),
-            )
-            .await
-            .unwrap_or_else(|e| panic!("template `{id}` failed to analyze: {e}"));
-        engine
-            .anonymize(
-                raw_txt(),
-                std::slice::from_ref(&template.policy),
-                &mut analyzed,
-            )
-            .await
-            .unwrap_or_else(|e| panic!("template `{id}` failed to anonymize: {e}"));
-    }
 }

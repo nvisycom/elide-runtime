@@ -1,5 +1,5 @@
 use elide_core::entity::LabelRef;
-use elide_governance::predicate::Predicate;
+use elide_governance::Predicate;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDispatch};
 use semver::Version;

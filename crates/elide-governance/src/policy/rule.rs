@@ -20,9 +20,9 @@
 //!   same identity boilerplate repeated.
 //!
 //! [`PolicyDefinition`]: super::PolicyDefinition
-//! [`Predicate`]: super::predicate::Predicate
-//! [`Predicate::LabelOneOf`]: super::predicate::Predicate::LabelOneOf
-//! [`Predicate::TagOneOf`]: super::predicate::Predicate::TagOneOf
+//! [`Predicate`]: crate::Predicate
+//! [`Predicate::LabelOneOf`]: crate::Predicate::LabelOneOf
+//! [`Predicate::TagOneOf`]: crate::Predicate::TagOneOf
 //! [`description`]: PolicyRule::description
 //! [`id`]: PolicyRule::id
 //! [`name`]: PolicyRule::name
@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::predicate::Predicate;
-use super::redaction::ModalityRedactions;
+use crate::redaction::ModalityRedactions;
 
 /// One rule inside a [`PolicyDefinition`]. Identity is the UUID;
 /// `name` / `description` are display-only. `dispatch` picks the
@@ -75,7 +75,7 @@ impl PolicyRule {
     /// Iteration order is stable — `Predicated` yields once;
     /// `Table` yields in the entries' declared order.
     ///
-    /// [`Predicate::LabelOneOf`]: super::predicate::Predicate::LabelOneOf
+    /// [`Predicate::LabelOneOf`]: crate::Predicate::LabelOneOf
     pub fn attachments(&self) -> Box<dyn Iterator<Item = (Predicate, &ModalityRedactions)> + '_> {
         match &self.dispatch {
             RuleDispatch::Predicated { predicate, action } => {

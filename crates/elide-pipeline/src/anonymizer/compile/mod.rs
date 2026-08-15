@@ -16,7 +16,7 @@
 //! files ([`super::text`] etc.) pass their [`operator::Op`]
 //! builders in as callbacks.
 //!
-//! [`Predicate`]: elide_governance::predicate::Predicate
+//! [`Predicate`]: elide_governance::Predicate
 //! [`operator::Op`]: super::operator
 
 mod dispatch;

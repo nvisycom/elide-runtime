@@ -17,7 +17,7 @@
 //!   carries — the catalog stays untouched.
 //!
 //! [`PolicyDefinition`]: super::PolicyDefinition
-//! [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
+//! [`Predicate::LabelInGroup`]: crate::Predicate::LabelInGroup
 
 use elide_core::entity::{Label, LabelRef};
 use hipstr::HipStr;
@@ -73,8 +73,8 @@ impl Labels {
 /// apply time. A typo doesn't silently underfire.
 ///
 /// [`PolicyDefinition`]: super::PolicyDefinition
-/// [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
-/// [`Predicate::LabelInGroup { group }`]: super::predicate::Predicate::LabelInGroup
+/// [`Predicate::LabelInGroup`]: crate::Predicate::LabelInGroup
+/// [`Predicate::LabelInGroup { group }`]: crate::Predicate::LabelInGroup
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelGroup {
@@ -84,7 +84,7 @@ pub struct LabelGroup {
     /// snake_case identifiers (`hipaa_18`, `gdpr_article_9`) —
     /// they read cleanly in audit provenance.
     ///
-    /// [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
+    /// [`Predicate::LabelInGroup`]: crate::Predicate::LabelInGroup
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
     /// Optional description for reviewers.

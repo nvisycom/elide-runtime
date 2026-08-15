@@ -291,7 +291,7 @@ impl Engine {
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     /// [`EntityGroup`]: crate::entity::EntityGroup
     /// [`LabelGroup`]: elide_governance::LabelGroup
-    /// [`LabelInGroup`]: elide_governance::predicate::Predicate::LabelInGroup
+    /// [`LabelInGroup`]: elide_governance::Predicate::LabelInGroup
     /// [`PolicyDefinition::labels`]: elide_governance::PolicyDefinition::labels
     /// [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
     pub async fn analyze(

@@ -23,8 +23,8 @@
 //! [`Label`]: elide_core::entity::Label
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
 //! [`labels`]: elide_governance::PolicyDefinition::labels
-//! [`Predicate::LabelInGroup`]: elide_governance::predicate::Predicate::LabelInGroup
-//! [`Predicate::TagOneOf`]: elide_governance::predicate::Predicate::TagOneOf
+//! [`Predicate::LabelInGroup`]: elide_governance::Predicate::LabelInGroup
+//! [`Predicate::TagOneOf`]: elide_governance::Predicate::TagOneOf
 
 use std::sync::OnceLock;
 

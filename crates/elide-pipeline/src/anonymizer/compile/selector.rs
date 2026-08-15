@@ -20,9 +20,9 @@
 //! [`Anonymizer`]: elide::redaction::Anonymizer
 //! [`MatchContext`]: elide::redaction::MatchContext
 //! [`PolicyRule`]: elide_governance::PolicyRule
-//! [`Predicate`]: elide_governance::predicate::Predicate
-//! [`Predicate::LabelInGroup`]: elide_governance::predicate::Predicate::LabelInGroup
-//! [`Predicate::TagOneOf`]: elide_governance::predicate::Predicate::TagOneOf
+//! [`Predicate`]: elide_governance::Predicate
+//! [`Predicate::LabelInGroup`]: elide_governance::Predicate::LabelInGroup
+//! [`Predicate::TagOneOf`]: elide_governance::Predicate::TagOneOf
 //! [`Rule::label`]: elide::redaction::Rule::label
 //! [`Rule::predicate`]: elide::redaction::Rule::predicate
 //! [`Rule::tag`]: elide::redaction::Rule::tag
@@ -41,7 +41,7 @@ use elide_core::entity::LabelRef;
 use elide_core::entity::audit::Attribution;
 use elide_core::modality::Modality;
 use elide_core::operator::Operator;
-use elide_governance::predicate::Predicate;
+use elide_governance::Predicate;
 use elide_governance::{LabelGroup, PolicyDefinition, PolicyRule};
 use uuid::Uuid;
 
@@ -171,7 +171,7 @@ where
 /// `context.label_scope` before evaluating the tree; a rule
 /// cannot fire on labels its policy did not declare.
 ///
-/// [`Predicate`]: elide_governance::predicate::Predicate
+/// [`Predicate`]: elide_governance::Predicate
 pub(super) fn attach<M, O>(
     anonymizer: Anonymizer<M>,
     predicate: &Predicate,

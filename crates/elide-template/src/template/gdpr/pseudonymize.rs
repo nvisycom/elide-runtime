@@ -4,7 +4,7 @@ use elide_governance::{LabelGroup, Labels, PolicyDefinition, PolicyRule, RuleDis
 use semver::Version;
 use uuid::{Uuid, uuid};
 
-use super::{EFFECTIVE_DATE, GdprArticle9, Template, article_9_group_description};
+use super::{EFFECTIVE_DATE, GdprSensitiveScope, Template, article_9_group_description};
 
 /// Group name Pseudonymize's bulk rule references. Separate name
 /// from Erase's group so audits distinguish the two postures by
@@ -14,7 +14,7 @@ const PSEUDONYMIZE_GROUP: &str = "gdpr_article_9_pseudonymize";
 const PSEUDONYMIZE_POLICY_ID: Uuid = uuid!("01639498-5000-7000-8000-000000000003");
 const PSEUDONYMIZE_RULE_ID: Uuid = uuid!("01639498-5000-7000-8000-000000000004");
 
-pub(super) fn template(cfg: GdprArticle9) -> Template {
+pub(super) fn template(scope: GdprSensitiveScope) -> Template {
     Template {
         id: "gdpr_article_9_pseudonymize".into(),
         name: "GDPR Article 9 special categories — pseudonymize".into(),
@@ -27,11 +27,11 @@ pub(super) fn template(cfg: GdprArticle9) -> Template {
              and Article 10 criminal-justice labels."
                 .into(),
         ),
-        policy: policy(cfg),
+        policy: policy(scope),
     }
 }
 
-fn policy(cfg: GdprArticle9) -> PolicyDefinition {
+fn policy(scope: GdprSensitiveScope) -> PolicyDefinition {
     PolicyDefinition {
         id: PSEUDONYMIZE_POLICY_ID,
         name: "gdpr-article-9-pseudonymize".into(),
@@ -42,20 +42,20 @@ fn policy(cfg: GdprArticle9) -> PolicyDefinition {
                 .into(),
         ),
         labels: Labels {
-            builtins: cfg.labels(),
+            builtins: scope.labels(),
             custom: Vec::new(),
         },
-        groups: vec![group(cfg)],
+        groups: vec![group(scope)],
         rules: vec![rule()],
         fallback: None,
     }
 }
 
-fn group(cfg: GdprArticle9) -> LabelGroup {
+fn group(scope: GdprSensitiveScope) -> LabelGroup {
     LabelGroup {
         name: PSEUDONYMIZE_GROUP.into(),
         description: Some(article_9_group_description().into()),
-        labels: cfg.labels(),
+        labels: scope.labels(),
     }
 }
 

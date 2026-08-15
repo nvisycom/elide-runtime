@@ -13,14 +13,15 @@
 //! ## Architecture
 //!
 //! [`PolicyTemplate`] enumerates the regulatory postures this
-//! crate ships. Variants that admit more than one shipped
-//! posture carry a small options enum — e.g.
+//! crate ships. Variants that admit more than one shipped posture
+//! carry their axes as fields — e.g.
 //! [`PolicyTemplate::PciDss`] carries a [`PciDssPart`] picking
 //! between §3.5.1 PAN render (with a nested [`PciPanRender`]
 //! choice) and §3.3.1 SAV erasure;
 //! [`PolicyTemplate::GdprArticle9`] carries a
-//! [`GdprArticle9Treatment`] picking erasure vs.
-//! pseudonymization for the Article 9(2) lawful-basis case.
+//! [`GdprArticle9Treatment`] picking erasure vs. pseudonymization
+//! for the Article 9(2) lawful-basis case, plus a
+//! [`GdprSensitiveScope`] widening the label set.
 //!
 //! [`PolicyTemplate::build`] materialises the picked variant
 //! into a [`Template`] — the [`PolicyDefinition`] carrying its
@@ -59,10 +60,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::template::{
-    GdprArticle9, GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod,
-    HipaaDeidentification, PciDssPart, PciPanRender, Template,
+    GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
+    PciPanRender, Template,
 };
-use self::template::{ccpa, pci};
+use self::template::{ccpa, gdpr, hipaa, pci};
 
 /// A regulatory posture this crate ships a [`Template`] for.
 ///
@@ -77,17 +78,36 @@ use self::template::{ccpa, pci};
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PolicyTemplate {
-    /// HIPAA §164.514 de-identification. See
-    /// [`HipaaDeidentification`] for the method + account-tier
-    /// axes.
-    HipaaDeidentification(HipaaDeidentification),
+    /// HIPAA §164.514 de-identification.
+    HipaaDeidentification {
+        /// Which §164.514 method to apply. See [`HipaaDeidMethod`]
+        /// for the tradeoff.
+        method: HipaaDeidMethod,
+        /// Which §(J) account-identifier labels to remove. Defaults
+        /// to [`HipaaAccountNumbers::Standard`] (bank account +
+        /// IBAN + payment card). Pick
+        /// [`HipaaAccountNumbers::Extended`] to add crypto wallet
+        /// addresses under the §(R) catch-all reading.
+        #[serde(default)]
+        accounts: HipaaAccountNumbers,
+    },
     /// GDPR Article 9 special categories of personal data,
-    /// optionally widened with Recital 26 re-identification
-    /// hardening (`date_of_birth`, `postal_code`) or Article 10
-    /// criminal-justice labels (`criminal_record`,
-    /// `criminal_charge`, `judicial_narrative`). See
-    /// [`GdprArticle9`] for the config axes.
-    GdprArticle9(GdprArticle9),
+    /// optionally widened with re-identification quasi-identifiers
+    /// or Article 10 criminal-justice labels.
+    GdprArticle9 {
+        /// Which operator to apply to matches. See
+        /// [`GdprArticle9Treatment`] for the tradeoff.
+        treatment: GdprArticle9Treatment,
+        /// Which sensitive-data labels to cover. Defaults to
+        /// [`GdprSensitiveScope::Article9`] (nine Article 9(1)
+        /// categories only). Pick
+        /// [`GdprSensitiveScope::Article9WithReidHardening`] to add
+        /// the quasi-identifier set, or
+        /// [`GdprSensitiveScope::Article9And10`] to also cover
+        /// Article 10 criminal-justice data.
+        #[serde(default)]
+        scope: GdprSensitiveScope,
+    },
     /// PCI DSS. `part` picks between §3.5.1 stored-PAN render
     /// postures (with a nested [`PciPanRender`] choice) and
     /// §3.3.1 Sensitive Authentication Data erasure.
@@ -118,8 +138,8 @@ impl PolicyTemplate {
     #[must_use]
     pub fn build(self) -> Template {
         match self {
-            Self::HipaaDeidentification(cfg) => cfg.template(),
-            Self::GdprArticle9(cfg) => cfg.template(),
+            Self::HipaaDeidentification { method, accounts } => hipaa::template(method, accounts),
+            Self::GdprArticle9 { treatment, scope } => gdpr::template(treatment, scope),
             Self::PciDss { part } => pci::template(part),
             Self::Ccpa => ccpa::template(),
         }

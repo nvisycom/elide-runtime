@@ -15,8 +15,8 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-pub use self::gdpr::{GdprArticle9, GdprArticle9Treatment, GdprSensitiveScope};
-pub use self::hipaa::{HipaaAccountNumbers, HipaaDeidMethod, HipaaDeidentification};
+pub use self::gdpr::{GdprArticle9Treatment, GdprSensitiveScope};
+pub use self::hipaa::{HipaaAccountNumbers, HipaaDeidMethod};
 pub use self::pci::{PciDssPart, PciPanRender};
 
 /// A regulatory posture packaged as engine-ready data.
@@ -47,10 +47,9 @@ pub use self::pci::{PciDssPart, PciPanRender};
 /// - [`version`] — semver-tracked version of *this* template,
 ///   distinct from the crate's release version. A change to the
 ///   shipped labelset or operator dispatch bumps this field.
-///   Multiple versions of the same [`id`] can coexist in a
-///   [`TemplateCatalog`] simultaneously — a customer transitioning
-///   between regulatory revisions might hold `v1` and `v2` at
-///   once and pin per document class.
+///   Multiple versions of the same [`id`] can coexist — a customer
+///   transitioning between regulatory revisions might hold `v1` and
+///   `v2` at once and pin per document class.
 /// - [`effective_date`] — the date the regulatory text this
 ///   template encodes became effective (not the date the
 ///   template was authored). Reviewers reading an audit trail
@@ -61,7 +60,6 @@ pub use self::pci::{PciDssPart, PciPanRender};
 /// [`LabelGroup`]: elide_governance::LabelGroup
 /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
 /// [`PolicyDefinition::groups`]: elide_governance::PolicyDefinition::groups
-/// [`TemplateCatalog`]: super::TemplateCatalog
 /// [`description`]: Self::description
 /// [`effective_date`]: Self::effective_date
 /// [`id`]: Self::id

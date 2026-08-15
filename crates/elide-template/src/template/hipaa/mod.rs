@@ -98,33 +98,14 @@ pub enum HipaaDeidMethod {
     ExpertDetermination,
 }
 
-/// The HIPAA §164.514 template config — method axis fused with
-/// account-identifier axis. Carried directly by
+/// Build the §164.514 template for `method` at the given account
+/// tier. Dispatched from
 /// [`crate::PolicyTemplate::HipaaDeidentification`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct HipaaDeidentification {
-    /// Which §164.514 method to apply. See [`HipaaDeidMethod`]
-    /// for the tradeoff.
-    pub method: HipaaDeidMethod,
-    /// Which §(J) account-identifier labels to remove. Defaults
-    /// to [`HipaaAccountNumbers::Standard`] (bank account +
-    /// IBAN + payment card). Pick
-    /// [`HipaaAccountNumbers::Extended`] to add crypto wallet
-    /// addresses under the §(R) catch-all reading.
-    #[serde(default)]
-    pub accounts: HipaaAccountNumbers,
-}
-
-impl HipaaDeidentification {
-    /// Build the §164.514 template for this config.
-    pub(crate) fn template(self) -> Template {
-        match self.method {
-            HipaaDeidMethod::SafeHarbor => safe_harbor_template(self.accounts),
-            HipaaDeidMethod::LimitedDataSet => limited_data_set_template(self.accounts),
-            HipaaDeidMethod::ExpertDetermination => expert_determination_template(self.accounts),
-        }
+pub(crate) fn template(method: HipaaDeidMethod, accounts: HipaaAccountNumbers) -> Template {
+    match method {
+        HipaaDeidMethod::SafeHarbor => safe_harbor_template(accounts),
+        HipaaDeidMethod::LimitedDataSet => limited_data_set_template(accounts),
+        HipaaDeidMethod::ExpertDetermination => expert_determination_template(accounts),
     }
 }
 
@@ -153,12 +134,7 @@ mod tests {
 
     #[test]
     fn safe_harbor_special_dispatch_rule_precedes_bulk_erase() {
-        let policy = &HipaaDeidentification {
-            method: HipaaDeidMethod::SafeHarbor,
-            accounts: HipaaAccountNumbers::default(),
-        }
-        .template()
-        .policy;
+        let policy = &template(HipaaDeidMethod::SafeHarbor, HipaaAccountNumbers::default()).policy;
         assert!(
             matches!(&policy.rules[0].dispatch, RuleDispatch::Table { .. }),
             "table rule must fire first so `age` and dates reach their generalizers",
@@ -171,14 +147,11 @@ mod tests {
 
     #[test]
     fn safe_harbor_table_rule_dispatches_age_to_clamp_and_dates_to_generalize() {
-        let RuleDispatch::Table { operators } = &HipaaDeidentification {
-            method: HipaaDeidMethod::SafeHarbor,
-            accounts: HipaaAccountNumbers::default(),
-        }
-        .template()
-        .policy
-        .rules[0]
-            .dispatch
+        let RuleDispatch::Table { operators } =
+            &template(HipaaDeidMethod::SafeHarbor, HipaaAccountNumbers::default())
+                .policy
+                .rules[0]
+                .dispatch
         else {
             panic!("first rule must be Table dispatch");
         };
@@ -242,11 +215,7 @@ mod tests {
             HipaaDeidMethod::LimitedDataSet,
             HipaaDeidMethod::ExpertDetermination,
         ] {
-            let extended = HipaaDeidentification {
-                method,
-                accounts: HipaaAccountNumbers::Extended,
-            }
-            .template();
+            let extended = template(method, HipaaAccountNumbers::Extended);
             for want in ["bank_account", "iban", "payment_card", "crypto_address"] {
                 assert!(
                     extended
@@ -258,11 +227,7 @@ mod tests {
                     "{method:?} Extended must carry `{want}` in policy builtins",
                 );
             }
-            let standard = HipaaDeidentification {
-                method,
-                accounts: HipaaAccountNumbers::Standard,
-            }
-            .template();
+            let standard = template(method, HipaaAccountNumbers::Standard);
             assert!(
                 !standard
                     .policy
@@ -297,21 +262,9 @@ mod tests {
     #[test]
     fn every_method_ships_a_distinct_policy_identity() {
         let accounts = HipaaAccountNumbers::default();
-        let sh = HipaaDeidentification {
-            method: HipaaDeidMethod::SafeHarbor,
-            accounts,
-        }
-        .template();
-        let lds = HipaaDeidentification {
-            method: HipaaDeidMethod::LimitedDataSet,
-            accounts,
-        }
-        .template();
-        let ed = HipaaDeidentification {
-            method: HipaaDeidMethod::ExpertDetermination,
-            accounts,
-        }
-        .template();
+        let sh = template(HipaaDeidMethod::SafeHarbor, accounts);
+        let lds = template(HipaaDeidMethod::LimitedDataSet, accounts);
+        let ed = template(HipaaDeidMethod::ExpertDetermination, accounts);
         // Distinct template ids and policy ids across all three
         // — audits key on these to tell the postures apart.
         for (a, b) in [(&sh, &lds), (&sh, &ed), (&lds, &ed)] {
@@ -325,11 +278,10 @@ mod tests {
         // The whole point of the ED scaffold vs Safe Harbor is
         // that the bulk terminal is Pseudonymize (identity-
         // preserving), not Erase.
-        let RuleDispatch::Predicated { action, .. } = &HipaaDeidentification {
-            method: HipaaDeidMethod::ExpertDetermination,
-            accounts: HipaaAccountNumbers::default(),
-        }
-        .template()
+        let RuleDispatch::Predicated { action, .. } = &template(
+            HipaaDeidMethod::ExpertDetermination,
+            HipaaAccountNumbers::default(),
+        )
         .policy
         .rules[1]
             .dispatch
@@ -347,8 +299,8 @@ mod tests {
             HipaaDeidMethod::LimitedDataSet,
             HipaaDeidMethod::ExpertDetermination,
         ] {
-            let a = HipaaDeidentification { method, accounts }.template();
-            let b = HipaaDeidentification { method, accounts }.template();
+            let a = template(method, accounts);
+            let b = template(method, accounts);
             assert_eq!(a.id, b.id);
             assert_eq!(a.policy.id, b.policy.id);
             for (r_a, r_b) in a.policy.rules.iter().zip(b.policy.rules.iter()) {

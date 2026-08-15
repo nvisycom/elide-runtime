@@ -33,7 +33,6 @@
 //!
 //! [`Predicated`]: elide_governance::RuleDispatch::Predicated
 
-use elide_core::entity::LabelRef;
 use jiff::civil::Date;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -74,42 +73,12 @@ pub enum GdprArticle9Treatment {
     Pseudonymize,
 }
 
-/// The GDPR Article 9 template config — treatment axis fused
-/// with sensitive-scope axis. Carried directly by
-/// [`crate::PolicyTemplate::GdprArticle9`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct GdprArticle9 {
-    /// Which operator to apply to matches. See
-    /// [`GdprArticle9Treatment`] for the tradeoff.
-    pub treatment: GdprArticle9Treatment,
-    /// Which sensitive-data labels to cover. Defaults to
-    /// [`GdprSensitiveScope::Article9`] (nine Article 9(1)
-    /// categories only). Pick
-    /// [`GdprSensitiveScope::Article9WithReidHardening`] to add
-    /// the quasi-identifier set, or
-    /// [`GdprSensitiveScope::Article9And10`] to also cover
-    /// Article 10 criminal-justice data.
-    #[serde(default)]
-    pub scope: GdprSensitiveScope,
-}
-
-impl GdprArticle9 {
-    /// Build the Article 9 template for this config.
-    pub(crate) fn template(self) -> Template {
-        match self.treatment {
-            GdprArticle9Treatment::Erase => erase::template(self),
-            GdprArticle9Treatment::Pseudonymize => pseudonymize::template(self),
-        }
-    }
-
-    /// The full label set this config covers. Delegates to
-    /// `scope.labels()` since the treatment axis doesn't affect
-    /// label membership; kept as a method on the config type for
-    /// symmetry with the HIPAA config.
-    pub(super) fn labels(self) -> Vec<LabelRef> {
-        self.scope.labels()
+/// Build the Article 9 template for `treatment` over `scope`.
+/// Dispatched from [`crate::PolicyTemplate::GdprArticle9`].
+pub(crate) fn template(treatment: GdprArticle9Treatment, scope: GdprSensitiveScope) -> Template {
+    match treatment {
+        GdprArticle9Treatment::Erase => erase::template(scope),
+        GdprArticle9Treatment::Pseudonymize => pseudonymize::template(scope),
     }
 }
 
@@ -128,10 +97,6 @@ mod tests {
 
     use super::sensitive_scope::GDPR_LABELS;
     use super::*;
-
-    fn cfg(treatment: GdprArticle9Treatment, scope: GdprSensitiveScope) -> GdprArticle9 {
-        GdprArticle9 { treatment, scope }
-    }
 
     #[test]
     fn every_article_9_category_has_at_least_one_label() {
@@ -159,8 +124,8 @@ mod tests {
 
     #[test]
     fn erase_treatment_uses_erase_action() {
-        let template = cfg(GdprArticle9Treatment::Erase, GdprSensitiveScope::default()).template();
-        let RuleDispatch::Predicated { action, .. } = &template.policy.rules[0].dispatch else {
+        let built = template(GdprArticle9Treatment::Erase, GdprSensitiveScope::default());
+        let RuleDispatch::Predicated { action, .. } = &built.policy.rules[0].dispatch else {
             panic!("expected Predicated dispatch");
         };
         assert!(matches!(action.text, Some(TextRedaction::Erase)));
@@ -168,12 +133,11 @@ mod tests {
 
     #[test]
     fn pseudonymize_treatment_uses_pseudonymize_action() {
-        let template = cfg(
+        let built = template(
             GdprArticle9Treatment::Pseudonymize,
             GdprSensitiveScope::default(),
-        )
-        .template();
-        let RuleDispatch::Predicated { action, .. } = &template.policy.rules[0].dispatch else {
+        );
+        let RuleDispatch::Predicated { action, .. } = &built.policy.rules[0].dispatch else {
             panic!("expected Predicated dispatch");
         };
         assert!(matches!(action.text, Some(TextRedaction::Pseudonymize)));
@@ -182,8 +146,8 @@ mod tests {
     #[test]
     fn treatments_ship_distinct_policy_identities() {
         let scope = GdprSensitiveScope::default();
-        let e = cfg(GdprArticle9Treatment::Erase, scope).template();
-        let p = cfg(GdprArticle9Treatment::Pseudonymize, scope).template();
+        let e = template(GdprArticle9Treatment::Erase, scope);
+        let p = template(GdprArticle9Treatment::Pseudonymize, scope);
         assert_ne!(e.id, p.id);
         assert_ne!(e.policy.id, p.policy.id);
     }
@@ -195,8 +159,8 @@ mod tests {
             GdprArticle9Treatment::Erase,
             GdprArticle9Treatment::Pseudonymize,
         ] {
-            let a = cfg(treatment, scope).template();
-            let b = cfg(treatment, scope).template();
+            let a = template(treatment, scope);
+            let b = template(treatment, scope);
             assert_eq!(a.id, b.id);
             assert_eq!(a.policy.id, b.policy.id);
             assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);

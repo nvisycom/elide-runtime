@@ -13,8 +13,8 @@ use bytes::Bytes;
 use elide::redaction::operators::StaticKey;
 use elide_pipeline::{Engine, KeyProvider};
 use elide_template::{
-    GdprArticle9, GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod,
-    HipaaDeidentification, PciDssPart, PciPanRender, PolicyTemplate, Template,
+    GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
+    PciPanRender, PolicyTemplate, Template,
 };
 use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
@@ -63,10 +63,10 @@ async fn apply(engine: &Engine, template: Template) -> String {
 
 #[tokio::test]
 async fn hipaa_safe_harbor_erases_contact_info_from_sample() {
-    let template = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
+    let template = PolicyTemplate::HipaaDeidentification {
         method: HipaaDeidMethod::SafeHarbor,
         accounts: HipaaAccountNumbers::Standard,
-    })
+    }
     .build();
     let body = apply(&engine(), template).await;
     // The sample carries an email, a phone, and an SSN — every
@@ -100,10 +100,10 @@ async fn hipaa_limited_data_set_erases_contact_info_from_sample() {
     // `elide-template`'s unit tests. This test's job is to
     // confirm the LDS template wires end-to-end through the
     // engine and erases what §164.514(e)(2) tells it to.
-    let template = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
+    let template = PolicyTemplate::HipaaDeidentification {
         method: HipaaDeidMethod::LimitedDataSet,
         accounts: HipaaAccountNumbers::Standard,
-    })
+    }
     .build();
     let body = apply(&engine(), template).await;
     assert!(
@@ -127,10 +127,10 @@ async fn hipaa_expert_determination_pseudonymizes_contact_info_from_sample() {
     // value is random. The unit tests prove the operator wiring;
     // this test confirms end-to-end that the scaffold analyzes
     // and anonymizes the sample.
-    let template = PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
+    let template = PolicyTemplate::HipaaDeidentification {
         method: HipaaDeidMethod::ExpertDetermination,
         accounts: HipaaAccountNumbers::Standard,
-    })
+    }
     .build();
     let body = apply(&engine(), template).await;
     assert!(
@@ -156,10 +156,10 @@ async fn gdpr_article_9_leaves_non_special_categories_alone() {
     // the input.
     let body = apply(
         &engine(),
-        PolicyTemplate::GdprArticle9(GdprArticle9 {
+        PolicyTemplate::GdprArticle9 {
             treatment: GdprArticle9Treatment::Erase,
             scope: GdprSensitiveScope::Article9,
-        })
+        }
         .build(),
     )
     .await;

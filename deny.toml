@@ -76,5 +76,5 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # until their crates publish to crates.io. Scoped to these repos on purpose.
 allow-git = [
     "https://github.com/nvisycom/elide",
-    "https://github.com/nvisycom/bento",
+    "https://github.com/nvisycom/elide-bento",
 ]

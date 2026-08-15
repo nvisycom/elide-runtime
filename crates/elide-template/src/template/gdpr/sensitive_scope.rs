@@ -13,11 +13,15 @@ use serde::{Deserialize, Serialize};
 /// - [`Article9`](Self::Article9) — the nine Article 9(1)
 ///   special categories only. The default.
 /// - [`Article9WithReidHardening`](Self::Article9WithReidHardening) —
-///   Article 9 plus `date_of_birth` and `postal_code`. The two
-///   quasi-identifiers Recital 26 highlights as re-identification
-///   vectors when combined with special-category data. Non-
-///   binding guidance, but reflects supervisory-authority
-///   expectations on pseudonymization robustness.
+///   Article 9 plus `date_of_birth` and `postal_code`. A
+///   product-defined starting tier, not a complete answer to
+///   Recital 26: the Recital sets a reasonableness test over "all
+///   the means reasonably likely to be used" to re-identify, which
+///   depends on the caller's data and adversary, so no fixed label
+///   list can satisfy it. These two are the quasi-identifiers that
+///   most often carry a join risk against public datasets. Callers
+///   whose threat model reaches wider extend the policy after
+///   building it.
 /// - [`Article9And10`](Self::Article9And10) — Article 9 + Recital
 ///   26 hardening + Article 10's criminal-justice labels
 ///   (`criminal_record`, `criminal_charge`, `judicial_narrative`).
@@ -36,10 +40,10 @@ pub enum GdprSensitiveScope {
     /// data.
     #[default]
     Article9,
-    /// Article 9 plus `date_of_birth` and `postal_code`. Adds
-    /// Recital 26's two flagged quasi-identifiers so pseudonymized
-    /// output is harder to re-identify via joins against public
-    /// datasets.
+    /// Article 9 plus `date_of_birth` and `postal_code`, so
+    /// pseudonymized output is harder to re-identify via joins
+    /// against public datasets. A product-defined tier rather than
+    /// a complete Recital 26 posture — see the type docstring.
     Article9WithReidHardening,
     /// Article 9 + Recital 26 hardening + Article 10
     /// criminal-justice labels (`criminal_record`,
@@ -49,7 +53,7 @@ pub enum GdprSensitiveScope {
 
 impl GdprSensitiveScope {
     /// The label set this scope covers: Article 9(1) always,
-    /// plus Recital 26 quasi-identifiers or Article 10
+    /// plus the re-identification quasi-identifiers or Article 10
     /// criminal-justice labels as the tier widens.
     pub(crate) fn labels(self) -> Vec<LabelRef> {
         let mut labels: Vec<LabelRef> = GDPR_LABELS.to_vec();
@@ -71,9 +75,12 @@ impl GdprSensitiveScope {
 /// 9(1) categories. `pub(super)` so the erase / pseudonymize
 /// posture modules can also assert on membership in tests.
 pub(super) const GDPR_LABELS: &[LabelRef] = &[
-    // Racial or ethnic origin
+    // Racial or ethnic origin. `nationality` is deliberately absent:
+    // Article 9(1) covers ethnic origin, while nationality is a legal
+    // status that the GDPR treats as ordinary personal data. Callers
+    // whose threat model ties the two together add the label to their
+    // own policy rather than inheriting it from this default.
     LabelRef::from_static("ethnicity"),
-    LabelRef::from_static("nationality"),
     // Political opinions
     LabelRef::from_static("political_opinion"),
     // Religious or philosophical beliefs
@@ -101,9 +108,14 @@ pub(super) const GDPR_LABELS: &[LabelRef] = &[
     LabelRef::from_static("sexual_orientation"),
 ];
 
-/// Quasi-identifiers Recital 26 flags as re-identification
-/// vectors when combined with special-category data. Added by
+/// Quasi-identifiers that most often carry a re-identification
+/// join risk when combined with special-category data. Added by
 /// the `Article9WithReidHardening` and `Article9And10` scopes.
+///
+/// A product-defined pair, not an enumeration from Recital 26 —
+/// the Recital states a reasonableness test rather than naming
+/// fields, so treat this as a floor to extend against a real
+/// threat model, not a sufficient hardening set.
 const RECITAL_26_LABELS: &[LabelRef] = &[
     LabelRef::from_static("date_of_birth"),
     LabelRef::from_static("postal_code"),

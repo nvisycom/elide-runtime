@@ -49,11 +49,9 @@ pub enum Predicate {
     /// Entity label is in the named [`LabelGroup`] declared by
     /// the same [`PolicyDefinition`] this rule lives in.
     ///
-    /// Sugar over [`TagOneOf`]`{ tags: ["group:<policy_id>:<name>"] }`:
-    /// the engine synthesises a `group:<policy_id>:<name>` tag on
-    /// every label listed in the matching group at request-compile
-    /// time, then rewrites `LabelInGroup { group }` to that
-    /// `TagOneOf` form. Same fast path as any authored tag; the
+    /// Evaluated by looking the group name up in the declaring
+    /// policy's group table and testing the entity's label for
+    /// membership. Nothing is stamped onto the label catalog. The
     /// group indirection keeps the wire compact when templates
     /// target a canonical label cluster (e.g. `hipaa_18`,
     /// `gdpr_article_9`).
@@ -66,7 +64,6 @@ pub enum Predicate {
     /// [`PolicyDefinition`]: super::PolicyDefinition
     ///
     /// [`LabelGroup`]: super::LabelGroup
-    /// [`TagOneOf`]: Predicate::TagOneOf
     LabelInGroup {
         /// Name of the [`LabelGroup`] to match against.
         ///

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Only one STT enricher attaches per audio analyzer today (an
 /// elide constraint on `Enricher<Audio>`); the wire keeps a
 /// `Vec` for symmetry with recognizer lineups, and the engine
-/// rejects `enrichers.len() != 1` at compile time.
+/// rejects `enrichers.len() > 1` at compile time.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SttEnricherConfig {

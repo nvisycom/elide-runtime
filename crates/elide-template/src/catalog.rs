@@ -36,11 +36,12 @@ use super::{
 /// # Serialisation
 ///
 /// Serialises as a flat `Vec<Template>` on the wire (via
-/// [`serde`]'s `from`/`into` shim) so discovery endpoints emit
+/// [`serde`]'s `try_from`/`into` shim) so discovery endpoints emit
 /// `[template, template, ...]` rather than a nested map keyed
 /// by tuple. Deserialising the same JSON rebuilds the
 /// `(id, version)` index. Two templates with the same
-/// `(id, version)` deserialise as last-wins.
+/// `(id, version)` deserialise as last-wins; a template with a
+/// malformed id fails the whole payload.
 ///
 /// The `into = "Vec<Template>"` serialize shim moves each stored
 /// template out of the catalog when it can and deep-clones when
@@ -57,7 +58,7 @@ use super::{
 /// [`latest`]: Self::latest
 /// [`versions_of`]: Self::versions_of
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(from = "Vec<Template>", into = "Vec<Template>")]
+#[serde(try_from = "Vec<Template>", into = "Vec<Template>")]
 pub struct TemplateCatalog {
     templates: BTreeMap<TemplateKey, Arc<Template>>,
 }
@@ -77,6 +78,60 @@ struct TemplateKey {
     version: Version,
 }
 
+/// Every `(kind, options)` pairing shipped by [`TemplateCatalog::builtin`].
+///
+/// Module-scoped so tests can count the shipped set independently of
+/// the catalog built from it: comparing `catalog.len()` against a count
+/// derived from that same catalog cannot detect two pairings colliding
+/// on `(id, version)`, since the collision shrinks both sides together.
+const SHIPPED: &[PolicyTemplate] = &[
+    PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
+        method: HipaaDeidMethod::SafeHarbor,
+        accounts: HipaaAccountNumbers::Standard,
+    }),
+    PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
+        method: HipaaDeidMethod::LimitedDataSet,
+        accounts: HipaaAccountNumbers::Standard,
+    }),
+    PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
+        method: HipaaDeidMethod::ExpertDetermination,
+        accounts: HipaaAccountNumbers::Standard,
+    }),
+    PolicyTemplate::GdprArticle9(GdprArticle9 {
+        treatment: GdprArticle9Treatment::Erase,
+        scope: GdprSensitiveScope::Article9,
+    }),
+    PolicyTemplate::GdprArticle9(GdprArticle9 {
+        treatment: GdprArticle9Treatment::Pseudonymize,
+        scope: GdprSensitiveScope::Article9,
+    }),
+    PolicyTemplate::PciDss {
+        part: PciDssPart::PanRender {
+            render: PciPanRender::Truncate,
+        },
+    },
+    PolicyTemplate::PciDss {
+        part: PciDssPart::PanRender {
+            render: PciPanRender::TruncateLastFour,
+        },
+    },
+    PolicyTemplate::PciDss {
+        part: PciDssPart::PanRender {
+            render: PciPanRender::HmacSha256,
+        },
+    },
+    PolicyTemplate::PciDss {
+        part: PciDssPart::PanRender {
+            render: PciPanRender::HmacSha512,
+        },
+    },
+    PolicyTemplate::PciDss {
+        part: PciDssPart::SavErase,
+    },
+    PolicyTemplate::Ccpa,
+    PolicyTemplate::Soc2Secrets,
+];
+
 impl TemplateCatalog {
     /// Empty catalog. Grow via [`insert`].
     ///
@@ -94,53 +149,6 @@ impl TemplateCatalog {
     /// [`insert`]: Self::insert
     #[must_use]
     pub fn builtin() -> Self {
-        const SHIPPED: &[PolicyTemplate] = &[
-            PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
-                method: HipaaDeidMethod::SafeHarbor,
-                accounts: HipaaAccountNumbers::Standard,
-            }),
-            PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
-                method: HipaaDeidMethod::LimitedDataSet,
-                accounts: HipaaAccountNumbers::Standard,
-            }),
-            PolicyTemplate::HipaaDeidentification(HipaaDeidentification {
-                method: HipaaDeidMethod::ExpertDetermination,
-                accounts: HipaaAccountNumbers::Standard,
-            }),
-            PolicyTemplate::GdprArticle9(GdprArticle9 {
-                treatment: GdprArticle9Treatment::Erase,
-                scope: GdprSensitiveScope::Article9,
-            }),
-            PolicyTemplate::GdprArticle9(GdprArticle9 {
-                treatment: GdprArticle9Treatment::Pseudonymize,
-                scope: GdprSensitiveScope::Article9,
-            }),
-            PolicyTemplate::PciDss {
-                part: PciDssPart::PanRender {
-                    render: PciPanRender::Truncate,
-                },
-            },
-            PolicyTemplate::PciDss {
-                part: PciDssPart::PanRender {
-                    render: PciPanRender::TruncateLastFour,
-                },
-            },
-            PolicyTemplate::PciDss {
-                part: PciDssPart::PanRender {
-                    render: PciPanRender::HmacSha256,
-                },
-            },
-            PolicyTemplate::PciDss {
-                part: PciDssPart::PanRender {
-                    render: PciPanRender::HmacSha512,
-                },
-            },
-            PolicyTemplate::PciDss {
-                part: PciDssPart::SavErase,
-            },
-            PolicyTemplate::Ccpa,
-            PolicyTemplate::Soc2Secrets,
-        ];
         let mut catalog = Self::new();
         for template in SHIPPED {
             // The shipped templates validate by construction —
@@ -268,19 +276,20 @@ fn validate_id(id: &str) -> Result<()> {
     Ok(())
 }
 
-impl From<Vec<Template>> for TemplateCatalog {
-    /// Deserialize path. Templates with malformed ids are
-    /// silently dropped — deserialize can't return `Result` from
-    /// a `From` impl, and the alternative (panic) is worse than
-    /// dropping a bad row from a wire payload. Callers who need
-    /// strict rejection use [`TemplateCatalog::insert`] directly
-    /// with an already-parsed `Vec<Template>`.
-    fn from(templates: Vec<Template>) -> Self {
+impl TryFrom<Vec<Template>> for TemplateCatalog {
+    type Error = Error;
+
+    /// Deserialize path. A template with a malformed id fails the
+    /// whole payload rather than being dropped: a catalog that
+    /// silently omits a row looks identical to one that never
+    /// carried it, and a discovery endpoint serving the result
+    /// would under-report what the caller sent.
+    fn try_from(templates: Vec<Template>) -> Result<Self> {
         let mut catalog = Self::new();
         for template in templates {
-            let _ = catalog.insert(template);
+            catalog.insert(template)?;
         }
-        catalog
+        Ok(catalog)
     }
 }
 
@@ -306,18 +315,41 @@ mod tests {
     fn builtin_pairings_do_not_collide_on_id_version() {
         // Every shipped `(kind, options)` pairing must land in
         // its own `(id, version)` slot — else two pairings share
-        // a key and `builtin()` silently drops one. Counts the
-        // distinct ids the shipped set produces and asserts the
-        // catalog holds all of them.
+        // a key and `builtin()` silently drops one. Compare
+        // against `SHIPPED`, the independent source: deriving the
+        // expected count from the built catalog would shrink in
+        // lockstep with the collision and never fail.
         let catalog = TemplateCatalog::builtin();
-        let distinct_ids: std::collections::HashSet<HipStr<'static>> =
-            catalog.iter().map(|t| t.id.clone()).collect();
         assert_eq!(
             catalog.len(),
-            distinct_ids.len(),
+            SHIPPED.len(),
             "two shipped `(kind, options)` pairings collide on \
              `(id, version)` — `builtin()` silently dropped one",
         );
+    }
+
+    #[test]
+    fn malformed_id_fails_deserialization() {
+        // A bad id must fail the payload rather than vanish from
+        // it: a catalog that silently drops a row is
+        // indistinguishable from one that never carried it.
+        let mut template = SHIPPED[0].build();
+        template.id = HipStr::from("Not Snake Case!");
+        let json = serde_json::to_string(&vec![template]).expect("serialize");
+        let err = serde_json::from_str::<TemplateCatalog>(&json)
+            .expect_err("malformed id should fail deserialization");
+        assert!(
+            err.to_string().contains("Not Snake Case!"),
+            "expected the id-validation error, got: {err}",
+        );
+    }
+
+    #[test]
+    fn valid_payload_round_trips() {
+        let catalog = TemplateCatalog::builtin();
+        let json = serde_json::to_string(&catalog).expect("serialize");
+        let restored: TemplateCatalog = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(restored.len(), catalog.len());
     }
 
     #[test]

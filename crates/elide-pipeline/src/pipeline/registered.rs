@@ -44,7 +44,16 @@ pub struct RegisteredRecognizer {
     pub description: Option<HipStr<'static>>,
     /// Provider slug. NER: `"bento"`, `"mock"`. LLM: `"openai"`,
     /// `"anthropic"`, `"gemini"`, `"ollama"`, `"mock"`.
-    pub provider: &'static str,
+    ///
+    /// Owned so the type deserializes from a runtime buffer: a
+    /// `&'static str` field would make the derive emit
+    /// `Deserialize<'static>` only, which compiles against string
+    /// literals but not against an owned `String` or a reader —
+    /// the shapes a host actually decodes from. Borrowing a
+    /// `&'static str` into a [`HipStr`] does not allocate, so
+    /// engine-side construction stays free.
+    #[schemars(with = "String")]
+    pub provider: HipStr<'static>,
 }
 
 impl From<&NerRecognizerConfig> for RegisteredRecognizer {
@@ -52,7 +61,7 @@ impl From<&NerRecognizerConfig> for RegisteredRecognizer {
         Self {
             name: r.name.clone(),
             description: r.description.clone(),
-            provider: r.backend.provider(),
+            provider: HipStr::from(r.backend.provider()),
         }
     }
 }
@@ -62,7 +71,7 @@ impl From<&LlmRecognizerConfig> for RegisteredRecognizer {
         Self {
             name: r.name.clone(),
             description: r.description.clone(),
-            provider: r.source.provider(),
+            provider: HipStr::from(r.source.provider()),
         }
     }
 }
@@ -77,7 +86,7 @@ impl From<&OcrEnricherConfig> for RegisteredRecognizer {
         Self {
             name: e.name.clone(),
             description: e.description.clone(),
-            provider: e.backend.provider(),
+            provider: HipStr::from(e.backend.provider()),
         }
     }
 }
@@ -87,7 +96,7 @@ impl From<&SttEnricherConfig> for RegisteredRecognizer {
         Self {
             name: e.name.clone(),
             description: e.description.clone(),
-            provider: e.backend.provider(),
+            provider: HipStr::from(e.backend.provider()),
         }
     }
 }

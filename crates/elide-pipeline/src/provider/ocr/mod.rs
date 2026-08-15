@@ -27,7 +27,7 @@ pub use self::enricher::{OcrBackend, OcrEnricherConfig};
 /// Only one OCR enricher attaches per image analyzer today (an
 /// elide constraint on `Enricher<Image>`). The lineup shape
 /// mirrors [`super::ner::NerConfig`] for wire symmetry; the
-/// engine rejects `enrichers.len() != 1` at compile time.
+/// engine rejects `enrichers.len() > 1` at compile time.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OcrConfig {

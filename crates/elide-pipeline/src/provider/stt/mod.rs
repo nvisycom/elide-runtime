@@ -28,7 +28,7 @@ pub use self::enricher::{SttBackend, SttEnricherConfig};
 /// Only one STT enricher attaches per audio analyzer today (an
 /// elide constraint on `Enricher<Audio>`). The lineup shape
 /// mirrors [`super::ner::NerConfig`] for wire symmetry; the
-/// engine rejects `enrichers.len() != 1` at compile time.
+/// engine rejects `enrichers.len() > 1` at compile time.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SttConfig {

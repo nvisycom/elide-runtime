@@ -12,16 +12,12 @@
 //!   on the policy that declares it. Templates ship groups
 //!   (`"hipaa_18"`, `"gdpr_article_9"`, `"pci_chd"`); rules
 //!   inside the same policy reference groups by name via
-//!   [`Predicate::LabelInGroup`]. Engine synthesises a
-//!   `group:<policy_id>:<name>` tag on every listed label at
-//!   request time and rewrites [`LabelInGroup`] to
-//!   [`TagOneOf`]`{ tags: ["group:<policy_id>:<name>"] }` — same
-//!   fast path as any tag-based rule.
+//!   [`Predicate::LabelInGroup`]. Membership resolves when the
+//!   predicate is evaluated, against the group table the policy
+//!   carries — the catalog stays untouched.
 //!
 //! [`PolicyDefinition`]: super::PolicyDefinition
 //! [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
-//! [`LabelInGroup`]: super::predicate::Predicate::LabelInGroup
-//! [`TagOneOf`]: super::predicate::Predicate::TagOneOf
 
 use elide_core::entity::{Label, LabelRef};
 use hipstr::HipStr;
@@ -36,8 +32,9 @@ use serde::{Deserialize, Serialize};
 pub struct Labels {
     /// Builtin label names to enable.
     ///
-    /// E.g. `"email_address"`, `"phone_number"`. Unknown names
-    /// log a warning and are skipped.
+    /// E.g. `"email_address"`, `"phone_number"`. An unknown name
+    /// is rejected at request compile time — a typo fails loudly
+    /// rather than quietly dropping the label from the policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub builtins: Vec<LabelRef>,
     /// Custom labels defined inline by the caller.
@@ -65,15 +62,12 @@ impl Labels {
 /// to a category, extending the group covers every rule that
 /// referenced it — no rule edit.
 ///
-/// **Compilation**: at request time the engine synthesises a
-/// `group:<policy_id>:<name>` tag on every label listed in the
-/// group, then rewrites [`Predicate::LabelInGroup { group }`]
-/// into [`Predicate::TagOneOf { tags: ["group:<policy_id>:<name>"] }`].
-/// That routes through the same `Anonymizer::with_tag` fast
-/// path as any authored tag — no new engine machinery, no
-/// per-request walk over group membership. Scoping the tag by
-/// `policy_id` keeps two policies that both declare `hipaa_18`
-/// with different labelsets from stepping on each other.
+/// **Compilation**: groups stay on the policy. Evaluating a
+/// [`Predicate::LabelInGroup { group }`] looks the name up in
+/// the policy's own group table and tests the entity's label for
+/// membership. Nothing is stamped onto the label catalog, so two
+/// policies that both declare `hipaa_18` with different labelsets
+/// cannot step on each other.
 ///
 /// **Unknown group names error at request validation**, not at
 /// apply time. A typo doesn't silently underfire.
@@ -81,7 +75,6 @@ impl Labels {
 /// [`PolicyDefinition`]: super::PolicyDefinition
 /// [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
 /// [`Predicate::LabelInGroup { group }`]: super::predicate::Predicate::LabelInGroup
-/// [`Predicate::TagOneOf { tags: ["group:<policy_id>:<name>"] }`]: super::predicate::Predicate::TagOneOf
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelGroup {
@@ -89,8 +82,7 @@ pub struct LabelGroup {
     ///
     /// Free-form; a policy layer picks the vocabulary. Recommend
     /// snake_case identifiers (`hipaa_18`, `gdpr_article_9`) —
-    /// they compile to `group:hipaa_18` tags on the catalog and
-    /// read cleanly in audit provenance.
+    /// they read cleanly in audit provenance.
     ///
     /// [`Predicate::LabelInGroup`]: super::predicate::Predicate::LabelInGroup
     #[schemars(with = "String")]

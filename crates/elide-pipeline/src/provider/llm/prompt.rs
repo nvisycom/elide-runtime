@@ -14,10 +14,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "source", rename_all = "snake_case")]
 pub enum LlmPrompt {
-    /// Load the Jinja2 template from a file on disk. Resolved
-    /// relative to the config file's directory (or absolute if
-    /// the path is absolute). File is read at analyzer compile
-    /// time.
+    /// Load the Jinja2 template from a file on disk. The path is
+    /// passed through as written and read at analyzer compile
+    /// time, so a relative path resolves against the *process*
+    /// working directory, not the config file's directory. Deploy
+    /// with absolute paths unless the host pins its own cwd.
     File {
         /// Path to the template file. Extensions like `.j2` /
         /// `.jinja2` are conventional but not required.

@@ -52,7 +52,7 @@
 
 use elide_core::entity::LabelRef;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch};
+use elide_governance::{LabelScope, PolicyDefinition};
 use elide_operator::operators::Sha2Algorithm;
 use jiff::civil::Date;
 use schemars::JsonSchema;
@@ -159,15 +159,10 @@ const V4_EFFECTIVE_DATE: Date = Date::constant(2022, 3, 31);
 const KEYED_HASH_EFFECTIVE_DATE: Date = Date::constant(2025, 3, 31);
 
 const TRUNCATE_POLICY_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000001");
-const TRUNCATE_RULE_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000002");
 const HMAC_SHA256_POLICY_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000003");
-const HMAC_SHA256_RULE_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000004");
 const TRUNCATE_LAST_FOUR_POLICY_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000005");
-const TRUNCATE_LAST_FOUR_RULE_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000006");
 const HMAC_SHA512_POLICY_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000007");
 const SAV_POLICY_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000009");
-const SAV_RULE_ID: Uuid = uuid!("01958ccd-0000-7000-8000-00000000000a");
-const HMAC_SHA512_RULE_ID: Uuid = uuid!("01958ccd-0000-7000-8000-000000000008");
 
 /// Per-render specification collapsed into the shape [`template`]
 /// uses to fill in the shared shell.
@@ -178,7 +173,13 @@ struct RenderSpec {
     policy_id: Uuid,
     policy_name: &'static str,
     policy_description: &'static str,
-    rule: PolicyRule,
+    /// The scope this variant declares, carrying the provision that
+    /// makes *this* render posture compliant. Each variant cites a
+    /// different one, which is why the citation lives here rather
+    /// than on a shared `pci_pan` scope.
+    scope: LabelScope,
+    /// What to do with everything the scope detects.
+    action: TextRedaction,
 }
 
 /// Build the PCI DSS template for the picked subsection.
@@ -209,12 +210,27 @@ fn pan_template(render: PciPanRender) -> Template {
             name: spec.policy_name.into(),
             description: Some(spec.policy_description.into()),
             template: Some(origin(spec.id, Version::new(1, 0, 0))),
-            scopes: vec![LabelScope::new("pci_pan", [PAN_LABEL.clone()])],
+            scopes: vec![spec.scope],
             custom: Vec::new(),
-            rules: vec![spec.rule],
-            fallback: None,
+            // No rules: the scope is one label and the whole point
+            // of the variant is what happens to it, so the fallback
+            // carries the action and inherits the scope's citation.
+            rules: Vec::new(),
+            fallback: Some(ModalityRedactions::text(spec.action)),
         },
     }
+}
+
+/// A PAN scope named `name`, citing the provision that makes this
+/// render posture compliant.
+///
+/// Every variant covers the same single label; only the citation
+/// differs, which is exactly why each declares its own scope rather
+/// than sharing one.
+fn pan_scope(name: &'static str, citation: &'static str, rationale: &'static str) -> LabelScope {
+    LabelScope::new(name, [PAN_LABEL.clone()])
+        .with_description("Stored Primary Account Numbers.")
+        .with_attribution(cited("PCI DSS", citation, rationale))
 }
 
 fn spec(render: PciPanRender) -> RenderSpec {
@@ -230,7 +246,16 @@ fn spec(render: PciPanRender) -> RenderSpec {
                                  dropping the middle. Keeps BIN and last-four for downstream \
                                  lookups without leaving a reversible ciphertext or a key \
                                  surface to protect.",
-            rule: truncate_rule(6, 4, TRUNCATE_RULE_ID, "pci-truncate-pan-bin-last-four"),
+            scope: pan_scope(
+                "pci_pan_truncate",
+                "§3.5.1",
+                "truncation is one of the approaches §3.5.1 permits for rendering \
+                 stored PAN unreadable",
+            ),
+            action: TextRedaction::Truncate {
+                keep_prefix: 6,
+                keep_suffix: 4,
+            },
         },
         PciPanRender::TruncateLastFour => RenderSpec {
             id: "pci_dss_pan_truncate_last_four",
@@ -245,12 +270,16 @@ fn spec(render: PciPanRender) -> RenderSpec {
                                  truncated versions of one PAN from being correlated to \
                                  reconstruct it; dropping the BIN shrinks that surface. Not a \
                                  named requirement: §3.5.1.1 governs hashing, not truncation.",
-            rule: truncate_rule(
-                0,
-                4,
-                TRUNCATE_LAST_FOUR_RULE_ID,
-                "pci-truncate-pan-last-four",
+            scope: pan_scope(
+                "pci_pan_truncate_last_four",
+                "§3.5.1",
+                "truncation is one of the approaches §3.5.1 permits; dropping the BIN \
+                 shrinks the surface for correlating a truncated PAN with a hashed one",
             ),
+            action: TextRedaction::Truncate {
+                keep_prefix: 0,
+                keep_suffix: 4,
+            },
         },
         PciPanRender::HmacSha256 => RenderSpec {
             id: "pci_dss_pan_hmac_sha256",
@@ -260,12 +289,15 @@ fn spec(render: PciPanRender) -> RenderSpec {
             policy_id: HMAC_SHA256_POLICY_ID,
             policy_name: "pci-dss-pan-hmac-sha256",
             policy_description: HMAC_POLICY_DESCRIPTION,
-            rule: hmac_rule(
-                Sha2Algorithm::Sha256,
-                HMAC_SHA256_RULE_ID,
-                "pci-hmac-pan-sha256",
-                "SHA-256",
+            scope: pan_scope(
+                "pci_pan_hmac_sha256",
+                "§3.5.1.1",
+                "a hash rendering stored PAN unreadable must be a keyed \
+                 cryptographic hash of the entire PAN",
             ),
+            action: TextRedaction::HmacHash {
+                algorithm: Sha2Algorithm::Sha256,
+            },
         },
         PciPanRender::HmacSha512 => RenderSpec {
             id: "pci_dss_pan_hmac_sha512",
@@ -275,12 +307,15 @@ fn spec(render: PciPanRender) -> RenderSpec {
             policy_id: HMAC_SHA512_POLICY_ID,
             policy_name: "pci-dss-pan-hmac-sha512",
             policy_description: HMAC_POLICY_DESCRIPTION,
-            rule: hmac_rule(
-                Sha2Algorithm::Sha512,
-                HMAC_SHA512_RULE_ID,
-                "pci-hmac-pan-sha512",
-                "SHA-512",
+            scope: pan_scope(
+                "pci_pan_hmac_sha512",
+                "§3.5.1.1",
+                "a hash rendering stored PAN unreadable must be a keyed \
+                 cryptographic hash of the entire PAN",
             ),
+            action: TextRedaction::HmacHash {
+                algorithm: Sha2Algorithm::Sha512,
+            },
         },
     }
 }
@@ -290,73 +325,6 @@ const HMAC_POLICY_DESCRIPTION: &str = "Replace stored PAN with a keyed HMAC dige
      hashes of the entire PAN: an unkeyed digest no longer satisfies §3.5.1. Requires the \
      engine to have a KeyProvider wired via `Engine::with_key_provider`. The key must stay \
      secret; a leaked key permits offline PAN enumeration against the shipped hash.";
-
-fn truncate_rule(keep_prefix: usize, keep_suffix: usize, rule_id: Uuid, name: &str) -> PolicyRule {
-    let description = if keep_prefix == 0 {
-        format!("Drop everything but the last {keep_suffix} digits of every payment_card value.",)
-    } else {
-        format!(
-            "Drop the middle of every payment_card value, keeping the first {keep_prefix} \
-             (BIN) and last {keep_suffix} digits.",
-        )
-    };
-    PolicyRule {
-        id: rule_id,
-        name: name.into(),
-        description: Some(description.into()),
-        attribution: Some(cited(
-            "PCI DSS",
-            "§3.5.1",
-            "stored PAN must be rendered unreadable; truncation is one of the \
-             four approaches the requirement permits",
-        )),
-        dispatch: RuleDispatch::Predicated {
-            predicate: single_label(PAN_LABEL.clone()),
-            action: Box::new(ModalityRedactions::text(TextRedaction::Truncate {
-                keep_prefix,
-                keep_suffix,
-            })),
-        },
-    }
-}
-
-fn hmac_rule(
-    algorithm: Sha2Algorithm,
-    rule_id: Uuid,
-    name: &str,
-    algorithm_label: &str,
-) -> PolicyRule {
-    PolicyRule {
-        id: rule_id,
-        name: name.into(),
-        description: Some(
-            format!(
-                "Replace every payment_card value with an HMAC-{algorithm_label} digest keyed on \
-                 the engine's KeyProvider.",
-            )
-            .into(),
-        ),
-        attribution: Some(cited(
-            "PCI DSS",
-            "§3.5.1.1",
-            "a hash rendering stored PAN unreadable must be a keyed \
-             cryptographic hash of the entire PAN; an unkeyed digest no longer \
-             satisfies §3.5.1",
-        )),
-        dispatch: RuleDispatch::Predicated {
-            predicate: single_label(PAN_LABEL.clone()),
-            action: Box::new(ModalityRedactions::text(TextRedaction::HmacHash {
-                algorithm,
-            })),
-        },
-    }
-}
-
-fn single_label(label: LabelRef) -> Predicate {
-    Predicate::LabelOneOf {
-        labels: vec![label],
-    }
-}
 
 /// PCI DSS §3.3.1: erase stored Sensitive Authentication Data
 /// (SAV). Covers all three §3.3.1 categories: CVV/CVC
@@ -385,37 +353,34 @@ fn sav_template() -> Template {
                  posture: it must be erased."
                     .into(),
             ),
-            scopes: vec![LabelScope::new("pci_sav", SAV_LABELS.to_vec())],
+            scopes: vec![
+                LabelScope::new("pci_sav", SAV_LABELS.to_vec())
+                    .with_description(
+                        "Sensitive authentication data: CVV/CVC, magnetic-stripe and \
+                         chip track data, and PIN blocks.",
+                    )
+                    .with_attribution(cited(
+                        "PCI DSS",
+                        "§3.3.1",
+                        "sensitive authentication data must not be retained after \
+                         authorization completes",
+                    )),
+            ],
             custom: Vec::new(),
-            rules: vec![sav_rule()],
-            fallback: None,
-        },
-    }
-}
-
-fn sav_rule() -> PolicyRule {
-    PolicyRule {
-        id: SAV_RULE_ID,
-        name: "pci-sav-erase".into(),
-        description: Some("Erase every SAV entity (CVV/CVC, track data, PIN blocks).".into()),
-        attribution: Some(cited(
-            "PCI DSS",
-            "§3.3.1",
-            "sensitive authentication data must not be retained after \
-             authorization; erasure is the only posture, with no \
-             render-unreadable alternative",
-        )),
-        dispatch: RuleDispatch::Predicated {
-            predicate: Predicate::LabelOneOf {
-                labels: SAV_LABELS.to_vec(),
-            },
-            action: Box::new(ModalityRedactions::text(TextRedaction::Erase)),
+            // No rules: §3.3.1 admits one posture for every SAV
+            // category, so the fallback expresses it and inherits
+            // the scope's citation. Unlike §3.5.1, there is no
+            // render choice to cite per-variant.
+            rules: Vec::new(),
+            fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
         },
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use elide_core::entity::audit::AttributionKind;
+
     use super::*;
 
     const ALL: &[PciPanRender] = &[
@@ -451,46 +416,87 @@ mod tests {
     fn every_render_targets_payment_card_label() {
         for render in ALL {
             let t = pan_template(*render);
-            let RuleDispatch::Predicated { predicate, .. } = &t.policy.rules[0].dispatch else {
-                panic!("expected Predicated dispatch for {render:?}");
-            };
-            let Predicate::LabelOneOf { labels } = predicate else {
-                panic!("expected LabelOneOf predicate for {render:?}");
-            };
-            assert_eq!(labels.len(), 1);
-            assert_eq!(labels[0], PAN_LABEL);
+            assert_eq!(t.policy.scopes.len(), 1, "{render:?} declares one scope");
+            assert_eq!(t.policy.scopes[0].labels, vec![PAN_LABEL.clone()]);
         }
     }
 
     #[test]
-    fn truncate_last_four_drops_the_bin() {
-        let RuleDispatch::Predicated { action, .. } =
-            &pan_template(PciPanRender::TruncateLastFour).policy.rules[0].dispatch
-        else {
-            panic!("expected Predicated dispatch");
-        };
-        let TextRedaction::Truncate {
-            keep_prefix,
-            keep_suffix,
-        } = action.text.as_ref().unwrap()
-        else {
-            panic!("expected Truncate action");
-        };
-        assert_eq!(*keep_prefix, 0, "TruncateLastFour must drop BIN");
-        assert_eq!(*keep_suffix, 4);
+    fn every_render_cites_the_provision_its_posture_answers_to() {
+        // Truncation is permitted by §3.5.1; a keyed hash is what
+        // §3.5.1.1 mandates. The citation rides on each variant's
+        // own scope, so the fallback inherits the right one.
+        for render in ALL {
+            let want = match render {
+                PciPanRender::HmacSha256 | PciPanRender::HmacSha512 => "§3.5.1.1",
+                PciPanRender::Truncate | PciPanRender::TruncateLastFour => "§3.5.1",
+            };
+            let attribution = pan_template(*render).policy.scopes[0]
+                .attribution
+                .clone()
+                .unwrap_or_else(|| panic!("{render:?} scope must cite its provision"));
+            let AttributionKind::Cited { citation, .. } = attribution else {
+                panic!("{render:?} must carry a Cited attribution");
+            };
+            assert_eq!(citation, want, "{render:?} cites the wrong provision");
+        }
     }
 
     #[test]
-    fn hmac_sha512_uses_sha512_algorithm() {
-        let RuleDispatch::Predicated { action, .. } =
-            &pan_template(PciPanRender::HmacSha512).policy.rules[0].dispatch
-        else {
-            panic!("expected Predicated dispatch");
-        };
-        let TextRedaction::HmacHash { algorithm } = action.text.as_ref().unwrap() else {
-            panic!("expected HmacHash action");
-        };
-        assert_eq!(*algorithm, Sha2Algorithm::Sha512);
+    fn every_render_carries_its_own_operator() {
+        // One assertion per variant, so a mis-wired spec cannot hide
+        // behind a sibling that happens to be checked.
+        for render in ALL {
+            let fallback = pan_template(*render)
+                .policy
+                .fallback
+                .unwrap_or_else(|| panic!("{render:?} renders via the fallback"));
+            let text = fallback
+                .text
+                .unwrap_or_else(|| panic!("{render:?} sets a text operator"));
+            match render {
+                // Keeps BIN and last four for downstream lookups.
+                PciPanRender::Truncate => assert!(
+                    matches!(
+                        text,
+                        TextRedaction::Truncate {
+                            keep_prefix: 6,
+                            keep_suffix: 4
+                        }
+                    ),
+                    "Truncate must keep the BIN and last four, got {text:?}",
+                ),
+                // The stricter posture: BIN dropped.
+                PciPanRender::TruncateLastFour => assert!(
+                    matches!(
+                        text,
+                        TextRedaction::Truncate {
+                            keep_prefix: 0,
+                            keep_suffix: 4
+                        }
+                    ),
+                    "TruncateLastFour must drop the BIN, got {text:?}",
+                ),
+                PciPanRender::HmacSha256 => assert!(
+                    matches!(
+                        text,
+                        TextRedaction::HmacHash {
+                            algorithm: Sha2Algorithm::Sha256
+                        }
+                    ),
+                    "HmacSha256 must hash with SHA-256, got {text:?}",
+                ),
+                PciPanRender::HmacSha512 => assert!(
+                    matches!(
+                        text,
+                        TextRedaction::HmacHash {
+                            algorithm: Sha2Algorithm::Sha512
+                        }
+                    ),
+                    "HmacSha512 must hash with SHA-512, got {text:?}",
+                ),
+            }
+        }
     }
 
     #[test]
@@ -523,28 +529,35 @@ mod tests {
             let b = pan_template(*render);
             assert_eq!(a.id, b.id);
             assert_eq!(a.policy.id, b.policy.id);
-            assert_eq!(a.policy.rules[0].id, b.policy.rules[0].id);
         }
     }
 
     #[test]
     fn sav_template_erases_every_sav_label() {
         let t = sav_template();
-        let RuleDispatch::Predicated { predicate, action } = &t.policy.rules[0].dispatch else {
-            panic!("expected Predicated dispatch");
+        assert_eq!(t.policy.scopes.len(), 1, "SAV declares one scope");
+        // The scope carries the citation, so the fallback inherits
+        // it: without this the erasure would land in the audit with
+        // no provision behind it.
+        let AttributionKind::Cited { citation, .. } = t.policy.scopes[0]
+            .attribution
+            .clone()
+            .expect("the SAV scope must cite its provision")
+        else {
+            panic!("SAV must carry a Cited attribution");
         };
-        let Predicate::LabelOneOf { labels } = predicate else {
-            panic!("expected LabelOneOf predicate");
-        };
-        // Every §3.3.1 SAV label must be in the rule's predicate.
+        assert_eq!(citation, "§3.3.1");
+        // Every §3.3.1 SAV label must be in scope, since the
+        // fallback acts on whatever the scope detects.
         for expected in SAV_LABELS {
             assert!(
-                labels.contains(expected),
-                "SAV rule missing label `{}`",
+                t.policy.scopes[0].labels.contains(expected),
+                "SAV scope missing label `{}`",
                 expected.as_str(),
             );
         }
-        assert!(matches!(action.text, Some(TextRedaction::Erase)));
+        let fallback = t.policy.fallback.expect("SAV erases via the fallback");
+        assert!(matches!(fallback.text, Some(TextRedaction::Erase)));
     }
 
     #[test]

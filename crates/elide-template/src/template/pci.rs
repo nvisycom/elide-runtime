@@ -443,32 +443,60 @@ mod tests {
     }
 
     #[test]
-    fn truncate_last_four_drops_the_bin() {
-        let fallback = pan_template(PciPanRender::TruncateLastFour)
-            .policy
-            .fallback
-            .expect("the render posture rides on the fallback");
-        let Some(TextRedaction::Truncate {
-            keep_prefix,
-            keep_suffix,
-        }) = fallback.text
-        else {
-            panic!("expected Truncate action");
-        };
-        assert_eq!(keep_prefix, 0, "TruncateLastFour must drop BIN");
-        assert_eq!(keep_suffix, 4);
-    }
-
-    #[test]
-    fn hmac_sha512_uses_sha512_algorithm() {
-        let fallback = pan_template(PciPanRender::HmacSha512)
-            .policy
-            .fallback
-            .expect("the render posture rides on the fallback");
-        let Some(TextRedaction::HmacHash { algorithm }) = fallback.text else {
-            panic!("expected HmacHash action");
-        };
-        assert_eq!(algorithm, Sha2Algorithm::Sha512);
+    fn every_render_carries_its_own_operator() {
+        // One assertion per variant, so a mis-wired spec cannot hide
+        // behind a sibling that happens to be checked.
+        for render in ALL {
+            let fallback = pan_template(*render)
+                .policy
+                .fallback
+                .unwrap_or_else(|| panic!("{render:?} renders via the fallback"));
+            let text = fallback
+                .text
+                .unwrap_or_else(|| panic!("{render:?} sets a text operator"));
+            match render {
+                // Keeps BIN and last four for downstream lookups.
+                PciPanRender::Truncate => assert!(
+                    matches!(
+                        text,
+                        TextRedaction::Truncate {
+                            keep_prefix: 6,
+                            keep_suffix: 4
+                        }
+                    ),
+                    "Truncate must keep the BIN and last four, got {text:?}",
+                ),
+                // The stricter posture: BIN dropped.
+                PciPanRender::TruncateLastFour => assert!(
+                    matches!(
+                        text,
+                        TextRedaction::Truncate {
+                            keep_prefix: 0,
+                            keep_suffix: 4
+                        }
+                    ),
+                    "TruncateLastFour must drop the BIN, got {text:?}",
+                ),
+                PciPanRender::HmacSha256 => assert!(
+                    matches!(
+                        text,
+                        TextRedaction::HmacHash {
+                            algorithm: Sha2Algorithm::Sha256
+                        }
+                    ),
+                    "HmacSha256 must hash with SHA-256, got {text:?}",
+                ),
+                PciPanRender::HmacSha512 => assert!(
+                    matches!(
+                        text,
+                        TextRedaction::HmacHash {
+                            algorithm: Sha2Algorithm::Sha512
+                        }
+                    ),
+                    "HmacSha512 must hash with SHA-512, got {text:?}",
+                ),
+            }
+        }
     }
 
     #[test]
@@ -507,6 +535,18 @@ mod tests {
     #[test]
     fn sav_template_erases_every_sav_label() {
         let t = sav_template();
+        assert_eq!(t.policy.scopes.len(), 1, "SAV declares one scope");
+        // The scope carries the citation, so the fallback inherits
+        // it: without this the erasure would land in the audit with
+        // no provision behind it.
+        let AttributionKind::Cited { citation, .. } = t.policy.scopes[0]
+            .attribution
+            .clone()
+            .expect("the SAV scope must cite its provision")
+        else {
+            panic!("SAV must carry a Cited attribution");
+        };
+        assert_eq!(citation, "§3.3.1");
         // Every §3.3.1 SAV label must be in scope, since the
         // fallback acts on whatever the scope detects.
         for expected in SAV_LABELS {

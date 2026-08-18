@@ -967,7 +967,7 @@ dependencies = [
 [[package]]
 name = "elide-bento"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide-bento?branch=main#313e96d299f2c160d4643911449f1f4c2ca26131"
+source = "git+https://github.com/nvisycom/elide-bento?branch=main#d4440c46490cb463f5ca80732cf4d0a7f577cd71"
 dependencies = [
  "async-trait",
  "base64 0.23.1",

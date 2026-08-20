@@ -4,6 +4,9 @@ The response returns each schema group's results. Extracted labels are the
 model's own (``"person"``, ``"email"``, …), not a shared taxonomy — mapping them
 onto a canonical vocabulary is the consumer's job. Scores are confidences in
 ``[0, 1]``.
+
+A response also carries the encoder :class:`TokenUsage` the call spent, when the
+service reports it.
 """
 
 from __future__ import annotations
@@ -57,6 +60,22 @@ Classification = ClassLabel | list[ClassLabel]
 Record = dict[str, list[Span]]
 
 
+class TokenUsage(_Model):
+    """Encoder tokens the call spent, as the model's own tokenizer counts them.
+
+    ``input`` only: GLiNER2 is an encoder — it scores spans over the input and
+    generates nothing, so there is no completion count. The service already
+    tokenizes every input to enforce its limit, so reporting this costs no
+    extra work.
+
+    ``limit`` is the model's maximum, carried alongside so a consumer can see
+    headroom (``input`` of ``limit``) without knowing the deployment's config.
+    """
+
+    input: int = Field(ge=0, description="Encoder tokens in the request text.")
+    limit: int = Field(ge=0, description="The model's token limit for one input.")
+
+
 class NerResponse(_Model):
     entities: list[Entity] = Field(default_factory=list)
     classifications: dict[str, Classification] = Field(
@@ -66,3 +85,7 @@ class NerResponse(_Model):
         default_factory=dict, description="Keyed by structure name; a list of records each."
     )
     model_id: str = Field(description="Hugging Face id of the GLiNER2 model that produced this.")
+    tokens: TokenUsage | None = Field(
+        default=None,
+        description="Encoder tokens the call spent; omitted when the service does not report them.",
+    )

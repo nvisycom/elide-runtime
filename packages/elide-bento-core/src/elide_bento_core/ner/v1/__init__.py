@@ -31,6 +31,7 @@ from elide_bento_core.ner.v1.response import (
     NerResponse,
     Record,
     Span,
+    TokenUsage,
 )
 
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     "Schema",
     "Span",
     "StructureSpec",
+    "TokenUsage",
 ]

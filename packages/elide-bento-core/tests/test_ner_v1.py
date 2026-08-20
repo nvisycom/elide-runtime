@@ -7,6 +7,7 @@ from elide_bento_core.ner.v1 import (
     NerRequest,
     NerResponse,
     Span,
+    TokenUsage,
 )
 
 
@@ -83,3 +84,24 @@ def test_single_label_classification_is_object():
     )
     dumped = resp.model_dump(by_alias=True, mode="json")
     assert dumped["classifications"]["sentiment"] == {"label": "pos", "score": 0.8}
+
+
+def test_response_omits_tokens_when_absent():
+    """`tokens` is optional: a response without it serializes to null."""
+    resp = NerResponse(model_id="fastino/x")
+    assert resp.tokens is None
+    assert resp.model_dump(by_alias=True, mode="json")["tokens"] is None
+
+
+def test_response_serializes_token_usage():
+    """Reported tokens round-trip, with the camelCase wire shape."""
+    resp = NerResponse(model_id="fastino/x", tokens=TokenUsage(input=12, limit=512))
+    dumped = resp.model_dump(by_alias=True, mode="json")
+    assert dumped["tokens"] == {"input": 12, "limit": 512}
+    assert NerResponse.model_validate(dumped).tokens.input == 12
+
+
+def test_token_usage_rejects_negative():
+    """Counts are non-negative."""
+    with pytest.raises(ValueError, match="greater than or equal to 0"):
+        TokenUsage(input=-1, limit=512)

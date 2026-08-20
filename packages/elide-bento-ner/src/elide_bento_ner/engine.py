@@ -26,6 +26,7 @@ from elide_bento_core.ner.v1 import (
     Record,
     Schema,
     Span,
+    TokenUsage,
 )
 
 from elide_bento_ner import config
@@ -86,16 +87,34 @@ class Engine:
     def count_tokens(self, text: str) -> int:
         return len(self._tokenizer.encode(text))
 
-    def check_length(self, text: str) -> None:
+    def check_length(self, text: str) -> int:
+        """Reject an over-length input, returning the token count on success.
+
+        The count is returned rather than discarded so the caller can report it
+        as usage without a second tokenizer pass — this check already pays for
+        the encode.
+        """
         n = self.count_tokens(text)
         if n > self.max_tokens:
             raise TextTooLongError(
                 f"input is {n} tokens; the limit is {self.max_tokens} "
                 "(the model truncates above this, so it is rejected)"
             )
+        return n
 
-    def recognize(self, texts: list[str], schema: Schema, threshold: float) -> list[NerResponse]:
-        """Run one batched extraction over ``texts`` sharing a single schema."""
+    def recognize(
+        self,
+        texts: list[str],
+        schema: Schema,
+        threshold: float,
+        token_counts: list[int] | None = None,
+    ) -> list[NerResponse]:
+        """Run one batched extraction over ``texts`` sharing a single schema.
+
+        ``token_counts`` are the per-text encoder counts the caller already
+        measured (see :meth:`check_length`); when given they are reported as
+        usage on each response. Omitted, responses carry no token usage.
+        """
         g_schema = build_schema(schema)
         results: list[_G2Result] = self._model.batch_extract(
             texts,
@@ -105,7 +124,16 @@ class Engine:
             include_confidence=True,
             include_spans=True,
         )
-        return [project(r, schema, self.model_id) for r in results]
+        counts = token_counts if token_counts is not None else [None] * len(results)
+        return [
+            project(
+                r,
+                schema,
+                self.model_id,
+                tokens=None if n is None else TokenUsage(input=n, limit=self.max_tokens),
+            )
+            for r, n in zip(results, counts, strict=True)
+        ]
 
 
 def _load(model_id: str) -> GLiNER2:
@@ -170,7 +198,12 @@ def _entity_value(spec: EntitySpec) -> _EntityValue:
     return value
 
 
-def project(result: _G2Result, schema: Schema, model_id: str) -> NerResponse:
+def project(
+    result: _G2Result,
+    schema: Schema,
+    model_id: str,
+    tokens: TokenUsage | None = None,
+) -> NerResponse:
     """Map a gliner2 ``batch_extract`` result dict to a typed response.
 
     The result is keyed by task: ``"entities"`` (dict label -> spans), each
@@ -213,6 +246,7 @@ def project(result: _G2Result, schema: Schema, model_id: str) -> NerResponse:
         classifications=classifications,
         structures=structures,
         model_id=model_id,
+        tokens=tokens,
     )
 
 

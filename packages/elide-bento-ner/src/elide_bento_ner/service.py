@@ -90,9 +90,12 @@ class NerService:
 
         # Reject over-length inputs up front (the model silently truncates above
         # its token limit) — a clean 400 for the whole batch, before inference.
+        # The check returns the count it measured, so usage reporting below
+        # reuses this encode rather than tokenizing a second time.
+        token_counts: list[int] = []
         for req in requests:
             try:
-                self.engine.check_length(req.text)
+                token_counts.append(self.engine.check_length(req.text))
             except TextTooLongError as exc:
                 raise InvalidArgument(str(exc)) from exc
 
@@ -110,6 +113,7 @@ class NerService:
                     [requests[i].text for i in idxs],
                     head.schema_,
                     threshold=head.threshold,
+                    token_counts=[token_counts[i] for i in idxs],
                 )
                 for i, resp in zip(idxs, responses, strict=True):
                     by_index[i] = resp

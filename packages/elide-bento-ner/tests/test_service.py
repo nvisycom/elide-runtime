@@ -157,3 +157,45 @@ def test_service_exposes_recognize_endpoint():
     assert isinstance(NerService, bentoml.Service)
     assert NerService.name == "elide-bento-ner"
     assert "recognize" in NerService.apis
+
+
+def test_project_carries_token_usage():
+    """`project` attaches the usage it is handed, and omits it otherwise."""
+    from elide_bento_core.ner.v1 import TokenUsage
+    from elide_bento_ner.engine import project
+
+    schema = Schema(entities=[EntitySpec(label="person")])
+    result = {"entities": {}}
+
+    assert project(result, schema, "fastino/x").tokens is None
+
+    resp = project(result, schema, "fastino/x", tokens=TokenUsage(input=12, limit=512))
+    assert resp.tokens.input == 12
+    assert resp.tokens.limit == 512
+
+
+def test_check_length_returns_the_count_it_measured():
+    """The limit check returns its count so usage costs no second encode.
+
+    A fake tokenizer counts its calls: one `check_length` must encode exactly
+    once, since the reported usage reuses that same measurement.
+    """
+    from elide_bento_ner.engine import Engine, TextTooLongError
+
+    class _FakeTokenizer:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def encode(self, text: str) -> list[int]:
+            self.calls += 1
+            return list(range(len(text.split())))
+
+    engine = Engine.__new__(Engine)  # no model load
+    engine.max_tokens = 5
+    engine._tokenizer = _FakeTokenizer()
+
+    assert engine.check_length("one two three") == 3
+    assert engine._tokenizer.calls == 1
+
+    with pytest.raises(TextTooLongError):
+        engine.check_length("a b c d e f g")

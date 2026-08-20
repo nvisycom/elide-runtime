@@ -33,6 +33,10 @@ ocr = ["dep:elide-ocr", "dep:base64", "elide-core/image"]
 ## Ship the STT backend (implements `elide_stt::backend::SttBackend`
 ## against the `elide-bento-stt` BentoML service).
 stt = ["dep:elide-stt", "dep:base64", "elide-core/audio"]
+## Report the encoder tokens a NER call spent on the `NerResponse`, from the
+## `tokens` the service returns. Off by default, matching elide's own `usage`
+## gate: a consumer that does not read usage pays nothing.
+usage = ["ner", "elide-ner/usage", "elide-core/usage"]
 
 [dependencies]
 # Elide crates
@@ -60,5 +64,8 @@ async-trait = { workspace = true, features = [] }
 bentoml = { workspace = true, default-features = false, features = ["rustls-tls", "tracing"] }
 
 [dev-dependencies]
+# Serialization
+serde_json = { workspace = true, features = ["std"] }
+
 # Async runtime and parallelism
 tokio = { workspace = true, features = ["rt", "macros"] }

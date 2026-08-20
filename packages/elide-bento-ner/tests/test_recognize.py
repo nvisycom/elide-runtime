@@ -132,6 +132,14 @@ def test_entities_extracted(client):
     }
 
 
+def test_token_usage_reported(client):
+    # The fake tokenizer counts one token per word and the fixture caps at 5,
+    # so a three-word input reports 3 of 5 over the wire.
+    resp = _post(client, text="Ada met Bob", schema={"entities": [{"label": "person"}]})
+    assert resp.status_code == 200
+    assert resp.json()[0]["tokens"] == {"input": 3, "limit": 5}
+
+
 def test_classification_single_and_multi(client):
     single = _post(
         client, text="Ada", schema={"classifications": [{"task": "s", "labels": ["pos"]}]}

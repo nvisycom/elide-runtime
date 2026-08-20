@@ -1,9 +1,9 @@
 //! Compile image-modality rules to elide operators + attach to an
 //! [`Anonymizer<Image>`].
 
+use elide::Result;
+use elide::modality::image::Image;
 use elide::redaction::Anonymizer;
-use elide_core::Result;
-use elide_core::modality::image::Image;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::ModalityRedactions;
 

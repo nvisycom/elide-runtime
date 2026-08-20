@@ -19,17 +19,17 @@
 //! detection).
 //!
 //! [`Audit`]: crate::Audit
-//! [`LabelCatalog::tagged`]: elide_core::entity::LabelCatalog::tagged
-//! [`LabelCatalog::refs_tagged`]: elide_core::entity::LabelCatalog::refs_tagged
-//! [`LabelCatalog::filter_tag`]: elide_core::entity::LabelCatalog::filter_tag
+//! [`LabelCatalog::tagged`]: elide::entity::LabelCatalog::tagged
+//! [`LabelCatalog::refs_tagged`]: elide::entity::LabelCatalog::refs_tagged
+//! [`LabelCatalog::filter_tag`]: elide::entity::LabelCatalog::filter_tag
 
 mod group;
 mod record;
 
-pub use elide_core::entity::audit::{
+pub use elide::entity::audit::{
     Attribution, AuditEvent, AuditKind, AuditLog, ModelEvent, PatternEvent, RuleMatch,
 };
-pub use elide_core::entity::{
+pub use elide::entity::{
     Entity, EntityCoRef, EntityRef, Label, LabelCatalog, LabelLocale, LabelRef,
 };
 

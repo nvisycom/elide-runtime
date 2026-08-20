@@ -1,9 +1,9 @@
 //! Compile text-modality rules to elide operators + attach to an
 //! [`Anonymizer<Text>`].
 
+use elide::Result;
+use elide::modality::text::Text;
 use elide::redaction::Anonymizer;
-use elide_core::Result;
-use elide_core::modality::text::Text;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::ModalityRedactions;
 

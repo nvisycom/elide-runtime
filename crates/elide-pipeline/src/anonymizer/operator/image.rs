@@ -5,9 +5,9 @@
 //! the right concrete elide operator type. Image operators do
 //! not cross modalities, so the vocabulary lives on its own.
 
+use elide::modality::image::Image;
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
-use elide_core::modality::image::Image;
 use elide_governance::redaction::ImageRedaction;
 
 use crate::anonymizer::compile::Target;

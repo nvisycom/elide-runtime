@@ -28,11 +28,10 @@ use std::collections::HashMap;
 #[cfg(feature = "audit-json")]
 use std::io::Write;
 
-use elide::recognition::ScopeMetadata;
-use elide_core::primitive::{CountryCode, Languages, RasterMode};
-use elide_core::recognition::UsageReport;
+use elide::primitive::{CountryCode, Languages, RasterMode};
+use elide::recognition::{ScopeMetadata, UsageReport};
 #[cfg(feature = "audit-json")]
-use elide_core::{Error, ErrorKind, Result};
+use elide::{Error, ErrorKind, Result};
 use elide_wire::plan::scope_metadata_is_empty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

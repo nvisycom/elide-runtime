@@ -31,16 +31,15 @@
 //! `name` from the policy's UUID, `description` from the rule's
 //! UUID (or omitted for the policy fallback).
 //!
-//! [`Attribution`]: elide_core::entity::audit::Attribution
+//! [`Attribution`]: elide::entity::audit::Attribution
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use elide::redaction::{Anonymizer, MatchContext, Rule};
-use elide_core::entity::LabelRef;
-use elide_core::entity::audit::Attribution;
-use elide_core::modality::Modality;
-use elide_core::operator::Operator;
+use elide::entity::LabelRef;
+use elide::entity::audit::Attribution;
+use elide::modality::Modality;
+use elide::redaction::{Anonymizer, MatchContext, Operator, Rule};
 use elide_governance::{LabelScope, PolicyDefinition, PolicyRule, Predicate};
 use uuid::Uuid;
 
@@ -119,7 +118,7 @@ fn scope_lookup_entry(scope: &LabelScope) -> (String, HashSet<LabelRef>) {
 /// Harbor's age/date table and its bulk erase both cite
 /// §164.514(b)(2)) distinguishable in the trail.
 ///
-/// [`Freeform`]: elide_core::entity::audit::AttributionKind::Freeform
+/// [`Freeform`]: elide::entity::audit::AttributionKind::Freeform
 pub(super) fn rule_attribution(policy: &PolicyDefinition, rule: &PolicyRule) -> Attribution {
     let attribution = match &rule.attribution {
         // No public constructor takes a prebuilt kind, and both

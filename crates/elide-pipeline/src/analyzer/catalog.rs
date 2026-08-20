@@ -1,5 +1,5 @@
 //! Compile a slice of [`PolicyDefinition`] into an
-//! [`elide_core::entity::LabelCatalog`].
+//! [`elide::entity::LabelCatalog`].
 //!
 //! Walks every policy's [`labels`] block and unions the builtin
 //! selections and the inline custom schemas into one catalog. The
@@ -20,7 +20,7 @@
 //! Kept engine-side so the cached `with_builtins` lookup and the
 //! collision policy stay out of `elide-governance`.
 //!
-//! [`Label`]: elide_core::entity::Label
+//! [`Label`]: elide::entity::Label
 //! [`PolicyDefinition`]: elide_governance::PolicyDefinition
 //! [`labels`]: elide_governance::PolicyDefinition::label_scope
 //! [`Predicate::LabelInScope`]: elide_governance::Predicate::LabelInScope
@@ -28,8 +28,8 @@
 
 use std::sync::OnceLock;
 
-use elide_core::entity::LabelCatalog;
-use elide_core::{Error, ErrorKind, Result};
+use elide::entity::LabelCatalog;
+use elide::{Error, ErrorKind, Result};
 use elide_governance::PolicyDefinition;
 
 /// Compile the label catalog for a request from its policy set.
@@ -52,7 +52,7 @@ use elide_governance::PolicyDefinition;
 ///   redeclaration across templates is fine).
 ///
 /// [`labels`]: elide_governance::PolicyDefinition::label_scope
-/// [`Label`]: elide_core::entity::Label
+/// [`Label`]: elide::entity::Label
 pub(crate) fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCatalog> {
     let mut catalog = LabelCatalog::new();
     for policy in policies {
@@ -123,7 +123,7 @@ fn insert_params(catalog: &mut LabelCatalog, policy: &PolicyDefinition) -> Resul
 /// walks `BUILT_INS` and clones every label: cheap once, wasteful
 /// per-request.
 ///
-/// [`LabelCatalog::with_builtins`]: elide_core::entity::LabelCatalog::with_builtins
+/// [`LabelCatalog::with_builtins`]: elide::entity::LabelCatalog::with_builtins
 fn builtin_catalog() -> &'static LabelCatalog {
     static BUILTINS: OnceLock<LabelCatalog> = OnceLock::new();
     BUILTINS.get_or_init(LabelCatalog::with_builtins)
@@ -131,7 +131,7 @@ fn builtin_catalog() -> &'static LabelCatalog {
 
 #[cfg(test)]
 mod tests {
-    use elide_core::entity::{Label, LabelRef};
+    use elide::entity::{Label, LabelRef};
     use elide_governance::{LabelScope, PolicyDefinition};
     use hipstr::HipStr;
     use uuid::Uuid;

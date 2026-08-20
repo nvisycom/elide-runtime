@@ -24,11 +24,10 @@
 //!
 //! [`Rule::fallback`]: elide::redaction::Rule::fallback
 
-use elide::redaction::{Anonymizer, MatchContext, Rule};
-use elide_core::Result;
-use elide_core::entity::audit::Attribution;
-use elide_core::modality::Modality;
-use elide_core::operator::Operator;
+use elide::Result;
+use elide::entity::audit::Attribution;
+use elide::modality::Modality;
+use elide::redaction::{Anonymizer, MatchContext, Operator, Rule};
 use elide_governance::redaction::ModalityRedactions;
 use elide_governance::{PolicyDefinition, Predicate};
 use uuid::Uuid;

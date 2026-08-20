@@ -15,15 +15,15 @@
 //! [`LlmConfig`]: crate::provider::llm::LlmConfig
 //! [`NerConfig`]: crate::provider::ner::NerConfig
 
+use elide::Result;
 use elide::detection::Analyzer;
-use elide_core::Result;
 #[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
+use elide::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
+use elide::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
 
 use super::enrichers::attach_language;
 #[cfg(feature = "internal_image")]

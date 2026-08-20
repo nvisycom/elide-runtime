@@ -38,19 +38,18 @@ use std::collections::HashSet;
 use std::slice;
 
 use elide::detection::Analyzer;
+use elide::entity::LabelCatalog;
+use elide::modality::Modality;
+#[cfg(feature = "internal_audio")]
+use elide::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
+use elide::modality::image::Image;
+#[cfg(feature = "internal_tabular")]
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::{Orchestrator, Result};
-use elide_core::entity::LabelCatalog;
-use elide_core::modality::Modality;
-#[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
-use elide_core::{Error, ErrorKind};
+use elide::{Error, ErrorKind, Orchestrator, Result};
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
 use elide_wire::plan::AnalyzerParams;
 use uuid::Uuid;
@@ -95,7 +94,7 @@ impl Engine {
     /// scope carries the same `correlation_id` for tracing spans.
     ///
     /// [`Scope`]: elide::recognition::Scope
-    /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
+    /// [`LabelCatalog`]: elide::entity::LabelCatalog
     /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
     pub(super) fn build_analyze_orchestrator(
         &self,

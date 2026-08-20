@@ -8,6 +8,8 @@
 //!
 //! Each enricher is at-most-one per analyzer.
 
+#[cfg(any(feature = "internal_image", feature = "internal_audio"))]
+use elide::Result;
 use elide::detection::Analyzer;
 use elide::enrichment::lingua::LinguaEnricher;
 #[cfg(feature = "test-utils")]
@@ -18,17 +20,15 @@ use elide::enrichment::ocr::OcrEnricher;
 use elide::enrichment::stt::MockBackend as MockSttBackend;
 #[cfg(feature = "internal_audio")]
 use elide::enrichment::stt::SttEnricher;
+use elide::modality::TextRecognizable;
+#[cfg(feature = "internal_audio")]
+use elide::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
+use elide::modality::image::Image;
 #[cfg(feature = "internal_image")]
 use elide_bento::ocr::BentoOcr;
 #[cfg(feature = "internal_audio")]
 use elide_bento::stt::BentoStt;
-#[cfg(any(feature = "internal_image", feature = "internal_audio"))]
-use elide_core::Result;
-use elide_core::modality::TextRecognizable;
-#[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
 
 #[cfg(feature = "internal_image")]
 use crate::provider::ocr::{OcrBackend, OcrEnricherConfig};
@@ -47,8 +47,8 @@ use crate::provider::stt::{SttBackend, SttEnricherConfig};
 /// request scope wins; the enricher skips detection entirely when
 /// one is present.
 ///
-/// [`TextRecognizable`]: elide_core::modality::TextRecognizable
-/// [`Text`]: elide_core::modality::text::Text
+/// [`TextRecognizable`]: elide::modality::TextRecognizable
+/// [`Text`]: elide::modality::text::Text
 pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Analyzer<M> {
     analyzer.with_enricher(LinguaEnricher::unrestricted())
 }

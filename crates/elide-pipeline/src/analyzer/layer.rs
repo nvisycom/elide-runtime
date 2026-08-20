@@ -13,15 +13,15 @@
 //!
 //! No calibration layer: no per-recognizer reweighting today.
 //!
-//! [`ConfidenceThreshold::BASELINE`]: elide_core::primitive::ConfidenceThreshold::BASELINE
+//! [`ConfidenceThreshold::BASELINE`]: elide::primitive::ConfidenceThreshold::BASELINE
 
 use elide::detection::Analyzer;
 use elide::detection::filter::FilterLayer;
 use elide::detection::reconcile::scoring::MaxConfidence;
 use elide::detection::reconcile::tiebreaker::HighestConfidence;
 use elide::detection::reconcile::{Merging, ReconcileLayer, Structural};
-use elide_core::modality::Modality;
-use elide_core::primitive::ConfidenceThreshold;
+use elide::modality::Modality;
+use elide::primitive::ConfidenceThreshold;
 
 /// Append the deduplication layers to `analyzer`.
 pub(super) fn attach_dedup<M>(analyzer: Analyzer<M>) -> Analyzer<M>

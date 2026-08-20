@@ -55,10 +55,10 @@ pub mod provider;
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
 #[doc(inline)]
-pub use elide::redaction::operators::KeyProvider;
+pub use elide::primitive::RasterMode;
 #[doc(inline)]
-pub use elide_core::primitive::RasterMode;
-pub use elide_core::{Error, ErrorKind, Result};
+pub use elide::redaction::operators::KeyProvider;
+pub use elide::{Error, ErrorKind, Result};
 /// Authored redaction governance: policies, rules, predicates,
 /// operators.
 #[doc(inline)]

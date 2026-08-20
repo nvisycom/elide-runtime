@@ -307,6 +307,9 @@ impl Engine {
             self.build_analyze_orchestrator(spec, policies, correlation_id)?;
         let directives = build_analyze_directives(spec);
         let mut report = orchestrator.analyze(&mut handle, &directives).await?;
+        // Cloned off the report before the body and parts are
+        // drained out of it below.
+        let usage = report.usage().clone();
 
         // Walk the body modality slots in order; the first that
         // returns Some is the body modality the orchestrator's
@@ -350,6 +353,7 @@ impl Engine {
             body: Some(body_group),
             parts,
             context,
+            usage,
         })
     }
 

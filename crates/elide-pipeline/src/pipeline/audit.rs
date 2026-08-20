@@ -30,6 +30,7 @@ use std::io::Write;
 
 use elide::recognition::ScopeMetadata;
 use elide_core::primitive::{CountryCode, Languages, RasterMode};
+use elide_core::recognition::UsageReport;
 #[cfg(feature = "audit-json")]
 use elide_core::{Error, ErrorKind, Result};
 use elide_wire::plan::scope_metadata_is_empty;
@@ -86,6 +87,17 @@ pub struct Audit {
     ///
     /// [`Engine::anonymize`]: super::Engine::anonymize
     pub context: AuditContext,
+    /// What the analyze pass cost: one entry per recognizer and
+    /// enricher that ran, each self-identifying by the name the
+    /// deployment configured it under.
+    ///
+    /// Empty when nothing model-backed ran, which is the common
+    /// case for a pattern-only pass. Recorded on analyze and not
+    /// re-derived at anonymize time, so a host that bills or rate
+    /// limits on model spend reads it straight off the returned
+    /// [`Audit`].
+    #[serde(default, skip_serializing_if = "UsageReport::is_empty")]
+    pub usage: UsageReport,
 }
 
 /// Recognition-side facts that travel from analyze to anonymize.

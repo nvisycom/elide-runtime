@@ -82,17 +82,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
-use elide::redaction::operators::KeyProvider;
-use elide::{Directives, Report};
 #[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
+use elide::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
+use elide::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
-use elide_core::primitive::RasterMode;
-use elide_core::{Error, ErrorKind, Result};
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
+use elide::primitive::RasterMode;
+use elide::redaction::operators::KeyProvider;
+use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
 use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
@@ -307,6 +306,9 @@ impl Engine {
             self.build_analyze_orchestrator(spec, policies, correlation_id)?;
         let directives = build_analyze_directives(spec);
         let mut report = orchestrator.analyze(&mut handle, &directives).await?;
+        // Cloned off the report before the body and parts are
+        // drained out of it below.
+        let usage = report.usage().clone();
 
         // Walk the body modality slots in order; the first that
         // returns Some is the body modality the orchestrator's
@@ -350,6 +352,7 @@ impl Engine {
             body: Some(body_group),
             parts,
             context,
+            usage,
         })
     }
 
@@ -509,7 +512,7 @@ impl Engine {
         bytes: bytes::Bytes,
         extension: &str,
         raster_mode: RasterMode,
-    ) -> std::result::Result<UntypedDocumentHandle, elide_core::Error> {
+    ) -> std::result::Result<UntypedDocumentHandle, elide::Error> {
         use elide::codec::handler::pdf_format_with;
         let registry =
             FormatRegistry::with_builtin().with_replaced_format(pdf_format_with(raster_mode));
@@ -527,9 +530,9 @@ impl Engine {
         _bytes: bytes::Bytes,
         _extension: &str,
         raster_mode: RasterMode,
-    ) -> std::result::Result<UntypedDocumentHandle, elide_core::Error> {
-        Err(elide_core::Error::new(
-            elide_core::ErrorKind::CapabilityUnavailable,
+    ) -> std::result::Result<UntypedDocumentHandle, elide::Error> {
+        Err(elide::Error::new(
+            elide::ErrorKind::CapabilityUnavailable,
             format!(
                 "raster mode {raster_mode:?} requires the `codec-pdf-render` feature; \
                  rebuild with it enabled or request the default mode"

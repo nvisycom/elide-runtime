@@ -6,8 +6,8 @@
 //! per-entity provenance chain directly.
 
 use bytes::Bytes;
-use elide_core::entity::LabelRef;
-use elide_core::entity::audit::AuditKind;
+use elide::entity::LabelRef;
+use elide::entity::audit::AuditKind;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
@@ -543,7 +543,7 @@ async fn duplicate_scope_names_fail_the_request() {
 /// redactions runs through the fallback.
 #[tokio::test]
 async fn fallback_carries_the_scope_attribution() {
-    use elide_core::entity::audit::AttributionKind;
+    use elide::entity::audit::AttributionKind;
 
     let engine = engine();
     let cited = AttributionKind::Cited {
@@ -602,7 +602,7 @@ async fn fallback_carries_the_scope_attribution() {
 /// falls back to the policy's own name instead.
 #[tokio::test]
 async fn mixed_scope_attribution_does_not_borrow_a_citation() {
-    use elide_core::entity::audit::AttributionKind;
+    use elide::entity::audit::AttributionKind;
 
     let engine = engine();
     let policy = PolicyDefinition {

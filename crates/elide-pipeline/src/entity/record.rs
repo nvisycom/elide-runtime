@@ -1,7 +1,7 @@
 //! One recognised entity plus the optional reviewer override.
 
-use elide_core::entity::Entity;
-use elide_core::modality::Modality;
+use elide::entity::Entity;
+use elide::modality::Modality;
 use elide_governance::redaction::ModalityRedactions;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

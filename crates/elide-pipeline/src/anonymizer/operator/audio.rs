@@ -5,9 +5,9 @@
 //! onto a [`Target`] with the right concrete elide operator
 //! type. Audio operators do not cross modalities.
 
+use elide::modality::audio::Audio;
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
-use elide_core::modality::audio::Audio;
 use elide_governance::redaction::AudioRedaction;
 
 use crate::anonymizer::compile::Target;

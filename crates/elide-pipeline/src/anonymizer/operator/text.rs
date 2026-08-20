@@ -26,17 +26,16 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use elide::redaction::Anonymizer;
+use elide::modality::Modality;
+use elide::modality::text::TextReplacement;
 use elide::redaction::generator::RandomToken;
 use elide::redaction::operators::{
     AesEncrypt, Clamp, Erase, Fake, GeneralizeDate, HmacHash, Keep, KeyProvider, Mask,
     Pseudonymize, PseudonymizeKey, Replace, Sha2Hash, Truncate, TryOperator, WithFallback,
 };
 use elide::redaction::vault::InMemoryVault;
-use elide_core::modality::Modality;
-use elide_core::modality::text::TextReplacement;
-use elide_core::operator::Operator;
-use elide_core::{Error, ErrorKind, Result};
+use elide::redaction::{Anonymizer, Operator};
+use elide::{Error, ErrorKind, Result};
 use elide_governance::redaction::{ClampBucket, TerminalFallback, TextRedaction};
 use uuid::Uuid;
 

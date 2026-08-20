@@ -15,15 +15,15 @@
 //! [`LlmConfig`]: crate::provider::llm::LlmConfig
 //! [`NerConfig`]: crate::provider::ner::NerConfig
 
+use elide::Result;
 use elide::detection::Analyzer;
-use elide_core::Result;
 #[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
+use elide::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
+use elide::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
 
 use super::enrichers::attach_language;
 #[cfg(feature = "internal_image")]
@@ -35,9 +35,9 @@ use super::recognizers::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
 use crate::provider::llm::{AttachTo, LlmConfig};
 use crate::provider::ner::NerConfig;
 #[cfg(feature = "internal_image")]
-use crate::provider::ocr::OcrBackend;
+use crate::provider::ocr::OcrEnricherConfig;
 #[cfg(feature = "internal_audio")]
-use crate::provider::stt::SttBackend;
+use crate::provider::stt::SttEnricherConfig;
 
 /// Compile a text-modality [`Analyzer`].
 ///
@@ -89,7 +89,7 @@ pub(crate) fn compile_tabular(ner: &NerConfig) -> Result<Analyzer<Tabular>> {
 pub(crate) fn compile_image(
     ner: &NerConfig,
     llm: &LlmConfig,
-    ocr: Option<&OcrBackend>,
+    ocr: Option<&OcrEnricherConfig>,
 ) -> Result<Analyzer<Image>> {
     let mut analyzer = Analyzer::<Image>::new();
 
@@ -119,7 +119,10 @@ pub(crate) fn compile_image(
 ///
 /// [`Engine::with_stt`]: crate::Engine::with_stt
 #[cfg(feature = "internal_audio")]
-pub(crate) fn compile_audio(ner: &NerConfig, stt: Option<&SttBackend>) -> Result<Analyzer<Audio>> {
+pub(crate) fn compile_audio(
+    ner: &NerConfig,
+    stt: Option<&SttEnricherConfig>,
+) -> Result<Analyzer<Audio>> {
     let mut analyzer = Analyzer::<Audio>::new();
 
     if let Some(stt) = stt {

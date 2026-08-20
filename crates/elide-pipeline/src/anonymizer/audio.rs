@@ -1,9 +1,9 @@
 //! Compile audio-modality rules to elide operators + attach to an
 //! [`Anonymizer<Audio>`].
 
+use elide::Result;
+use elide::modality::audio::Audio;
 use elide::redaction::Anonymizer;
-use elide_core::Result;
-use elide_core::modality::audio::Audio;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::ModalityRedactions;
 

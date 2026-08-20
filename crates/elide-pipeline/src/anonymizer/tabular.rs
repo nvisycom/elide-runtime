@@ -9,10 +9,10 @@
 //! [`DropRow`]: elide::redaction::operators::DropRow
 //! [`DropColumn`]: elide::redaction::operators::DropColumn
 
+use elide::Result;
+use elide::modality::tabular::Tabular;
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow};
-use elide_core::Result;
-use elide_core::modality::tabular::Tabular;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TabularRedaction};
 

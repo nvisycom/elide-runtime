@@ -8,6 +8,8 @@
 //!
 //! Each enricher is at-most-one per analyzer.
 
+#[cfg(any(feature = "internal_image", feature = "internal_audio"))]
+use elide::Result;
 use elide::detection::Analyzer;
 use elide::enrichment::lingua::LinguaEnricher;
 #[cfg(feature = "test-utils")]
@@ -18,22 +20,20 @@ use elide::enrichment::ocr::OcrEnricher;
 use elide::enrichment::stt::MockBackend as MockSttBackend;
 #[cfg(feature = "internal_audio")]
 use elide::enrichment::stt::SttEnricher;
+use elide::modality::TextRecognizable;
+#[cfg(feature = "internal_audio")]
+use elide::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
+use elide::modality::image::Image;
 #[cfg(feature = "internal_image")]
 use elide_bento::ocr::BentoOcr;
 #[cfg(feature = "internal_audio")]
 use elide_bento::stt::BentoStt;
-#[cfg(any(feature = "internal_image", feature = "internal_audio"))]
-use elide_core::Result;
-use elide_core::modality::TextRecognizable;
-#[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
 
 #[cfg(feature = "internal_image")]
-use crate::provider::ocr::OcrBackend;
+use crate::provider::ocr::{OcrBackend, OcrEnricherConfig};
 #[cfg(feature = "internal_audio")]
-use crate::provider::stt::SttBackend;
+use crate::provider::stt::{SttBackend, SttEnricherConfig};
 
 /// Attach the lingua language-detection enricher.
 ///
@@ -47,8 +47,8 @@ use crate::provider::stt::SttBackend;
 /// request scope wins; the enricher skips detection entirely when
 /// one is present.
 ///
-/// [`TextRecognizable`]: elide_core::modality::TextRecognizable
-/// [`Text`]: elide_core::modality::text::Text
+/// [`TextRecognizable`]: elide::modality::TextRecognizable
+/// [`Text`]: elide::modality::text::Text
 pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Analyzer<M> {
     analyzer.with_enricher(LinguaEnricher::unrestricted())
 }
@@ -60,16 +60,20 @@ pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Ana
 #[cfg(feature = "internal_image")]
 pub(super) fn attach_ocr(
     analyzer: Analyzer<Image>,
-    backend: &OcrBackend,
+    config: &OcrEnricherConfig,
 ) -> Result<Analyzer<Image>> {
-    let enricher = match backend {
+    // The deployment's name for the enricher becomes its usage id,
+    // so a usage report names the enricher a caller configured
+    // rather than a fixed crate string.
+    let builder = OcrEnricher::builder().with_name(config.name.clone());
+    let builder = match &config.backend {
         OcrBackend::Bento { base_url, model } => {
-            OcrEnricher::new(BentoOcr::new(base_url.clone(), model.clone())?)
+            builder.with_backend(BentoOcr::new(base_url.clone(), model.clone())?)
         }
         #[cfg(feature = "test-utils")]
-        OcrBackend::Mock => OcrEnricher::new(MockOcrBackend),
+        OcrBackend::Mock => builder.with_backend(MockOcrBackend),
     };
-    Ok(analyzer.with_enricher(enricher))
+    Ok(analyzer.with_enricher(builder.build()?))
 }
 
 /// Attach an [`SttEnricher`] for the audio modality.
@@ -81,14 +85,16 @@ pub(super) fn attach_ocr(
 #[cfg(feature = "internal_audio")]
 pub(super) fn attach_stt(
     analyzer: Analyzer<Audio>,
-    backend: &SttBackend,
+    config: &SttEnricherConfig,
 ) -> Result<Analyzer<Audio>> {
-    let enricher = match backend {
+    // Same as OCR: the configured name is the usage id.
+    let builder = SttEnricher::builder().with_name(config.name.clone());
+    let builder = match &config.backend {
         SttBackend::Bento { base_url, model } => {
-            SttEnricher::new(BentoStt::new(base_url.clone(), model.clone())?)
+            builder.with_backend(BentoStt::new(base_url.clone(), model.clone())?)
         }
         #[cfg(feature = "test-utils")]
-        SttBackend::Mock => SttEnricher::new(MockSttBackend),
+        SttBackend::Mock => builder.with_backend(MockSttBackend),
     };
-    Ok(analyzer.with_enricher(enricher))
+    Ok(analyzer.with_enricher(builder.build()?))
 }

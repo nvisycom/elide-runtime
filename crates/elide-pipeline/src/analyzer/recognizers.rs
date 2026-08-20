@@ -16,6 +16,8 @@
 //! [`LlmConfig`]: crate::provider::llm::LlmConfig
 
 use elide::detection::Analyzer;
+use elide::modality::TextRecognizable;
+use elide::recognition::Recognizer;
 use elide::recognition::context::Enhanced;
 #[cfg(feature = "test-utils")]
 use elide::recognition::llm::backend::MockBackend as MockLlmBackend;
@@ -25,10 +27,8 @@ use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide::recognition::ner::NerRecognizer;
 use elide::recognition::pattern::{PatternRecognizer, PatternRecognizerBuilder};
+use elide::{Error, ErrorKind, Result};
 use elide_bento::ner::BentoNer;
-use elide_core::modality::TextRecognizable;
-use elide_core::recognition::Recognizer;
-use elide_core::{Error, ErrorKind, Result};
 
 use crate::provider::llm::{AttachTo, LlmConfig, LlmPrompt, LlmRecognizerConfig, LlmSource};
 use crate::provider::ner::{NerBackend, NerConfig, NerRecognizerConfig};

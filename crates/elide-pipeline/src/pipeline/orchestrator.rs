@@ -38,19 +38,18 @@ use std::collections::HashSet;
 use std::slice;
 
 use elide::detection::Analyzer;
+use elide::entity::LabelCatalog;
+use elide::modality::Modality;
+#[cfg(feature = "internal_audio")]
+use elide::modality::audio::Audio;
+#[cfg(feature = "internal_image")]
+use elide::modality::image::Image;
+#[cfg(feature = "internal_tabular")]
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::{Orchestrator, Result};
-use elide_core::entity::LabelCatalog;
-use elide_core::modality::Modality;
-#[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
-use elide_core::{Error, ErrorKind};
+use elide::{Error, ErrorKind, Orchestrator, Result};
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
 use elide_wire::plan::AnalyzerParams;
 use uuid::Uuid;
@@ -73,9 +72,9 @@ use crate::anonymizer::{attach_override_image, attach_policies_image};
 use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
 use crate::entity::OverrideEntry;
 #[cfg(feature = "internal_image")]
-use crate::provider::ocr::{OcrBackend, OcrConfig};
+use crate::provider::ocr::{OcrConfig, OcrEnricherConfig};
 #[cfg(feature = "internal_audio")]
-use crate::provider::stt::{SttBackend, SttConfig};
+use crate::provider::stt::{SttConfig, SttEnricherConfig};
 
 impl Engine {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -95,7 +94,7 @@ impl Engine {
     /// scope carries the same `correlation_id` for tracing spans.
     ///
     /// [`Scope`]: elide::recognition::Scope
-    /// [`LabelCatalog`]: elide_core::entity::LabelCatalog
+    /// [`LabelCatalog`]: elide::entity::LabelCatalog
     /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
     pub(super) fn build_analyze_orchestrator(
         &self,
@@ -373,15 +372,15 @@ where
 /// `ModalityRedactions` field to read and how to build the typed
 /// operator. This helper owns the invariant order and the error
 /// wrapping so each modality's callsite is one call.
-/// Pick the single OCR backend from the engine's lineup, or
+/// Pick the single OCR enricher from the engine's lineup, or
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Image>` attaches at
 /// most one OCR enricher per analyzer.
 #[cfg(feature = "internal_image")]
-fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrBackend>> {
+fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrEnricherConfig>> {
     match ocr.enrichers.as_slice() {
         [] => Ok(None),
-        [one] => Ok(Some(&one.backend)),
+        [one] => Ok(Some(one)),
         many => Err(Error::new(
             ErrorKind::Configuration,
             format!(
@@ -393,15 +392,15 @@ fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrBackend>> {
     }
 }
 
-/// Pick the single STT backend from the engine's lineup, or
+/// Pick the single STT enricher from the engine's lineup, or
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Audio>` attaches at
 /// most one STT enricher per analyzer.
 #[cfg(feature = "internal_audio")]
-fn pick_stt(stt: &SttConfig) -> Result<Option<&SttBackend>> {
+fn pick_stt(stt: &SttConfig) -> Result<Option<&SttEnricherConfig>> {
     match stt.enrichers.as_slice() {
         [] => Ok(None),
-        [one] => Ok(Some(&one.backend)),
+        [one] => Ok(Some(one)),
         many => Err(Error::new(
             ErrorKind::Configuration,
             format!(

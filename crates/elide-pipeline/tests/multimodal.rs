@@ -289,6 +289,7 @@ async fn empty_analyzed_document_anonymize_fails_validation() {
             correlation_id: uuid::Uuid::now_v7(),
             raster_mode: Default::default(),
         },
+        usage: Default::default(),
     };
     let outcome = engine.anonymize(raw_docx(), &[], &mut audit).await;
     let err = outcome.expect_err("anonymize must reject a missing body group");

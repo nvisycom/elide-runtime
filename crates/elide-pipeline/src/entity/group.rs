@@ -52,18 +52,17 @@ use std::collections::HashMap;
 use std::mem;
 
 use bytes::Bytes;
-use elide::Report;
 use elide::codec::{PartId, UntypedDocumentHandle};
-use elide_core::entity::Entity;
-use elide_core::modality::Modality;
+use elide::entity::Entity;
+use elide::modality::Modality;
 #[cfg(feature = "internal_audio")]
-use elide_core::modality::audio::Audio;
+use elide::modality::audio::Audio;
 #[cfg(feature = "internal_image")]
-use elide_core::modality::image::Image;
+use elide::modality::image::Image;
 #[cfg(feature = "internal_tabular")]
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
-use elide_core::{Error, ErrorKind, Result};
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
+use elide::{Error, ErrorKind, Report, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -24,6 +24,7 @@
 //! [`LabelCatalog::filter_tag`]: elide::entity::LabelCatalog::filter_tag
 
 mod group;
+mod overrides;
 mod record;
 
 pub use elide::entity::audit::{
@@ -35,4 +36,5 @@ pub use elide::entity::{
 
 pub use self::group::EntityGroup;
 pub(crate) use self::group::{take_body, take_part};
+pub(crate) use self::overrides::OverrideSet;
 pub use self::record::{EntityRecord, OverrideEntry, Review};

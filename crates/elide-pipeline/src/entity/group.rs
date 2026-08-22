@@ -36,7 +36,7 @@
 //! Per-modality construction lives on one trait
 //! ([`GroupCarrier`]) with a macro-generated impl per modality,
 //! reused by [`take_body`] / [`take_part`] to fold four
-//! feature-gated identical bodies into one generic function.
+//! identical bodies into one generic function.
 //! Every [`EntityGroup`] method dispatches on variant via the
 //! internal `dispatch!` macro, so the modality list lives in
 //! exactly one place: the macro definition. Adding a fifth
@@ -55,18 +55,17 @@ use bytes::Bytes;
 use elide::codec::{PartId, UntypedDocumentHandle};
 use elide::entity::Entity;
 use elide::modality::Modality;
-#[cfg(feature = "internal_audio")]
 use elide::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
 use elide::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{Error, ErrorKind, Report, Result};
+use elide_governance::modality::RedactableModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::overrides::OverrideSet;
 use super::record::{EntityRecord, OverrideEntry};
 
 /// A modality-tagged group of recognised entities.
@@ -86,23 +85,17 @@ pub enum EntityGroup {
     /// Text entities, in source-coordinate order.
     Text(Vec<EntityRecord<Text>>),
     /// Tabular entities, in source-coordinate order.
-    #[cfg(feature = "internal_tabular")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "tabular")))]
     Tabular(Vec<EntityRecord<Tabular>>),
     /// Image entities, in source-coordinate order.
-    #[cfg(feature = "internal_image")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "image")))]
     Image(Vec<EntityRecord<Image>>),
     /// Audio entities, in source-coordinate order.
-    #[cfg(feature = "internal_audio")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
     Audio(Vec<EntityRecord<Audio>>),
 }
 
 /// Per-modality bridge from a drained `Vec<Entity<M>>` back
 /// into an [`EntityGroup`] variant. Implemented once per modality
 /// via macro; consumed by the drain helpers that walk modalities
-/// in feature-gated fallthrough order.
+/// in fallthrough order.
 pub(crate) trait GroupCarrier: Modality + Sized + 'static {
     /// Wrap a drained `Vec<Entity<Self>>` into the matching
     /// [`EntityGroup`] variant.
@@ -120,11 +113,8 @@ macro_rules! impl_group_carrier {
 }
 
 impl_group_carrier!(Text, Text);
-#[cfg(feature = "internal_tabular")]
 impl_group_carrier!(Tabular, Tabular);
-#[cfg(feature = "internal_image")]
 impl_group_carrier!(Image, Image);
-#[cfg(feature = "internal_audio")]
 impl_group_carrier!(Audio, Audio);
 
 /// Drain the body's entities from `report` into an
@@ -145,8 +135,8 @@ pub(crate) fn take_part<M: GroupCarrier>(report: &mut Report, id: &PartId) -> Op
 /// Dispatch on an [`EntityGroup`] variant, binding the modality
 /// type as `$m` and the entities slot as `$entities` in the body.
 /// The modality list lives here: every method on [`EntityGroup`]
-/// below reuses this macro instead of re-writing four
-/// feature-gated match arms.
+/// below reuses this macro instead of re-writing four match
+/// arms.
 ///
 /// Every method that consumes this macro uses both bindings;
 /// pattern-bind the entities slot to `_` in an arm if a caller
@@ -158,17 +148,14 @@ macro_rules! dispatch {
                 type $m = Text;
                 $body
             }
-            #[cfg(feature = "internal_tabular")]
             EntityGroup::Tabular($entities) => {
                 type $m = Tabular;
                 $body
             }
-            #[cfg(feature = "internal_image")]
             EntityGroup::Image($entities) => {
                 type $m = Image;
                 $body
             }
-            #[cfg(feature = "internal_audio")]
             EntityGroup::Audio($entities) => {
                 type $m = Audio;
                 $body
@@ -200,8 +187,13 @@ impl EntityGroup {
     /// skipped.
     ///
     /// [`OverrideEntry`]: super::record::OverrideEntry
-    pub(crate) fn collect_overrides_into(&self, out: &mut Vec<OverrideEntry>) {
-        dispatch!(self, |_M, entities| extend_overrides(out, entities))
+    pub(crate) fn collect_overrides_into(&self, out: &mut OverrideSet) {
+        match self {
+            Self::Text(entities) => extend_overrides(&mut out.text, entities),
+            Self::Tabular(entities) => extend_overrides(&mut out.tabular, entities),
+            Self::Image(entities) => extend_overrides(&mut out.image, entities),
+            Self::Audio(entities) => extend_overrides(&mut out.audio, entities),
+        }
     }
 
     /// Merge post-apply provenance from `report`'s body into this
@@ -241,14 +233,17 @@ impl EntityGroup {
     }
 }
 
-fn clone_entities<M: Modality>(records: &[EntityRecord<M>]) -> Vec<Entity<M>>
+fn clone_entities<M: RedactableModality>(records: &[EntityRecord<M>]) -> Vec<Entity<M>>
 where
     Entity<M>: Clone,
 {
     records.iter().map(|r| r.entity.clone()).collect()
 }
 
-fn extend_overrides<M: Modality>(out: &mut Vec<OverrideEntry>, records: &[EntityRecord<M>]) {
+fn extend_overrides<M: RedactableModality>(
+    out: &mut Vec<OverrideEntry<M>>,
+    records: &[EntityRecord<M>],
+) {
     out.extend(records.iter().filter_map(|r| {
         r.review.as_ref().map(|review| OverrideEntry {
             entity_id: r.entity.id,
@@ -263,7 +258,7 @@ fn extend_overrides<M: Modality>(out: &mut Vec<OverrideEntry>, records: &[Entity
 /// mutated entity whose id matches a record, `mem::take` moves
 /// its provenance chain onto the record. O(n + m) with one
 /// HashMap allocation, no per-mutated linear scan.
-fn merge_provenance<M: Modality>(
+fn merge_provenance<M: RedactableModality>(
     records: &mut [EntityRecord<M>],
     walk_mutated: impl FnOnce(&mut dyn FnMut(&mut Entity<M>)),
 ) {

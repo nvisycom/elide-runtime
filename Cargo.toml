@@ -54,7 +54,6 @@ csv = { version = "1.3", features = [] }
 thiserror = { version = "2.0", features = [] }
 derive_more = { version = "2.0", features = ["add_assign", "as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant", "try_into"] }
 derive_builder = { version = "0.20", features = [] }
-strum = { version = "0.28", features = ["derive"] }
 
 # Primitive datatypes
 uuid = { version = "1.23", features = ["serde", "v4", "v7"] }

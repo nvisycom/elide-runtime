@@ -1,8 +1,7 @@
 //! One recognised entity plus the optional reviewer override.
 
 use elide::entity::Entity;
-use elide::modality::Modality;
-use elide_governance::redaction::ModalityRedactions;
+use elide_governance::modality::RedactableModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -19,7 +18,7 @@ use uuid::Uuid;
                   M::Data: Serialize + for<'a> Deserialize<'a>")]
 #[schemars(bound = "M: JsonSchema, M::Location: JsonSchema, M::Data: JsonSchema")]
 #[schemars(rename = "{M}EntityRecord")]
-pub struct EntityRecord<M: Modality> {
+pub struct EntityRecord<M: RedactableModality> {
     /// The elide entity, as recognition produced it.
     pub entity: Entity<M>,
     /// Reviewer-supplied redaction override.
@@ -32,7 +31,7 @@ pub struct EntityRecord<M: Modality> {
     /// attribution stamps that policy so the trail names the
     /// authority under which the override fired.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub review: Option<Review>,
+    pub review: Option<Review<M>>,
 }
 
 /// A reviewer-supplied redaction override with the policy
@@ -49,7 +48,10 @@ pub struct EntityRecord<M: Modality> {
 /// [`HmacHash`]: elide::redaction::operators::HmacHash
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Review {
+#[serde(bound = "M::Redaction: Serialize + for<'a> Deserialize<'a>")]
+#[schemars(bound = "M: JsonSchema, M::Redaction: JsonSchema")]
+#[schemars(rename = "{M}Review")]
+pub struct Review<M: RedactableModality> {
     /// The policy whose authority the reviewer exercises. Must
     /// match the `id` of a [`PolicyDefinition`] submitted with
     /// the anonymize request. The audit event stamps this UUID
@@ -57,13 +59,21 @@ pub struct Review {
     ///
     /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
     pub policy_id: Uuid,
-    /// The per-modality redaction operators to run for this
-    /// entity. Overrides whatever the policy set would have
-    /// picked for the same entity.
-    pub action: ModalityRedactions,
+    /// The redaction operator to run for this entity, overriding
+    /// whatever the policy set would have picked for it.
+    ///
+    /// Typed to the record's own modality, so a review on an
+    /// `EntityRecord<Text>` can only name a [`TextRedaction`]. The
+    /// four-slot [`ModalityRedactions`] a policy rule carries would
+    /// let a reviewer declare an image operator here and have it
+    /// silently discarded at apply time.
+    ///
+    /// [`ModalityRedactions`]: elide_governance::redaction::ModalityRedactions
+    /// [`TextRedaction`]: elide_governance::redaction::TextRedaction
+    pub action: M::Redaction,
 }
 
-impl<M: Modality> EntityRecord<M> {
+impl<M: RedactableModality> EntityRecord<M> {
     /// New record over `entity`, no review override.
     pub fn new(entity: Entity<M>) -> Self {
         Self {
@@ -81,13 +91,14 @@ impl<M: Modality> EntityRecord<M> {
 /// and consumed by the anonymizer to layer reviewer decisions
 /// before policy rules.
 #[derive(Debug, Clone)]
-pub struct OverrideEntry {
+pub struct OverrideEntry<M: RedactableModality> {
     /// The entity the reviewer overrode.
     pub entity_id: Uuid,
     /// The policy whose authority the override exercises. Named
     /// on the audit event's attribution and used to look up any
     /// per-policy operator infrastructure the override pulls in.
     pub policy_id: Uuid,
-    /// The per-modality operator spec to run.
-    pub action: ModalityRedactions,
+    /// The operator spec to run, typed to the modality of the
+    /// entity it targets.
+    pub action: M::Redaction,
 }

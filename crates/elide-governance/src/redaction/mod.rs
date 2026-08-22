@@ -2,8 +2,7 @@
 //!
 //! Author can choose from inside a `redact` rule, plus the
 //! [`ModalityRedactions`] map a rule carries to wire one operator
-//! per modality, and the [`AnyRedaction`] erasure used at the
-//! override boundary.
+//! per modality.
 //!
 //! Each modality has its own enum because the operator catalogue
 //! differs by modality. Text carries the full elide built-in set
@@ -35,7 +34,6 @@
 //! [`WithFallback`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.WithFallback.html
 //! [`Operator<M>`]: elide_core::operator::Operator
 
-mod any;
 mod audio;
 mod image;
 mod tabular;
@@ -44,7 +42,6 @@ mod text;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::any::{AnyRedaction, RedactionModality};
 pub use self::audio::AudioRedaction;
 pub use self::image::ImageRedaction;
 pub use self::tabular::TabularRedaction;

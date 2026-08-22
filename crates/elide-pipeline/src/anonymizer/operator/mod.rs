@@ -12,8 +12,6 @@
 //! [`Target::attach_with`]: super::compile::Target::attach_with
 //! [`TextRedaction`]: elide_governance::redaction::TextRedaction
 
-#[cfg(feature = "internal_audio")]
 pub(super) mod audio;
-#[cfg(feature = "internal_image")]
 pub(super) mod image;
 pub(super) mod text;

@@ -5,7 +5,7 @@ use elide::Result;
 use elide::modality::text::Text;
 use elide::redaction::Anonymizer;
 use elide_governance::PolicyDefinition;
-use elide_governance::redaction::ModalityRedactions;
+use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
@@ -29,15 +29,16 @@ pub(crate) fn attach_policies_text<'a>(
     })
 }
 
-/// Attach a reviewer override for one entity. A no-op when the
-/// override's redaction spec carries no text arm.
+/// Attach a reviewer override for one entity. Always attaches:
+/// the entry's spec is typed to this modality, so there is no
+/// absent-arm case to fall through.
 pub(crate) fn attach_override_text(
     anonymizer: Anonymizer<Text>,
-    entry: &OverrideEntry,
+    entry: &OverrideEntry<Text>,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Text>> {
-    attach_one_override(anonymizer, entry, |target, redactions| {
-        compile_one(target, redactions, ctx)
+    attach_one_override(anonymizer, entry, |target, spec| {
+        compile_spec(target, spec, ctx)
     })
 }
 
@@ -48,6 +49,14 @@ fn compile_one(
 ) -> Result<Anonymizer<Text>> {
     match &redactions.text {
         None => Ok(target.passthrough()),
-        Some(spec) => compile_and_attach(spec, ctx, target),
+        Some(spec) => compile_spec(target, spec, ctx),
     }
+}
+
+fn compile_spec(
+    target: Target<'_, Text>,
+    spec: &TextRedaction,
+    ctx: &TextOperatorContext,
+) -> Result<Anonymizer<Text>> {
+    compile_and_attach(spec, ctx, target)
 }

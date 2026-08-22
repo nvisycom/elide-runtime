@@ -473,10 +473,7 @@ async fn override_naming_unknown_policy_fails_the_request() {
     // Ship an override that names a policy id no one submitted.
     entities[0].review = Some(Review {
         policy_id: uuid::Uuid::now_v7(),
-        action: ModalityRedactions {
-            text: Some(TextRedaction::Erase),
-            ..Default::default()
-        },
+        action: TextRedaction::Erase,
     });
 
     let err = engine

@@ -21,9 +21,9 @@ documentation = { workspace = true }
 [features]
 default = ["all-modalities"]
 
-## Every modality this crate ships: tabular, image, audio, and the
-## container-document codecs. Text is unconditional, so it needs no
-## toggle. This is what `default` turns on.
+## Every codec this crate ships, across all four modalities. The
+## modalities themselves are unconditional, so this toggles only
+## the container and per-modality codecs.
 ##
 ## Deliberately excludes `codec-mp3` (MP3 patent licensing may not
 ## be satisfiable downstream) and `codec-pdf-render` (drags in a
@@ -31,34 +31,33 @@ default = ["all-modalities"]
 ## every modality should not silently take on either.
 all-modalities = ["tabular", "image", "audio", "document"]
 
-## Tabular modality (analyzer + anonymizer + redaction operators)
-## plus every tabular codec elide ships (CSV, XLSX).
-tabular = ["internal_tabular", "codec-csv", "codec-xlsx"]
-## Image modality (analyzer + anonymizer + redaction operators)
-## plus every image codec elide ships (PNG, JPEG, TIFF).
-image = ["internal_image", "codec-png", "codec-jpeg", "codec-tiff"]
-## Audio modality (analyzer + anonymizer + redaction operators)
-## plus the WAV codec. MP3 is opt-in via `codec-mp3` because of
-## patent licensing.
-audio = ["internal_audio", "codec-wav"]
+## Every tabular codec elide ships (CSV, XLSX). The tabular
+## modality itself is always compiled in.
+tabular = ["codec-csv", "codec-xlsx"]
+## Every image codec elide ships (PNG, JPEG, TIFF). The image
+## modality itself is always compiled in.
+image = ["codec-png", "codec-jpeg", "codec-tiff"]
+## The WAV codec. MP3 is opt-in via `codec-mp3` because of patent
+## licensing. The audio modality itself is always compiled in.
+audio = ["codec-wav"]
 ## Container-document codecs: DOCX, PDF, RTF. Standalone: text and
 ## image modalities are still needed to handle the parts these
 ## containers embed. `codec-pdf-render` (rasterising pages for
 ## OCR) is opt-in via its own toggle.
 document = ["codec-docx", "codec-pdf", "codec-rtf"]
 
-## Individual codec toggles. Each pulls in its modality's shared
-## code (`internal_*`), so `codec-png` alone works without also
-## enabling `image`.
-codec-csv = ["internal_tabular", "elide/codec-csv"]
-codec-xlsx = ["internal_tabular", "elide/codec-xlsx"]
-codec-png = ["internal_image", "elide/codec-png"]
-codec-jpeg = ["internal_image", "elide/codec-jpeg"]
-codec-tiff = ["internal_image", "elide/codec-tiff"]
-codec-wav = ["internal_audio", "elide/codec-wav"]
+## Individual codec toggles. Every modality's analyzer,
+## anonymizer, and redaction operators are always compiled in, so
+## each of these adds only the codec itself.
+codec-csv = ["elide/codec-csv"]
+codec-xlsx = ["elide/codec-xlsx"]
+codec-png = ["elide/codec-png"]
+codec-jpeg = ["elide/codec-jpeg"]
+codec-tiff = ["elide/codec-tiff"]
+codec-wav = ["elide/codec-wav"]
 ## MP3 is opt-in: MP3 patent licensing may not be satisfiable
 ## downstream. Off by default even when `audio` is enabled.
-codec-mp3 = ["internal_audio", "elide/codec-mp3"]
+codec-mp3 = ["elide/codec-mp3"]
 ## DOCX documents (a zip archive with an XML body plus embedded
 ## image parts).
 codec-docx = ["elide/codec-docx"]
@@ -70,14 +69,6 @@ codec-pdf = ["elide/codec-pdf"]
 codec-pdf-render = ["codec-pdf", "elide/codec-pdf-render"]
 ## RTF documents.
 codec-rtf = ["elide/codec-rtf"]
-
-# Internal shared-code gates. Not part of the public feature
-# surface: enabled transitively by every user-facing feature that
-# needs the corresponding modality's analyzer, anonymizer, and
-# redaction operators. Never set directly by consumers.
-internal_tabular = []
-internal_image = []
-internal_audio = []
 
 ## JSON audit export via `Audit::write_json`.
 audit-json = ["dep:serde_json"]
@@ -101,7 +92,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["codec", "codec-text", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-jinja2", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
+elide = { workspace = true, features = ["codec", "codec-text", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-jinja2", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
 
 # Elide extensions
 elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }

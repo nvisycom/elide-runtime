@@ -54,8 +54,29 @@ pub mod provider;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
+/// The modality markers [`EntityGroup`]'s variants are generic
+/// over. Re-exported because [`EntityRecord<M>`] cannot be named
+/// without them: a caller matching on an [`Audit`]'s body needs
+/// `EntityRecord<Text>` and its siblings by name.
+///
+/// All four are always available: the modalities compile in
+/// unconditionally, and only their codecs are feature-gated.
+///
+/// [`EntityRecord<M>`]: crate::entity::EntityRecord
 #[doc(inline)]
-pub use elide::primitive::RasterMode;
+pub use elide::modality::Modality;
+#[doc(inline)]
+pub use elide::modality::audio::Audio;
+#[doc(inline)]
+pub use elide::modality::image::Image;
+#[doc(inline)]
+pub use elide::modality::tabular::Tabular;
+#[doc(inline)]
+pub use elide::modality::text::Text;
+#[doc(inline)]
+pub use elide::primitive::{CountryCode, Languages, RasterMode};
+#[doc(inline)]
+pub use elide::recognition::{ScopeMetadata, UsageReport};
 #[doc(inline)]
 pub use elide::redaction::operators::KeyProvider;
 pub use elide::{Error, ErrorKind, Result};

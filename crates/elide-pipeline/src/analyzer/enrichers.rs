@@ -8,31 +8,22 @@
 //!
 //! Each enricher is at-most-one per analyzer.
 
-#[cfg(any(feature = "internal_image", feature = "internal_audio"))]
 use elide::Result;
 use elide::detection::Analyzer;
 use elide::enrichment::lingua::LinguaEnricher;
 #[cfg(feature = "test-utils")]
 use elide::enrichment::ocr::MockBackend as MockOcrBackend;
-#[cfg(feature = "internal_image")]
 use elide::enrichment::ocr::OcrEnricher;
 #[cfg(feature = "test-utils")]
 use elide::enrichment::stt::MockBackend as MockSttBackend;
-#[cfg(feature = "internal_audio")]
 use elide::enrichment::stt::SttEnricher;
 use elide::modality::TextRecognizable;
-#[cfg(feature = "internal_audio")]
 use elide::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
 use elide::modality::image::Image;
-#[cfg(feature = "internal_image")]
 use elide_bento::ocr::BentoOcr;
-#[cfg(feature = "internal_audio")]
 use elide_bento::stt::BentoStt;
 
-#[cfg(feature = "internal_image")]
 use crate::provider::ocr::{OcrBackend, OcrEnricherConfig};
-#[cfg(feature = "internal_audio")]
 use crate::provider::stt::{SttBackend, SttEnricherConfig};
 
 /// Attach the lingua language-detection enricher.
@@ -57,7 +48,6 @@ pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Ana
 ///
 /// The deployment's `Bento` backend wraps elide-bento's
 /// `BentoOcr` client.
-#[cfg(feature = "internal_image")]
 pub(super) fn attach_ocr(
     analyzer: Analyzer<Image>,
     config: &OcrEnricherConfig,
@@ -82,7 +72,6 @@ pub(super) fn attach_ocr(
 /// `BentoStt` client.
 ///
 /// [`SttEnricher`]: elide::enrichment::stt::SttEnricher
-#[cfg(feature = "internal_audio")]
 pub(super) fn attach_stt(
     analyzer: Analyzer<Audio>,
     config: &SttEnricherConfig,

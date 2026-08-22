@@ -21,7 +21,7 @@ use std::{io, result};
 use elide::entity::audit::AuditKind;
 use elide::modality::Modality;
 use elide::{Error, ErrorKind, Result};
-use elide_governance::redaction::ModalityRedactions;
+use elide_governance::modality::RedactableModality;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
@@ -266,11 +266,8 @@ fn push_entity_rows<'a>(
 ) {
     match group {
         EntityGroup::Text(entities) => extend_entity_rows(entities, part_id, "text", out),
-        #[cfg(feature = "internal_tabular")]
         EntityGroup::Tabular(entities) => extend_entity_rows(entities, part_id, "tabular", out),
-        #[cfg(feature = "internal_image")]
         EntityGroup::Image(entities) => extend_entity_rows(entities, part_id, "image", out),
-        #[cfg(feature = "internal_audio")]
         EntityGroup::Audio(entities) => extend_entity_rows(entities, part_id, "audio", out),
     }
 }
@@ -278,11 +275,8 @@ fn push_entity_rows<'a>(
 fn push_provenance_rows<'a>(group: &'a EntityGroup, out: &mut Vec<ProvenanceRow<'a>>) {
     match group {
         EntityGroup::Text(entities) => extend_provenance_rows(entities, out),
-        #[cfg(feature = "internal_tabular")]
         EntityGroup::Tabular(entities) => extend_provenance_rows(entities, out),
-        #[cfg(feature = "internal_image")]
         EntityGroup::Image(entities) => extend_provenance_rows(entities, out),
-        #[cfg(feature = "internal_audio")]
         EntityGroup::Audio(entities) => extend_provenance_rows(entities, out),
     }
 }
@@ -290,16 +284,13 @@ fn push_provenance_rows<'a>(group: &'a EntityGroup, out: &mut Vec<ProvenanceRow<
 fn push_review_rows(group: &EntityGroup, out: &mut Vec<(Uuid, &'static str, String)>) {
     match group {
         EntityGroup::Text(entities) => extend_review_rows(entities, "text", out),
-        #[cfg(feature = "internal_tabular")]
         EntityGroup::Tabular(entities) => extend_review_rows(entities, "tabular", out),
-        #[cfg(feature = "internal_image")]
         EntityGroup::Image(entities) => extend_review_rows(entities, "image", out),
-        #[cfg(feature = "internal_audio")]
         EntityGroup::Audio(entities) => extend_review_rows(entities, "audio", out),
     }
 }
 
-fn extend_entity_rows<'a, M: Modality>(
+fn extend_entity_rows<'a, M: RedactableModality>(
     records: &'a [EntityRecord<M>],
     part_id: Option<&'a str>,
     modality: &'static str,
@@ -322,7 +313,7 @@ fn extend_entity_rows<'a, M: Modality>(
     out[start..].sort_by_key(|r| r.entity_id);
 }
 
-fn extend_provenance_rows<'a, M: Modality>(
+fn extend_provenance_rows<'a, M: RedactableModality>(
     records: &'a [EntityRecord<M>],
     out: &mut Vec<ProvenanceRow<'a>>,
 ) {
@@ -342,14 +333,14 @@ fn extend_provenance_rows<'a, M: Modality>(
     }
 }
 
-fn extend_review_rows<M: Modality>(
+fn extend_review_rows<M: RedactableModality>(
     records: &[EntityRecord<M>],
     modality: &'static str,
     out: &mut Vec<(Uuid, &'static str, String)>,
 ) {
     for r in records {
         if let Some(review) = &r.review
-            && let Some(op) = operator_kind_for_modality(&review.action, modality)
+            && let Some(op) = operator_kind(&review.action)
         {
             out.push((r.entity.id, modality, op));
         }
@@ -373,31 +364,13 @@ fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Op
     }
 }
 
-/// Extract the operator `kind` discriminator from the modality
-/// slot on a review's [`ModalityRedactions`]. Uses serde JSON
-/// as a universal `kind` reader across the four operator enums
-///: each one is `#[serde(tag = "kind")]` so the top-level JSON
-/// object always has a `"kind"` field.
-fn operator_kind_for_modality(review: &ModalityRedactions, modality: &str) -> Option<String> {
-    let value = match modality {
-        "text" => review
-            .text
-            .as_ref()
-            .and_then(|op| serde_json::to_value(op).ok()),
-        "tabular" => review
-            .tabular
-            .as_ref()
-            .and_then(|op| serde_json::to_value(op).ok()),
-        "image" => review
-            .image
-            .as_ref()
-            .and_then(|op| serde_json::to_value(op).ok()),
-        "audio" => review
-            .audio
-            .as_ref()
-            .and_then(|op| serde_json::to_value(op).ok()),
-        _ => None,
-    }?;
+/// Extract the operator `kind` discriminator from a review's
+/// redaction spec. Uses serde JSON as a universal `kind` reader
+/// across the four operator enums: each one is
+/// `#[serde(tag = "kind")]`, so the top-level JSON object always
+/// has a `"kind"` field.
+fn operator_kind<R: Serialize>(action: &R) -> Option<String> {
+    let value = serde_json::to_value(action).ok()?;
     value
         .get("kind")
         .and_then(|k| k.as_str())

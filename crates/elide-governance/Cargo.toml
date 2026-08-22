@@ -24,15 +24,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide-core = { workspace = true, features = ["serde", "schema", "audio"] }
+elide-core = { workspace = true, features = ["serde", "schema", "audio", "image", "tabular"] }
 elide-operator = { workspace = true, features = ["serde", "schema", "datetime", "sha2"] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true, features = ["uuid1"] }
-
-# Derive macros and error handling
-strum = { workspace = true, features = ["derive"] }
 
 # Version metadata on template provenance
 semver = { workspace = true, features = ["serde"] }

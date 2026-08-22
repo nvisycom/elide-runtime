@@ -82,11 +82,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
-#[cfg(feature = "internal_audio")]
 use elide::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
 use elide::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::primitive::RasterMode;
@@ -98,7 +95,7 @@ use elide_wire::plan::AnalyzerParams;
 
 pub use self::audit::{Audit, AuditContext};
 pub use self::registered::{RegisteredEnricher, RegisteredRecognizer};
-use crate::entity::{EntityGroup, OverrideEntry, take_body, take_part};
+use crate::entity::{EntityGroup, OverrideSet, take_body, take_part};
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
 use crate::provider::ocr::OcrConfig;
@@ -316,11 +313,8 @@ impl Engine {
         // considered; a document decoded to a disabled modality
         // ends up in the `None` arm and surfaces as Validation.
         let body_group = take_body::<Text>(&mut report);
-        #[cfg(feature = "internal_tabular")]
         let body_group = body_group.or_else(|| take_body::<Tabular>(&mut report));
-        #[cfg(feature = "internal_image")]
         let body_group = body_group.or_else(|| take_body::<Image>(&mut report));
-        #[cfg(feature = "internal_audio")]
         let body_group = body_group.or_else(|| take_body::<Audio>(&mut report));
 
         let body_group = body_group.ok_or_else(|| {
@@ -439,7 +433,7 @@ impl Engine {
         let mut handle = self.decode(document, audit.context.raster_mode).await?;
 
         let mut report = body_group.insert_into_body(Report::new());
-        let mut overrides: Vec<OverrideEntry> = Vec::new();
+        let mut overrides = OverrideSet::default();
         body_group.collect_overrides_into(&mut overrides);
         for (id, group) in &audit.parts {
             report = group.insert_as_part(report, id);
@@ -548,38 +542,31 @@ impl Default for Engine {
 }
 
 /// Assemble the per-analyze [`Directives`] from `spec.annotations`,
-/// registering each feature-gated modality's regions with the set.
+/// registering every modality's regions with the set.
 ///
 /// The orchestrator's run-wide scope stays the default; no
 /// per-analysis scope override is used at this layer.
 fn build_analyze_directives(spec: &AnalyzerParams) -> Directives {
-    let directives = Directives::new().with_annotations::<Text>(spec.annotations.text.clone());
-    #[cfg(feature = "internal_tabular")]
-    let directives = directives.with_annotations::<Tabular>(spec.annotations.tabular.clone());
-    #[cfg(feature = "internal_image")]
-    let directives = directives.with_annotations::<Image>(spec.annotations.image.clone());
-    #[cfg(feature = "internal_audio")]
-    let directives = directives.with_annotations::<Audio>(spec.annotations.audio.clone());
-    directives
+    Directives::new()
+        .with_annotations::<Text>(spec.annotations.text.clone())
+        .with_annotations::<Tabular>(spec.annotations.tabular.clone())
+        .with_annotations::<Image>(spec.annotations.image.clone())
+        .with_annotations::<Audio>(spec.annotations.audio.clone())
 }
 
 /// Dispatch a part to the take-part helper matching its modality
-/// `TypeId`. Feature-gated per modality; a part whose modality is
-/// disabled in this build falls through to `None`, and the caller
-/// treats it the same as a part the engine doesn't model.
+/// `TypeId`. A part whose `TypeId` matches no modality the engine
+/// models falls through to `None`.
 fn take_part_dispatch(report: &mut Report, id: &PartId, type_id: TypeId) -> Option<EntityGroup> {
     if type_id == TypeId::of::<Text>() {
         return take_part::<Text>(report, id);
     }
-    #[cfg(feature = "internal_tabular")]
     if type_id == TypeId::of::<Tabular>() {
         return take_part::<Tabular>(report, id);
     }
-    #[cfg(feature = "internal_image")]
     if type_id == TypeId::of::<Image>() {
         return take_part::<Image>(report, id);
     }
-    #[cfg(feature = "internal_audio")]
     if type_id == TypeId::of::<Audio>() {
         return take_part::<Audio>(report, id);
     }

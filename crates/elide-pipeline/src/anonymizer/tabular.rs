@@ -36,15 +36,16 @@ pub(crate) fn attach_policies_tabular<'a>(
     })
 }
 
-/// Attach a reviewer override for one entity. A no-op when the
-/// override's redaction spec carries no tabular arm.
+/// Attach a reviewer override for one entity. Always attaches:
+/// the entry's spec is typed to this modality, so there is no
+/// absent-arm case to fall through.
 pub(crate) fn attach_override_tabular(
     anonymizer: Anonymizer<Tabular>,
-    entry: &OverrideEntry,
+    entry: &OverrideEntry<Tabular>,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Tabular>> {
-    attach_one_override(anonymizer, entry, |target, redactions| {
-        compile_one(target, redactions, ctx)
+    attach_one_override(anonymizer, entry, |target, spec| {
+        compile_spec(target, spec, ctx)
     })
 }
 
@@ -55,8 +56,18 @@ fn compile_one(
 ) -> Result<Anonymizer<Tabular>> {
     match &redactions.tabular {
         None => Ok(target.passthrough()),
-        Some(TabularRedaction::Cell { spec }) => compile_and_attach(spec, ctx, target),
-        Some(TabularRedaction::DropRow) => Ok(target.attach_with(DropRow)),
-        Some(TabularRedaction::DropColumn) => Ok(target.attach_with(DropColumn)),
+        Some(spec) => compile_spec(target, spec, ctx),
+    }
+}
+
+fn compile_spec(
+    target: Target<'_, Tabular>,
+    spec: &TabularRedaction,
+    ctx: &TextOperatorContext,
+) -> Result<Anonymizer<Tabular>> {
+    match spec {
+        TabularRedaction::Cell { spec } => compile_and_attach(spec, ctx, target),
+        TabularRedaction::DropRow => Ok(target.attach_with(DropRow)),
+        TabularRedaction::DropColumn => Ok(target.attach_with(DropColumn)),
     }
 }

@@ -40,40 +40,30 @@ use std::slice;
 use elide::detection::Analyzer;
 use elide::entity::LabelCatalog;
 use elide::modality::Modality;
-#[cfg(feature = "internal_audio")]
 use elide::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
 use elide::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
 use elide::{Error, ErrorKind, Orchestrator, Result};
+use elide_governance::modality::RedactableModality;
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
 use elide_wire::plan::AnalyzerParams;
 use uuid::Uuid;
 
 use super::Engine;
 use super::audit::AuditContext;
-#[cfg(feature = "internal_audio")]
-use crate::analyzer::compile_audio;
-#[cfg(feature = "internal_image")]
-use crate::analyzer::compile_image;
-#[cfg(feature = "internal_tabular")]
-use crate::analyzer::compile_tabular;
-use crate::analyzer::{compile_catalog, compile_text};
-use crate::anonymizer::{TextOperatorContext, attach_override_text, attach_policies_text};
-#[cfg(feature = "internal_audio")]
-use crate::anonymizer::{attach_override_audio, attach_policies_audio};
-#[cfg(feature = "internal_image")]
-use crate::anonymizer::{attach_override_image, attach_policies_image};
-#[cfg(feature = "internal_tabular")]
-use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
-use crate::entity::OverrideEntry;
-#[cfg(feature = "internal_image")]
+use crate::analyzer::{
+    compile_audio, compile_catalog, compile_image, compile_tabular, compile_text,
+};
+use crate::anonymizer::{
+    TextOperatorContext, attach_override_audio, attach_override_image, attach_override_tabular,
+    attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
+    attach_policies_text,
+};
+use crate::entity::{OverrideEntry, OverrideSet};
 use crate::provider::ocr::{OcrConfig, OcrEnricherConfig};
-#[cfg(feature = "internal_audio")]
 use crate::provider::stt::{SttConfig, SttEnricherConfig};
 
 impl Engine {
@@ -120,21 +110,18 @@ impl Engine {
             .with_scope(live_scope)
             .with_modality::<Text>(text_analyzer, text_anon);
 
-        #[cfg(feature = "internal_tabular")]
         let orchestrator = {
             let anon = assemble_empty::<Tabular>(&catalog);
             let analyzer = compile_tabular(&self.ner)?;
             orchestrator.with_modality::<Tabular>(analyzer, anon)
         };
 
-        #[cfg(feature = "internal_image")]
         let orchestrator = {
             let anon = assemble_empty::<Image>(&catalog);
             let analyzer = compile_image(&self.ner, &self.llm, pick_ocr(&self.ocr)?)?;
             orchestrator.with_modality::<Image>(analyzer, anon)
         };
 
-        #[cfg(feature = "internal_audio")]
         let orchestrator = {
             let anon = assemble_empty::<Audio>(&catalog);
             let analyzer = compile_audio(&self.ner, pick_stt(&self.stt)?)?;
@@ -166,7 +153,7 @@ impl Engine {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
-        overrides: &[OverrideEntry],
+        overrides: &OverrideSet,
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
         validate_scope_references(policies)?;
@@ -185,7 +172,7 @@ impl Engine {
 
         let text_anon = assemble::<Text, _, _>(
             &catalog,
-            overrides,
+            &overrides.text,
             policies,
             |anon, entry| attach_override_text(anon, entry, &text_ctx),
             |anon, policies| attach_policies_text(anon, policies, &text_ctx),
@@ -195,11 +182,10 @@ impl Engine {
             .with_scope(live_scope)
             .with_modality::<Text>(Analyzer::<Text>::new(), text_anon);
 
-        #[cfg(feature = "internal_tabular")]
         let orchestrator = {
             let anon = assemble::<Tabular, _, _>(
                 &catalog,
-                overrides,
+                &overrides.tabular,
                 policies,
                 |anon, entry| attach_override_tabular(anon, entry, &text_ctx),
                 |anon, policies| attach_policies_tabular(anon, policies, &text_ctx),
@@ -207,11 +193,10 @@ impl Engine {
             orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon)
         };
 
-        #[cfg(feature = "internal_image")]
         let orchestrator = {
             let anon = assemble::<Image, _, _>(
                 &catalog,
-                overrides,
+                &overrides.image,
                 policies,
                 attach_override_image,
                 attach_policies_image,
@@ -219,11 +204,10 @@ impl Engine {
             orchestrator.with_modality::<Image>(Analyzer::<Image>::new(), anon)
         };
 
-        #[cfg(feature = "internal_audio")]
         let orchestrator = {
             let anon = assemble::<Audio, _, _>(
                 &catalog,
-                overrides,
+                &overrides.audio,
                 policies,
                 attach_override_audio,
                 attach_policies_audio,
@@ -247,18 +231,17 @@ impl Engine {
 /// default `KeyProvider`, both of which are the wrong authority.
 fn validate_override_authorities(
     policies: &[PolicyDefinition],
-    overrides: &[OverrideEntry],
+    overrides: &OverrideSet,
 ) -> Result<()> {
     let known: HashSet<Uuid> = policies.iter().map(|p| p.id).collect();
-    for entry in overrides {
-        if !known.contains(&entry.policy_id) {
+    for (entity_id, policy_id) in overrides.authorities() {
+        if !known.contains(&policy_id) {
             return Err(Error::new(
                 ErrorKind::Configuration,
                 format!(
-                    "override for entity `{}` names policy `{}` that no submitted \
-                     policy in this request carries; overrides inherit a policy's \
-                     authority and must name one that's actually loaded",
-                    entry.entity_id, entry.policy_id,
+                    "override for entity `{entity_id}` names policy `{policy_id}` that \
+                     no submitted policy in this request carries; overrides inherit a \
+                     policy's authority and must name one that's actually loaded",
                 ),
             ));
         }
@@ -376,7 +359,6 @@ where
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Image>` attaches at
 /// most one OCR enricher per analyzer.
-#[cfg(feature = "internal_image")]
 fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrEnricherConfig>> {
     match ocr.enrichers.as_slice() {
         [] => Ok(None),
@@ -396,7 +378,6 @@ fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrEnricherConfig>> {
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Audio>` attaches at
 /// most one STT enricher per analyzer.
-#[cfg(feature = "internal_audio")]
 fn pick_stt(stt: &SttConfig) -> Result<Option<&SttEnricherConfig>> {
     match stt.enrichers.as_slice() {
         [] => Ok(None),
@@ -414,14 +395,14 @@ fn pick_stt(stt: &SttConfig) -> Result<Option<&SttEnricherConfig>> {
 
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
-    overrides: &[OverrideEntry],
+    overrides: &[OverrideEntry<M>],
     policies: &'a [PolicyDefinition],
     attach_override: O,
     attach_policies: P,
 ) -> Result<Anonymizer<M>>
 where
-    M: Modality + 'static,
-    O: Fn(Anonymizer<M>, &OverrideEntry) -> Result<Anonymizer<M>>,
+    M: RedactableModality + 'static,
+    O: Fn(Anonymizer<M>, &OverrideEntry<M>) -> Result<Anonymizer<M>>,
     P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());

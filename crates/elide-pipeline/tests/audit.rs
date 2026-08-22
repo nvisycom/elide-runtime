@@ -11,7 +11,7 @@ mod fixtures;
 
 use bytes::Bytes;
 use elide::modality::text::Text;
-use elide_governance::redaction::{ModalityRedactions, TextRedaction};
+use elide_governance::redaction::TextRedaction;
 use elide_pipeline::entity::{EntityRecord, Review};
 use elide_pipeline::{Audit, Engine, EntityGroup};
 use elide_wire::file::Document;
@@ -62,10 +62,7 @@ fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
     let target = records[0].entity.id;
     records[0].review = Some(Review {
         policy_id: REVIEW_POLICY_ID,
-        action: ModalityRedactions {
-            text: Some(TextRedaction::Erase),
-            ..Default::default()
-        },
+        action: TextRedaction::Erase,
     });
     target
 }

@@ -116,12 +116,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         .expect("entity present")
         .review = Some(Review {
         policy_id: review_policy.id,
-        action: ModalityRedactions {
-            text: Some(TextRedaction::Erase),
-            tabular: None,
-            image: None,
-            audio: None,
-        },
+        action: TextRedaction::Erase,
     });
 
     let outcome = engine

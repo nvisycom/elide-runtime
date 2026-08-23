@@ -1,5 +1,13 @@
-//! Compile a [`elide_governance::PolicyDefinition`] set into an
+//! Redaction: which entities to hide, and how.
+//!
+//! Compiles a [`elide_governance::PolicyDefinition`] set into an
 //! [`Anonymizer`] per modality at request time.
+//!
+//! Mirrors [`crate::recognition`], which does the same for the
+//! other direction: where recognition finds entities, this hides
+//! them. The asymmetry is where the configuration comes
+//! from — recognition's is deployment-owned and wired once at
+//! startup, redaction's arrives per request as policies.
 //!
 //! PolicyDefinition specs are serialisable and modality-agnostic; elide's
 //! [`Anonymizer`]`<M>` is a runtime, modality-typed value that

@@ -6,10 +6,10 @@ use elide::modality::text::Text;
 use elide::redaction::Anonymizer;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
+use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
-use crate::entity::OverrideEntry;
 
 /// Attach every text-applicable rule from `policies` onto an
 /// already-constructed anonymizer. The apply pipeline calls this
@@ -34,10 +34,12 @@ pub(crate) fn attach_policies_text<'a>(
 /// absent-arm case to fall through.
 pub(crate) fn attach_override_text(
     anonymizer: Anonymizer<Text>,
-    entry: &OverrideEntry<Text>,
+    entity_id: Uuid,
+    policy_id: Uuid,
+    action: &TextRedaction,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Text>> {
-    attach_one_override(anonymizer, entry, |target, spec| {
+    attach_one_override(anonymizer, entity_id, policy_id, action, |target, spec| {
         compile_spec(target, spec, ctx)
     })
 }

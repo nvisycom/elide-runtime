@@ -34,7 +34,7 @@
 //!
 //! [`Scope`]: elide::recognition::Scope
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::slice;
 
 use elide::codec::PartId;
@@ -54,18 +54,18 @@ use uuid::Uuid;
 
 use super::Engine;
 use super::audit::AuditContext;
-use crate::analyzer::{
-    compile_audio, compile_catalog, compile_image, compile_tabular, compile_text,
+use crate::catalog::compile_catalog;
+use crate::entity::{Review, ReviewSet};
+use crate::plan::AnalyzerParams;
+use crate::recognition::{
+    OcrConfig, OcrEnricherConfig, SttConfig, SttEnricherConfig, compile_audio, compile_image,
+    compile_tabular, compile_text,
 };
-use crate::anonymizer::{
+use crate::redaction::{
     TextOperatorContext, attach_override_audio, attach_override_image, attach_override_tabular,
     attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
     attach_policies_text,
 };
-use crate::entity::{OverrideEntry, OverrideSet};
-use crate::plan::AnalyzerParams;
-use crate::provider::ocr::{OcrConfig, OcrEnricherConfig};
-use crate::provider::stt::{SttConfig, SttEnricherConfig};
 
 impl Engine {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -154,11 +154,11 @@ impl Engine {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
-        overrides: &OverrideSet,
+        reviews: &ReviewSet,
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
         validate_scope_references(policies)?;
-        validate_override_authorities(policies, overrides)?;
+        validate_override_authorities(policies, reviews)?;
         let catalog = compile_catalog(policies)?;
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
@@ -173,9 +173,9 @@ impl Engine {
 
         let text_anon = assemble::<Text, _, _>(
             &catalog,
-            &overrides.text,
+            &reviews.text,
             policies,
-            |anon, entry| attach_override_text(anon, entry, &text_ctx),
+            |anon, id, policy, action| attach_override_text(anon, id, policy, action, &text_ctx),
             |anon, policies| attach_policies_text(anon, policies, &text_ctx),
         )?;
 
@@ -186,9 +186,11 @@ impl Engine {
         let orchestrator = {
             let anon = assemble::<Tabular, _, _>(
                 &catalog,
-                &overrides.tabular,
+                &reviews.tabular,
                 policies,
-                |anon, entry| attach_override_tabular(anon, entry, &text_ctx),
+                |anon, id, policy, action| {
+                    attach_override_tabular(anon, id, policy, action, &text_ctx)
+                },
                 |anon, policies| attach_policies_tabular(anon, policies, &text_ctx),
             )?;
             orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon)
@@ -197,7 +199,7 @@ impl Engine {
         let orchestrator = {
             let anon = assemble::<Image, _, _>(
                 &catalog,
-                &overrides.image,
+                &reviews.image,
                 policies,
                 attach_override_image,
                 attach_policies_image,
@@ -208,7 +210,7 @@ impl Engine {
         let orchestrator = {
             let anon = assemble::<Audio, _, _>(
                 &catalog,
-                &overrides.audio,
+                &reviews.audio,
                 policies,
                 attach_override_audio,
                 attach_policies_audio,
@@ -293,22 +295,30 @@ impl Engine {
         let scope = build_scope(context, catalog.clone(), correlation_id);
         let text_ctx = TextOperatorContext::new(self.key_provider.clone());
         let picker = Picker {
-            text: assemble::<Text, _, _>(&catalog, &[], policies, no_override, |anon, p| {
-                attach_policies_text(anon, p, &text_ctx)
-            })?,
-            tabular: assemble::<Tabular, _, _>(&catalog, &[], policies, no_override, |anon, p| {
-                attach_policies_tabular(anon, p, &text_ctx)
-            })?,
+            text: assemble::<Text, _, _>(
+                &catalog,
+                &HashMap::new(),
+                policies,
+                no_override,
+                |anon, p| attach_policies_text(anon, p, &text_ctx),
+            )?,
+            tabular: assemble::<Tabular, _, _>(
+                &catalog,
+                &HashMap::new(),
+                policies,
+                no_override,
+                |anon, p| attach_policies_tabular(anon, p, &text_ctx),
+            )?,
             image: assemble::<Image, _, _>(
                 &catalog,
-                &[],
+                &HashMap::new(),
                 policies,
                 no_override,
                 attach_policies_image,
             )?,
             audio: assemble::<Audio, _, _>(
                 &catalog,
-                &[],
+                &HashMap::new(),
                 policies,
                 no_override,
                 attach_policies_audio,
@@ -330,12 +340,9 @@ impl Engine {
 /// policy would attribute to nothing and: worse: silently draw
 /// from an empty per-policy vault or fall back to the engine
 /// default `KeyProvider`, both of which are the wrong authority.
-fn validate_override_authorities(
-    policies: &[PolicyDefinition],
-    overrides: &OverrideSet,
-) -> Result<()> {
+fn validate_override_authorities(policies: &[PolicyDefinition], reviews: &ReviewSet) -> Result<()> {
     let known: HashSet<Uuid> = policies.iter().map(|p| p.id).collect();
-    for (entity_id, policy_id) in overrides.authorities() {
+    for (entity_id, policy_id) in reviews.authorities() {
         if !known.contains(&policy_id) {
             return Err(Error::new(
                 ErrorKind::Configuration,
@@ -452,7 +459,7 @@ where
 /// then attach the policy chain.
 ///
 /// `attach_override` and `attach_policies` are the per-modality
-/// bridges into [`crate::anonymizer`]; they know which
+/// bridges into [`crate::redaction`]; they know which
 /// `ModalityRedactions` field to read and how to build the typed
 /// operator. This helper owns the invariant order and the error
 /// wrapping so each modality's callsite is one call.
@@ -494,21 +501,36 @@ fn pick_stt(stt: &SttConfig) -> Result<Option<&SttEnricherConfig>> {
     }
 }
 
+/// Build one modality's anonymizer: reviewer overrides first, so
+/// they win over the policy rules layered after them.
+///
+/// `reviews` is the whole bucket for this modality, not just the
+/// operator overrides: only [`Review::Redact`] names an operator,
+/// and the other decisions are applied elsewhere (a suppression on
+/// the entity's trail, a retag on the report). Filtering here keeps
+/// that split in one place rather than in a parallel collection.
+///
+/// Iteration order is unspecified and does not matter: each
+/// override attaches a rule matching one entity id, so no two can
+/// ever claim the same entity.
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
-    overrides: &[OverrideEntry<M>],
+    reviews: &HashMap<Uuid, Review<M>>,
     policies: &'a [PolicyDefinition],
     attach_override: O,
     attach_policies: P,
 ) -> Result<Anonymizer<M>>
 where
     M: RedactableModality + 'static,
-    O: Fn(Anonymizer<M>, &OverrideEntry<M>) -> Result<Anonymizer<M>>,
+    O: Fn(Anonymizer<M>, Uuid, Uuid, &M::Redaction) -> Result<Anonymizer<M>>,
     P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
-    for entry in overrides {
-        anonymizer = attach_override(anonymizer, entry)?;
+    for (entity_id, review) in reviews {
+        let Review::Redact { policy_id, action } = review else {
+            continue;
+        };
+        anonymizer = attach_override(anonymizer, *entity_id, *policy_id, action)?;
     }
     attach_policies(anonymizer, policies.iter())
 }
@@ -574,7 +596,9 @@ fn pick_part<M: RedactableModality + 'static>(
 /// rather than a closure so all four `assemble` calls share it.
 fn no_override<M: RedactableModality + 'static>(
     anonymizer: Anonymizer<M>,
-    _entry: &OverrideEntry<M>,
+    _entity_id: Uuid,
+    _policy_id: Uuid,
+    _action: &M::Redaction,
 ) -> Result<Anonymizer<M>> {
     Ok(anonymizer)
 }

@@ -138,23 +138,3 @@ pub enum Review<M: RedactableModality> {
         actor: Option<String>,
     },
 }
-
-/// The three fields the anonymize path needs to apply a reviewer
-/// override: which entity to target, which policy's authority
-/// the override draws from, and the operator spec to run.
-///
-/// Materialised from every [`Review::Redact`] in the audit and
-/// consumed by the anonymizer to layer reviewer decisions before
-/// policy rules.
-#[derive(Debug, Clone)]
-pub struct OverrideEntry<M: RedactableModality> {
-    /// The entity the reviewer overrode.
-    pub entity_id: Uuid,
-    /// The policy whose authority the override exercises. Named
-    /// on the audit event's attribution and used to look up any
-    /// per-policy operator infrastructure the override pulls in.
-    pub policy_id: Uuid,
-    /// The operator spec to run, typed to the modality of the
-    /// entity it targets.
-    pub action: M::Redaction,
-}

@@ -36,12 +36,11 @@ use uuid::Uuid;
 use super::selector::{
     PolicyContext, attach, attach_override, fallback_attribution, rule_attribution,
 };
-use crate::entity::OverrideEntry;
 
 /// Where an operator is being attached. The per-modality `Op`
 /// dispatcher takes one of these and feeds the carried
 /// `Anonymizer<M>` through the right elide entry point.
-pub(in crate::anonymizer) enum Target<'a, M: Modality> {
+pub(in crate::redaction) enum Target<'a, M: Modality> {
     /// Rule attachment: predicate-guarded redaction with a
     /// name + description attribution. Maps to
     /// [`super::selector::attach`]. `context` carries the
@@ -84,7 +83,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// needs exactly one match on its own variants: no separate
     /// `attach_rule` / `attach_fallback` / `attach_override`
     /// dispatchers per modality.
-    pub(in crate::anonymizer) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
+    pub(in crate::redaction) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
     where
         O: Operator<M> + 'static,
     {
@@ -122,7 +121,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// the exact failure the typed override closed.
     ///
     /// [`ModalityRedactions`]: elide_governance::redaction::ModalityRedactions
-    pub(in crate::anonymizer) fn passthrough(self) -> Anonymizer<M> {
+    pub(in crate::redaction) fn passthrough(self) -> Anonymizer<M> {
         match self {
             Target::Rule { anonymizer, .. } | Target::Fallback { anonymizer, .. } => anonymizer,
             Target::Override { .. } => {
@@ -134,7 +133,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// The policy authority under which this target attaches its
     /// operator. Per-policy operator infrastructure (pseudonym
     /// vault, `KeyProvider`) is keyed by this UUID.
-    pub(in crate::anonymizer) fn policy_id(&self) -> Uuid {
+    pub(in crate::redaction) fn policy_id(&self) -> Uuid {
         match self {
             Target::Rule { context, .. } => context.policy_id,
             Target::Fallback { context, .. } => context.policy_id,
@@ -196,7 +195,7 @@ where
 /// redaction spec is absent or wrong-modality: those are no-ops
 /// at the per-modality dispatch boundary. Operator build errors
 /// propagate.
-pub(in crate::anonymizer) fn attach_policies<'a, M, F>(
+pub(in crate::redaction) fn attach_policies<'a, M, F>(
     mut anonymizer: Anonymizer<M>,
     policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,
     mut compile_one: F,
@@ -240,17 +239,18 @@ where
     Ok(anonymizer)
 }
 
-/// Apply a reviewer override on one entity, using the policy id
-/// carried on the [`OverrideEntry`] as the override's authority.
+/// Apply a reviewer override on one entity, under `policy_id`'s
+/// authority.
 /// `compile_spec` takes the entry's redaction already typed to `M`,
 /// so unlike [`attach_policies`] there is no modality arm to select
 /// and no absent-arm passthrough; called once with a
 /// [`Target::Override`].
 ///
-/// [`OverrideEntry`]: crate::entity::OverrideEntry
-pub(in crate::anonymizer) fn attach_one_override<M, F>(
+pub(in crate::redaction) fn attach_one_override<M, F>(
     anonymizer: Anonymizer<M>,
-    entry: &OverrideEntry<M>,
+    entity_id: Uuid,
+    policy_id: Uuid,
+    action: &M::Redaction,
     compile_spec: F,
 ) -> Result<Anonymizer<M>>
 where
@@ -260,9 +260,9 @@ where
     compile_spec(
         Target::Override {
             anonymizer,
-            entity_id: entry.entity_id,
-            policy_id: entry.policy_id,
+            entity_id,
+            policy_id,
         },
-        &entry.action,
+        action,
     )
 }

@@ -23,8 +23,7 @@ use elide::modality::image::Image;
 use elide_bento::ocr::BentoOcr;
 use elide_bento::stt::BentoStt;
 
-use crate::provider::ocr::{OcrBackend, OcrEnricherConfig};
-use crate::provider::stt::{SttBackend, SttEnricherConfig};
+use crate::recognition::{OcrBackend, OcrEnricherConfig, SttBackend, SttEnricherConfig};
 
 /// Attach the lingua language-detection enricher.
 ///

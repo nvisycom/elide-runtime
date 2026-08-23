@@ -46,13 +46,14 @@
 //!
 //! [`elide`]: elide
 
-mod analyzer;
-mod anonymizer;
+mod catalog;
+
 pub mod entity;
 pub mod file;
 mod pipeline;
 pub mod plan;
-pub mod provider;
+pub mod recognition;
+mod redaction;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;

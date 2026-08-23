@@ -12,8 +12,8 @@
 //! Non-text methods are gated on their modality's feature.
 //!
 //! [`Analyzer`]: elide::detection::Analyzer
-//! [`LlmConfig`]: crate::provider::llm::LlmConfig
-//! [`NerConfig`]: crate::provider::ner::NerConfig
+//! [`LlmConfig`]: crate::recognition::LlmConfig
+//! [`NerConfig`]: crate::recognition::NerConfig
 
 use elide::Result;
 use elide::detection::Analyzer;
@@ -25,10 +25,7 @@ use elide::modality::text::Text;
 use super::enrichers::{attach_language, attach_ocr, attach_stt};
 use super::layer::attach_dedup;
 use super::recognizers::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
-use crate::provider::llm::{AttachTo, LlmConfig};
-use crate::provider::ner::NerConfig;
-use crate::provider::ocr::OcrEnricherConfig;
-use crate::provider::stt::SttEnricherConfig;
+use crate::recognition::{AttachTo, LlmConfig, NerConfig, OcrEnricherConfig, SttEnricherConfig};
 
 /// Compile a text-modality [`Analyzer`].
 ///

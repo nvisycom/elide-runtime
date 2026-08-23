@@ -10,7 +10,7 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Beep, Erase, Keep, Silence};
 use elide_governance::redaction::AudioRedaction;
 
-use crate::anonymizer::compile::Target;
+use crate::redaction::compile::Target;
 
 /// Discriminated builder result so [`Target::attach_with`] can
 /// attach the right concrete operator type. Same reason as
@@ -18,7 +18,7 @@ use crate::anonymizer::compile::Target;
 /// `O: Operator<M> + 'static` by value.
 ///
 /// [`Anonymizer::with_label`]: elide::redaction::Anonymizer::with_label
-pub(in crate::anonymizer) enum AudioOp {
+pub(in crate::redaction) enum AudioOp {
     Erase,
     Keep,
     Silence,
@@ -27,7 +27,7 @@ pub(in crate::anonymizer) enum AudioOp {
 
 impl AudioOp {
     /// Attach `self` to `target`.
-    pub(in crate::anonymizer) fn attach_to(self, target: Target<'_, Audio>) -> Anonymizer<Audio> {
+    pub(in crate::redaction) fn attach_to(self, target: Target<'_, Audio>) -> Anonymizer<Audio> {
         match self {
             AudioOp::Erase => target.attach_with(Erase),
             AudioOp::Keep => target.attach_with(Keep),

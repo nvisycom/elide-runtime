@@ -5,8 +5,8 @@
 //! - The [`FormatRegistry`] over elide's codec set. Decodes raw
 //!   bytes into a modality-typed [`DocumentHandle`] at analyze +
 //!   anonymize time.
-//! - The deployment's NER + LLM lineups (see [`crate::provider::ner`]
-//!   and [`crate::provider::llm`]). Consulted by the analyzer
+//! - The deployment's NER + LLM lineups (see [`crate::recognition::backend::ner`]
+//!   and [`crate::recognition::backend::llm`]). Consulted by the analyzer
 //!   compile whenever the request's
 //!   `AnalyzerParams.recognizers.{ner,llm}` selects any recognizer.
 //!
@@ -50,7 +50,7 @@
 //! Sibling crate-level modules provide the modality-shaped
 //! plumbing:
 //!
-//! - `crate::analyzer` and `crate::anonymizer` compile
+//! - `crate::recognition` and `crate::redaction` compile
 //!   per-modality `spec` and `policies` into per-modality elide
 //!   types.
 //! - `crate::entity` owns [`ReviewSet`] (the reviewer decisions
@@ -100,10 +100,7 @@ pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredR
 use crate::entity::ReviewSet;
 use crate::file::Document;
 use crate::plan::AnalyzerParams;
-use crate::provider::llm::LlmConfig;
-use crate::provider::ner::NerConfig;
-use crate::provider::ocr::OcrConfig;
-use crate::provider::stt::SttConfig;
+use crate::recognition::{LlmConfig, NerConfig, OcrConfig, SttConfig};
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
@@ -457,11 +454,10 @@ impl Engine {
         // the redaction pass skips.
         audit.apply_suppressions();
 
-        let overrides = audit.collect_overrides();
         let orchestrator = self.build_anonymize_orchestrator(
             &audit.context,
             policies,
-            &overrides,
+            &audit.reviews,
             correlation_id,
         )?;
 

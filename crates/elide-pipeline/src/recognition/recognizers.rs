@@ -12,8 +12,8 @@
 //! (NER: cheap trait bound) or are silently skipped upstream
 //! (LLM: no `LlmModality` impl for Tabular / Audio).
 //!
-//! [`NerConfig`]: crate::provider::ner::NerConfig
-//! [`LlmConfig`]: crate::provider::llm::LlmConfig
+//! [`NerConfig`]: crate::recognition::NerConfig
+//! [`LlmConfig`]: crate::recognition::LlmConfig
 
 use elide::detection::Analyzer;
 use elide::modality::TextRecognizable;
@@ -30,8 +30,10 @@ use elide::recognition::pattern::{PatternRecognizer, PatternRecognizerBuilder};
 use elide::{Error, ErrorKind, Result};
 use elide_bento::ner::BentoNer;
 
-use crate::provider::llm::{AttachTo, LlmConfig, LlmPrompt, LlmRecognizerConfig, LlmSource};
-use crate::provider::ner::{NerBackend, NerConfig, NerRecognizerConfig};
+use crate::recognition::{
+    AttachTo, LlmConfig, LlmPrompt, LlmRecognizerConfig, LlmSource, NerBackend, NerConfig,
+    NerRecognizerConfig,
+};
 
 /// Aggregate cap on total dictionary terms across every shipped
 /// dictionary, compiled into one shared Aho-Corasick automaton.

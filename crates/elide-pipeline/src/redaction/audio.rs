@@ -6,10 +6,10 @@ use elide::modality::audio::Audio;
 use elide::redaction::Anonymizer;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{AudioRedaction, ModalityRedactions};
+use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::audio::AudioOp;
-use crate::entity::OverrideEntry;
 
 /// Attach every audio-applicable rule from `policies` onto an
 /// already-constructed anonymizer.
@@ -30,9 +30,11 @@ pub(crate) fn attach_policies_audio<'a>(
 /// absent-arm case to fall through.
 pub(crate) fn attach_override_audio(
     anonymizer: Anonymizer<Audio>,
-    entry: &OverrideEntry<Audio>,
+    entity_id: Uuid,
+    policy_id: Uuid,
+    action: &AudioRedaction,
 ) -> Result<Anonymizer<Audio>> {
-    attach_one_override(anonymizer, entry, compile_spec)
+    attach_one_override(anonymizer, entity_id, policy_id, action, compile_spec)
 }
 
 fn compile_one(

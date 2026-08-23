@@ -15,10 +15,10 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow};
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TabularRedaction};
+use uuid::Uuid;
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
-use crate::entity::OverrideEntry;
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the
@@ -41,10 +41,12 @@ pub(crate) fn attach_policies_tabular<'a>(
 /// absent-arm case to fall through.
 pub(crate) fn attach_override_tabular(
     anonymizer: Anonymizer<Tabular>,
-    entry: &OverrideEntry<Tabular>,
+    entity_id: Uuid,
+    policy_id: Uuid,
+    action: &TabularRedaction,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Tabular>> {
-    attach_one_override(anonymizer, entry, |target, spec| {
+    attach_one_override(anonymizer, entity_id, policy_id, action, |target, spec| {
         compile_spec(target, spec, ctx)
     })
 }

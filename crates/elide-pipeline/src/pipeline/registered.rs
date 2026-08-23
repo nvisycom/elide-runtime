@@ -13,10 +13,9 @@ use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::provider::llm::LlmRecognizerConfig;
-use crate::provider::ner::NerRecognizerConfig;
-use crate::provider::ocr::OcrEnricherConfig;
-use crate::provider::stt::SttEnricherConfig;
+use crate::recognition::{
+    LlmRecognizerConfig, NerRecognizerConfig, OcrEnricherConfig, SttEnricherConfig,
+};
 
 /// Public view of one recognizer in the engine's NER or LLM
 /// lineup.

@@ -17,7 +17,7 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::provider::{OcrBackend, OcrConfig, OcrEnricherConfig};
+use elide_pipeline::recognition::{OcrBackend, OcrConfig, OcrEnricherConfig};
 use elide_pipeline::{Audit, AuditContext, Engine, ReviewSet};
 
 use self::fixtures::write_artefact;

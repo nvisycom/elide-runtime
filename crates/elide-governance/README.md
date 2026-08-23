@@ -24,8 +24,9 @@ per-modality redaction operators (erase, mask, replace, hash,
 encrypt, blur, pixelate, ...) and entity-match predicates, which may
 target a scope by name.
 
-Sibling to elide-wire, which carries the plan and file schemas.
-Consumers depend on this crate directly.
+Consumed by elide-pipeline, which carries the request schemas and the
+engine. Consumers may also depend on this crate directly to author
+policies without pulling the engine in.
 
 ## Changelog
 

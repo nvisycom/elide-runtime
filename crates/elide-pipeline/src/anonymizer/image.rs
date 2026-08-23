@@ -5,7 +5,7 @@ use elide::Result;
 use elide::modality::image::Image;
 use elide::redaction::Anonymizer;
 use elide_governance::PolicyDefinition;
-use elide_governance::redaction::ModalityRedactions;
+use elide_governance::redaction::{ImageRedaction, ModalityRedactions};
 
 use super::compile::{Target, attach_one_override, attach_policies};
 use super::operator::image::ImageOp;
@@ -25,13 +25,14 @@ pub(crate) fn attach_policies_image<'a>(
     attach_policies(anonymizer, policies, compile_one)
 }
 
-/// Attach a reviewer override for one entity. A no-op when the
-/// override's redaction spec carries no image arm.
+/// Attach a reviewer override for one entity. Always attaches:
+/// the entry's spec is typed to this modality, so there is no
+/// absent-arm case to fall through.
 pub(crate) fn attach_override_image(
     anonymizer: Anonymizer<Image>,
-    entry: &OverrideEntry,
+    entry: &OverrideEntry<Image>,
 ) -> Result<Anonymizer<Image>> {
-    attach_one_override(anonymizer, entry, compile_one)
+    attach_one_override(anonymizer, entry, compile_spec)
 }
 
 fn compile_one(
@@ -41,5 +42,9 @@ fn compile_one(
     let Some(spec) = &redactions.image else {
         return Ok(target.passthrough());
     };
+    compile_spec(target, spec)
+}
+
+fn compile_spec(target: Target<'_, Image>, spec: &ImageRedaction) -> Result<Anonymizer<Image>> {
     Ok(ImageOp::from(spec).attach_to(target))
 }

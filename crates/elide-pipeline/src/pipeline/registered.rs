@@ -1,14 +1,13 @@
 //! [`RegisteredRecognizer`]: the public view of one recognizer
 //! in the engine's NER or LLM lineup.
 //!
-//! Returned by [`crate::Engine::ner_recognizers`] and
-//! [`crate::Engine::llm_recognizers`] so operators and SDK
+//! Carried by [`RegisteredComponents`], which
+//! [`crate::Engine::components`] returns so operators and SDK
 //! callers can list what's registered without seeing backend
 //! connection details or (future) credentials.
 //!
 //! [`RegisteredEnricher`] is a type alias for the same shape,
-//! returned by [`crate::Engine::ocr_enrichers`] and
-//! [`crate::Engine::stt_enrichers`].
+//! used for the OCR and STT lineups.
 
 use hipstr::HipStr;
 use schemars::JsonSchema;
@@ -98,5 +97,43 @@ impl From<&SttEnricherConfig> for RegisteredRecognizer {
             description: e.description.clone(),
             provider: HipStr::from(e.backend.provider()),
         }
+    }
+}
+
+/// Every recognizer and enricher an [`Engine`] has registered,
+/// each lineup in configuration order.
+///
+/// One value rather than four separate accessors: a caller
+/// listing what an engine can do wants the whole picture, and
+/// assembling it from four calls invites showing a partial one.
+/// Serializable so a host can return it from an introspection
+/// endpoint directly.
+///
+/// [`Engine`]: crate::Engine
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisteredComponents {
+    /// NER recognizers, in configuration order.
+    pub ner: Vec<RegisteredRecognizer>,
+    /// LLM recognizers, in configuration order.
+    pub llm: Vec<RegisteredRecognizer>,
+    /// OCR enrichers, in configuration order.
+    pub ocr: Vec<RegisteredEnricher>,
+    /// STT enrichers, in configuration order.
+    pub stt: Vec<RegisteredEnricher>,
+}
+
+impl RegisteredComponents {
+    /// Whether the engine has no components registered at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.ner.is_empty() && self.llm.is_empty() && self.ocr.is_empty() && self.stt.is_empty()
+    }
+
+    /// Total number of registered components across all four
+    /// lineups.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.ner.len() + self.llm.len() + self.ocr.len() + self.stt.len()
     }
 }

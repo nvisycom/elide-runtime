@@ -4,9 +4,9 @@
 
 //! Layers on top of the [elide] toolkit. This crate wires elide's
 //! per-modality analyzers, anonymizers, and orchestrator into a
-//! stateless per-request document pipeline driven by the wire
-//! schemas from [`elide_wire`] and the governance schema from
-//! [elide-governance].
+//! stateless per-request document pipeline, driven by its own
+//! request schemas ([`plan`], [`file`](mod@file)) and the
+//! governance schema from [elide-governance].
 //!
 //! [elide]: https://github.com/nvisycom/elide
 //! [elide-governance]: https://docs.rs/elide-governance
@@ -49,13 +49,46 @@
 mod analyzer;
 mod anonymizer;
 pub mod entity;
+pub mod file;
 mod pipeline;
+pub mod plan;
 pub mod provider;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
+/// The modality markers every typed call is generic over.
+///
+/// Re-exported because reading an [`Audit`] means naming one:
+/// `audit.report.entities::<Text>()`, `audit.review::<Image>(..)`.
+///
+/// All four are always available: the modalities compile in
+/// unconditionally, and only their codecs are feature-gated.
 #[doc(inline)]
-pub use elide::primitive::RasterMode;
+pub use elide::modality::Modality;
+#[doc(inline)]
+pub use elide::modality::audio::Audio;
+#[doc(inline)]
+pub use elide::modality::image::Image;
+#[doc(inline)]
+pub use elide::modality::tabular::Tabular;
+#[doc(inline)]
+pub use elide::modality::text::Text;
+#[doc(inline)]
+pub use elide::primitive::{CountryCode, Languages, RasterMode};
+/// Per-component usage accounting, surfaced on [`Audit::usage`].
+///
+/// The whole chain is re-exported, not just the report: `entries`,
+/// [`UsageReport::by_name`], and [`UsageReport::extend`] all traffic
+/// in [`Usage`], whose `id` and `model` in turn expose
+/// [`RecognizerId`] and [`ModelUsage`] / [`TokenCounts`]. Without
+/// these a caller can reach a value off the audit but cannot name
+/// its type.
+///
+/// [`Audit::usage`]: crate::Audit::usage
+#[doc(inline)]
+pub use elide::recognition::{
+    ModelUsage, RecognizerId, ScopeMetadata, TokenCounts, Usage, UsageReport,
+};
 #[doc(inline)]
 pub use elide::redaction::operators::KeyProvider;
 pub use elide::{Error, ErrorKind, Result};
@@ -67,12 +100,9 @@ pub use elide_governance as policy;
 /// (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA).
 #[doc(inline)]
 pub use elide_template as template;
-#[doc(inline)]
-pub use elide_wire::file::{Document, FileMetadata};
-/// Authored recognition plan: `AnalyzerParams`, caller-inlined
-/// pattern extras, scope, region annotations.
-#[doc(inline)]
-pub use elide_wire::plan;
 
-pub use self::entity::EntityGroup;
-pub use self::pipeline::{Audit, AuditContext, Engine, RegisteredRecognizer};
+pub use self::entity::ReviewSet;
+pub use self::file::{Document, FileMetadata};
+pub use self::pipeline::{
+    Audit, AuditContext, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
+};

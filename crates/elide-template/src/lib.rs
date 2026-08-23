@@ -69,7 +69,7 @@ use self::template::{ccpa, gdpr, hipaa, pci};
 ///
 /// Serialises as an internally-tagged object under `kind`,
 /// matching the house pattern for option-bearing enums
-/// (`Predicate`, `TextRedaction`, `AnyRedaction`). A caller
+/// (`Predicate`, `TextRedaction`). A caller
 /// wire-picks a template as
 /// `{"kind": "hipaa_safe_harbor"}` or, for variants with
 /// operator options,

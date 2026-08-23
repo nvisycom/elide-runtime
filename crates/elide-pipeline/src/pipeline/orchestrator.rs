@@ -37,43 +37,34 @@
 use std::collections::HashSet;
 use std::slice;
 
+use elide::codec::PartId;
 use elide::detection::Analyzer;
 use elide::entity::LabelCatalog;
 use elide::modality::Modality;
-#[cfg(feature = "internal_audio")]
 use elide::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
 use elide::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::{Error, ErrorKind, Orchestrator, Result};
+use elide::{Error, ErrorKind, Orchestrator, Report, Result};
+use elide_governance::modality::RedactableModality;
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
-use elide_wire::plan::AnalyzerParams;
 use uuid::Uuid;
 
 use super::Engine;
 use super::audit::AuditContext;
-#[cfg(feature = "internal_audio")]
-use crate::analyzer::compile_audio;
-#[cfg(feature = "internal_image")]
-use crate::analyzer::compile_image;
-#[cfg(feature = "internal_tabular")]
-use crate::analyzer::compile_tabular;
-use crate::analyzer::{compile_catalog, compile_text};
-use crate::anonymizer::{TextOperatorContext, attach_override_text, attach_policies_text};
-#[cfg(feature = "internal_audio")]
-use crate::anonymizer::{attach_override_audio, attach_policies_audio};
-#[cfg(feature = "internal_image")]
-use crate::anonymizer::{attach_override_image, attach_policies_image};
-#[cfg(feature = "internal_tabular")]
-use crate::anonymizer::{attach_override_tabular, attach_policies_tabular};
-use crate::entity::OverrideEntry;
-#[cfg(feature = "internal_image")]
+use crate::analyzer::{
+    compile_audio, compile_catalog, compile_image, compile_tabular, compile_text,
+};
+use crate::anonymizer::{
+    TextOperatorContext, attach_override_audio, attach_override_image, attach_override_tabular,
+    attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
+    attach_policies_text,
+};
+use crate::entity::{OverrideEntry, OverrideSet};
+use crate::plan::AnalyzerParams;
 use crate::provider::ocr::{OcrConfig, OcrEnricherConfig};
-#[cfg(feature = "internal_audio")]
 use crate::provider::stt::{SttConfig, SttEnricherConfig};
 
 impl Engine {
@@ -120,21 +111,18 @@ impl Engine {
             .with_scope(live_scope)
             .with_modality::<Text>(text_analyzer, text_anon);
 
-        #[cfg(feature = "internal_tabular")]
         let orchestrator = {
             let anon = assemble_empty::<Tabular>(&catalog);
             let analyzer = compile_tabular(&self.ner)?;
             orchestrator.with_modality::<Tabular>(analyzer, anon)
         };
 
-        #[cfg(feature = "internal_image")]
         let orchestrator = {
             let anon = assemble_empty::<Image>(&catalog);
             let analyzer = compile_image(&self.ner, &self.llm, pick_ocr(&self.ocr)?)?;
             orchestrator.with_modality::<Image>(analyzer, anon)
         };
 
-        #[cfg(feature = "internal_audio")]
         let orchestrator = {
             let anon = assemble_empty::<Audio>(&catalog);
             let analyzer = compile_audio(&self.ner, pick_stt(&self.stt)?)?;
@@ -166,7 +154,7 @@ impl Engine {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
-        overrides: &[OverrideEntry],
+        overrides: &OverrideSet,
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
         validate_scope_references(policies)?;
@@ -185,7 +173,7 @@ impl Engine {
 
         let text_anon = assemble::<Text, _, _>(
             &catalog,
-            overrides,
+            &overrides.text,
             policies,
             |anon, entry| attach_override_text(anon, entry, &text_ctx),
             |anon, policies| attach_policies_text(anon, policies, &text_ctx),
@@ -195,11 +183,10 @@ impl Engine {
             .with_scope(live_scope)
             .with_modality::<Text>(Analyzer::<Text>::new(), text_anon);
 
-        #[cfg(feature = "internal_tabular")]
         let orchestrator = {
             let anon = assemble::<Tabular, _, _>(
                 &catalog,
-                overrides,
+                &overrides.tabular,
                 policies,
                 |anon, entry| attach_override_tabular(anon, entry, &text_ctx),
                 |anon, policies| attach_policies_tabular(anon, policies, &text_ctx),
@@ -207,11 +194,10 @@ impl Engine {
             orchestrator.with_modality::<Tabular>(Analyzer::<Tabular>::new(), anon)
         };
 
-        #[cfg(feature = "internal_image")]
         let orchestrator = {
             let anon = assemble::<Image, _, _>(
                 &catalog,
-                overrides,
+                &overrides.image,
                 policies,
                 attach_override_image,
                 attach_policies_image,
@@ -219,11 +205,10 @@ impl Engine {
             orchestrator.with_modality::<Image>(Analyzer::<Image>::new(), anon)
         };
 
-        #[cfg(feature = "internal_audio")]
         let orchestrator = {
             let anon = assemble::<Audio, _, _>(
                 &catalog,
-                overrides,
+                &overrides.audio,
                 policies,
                 attach_override_audio,
                 attach_policies_audio,
@@ -232,6 +217,106 @@ impl Engine {
         };
 
         Ok(orchestrator)
+    }
+
+    /// An orchestrator carrying only the modality registry, for
+    /// rebuilding a serialized [`Report`].
+    ///
+    /// Deserialization routes each entity group to its modality by
+    /// name and needs nothing else: no policies, no operators, no
+    /// scope. The analyzers and anonymizers are the empty ones
+    /// [`with_modality`] insists on.
+    ///
+    /// [`with_modality`]: elide::Orchestrator::with_modality
+    pub(super) fn build_report_orchestrator(&self) -> Orchestrator<'_> {
+        let catalog = LabelCatalog::new();
+        Orchestrator::new(&self.formats)
+            .with_modality::<Text>(Analyzer::<Text>::new(), assemble_empty(&catalog))
+            .with_modality::<Tabular>(Analyzer::<Tabular>::new(), assemble_empty(&catalog))
+            .with_modality::<Image>(Analyzer::<Image>::new(), assemble_empty(&catalog))
+            .with_modality::<Audio>(Analyzer::<Audio>::new(), assemble_empty(&catalog))
+    }
+
+    /// Record each entity's operator *pick* onto its audit trail,
+    /// without applying anything.
+    ///
+    /// Runs at the end of analyze so the returned [`Audit`] answers
+    /// "what would happen to this entity, and why" before a reviewer
+    /// decides anything. Each covered entity gains a [`Selection`]
+    /// event naming the operator, the rule that matched it, and the
+    /// policy's own rationale.
+    ///
+    /// Without this a reviewer sees only *that* an entity was
+    /// detected: the pick would first appear after apply, when it is
+    /// too late to override. Overrides are deliberately not passed:
+    /// none exist yet at analyze time, so this records what the
+    /// policy set alone would do.
+    ///
+    /// **Never fails the analyze it runs inside.** A pick is
+    /// informational, so a policy whose operators cannot be
+    /// compiled here (an `HmacHash` with no [`KeyProvider`] wired,
+    /// say) simply yields no pick, and the same policy still fails
+    /// loudly at anonymize where the operator would actually run.
+    /// Refusing to analyze a document because a redaction the
+    /// caller has not asked for yet is misconfigured would deny
+    /// them the detections too.
+    ///
+    /// [`Audit`]: super::Audit
+    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    /// [`Selection`]: elide::entity::audit::AuditKind::Selection
+    pub(super) fn record_picks(
+        &self,
+        context: &AuditContext,
+        policies: &[PolicyDefinition],
+        correlation_id: Uuid,
+        report: &mut Report,
+    ) {
+        // Deliberately discarded, not swallowed: every reason this
+        // can fail (an unresolvable label, an operator with no
+        // capability wired) is raised again by `anonymize`, which
+        // compiles the same policies and does fail. Reporting it here
+        // would surface each one twice and turn analyze into a second
+        // place a caller must handle redaction errors. The observable
+        // signal is that the audit carries no `Selection` events.
+        let _ = self.try_record_picks(context, policies, correlation_id, report);
+    }
+
+    /// The fallible body of [`record_picks`](Self::record_picks).
+    fn try_record_picks(
+        &self,
+        context: &AuditContext,
+        policies: &[PolicyDefinition],
+        correlation_id: Uuid,
+        report: &mut Report,
+    ) -> Result<()> {
+        let catalog = compile_catalog(policies)?;
+        let scope = build_scope(context, catalog.clone(), correlation_id);
+        let text_ctx = TextOperatorContext::new(self.key_provider.clone());
+        let picker = Picker {
+            text: assemble::<Text, _, _>(&catalog, &[], policies, no_override, |anon, p| {
+                attach_policies_text(anon, p, &text_ctx)
+            })?,
+            tabular: assemble::<Tabular, _, _>(&catalog, &[], policies, no_override, |anon, p| {
+                attach_policies_tabular(anon, p, &text_ctx)
+            })?,
+            image: assemble::<Image, _, _>(
+                &catalog,
+                &[],
+                policies,
+                no_override,
+                attach_policies_image,
+            )?,
+            audio: assemble::<Audio, _, _>(
+                &catalog,
+                &[],
+                policies,
+                no_override,
+                attach_policies_audio,
+            )?,
+        };
+
+        picker.record_into(report, &scope);
+        Ok(())
     }
 }
 
@@ -247,18 +332,17 @@ impl Engine {
 /// default `KeyProvider`, both of which are the wrong authority.
 fn validate_override_authorities(
     policies: &[PolicyDefinition],
-    overrides: &[OverrideEntry],
+    overrides: &OverrideSet,
 ) -> Result<()> {
     let known: HashSet<Uuid> = policies.iter().map(|p| p.id).collect();
-    for entry in overrides {
-        if !known.contains(&entry.policy_id) {
+    for (entity_id, policy_id) in overrides.authorities() {
+        if !known.contains(&policy_id) {
             return Err(Error::new(
                 ErrorKind::Configuration,
                 format!(
-                    "override for entity `{}` names policy `{}` that no submitted \
-                     policy in this request carries; overrides inherit a policy's \
-                     authority and must name one that's actually loaded",
-                    entry.entity_id, entry.policy_id,
+                    "override for entity `{entity_id}` names policy `{policy_id}` that \
+                     no submitted policy in this request carries; overrides inherit a \
+                     policy's authority and must name one that's actually loaded",
                 ),
             ));
         }
@@ -376,7 +460,6 @@ where
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Image>` attaches at
 /// most one OCR enricher per analyzer.
-#[cfg(feature = "internal_image")]
 fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrEnricherConfig>> {
     match ocr.enrichers.as_slice() {
         [] => Ok(None),
@@ -396,7 +479,6 @@ fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrEnricherConfig>> {
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Audio>` attaches at
 /// most one STT enricher per analyzer.
-#[cfg(feature = "internal_audio")]
 fn pick_stt(stt: &SttConfig) -> Result<Option<&SttEnricherConfig>> {
     match stt.enrichers.as_slice() {
         [] => Ok(None),
@@ -414,14 +496,14 @@ fn pick_stt(stt: &SttConfig) -> Result<Option<&SttEnricherConfig>> {
 
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
-    overrides: &[OverrideEntry],
+    overrides: &[OverrideEntry<M>],
     policies: &'a [PolicyDefinition],
     attach_override: O,
     attach_policies: P,
 ) -> Result<Anonymizer<M>>
 where
-    M: Modality + 'static,
-    O: Fn(Anonymizer<M>, &OverrideEntry) -> Result<Anonymizer<M>>,
+    M: RedactableModality + 'static,
+    O: Fn(Anonymizer<M>, &OverrideEntry<M>) -> Result<Anonymizer<M>>,
     P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
@@ -429,4 +511,70 @@ where
         anonymizer = attach_override(anonymizer, entry)?;
     }
     attach_policies(anonymizer, policies.iter())
+}
+
+/// The four per-modality anonymizers a pick pass runs through,
+/// assembled once per request.
+pub(crate) struct Picker {
+    pub(crate) text: Anonymizer<Text>,
+    pub(crate) tabular: Anonymizer<Tabular>,
+    pub(crate) image: Anonymizer<Image>,
+    pub(crate) audio: Anonymizer<Audio>,
+}
+
+impl Picker {
+    /// Record every entity's operator pick onto its own trail,
+    /// across the body and every container part.
+    ///
+    /// Each modality's anonymizer sees only its own entities, so a
+    /// container whose parts span modalities is picked correctly
+    /// without the caller sorting them first.
+    fn record_into(&self, report: &mut Report, scope: &Scope) {
+        pick_body(&self.text, report, scope);
+        pick_body(&self.tabular, report, scope);
+        pick_body(&self.image, report, scope);
+        pick_body(&self.audio, report, scope);
+
+        let part_ids: Vec<PartId> = report.part_ids().map(|(id, _)| id.clone()).collect();
+        for id in part_ids {
+            pick_part(&self.text, report, &id, scope);
+            pick_part(&self.tabular, report, &id, scope);
+            pick_part(&self.image, report, &id, scope);
+            pick_part(&self.audio, report, &id, scope);
+        }
+    }
+}
+
+/// Run `anonymizer`'s pick pass over the report body, when the body
+/// is this anonymizer's modality. A no-op otherwise.
+fn pick_body<M: RedactableModality + 'static>(
+    anonymizer: &Anonymizer<M>,
+    report: &mut Report,
+    scope: &Scope,
+) {
+    if let Some(entities) = report.entities_mut::<M>() {
+        anonymizer.pick(entities, scope);
+    }
+}
+
+/// The part counterpart to [`pick_body`].
+fn pick_part<M: RedactableModality + 'static>(
+    anonymizer: &Anonymizer<M>,
+    report: &mut Report,
+    id: &PartId,
+    scope: &Scope,
+) {
+    if let Some(entities) = report.part_entities_mut::<M>(id) {
+        anonymizer.pick(entities, scope);
+    }
+}
+
+/// The `attach_override` argument for a pick pass: overrides do
+/// not exist yet at analyze time, so this is never called. Named
+/// rather than a closure so all four `assemble` calls share it.
+fn no_override<M: RedactableModality + 'static>(
+    anonymizer: Anonymizer<M>,
+    _entry: &OverrideEntry<M>,
+) -> Result<Anonymizer<M>> {
+    Ok(anonymizer)
 }

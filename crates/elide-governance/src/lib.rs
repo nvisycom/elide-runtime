@@ -57,6 +57,7 @@
 //! [`Predicated`]: RuleDispatch::Predicated
 //! [`Table`]: RuleDispatch::Table
 
+pub mod modality;
 mod policy;
 pub mod redaction;
 

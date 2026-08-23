@@ -1,0 +1,44 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "elide-export"
+description = "Export traits for elide-runtime audits: JSON documents and CSV tables"
+keywords = ["elide", "export", "csv", "json", "audit"]
+categories = ["encoding"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["json", "csv"]
+
+## JSON document export via [`ExportJson`].
+json = ["dep:serde_json"]
+## CSV table export via [`ExportCsv`].
+csv = ["dep:csv"]
+## Bundle every CSV table into one zip archive via
+## [`ExportCsv::write_zip`].
+zip = ["csv", "dep:zip"]
+
+[dependencies]
+# Elide crates
+elide = { workspace = true, features = [] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = [], optional = true }
+csv = { workspace = true, features = [], optional = true }
+zip = { workspace = true, features = ["deflate"], optional = true }

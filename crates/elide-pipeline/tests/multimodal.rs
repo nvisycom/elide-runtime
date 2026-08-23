@@ -8,13 +8,17 @@ mod fixtures;
 use std::io::{Cursor, Read};
 
 use bytes::Bytes;
+use elide::codec::PartId;
+use elide::modality::image::Image;
+use elide::modality::text::Text;
+use elide::{ErrorKind, Report};
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::entity::Review;
+use elide_pipeline::file::Document;
+use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::provider::{OcrBackend, OcrConfig, OcrEnricherConfig};
-use elide_pipeline::{Audit, AuditContext, Engine, EntityGroup};
-use elide_wire::file::Document;
-use elide_wire::plan::AnalyzerParams;
+use elide_pipeline::{Audit, AuditContext, Engine, ReviewSet};
 
 use self::fixtures::write_artefact;
 
@@ -55,25 +59,24 @@ async fn analyze_captures_text_body_and_image_part() {
         .await
         .expect("analyze succeeds");
 
-    let body_group = analyzed.body.as_ref().expect("body group present");
-    let text_entities = match body_group {
-        EntityGroup::Text(entities) => entities,
-        other => panic!("expected Text body, got {other:?}"),
-    };
+    let text_entities = analyzed
+        .report
+        .entities::<Text>()
+        .expect("expected a Text body");
     assert!(
         !text_entities.is_empty(),
         "fixture should carry at least one body entity",
     );
 
-    let image_group = analyzed.parts.get(IMAGE_PART_ID).unwrap_or_else(|| {
-        panic!(
-            "expected part `{IMAGE_PART_ID}` in analyzed.parts; got keys: {:?}",
-            analyzed.parts.keys().collect::<Vec<_>>(),
-        )
-    });
+    let part_id = PartId::from(IMAGE_PART_ID.to_owned());
     assert!(
-        matches!(image_group, EntityGroup::Image(_)),
-        "expected Image variant for image part, got {image_group:?}",
+        analyzed.report.part_entities::<Image>(&part_id).is_some(),
+        "expected part `{IMAGE_PART_ID}` to carry Image entities; got parts: {:?}",
+        analyzed
+            .report
+            .part_ids()
+            .map(|(id, _)| id.as_str())
+            .collect::<Vec<_>>(),
     );
 }
 
@@ -84,14 +87,15 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         .analyze(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
-    let body_group = analyzed.body.as_ref().expect("body group present");
-    let EntityGroup::Text(entities) = body_group else {
-        panic!("expected Text body");
-    };
+    let entities = analyzed
+        .report
+        .entities::<Text>()
+        .expect("expected a Text body");
     assert!(
         !entities.is_empty(),
         "fixture should carry at least one entity"
     );
+    let target_id = entities[0].id;
 
     // Reviewer overrides carry a policy authority. Ship a
     // minimal policy the override can attribute to (no rules,
@@ -107,22 +111,13 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         rules: Vec::new(),
         fallback: None,
     };
-    let target_id = entities[0].entity.id;
-    let EntityGroup::Text(muts) = analyzed.body.as_mut().unwrap() else {
-        unreachable!()
-    };
-    muts.iter_mut()
-        .find(|r| r.entity.id == target_id)
-        .expect("entity present")
-        .review = Some(Review {
-        policy_id: review_policy.id,
-        action: ModalityRedactions {
-            text: Some(TextRedaction::Erase),
-            tabular: None,
-            image: None,
-            audio: None,
+    analyzed.review::<Text>(
+        target_id,
+        Review::Redact {
+            policy_id: review_policy.id,
+            action: TextRedaction::Erase,
         },
-    });
+    );
 
     let outcome = engine
         .anonymize(
@@ -226,8 +221,13 @@ async fn audit_rejects_missing_context_on_deserialize() {
         .remove("context")
         .expect("context was serialized");
 
-    let err = serde_json::from_value::<Audit>(value)
-        .expect_err("deserializing without context must fail");
+    // Deserialization runs through the engine, which holds the
+    // modality registry a serialized report needs to be rebuilt.
+    let json = serde_json::to_string(&value).expect("re-serialize");
+    let mut de = serde_json::Deserializer::from_str(&json);
+    let Err(err) = engine.deserialize_audit(&mut de) else {
+        panic!("deserializing without context must fail");
+    };
     assert!(
         err.to_string().contains("context"),
         "missing-field error must name `context`, got: {err}",
@@ -266,10 +266,14 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
         fallback: None,
     };
 
-    let err = engine
+    // `Audit` is not `Debug` (it holds an elide `Report`), so the
+    // error is matched out rather than `expect_err`ed.
+    let Err(err) = engine
         .analyze(raw_docx(), std::slice::from_ref(&policy), &default_spec())
         .await
-        .expect_err("analyze must reject unknown group references");
+    else {
+        panic!("analyze must reject unknown group references");
+    };
     assert!(
         err.to_string().contains("definitely_no_such_group"),
         "error must name the unknown group, got: {err}",
@@ -277,11 +281,15 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
 }
 
 #[tokio::test]
-async fn empty_analyzed_document_anonymize_fails_validation() {
+async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
+    // An audit with no body was never analyzed. Applying it would
+    // hand back the document unredacted and report success, which a
+    // caller cannot tell from "there was nothing to redact" — so it
+    // is refused instead.
     let engine = engine();
     let mut audit = Audit {
-        body: None,
-        parts: Default::default(),
+        report: Report::new(),
+        reviews: ReviewSet::default(),
         context: AuditContext {
             languages: Default::default(),
             countries: Vec::new(),
@@ -291,10 +299,13 @@ async fn empty_analyzed_document_anonymize_fails_validation() {
         },
         usage: Default::default(),
     };
-    let outcome = engine.anonymize(raw_docx(), &[], &mut audit).await;
-    let err = outcome.expect_err("anonymize must reject a missing body group");
+
+    let Err(err) = engine.anonymize(raw_docx(), &[], &mut audit).await else {
+        panic!("an audit with no body must not silently redact nothing");
+    };
+    assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
     assert!(
-        err.to_string().contains("body group is missing"),
-        "expected `body group is missing` error, got: {err}",
+        err.to_string().contains("analyze must run first"),
+        "the error names the missing step; got: {err}",
     );
 }

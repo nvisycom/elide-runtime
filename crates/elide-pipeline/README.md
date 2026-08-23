@@ -17,14 +17,15 @@ own their own workflow and storage on top.
 Owns the per-request orchestration that wires Elide's per-modality
 analyzers and anonymizers against a request-scoped view of the
 document, with policies and reviewer overrides layered onto each
-modality. Recognizers come from [elide-wire](../elide-wire)-shaped
-analyzer parameters plus the deployment's NER and LLM configurations.
+modality. Recognizers come from this crate's own analyzer parameters
+plus the deployment's NER and LLM configurations.
 The analyze verb returns a modality-tagged document body that hosts
 hold between analyze and apply, however they see fit.
 
 This crate is the umbrella entry point: everything a caller needs is
-surfaced here, including the underlying Elide toolkit and the
-governance vocabulary.
+surfaced here, including the request schemas (plan and file), the
+underlying Elide toolkit, and the governance vocabulary. A host
+depends on this crate alone.
 
 ## Changelog
 

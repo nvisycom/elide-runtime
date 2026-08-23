@@ -32,10 +32,4 @@ mod modality;
 mod recognizers;
 
 pub(crate) use self::catalog::compile_catalog;
-#[cfg(feature = "internal_audio")]
-pub(crate) use self::modality::compile_audio;
-#[cfg(feature = "internal_image")]
-pub(crate) use self::modality::compile_image;
-#[cfg(feature = "internal_tabular")]
-pub(crate) use self::modality::compile_tabular;
-pub(crate) use self::modality::compile_text;
+pub(crate) use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};

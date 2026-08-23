@@ -28,6 +28,7 @@ use elide::Result;
 use elide::entity::audit::Attribution;
 use elide::modality::Modality;
 use elide::redaction::{Anonymizer, MatchContext, Operator, Rule};
+use elide_governance::modality::RedactableModality;
 use elide_governance::redaction::ModalityRedactions;
 use elide_governance::{PolicyDefinition, Predicate};
 use uuid::Uuid;
@@ -107,14 +108,26 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
         }
     }
 
-    /// Recover the anonymizer unchanged. Per-modality callbacks
-    /// use this when this modality's redaction slot is absent -
-    /// they take no action, return the input.
+    /// Recover the anonymizer unchanged, for a policy rule or
+    /// fallback whose [`ModalityRedactions`] names no operator for
+    /// this modality. A rule may legitimately span a container
+    /// whose parts differ in modality, so an absent arm means
+    /// "this rule has nothing to say here", not an error.
+    ///
+    /// Unreachable for [`Target::Override`]: a reviewer override
+    /// carries `M::Redaction`, already typed to the entity it
+    /// targets, so it always has an operator to attach. Passing
+    /// one through would silently discard a reviewer's decision
+    /// and let a policy rule redact the entity instead, which is
+    /// the exact failure the typed override closed.
+    ///
+    /// [`ModalityRedactions`]: elide_governance::redaction::ModalityRedactions
     pub(in crate::anonymizer) fn passthrough(self) -> Anonymizer<M> {
         match self {
-            Target::Rule { anonymizer, .. } => anonymizer,
-            Target::Fallback { anonymizer, .. } => anonymizer,
-            Target::Override { anonymizer, .. } => anonymizer,
+            Target::Rule { anonymizer, .. } | Target::Fallback { anonymizer, .. } => anonymizer,
+            Target::Override { .. } => {
+                unreachable!("a reviewer override is typed to its modality and always attaches")
+            }
         }
     }
 
@@ -229,20 +242,22 @@ where
 
 /// Apply a reviewer override on one entity, using the policy id
 /// carried on the [`OverrideEntry`] as the override's authority.
-/// `compile_one` is the same per-modality bridge as in
-/// [`attach_policies`]; called once with a [`Target::Override`].
+/// `compile_spec` takes the entry's redaction already typed to `M`,
+/// so unlike [`attach_policies`] there is no modality arm to select
+/// and no absent-arm passthrough; called once with a
+/// [`Target::Override`].
 ///
 /// [`OverrideEntry`]: crate::entity::OverrideEntry
 pub(in crate::anonymizer) fn attach_one_override<M, F>(
     anonymizer: Anonymizer<M>,
-    entry: &OverrideEntry,
-    compile_one: F,
+    entry: &OverrideEntry<M>,
+    compile_spec: F,
 ) -> Result<Anonymizer<M>>
 where
-    M: Modality + 'static,
-    F: FnOnce(Target<'_, M>, &ModalityRedactions) -> Result<Anonymizer<M>>,
+    M: RedactableModality + 'static,
+    F: FnOnce(Target<'_, M>, &M::Redaction) -> Result<Anonymizer<M>>,
 {
-    compile_one(
+    compile_spec(
         Target::Override {
             anonymizer,
             entity_id: entry.entity_id,

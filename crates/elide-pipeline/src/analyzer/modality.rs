@@ -17,26 +17,17 @@
 
 use elide::Result;
 use elide::detection::Analyzer;
-#[cfg(feature = "internal_audio")]
 use elide::modality::audio::Audio;
-#[cfg(feature = "internal_image")]
 use elide::modality::image::Image;
-#[cfg(feature = "internal_tabular")]
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 
-use super::enrichers::attach_language;
-#[cfg(feature = "internal_image")]
-use super::enrichers::attach_ocr;
-#[cfg(feature = "internal_audio")]
-use super::enrichers::attach_stt;
+use super::enrichers::{attach_language, attach_ocr, attach_stt};
 use super::layer::attach_dedup;
 use super::recognizers::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
 use crate::provider::llm::{AttachTo, LlmConfig};
 use crate::provider::ner::NerConfig;
-#[cfg(feature = "internal_image")]
 use crate::provider::ocr::OcrEnricherConfig;
-#[cfg(feature = "internal_audio")]
 use crate::provider::stt::SttEnricherConfig;
 
 /// Compile a text-modality [`Analyzer`].
@@ -63,7 +54,6 @@ pub(crate) fn compile_text(ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<
 /// language-scoped, so a cell would otherwise be analyzed with no
 /// language while the same value in a `.txt` had one. LLM has no
 /// `LlmModality` impl for Tabular in elide today.
-#[cfg(feature = "internal_tabular")]
 pub(crate) fn compile_tabular(ner: &NerConfig) -> Result<Analyzer<Tabular>> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
@@ -85,7 +75,6 @@ pub(crate) fn compile_tabular(ner: &NerConfig) -> Result<Analyzer<Tabular>> {
 /// [`Engine::with_ocr`].
 ///
 /// [`Engine::with_ocr`]: crate::Engine::with_ocr
-#[cfg(feature = "internal_image")]
 pub(crate) fn compile_image(
     ner: &NerConfig,
     llm: &LlmConfig,
@@ -118,7 +107,6 @@ pub(crate) fn compile_image(
 /// no-op. LLM has no `LlmModality` impl for Audio in elide today.
 ///
 /// [`Engine::with_stt`]: crate::Engine::with_stt
-#[cfg(feature = "internal_audio")]
 pub(crate) fn compile_audio(
     ner: &NerConfig,
     stt: Option<&SttEnricherConfig>,

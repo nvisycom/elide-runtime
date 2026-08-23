@@ -8,14 +8,15 @@
 use bytes::Bytes;
 use elide::entity::LabelRef;
 use elide::entity::audit::AuditKind;
+use elide::modality::text::Text;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
 use elide_pipeline::entity::Review;
-use elide_pipeline::{Audit, Engine, EntityGroup};
-use elide_wire::file::Document;
-use elide_wire::plan::AnalyzerParams;
+use elide_pipeline::file::Document;
+use elide_pipeline::plan::AnalyzerParams;
+use elide_pipeline::{Audit, Engine};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -32,18 +33,18 @@ fn default_spec() -> AnalyzerParams {
 }
 
 /// Count redaction events on every text-modality entity of
-/// `audit.body` whose label matches `label`. A redaction event is
+/// the audit's report whose label matches `label`. A redaction event is
 /// stamped once per operator run, so this is the number of
 /// operator hits on the labeled entities.
 fn redaction_hits(audit: &Audit, label: &str) -> usize {
-    let Some(EntityGroup::Text(entities)) = audit.body.as_ref() else {
+    let Some(entities) = audit.report.entities::<Text>() else {
         return 0;
     };
     entities
         .iter()
-        .filter(|r| r.entity.label.as_str() == label)
-        .flat_map(|r| r.entity.audit.events().iter())
-        .filter(|e| matches!(e.kind, AuditKind::Redaction { .. }))
+        .filter(|e| e.label.as_str() == label)
+        .flat_map(|e| e.audit.events().iter())
+        .filter(|e| matches!(e.kind, AuditKind::Redaction(_)))
         .count()
 }
 
@@ -132,17 +133,21 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
     );
 
     // Attribution: both branches share the shared rule UUID.
-    let Some(EntityGroup::Text(entities)) = analyzed.body.as_ref() else {
+    let Some(entities) = analyzed.report.entities::<Text>() else {
         panic!("expected text body");
     };
     let attribution = entities
         .iter()
-        .find(|r| r.entity.label.as_str() == "email_address")
-        .and_then(|r| {
-            r.entity.audit.events().iter().find_map(|e| match &e.kind {
-                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
-                _ => None,
-            })
+        .find(|e| e.label.as_str() == "email_address")
+        .and_then(|entity| {
+            entity
+                .audit
+                .events()
+                .iter()
+                .find_map(|event| match &event.kind {
+                    AuditKind::Redaction(r) => r.attribution.as_ref(),
+                    _ => None,
+                })
         })
         .expect("email entity must have a redaction event with an attribution");
     assert_eq!(
@@ -433,10 +438,14 @@ async fn cross_policy_group_reference_fails_the_request() {
         fallback: None,
     };
 
-    let err = engine
+    // `Audit` is not `Debug` (it holds an elide `Report`), so the
+    // error is matched out rather than `expect_err`ed.
+    let Err(err) = engine
         .analyze(raw_txt(), &[policy_a, policy_b], &default_spec())
         .await
-        .expect_err("policy A must not reach into policy B's groups");
+    else {
+        panic!("policy A must not reach into policy B's groups");
+    };
     let msg = err.to_string();
     assert!(
         msg.contains("contact_info"),
@@ -467,17 +476,19 @@ async fn override_naming_unknown_policy_fails_the_request() {
         .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
         .expect("analyze succeeds");
-    let EntityGroup::Text(entities) = analyzed.body.as_mut().unwrap() else {
-        panic!("expected text body");
-    };
+    let target = analyzed
+        .report
+        .entities::<Text>()
+        .expect("expected text body")[0]
+        .id;
     // Ship an override that names a policy id no one submitted.
-    entities[0].review = Some(Review {
-        policy_id: uuid::Uuid::now_v7(),
-        action: ModalityRedactions {
-            text: Some(TextRedaction::Erase),
-            ..Default::default()
+    analyzed.review::<Text>(
+        target,
+        Review::Redact {
+            policy_id: uuid::Uuid::now_v7(),
+            action: TextRedaction::Erase,
         },
-    });
+    );
 
     let err = engine
         .anonymize(raw_txt(), std::slice::from_ref(&policy), &mut analyzed)
@@ -525,10 +536,12 @@ async fn duplicate_scope_names_fail_the_request() {
         fallback: None,
     };
 
-    let err = engine
+    let Err(err) = engine
         .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
-        .expect_err("a duplicate scope name must reject the request");
+    else {
+        panic!("a duplicate scope name must reject the request");
+    };
     let msg = err.to_string();
     assert!(msg.contains("contact"), "error must name the scope: {msg}");
     assert!(
@@ -577,17 +590,21 @@ async fn fallback_carries_the_scope_attribution() {
         .await
         .expect("anonymize succeeds");
 
-    let Some(EntityGroup::Text(entities)) = analyzed.body.as_ref() else {
+    let Some(entities) = analyzed.report.entities::<Text>() else {
         panic!("expected text body");
     };
     let attribution = entities
         .iter()
-        .find(|r| r.entity.label.as_str() == "email_address")
-        .and_then(|r| {
-            r.entity.audit.events().iter().find_map(|e| match &e.kind {
-                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
-                _ => None,
-            })
+        .find(|e| e.label.as_str() == "email_address")
+        .and_then(|entity| {
+            entity
+                .audit
+                .events()
+                .iter()
+                .find_map(|event| match &event.kind {
+                    AuditKind::Redaction(r) => r.attribution.as_ref(),
+                    _ => None,
+                })
         })
         .expect("the fallback must stamp an attribution");
     assert_eq!(
@@ -639,17 +656,21 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
         .await
         .expect("anonymize succeeds");
 
-    let Some(EntityGroup::Text(entities)) = analyzed.body.as_ref() else {
+    let Some(entities) = analyzed.report.entities::<Text>() else {
         panic!("expected text body");
     };
     let attribution = entities
         .iter()
-        .find(|r| r.entity.label.as_str() == "phone_number")
-        .and_then(|r| {
-            r.entity.audit.events().iter().find_map(|e| match &e.kind {
-                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
-                _ => None,
-            })
+        .find(|e| e.label.as_str() == "phone_number")
+        .and_then(|entity| {
+            entity
+                .audit
+                .events()
+                .iter()
+                .find_map(|event| match &event.kind {
+                    AuditKind::Redaction(r) => r.attribution.as_ref(),
+                    _ => None,
+                })
         })
         .expect("the fallback must stamp an attribution");
     assert!(

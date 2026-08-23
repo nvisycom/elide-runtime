@@ -4,13 +4,13 @@
 //! wire type per modality so the analyzer can hand each modality
 //! its own bag at compile time.
 //!
-//! [`Annotations<M>`]: elide_core::recognition::annotation::Annotations
+//! [`Annotations<M>`]: elide::recognition::annotation::Annotations
 
-use elide_core::modality::audio::Audio;
-use elide_core::modality::image::Image;
-use elide_core::modality::tabular::Tabular;
-use elide_core::modality::text::Text;
-use elide_core::recognition::annotation::Annotations;
+use elide::modality::audio::Audio;
+use elide::modality::image::Image;
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
+use elide::recognition::annotation::Annotations;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -18,9 +18,16 @@
 //! Caller-asserted scope lives under [`AnalyzerParams::scope`],
 //! a [`ScopeParams`] carrying `languages`, `countries`, and
 //! elide's own `ScopeMetadata` block (tags, purpose, audience).
-//! The engine assembles these (plus a server-minted correlation
-//! id and the policy-derived label catalog) into an
-//! `elide::recognition::Scope` at compile time.
+//! The engine assembles these into an `elide::recognition::Scope`
+//! at compile time, together with the policy-derived label catalog
+//! and the correlation id it reads off
+//! [`Document::correlation_id`]: freshly minted by
+//! [`Document::new`], or whatever [`Document::with_correlation_id`]
+//! set.
+//!
+//! [`Document::correlation_id`]: crate::Document::correlation_id
+//! [`Document::new`]: crate::Document::new
+//! [`Document::with_correlation_id`]: crate::Document::with_correlation_id
 //!
 //! [`elide-governance`]: https://docs.rs/elide-governance
 

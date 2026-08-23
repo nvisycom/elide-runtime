@@ -12,7 +12,6 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
-use elide_pipeline::entity::Review;
 use elide_pipeline::{Audit, Engine, EntityGroup};
 use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
@@ -43,7 +42,7 @@ fn redaction_hits(audit: &Audit, label: &str) -> usize {
         .iter()
         .filter(|r| r.entity.label.as_str() == label)
         .flat_map(|r| r.entity.audit.events().iter())
-        .filter(|e| matches!(e.kind, AuditKind::Redaction { .. }))
+        .filter(|e| matches!(e.kind, AuditKind::Redaction(_)))
         .count()
 }
 
@@ -140,7 +139,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         .find(|r| r.entity.label.as_str() == "email_address")
         .and_then(|r| {
             r.entity.audit.events().iter().find_map(|e| match &e.kind {
-                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
+                AuditKind::Redaction(r) => r.attribution.as_ref(),
                 _ => None,
             })
         })
@@ -471,10 +470,7 @@ async fn override_naming_unknown_policy_fails_the_request() {
         panic!("expected text body");
     };
     // Ship an override that names a policy id no one submitted.
-    entities[0].review = Some(Review {
-        policy_id: uuid::Uuid::now_v7(),
-        action: TextRedaction::Erase,
-    });
+    entities[0].redact(uuid::Uuid::now_v7(), TextRedaction::Erase);
 
     let err = engine
         .anonymize(raw_txt(), std::slice::from_ref(&policy), &mut analyzed)
@@ -582,7 +578,7 @@ async fn fallback_carries_the_scope_attribution() {
         .find(|r| r.entity.label.as_str() == "email_address")
         .and_then(|r| {
             r.entity.audit.events().iter().find_map(|e| match &e.kind {
-                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
+                AuditKind::Redaction(r) => r.attribution.as_ref(),
                 _ => None,
             })
         })
@@ -644,7 +640,7 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
         .find(|r| r.entity.label.as_str() == "phone_number")
         .and_then(|r| {
             r.entity.audit.events().iter().find_map(|e| match &e.kind {
-                AuditKind::Redaction { attribution, .. } => attribution.as_ref(),
+                AuditKind::Redaction(r) => r.attribution.as_ref(),
                 _ => None,
             })
         })

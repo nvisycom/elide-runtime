@@ -26,7 +26,7 @@ use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use super::audit::Audit;
-use crate::entity::{EntityGroup, EntityRecord};
+use crate::entity::{EntityGroup, EntityRecord, Review};
 
 impl Audit {
     /// Serialize the entity table as CSV into `writer`.
@@ -339,10 +339,16 @@ fn extend_review_rows<M: RedactableModality>(
     out: &mut Vec<(Uuid, &'static str, String)>,
 ) {
     for r in records {
-        if let Some(review) = &r.review
-            && let Some(op) = operator_kind(&review.action)
-        {
-            out.push((r.entity.id, modality, op));
+        // A suppression is a reviewer decision too, so it earns a
+        // row: exporting only operator overrides would hide every
+        // "leave this alone" call from the same report.
+        let decision = match &r.review {
+            Some(Review::Redact { action, .. }) => operator_kind(action),
+            Some(Review::Suppress { .. }) => Some("suppress".to_owned()),
+            None => None,
+        };
+        if let Some(decision) = decision {
+            out.push((r.entity.id, modality, decision));
         }
     }
 }
@@ -352,14 +358,20 @@ fn extend_review_rows<M: RedactableModality>(
 /// when the variant has one; empty otherwise.
 fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Option<&str>) {
     match kind {
-        AuditKind::Pattern { pattern, .. } => ("pattern", Some(pattern.name.as_str())),
-        AuditKind::Model { model, .. } => ("model", Some(model.name.as_str())),
-        AuditKind::Deduplication { strategy } => ("deduplication", Some(strategy.as_str())),
-        AuditKind::Conflict { resolved_by, .. } => ("conflict", Some(resolved_by.as_str())),
-        AuditKind::Contested { flagged_by, .. } => ("contested", Some(flagged_by.as_str())),
-        AuditKind::Calibration { .. } => ("calibration", None),
-        AuditKind::Refinement { .. } => ("refinement", None),
-        AuditKind::Redaction { .. } => ("redaction", None),
+        AuditKind::Pattern(e) => ("pattern", Some(e.pattern.name.as_str())),
+        AuditKind::Model(e) => ("model", Some(e.model.name.as_str())),
+        AuditKind::Deduplication(e) => ("deduplication", Some(e.strategy.as_str())),
+        AuditKind::Conflict(e) => ("conflict", Some(e.resolved_by.as_str())),
+        AuditKind::Contested(e) => ("contested", Some(e.flagged_by.as_str())),
+        AuditKind::Calibration(_) => ("calibration", None),
+        AuditKind::Refinement(_) => ("refinement", None),
+        AuditKind::Redaction(_) => ("redaction", None),
+        AuditKind::Selection(e) => ("selection", Some(e.operator.name.as_str())),
+        AuditKind::Manual(e) => ("manual", e.actor.as_deref()),
+        // `AuditKind` is `#[non_exhaustive]`: a kind added upstream
+        // lands here rather than breaking the build. Every variant
+        // elide ships today is named above, so this arm firing means
+        // a new one needs a column mapping.
         _ => ("unknown", None),
     }
 }

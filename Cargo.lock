@@ -946,7 +946,7 @@ checksum = "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d"
 [[package]]
 name = "elide"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "elide-codec",
@@ -984,7 +984,7 @@ dependencies = [
 [[package]]
 name = "elide-codec"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1007,7 +1007,7 @@ dependencies = [
 [[package]]
 name = "elide-context"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1018,7 +1018,7 @@ dependencies = [
 [[package]]
 name = "elide-core"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "blake3",
@@ -1038,7 +1038,7 @@ dependencies = [
 [[package]]
 name = "elide-detection"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "elide-core",
  "futures",
@@ -1050,7 +1050,7 @@ dependencies = [
 [[package]]
 name = "elide-engine"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "bytes",
  "elide-codec",
@@ -1059,6 +1059,7 @@ dependencies = [
  "elide-redaction",
  "erased-serde",
  "serde",
+ "serde-value",
  "uuid",
 ]
 
@@ -1076,7 +1077,7 @@ dependencies = [
 [[package]]
 name = "elide-fake"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1101,7 +1102,7 @@ dependencies = [
 [[package]]
 name = "elide-lingua"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1112,7 +1113,7 @@ dependencies = [
 [[package]]
 name = "elide-llm"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1134,7 +1135,7 @@ dependencies = [
 [[package]]
 name = "elide-ner"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1148,7 +1149,7 @@ dependencies = [
 [[package]]
 name = "elide-ocr"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1160,7 +1161,7 @@ dependencies = [
 [[package]]
 name = "elide-office"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "bytes",
  "hipstr",
@@ -1172,7 +1173,7 @@ dependencies = [
 [[package]]
 name = "elide-operator"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -1194,7 +1195,7 @@ dependencies = [
 [[package]]
 name = "elide-pattern"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "aho-corasick",
  "async-trait",
@@ -1214,7 +1215,7 @@ dependencies = [
 [[package]]
 name = "elide-pdf"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "bytes",
  "hipstr",
@@ -1250,7 +1251,7 @@ dependencies = [
 [[package]]
 name = "elide-redaction"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "elide-core",
  "hipstr",
@@ -1261,7 +1262,7 @@ dependencies = [
 [[package]]
 name = "elide-stt"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
+source = "git+https://github.com/nvisycom/elide?branch=main#848c78c991d45e5ebf89eac04bda3dec47d5534b"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -2782,6 +2783,15 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "ordered-float"
+version = "2.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "ordered-float"
 version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e"
@@ -3617,7 +3627,7 @@ dependencies = [
  "indexmap",
  "mime",
  "mime_guess",
- "ordered-float",
+ "ordered-float 5.3.0",
  "pin-project-lite",
  "reqwest",
  "reqwest-middleware",
@@ -3875,6 +3885,16 @@ checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
  "serde_derive",
+]
+
+[[package]]
+name = "serde-value"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
+dependencies = [
+ "ordered-float 2.10.1",
+ "serde",
 ]
 
 [[package]]

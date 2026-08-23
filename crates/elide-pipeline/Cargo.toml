@@ -94,7 +94,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["codec", "codec-text", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-jinja2", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
+elide = { workspace = true, features = ["engine", "codec", "codec-text", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-jinja2", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
 
 # Elide extensions
 elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }

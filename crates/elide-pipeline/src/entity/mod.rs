@@ -13,6 +13,7 @@
 //! [`Audit`]: crate::Audit
 //! [`Report`]: elide::Report
 
+mod apply;
 mod overrides;
 mod record;
 mod reviews;

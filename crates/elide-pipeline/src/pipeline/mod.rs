@@ -78,14 +78,11 @@ mod audit_csv;
 mod orchestrator;
 mod registered;
 
-use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
-use elide::entity::Entity;
-use elide::entity::audit::AuditEvent;
+use elide::codec::{FormatRegistry, UntypedDocumentHandle};
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
@@ -96,13 +93,11 @@ use elide::recognition::UsageReport;
 use elide::redaction::operators::KeyProvider;
 use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
-use elide_governance::modality::RedactableModality;
 use serde::Deserialize;
-use uuid::Uuid;
 
 pub use self::audit::{Audit, AuditContext};
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
-use crate::entity::{OverrideEntry, OverrideSet, Review, ReviewBucket, ReviewSet};
+use crate::entity::ReviewSet;
 use crate::file::Document;
 use crate::plan::AnalyzerParams;
 use crate::provider::llm::LlmConfig;
@@ -460,9 +455,9 @@ impl Engine {
         // Materialise pending suppressions onto their entities:
         // elide reads the trail, not our review set, to decide what
         // the redaction pass skips.
-        apply_suppressions(audit);
+        audit.apply_suppressions();
 
-        let overrides = collect_overrides(audit);
+        let overrides = audit.collect_overrides();
         let orchestrator = self.build_anonymize_orchestrator(
             &audit.context,
             policies,
@@ -477,7 +472,7 @@ impl Engine {
         let report = mem::replace(&mut audit.report, Report::new());
         audit.report = orchestrator.anonymize_with(&mut handle, report).await?;
 
-        let bytes = encode_redacted(&audit.report, handle)?;
+        let bytes = encode_redacted(handle)?;
 
         Ok(Document {
             bytes,
@@ -592,173 +587,47 @@ fn has_body(report: &Report) -> bool {
         || report.entities::<Audio>().is_some()
 }
 
-/// Stamp every pending [`Review::Suppress`] onto its entity's audit
-/// trail, so elide's redaction pass skips it.
+/// Re-encode the redacted handle back into document bytes.
 ///
-/// Idempotent: an entity elide already sees as suppressed is left
-/// alone, so re-applying an audit does not stack duplicate events.
-/// A decision that is no longer a suppression records the reversal
-/// instead — `is_suppressed` reads the most recent `Manual` event,
-/// so an include lifts an earlier suppress and the trail keeps both
-/// halves of the reviewer's change of mind.
-fn apply_suppressions(audit: &mut Audit) {
-    apply_suppressions_for::<Text>(audit);
-    apply_suppressions_for::<Tabular>(audit);
-    apply_suppressions_for::<Image>(audit);
-    apply_suppressions_for::<Audio>(audit);
-}
-
-fn apply_suppressions_for<M: ReviewBucket + 'static>(audit: &mut Audit) {
-    // Which entities carry a decision, and whether each one wants
-    // suppression. Reduced to plain data first so the borrow on
-    // `audit.reviews` ends before `audit.report` is mutated: a
-    // `Review<M>` cannot be cloned out (its derive would need
-    // `M: Clone`, which a modality marker is not).
-    let decisions: Vec<(Uuid, Suppression)> = M::bucket(&audit.reviews)
-        .iter()
-        .map(|(id, review)| (*id, Suppression::of(review)))
-        .collect();
-
-    for (id, decision) in decisions {
-        let Some(entity) = entity_mut::<M>(&mut audit.report, id) else {
-            continue;
-        };
-        decision.reconcile(entity);
-    }
-}
-
-/// What a review implies for elide's suppression flag, flattened
-/// away from the modality-generic [`Review`] so it can outlive the
-/// borrow that produced it.
-enum Suppression {
-    /// Leave the entity alone, recording why and by whom.
-    On {
-        reason: Option<String>,
-        actor: Option<String>,
-    },
-    /// Redact it after all: an earlier suppression, if any, is
-    /// lifted.
-    Off,
-}
-
-impl Suppression {
-    fn of<M: RedactableModality>(review: &Review<M>) -> Self {
-        match review {
-            Review::Suppress { reason, actor } => Self::On {
-                reason: reason.clone(),
-                actor: actor.clone(),
-            },
-            Review::Redact { .. } | Review::Retag { .. } => Self::Off,
-        }
-    }
-
-    /// Bring `entity`'s trail in line with this decision.
-    ///
-    /// A no-op when the trail already says what the decision says,
-    /// so re-applying an audit does not stack duplicate events.
-    /// Reversal records a `Manual` include rather than rewriting
-    /// history: `is_suppressed` reads the most recent `Manual`
-    /// event, so the trail keeps both halves of a change of mind.
-    fn reconcile<M: Modality>(&self, entity: &mut Entity<M>) {
-        if matches!(self, Self::On { .. }) == entity.is_suppressed() {
-            return;
-        }
-        let location = entity.location.clone();
-        let confidence = entity.confidence;
-        match self {
-            Self::On { reason, actor } => {
-                let mut event = AuditEvent::manual_suppress(location, confidence);
-                if let Some(reason) = reason {
-                    event = event.with_reason(reason.clone());
-                }
-                if let Some(actor) = actor {
-                    event = event.with_actor(actor.clone());
-                }
-                entity.suppress(event);
-            }
-            Self::Off => {
-                entity
-                    .audit
-                    .record(AuditEvent::manual_include(location, confidence));
-            }
-        }
-    }
-}
-
-/// Find an entity by id anywhere in the report: the body first,
-/// then every container part.
-fn entity_mut<M: Modality>(report: &mut Report, id: Uuid) -> Option<&mut Entity<M>> {
-    if report.entity_mut::<M>(id).is_some() {
-        return report.entity_mut::<M>(id);
-    }
-    let part_ids: Vec<PartId> = report.part_ids().map(|(id, _)| id.clone()).collect();
-    part_ids
-        .into_iter()
-        .find(|part| report.part_entity_mut::<M>(part, id).is_some())
-        .and_then(move |part| report.part_entity_mut::<M>(&part, id))
-}
-
-/// Materialise the reviewer's operator overrides for the anonymize
-/// path, bucketed by modality.
-///
-/// Only [`Review::Redact`] yields one: a suppression names no
-/// operator and is applied by stamping the entity itself.
-fn collect_overrides(audit: &Audit) -> OverrideSet {
-    OverrideSet {
-        text: overrides_for(&audit.reviews.text),
-        tabular: overrides_for(&audit.reviews.tabular),
-        image: overrides_for(&audit.reviews.image),
-        audio: overrides_for(&audit.reviews.audio),
-    }
-}
-
-fn overrides_for<M: RedactableModality>(
-    reviews: &HashMap<Uuid, Review<M>>,
-) -> Vec<OverrideEntry<M>> {
-    reviews
-        .iter()
-        .filter_map(|(entity_id, review)| match review {
-            Review::Redact { policy_id, action } => Some(OverrideEntry {
-                entity_id: *entity_id,
-                policy_id: *policy_id,
-                action: action.clone(),
-            }),
-            Review::Suppress { .. } | Review::Retag { .. } => None,
-        })
-        .collect()
-}
-
-/// Re-encode the mutated handle through the body's own modality.
-///
-/// [`DocumentHandle::encode`] is per-modality, so the typed form is
-/// required; the body's modality is discovered by probing, since a
-/// report exposes its parts' modalities but not its body's.
+/// [`DocumentHandle::encode`] is per-modality, so the untyped
+/// handle has to be converted to the typed one first. Which
+/// modality that is, is the handle's own answer: it is asked
+/// directly rather than inferred from the report, so a container
+/// whose parts span modalities still re-encodes through its body's.
 ///
 /// [`DocumentHandle::encode`]: elide::codec::DocumentHandle::encode
-fn encode_redacted(report: &Report, handle: UntypedDocumentHandle) -> Result<Bytes> {
-    // `entities` needs `&mut`, so probe a clone-free way: try each
-    // typed conversion and keep the one that matches.
-    match handle.into::<Text>() {
-        Ok(typed) => return encode_typed(typed),
-        Err(handle) => match handle.into::<Tabular>() {
-            Ok(typed) => return encode_typed(typed),
-            Err(handle) => match handle.into::<Image>() {
-                Ok(typed) => return encode_typed(typed),
-                Err(handle) => {
-                    if let Ok(typed) = handle.into::<Audio>() {
-                        return encode_typed(typed);
-                    }
+fn encode_redacted(handle: UntypedDocumentHandle) -> Result<Bytes> {
+    /// Take the first modality the handle claims to be, and encode
+    /// through it. Listing them here keeps the modality set in one
+    /// place rather than a nest of fallible conversions.
+    macro_rules! encode_first_match {
+        ($handle:expr, $($modality:ty),+ $(,)?) => {{
+            let handle = $handle;
+            $(
+                if handle.is::<$modality>() {
+                    // The `is` check just passed, so the conversion
+                    // cannot fail.
+                    let Ok(typed) = handle.into::<$modality>() else {
+                        unreachable!("handle reports itself as this modality")
+                    };
+                    return encode_typed(typed);
                 }
-            },
-        },
+            )+
+            handle
+        }};
     }
-    let _ = report;
+
+    let _handle = encode_first_match!(handle, Text, Tabular, Image, Audio);
     Err(Error::new(
         ErrorKind::Redaction,
-        "post-apply re-encode: no registered modality matches the document handle",
+        "post-apply re-encode: the document handle is a modality this \
+         engine has no codec for",
     ))
 }
 
+/// Encode one typed handle, mapping the codec's error into a
+/// redaction-stage one so a failure here is not mistaken for a
+/// malformed input.
 fn encode_typed<M: Modality>(typed: elide::codec::DocumentHandle<M>) -> Result<Bytes>
 where
     elide::codec::DocumentHandle<M>: elide::modality::DataWriter<M>,

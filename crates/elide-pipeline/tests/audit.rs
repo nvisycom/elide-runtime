@@ -9,8 +9,11 @@
 
 mod fixtures;
 
+use std::io::{Cursor, Read};
+
 use bytes::Bytes;
 use elide::modality::text::Text;
+use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::redaction::TextRedaction;
 use elide_pipeline::entity::EntityRecord;
 use elide_pipeline::{Audit, Engine, EntityGroup};
@@ -59,7 +62,7 @@ const REVIEW_POLICY_ID: uuid::Uuid =
 fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
     let records = text_records_mut(audit);
     assert!(!records.is_empty(), "sample fixture must produce entities");
-    let target = records[0].entity.id;
+    let target = records[0].entity().id;
     records[0].redact(REVIEW_POLICY_ID, TextRedaction::Erase);
     target
 }
@@ -68,7 +71,9 @@ fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
 async fn write_json_round_trips_via_serde_and_drops_artefact() {
     let audit = analyze().await;
     let mut buf = Vec::new();
-    audit.write_json(&mut buf).expect("write_json succeeds");
+    audit
+        .write_json_pretty(&mut buf)
+        .expect("write_json_pretty succeeds");
     write_artefact("sample", "audit.json", &buf);
 
     let round: Audit = serde_json::from_slice(&buf).expect("round-trip deserialize");
@@ -84,7 +89,8 @@ async fn write_json_round_trips_via_serde_and_drops_artefact() {
         "round-trip must preserve entity count",
     );
     assert_eq!(
-        original[0].entity.id, round[0].entity.id,
+        original[0].entity().id,
+        round[0].entity().id,
         "round-trip must preserve entity ids",
     );
 }
@@ -94,8 +100,8 @@ async fn write_entities_csv_has_header_and_one_row_per_entity() {
     let audit = analyze().await;
     let mut buf = Vec::new();
     audit
-        .write_entities_csv(&mut buf)
-        .expect("write_entities_csv succeeds");
+        .write_csv(Table::Entities, &mut buf)
+        .expect("entities table exports");
     write_artefact("sample", "audit-entities.csv", &buf);
     let output = String::from_utf8(buf).expect("csv is utf-8");
 
@@ -122,8 +128,8 @@ async fn write_provenance_csv_emits_one_row_per_event() {
     let audit = analyze().await;
     let mut buf = Vec::new();
     audit
-        .write_provenance_csv(&mut buf)
-        .expect("write_provenance_csv succeeds");
+        .write_csv(Table::Provenance, &mut buf)
+        .expect("provenance table exports");
     write_artefact("sample", "audit-provenance.csv", &buf);
     let output = String::from_utf8(buf).expect("csv is utf-8");
 
@@ -138,7 +144,10 @@ async fn write_provenance_csv_emits_one_row_per_event() {
     let EntityGroup::Text(entities) = audit.body.as_ref().unwrap() else {
         unreachable!()
     };
-    let expected_events: usize = entities.iter().map(|r| r.entity.audit.events().len()).sum();
+    let expected_events: usize = entities
+        .iter()
+        .map(|r| r.entity().audit.events().len())
+        .sum();
     assert_eq!(
         row_count, expected_events,
         "one row per event across the whole audit",
@@ -152,8 +161,8 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
 
     let mut buf = Vec::new();
     audit
-        .write_reviews_csv(&mut buf)
-        .expect("write_reviews_csv succeeds");
+        .write_csv(Table::Reviews, &mut buf)
+        .expect("reviews table exports");
     write_artefact("sample", "audit-reviews.csv", &buf);
     let output = String::from_utf8(buf).expect("csv is utf-8");
 
@@ -189,13 +198,13 @@ async fn write_reviews_csv_lists_a_suppression_with_no_operator() {
         let records = text_records_mut(&mut audit);
         assert!(!records.is_empty(), "sample fixture must produce entities");
         records[0].suppress(Some("false positive".into()), Some("reviewer".into()));
-        records[0].entity.id
+        records[0].entity().id
     };
 
     let mut buf = Vec::new();
     audit
-        .write_reviews_csv(&mut buf)
-        .expect("write_reviews_csv succeeds");
+        .write_csv(Table::Reviews, &mut buf)
+        .expect("reviews table exports");
     let output = String::from_utf8(buf).expect("csv is utf-8");
 
     let row = output
@@ -214,8 +223,8 @@ async fn write_reviews_csv_writes_header_when_no_reviews_set() {
     let audit = analyze().await;
     let mut buf = Vec::new();
     audit
-        .write_reviews_csv(&mut buf)
-        .expect("write_reviews_csv succeeds");
+        .write_csv(Table::Reviews, &mut buf)
+        .expect("reviews table exports");
     let output = String::from_utf8(buf).expect("csv is utf-8");
 
     let line_count = output.lines().count();
@@ -226,5 +235,59 @@ async fn write_reviews_csv_writes_header_when_no_reviews_set() {
     assert_eq!(
         output.lines().next().unwrap(),
         "entity_id,modality,decision,operator",
+    );
+}
+
+#[tokio::test]
+async fn export_csv_writes_every_table_by_iterating_tables() {
+    // What the trait buys over three inherent methods: a caller
+    // exports the whole audit without naming each table, and gains
+    // any table added later for free.
+    let mut audit = analyze().await;
+    tag_first_with_review(&mut audit);
+
+    for table in <Audit as ExportCsv>::TABLES {
+        let mut buf = Vec::new();
+        audit
+            .write_csv(*table, &mut buf)
+            .unwrap_or_else(|err| panic!("{table} table exports: {err}"));
+        let output = String::from_utf8(buf).expect("csv is utf-8");
+        let header = output.lines().next().expect("header line present");
+        assert!(
+            header.contains(Table::JOIN_KEY),
+            "every table carries the join key so they recombine; \
+             {table} header was {header:?}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn export_csv_bundles_every_table_into_one_zip() {
+    let mut audit = analyze().await;
+    tag_first_with_review(&mut audit);
+
+    let archive = audit.to_zip().expect("audit bundles into a zip");
+    write_artefact("sample", "audit-tables.zip", &archive);
+
+    let mut zip = zip::ZipArchive::new(Cursor::new(archive)).expect("archive opens");
+    let names: Vec<String> = zip.file_names().map(ToOwned::to_owned).collect();
+    for table in <Audit as ExportCsv>::TABLES {
+        assert!(
+            names.contains(&format!("{table}.csv")),
+            "the archive carries one entry per table; got {names:?}",
+        );
+    }
+
+    // Entries are real CSV, not empty placeholders.
+    let mut entry = zip
+        .by_name("entities.csv")
+        .expect("the entities table is in the archive");
+    let mut csv = String::new();
+    entry.read_to_string(&mut csv).expect("entry is utf-8");
+    assert!(
+        csv.lines()
+            .next()
+            .is_some_and(|h| h.contains(Table::JOIN_KEY)),
+        "the archived table keeps its header; got {csv:?}",
     );
 }

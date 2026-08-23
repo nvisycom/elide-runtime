@@ -25,13 +25,9 @@
 //! [`Report`]: elide::Report
 
 use std::collections::HashMap;
-#[cfg(feature = "audit-json")]
-use std::io::Write;
 
 use elide::primitive::{CountryCode, Languages, RasterMode};
 use elide::recognition::{ScopeMetadata, UsageReport};
-#[cfg(feature = "audit-json")]
-use elide::{Error, ErrorKind, Result};
 use elide_wire::plan::scope_metadata_is_empty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -156,29 +152,4 @@ pub struct AuditContext {
     /// built-in behaviour) when omitted.
     #[serde(default)]
     pub raster_mode: RasterMode,
-}
-
-#[cfg(feature = "audit-json")]
-#[cfg_attr(docsrs, doc(cfg(feature = "audit-json")))]
-impl Audit {
-    /// Serialize the audit as pretty JSON into `writer`.
-    ///
-    /// Preserves the full structure: body + parts + context, and
-    /// every entity's provenance chain. This is the canonical
-    /// export; callers without a specific reason to reach for
-    /// another format use this.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ErrorKind::Processing`] wrapping the underlying
-    /// [`serde_json::Error`] (schema violation, I/O error on
-    /// the writer).
-    pub fn write_json<W: Write>(&self, writer: W) -> Result<()> {
-        serde_json::to_writer_pretty(writer, self).map_err(|err| {
-            Error::new(
-                ErrorKind::Processing,
-                format!("audit JSON export failed: {err}"),
-            )
-        })
-    }
 }

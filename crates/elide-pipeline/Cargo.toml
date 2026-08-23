@@ -70,12 +70,15 @@ codec-pdf-render = ["codec-pdf", "elide/codec-pdf-render"]
 ## RTF documents.
 codec-rtf = ["elide/codec-rtf"]
 
-## JSON audit export via `Audit::write_json`.
-audit-json = ["dep:serde_json"]
-## CSV audit export via `Audit::write_*_csv`. Pulls
+## JSON audit export via `elide_export::ExportJson`.
+audit-json = ["dep:elide-export", "elide-export/json"]
+## CSV audit export via `elide_export::ExportCsv`. Pulls
 ## `serde_json` for reading enum-tagged operator kinds off
 ## reviewer overrides.
-audit-csv = ["dep:csv", "dep:serde_json"]
+audit-csv = ["dep:elide-export", "elide-export/csv", "dep:serde_json"]
+## Bundle every audit CSV table into one zip archive via
+## `elide_export::ExportCsv::write_zip`.
+audit-zip = ["audit-csv", "elide-export/zip"]
 
 ## Turn on the test-only mock variants
 ## (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) and the elide mock
@@ -98,6 +101,7 @@ elide = { workspace = true, features = ["codec", "codec-text", "tabular", "image
 elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }
 
 # Internal crates
+elide-export = { workspace = true, features = [], optional = true }
 elide-governance = { workspace = true, features = [] }
 elide-wire = { workspace = true, features = [] }
 elide-template = { workspace = true }
@@ -106,7 +110,6 @@ elide-template = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [], optional = true }
 schemars = { workspace = true, features = [] }
-csv = { workspace = true, features = [], optional = true }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
@@ -115,7 +118,8 @@ hipstr = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 # Internal crates
-elide-pipeline = { path = ".", features = ["test-utils", "audit-json", "audit-csv"] }
+elide-export = { workspace = true, features = ["json", "csv", "zip"] }
+elide-pipeline = { path = ".", features = ["test-utils", "audit-json", "audit-csv", "audit-zip"] }
 
 # Serialization
 serde_json = { workspace = true, features = [] }

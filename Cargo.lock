@@ -1063,6 +1063,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "elide-export"
+version = "0.1.0"
+dependencies = [
+ "csv",
+ "elide",
+ "serde",
+ "serde_json",
+ "zip",
+]
+
+[[package]]
 name = "elide-fake"
 version = "0.1.0"
 source = "git+https://github.com/nvisycom/elide?branch=main#c49b63040472dfa7e33e63e8cc034c05655f7ccd"
@@ -1220,9 +1231,9 @@ name = "elide-pipeline"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "csv",
  "elide",
  "elide-bento",
+ "elide-export",
  "elide-governance",
  "elide-pipeline",
  "elide-template",

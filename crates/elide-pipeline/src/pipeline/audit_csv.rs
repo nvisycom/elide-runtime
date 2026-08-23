@@ -1,26 +1,27 @@
 //! CSV export for [`Audit`]. Gated on the `audit-csv` cargo
 //! feature.
 //!
-//! Three files, three writers, one join key. Each writes to any
-//! `impl Write`; callers decide where the bytes land (a file,
+//! Three tables, one join key, via [`ExportCsv`]. Each writes to
+//! any `impl Write`; callers decide where the bytes land (a file,
 //! an HTTP body, an S3 upload):
 //!
-//! - [`Audit::write_entities_csv`]: one row per detected
-//!   entity. Scalar essentials only.
-//! - [`Audit::write_provenance_csv`]: one row per event on
-//!   every entity's provenance chain.
-//! - [`Audit::write_reviews_csv`]: one row per reviewed entity.
+//! - [`Table::Entities`]: one row per detected entity. Scalar
+//!   essentials only.
+//! - [`Table::Provenance`]: one row per event on every entity's
+//!   provenance chain.
+//! - [`Table::Reviews`]: one row per reviewer decision.
 //!
 //! All three join on `entity_id`. The design choice for CSV is
 //! honest scalar columns everywhere: no JSON blobs, no
 //! polymorphic locations. Callers that need location details or
-//! nested payloads use [`Audit::write_json`].
+//! nested payloads use [`ExportJson`](elide_export::ExportJson).
 
 use std::{io, result};
 
 use elide::entity::audit::AuditKind;
 use elide::modality::Modality;
 use elide::{Error, ErrorKind, Result};
+use elide_export::{ExportCsv, Table, write_rows};
 use elide_governance::modality::RedactableModality;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
@@ -28,170 +29,59 @@ use uuid::Uuid;
 use super::audit::Audit;
 use crate::entity::{EntityGroup, EntityRecord, Review};
 
+impl ExportCsv for Audit {
+    /// Entities first, then their provenance, then reviewer
+    /// decisions: each table joins onto the previous one's
+    /// `entity_id`, so this is the order a reader builds them up in.
+    const TABLES: &'static [Table] = &[Table::Entities, Table::Provenance, Table::Reviews];
+
+    /// Write one table of this audit as CSV.
+    ///
+    /// | table | columns |
+    /// |---|---|
+    /// | [`Entities`] | `part_id, modality, entity_id, label, confidence, coref` |
+    /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
+    /// | [`Reviews`] | `entity_id, modality, decision, operator` |
+    ///
+    /// Every table carries `entity_id` so they join back together.
+    /// Rows are sorted for stable diffs: entities by
+    /// `(part_id, entity_id)`, the others by `entity_id`.
+    ///
+    /// `part_id` is empty for body entities, `coref` is empty
+    /// outside a coreference cluster, and `operator` is empty for a
+    /// suppression, which names none.
+    ///
+    /// Locations and nested event payloads are dropped: CSV holds
+    /// neither polymorphic locations nor event chains. Callers who
+    /// need them use [`ExportJson`](elide_export::ExportJson).
+    ///
+    /// [`Entities`]: Table::Entities
+    /// [`Provenance`]: Table::Provenance
+    /// [`Reviews`]: Table::Reviews
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Processing`] on I/O or serialization
+    /// failure.
+    fn write_csv<W: io::Write>(&self, table: Table, writer: W) -> Result<()> {
+        match table {
+            Table::Entities => write_rows(writer, EntityRow::header(), self.entity_rows()),
+            Table::Provenance => {
+                write_rows(writer, ProvenanceRow::header(), self.provenance_rows())
+            }
+            Table::Reviews => write_rows(writer, ReviewRow::header(), self.review_rows()),
+            // `Table` is `#[non_exhaustive]`: a table added there
+            // that this audit cannot project is a caller error, not
+            // a silent empty file.
+            other => Err(Error::new(
+                ErrorKind::Configuration,
+                format!("audit has no `{other}` table to export"),
+            )),
+        }
+    }
+}
+
 impl Audit {
-    /// Serialize the entity table as CSV into `writer`.
-    ///
-    /// Columns: `part_id, modality, entity_id, label,
-    /// confidence, coref`. One row per detected entity, sorted
-    /// by `(part_id, entity_id)` for stable diffs. `part_id` is
-    /// empty for body entities. `coref` is empty when the
-    /// entity isn't part of a coreference cluster.
-    ///
-    /// Joins with [`Self::write_provenance_csv`] and
-    /// [`Self::write_reviews_csv`] on `entity_id`.
-    ///
-    /// Location details and provenance are dropped from this
-    /// export: CSV can't cleanly hold polymorphic locations or
-    /// nested event chains. Callers that need those use
-    /// [`Self::write_json`].
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ErrorKind::Processing`] wrapping the underlying
-    /// [`csv::Error`] on I/O or serialization failure.
-    pub fn write_entities_csv<W: io::Write>(&self, writer: W) -> Result<()> {
-        #[derive(Serialize)]
-        #[serde(rename_all = "snake_case")]
-        struct Row<'a> {
-            part_id: Option<&'a str>,
-            modality: &'a str,
-            entity_id: Uuid,
-            label: &'a str,
-            #[serde(serialize_with = "serialize_confidence")]
-            confidence: f32,
-            coref: Option<&'a str>,
-        }
-
-        let mut csv = csv::WriterBuilder::new()
-            .has_headers(false)
-            .from_writer(writer);
-        csv.write_record([
-            "part_id",
-            "modality",
-            "entity_id",
-            "label",
-            "confidence",
-            "coref",
-        ])
-        .map_err(csv_err)?;
-        for row in self.entity_rows() {
-            csv.serialize(Row {
-                part_id: row.part_id,
-                modality: row.modality,
-                entity_id: row.entity_id,
-                label: row.label,
-                confidence: row.confidence,
-                coref: row.coref,
-            })
-            .map_err(csv_err)?;
-        }
-        csv.flush().map_err(io_err)
-    }
-
-    /// Serialize the provenance table as CSV into `writer`.
-    ///
-    /// Columns: `entity_id, event_index, kind, source,
-    /// confidence, timestamp, payload_id`. One row per event,
-    /// sorted by `entity_id` then `event_index`. `confidence` is
-    /// the entity's effective confidence at that step in the
-    /// hash-linked audit DAG; `payload_id` carries the model
-    /// name or pattern rule id when the event's `kind` has one,
-    /// empty otherwise.
-    ///
-    /// Joins with [`Self::write_entities_csv`] on `entity_id`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ErrorKind::Processing`] on I/O or serialization
-    /// failure.
-    pub fn write_provenance_csv<W: io::Write>(&self, writer: W) -> Result<()> {
-        #[derive(Serialize)]
-        #[serde(rename_all = "snake_case")]
-        struct Row<'a> {
-            entity_id: Uuid,
-            event_index: usize,
-            kind: &'a str,
-            source: &'a str,
-            #[serde(serialize_with = "serialize_confidence")]
-            confidence: f32,
-            timestamp: String,
-            payload_id: Option<&'a str>,
-        }
-
-        let mut csv = csv::WriterBuilder::new()
-            .has_headers(false)
-            .from_writer(writer);
-        csv.write_record([
-            "entity_id",
-            "event_index",
-            "kind",
-            "source",
-            "confidence",
-            "timestamp",
-            "payload_id",
-        ])
-        .map_err(csv_err)?;
-        for row in self.provenance_rows() {
-            csv.serialize(Row {
-                entity_id: row.entity_id,
-                event_index: row.event_index,
-                kind: row.kind,
-                source: row.source,
-                confidence: row.confidence,
-                timestamp: row.timestamp,
-                payload_id: row.payload_id,
-            })
-            .map_err(csv_err)?;
-        }
-        csv.flush().map_err(io_err)
-    }
-
-    /// Serialize the review table as CSV into `writer`.
-    ///
-    /// Columns: `entity_id, modality, decision, operator`. One row
-    /// per reviewed entity: entities the reviewer left alone are
-    /// absent from the file.
-    ///
-    /// `decision` is `redact` or `suppress`. `operator` is the kind
-    /// discriminator name (`erase`, `mask`, `fake`, ...) for a
-    /// `redact`, and empty for a `suppress`, which names no
-    /// operator; operator parameters are dropped. The two columns
-    /// stay separate so a consumer mapping `operator` onto an
-    /// operator enum never meets a value that is not one.
-    ///
-    /// Joins with [`Self::write_entities_csv`] on `entity_id`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ErrorKind::Processing`] on I/O or serialization
-    /// failure.
-    pub fn write_reviews_csv<W: io::Write>(&self, writer: W) -> Result<()> {
-        #[derive(Serialize)]
-        #[serde(rename_all = "snake_case")]
-        struct Row {
-            entity_id: Uuid,
-            modality: &'static str,
-            decision: &'static str,
-            operator: String,
-        }
-
-        let mut csv = csv::WriterBuilder::new()
-            .has_headers(false)
-            .from_writer(writer);
-        csv.write_record(["entity_id", "modality", "decision", "operator"])
-            .map_err(csv_err)?;
-        for row in self.review_rows() {
-            csv.serialize(Row {
-                entity_id: row.entity_id,
-                modality: row.modality,
-                decision: row.decision,
-                operator: row.operator,
-            })
-            .map_err(csv_err)?;
-        }
-        csv.flush().map_err(io_err)
-    }
-
     /// Iterate every entity across body + parts, sorted by
     /// `(part_id, entity_id)` for stable output.
     fn entity_rows(&self) -> Vec<EntityRow<'_>> {
@@ -245,21 +135,27 @@ impl Audit {
 
 /// One entity row for CSV export. Every borrowed field points
 /// into the source [`Audit`] for the lifetime of the export.
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 struct EntityRow<'a> {
     part_id: Option<&'a str>,
     modality: &'a str,
     entity_id: Uuid,
     label: &'a str,
+    #[serde(serialize_with = "serialize_confidence")]
     confidence: f32,
     coref: Option<&'a str>,
 }
 
 /// One provenance row.
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 struct ProvenanceRow<'a> {
     entity_id: Uuid,
     event_index: usize,
     kind: &'static str,
     source: &'a str,
+    #[serde(serialize_with = "serialize_confidence")]
     confidence: f32,
     timestamp: String,
     payload_id: Option<&'a str>,
@@ -354,6 +250,9 @@ fn extend_review_rows<M: RedactableModality>(
                 operator_kind(action).map(|operator| ("redact", operator))
             }
             Some(Review::Suppress { .. }) => Some(("suppress", String::new())),
+            // A retag names no operator either: it corrects the
+            // detection and lets the policy set pick again.
+            Some(Review::Retag { .. }) => Some(("retag", String::new())),
             None => None,
         };
         if let Some((decision, operator)) = row {
@@ -372,11 +271,46 @@ fn extend_review_rows<M: RedactableModality>(
 /// `decision` and `operator` stay separate columns: a suppression
 /// names no operator, so folding them would put a non-operator
 /// value in a column consumers map onto an operator enum.
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 struct ReviewRow {
     entity_id: Uuid,
     modality: &'static str,
     decision: &'static str,
     operator: String,
+}
+
+impl EntityRow<'_> {
+    const fn header() -> &'static [&'static str] {
+        &[
+            "part_id",
+            "modality",
+            "entity_id",
+            "label",
+            "confidence",
+            "coref",
+        ]
+    }
+}
+
+impl ProvenanceRow<'_> {
+    const fn header() -> &'static [&'static str] {
+        &[
+            "entity_id",
+            "event_index",
+            "kind",
+            "source",
+            "confidence",
+            "timestamp",
+            "payload_id",
+        ]
+    }
+}
+
+impl ReviewRow {
+    const fn header() -> &'static [&'static str] {
+        &["entity_id", "modality", "decision", "operator"]
+    }
 }
 
 /// Discriminator + optional payload id for a provenance event
@@ -418,20 +352,4 @@ fn operator_kind<R: Serialize>(action: &R) -> Option<String> {
 /// Format a `f32` confidence with three decimal places.
 fn serialize_confidence<S: Serializer>(value: &f32, s: S) -> result::Result<S::Ok, S::Error> {
     s.serialize_str(&format!("{value:.3}"))
-}
-
-/// Map a `csv::Error` into an engine [`Error`].
-fn csv_err(err: csv::Error) -> Error {
-    Error::new(
-        ErrorKind::Processing,
-        format!("audit CSV export failed: {err}"),
-    )
-}
-
-/// Map a `std::io::Error` into an engine [`Error`].
-fn io_err(err: io::Error) -> Error {
-    Error::new(
-        ErrorKind::Processing,
-        format!("audit CSV export flush failed: {err}"),
-    )
 }

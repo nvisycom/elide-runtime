@@ -3,6 +3,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "./crates/elide-export",
     "./crates/elide-governance",
     "./crates/elide-pipeline",
     "./crates/elide-template",
@@ -39,6 +40,7 @@ elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", defaul
 elide-bento = { git = "https://github.com/nvisycom/elide-bento", branch = "main", default-features = false }
 
 # Internal crates
+elide-export = { path = "./crates/elide-export", version = "0.1.0" }
 elide-governance = { path = "./crates/elide-governance", version = "0.1.0" }
 elide-pipeline = { path = "./crates/elide-pipeline", version = "0.1.0" }
 elide-template = { path = "./crates/elide-template", version = "0.1.0" }

@@ -75,8 +75,20 @@ pub use elide::modality::tabular::Tabular;
 pub use elide::modality::text::Text;
 #[doc(inline)]
 pub use elide::primitive::{CountryCode, Languages, RasterMode};
+/// Per-component usage accounting, surfaced on [`Audit::usage`].
+///
+/// The whole chain is re-exported, not just the report: `entries`,
+/// [`UsageReport::by_name`], and [`UsageReport::extend`] all traffic
+/// in [`Usage`], whose `id` and `model` in turn expose
+/// [`RecognizerId`] and [`ModelUsage`] / [`TokenCounts`]. Without
+/// these a caller can reach a value off the audit but cannot name
+/// its type.
+///
+/// [`Audit::usage`]: crate::Audit::usage
 #[doc(inline)]
-pub use elide::recognition::{ScopeMetadata, UsageReport};
+pub use elide::recognition::{
+    ModelUsage, RecognizerId, ScopeMetadata, TokenCounts, Usage, UsageReport,
+};
 #[doc(inline)]
 pub use elide::redaction::operators::KeyProvider;
 pub use elide::{Error, ErrorKind, Result};
@@ -96,4 +108,6 @@ pub use elide_wire::file::{Document, FileMetadata};
 pub use elide_wire::plan;
 
 pub use self::entity::EntityGroup;
-pub use self::pipeline::{Audit, AuditContext, Engine, RegisteredRecognizer};
+pub use self::pipeline::{
+    Audit, AuditContext, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
+};

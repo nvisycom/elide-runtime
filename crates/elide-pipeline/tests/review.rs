@@ -16,9 +16,11 @@ use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelScope, PolicyDefinition};
+use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Audit, Engine, EntityGroup};
+use elide_pipeline::{Audit, Engine};
+use uuid::Uuid;
 
 const SAMPLE: &[u8] = b"Email alice@example.com or bob@example.com. Case SECRET-9 open.";
 const POLICY_ID: uuid::Uuid = uuid::Uuid::from_u128(0x0123_4567_89ab_7000_8000_0000_0000_0042);
@@ -85,7 +87,7 @@ async fn review_and_apply(edit: impl FnOnce(&mut Audit)) -> (String, Audit) {
     edit(&mut audit);
 
     let json = serde_json::to_string(&audit).expect("audit serializes");
-    let mut posted_back: Audit = serde_json::from_str(&json).expect("audit deserializes");
+    let mut posted_back = round_trip(&engine, &json);
 
     let out = engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut posted_back)
@@ -97,15 +99,58 @@ async fn review_and_apply(edit: impl FnOnce(&mut Audit)) -> (String, Audit) {
     )
 }
 
-/// Body records sorted into document order, so index 0 is the
-/// first entity in the text rather than whatever order the
-/// recognizer emitted.
-fn ordered(audit: &mut Audit) -> &mut Vec<elide_pipeline::entity::EntityRecord<Text>> {
-    let Some(EntityGroup::Text(records)) = audit.body.as_mut() else {
-        panic!("expected a text body");
-    };
-    records.sort_by_key(|r| r.entity().location.range.start);
-    records
+/// Read an audit back the way a host does: through the engine,
+/// which holds the modality registry a serialized report needs to
+/// be rebuilt.
+fn round_trip(engine: &Engine, json: &str) -> Audit {
+    let mut de = serde_json::Deserializer::from_str(json);
+    engine
+        .deserialize_audit(&mut de)
+        .expect("audit deserializes")
+}
+
+/// A detection a reviewer supplies by hand, on `location`.
+///
+/// `Report::include` stamps the `Manual` provenance as it lands, so
+/// the trail this carries is only the seed every entity needs.
+fn manual_entity(location: TextLocation) -> Entity<Text> {
+    let event: AuditEvent<Text> = AuditEvent::pattern(
+        "manual",
+        Confidence::MAX,
+        location.clone(),
+        PatternEvent::default(),
+    );
+    Entity::new(
+        LabelRef::new("email_address"),
+        location,
+        Confidence::MAX,
+        AuditLog::new(event),
+    )
+}
+
+/// Body entity ids in document order, so index 0 is the first
+/// entity in the text rather than whatever order the recognizer
+/// emitted. Decisions key by id, so this is what a caller indexes.
+fn ordered(audit: &Audit) -> Vec<Uuid> {
+    let mut entities: Vec<&Entity<Text>> = audit
+        .report
+        .entities::<Text>()
+        .expect("a text body")
+        .iter()
+        .collect();
+    entities.sort_by_key(|e| e.location.range.start);
+    entities.iter().map(|e| e.id).collect()
+}
+
+/// The body entity `id`, for asserting on its trail.
+fn entity(audit: &Audit, id: Uuid) -> &Entity<Text> {
+    audit
+        .report
+        .entities::<Text>()
+        .expect("a text body")
+        .iter()
+        .find(|e| e.id == id)
+        .expect("entity present")
 }
 
 #[tokio::test]
@@ -120,7 +165,14 @@ async fn baseline_redacts_every_detection() {
 #[tokio::test]
 async fn suppress_leaves_the_entity_alone() {
     let (out, audit) = review_and_apply(|audit| {
-        ordered(audit)[0].suppress(Some("known test account".into()), Some("reviewer".into()));
+        let id = ordered(audit)[0];
+        audit.review::<Text>(
+            id,
+            Review::Suppress {
+                reason: Some("known test account".into()),
+                actor: Some("reviewer".into()),
+            },
+        );
     })
     .await;
 
@@ -134,15 +186,14 @@ async fn suppress_leaves_the_entity_alone() {
     );
 
     // The decision is auditable, not merely effective.
-    let EntityGroup::Text(records) = audit.body.as_ref().expect("body") else {
-        panic!("expected text body");
-    };
-    let suppressed = records
+    let suppressed = audit
+        .report
+        .entities::<Text>()
+        .expect("a text body")
         .iter()
-        .find(|r| r.is_suppressed())
-        .expect("a record reports itself suppressed after the round-trip");
+        .find(|e| e.is_suppressed())
+        .expect("an entity reports itself suppressed after the round-trip");
     let manual = suppressed
-        .entity()
         .audit
         .events()
         .iter()
@@ -154,7 +205,7 @@ async fn suppress_leaves_the_entity_alone() {
     assert_eq!(manual.reason.as_deref(), Some("known test account"));
     assert_eq!(manual.actor.as_deref(), Some("reviewer"));
     assert!(
-        suppressed.entity().audit.verify().is_ok(),
+        suppressed.audit.verify().is_ok(),
         "the hash chain still verifies after a suppression round-trip"
     );
 }
@@ -162,13 +213,10 @@ async fn suppress_leaves_the_entity_alone() {
 #[tokio::test]
 async fn include_redacts_what_recognition_missed() {
     let (out, _) = review_and_apply(|audit| {
-        let added = audit.body.as_mut().expect("body").add::<Text>(
-            LabelRef::new("email_address"),
-            span_of(b"SECRET-9"),
-            Some("recognizer missed this".into()),
-            Some("reviewer".into()),
-        );
-        assert!(added, "add into the matching modality");
+        let added = audit
+            .report
+            .include::<Text>(manual_entity(span_of(b"SECRET-9")));
+        assert!(added, "include into the matching modality");
     })
     .await;
 
@@ -191,30 +239,12 @@ async fn include_stamps_manual_provenance() {
         .await
         .expect("analyze");
 
-    let location = span_of(b"SECRET-9");
-    let event: AuditEvent<Text> = AuditEvent::pattern(
-        "manual",
-        Confidence::MAX,
-        location.clone(),
-        PatternEvent::default(),
-    );
-    let entity = Entity::new(
-        LabelRef::new("email_address"),
-        location,
-        Confidence::MAX,
-        AuditLog::new(event),
-    );
-    let id = entity.id;
-    audit.body.as_mut().expect("body").include(entity);
+    let added = manual_entity(span_of(b"SECRET-9"));
+    let id = added.id;
+    audit.report.include::<Text>(added);
 
-    let records = ordered(&mut audit);
-    let included = records
-        .iter()
-        .find(|r| r.entity().id == id)
-        .expect("included entity present");
     assert!(
-        included
-            .entity()
+        entity(&audit, id)
             .audit
             .events()
             .iter()
@@ -238,23 +268,37 @@ async fn include_rejects_a_foreign_modality() {
         .expect("analyze");
 
     let bounds = BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0));
+    let location = ImageLocation::new(bounds);
+    let event: AuditEvent<Image> = AuditEvent::pattern(
+        "manual",
+        Confidence::MAX,
+        location.clone(),
+        PatternEvent::default(),
+    );
+    let foreign = Entity::new(
+        LabelRef::new("email_address"),
+        location,
+        Confidence::MAX,
+        AuditLog::new(event),
+    );
 
     assert!(
-        !audit.body.as_mut().expect("body").add::<Image>(
-            LabelRef::new("email_address"),
-            ImageLocation::new(bounds),
-            None,
-            None,
-        ),
-        "an image entity cannot join a text group",
+        !audit.report.include::<Image>(foreign),
+        "an image entity cannot join a text body",
     );
 }
 
 #[tokio::test]
 async fn review_overrides_the_operator_the_policy_would_have_used() {
     let (out, _) = review_and_apply(|audit| {
-        let records = ordered(audit);
-        records[1].redact(POLICY_ID, mask());
+        let id = ordered(audit)[1];
+        audit.review::<Text>(
+            id,
+            Review::Redact {
+                policy_id: POLICY_ID,
+                action: mask(),
+            },
+        );
     })
     .await;
 
@@ -271,10 +315,22 @@ async fn a_later_decision_replaces_an_earlier_one() {
     // both set with one silently winning: the second call is the
     // decision that stands.
     let (out, _) = review_and_apply(|audit| {
-        let records = ordered(audit);
-        records[0].redact(POLICY_ID, mask());
-        records[0].suppress(Some("actually fine".into()), None);
-        assert!(records[0].is_suppressed());
+        let id = ordered(audit)[0];
+        audit.review::<Text>(
+            id,
+            Review::Redact {
+                policy_id: POLICY_ID,
+                action: mask(),
+            },
+        );
+        audit.review::<Text>(
+            id,
+            Review::Suppress {
+                reason: Some("actually fine".into()),
+                actor: None,
+            },
+        );
+        assert!(audit.is_suppressed::<Text>(id));
     })
     .await;
 
@@ -287,17 +343,24 @@ async fn a_later_decision_replaces_an_earlier_one() {
 #[tokio::test]
 async fn all_three_actions_compose_in_one_pass() {
     let (out, _) = review_and_apply(|audit| {
-        {
-            let records = ordered(audit);
-            records[0].suppress(Some("false positive".into()), None);
-            records[1].redact(POLICY_ID, mask());
-        }
-        audit.body.as_mut().expect("body").add::<Text>(
-            LabelRef::new("email_address"),
-            span_of(b"SECRET-9"),
-            None,
-            None,
+        let ids = ordered(audit);
+        audit.review::<Text>(
+            ids[0],
+            Review::Suppress {
+                reason: Some("false positive".into()),
+                actor: None,
+            },
         );
+        audit.review::<Text>(
+            ids[1],
+            Review::Redact {
+                policy_id: POLICY_ID,
+                action: mask(),
+            },
+        );
+        audit
+            .report
+            .include::<Text>(manual_entity(span_of(b"SECRET-9")));
     })
     .await;
 
@@ -325,14 +388,10 @@ async fn analyze_records_the_policy_pick_for_review() {
         .expect("analyze");
 
     let json = serde_json::to_string(&audit).expect("serializes");
-    let posted_back: Audit = serde_json::from_str(&json).expect("deserializes");
-    let EntityGroup::Text(records) = posted_back.body.as_ref().expect("body") else {
-        panic!("expected text body");
-    };
+    let posted_back = round_trip(&engine, &json);
 
-    for record in records {
-        let selection = record
-            .entity()
+    for entity in posted_back.report.entities::<Text>().expect("a text body") {
+        let selection = entity
             .audit
             .selection()
             .expect("every covered entity carries its pick after analyze");
@@ -346,7 +405,7 @@ async fn analyze_records_the_policy_pick_for_review() {
             "the pick carries the policy's own rationale, not just an operator id",
         );
         assert!(
-            record.entity().audit.verify().is_ok(),
+            entity.audit.verify().is_ok(),
             "recording a pick keeps the hash chain intact",
         );
     }
@@ -371,32 +430,38 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         .await
         .expect("analyze");
 
+    let target = ordered(&audit)[0];
     assert!(
-        ordered(&mut audit)[0].entity().audit.selection().is_some(),
+        entity(&audit, target).audit.selection().is_some(),
         "precondition: analyze recorded a pick",
     );
 
-    ordered(&mut audit)[0].suppress(Some("false positive".into()), None);
+    audit.review::<Text>(
+        target,
+        Review::Suppress {
+            reason: Some("false positive".into()),
+            actor: None,
+        },
+    );
     engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
         .await
         .expect("anonymize");
 
-    let record = &ordered(&mut audit)[0];
+    let record = entity(&audit, target);
     assert!(
-        record.entity().is_suppressed(),
+        record.is_suppressed(),
         "the suppression is what holds after apply",
     );
 
     // No Redaction event: nothing ran on it, despite the earlier pick.
     assert!(
-        record.entity().audit.redaction().is_none(),
+        record.audit.redaction().is_none(),
         "a suppressed entity is never redacted, whatever its pick said",
     );
 
     // And the suppression is the last word on the trail.
     let last_decision = record
-        .entity()
         .audit
         .events()
         .iter()
@@ -430,7 +495,14 @@ async fn a_reviewer_can_take_a_suppression_back() {
         .await
         .expect("analyze");
 
-    ordered(&mut audit)[0].suppress(Some("false positive".into()), None);
+    let target = ordered(&audit)[0];
+    audit.review::<Text>(
+        target,
+        Review::Suppress {
+            reason: Some("false positive".into()),
+            actor: None,
+        },
+    );
     let first = engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
         .await
@@ -442,19 +514,22 @@ async fn a_reviewer_can_take_a_suppression_back() {
 
     // Round-trip, as a host would, then reverse the decision.
     let json = serde_json::to_string(&audit).expect("serializes");
-    let mut posted_back: Audit = serde_json::from_str(&json).expect("deserializes");
-    {
-        let records = ordered(&mut posted_back);
-        assert!(
-            records[0].is_suppressed(),
-            "the applied suppression survives the round-trip",
-        );
-        records[0].redact(POLICY_ID, TextRedaction::Erase);
-        assert!(
-            !records[0].is_suppressed(),
-            "a pending redact supersedes the recorded suppression",
-        );
-    }
+    let mut posted_back = round_trip(&engine, &json);
+    assert!(
+        posted_back.is_suppressed::<Text>(target),
+        "the applied suppression survives the round-trip",
+    );
+    posted_back.review::<Text>(
+        target,
+        Review::Redact {
+            policy_id: POLICY_ID,
+            action: TextRedaction::Erase,
+        },
+    );
+    assert!(
+        !posted_back.is_suppressed::<Text>(target),
+        "a pending redact supersedes the recorded suppression",
+    );
 
     let second = engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut posted_back)
@@ -468,11 +543,8 @@ async fn a_reviewer_can_take_a_suppression_back() {
 
     // The reversal is auditable: both halves of the change of mind
     // stay on the trail rather than the suppression being erased.
-    let EntityGroup::Text(records) = posted_back.body.as_ref().expect("body") else {
-        panic!("expected text body");
-    };
-    let manual_intents: Vec<_> = records[0]
-        .entity()
+    let reviewed = entity(&posted_back, target);
+    let manual_intents: Vec<_> = reviewed
         .audit
         .events()
         .iter()
@@ -487,7 +559,7 @@ async fn a_reviewer_can_take_a_suppression_back() {
         "the suppression and its reversal are both recorded: {manual_intents:?}",
     );
     assert!(
-        records[0].entity().audit.verify().is_ok(),
+        reviewed.audit.verify().is_ok(),
         "the hash chain survives the reversal",
     );
 }
@@ -507,7 +579,14 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
         .await
         .expect("analyze");
 
-    ordered(&mut audit)[0].suppress(None, None);
+    let target = ordered(&audit)[0];
+    audit.review::<Text>(
+        target,
+        Review::Suppress {
+            reason: None,
+            actor: None,
+        },
+    );
     for _ in 0..3 {
         engine
             .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
@@ -515,8 +594,7 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
             .expect("anonymize");
     }
 
-    let manual_count = ordered(&mut audit)[0]
-        .entity()
+    let manual_count = entity(&audit, target)
         .audit
         .events()
         .iter()

@@ -1,12 +1,17 @@
 //! Analyze → anonymize bridge: what [`Engine::analyze`] returns
 //! and what [`Engine::anonymize`] accepts.
 //!
-//! [`Audit`] mirrors elide's [`Report`] shape: a body group +
-//! zero-or-more container part groups (DOCX embedded images,
-//! archive members, ...) keyed by container-private part id.
-//! Every group is an [`EntityGroup`] tagged by modality so the
-//! serialised form round-trips cleanly. Reviewer overrides live
-//! per-entity inside [`EntityRecord`].
+//! [`Audit`] wraps elide's [`Report`] — the detections, their
+//! locations, and every entity's audit trail — with the three
+//! things elide does not model: the recognition [`AuditContext`],
+//! what the analyze pass cost, and the reviewer decisions in
+//! [`ReviewSet`].
+//!
+//! Decisions sit beside the report rather than inside it, keyed by
+//! entity id, because elide has no concept of a per-entity operator
+//! override: apply re-resolves operators from live policy. The
+//! decisions elide *does* model — adding an entity, suppressing one
+//! — go on the report itself.
 //!
 //! [`AuditContext`] carries the recognition-side facts the
 //! anonymize step needs to rebuild an orchestrator against the
@@ -15,31 +20,33 @@
 //! policy set on every anonymize call.
 //!
 //! Hosts hold this value between analyze and anonymize and may
-//! persist it however they like (`serde` derives are on
-//! everything).
+//! persist it however they like: serialize it directly, and read it
+//! back with [`Engine::deserialize_audit`].
 //!
-//! [`EntityGroup`]: crate::entity::EntityGroup
-//! [`EntityRecord`]: crate::entity::EntityRecord
+//! [`ReviewSet`]: crate::entity::ReviewSet
+//! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 //! [`Engine::analyze`]: super::Engine::analyze
 //! [`Engine::anonymize`]: super::Engine::anonymize
 //! [`Report`]: elide::Report
 
-use std::collections::HashMap;
-
+use elide::Report;
 use elide::primitive::{CountryCode, Languages, RasterMode};
 use elide::recognition::{ScopeMetadata, UsageReport};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::entity::EntityGroup;
+use crate::entity::{Review, ReviewBucket, ReviewSet};
 use crate::plan::scope_metadata_is_empty;
 
-/// What detection found in one document.
+/// What detection found in one document, plus what a reviewer
+/// decided about it.
 ///
-/// The body group plus per-container-part groups (each tagged by
-/// modality) plus the recognition [`AuditContext`] the entities
-/// were scored against.
+/// Wraps elide's [`Report`] — the detections, their locations, and
+/// every entity's audit trail — with the three things elide does
+/// not model: the recognition [`AuditContext`] the entities were
+/// scored against, what the analyze pass cost, and the reviewer
+/// decisions in [`reviews`](Self::reviews).
 ///
 /// The context travels with the entities so anonymize can rebuild
 /// an orchestrator against exactly the vocabulary analyze used.
@@ -48,37 +55,51 @@ use crate::plan::scope_metadata_is_empty;
 /// here; labels are re-derived from the policy set on each
 /// anonymize call.
 ///
-/// No [`Default`]: a well-formed audit must carry a real
-/// [`AuditContext`] with a real correlation id. Callers building
-/// an audit outside the analyze path construct it explicitly.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+/// # Serialization
+///
+/// [`Serialize`] but deliberately **not** `Deserialize`. A
+/// serialized report tags each entity group with its modality
+/// *name*, not its concrete type, and deserialization cannot be
+/// object-safe — so rebuilding one needs the modality registry
+/// [`Engine`] holds. Read an audit back with
+/// [`Engine::deserialize_audit`]; a free `from_str` would need a
+/// global registry, which would close the door on modalities elide
+/// does not ship.
+///
+/// [`Engine`]: super::Engine
+/// [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
+/// [`Report`]: elide::Report
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Audit {
-    /// The body group.
+    /// The detections: elide's own report, body and container
+    /// parts, each entity carrying its provenance chain.
     ///
-    /// `None` when no body pipeline produced entities (pre-analyze,
-    /// or the codec resolved the doc to a modality with no
-    /// pipeline).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body: Option<EntityGroup>,
-    /// One entry per container part the orchestrator surfaced.
+    /// Edit it through [`Report`]'s own API — [`include`],
+    /// [`suppress`], [`entities`] — for the decisions elide models.
+    /// Operator overrides live in [`reviews`](Self::reviews).
     ///
-    /// Keyed by the container-private part id (e.g. a DOCX zip
-    /// entry name like `"word/media/image1.png"`); each value
-    /// carries that part's modality + entities.
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub parts: HashMap<String, EntityGroup>,
+    /// [`Report`]: elide::Report
+    /// [`include`]: elide::Report::include
+    /// [`suppress`]: elide::Report::suppress
+    /// [`entities`]: elide::Report::entities
+    pub report: Report,
+    /// What a reviewer decided about individual detections, keyed
+    /// by entity id.
+    ///
+    /// Separate from the report because elide has no concept of a
+    /// per-entity operator override: [`anonymize_with`] re-resolves
+    /// operators from live policy at apply time.
+    ///
+    /// [`anonymize_with`]: elide::Orchestrator::anonymize_with
+    #[serde(skip_serializing_if = "ReviewSet::is_empty")]
+    pub reviews: ReviewSet,
     /// Recognition context.
     ///
     /// The asserted languages, countries, document tags, and the
-    /// analyze-side correlation id. Held so
-    /// [`Engine::anonymize`] can compile against the same
-    /// vocabulary analyze used without the caller re-passing an
-    /// `AnalyzerParams`.
-    ///
-    /// Required on the wire: a missing context on an incoming
-    /// [`Audit`] rejects at deserialize time so the shape
-    /// mismatch surfaces at load, not at apply.
+    /// analyze-side correlation id. Held so [`Engine::anonymize`]
+    /// can compile against the same vocabulary analyze used
+    /// without the caller re-passing an `AnalyzerParams`.
     ///
     /// [`Engine::anonymize`]: super::Engine::anonymize
     pub context: AuditContext,
@@ -86,13 +107,58 @@ pub struct Audit {
     /// enricher that ran, each self-identifying by the name the
     /// deployment configured it under.
     ///
-    /// Empty when nothing model-backed ran, which is the common
-    /// case for a pattern-only pass. Recorded on analyze and not
-    /// re-derived at anonymize time, so a host that bills or rate
-    /// limits on model spend reads it straight off the returned
-    /// [`Audit`].
-    #[serde(default, skip_serializing_if = "UsageReport::is_empty")]
+    /// Carried here rather than read off the report: elide derives
+    /// usage during analysis and drops it when a report is rebuilt
+    /// from the wire, so a host that bills on model spend would
+    /// lose it on the round trip.
+    #[serde(skip_serializing_if = "UsageReport::is_empty")]
     pub usage: UsageReport,
+}
+
+impl Audit {
+    /// Record a reviewer's decision about the entity `id`.
+    ///
+    /// Replaces any decision already held for it: one entity
+    /// carries one decision. The modality is the entity's own, so a
+    /// text entity can only be given a [`TextRedaction`] — a review
+    /// naming the wrong modality's operator will not compile.
+    ///
+    /// [`TextRedaction`]: elide_governance::redaction::TextRedaction
+    pub fn review<M: ReviewBucket>(&mut self, id: Uuid, review: Review<M>) {
+        M::bucket_mut(&mut self.reviews).insert(id, review);
+    }
+
+    /// The decision held for the entity `id`, if any.
+    #[must_use]
+    pub fn reviewed<M: ReviewBucket>(&self, id: Uuid) -> Option<&Review<M>> {
+        M::bucket(&self.reviews).get(&id)
+    }
+
+    /// Drop any decision held for the entity `id`, restoring it to
+    /// whatever the policy set picks.
+    pub fn unreview<M: ReviewBucket>(&mut self, id: Uuid) -> Option<Review<M>> {
+        M::bucket_mut(&mut self.reviews).remove(&id)
+    }
+
+    /// Whether the entity `id` will be left alone.
+    ///
+    /// A pending decision wins over the entity's trail, so an entity
+    /// suppressed, applied, then given a [`Review::Redact`] reads
+    /// `false` here and is redacted on the next apply. With no
+    /// pending decision this falls back to the trail, so an applied
+    /// suppression still reads as suppressed after a round trip.
+    #[must_use]
+    pub fn is_suppressed<M: ReviewBucket + 'static>(&self, id: Uuid) -> bool {
+        match self.reviewed::<M>(id) {
+            Some(Review::Suppress { .. }) => true,
+            Some(Review::Redact { .. } | Review::Retag { .. }) => false,
+            None => self
+                .report
+                .entities::<M>()
+                .and_then(|entities| entities.iter().find(|e| e.id == id))
+                .is_some_and(elide::entity::Entity::is_suppressed),
+        }
+    }
 }
 
 /// Recognition-side facts that travel from analyze to anonymize.

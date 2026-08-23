@@ -53,8 +53,9 @@
 //! - `crate::analyzer` and `crate::anonymizer` compile
 //!   per-modality `spec` and `policies` into per-modality elide
 //!   types.
-//! - `crate::entity` owns [`EntityGroup`] (the modality-tagged
-//!   entity carrier) and its report bridging helpers.
+//! - `crate::entity` owns [`ReviewSet`] (the reviewer decisions
+//!   that sit beside elide's report) and the redaction override
+//!   they compile into.
 //!
 //! Inside this module:
 //!
@@ -65,7 +66,7 @@
 //!
 //! [`Audit`]: crate::Audit
 //! [`AuditContext`]: crate::AuditContext
-//! [`EntityGroup`]: crate::entity::EntityGroup
+//! [`ReviewSet`]: crate::entity::ReviewSet
 //! [`FormatRegistry`]: elide::codec::FormatRegistry
 //! [`DocumentHandle`]: elide::codec::DocumentHandle
 //! [`Orchestrator`]: elide::Orchestrator
@@ -77,24 +78,31 @@ mod audit_csv;
 mod orchestrator;
 mod registered;
 
-use std::any::TypeId;
 use std::collections::HashMap;
+use std::mem;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use elide::codec::{FormatRegistry, PartId, UntypedDocumentHandle};
+use elide::entity::Entity;
+use elide::entity::audit::AuditEvent;
+use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::primitive::RasterMode;
+use elide::recognition::UsageReport;
 use elide::redaction::operators::KeyProvider;
 use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
+use elide_governance::modality::RedactableModality;
+use serde::Deserialize;
+use uuid::Uuid;
 
 pub use self::audit::{Audit, AuditContext};
-pub(crate) use self::orchestrator::Picker;
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
-use crate::entity::{EntityGroup, OverrideSet, take_body, take_part};
+use crate::entity::{OverrideEntry, OverrideSet, Review, ReviewBucket, ReviewSet};
 use crate::file::Document;
 use crate::plan::AnalyzerParams;
 use crate::provider::llm::LlmConfig;
@@ -218,6 +226,48 @@ impl Engine {
         &self.formats
     }
 
+    /// Read an [`Audit`] back from its serialized form.
+    ///
+    /// The counterpart to serializing one: a host persists an audit
+    /// between analyze and anonymize, or ships it to a reviewer and
+    /// takes it back, and this is how it returns.
+    ///
+    /// [`Audit`] is [`Serialize`](serde::Serialize) but not
+    /// `Deserialize`. A serialized report tags each entity group
+    /// with its modality *name*, not its concrete type, and
+    /// deserialization cannot be object-safe — so rebuilding one
+    /// needs a name-to-type registry. This engine is that registry:
+    /// it knows which modalities it handles. A free `from_str` would
+    /// need a global one, which would close the door on modalities
+    /// elide does not ship.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MalformedInput`](ErrorKind::MalformedInput) if the
+    /// payload is not a well-formed audit, or if its report names a
+    /// modality this engine has no pipeline for — rebuilding it
+    /// would silently drop those entities along with any reviewer
+    /// decisions on them.
+    pub fn deserialize_audit<'de, D>(&self, deserializer: D) -> Result<Audit>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let wire = AuditWire::deserialize(deserializer)
+            .map_err(|err| Error::new(ErrorKind::MalformedInput, err.to_string()))?;
+
+        // The report is the one part this engine must rebuild
+        // itself; everything else on an audit is plain data.
+        let orchestrator = self.build_report_orchestrator();
+        let report = orchestrator.deserialize_report(wire.report)?;
+
+        Ok(Audit {
+            report,
+            reviews: wire.reviews,
+            context: wire.context,
+            usage: wire.usage,
+        })
+    }
+
     /// Every recognizer and enricher this engine has registered,
     /// each lineup in configuration order.
     pub fn components(&self) -> RegisteredComponents {
@@ -232,11 +282,10 @@ impl Engine {
     /// Analyze one document into an [`Audit`].
     ///
     /// Decodes `document`, drives [`Orchestrator::analyze`], and
-    /// projects the report onto the caller-facing [`Audit`].
-    /// Captures the body group *and* every container part group
-    /// (DOCX embedded images, archive members, ...) the
-    /// orchestrator returned; each returned group carries its own
-    /// modality tag via its [`EntityGroup`] variant.
+    /// returns the report it produced — the body *and* every
+    /// container part (DOCX embedded images, archive members, ...)
+    /// — wrapped in an [`Audit`] with the recognition context and
+    /// what the pass cost.
     ///
     /// `policies` contributes the label catalog (each
     /// [`PolicyDefinition::label_scope`] unions in) that drives
@@ -273,7 +322,6 @@ impl Engine {
     /// catalog they helped define.
     ///
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
-    /// [`EntityGroup`]: crate::entity::EntityGroup
     /// [`LabelScope`]: elide_governance::LabelScope
     /// [`LabelInScope`]: elide_governance::Predicate::LabelInScope
     /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
@@ -291,62 +339,35 @@ impl Engine {
             self.build_analyze_orchestrator(spec, policies, correlation_id)?;
         let directives = build_analyze_directives(spec);
         let mut report = orchestrator.analyze(&mut handle, &directives).await?;
-        // Cloned off the report before the body and parts are
-        // drained out of it below.
+        // Cloned off the report: elide derives usage during
+        // analysis and drops it when a report is rebuilt from the
+        // wire, so the audit carries its own copy.
         let usage = report.usage().clone();
 
-        // Walk the body modality slots in order; the first that
-        // returns Some is the body modality the orchestrator's
-        // codec resolved. Only the modalities compiled in are
-        // considered; a document decoded to a disabled modality
-        // ends up in the `None` arm and surfaces as Validation.
-        let body_group = take_body::<Text>(&mut report);
-        let body_group = body_group.or_else(|| take_body::<Tabular>(&mut report));
-        let body_group = body_group.or_else(|| take_body::<Image>(&mut report));
-        let body_group = body_group.or_else(|| take_body::<Audio>(&mut report));
-
-        let body_group = body_group.ok_or_else(|| {
-            Error::new(
+        // A document whose codec resolved to a modality with no
+        // registered pipeline produces no body, and nothing
+        // downstream can act on it. Probing each modality in turn
+        // is how the body's own modality is discovered: a report
+        // exposes its parts' modalities but not its body's.
+        if !has_body(&report) {
+            return Err(Error::new(
                 ErrorKind::CapabilityUnavailable,
                 format!(
                     "codec resolved {extension:?} to a modality the orchestrator \
                      has no pipeline for"
                 ),
-            )
-        })?;
-
-        // Walk the parts in the same way: collect (id, modality)
-        // pairs first (read-borrow), then drain each part with the
-        // matching typed accessor (write-borrow).
-        let part_ids: Vec<(PartId, TypeId)> = report
-            .part_ids()
-            .map(|(id, type_id)| (id.clone(), type_id))
-            .collect();
-        let mut parts = HashMap::with_capacity(part_ids.len());
-        for (id, type_id) in part_ids {
-            let group = take_part_dispatch(&mut report, &id, type_id);
-            if let Some(group) = group {
-                parts.insert(id.as_str().to_owned(), group);
-            }
+            ));
         }
 
         // Record what each entity's policy pick would be, so the
         // returned audit answers "what happens to this, and why"
         // before a reviewer overrides anything. Purely additive:
         // it appends Selection events and redacts nothing.
-        let mut body_group = body_group;
-        let mut parts = parts;
-        self.record_picks(
-            &context,
-            policies,
-            correlation_id,
-            Some(&mut body_group),
-            &mut parts,
-        );
+        self.record_picks(&context, policies, correlation_id, &mut report);
 
         Ok(Audit {
-            body: Some(body_group),
-            parts,
+            report,
+            reviews: ReviewSet::default(),
             context,
             usage,
         })
@@ -356,11 +377,9 @@ impl Engine {
     /// overrides.
     ///
     /// Re-decodes `document`, rebuilds a multi-group [`Report`]
-    /// from `audit`'s body + parts, drives
-    /// [`Orchestrator::anonymize_with`] with the reviewer
-    /// overrides extracted from every group and the caller-filtered
-    /// `policies`, merges the redaction events elide stamped back
-    /// onto each `EntityRecord`'s provenance chain, and returns
+    /// Drives [`Orchestrator::anonymize_with`] with the audit's own
+    /// report, the reviewer decisions compiled into per-entity
+    /// overrides, and the caller-filtered `policies`, then returns
     /// the re-encoded [`Document`].
     ///
     /// `audit` is taken by `&mut`: after redaction, each entity's
@@ -409,14 +428,12 @@ impl Engine {
     /// [`LabelScope`]: elide_governance::LabelScope
     /// [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
     ///
-    /// The body's modality (read from `audit.body`'s
-    /// [`EntityGroup`] variant) pins which typed handle the
-    /// post-apply re-encode goes through: a container's body
-    /// modality regardless of how many other modalities its parts
-    /// ride on.
+    /// The body's own modality pins which typed handle the
+    /// post-apply re-encode goes through: a container re-encodes
+    /// through its body's modality regardless of how many others
+    /// its parts ride on.
     ///
     /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
-    /// [`EntityGroup`]: crate::entity::EntityGroup
     pub async fn anonymize(
         &self,
         document: Document,
@@ -428,54 +445,39 @@ impl Engine {
         let content_type = document.content_type.clone();
         let mut handle = self.decode(document, audit.context.raster_mode).await?;
 
-        // Validate before mutating: a missing body fails the call,
-        // and stamping suppressions onto the parts first would leave
-        // the caller's audit edited by a request that did nothing.
-        if audit.body.is_none() {
+        // An audit with no body was never analyzed. Applying it
+        // would return the document unredacted and report success,
+        // which reads exactly like "nothing to redact" — so refuse
+        // instead of handing back bytes a caller may believe are
+        // clean.
+        if !has_body(&audit.report) {
             return Err(Error::new(
                 ErrorKind::Configuration,
-                "anonymize: body group is missing: analyze must run first",
+                "anonymize: the audit has no body; analyze must run first",
             ));
         }
 
-        // Materialise pending suppressions onto their entities
-        // before the report is rebuilt: elide reads the trail, not
-        // our review field, to decide what the redaction pass skips.
-        if let Some(body) = audit.body.as_mut() {
-            body.apply_suppressions();
-        }
-        for group in audit.parts.values_mut() {
-            group.apply_suppressions();
-        }
+        // Materialise pending suppressions onto their entities:
+        // elide reads the trail, not our review set, to decide what
+        // the redaction pass skips.
+        apply_suppressions(audit);
 
-        let body_group = audit
-            .body
-            .as_ref()
-            .expect("body presence checked immediately above");
-
-        let mut report = body_group.insert_into_body(Report::new());
-        let mut overrides = OverrideSet::default();
-        body_group.collect_overrides_into(&mut overrides);
-        for (id, group) in &audit.parts {
-            report = group.insert_as_part(report, id);
-            group.collect_overrides_into(&mut overrides);
-        }
-
+        let overrides = collect_overrides(audit);
         let orchestrator = self.build_anonymize_orchestrator(
             &audit.context,
             policies,
             &overrides,
             correlation_id,
         )?;
-        let mut mutated = orchestrator.anonymize_with(&mut handle, report).await?;
 
-        let bytes = body_group.encode_redacted_from(handle)?;
-        if let Some(body) = audit.body.as_mut() {
-            body.merge_body_from(&mut mutated);
-        }
-        for (id, group) in audit.parts.iter_mut() {
-            group.merge_part_from(&mut mutated, id);
-        }
+        // The report moves through apply and comes back mutated,
+        // every entity carrying the redaction event elide stamped.
+        // Swapped out and back so the caller's audit ends up holding
+        // the applied report rather than the pre-apply one.
+        let report = mem::replace(&mut audit.report, Report::new());
+        audit.report = orchestrator.anonymize_with(&mut handle, report).await?;
+
+        let bytes = encode_redacted(&audit.report, handle)?;
 
         Ok(Document {
             bytes,
@@ -556,6 +558,220 @@ impl Engine {
     }
 }
 
+/// The wire shape of an [`Audit`], with the report left as raw
+/// values.
+///
+/// Mirrors `Audit`'s field names so one serialized form reads back
+/// through both. The report cannot be deserialized here — it needs
+/// the engine's modality registry — so it is buffered and handed to
+/// [`Orchestrator::deserialize_report`] afterwards.
+///
+/// [`Orchestrator::deserialize_report`]: elide::Orchestrator::deserialize_report
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuditWire {
+    report: serde_value::Value,
+    #[serde(default)]
+    reviews: ReviewSet,
+    context: AuditContext,
+    #[serde(default)]
+    usage: UsageReport,
+}
+
+/// Whether `report` has a body at all.
+///
+/// A report exposes its parts' modalities but not its body's, so
+/// the body is discovered by probing each modality in turn: at most
+/// one matches. Analyze uses this to reject a document whose codec
+/// resolved to a modality with no registered pipeline; anonymize
+/// uses it to reject an audit that never went through analyze.
+fn has_body(report: &Report) -> bool {
+    report.entities::<Text>().is_some()
+        || report.entities::<Tabular>().is_some()
+        || report.entities::<Image>().is_some()
+        || report.entities::<Audio>().is_some()
+}
+
+/// Stamp every pending [`Review::Suppress`] onto its entity's audit
+/// trail, so elide's redaction pass skips it.
+///
+/// Idempotent: an entity elide already sees as suppressed is left
+/// alone, so re-applying an audit does not stack duplicate events.
+/// A decision that is no longer a suppression records the reversal
+/// instead — `is_suppressed` reads the most recent `Manual` event,
+/// so an include lifts an earlier suppress and the trail keeps both
+/// halves of the reviewer's change of mind.
+fn apply_suppressions(audit: &mut Audit) {
+    apply_suppressions_for::<Text>(audit);
+    apply_suppressions_for::<Tabular>(audit);
+    apply_suppressions_for::<Image>(audit);
+    apply_suppressions_for::<Audio>(audit);
+}
+
+fn apply_suppressions_for<M: ReviewBucket + 'static>(audit: &mut Audit) {
+    // Which entities carry a decision, and whether each one wants
+    // suppression. Reduced to plain data first so the borrow on
+    // `audit.reviews` ends before `audit.report` is mutated: a
+    // `Review<M>` cannot be cloned out (its derive would need
+    // `M: Clone`, which a modality marker is not).
+    let decisions: Vec<(Uuid, Suppression)> = M::bucket(&audit.reviews)
+        .iter()
+        .map(|(id, review)| (*id, Suppression::of(review)))
+        .collect();
+
+    for (id, decision) in decisions {
+        let Some(entity) = entity_mut::<M>(&mut audit.report, id) else {
+            continue;
+        };
+        decision.reconcile(entity);
+    }
+}
+
+/// What a review implies for elide's suppression flag, flattened
+/// away from the modality-generic [`Review`] so it can outlive the
+/// borrow that produced it.
+enum Suppression {
+    /// Leave the entity alone, recording why and by whom.
+    On {
+        reason: Option<String>,
+        actor: Option<String>,
+    },
+    /// Redact it after all: an earlier suppression, if any, is
+    /// lifted.
+    Off,
+}
+
+impl Suppression {
+    fn of<M: RedactableModality>(review: &Review<M>) -> Self {
+        match review {
+            Review::Suppress { reason, actor } => Self::On {
+                reason: reason.clone(),
+                actor: actor.clone(),
+            },
+            Review::Redact { .. } | Review::Retag { .. } => Self::Off,
+        }
+    }
+
+    /// Bring `entity`'s trail in line with this decision.
+    ///
+    /// A no-op when the trail already says what the decision says,
+    /// so re-applying an audit does not stack duplicate events.
+    /// Reversal records a `Manual` include rather than rewriting
+    /// history: `is_suppressed` reads the most recent `Manual`
+    /// event, so the trail keeps both halves of a change of mind.
+    fn reconcile<M: Modality>(&self, entity: &mut Entity<M>) {
+        if matches!(self, Self::On { .. }) == entity.is_suppressed() {
+            return;
+        }
+        let location = entity.location.clone();
+        let confidence = entity.confidence;
+        match self {
+            Self::On { reason, actor } => {
+                let mut event = AuditEvent::manual_suppress(location, confidence);
+                if let Some(reason) = reason {
+                    event = event.with_reason(reason.clone());
+                }
+                if let Some(actor) = actor {
+                    event = event.with_actor(actor.clone());
+                }
+                entity.suppress(event);
+            }
+            Self::Off => {
+                entity
+                    .audit
+                    .record(AuditEvent::manual_include(location, confidence));
+            }
+        }
+    }
+}
+
+/// Find an entity by id anywhere in the report: the body first,
+/// then every container part.
+fn entity_mut<M: Modality>(report: &mut Report, id: Uuid) -> Option<&mut Entity<M>> {
+    if report.entity_mut::<M>(id).is_some() {
+        return report.entity_mut::<M>(id);
+    }
+    let part_ids: Vec<PartId> = report.part_ids().map(|(id, _)| id.clone()).collect();
+    part_ids
+        .into_iter()
+        .find(|part| report.part_entity_mut::<M>(part, id).is_some())
+        .and_then(move |part| report.part_entity_mut::<M>(&part, id))
+}
+
+/// Materialise the reviewer's operator overrides for the anonymize
+/// path, bucketed by modality.
+///
+/// Only [`Review::Redact`] yields one: a suppression names no
+/// operator and is applied by stamping the entity itself.
+fn collect_overrides(audit: &Audit) -> OverrideSet {
+    OverrideSet {
+        text: overrides_for(&audit.reviews.text),
+        tabular: overrides_for(&audit.reviews.tabular),
+        image: overrides_for(&audit.reviews.image),
+        audio: overrides_for(&audit.reviews.audio),
+    }
+}
+
+fn overrides_for<M: RedactableModality>(
+    reviews: &HashMap<Uuid, Review<M>>,
+) -> Vec<OverrideEntry<M>> {
+    reviews
+        .iter()
+        .filter_map(|(entity_id, review)| match review {
+            Review::Redact { policy_id, action } => Some(OverrideEntry {
+                entity_id: *entity_id,
+                policy_id: *policy_id,
+                action: action.clone(),
+            }),
+            Review::Suppress { .. } | Review::Retag { .. } => None,
+        })
+        .collect()
+}
+
+/// Re-encode the mutated handle through the body's own modality.
+///
+/// [`DocumentHandle::encode`] is per-modality, so the typed form is
+/// required; the body's modality is discovered by probing, since a
+/// report exposes its parts' modalities but not its body's.
+///
+/// [`DocumentHandle::encode`]: elide::codec::DocumentHandle::encode
+fn encode_redacted(report: &Report, handle: UntypedDocumentHandle) -> Result<Bytes> {
+    // `entities` needs `&mut`, so probe a clone-free way: try each
+    // typed conversion and keep the one that matches.
+    match handle.into::<Text>() {
+        Ok(typed) => return encode_typed(typed),
+        Err(handle) => match handle.into::<Tabular>() {
+            Ok(typed) => return encode_typed(typed),
+            Err(handle) => match handle.into::<Image>() {
+                Ok(typed) => return encode_typed(typed),
+                Err(handle) => {
+                    if let Ok(typed) = handle.into::<Audio>() {
+                        return encode_typed(typed);
+                    }
+                }
+            },
+        },
+    }
+    let _ = report;
+    Err(Error::new(
+        ErrorKind::Redaction,
+        "post-apply re-encode: no registered modality matches the document handle",
+    ))
+}
+
+fn encode_typed<M: Modality>(typed: elide::codec::DocumentHandle<M>) -> Result<Bytes>
+where
+    elide::codec::DocumentHandle<M>: elide::modality::DataWriter<M>,
+{
+    let content = typed.encode().map_err(|err| {
+        Error::new(
+            ErrorKind::Redaction,
+            format!("post-apply encode failed: {err}"),
+        )
+    })?;
+    Ok(content.into_bytes())
+}
+
 impl Default for Engine {
     fn default() -> Self {
         Self::new()
@@ -573,23 +789,4 @@ fn build_analyze_directives(spec: &AnalyzerParams) -> Directives {
         .with_annotations::<Tabular>(spec.annotations.tabular.clone())
         .with_annotations::<Image>(spec.annotations.image.clone())
         .with_annotations::<Audio>(spec.annotations.audio.clone())
-}
-
-/// Dispatch a part to the take-part helper matching its modality
-/// `TypeId`. A part whose `TypeId` matches no modality the engine
-/// models falls through to `None`.
-fn take_part_dispatch(report: &mut Report, id: &PartId, type_id: TypeId) -> Option<EntityGroup> {
-    if type_id == TypeId::of::<Text>() {
-        return take_part::<Text>(report, id);
-    }
-    if type_id == TypeId::of::<Tabular>() {
-        return take_part::<Tabular>(report, id);
-    }
-    if type_id == TypeId::of::<Image>() {
-        return take_part::<Image>(report, id);
-    }
-    if type_id == TypeId::of::<Audio>() {
-        return take_part::<Audio>(report, id);
-    }
-    None
 }

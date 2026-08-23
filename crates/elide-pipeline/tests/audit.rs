@@ -15,10 +15,10 @@ use bytes::Bytes;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::redaction::TextRedaction;
-use elide_pipeline::entity::EntityRecord;
+use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Audit, Engine, EntityGroup};
+use elide_pipeline::{Audit, Engine};
 
 use self::fixtures::write_artefact;
 
@@ -43,11 +43,16 @@ async fn analyze() -> Audit {
         .expect("analyze succeeds")
 }
 
-fn text_records_mut(audit: &mut Audit) -> &mut Vec<EntityRecord<Text>> {
-    let EntityGroup::Text(entities) = audit.body.as_mut().expect("body present") else {
-        panic!("expected text body");
-    };
-    entities
+/// The body's text entity ids, in the order the recognizer emitted
+/// them. Decisions key by id, so this is what a caller indexes.
+fn text_entity_ids(audit: &Audit) -> Vec<uuid::Uuid> {
+    audit
+        .report
+        .entities::<Text>()
+        .expect("body present")
+        .iter()
+        .map(|entity| entity.id)
+        .collect()
 }
 
 /// Stable placeholder policy UUID for reviewer overrides in
@@ -60,11 +65,16 @@ const REVIEW_POLICY_ID: uuid::Uuid =
 /// Tag the first detected entity with a text `Erase` review so
 /// the review-export path has something to emit.
 fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
-    let records = text_records_mut(audit);
-    assert!(!records.is_empty(), "sample fixture must produce entities");
-    let target = records[0].entity().id;
-    records[0].redact(REVIEW_POLICY_ID, TextRedaction::Erase);
-    target
+    let ids = text_entity_ids(audit);
+    assert!(!ids.is_empty(), "sample fixture must produce entities");
+    audit.review::<Text>(
+        ids[0],
+        Review::Redact {
+            policy_id: REVIEW_POLICY_ID,
+            action: TextRedaction::Erase,
+        },
+    );
+    ids[0]
 }
 
 #[tokio::test]
@@ -76,21 +86,21 @@ async fn write_json_round_trips_via_serde_and_drops_artefact() {
         .expect("write_json_pretty succeeds");
     write_artefact("sample", "audit.json", &buf);
 
-    let round: Audit = serde_json::from_slice(&buf).expect("round-trip deserialize");
-    let EntityGroup::Text(original) = audit.body.as_ref().unwrap() else {
-        panic!("original body is not text");
-    };
-    let EntityGroup::Text(round) = round.body.as_ref().unwrap() else {
-        panic!("round-tripped body is not text");
-    };
+    // `Audit` is Serialize-only: a serialized report names its
+    // modalities but not their types, so the engine rebuilds it.
+    let mut de = serde_json::Deserializer::from_slice(&buf);
+    let round = engine()
+        .deserialize_audit(&mut de)
+        .expect("round-trip deserialize");
+    let original = audit.report.entities::<Text>().expect("body is text");
+    let round = round.report.entities::<Text>().expect("body is text");
     assert_eq!(
         original.len(),
         round.len(),
         "round-trip must preserve entity count",
     );
     assert_eq!(
-        original[0].entity().id,
-        round[0].entity().id,
+        original[0].id, round[0].id,
         "round-trip must preserve entity ids",
     );
 }
@@ -113,9 +123,7 @@ async fn write_entities_csv_has_header_and_one_row_per_entity() {
     );
 
     let row_count = lines.count();
-    let EntityGroup::Text(entities) = audit.body.as_ref().unwrap() else {
-        unreachable!()
-    };
+    let entities = audit.report.entities::<Text>().expect("body is text");
     assert_eq!(
         row_count,
         entities.len(),
@@ -141,12 +149,10 @@ async fn write_provenance_csv_emits_one_row_per_event() {
     );
 
     let row_count = lines.count();
-    let EntityGroup::Text(entities) = audit.body.as_ref().unwrap() else {
-        unreachable!()
-    };
+    let entities = audit.report.entities::<Text>().expect("body is text");
     let expected_events: usize = entities
         .iter()
-        .map(|r| r.entity().audit.events().len())
+        .map(|entity| entity.audit.events().len())
         .sum();
     assert_eq!(
         row_count, expected_events,
@@ -195,10 +201,16 @@ async fn write_reviews_csv_lists_a_suppression_with_no_operator() {
     // carrying a value that is not an operator kind.
     let mut audit = analyze().await;
     let suppressed_id = {
-        let records = text_records_mut(&mut audit);
-        assert!(!records.is_empty(), "sample fixture must produce entities");
-        records[0].suppress(Some("false positive".into()), Some("reviewer".into()));
-        records[0].entity().id
+        let ids = text_entity_ids(&audit);
+        assert!(!ids.is_empty(), "sample fixture must produce entities");
+        audit.review::<Text>(
+            ids[0],
+            Review::Suppress {
+                reason: Some("false positive".into()),
+                actor: Some("reviewer".into()),
+            },
+        );
+        ids[0]
     };
 
     let mut buf = Vec::new();

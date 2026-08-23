@@ -56,15 +56,13 @@ pub mod provider;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
-/// The modality markers [`EntityGroup`]'s variants are generic
-/// over. Re-exported because [`EntityRecord<M>`] cannot be named
-/// without them: a caller matching on an [`Audit`]'s body needs
-/// `EntityRecord<Text>` and its siblings by name.
+/// The modality markers every typed call is generic over.
+///
+/// Re-exported because reading an [`Audit`] means naming one:
+/// `audit.report.entities::<Text>()`, `audit.review::<Image>(..)`.
 ///
 /// All four are always available: the modalities compile in
 /// unconditionally, and only their codecs are feature-gated.
-///
-/// [`EntityRecord<M>`]: crate::entity::EntityRecord
 #[doc(inline)]
 pub use elide::modality::Modality;
 #[doc(inline)]
@@ -103,7 +101,7 @@ pub use elide_governance as policy;
 #[doc(inline)]
 pub use elide_template as template;
 
-pub use self::entity::EntityGroup;
+pub use self::entity::ReviewSet;
 pub use self::file::{Document, FileMetadata};
 pub use self::pipeline::{
     Audit, AuditContext, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,

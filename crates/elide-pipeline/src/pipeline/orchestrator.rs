@@ -34,9 +34,10 @@
 //!
 //! [`Scope`]: elide::recognition::Scope
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::slice;
 
+use elide::codec::PartId;
 use elide::detection::Analyzer;
 use elide::entity::LabelCatalog;
 use elide::modality::Modality;
@@ -46,7 +47,7 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::{Error, ErrorKind, Orchestrator, Result};
+use elide::{Error, ErrorKind, Orchestrator, Report, Result};
 use elide_governance::modality::RedactableModality;
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
 use uuid::Uuid;
@@ -61,7 +62,7 @@ use crate::anonymizer::{
     attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
     attach_policies_text,
 };
-use crate::entity::{EntityGroup, OverrideEntry, OverrideSet};
+use crate::entity::{OverrideEntry, OverrideSet};
 use crate::plan::AnalyzerParams;
 use crate::provider::ocr::{OcrConfig, OcrEnricherConfig};
 use crate::provider::stt::{SttConfig, SttEnricherConfig};
@@ -218,6 +219,24 @@ impl Engine {
         Ok(orchestrator)
     }
 
+    /// An orchestrator carrying only the modality registry, for
+    /// rebuilding a serialized [`Report`].
+    ///
+    /// Deserialization routes each entity group to its modality by
+    /// name and needs nothing else: no policies, no operators, no
+    /// scope. The analyzers and anonymizers are the empty ones
+    /// [`with_modality`] insists on.
+    ///
+    /// [`with_modality`]: elide::Orchestrator::with_modality
+    pub(super) fn build_report_orchestrator(&self) -> Orchestrator<'_> {
+        let catalog = LabelCatalog::new();
+        Orchestrator::new(&self.formats)
+            .with_modality::<Text>(Analyzer::<Text>::new(), assemble_empty(&catalog))
+            .with_modality::<Tabular>(Analyzer::<Tabular>::new(), assemble_empty(&catalog))
+            .with_modality::<Image>(Analyzer::<Image>::new(), assemble_empty(&catalog))
+            .with_modality::<Audio>(Analyzer::<Audio>::new(), assemble_empty(&catalog))
+    }
+
     /// Record each entity's operator *pick* onto its audit trail,
     /// without applying anything.
     ///
@@ -250,8 +269,7 @@ impl Engine {
         context: &AuditContext,
         policies: &[PolicyDefinition],
         correlation_id: Uuid,
-        body: Option<&mut EntityGroup>,
-        parts: &mut HashMap<String, EntityGroup>,
+        report: &mut Report,
     ) {
         // Deliberately discarded, not swallowed: every reason this
         // can fail (an unresolvable label, an operator with no
@@ -260,7 +278,7 @@ impl Engine {
         // would surface each one twice and turn analyze into a second
         // place a caller must handle redaction errors. The observable
         // signal is that the audit carries no `Selection` events.
-        let _ = self.try_record_picks(context, policies, correlation_id, body, parts);
+        let _ = self.try_record_picks(context, policies, correlation_id, report);
     }
 
     /// The fallible body of [`record_picks`](Self::record_picks).
@@ -269,8 +287,7 @@ impl Engine {
         context: &AuditContext,
         policies: &[PolicyDefinition],
         correlation_id: Uuid,
-        body: Option<&mut EntityGroup>,
-        parts: &mut HashMap<String, EntityGroup>,
+        report: &mut Report,
     ) -> Result<()> {
         let catalog = compile_catalog(policies)?;
         let scope = build_scope(context, catalog.clone(), correlation_id);
@@ -298,12 +315,7 @@ impl Engine {
             )?,
         };
 
-        if let Some(group) = body {
-            group.record_picks(&picker, &scope);
-        }
-        for group in parts.values_mut() {
-            group.record_picks(&picker, &scope);
-        }
+        picker.record_into(report, &scope);
         Ok(())
     }
 }
@@ -508,6 +520,53 @@ pub(crate) struct Picker {
     pub(crate) tabular: Anonymizer<Tabular>,
     pub(crate) image: Anonymizer<Image>,
     pub(crate) audio: Anonymizer<Audio>,
+}
+
+impl Picker {
+    /// Record every entity's operator pick onto its own trail,
+    /// across the body and every container part.
+    ///
+    /// Each modality's anonymizer sees only its own entities, so a
+    /// container whose parts span modalities is picked correctly
+    /// without the caller sorting them first.
+    fn record_into(&self, report: &mut Report, scope: &Scope) {
+        pick_body(&self.text, report, scope);
+        pick_body(&self.tabular, report, scope);
+        pick_body(&self.image, report, scope);
+        pick_body(&self.audio, report, scope);
+
+        let part_ids: Vec<PartId> = report.part_ids().map(|(id, _)| id.clone()).collect();
+        for id in part_ids {
+            pick_part(&self.text, report, &id, scope);
+            pick_part(&self.tabular, report, &id, scope);
+            pick_part(&self.image, report, &id, scope);
+            pick_part(&self.audio, report, &id, scope);
+        }
+    }
+}
+
+/// Run `anonymizer`'s pick pass over the report body, when the body
+/// is this anonymizer's modality. A no-op otherwise.
+fn pick_body<M: RedactableModality + 'static>(
+    anonymizer: &Anonymizer<M>,
+    report: &mut Report,
+    scope: &Scope,
+) {
+    if let Some(entities) = report.entities_mut::<M>() {
+        anonymizer.pick(entities, scope);
+    }
+}
+
+/// The part counterpart to [`pick_body`].
+fn pick_part<M: RedactableModality + 'static>(
+    anonymizer: &Anonymizer<M>,
+    report: &mut Report,
+    id: &PartId,
+    scope: &Scope,
+) {
+    if let Some(entities) = report.part_entities_mut::<M>(id) {
+        anonymizer.pick(entities, scope);
+    }
 }
 
 /// The `attach_override` argument for a pick pass: overrides do

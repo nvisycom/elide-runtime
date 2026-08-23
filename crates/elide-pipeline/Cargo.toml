@@ -106,6 +106,7 @@ elide-template = { workspace = true }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
+serde-value = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [], optional = true }
 schemars = { workspace = true, features = [] }
 

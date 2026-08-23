@@ -16,18 +16,57 @@
 //! polymorphic locations. Callers that need location details or
 //! nested payloads use [`ExportJson`](elide_export::ExportJson).
 
+use std::collections::HashMap;
 use std::{io, result};
 
+use elide::codec::PartId;
+use elide::entity::Entity;
 use elide::entity::audit::AuditKind;
 use elide::modality::Modality;
-use elide::{Error, ErrorKind, Result};
+use elide::modality::audio::Audio;
+use elide::modality::image::Image;
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
+use elide::{Error, ErrorKind, Report, Result};
 use elide_export::{ExportCsv, Table, write_rows};
 use elide_governance::modality::RedactableModality;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use super::audit::Audit;
-use crate::entity::{EntityGroup, EntityRecord, Review};
+use crate::entity::Review;
+
+/// Run `$body` once per modality, binding `$m` to the modality type
+/// and `$name` to its wire name.
+///
+/// A report stores entities per modality and hands them back only
+/// through a typed accessor, so every walk over "all entities" is
+/// four probes. The modality list lives here so adding a fifth
+/// means touching one macro rather than every row builder.
+macro_rules! per_modality {
+    (|$m:ident, $name:ident| $body:expr) => {{
+        {
+            type $m = Text;
+            let $name = "text";
+            $body
+        }
+        {
+            type $m = Tabular;
+            let $name = "tabular";
+            $body
+        }
+        {
+            type $m = Image;
+            let $name = "image";
+            $body
+        }
+        {
+            type $m = Audio;
+            let $name = "audio";
+            $body
+        }
+    }};
+}
 
 impl ExportCsv for Audit {
     /// Entities first, then their provenance, then reviewer
@@ -85,49 +124,56 @@ impl Audit {
     /// Iterate every entity across body + parts, sorted by
     /// `(part_id, entity_id)` for stable output.
     fn entity_rows(&self) -> Vec<EntityRow<'_>> {
-        let mut rows: Vec<EntityRow<'_>> = Vec::new();
-        if let Some(group) = &self.body {
-            push_entity_rows(group, None, &mut rows);
-        }
-        let mut part_keys: Vec<&String> = self.parts.keys().collect();
-        part_keys.sort();
-        for id in part_keys {
-            push_entity_rows(&self.parts[id], Some(id.as_str()), &mut rows);
-        }
-        rows
-    }
-
-    /// Iterate every provenance event across body + parts,
-    /// sorted by `(entity_id, event_index)`.
-    fn provenance_rows(&self) -> Vec<ProvenanceRow<'_>> {
-        let mut rows: Vec<ProvenanceRow<'_>> = Vec::new();
-        if let Some(group) = &self.body {
-            push_provenance_rows(group, &mut rows);
-        }
-        let mut part_keys: Vec<&String> = self.parts.keys().collect();
-        part_keys.sort();
-        for id in part_keys {
-            push_provenance_rows(&self.parts[id], &mut rows);
-        }
+        let mut rows = Vec::new();
+        let parts = sorted_part_ids(&self.report);
+        per_modality!(|M, name| {
+            if let Some(entities) = self.report.entities::<M>() {
+                extend_entity_rows(entities, None, name, &mut rows);
+            }
+            for id in &parts {
+                if let Some(entities) = self.report.part_entities::<M>(id) {
+                    extend_entity_rows(entities, Some(id.as_str()), name, &mut rows);
+                }
+            }
+        });
         rows.sort_by(|a, b| {
-            a.entity_id
-                .cmp(&b.entity_id)
-                .then_with(|| a.event_index.cmp(&b.event_index))
+            a.part_id
+                .cmp(&b.part_id)
+                .then(a.entity_id.cmp(&b.entity_id))
         });
         rows
     }
 
-    /// Iterate every reviewed entity across body + parts.
+    /// One row per event on every entity's provenance chain,
+    /// sorted by `(entity_id, event_index)`.
+    fn provenance_rows(&self) -> Vec<ProvenanceRow<'_>> {
+        let mut rows = Vec::new();
+        let parts = sorted_part_ids(&self.report);
+        per_modality!(|M, _name| {
+            if let Some(entities) = self.report.entities::<M>() {
+                extend_provenance_rows(entities, &mut rows);
+            }
+            for id in &parts {
+                if let Some(entities) = self.report.part_entities::<M>(id) {
+                    extend_provenance_rows(entities, &mut rows);
+                }
+            }
+        });
+        rows.sort_by(|a, b| {
+            a.entity_id
+                .cmp(&b.entity_id)
+                .then(a.event_index.cmp(&b.event_index))
+        });
+        rows
+    }
+
+    /// One row per reviewer decision, sorted by `entity_id`.
     fn review_rows(&self) -> Vec<ReviewRow> {
         let mut rows: Vec<ReviewRow> = Vec::new();
-        if let Some(group) = &self.body {
-            push_review_rows(group, &mut rows);
-        }
-        let mut part_keys: Vec<&String> = self.parts.keys().collect();
-        part_keys.sort();
-        for id in part_keys {
-            push_review_rows(&self.parts[id], &mut rows);
-        }
+        extend_review_rows(&self.reviews.text, "text", &mut rows);
+        extend_review_rows(&self.reviews.tabular, "tabular", &mut rows);
+        extend_review_rows(&self.reviews.image, "image", &mut rows);
+        extend_review_rows(&self.reviews.audio, "audio", &mut rows);
         rows.sort_by_key(|row| row.entity_id);
         rows
     }
@@ -161,70 +207,32 @@ struct ProvenanceRow<'a> {
     payload_id: Option<&'a str>,
 }
 
-fn push_entity_rows<'a>(
-    group: &'a EntityGroup,
-    part_id: Option<&'a str>,
-    out: &mut Vec<EntityRow<'a>>,
-) {
-    match group {
-        EntityGroup::Text(entities) => extend_entity_rows(entities, part_id, "text", out),
-        EntityGroup::Tabular(entities) => extend_entity_rows(entities, part_id, "tabular", out),
-        EntityGroup::Image(entities) => extend_entity_rows(entities, part_id, "image", out),
-        EntityGroup::Audio(entities) => extend_entity_rows(entities, part_id, "audio", out),
-    }
-}
-
-fn push_provenance_rows<'a>(group: &'a EntityGroup, out: &mut Vec<ProvenanceRow<'a>>) {
-    match group {
-        EntityGroup::Text(entities) => extend_provenance_rows(entities, out),
-        EntityGroup::Tabular(entities) => extend_provenance_rows(entities, out),
-        EntityGroup::Image(entities) => extend_provenance_rows(entities, out),
-        EntityGroup::Audio(entities) => extend_provenance_rows(entities, out),
-    }
-}
-
-fn push_review_rows(group: &EntityGroup, out: &mut Vec<ReviewRow>) {
-    match group {
-        EntityGroup::Text(entities) => extend_review_rows(entities, "text", out),
-        EntityGroup::Tabular(entities) => extend_review_rows(entities, "tabular", out),
-        EntityGroup::Image(entities) => extend_review_rows(entities, "image", out),
-        EntityGroup::Audio(entities) => extend_review_rows(entities, "audio", out),
-    }
-}
-
-fn extend_entity_rows<'a, M: RedactableModality>(
-    records: &'a [EntityRecord<M>],
+fn extend_entity_rows<'a, M: Modality>(
+    entities: &'a [Entity<M>],
     part_id: Option<&'a str>,
     modality: &'static str,
     out: &mut Vec<EntityRow<'a>>,
 ) {
-    let start = out.len();
-    for r in records {
-        out.push(EntityRow {
-            part_id,
-            modality,
-            entity_id: r.entity.id,
-            label: r.entity.label.as_str(),
-            confidence: f32::from(r.entity.confidence),
-            coref: r.entity.coref.as_ref().map(|c| c.as_str()),
-        });
-    }
-    // Stable sort by entity_id within this group so the
-    // (part_id, entity_id) global ordering holds after the
-    // caller concatenates groups in part-id order.
-    out[start..].sort_by_key(|r| r.entity_id);
+    out.extend(entities.iter().map(|e| EntityRow {
+        part_id,
+        modality,
+        entity_id: e.id,
+        label: e.label.as_str(),
+        confidence: f32::from(e.confidence),
+        coref: e.coref.as_ref().map(|c| c.as_str()),
+    }));
 }
 
-fn extend_provenance_rows<'a, M: RedactableModality>(
-    records: &'a [EntityRecord<M>],
+fn extend_provenance_rows<'a, M: Modality>(
+    entities: &'a [Entity<M>],
     out: &mut Vec<ProvenanceRow<'a>>,
 ) {
-    for r in records {
-        for (i, event) in r.entity.audit.events().iter().enumerate() {
+    for entity in entities {
+        for (index, event) in entity.audit.events().iter().enumerate() {
             let (kind, payload_id) = event_kind_and_payload(&event.kind);
             out.push(ProvenanceRow {
-                entity_id: r.entity.id,
-                event_index: i,
+                entity_id: entity.id,
+                event_index: index,
                 kind,
                 source: event.source.as_str(),
                 confidence: f32::from(event.confidence),
@@ -235,34 +243,35 @@ fn extend_provenance_rows<'a, M: RedactableModality>(
     }
 }
 
+/// One row per decision in a modality's review bucket.
+///
+/// A suppression is a reviewer decision too, so it earns a row:
+/// exporting only operator overrides would hide every "leave this
+/// alone" call from the same report. It names no operator, so that
+/// column stays empty — as does a retag, which corrects the
+/// detection and lets the policy set pick again.
 fn extend_review_rows<M: RedactableModality>(
-    records: &[EntityRecord<M>],
+    reviews: &HashMap<Uuid, Review<M>>,
     modality: &'static str,
     out: &mut Vec<ReviewRow>,
 ) {
-    for r in records {
-        // A suppression is a reviewer decision too, so it earns a
-        // row: exporting only operator overrides would hide every
-        // "leave this alone" call from the same report. It names no
-        // operator, so that column stays empty.
-        let row = match &r.review {
-            Some(Review::Redact { action, .. }) => {
-                operator_kind(action).map(|operator| ("redact", operator))
+    for (entity_id, review) in reviews {
+        let decision = match review {
+            Review::Redact { action, .. } => {
+                let Some(operator) = operator_kind(action) else {
+                    continue;
+                };
+                ("redact", operator)
             }
-            Some(Review::Suppress { .. }) => Some(("suppress", String::new())),
-            // A retag names no operator either: it corrects the
-            // detection and lets the policy set pick again.
-            Some(Review::Retag { .. }) => Some(("retag", String::new())),
-            None => None,
+            Review::Suppress { .. } => ("suppress", String::new()),
+            Review::Retag { .. } => ("retag", String::new()),
         };
-        if let Some((decision, operator)) = row {
-            out.push(ReviewRow {
-                entity_id: r.entity.id,
-                modality,
-                decision,
-                operator,
-            });
-        }
+        out.push(ReviewRow {
+            entity_id: *entity_id,
+            modality,
+            decision: decision.0,
+            operator: decision.1,
+        });
     }
 }
 
@@ -352,4 +361,16 @@ fn operator_kind<R: Serialize>(action: &R) -> Option<String> {
 /// Format a `f32` confidence with three decimal places.
 fn serialize_confidence<S: Serializer>(value: &f32, s: S) -> result::Result<S::Ok, S::Error> {
     s.serialize_str(&format!("{value:.3}"))
+}
+
+/// The report's container part ids, sorted, so an export is stable
+/// across runs.
+///
+/// Borrowed from the report rather than cloned: the entity rows
+/// carry `part_id` as a `&str` into it, so an owned vec here would
+/// not outlive the rows that point at it.
+fn sorted_part_ids(report: &Report) -> Vec<&PartId> {
+    let mut ids: Vec<&PartId> = report.part_ids().map(|(id, _)| id).collect();
+    ids.sort_by_key(|id| id.as_str());
+    ids
 }

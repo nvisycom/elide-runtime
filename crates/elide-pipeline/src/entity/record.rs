@@ -24,7 +24,7 @@
 //! [`Manual`]: elide::entity::audit::AuditKind::Manual
 //! [`OperatorId`]: elide::entity::audit::OperatorId
 
-use elide::entity::Entity;
+use elide::entity::{Entity, LabelRef};
 use elide_governance::modality::RedactableModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -43,8 +43,18 @@ use uuid::Uuid;
 #[schemars(bound = "M: JsonSchema, M::Location: JsonSchema, M::Data: JsonSchema")]
 #[schemars(rename = "{M}EntityRecord")]
 pub struct EntityRecord<M: RedactableModality> {
-    /// The elide entity, as recognition produced it.
-    pub entity: Entity<M>,
+    /// The elide entity, as recognition produced it, plus whatever
+    /// an applied review corrected.
+    ///
+    /// Read-only: reach it through [`entity`](Self::entity). Every
+    /// change goes through [`review`](Self::review), so a correction
+    /// leaves a [`Manual`] event on the trail. Mutating the label or
+    /// location directly would let a retag out of a policy's scope
+    /// silently drop the entity from redaction with nothing recorded,
+    /// which is a suppression that never had to admit it was one.
+    ///
+    /// [`Manual`]: elide::entity::audit::AuditKind::Manual
+    pub(crate) entity: Entity<M>,
     /// The reviewer's decision about this detection.
     ///
     /// `None` means "whatever the policy picked" — the
@@ -86,8 +96,9 @@ pub struct EntityRecord<M: RedactableModality> {
 /// [`Selection`]: elide::entity::audit::AuditKind::Selection
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "decision", rename_all = "camelCase")]
-#[serde(bound = "M::Redaction: Serialize + for<'a> Deserialize<'a>")]
-#[schemars(bound = "M: JsonSchema, M::Redaction: JsonSchema")]
+#[serde(bound = "M::Redaction: Serialize + for<'a> Deserialize<'a>, \
+                  M::Location: Serialize + for<'a> Deserialize<'a>")]
+#[schemars(bound = "M: JsonSchema, M::Redaction: JsonSchema, M::Location: JsonSchema")]
 #[schemars(rename = "{M}Review")]
 pub enum Review<M: RedactableModality> {
     /// Redact this entity with `action` instead of the operator
@@ -122,6 +133,39 @@ pub enum Review<M: RedactableModality> {
         /// [`TextRedaction`]: elide_governance::redaction::TextRedaction
         action: M::Redaction,
     },
+    /// Correct what this detection *is* or *covers*, then redact it
+    /// under the policy set as corrected.
+    ///
+    /// A reviewer fixing recognition's mistake rather than
+    /// overriding its consequence: a label the recognizer got wrong,
+    /// or a span that clipped the value short. The policy set is
+    /// then re-applied to the corrected entity, so a retag into a
+    /// label the policy does not cover leaves the entity alone,
+    /// exactly as if it had been detected that way.
+    ///
+    /// That last case is why this is a variant rather than a
+    /// mutable field. Retagging out of a policy's scope silently
+    /// drops an entity from redaction, which is a suppression in
+    /// everything but name; routing it through here records a
+    /// [`Manual`] event so the decision is auditable like any other.
+    ///
+    /// [`Manual`]: elide::entity::audit::AuditKind::Manual
+    #[serde(rename_all = "camelCase")]
+    Retag {
+        /// The corrected label, when recognition got it wrong.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<LabelRef>,
+        /// The corrected location, when the detected span clipped
+        /// the value or ran past it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        location: Option<M::Location>,
+        /// Why the correction was made.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        /// Who made it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        actor: Option<String>,
+    },
     /// Leave this entity alone: a reviewer calling it a false
     /// positive.
     ///
@@ -144,6 +188,40 @@ pub enum Review<M: RedactableModality> {
 }
 
 impl<M: RedactableModality> EntityRecord<M> {
+    /// The detection this record wraps.
+    #[must_use]
+    pub fn entity(&self) -> &Entity<M> {
+        &self.entity
+    }
+
+    /// Correct what this detection is or covers, then let the policy
+    /// set decide again with the correction in place.
+    ///
+    /// For recognition's mistakes: a wrong label, or a span that
+    /// clipped the value. `None` leaves that part as detected.
+    /// Replaces any decision already held.
+    ///
+    /// A retag into a label the policy set does not cover leaves the
+    /// entity unredacted, which is the honest consequence of saying
+    /// it was never that kind of value. The [`Manual`] event this
+    /// records keeps that decision auditable.
+    ///
+    /// [`Manual`]: elide::entity::audit::AuditKind::Manual
+    pub fn retag(
+        &mut self,
+        label: Option<LabelRef>,
+        location: Option<M::Location>,
+        reason: Option<String>,
+        actor: Option<String>,
+    ) {
+        self.review = Some(Review::Retag {
+            label,
+            location,
+            reason,
+            actor,
+        });
+    }
+
     /// New record over `entity`, no review override.
     pub fn new(entity: Entity<M>) -> Self {
         Self {
@@ -195,7 +273,9 @@ impl<M: RedactableModality> EntityRecord<M> {
     pub fn is_suppressed(&self) -> bool {
         match self.review {
             Some(Review::Suppress { .. }) => true,
-            Some(Review::Redact { .. }) => false,
+            // A retag is re-detection, not a decision to skip: the
+            // corrected entity goes back through the policy set.
+            Some(Review::Redact { .. }) | Some(Review::Retag { .. }) => false,
             None => self.entity.is_suppressed(),
         }
     }

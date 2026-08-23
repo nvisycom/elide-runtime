@@ -104,7 +104,7 @@ fn ordered(audit: &mut Audit) -> &mut Vec<elide_pipeline::entity::EntityRecord<T
     let Some(EntityGroup::Text(records)) = audit.body.as_mut() else {
         panic!("expected a text body");
     };
-    records.sort_by_key(|r| r.entity.location.range.start);
+    records.sort_by_key(|r| r.entity().location.range.start);
     records
 }
 
@@ -142,7 +142,7 @@ async fn suppress_leaves_the_entity_alone() {
         .find(|r| r.is_suppressed())
         .expect("a record reports itself suppressed after the round-trip");
     let manual = suppressed
-        .entity
+        .entity()
         .audit
         .events()
         .iter()
@@ -154,7 +154,7 @@ async fn suppress_leaves_the_entity_alone() {
     assert_eq!(manual.reason.as_deref(), Some("known test account"));
     assert_eq!(manual.actor.as_deref(), Some("reviewer"));
     assert!(
-        suppressed.entity.audit.verify().is_ok(),
+        suppressed.entity().audit.verify().is_ok(),
         "the hash chain still verifies after a suppression round-trip"
     );
 }
@@ -162,21 +162,13 @@ async fn suppress_leaves_the_entity_alone() {
 #[tokio::test]
 async fn include_redacts_what_recognition_missed() {
     let (out, _) = review_and_apply(|audit| {
-        let location = span_of(b"SECRET-9");
-        let event: AuditEvent<Text> = AuditEvent::pattern(
-            "manual",
-            Confidence::MAX,
-            location.clone(),
-            PatternEvent::default(),
-        );
-        let entity = Entity::new(
+        let added = audit.body.as_mut().expect("body").add::<Text>(
             LabelRef::new("email_address"),
-            location,
-            Confidence::MAX,
-            AuditLog::new(event),
+            span_of(b"SECRET-9"),
+            Some("recognizer missed this".into()),
+            Some("reviewer".into()),
         );
-        let group = audit.body.as_mut().expect("body");
-        assert!(group.include(entity), "include into the matching modality");
+        assert!(added, "add into the matching modality");
     })
     .await;
 
@@ -218,11 +210,11 @@ async fn include_stamps_manual_provenance() {
     let records = ordered(&mut audit);
     let included = records
         .iter()
-        .find(|r| r.entity.id == id)
+        .find(|r| r.entity().id == id)
         .expect("included entity present");
     assert!(
         included
-            .entity
+            .entity()
             .audit
             .events()
             .iter()
@@ -246,22 +238,14 @@ async fn include_rejects_a_foreign_modality() {
         .expect("analyze");
 
     let bounds = BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0));
-    let location = ImageLocation::new(bounds);
-    let event: AuditEvent<Image> = AuditEvent::pattern(
-        "manual",
-        Confidence::MAX,
-        location.clone(),
-        PatternEvent::default(),
-    );
-    let entity = Entity::new(
-        LabelRef::new("email_address"),
-        location,
-        Confidence::MAX,
-        AuditLog::new(event),
-    );
 
     assert!(
-        !audit.body.as_mut().expect("body").include(entity),
+        !audit.body.as_mut().expect("body").add::<Image>(
+            LabelRef::new("email_address"),
+            ImageLocation::new(bounds),
+            None,
+            None,
+        ),
         "an image entity cannot join a text group",
     );
 }
@@ -308,20 +292,12 @@ async fn all_three_actions_compose_in_one_pass() {
             records[0].suppress(Some("false positive".into()), None);
             records[1].redact(POLICY_ID, mask());
         }
-        let location = span_of(b"SECRET-9");
-        let event: AuditEvent<Text> = AuditEvent::pattern(
-            "manual",
-            Confidence::MAX,
-            location.clone(),
-            PatternEvent::default(),
-        );
-        let entity = Entity::new(
+        audit.body.as_mut().expect("body").add::<Text>(
             LabelRef::new("email_address"),
-            location,
-            Confidence::MAX,
-            AuditLog::new(event),
+            span_of(b"SECRET-9"),
+            None,
+            None,
         );
-        audit.body.as_mut().expect("body").include(entity);
     })
     .await;
 
@@ -356,7 +332,7 @@ async fn analyze_records_the_policy_pick_for_review() {
 
     for record in records {
         let selection = record
-            .entity
+            .entity()
             .audit
             .selection()
             .expect("every covered entity carries its pick after analyze");
@@ -370,7 +346,7 @@ async fn analyze_records_the_policy_pick_for_review() {
             "the pick carries the policy's own rationale, not just an operator id",
         );
         assert!(
-            record.entity.audit.verify().is_ok(),
+            record.entity().audit.verify().is_ok(),
             "recording a pick keeps the hash chain intact",
         );
     }
@@ -396,7 +372,7 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         .expect("analyze");
 
     assert!(
-        ordered(&mut audit)[0].entity.audit.selection().is_some(),
+        ordered(&mut audit)[0].entity().audit.selection().is_some(),
         "precondition: analyze recorded a pick",
     );
 
@@ -408,19 +384,19 @@ async fn a_suppression_supersedes_the_pick_before_it() {
 
     let record = &ordered(&mut audit)[0];
     assert!(
-        record.entity.is_suppressed(),
+        record.entity().is_suppressed(),
         "the suppression is what holds after apply",
     );
 
     // No Redaction event: nothing ran on it, despite the earlier pick.
     assert!(
-        record.entity.audit.redaction().is_none(),
+        record.entity().audit.redaction().is_none(),
         "a suppressed entity is never redacted, whatever its pick said",
     );
 
     // And the suppression is the last word on the trail.
     let last_decision = record
-        .entity
+        .entity()
         .audit
         .events()
         .iter()
@@ -496,7 +472,7 @@ async fn a_reviewer_can_take_a_suppression_back() {
         panic!("expected text body");
     };
     let manual_intents: Vec<_> = records[0]
-        .entity
+        .entity()
         .audit
         .events()
         .iter()
@@ -511,7 +487,7 @@ async fn a_reviewer_can_take_a_suppression_back() {
         "the suppression and its reversal are both recorded: {manual_intents:?}",
     );
     assert!(
-        records[0].entity.audit.verify().is_ok(),
+        records[0].entity().audit.verify().is_ok(),
         "the hash chain survives the reversal",
     );
 }
@@ -540,7 +516,7 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
     }
 
     let manual_count = ordered(&mut audit)[0]
-        .entity
+        .entity()
         .audit
         .events()
         .iter()

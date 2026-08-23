@@ -106,12 +106,12 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         rules: Vec::new(),
         fallback: None,
     };
-    let target_id = entities[0].entity.id;
+    let target_id = entities[0].entity().id;
     let EntityGroup::Text(muts) = analyzed.body.as_mut().unwrap() else {
         unreachable!()
     };
     muts.iter_mut()
-        .find(|r| r.entity.id == target_id)
+        .find(|r| r.entity().id == target_id)
         .expect("entity present")
         .redact(review_policy.id, TextRedaction::Erase);
 

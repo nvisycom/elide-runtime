@@ -54,13 +54,14 @@ use std::mem;
 
 use bytes::Bytes;
 use elide::codec::{PartId, UntypedDocumentHandle};
-use elide::entity::Entity;
-use elide::entity::audit::{AuditEvent, AuditKind};
+use elide::entity::audit::{AuditEvent, AuditKind, AuditLog};
+use elide::entity::{Entity, LabelRef};
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
+use elide::primitive::Confidence;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
 use elide::{Error, ErrorKind, Report, Result};
@@ -170,17 +171,58 @@ macro_rules! dispatch {
 }
 
 impl EntityGroup {
-    /// Add an entity a reviewer spotted that recognition missed.
+    /// Add a detection a reviewer spotted that recognition missed.
     ///
-    /// Its human origin is made auditable: unless `entity` already
-    /// carries one, a [`Manual`] event built from its own location
-    /// and confidence joins its trail as it is added, so an
-    /// included entity is never mistaken for an automatic
-    /// detection. It is then redacted like any detected one.
+    /// The reviewer supplies what they actually know — where the
+    /// value is and what kind it is — and the entity is built around
+    /// a [`Manual`] event that *is* its origin, rather than the
+    /// caller assembling an [`Entity`] whose trail has to claim some
+    /// recognizer found it. It is then redacted like any detected
+    /// one, under the same policy set.
     ///
-    /// Returns `false`, adding nothing, when `M` is not this
-    /// group's modality: an image entity cannot join a text group.
+    /// `reason` and `actor` record why it was added and by whom.
+    /// Confidence is [`MAX`](Confidence::MAX): a human pointing at a
+    /// value is not a probabilistic guess.
     ///
+    /// Returns `false`, adding nothing, when `M` is not this group's
+    /// modality: an image detection cannot join a text group.
+    ///
+    /// [`Manual`]: elide::entity::audit::AuditKind::Manual
+    pub fn add<M: RedactableModality>(
+        &mut self,
+        label: LabelRef,
+        location: M::Location,
+        reason: Option<String>,
+        actor: Option<String>,
+    ) -> bool {
+        let mut event: AuditEvent<M> =
+            AuditEvent::manual_include(location.clone(), Confidence::MAX);
+        if let Some(reason) = reason {
+            event = event.with_reason(reason);
+        }
+        if let Some(actor) = actor {
+            event = event.with_actor(actor);
+        }
+        let entity = Entity::new(label, location, Confidence::MAX, AuditLog::new(event));
+        self.include(entity)
+    }
+
+    /// Add an already-built [`Entity`] a reviewer supplied.
+    ///
+    /// The lower-level counterpart to [`add`](Self::add), for a
+    /// caller that has an entity in hand — one carried over from
+    /// another analysis, say. Unless it already records a [`Manual`]
+    /// event, one is stamped from its own location and confidence as
+    /// it is added, so a reviewer-supplied entity is never mistaken
+    /// for an automatic detection.
+    ///
+    /// Prefer [`add`](Self::add) when building one from scratch: it
+    /// does not require assembling an [`AuditLog`] whose provenance
+    /// has to name a recognizer that never ran.
+    ///
+    /// Returns `false`, adding nothing, on a modality mismatch.
+    ///
+    /// [`AuditLog`]: elide::entity::audit::AuditLog
     /// [`Manual`]: elide::entity::audit::AuditKind::Manual
     pub fn include<M: RedactableModality>(&mut self, entity: Entity<M>) -> bool {
         let Some(entities) = self.entities_mut::<M>() else {
@@ -357,14 +399,42 @@ where
 fn stamp_suppressions<M: RedactableModality>(records: &mut [EntityRecord<M>]) {
     for record in records {
         let wants_suppression = matches!(record.review, Some(Review::Suppress { .. }));
+        let location = record.entity.location.clone();
+        let confidence = record.entity.confidence;
+
+        // A retag rewrites what the entity *is* before the policy set
+        // is applied to it, and records that a human did so.
+        if let Some(Review::Retag {
+            label,
+            location: corrected,
+            reason,
+            actor,
+        }) = &record.review
+        {
+            let mut event = AuditEvent::manual_include(location.clone(), confidence);
+            if let Some(reason) = reason {
+                event = event.with_reason(reason.clone());
+            }
+            if let Some(actor) = actor {
+                event = event.with_actor(actor.clone());
+            }
+            if let Some(label) = label {
+                record.entity.label = label.clone();
+            }
+            if let Some(corrected) = corrected {
+                record.entity.location = corrected.clone();
+            }
+            record.entity.audit.record(event);
+            record.review = None;
+            continue;
+        }
+
         if wants_suppression == record.entity.is_suppressed() {
             // Already in the wanted state: stamping again would
             // stack a duplicate event every time an audit is
             // re-applied.
             continue;
         }
-        let location = record.entity.location.clone();
-        let confidence = record.entity.confidence;
         match &record.review {
             Some(Review::Suppress { reason, actor }) => {
                 let mut event = AuditEvent::manual_suppress(location, confidence);
@@ -382,7 +452,7 @@ fn stamp_suppressions<M: RedactableModality>(records: &mut [EntityRecord<M>]) {
             // reads the most recent Manual event, so an include event
             // lifts the earlier suppress and the trail keeps both halves
             // of the reviewer's change of mind.
-            Some(Review::Redact { .. }) | None => {
+            Some(Review::Redact { .. }) | Some(Review::Retag { .. }) | None => {
                 record
                     .entity
                     .audit
@@ -405,7 +475,7 @@ fn extend_overrides<M: RedactableModality>(
             policy_id: *policy_id,
             action: action.clone(),
         }),
-        Some(Review::Suppress { .. }) | None => None,
+        Some(Review::Suppress { .. }) | Some(Review::Retag { .. }) | None => None,
     }));
 }
 

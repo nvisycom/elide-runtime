@@ -85,7 +85,6 @@ audit-zip = ["audit-csv", "elide-export/zip"]
 ## backends they compile into. Off in production so deployment
 ## config cannot ship a mock recognizer.
 test-utils = [
-    "elide-wire/test-utils",
     "elide/mock",
 ]
 
@@ -103,7 +102,6 @@ elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }
 # Internal crates
 elide-export = { workspace = true, features = [], optional = true }
 elide-governance = { workspace = true, features = [] }
-elide-wire = { workspace = true, features = [] }
 elide-template = { workspace = true }
 
 # Serialization
@@ -115,6 +113,7 @@ schemars = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 hipstr = { workspace = true, features = ["serde"] }
+jiff = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 # Internal crates

@@ -4,9 +4,9 @@
 
 //! Layers on top of the [elide] toolkit. This crate wires elide's
 //! per-modality analyzers, anonymizers, and orchestrator into a
-//! stateless per-request document pipeline driven by the wire
-//! schemas from [`elide_wire`] and the governance schema from
-//! [elide-governance].
+//! stateless per-request document pipeline, driven by its own
+//! request schemas ([`plan`], [`file`](mod@file)) and the
+//! governance schema from [elide-governance].
 //!
 //! [elide]: https://github.com/nvisycom/elide
 //! [elide-governance]: https://docs.rs/elide-governance
@@ -49,7 +49,9 @@
 mod analyzer;
 mod anonymizer;
 pub mod entity;
+pub mod file;
 mod pipeline;
+pub mod plan;
 pub mod provider;
 
 #[doc(inline)]
@@ -100,14 +102,9 @@ pub use elide_governance as policy;
 /// (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA).
 #[doc(inline)]
 pub use elide_template as template;
-#[doc(inline)]
-pub use elide_wire::file::{Document, FileMetadata};
-/// Authored recognition plan: `AnalyzerParams`, caller-inlined
-/// pattern extras, scope, region annotations.
-#[doc(inline)]
-pub use elide_wire::plan;
 
 pub use self::entity::EntityGroup;
+pub use self::file::{Document, FileMetadata};
 pub use self::pipeline::{
     Audit, AuditContext, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
 };

@@ -16,9 +16,9 @@ use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::redaction::TextRedaction;
 use elide_pipeline::entity::EntityRecord;
+use elide_pipeline::file::Document;
+use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::{Audit, Engine, EntityGroup};
-use elide_wire::file::Document;
-use elide_wire::plan::AnalyzerParams;
 
 use self::fixtures::write_artefact;
 

@@ -28,12 +28,12 @@ use std::collections::HashMap;
 
 use elide::primitive::{CountryCode, Languages, RasterMode};
 use elide::recognition::{ScopeMetadata, UsageReport};
-use elide_wire::plan::scope_metadata_is_empty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::entity::EntityGroup;
+use crate::plan::scope_metadata_is_empty;
 
 /// What detection found in one document.
 ///
@@ -142,7 +142,7 @@ pub struct AuditContext {
     ///
     /// Required on the wire.
     ///
-    /// [`Document`]: elide_wire::file::Document
+    /// [`Document`]: crate::file::Document
     pub correlation_id: Uuid,
     /// OCR mode the analyze call decoded with. Recorded so the
     /// anonymize call re-decodes the same document under the same

@@ -11,13 +11,13 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use elide::redaction::operators::StaticKey;
+use elide_pipeline::file::Document;
+use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::{Engine, KeyProvider};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PciPanRender, PolicyTemplate, Template,
 };
-use elide_wire::file::Document;
-use elide_wire::plan::AnalyzerParams;
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 

@@ -1237,8 +1237,8 @@ dependencies = [
  "elide-governance",
  "elide-pipeline",
  "elide-template",
- "elide-wire",
  "hipstr",
+ "jiff",
  "schemars",
  "serde",
  "serde_json",
@@ -1283,19 +1283,6 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "uuid",
-]
-
-[[package]]
-name = "elide-wire"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "elide-core",
- "hipstr",
- "jiff",
- "schemars",
- "serde",
  "uuid",
 ]
 

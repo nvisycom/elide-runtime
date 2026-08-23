@@ -1,7 +1,7 @@
 //! Top-level analyzer params.
 
-use elide_core::primitive::{CountryCode, Languages, RasterMode};
-use elide_core::recognition::ScopeMetadata;
+use elide::primitive::{CountryCode, Languages, RasterMode};
+use elide::recognition::ScopeMetadata;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

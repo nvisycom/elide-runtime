@@ -16,9 +16,9 @@ use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelScope, PolicyDefinition};
+use elide_pipeline::file::Document;
+use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::{Audit, Engine, EntityGroup};
-use elide_wire::file::Document;
-use elide_wire::plan::AnalyzerParams;
 
 const SAMPLE: &[u8] = b"Email alice@example.com or bob@example.com. Case SECRET-9 open.";
 const POLICY_ID: uuid::Uuid = uuid::Uuid::from_u128(0x0123_4567_89ab_7000_8000_0000_0000_0042);

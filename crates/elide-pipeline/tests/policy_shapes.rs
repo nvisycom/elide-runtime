@@ -12,9 +12,9 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
+use elide_pipeline::file::Document;
+use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::{Audit, Engine, EntityGroup};
-use elide_wire::file::Document;
-use elide_wire::plan::AnalyzerParams;
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 

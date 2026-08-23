@@ -90,13 +90,13 @@ use elide::primitive::RasterMode;
 use elide::redaction::operators::KeyProvider;
 use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
-use elide_wire::file::Document;
-use elide_wire::plan::AnalyzerParams;
 
 pub use self::audit::{Audit, AuditContext};
 pub(crate) use self::orchestrator::Picker;
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
 use crate::entity::{EntityGroup, OverrideSet, take_body, take_part};
+use crate::file::Document;
+use crate::plan::AnalyzerParams;
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
 use crate::provider::ocr::OcrConfig;

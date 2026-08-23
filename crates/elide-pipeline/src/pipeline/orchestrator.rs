@@ -49,7 +49,6 @@ use elide::redaction::Anonymizer;
 use elide::{Error, ErrorKind, Orchestrator, Result};
 use elide_governance::modality::RedactableModality;
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
-use elide_wire::plan::AnalyzerParams;
 use uuid::Uuid;
 
 use super::Engine;
@@ -63,6 +62,7 @@ use crate::anonymizer::{
     attach_policies_text,
 };
 use crate::entity::{EntityGroup, OverrideEntry, OverrideSet};
+use crate::plan::AnalyzerParams;
 use crate::provider::ocr::{OcrConfig, OcrEnricherConfig};
 use crate::provider::stt::{SttConfig, SttEnricherConfig};
 

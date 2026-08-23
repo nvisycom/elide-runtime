@@ -10,10 +10,10 @@ use std::io::{Cursor, Read};
 use bytes::Bytes;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
+use elide_pipeline::file::Document;
+use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::provider::{OcrBackend, OcrConfig, OcrEnricherConfig};
 use elide_pipeline::{Audit, AuditContext, Engine, EntityGroup};
-use elide_wire::file::Document;
-use elide_wire::plan::AnalyzerParams;
 
 use self::fixtures::write_artefact;
 

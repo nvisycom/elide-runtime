@@ -34,7 +34,7 @@
 //!
 //! [`Scope`]: elide::recognition::Scope
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::slice;
 
 use elide::detection::Analyzer;
@@ -62,7 +62,7 @@ use crate::anonymizer::{
     attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
     attach_policies_text,
 };
-use crate::entity::{OverrideEntry, OverrideSet};
+use crate::entity::{EntityGroup, OverrideEntry, OverrideSet};
 use crate::provider::ocr::{OcrConfig, OcrEnricherConfig};
 use crate::provider::stt::{SttConfig, SttEnricherConfig};
 
@@ -216,6 +216,89 @@ impl Engine {
         };
 
         Ok(orchestrator)
+    }
+
+    /// Record each entity's operator *pick* onto its audit trail,
+    /// without applying anything.
+    ///
+    /// Runs at the end of analyze so the returned [`Audit`] answers
+    /// "what would happen to this entity, and why" before a reviewer
+    /// decides anything. Each covered entity gains a [`Selection`]
+    /// event naming the operator, the rule that matched it, and the
+    /// policy's own rationale.
+    ///
+    /// Without this a reviewer sees only *that* an entity was
+    /// detected: the pick would first appear after apply, when it is
+    /// too late to override. Overrides are deliberately not passed:
+    /// none exist yet at analyze time, so this records what the
+    /// policy set alone would do.
+    ///
+    /// **Never fails the analyze it runs inside.** A pick is
+    /// informational, so a policy whose operators cannot be
+    /// compiled here (an `HmacHash` with no [`KeyProvider`] wired,
+    /// say) simply yields no pick, and the same policy still fails
+    /// loudly at anonymize where the operator would actually run.
+    /// Refusing to analyze a document because a redaction the
+    /// caller has not asked for yet is misconfigured would deny
+    /// them the detections too.
+    ///
+    /// [`Audit`]: super::Audit
+    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    /// [`Selection`]: elide::entity::audit::AuditKind::Selection
+    pub(super) fn record_picks(
+        &self,
+        context: &AuditContext,
+        policies: &[PolicyDefinition],
+        correlation_id: Uuid,
+        body: Option<&mut EntityGroup>,
+        parts: &mut HashMap<String, EntityGroup>,
+    ) {
+        // Result deliberately discarded: see the contract above.
+        let _ = self.try_record_picks(context, policies, correlation_id, body, parts);
+    }
+
+    /// The fallible body of [`record_picks`](Self::record_picks).
+    fn try_record_picks(
+        &self,
+        context: &AuditContext,
+        policies: &[PolicyDefinition],
+        correlation_id: Uuid,
+        body: Option<&mut EntityGroup>,
+        parts: &mut HashMap<String, EntityGroup>,
+    ) -> Result<()> {
+        let catalog = compile_catalog(policies)?;
+        let scope = build_scope(context, catalog.clone(), correlation_id);
+        let text_ctx = TextOperatorContext::new(self.key_provider.clone());
+        let picker = Picker {
+            text: assemble::<Text, _, _>(&catalog, &[], policies, no_override, |anon, p| {
+                attach_policies_text(anon, p, &text_ctx)
+            })?,
+            tabular: assemble::<Tabular, _, _>(&catalog, &[], policies, no_override, |anon, p| {
+                attach_policies_tabular(anon, p, &text_ctx)
+            })?,
+            image: assemble::<Image, _, _>(
+                &catalog,
+                &[],
+                policies,
+                no_override,
+                attach_policies_image,
+            )?,
+            audio: assemble::<Audio, _, _>(
+                &catalog,
+                &[],
+                policies,
+                no_override,
+                attach_policies_audio,
+            )?,
+        };
+
+        if let Some(group) = body {
+            group.record_picks(&picker, &scope);
+        }
+        for group in parts.values_mut() {
+            group.record_picks(&picker, &scope);
+        }
+        Ok(())
     }
 }
 
@@ -410,4 +493,23 @@ where
         anonymizer = attach_override(anonymizer, entry)?;
     }
     attach_policies(anonymizer, policies.iter())
+}
+
+/// The four per-modality anonymizers a pick pass runs through,
+/// assembled once per request.
+pub(crate) struct Picker {
+    pub(crate) text: Anonymizer<Text>,
+    pub(crate) tabular: Anonymizer<Tabular>,
+    pub(crate) image: Anonymizer<Image>,
+    pub(crate) audio: Anonymizer<Audio>,
+}
+
+/// The `attach_override` argument for a pick pass: overrides do
+/// not exist yet at analyze time, so this is never called. Named
+/// rather than a closure so all four `assemble` calls share it.
+fn no_override<M: RedactableModality + 'static>(
+    anonymizer: Anonymizer<M>,
+    _entry: &OverrideEntry<M>,
+) -> Result<Anonymizer<M>> {
+    Ok(anonymizer)
 }

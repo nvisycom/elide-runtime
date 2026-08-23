@@ -48,17 +48,21 @@
 //! [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
 //! [`Report`]: elide::Report
 
+use std::any::Any;
 use std::collections::HashMap;
 use std::mem;
 
 use bytes::Bytes;
 use elide::codec::{PartId, UntypedDocumentHandle};
 use elide::entity::Entity;
+use elide::entity::audit::{AuditEvent, AuditKind};
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
+use elide::recognition::Scope;
+use elide::redaction::Anonymizer;
 use elide::{Error, ErrorKind, Report, Result};
 use elide_governance::modality::RedactableModality;
 use schemars::JsonSchema;
@@ -66,7 +70,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::overrides::OverrideSet;
-use super::record::{EntityRecord, OverrideEntry};
+use super::record::{EntityRecord, OverrideEntry, Review};
+use crate::pipeline::Picker;
 
 /// A modality-tagged group of recognised entities.
 ///
@@ -165,6 +170,59 @@ macro_rules! dispatch {
 }
 
 impl EntityGroup {
+    /// Add an entity a reviewer spotted that recognition missed.
+    ///
+    /// Its human origin is made auditable: unless `entity` already
+    /// carries one, a [`Manual`] event built from its own location
+    /// and confidence joins its trail as it is added, so an
+    /// included entity is never mistaken for an automatic
+    /// detection. It is then redacted like any detected one.
+    ///
+    /// Returns `false`, adding nothing, when `M` is not this
+    /// group's modality: an image entity cannot join a text group.
+    ///
+    /// [`Manual`]: elide::entity::audit::AuditKind::Manual
+    pub fn include<M: RedactableModality>(&mut self, entity: Entity<M>) -> bool {
+        let Some(entities) = self.entities_mut::<M>() else {
+            return false;
+        };
+        let mut record = EntityRecord::new(entity);
+        if !record.entity.audit.events().iter().any(is_manual) {
+            let event = AuditEvent::manual_include(
+                record.entity.location.clone(),
+                record.entity.confidence,
+            );
+            record.entity.audit.record(event);
+        }
+        entities.push(record);
+        true
+    }
+
+    /// This group's records as `EntityRecord<M>`, or `None` when
+    /// `M` is not this group's modality.
+    ///
+    /// The `dyn Any` downcast that lets a modality-generic caller
+    /// reach into the tagged enum. Kept private: callers go
+    /// through [`include`](Self::include).
+    fn entities_mut<M: RedactableModality>(&mut self) -> Option<&mut Vec<EntityRecord<M>>> {
+        dispatch!(self, |_M, entities| (entities as &mut dyn Any)
+            .downcast_mut::<Vec<EntityRecord<M>>>())
+    }
+
+    /// Record each entity's operator pick onto its own audit
+    /// trail, using the anonymizer for this group's modality.
+    ///
+    /// A suppressed entity is skipped by elide's own clustering,
+    /// so it gains no pick: nothing was going to redact it.
+    pub(crate) fn record_picks(&mut self, picker: &Picker, scope: &Scope) {
+        match self {
+            Self::Text(records) => pick_into(&picker.text, records, scope),
+            Self::Tabular(records) => pick_into(&picker.tabular, records, scope),
+            Self::Image(records) => pick_into(&picker.image, records, scope),
+            Self::Audio(records) => pick_into(&picker.audio, records, scope),
+        }
+    }
+
     /// Insert this group into `report` as the body under its
     /// modality.
     pub(crate) fn insert_into_body(&self, report: Report) -> Report {
@@ -193,6 +251,22 @@ impl EntityGroup {
             Self::Tabular(entities) => extend_overrides(&mut out.tabular, entities),
             Self::Image(entities) => extend_overrides(&mut out.image, entities),
             Self::Audio(entities) => extend_overrides(&mut out.audio, entities),
+        }
+    }
+
+    /// Stamp every pending [`Review::Suppress`] onto its entity's
+    /// audit trail, so elide's redaction pass skips it.
+    ///
+    /// Called once before the report is rebuilt. Idempotent: an
+    /// entity elide already sees as suppressed is left alone, so
+    /// re-applying an audit does not stack duplicate events on the
+    /// trail.
+    pub(crate) fn apply_suppressions(&mut self) {
+        match self {
+            Self::Text(records) => stamp_suppressions(records),
+            Self::Tabular(records) => stamp_suppressions(records),
+            Self::Image(records) => stamp_suppressions(records),
+            Self::Audio(records) => stamp_suppressions(records),
         }
     }
 
@@ -233,6 +307,41 @@ impl EntityGroup {
     }
 }
 
+/// Whether an event records a human override, in either
+/// direction. Used to avoid stamping a second [`Manual`] event
+/// onto an entity a caller already marked.
+///
+/// [`Manual`]: elide::entity::audit::AuditKind::Manual
+fn is_manual<M: Modality>(event: &AuditEvent<M>) -> bool {
+    matches!(event.kind, AuditKind::Manual(_))
+}
+
+/// Run `anonymizer`'s pick pass over `records`' entities.
+///
+/// [`Anonymizer::pick`] wants a contiguous `&mut [Entity<M>]`,
+/// but these entities are fields inside [`EntityRecord`]s. Taking
+/// the whole vec, picking over it, and putting it back is the one
+/// move that avoids needing a dummy `Entity` to swap in per
+/// record. `pick` only appends audit events, never reorders or
+/// resizes, so the zip back stays aligned.
+///
+/// [`Anonymizer::pick`]: elide::redaction::Anonymizer::pick
+fn pick_into<M: RedactableModality + 'static>(
+    anonymizer: &Anonymizer<M>,
+    records: &mut Vec<EntityRecord<M>>,
+    scope: &Scope,
+) {
+    let taken = mem::take(records);
+    let (mut entities, reviews): (Vec<_>, Vec<_>) =
+        taken.into_iter().map(|r| (r.entity, r.review)).unzip();
+    anonymizer.pick(&mut entities, scope);
+    *records = entities
+        .into_iter()
+        .zip(reviews)
+        .map(|(entity, review)| EntityRecord { entity, review })
+        .collect();
+}
+
 fn clone_entities<M: RedactableModality>(records: &[EntityRecord<M>]) -> Vec<Entity<M>>
 where
     Entity<M>: Clone,
@@ -240,16 +349,45 @@ where
     records.iter().map(|r| r.entity.clone()).collect()
 }
 
+/// Stamp each record whose review is a [`Review::Suppress`] with
+/// the [`Manual`] event elide reads to skip it, carrying the
+/// reviewer's reason and actor.
+///
+/// [`Manual`]: elide::entity::audit::AuditKind::Manual
+fn stamp_suppressions<M: RedactableModality>(records: &mut [EntityRecord<M>]) {
+    for record in records {
+        let Some(Review::Suppress { reason, actor }) = &record.review else {
+            continue;
+        };
+        if record.entity.is_suppressed() {
+            continue;
+        }
+        let mut event =
+            AuditEvent::manual_suppress(record.entity.location.clone(), record.entity.confidence);
+        if let Some(reason) = reason {
+            event = event.with_reason(reason.clone());
+        }
+        if let Some(actor) = actor {
+            event = event.with_actor(actor.clone());
+        }
+        record.entity.suppress(event);
+    }
+}
+
 fn extend_overrides<M: RedactableModality>(
     out: &mut Vec<OverrideEntry<M>>,
     records: &[EntityRecord<M>],
 ) {
-    out.extend(records.iter().filter_map(|r| {
-        r.review.as_ref().map(|review| OverrideEntry {
+    // Only `Redact` yields an override entry: a `Suppress` names no
+    // operator, and is applied by stamping the entity itself (see
+    // `apply_suppressions`).
+    out.extend(records.iter().filter_map(|r| match &r.review {
+        Some(Review::Redact { policy_id, action }) => Some(OverrideEntry {
             entity_id: r.entity.id,
-            policy_id: review.policy_id,
-            action: review.action.clone(),
-        })
+            policy_id: *policy_id,
+            action: action.clone(),
+        }),
+        Some(Review::Suppress { .. }) | None => None,
     }));
 }
 

@@ -12,7 +12,7 @@ mod fixtures;
 use bytes::Bytes;
 use elide::modality::text::Text;
 use elide_governance::redaction::TextRedaction;
-use elide_pipeline::entity::{EntityRecord, Review};
+use elide_pipeline::entity::EntityRecord;
 use elide_pipeline::{Audit, Engine, EntityGroup};
 use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
@@ -60,10 +60,7 @@ fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
     let records = text_records_mut(audit);
     assert!(!records.is_empty(), "sample fixture must produce entities");
     let target = records[0].entity.id;
-    records[0].review = Some(Review {
-        policy_id: REVIEW_POLICY_ID,
-        action: TextRedaction::Erase,
-    });
+    records[0].redact(REVIEW_POLICY_ID, TextRedaction::Erase);
     target
 }
 

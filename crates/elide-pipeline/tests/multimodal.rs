@@ -10,7 +10,6 @@ use std::io::{Cursor, Read};
 use bytes::Bytes;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_pipeline::entity::Review;
 use elide_pipeline::provider::{OcrBackend, OcrConfig, OcrEnricherConfig};
 use elide_pipeline::{Audit, AuditContext, Engine, EntityGroup};
 use elide_wire::file::Document;
@@ -114,10 +113,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     muts.iter_mut()
         .find(|r| r.entity.id == target_id)
         .expect("entity present")
-        .review = Some(Review {
-        policy_id: review_policy.id,
-        action: TextRedaction::Erase,
-    });
+        .redact(review_policy.id, TextRedaction::Erase);
 
     let outcome = engine
         .anonymize(

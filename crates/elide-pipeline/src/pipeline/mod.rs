@@ -94,7 +94,8 @@ use elide_wire::file::Document;
 use elide_wire::plan::AnalyzerParams;
 
 pub use self::audit::{Audit, AuditContext};
-pub use self::registered::{RegisteredEnricher, RegisteredRecognizer};
+pub(crate) use self::orchestrator::Picker;
+pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
 use crate::entity::{EntityGroup, OverrideSet, take_body, take_part};
 use crate::provider::llm::LlmConfig;
 use crate::provider::ner::NerConfig;
@@ -217,28 +218,15 @@ impl Engine {
         &self.formats
     }
 
-    /// Every NER recognizer this engine has registered, in
-    /// configuration order.
-    pub fn ner_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
-        self.ner.recognizers.iter().map(Into::into)
-    }
-
-    /// Every LLM recognizer this engine has registered, in
-    /// configuration order.
-    pub fn llm_recognizers(&self) -> impl ExactSizeIterator<Item = RegisteredRecognizer> {
-        self.llm.recognizers.iter().map(Into::into)
-    }
-
-    /// Every OCR enricher this engine has registered, in
-    /// configuration order.
-    pub fn ocr_enrichers(&self) -> impl ExactSizeIterator<Item = RegisteredEnricher> {
-        self.ocr.enrichers.iter().map(Into::into)
-    }
-
-    /// Every STT enricher this engine has registered, in
-    /// configuration order.
-    pub fn stt_enrichers(&self) -> impl ExactSizeIterator<Item = RegisteredEnricher> {
-        self.stt.enrichers.iter().map(Into::into)
+    /// Every recognizer and enricher this engine has registered,
+    /// each lineup in configuration order.
+    pub fn components(&self) -> RegisteredComponents {
+        RegisteredComponents {
+            ner: self.ner.recognizers.iter().map(Into::into).collect(),
+            llm: self.llm.recognizers.iter().map(Into::into).collect(),
+            ocr: self.ocr.enrichers.iter().map(Into::into).collect(),
+            stt: self.stt.enrichers.iter().map(Into::into).collect(),
+        }
     }
 
     /// Analyze one document into an [`Audit`].
@@ -342,6 +330,20 @@ impl Engine {
             }
         }
 
+        // Record what each entity's policy pick would be, so the
+        // returned audit answers "what happens to this, and why"
+        // before a reviewer overrides anything. Purely additive:
+        // it appends Selection events and redacts nothing.
+        let mut body_group = body_group;
+        let mut parts = parts;
+        self.record_picks(
+            &context,
+            policies,
+            correlation_id,
+            Some(&mut body_group),
+            &mut parts,
+        );
+
         Ok(Audit {
             body: Some(body_group),
             parts,
@@ -421,16 +423,27 @@ impl Engine {
         policies: &[PolicyDefinition],
         audit: &mut Audit,
     ) -> Result<Document> {
+        let correlation_id = document.correlation_id;
+        let extension = document.extension.clone();
+        let content_type = document.content_type.clone();
+        let mut handle = self.decode(document, audit.context.raster_mode).await?;
+
+        // Materialise pending suppressions onto their entities
+        // first: elide reads the trail, not our review field, to
+        // decide what the redaction pass skips.
+        if let Some(body) = audit.body.as_mut() {
+            body.apply_suppressions();
+        }
+        for group in audit.parts.values_mut() {
+            group.apply_suppressions();
+        }
+
         let body_group = audit.body.as_ref().ok_or_else(|| {
             Error::new(
                 ErrorKind::Configuration,
                 "anonymize: body group is missing: analyze must run first",
             )
         })?;
-        let correlation_id = document.correlation_id;
-        let extension = document.extension.clone();
-        let content_type = document.content_type.clone();
-        let mut handle = self.decode(document, audit.context.raster_mode).await?;
 
         let mut report = body_group.insert_into_body(Report::new());
         let mut overrides = OverrideSet::default();

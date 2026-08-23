@@ -253,7 +253,13 @@ impl Engine {
         body: Option<&mut EntityGroup>,
         parts: &mut HashMap<String, EntityGroup>,
     ) {
-        // Result deliberately discarded: see the contract above.
+        // Deliberately discarded, not swallowed: every reason this
+        // can fail (an unresolvable label, an operator with no
+        // capability wired) is raised again by `anonymize`, which
+        // compiles the same policies and does fail. Reporting it here
+        // would surface each one twice and turn analyze into a second
+        // place a caller must handle redaction errors. The observable
+        // signal is that the audit carries no `Selection` events.
         let _ = self.try_record_picks(context, policies, correlation_id, body, parts);
     }
 

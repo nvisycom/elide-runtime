@@ -377,10 +377,72 @@ async fn analyze_records_the_policy_pick_for_review() {
 }
 
 #[tokio::test]
-async fn a_suppressed_entity_gets_no_pick() {
-    // Nothing was going to redact it, so there is no operator to
-    // record. Asserted so the pick pass never implies a redaction
-    // that will not happen.
+async fn a_suppression_supersedes_the_pick_before_it() {
+    // The pick is recorded at analyze, before any reviewer has seen
+    // it, so a later suppression cannot un-record it. What matters is
+    // that the suppression is the *newer* event and that no further
+    // pick lands after it: the trail reads "we would have erased
+    // this, then a human said leave it", which is the history, and
+    // the entity is skipped.
+    let engine = Engine::new();
+    let policy = policy();
+    let mut audit = engine
+        .analyze(
+            doc(),
+            std::slice::from_ref(&policy),
+            &AnalyzerParams::default(),
+        )
+        .await
+        .expect("analyze");
+
+    assert!(
+        ordered(&mut audit)[0].entity.audit.selection().is_some(),
+        "precondition: analyze recorded a pick",
+    );
+
+    ordered(&mut audit)[0].suppress(Some("false positive".into()), None);
+    engine
+        .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
+        .await
+        .expect("anonymize");
+
+    let record = &ordered(&mut audit)[0];
+    assert!(
+        record.entity.is_suppressed(),
+        "the suppression is what holds after apply",
+    );
+
+    // No Redaction event: nothing ran on it, despite the earlier pick.
+    assert!(
+        record.entity.audit.redaction().is_none(),
+        "a suppressed entity is never redacted, whatever its pick said",
+    );
+
+    // And the suppression is the last word on the trail.
+    let last_decision = record
+        .entity
+        .audit
+        .events()
+        .iter()
+        .rev()
+        .find_map(|e| match &e.kind {
+            AuditKind::Manual(m) => Some(format!("manual:{:?}", m.intent)),
+            AuditKind::Selection(_) => Some("selection".to_owned()),
+            _ => None,
+        });
+    assert_eq!(
+        last_decision.as_deref(),
+        Some("manual:Suppress"),
+        "no pick is recorded after the suppression",
+    );
+}
+
+#[tokio::test]
+async fn a_reviewer_can_take_a_suppression_back() {
+    // Suppress, apply, then change your mind. The first apply stamps
+    // a Manual event on the trail, and `is_suppressed` reads the
+    // trail — so without reconciling the state, the entity stays
+    // skipped and the redaction silently never happens.
     let engine = Engine::new();
     let policy = policy();
     let mut audit = engine
@@ -393,11 +455,99 @@ async fn a_suppressed_entity_gets_no_pick() {
         .expect("analyze");
 
     ordered(&mut audit)[0].suppress(Some("false positive".into()), None);
+    let first = engine
+        .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
+        .await
+        .expect("anonymize");
+    assert!(
+        String::from_utf8_lossy(&first.bytes).contains("alice@example.com"),
+        "the suppression holds on the first pass",
+    );
 
-    // Re-running the pick pass over a suppressed entity adds nothing.
-    let before = ordered(&mut audit)[0].entity.audit.len();
+    // Round-trip, as a host would, then reverse the decision.
     let json = serde_json::to_string(&audit).expect("serializes");
     let mut posted_back: Audit = serde_json::from_str(&json).expect("deserializes");
-    let after = ordered(&mut posted_back)[0].entity.audit.len();
-    assert_eq!(before, after, "a round-trip neither adds nor drops events");
+    {
+        let records = ordered(&mut posted_back);
+        assert!(
+            records[0].is_suppressed(),
+            "the applied suppression survives the round-trip",
+        );
+        records[0].redact(POLICY_ID, TextRedaction::Erase);
+        assert!(
+            !records[0].is_suppressed(),
+            "a pending redact supersedes the recorded suppression",
+        );
+    }
+
+    let second = engine
+        .anonymize(doc(), std::slice::from_ref(&policy), &mut posted_back)
+        .await
+        .expect("anonymize");
+    let out = String::from_utf8_lossy(&second.bytes);
+    assert!(
+        !out.contains("alice@example.com"),
+        "reversing a suppression must actually redact: {out}",
+    );
+
+    // The reversal is auditable: both halves of the change of mind
+    // stay on the trail rather than the suppression being erased.
+    let EntityGroup::Text(records) = posted_back.body.as_ref().expect("body") else {
+        panic!("expected text body");
+    };
+    let manual_intents: Vec<_> = records[0]
+        .entity
+        .audit
+        .events()
+        .iter()
+        .filter_map(|e| match &e.kind {
+            AuditKind::Manual(m) => Some(m.intent),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        manual_intents.len(),
+        2,
+        "the suppression and its reversal are both recorded: {manual_intents:?}",
+    );
+    assert!(
+        records[0].entity.audit.verify().is_ok(),
+        "the hash chain survives the reversal",
+    );
+}
+
+#[tokio::test]
+async fn re_applying_an_audit_does_not_stack_manual_events() {
+    // `apply_suppressions` runs on every anonymize, so a host that
+    // re-applies the same audit must not grow the trail each time.
+    let engine = Engine::new();
+    let policy = policy();
+    let mut audit = engine
+        .analyze(
+            doc(),
+            std::slice::from_ref(&policy),
+            &AnalyzerParams::default(),
+        )
+        .await
+        .expect("analyze");
+
+    ordered(&mut audit)[0].suppress(None, None);
+    for _ in 0..3 {
+        engine
+            .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
+            .await
+            .expect("anonymize");
+    }
+
+    let manual_count = ordered(&mut audit)[0]
+        .entity
+        .audit
+        .events()
+        .iter()
+        .filter(|e| matches!(e.kind, AuditKind::Manual(_)))
+        .count();
+    assert_eq!(
+        manual_count, 1,
+        "three applies of one suppression leave one Manual event",
+    );
 }

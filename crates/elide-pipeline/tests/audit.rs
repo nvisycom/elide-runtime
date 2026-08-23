@@ -159,7 +159,7 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
 
     let mut lines = output.lines();
     let header = lines.next().expect("header line present");
-    assert_eq!(header, "entity_id,modality,operator");
+    assert_eq!(header, "entity_id,modality,decision,operator");
 
     let rows: Vec<&str> = lines.collect();
     assert_eq!(
@@ -173,8 +173,39 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
         "review row must carry the reviewed entity's id; row: {row}",
     );
     assert!(
-        row.ends_with(",text,erase"),
-        "modality + operator kind extracted from the text redaction; row: {row}",
+        row.ends_with(",text,redact,erase"),
+        "modality + decision + operator kind extracted from the text \
+         redaction; row: {row}",
+    );
+}
+
+#[tokio::test]
+async fn write_reviews_csv_lists_a_suppression_with_no_operator() {
+    // A suppression is a reviewer decision too, so it earns a row.
+    // It names no operator, so that column stays empty rather than
+    // carrying a value that is not an operator kind.
+    let mut audit = analyze().await;
+    let suppressed_id = {
+        let records = text_records_mut(&mut audit);
+        assert!(!records.is_empty(), "sample fixture must produce entities");
+        records[0].suppress(Some("false positive".into()), Some("reviewer".into()));
+        records[0].entity.id
+    };
+
+    let mut buf = Vec::new();
+    audit
+        .write_reviews_csv(&mut buf)
+        .expect("write_reviews_csv succeeds");
+    let output = String::from_utf8(buf).expect("csv is utf-8");
+
+    let row = output
+        .lines()
+        .skip(1)
+        .find(|row| row.contains(&suppressed_id.to_string()))
+        .expect("the suppressed entity has a review row");
+    assert!(
+        row.ends_with(",text,suppress,"),
+        "a suppression exports its decision and an empty operator; row: {row}",
     );
 }
 
@@ -194,6 +225,6 @@ async fn write_reviews_csv_writes_header_when_no_reviews_set() {
     );
     assert_eq!(
         output.lines().next().unwrap(),
-        "entity_id,modality,operator",
+        "entity_id,modality,decision,operator",
     );
 }

@@ -148,11 +148,16 @@ impl Audit {
 
     /// Serialize the review table as CSV into `writer`.
     ///
-    /// Columns: `entity_id, modality, operator`. One row per
-    /// reviewed entity: entities without a reviewer override
-    /// are absent from the file. `operator` is the kind
-    /// discriminator name (`erase`, `mask`, `fake`, ...);
-    /// operator parameters are dropped.
+    /// Columns: `entity_id, modality, decision, operator`. One row
+    /// per reviewed entity: entities the reviewer left alone are
+    /// absent from the file.
+    ///
+    /// `decision` is `redact` or `suppress`. `operator` is the kind
+    /// discriminator name (`erase`, `mask`, `fake`, ...) for a
+    /// `redact`, and empty for a `suppress`, which names no
+    /// operator; operator parameters are dropped. The two columns
+    /// stay separate so a consumer mapping `operator` onto an
+    /// operator enum never meets a value that is not one.
     ///
     /// Joins with [`Self::write_entities_csv`] on `entity_id`.
     ///
@@ -166,19 +171,21 @@ impl Audit {
         struct Row {
             entity_id: Uuid,
             modality: &'static str,
+            decision: &'static str,
             operator: String,
         }
 
         let mut csv = csv::WriterBuilder::new()
             .has_headers(false)
             .from_writer(writer);
-        csv.write_record(["entity_id", "modality", "operator"])
+        csv.write_record(["entity_id", "modality", "decision", "operator"])
             .map_err(csv_err)?;
-        for (entity_id, modality, operator) in self.review_rows() {
+        for row in self.review_rows() {
             csv.serialize(Row {
-                entity_id,
-                modality,
-                operator,
+                entity_id: row.entity_id,
+                modality: row.modality,
+                decision: row.decision,
+                operator: row.operator,
             })
             .map_err(csv_err)?;
         }
@@ -220,10 +227,9 @@ impl Audit {
         rows
     }
 
-    /// Iterate every reviewed entity across body + parts,
-    /// yielding `(entity_id, modality, operator_kind)`.
-    fn review_rows(&self) -> Vec<(Uuid, &'static str, String)> {
-        let mut rows: Vec<(Uuid, &'static str, String)> = Vec::new();
+    /// Iterate every reviewed entity across body + parts.
+    fn review_rows(&self) -> Vec<ReviewRow> {
+        let mut rows: Vec<ReviewRow> = Vec::new();
         if let Some(group) = &self.body {
             push_review_rows(group, &mut rows);
         }
@@ -232,7 +238,7 @@ impl Audit {
         for id in part_keys {
             push_review_rows(&self.parts[id], &mut rows);
         }
-        rows.sort_by_key(|(id, _, _)| *id);
+        rows.sort_by_key(|row| row.entity_id);
         rows
     }
 }
@@ -281,7 +287,7 @@ fn push_provenance_rows<'a>(group: &'a EntityGroup, out: &mut Vec<ProvenanceRow<
     }
 }
 
-fn push_review_rows(group: &EntityGroup, out: &mut Vec<(Uuid, &'static str, String)>) {
+fn push_review_rows(group: &EntityGroup, out: &mut Vec<ReviewRow>) {
     match group {
         EntityGroup::Text(entities) => extend_review_rows(entities, "text", out),
         EntityGroup::Tabular(entities) => extend_review_rows(entities, "tabular", out),
@@ -336,21 +342,41 @@ fn extend_provenance_rows<'a, M: RedactableModality>(
 fn extend_review_rows<M: RedactableModality>(
     records: &[EntityRecord<M>],
     modality: &'static str,
-    out: &mut Vec<(Uuid, &'static str, String)>,
+    out: &mut Vec<ReviewRow>,
 ) {
     for r in records {
         // A suppression is a reviewer decision too, so it earns a
         // row: exporting only operator overrides would hide every
-        // "leave this alone" call from the same report.
-        let decision = match &r.review {
-            Some(Review::Redact { action, .. }) => operator_kind(action),
-            Some(Review::Suppress { .. }) => Some("suppress".to_owned()),
+        // "leave this alone" call from the same report. It names no
+        // operator, so that column stays empty.
+        let row = match &r.review {
+            Some(Review::Redact { action, .. }) => {
+                operator_kind(action).map(|operator| ("redact", operator))
+            }
+            Some(Review::Suppress { .. }) => Some(("suppress", String::new())),
             None => None,
         };
-        if let Some(decision) = decision {
-            out.push((r.entity.id, modality, decision));
+        if let Some((decision, operator)) = row {
+            out.push(ReviewRow {
+                entity_id: r.entity.id,
+                modality,
+                decision,
+                operator,
+            });
         }
     }
+}
+
+/// One reviewed entity, as the review CSV exports it.
+///
+/// `decision` and `operator` stay separate columns: a suppression
+/// names no operator, so folding them would put a non-operator
+/// value in a column consumers map onto an operator enum.
+struct ReviewRow {
+    entity_id: Uuid,
+    modality: &'static str,
+    decision: &'static str,
+    operator: String,
 }
 
 /// Discriminator + optional payload id for a provenance event

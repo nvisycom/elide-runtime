@@ -428,9 +428,19 @@ impl Engine {
         let content_type = document.content_type.clone();
         let mut handle = self.decode(document, audit.context.raster_mode).await?;
 
+        // Validate before mutating: a missing body fails the call,
+        // and stamping suppressions onto the parts first would leave
+        // the caller's audit edited by a request that did nothing.
+        if audit.body.is_none() {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                "anonymize: body group is missing: analyze must run first",
+            ));
+        }
+
         // Materialise pending suppressions onto their entities
-        // first: elide reads the trail, not our review field, to
-        // decide what the redaction pass skips.
+        // before the report is rebuilt: elide reads the trail, not
+        // our review field, to decide what the redaction pass skips.
         if let Some(body) = audit.body.as_mut() {
             body.apply_suppressions();
         }
@@ -438,12 +448,10 @@ impl Engine {
             group.apply_suppressions();
         }
 
-        let body_group = audit.body.as_ref().ok_or_else(|| {
-            Error::new(
-                ErrorKind::Configuration,
-                "anonymize: body group is missing: analyze must run first",
-            )
-        })?;
+        let body_group = audit
+            .body
+            .as_ref()
+            .expect("body presence checked immediately above");
 
         let mut report = body_group.insert_into_body(Report::new());
         let mut overrides = OverrideSet::default();

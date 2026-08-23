@@ -356,21 +356,39 @@ where
 /// [`Manual`]: elide::entity::audit::AuditKind::Manual
 fn stamp_suppressions<M: RedactableModality>(records: &mut [EntityRecord<M>]) {
     for record in records {
-        let Some(Review::Suppress { reason, actor }) = &record.review else {
+        let wants_suppression = matches!(record.review, Some(Review::Suppress { .. }));
+        if wants_suppression == record.entity.is_suppressed() {
+            // Already in the wanted state: stamping again would
+            // stack a duplicate event every time an audit is
+            // re-applied.
             continue;
-        };
-        if record.entity.is_suppressed() {
-            continue;
         }
-        let mut event =
-            AuditEvent::manual_suppress(record.entity.location.clone(), record.entity.confidence);
-        if let Some(reason) = reason {
-            event = event.with_reason(reason.clone());
+        let location = record.entity.location.clone();
+        let confidence = record.entity.confidence;
+        match &record.review {
+            Some(Review::Suppress { reason, actor }) => {
+                let mut event = AuditEvent::manual_suppress(location, confidence);
+                if let Some(reason) = reason {
+                    event = event.with_reason(reason.clone());
+                }
+                if let Some(actor) = actor {
+                    event = event.with_actor(actor.clone());
+                }
+                record.entity.suppress(event);
+            }
+            // The reviewer took a suppression back, by deciding to
+            // redact after all or by clearing the decision. Recording
+            // the reversal rather than rewriting history: `is_suppressed`
+            // reads the most recent Manual event, so an include event
+            // lifts the earlier suppress and the trail keeps both halves
+            // of the reviewer's change of mind.
+            Some(Review::Redact { .. }) | None => {
+                record
+                    .entity
+                    .audit
+                    .record(AuditEvent::manual_include(location, confidence));
+            }
         }
-        if let Some(actor) = actor {
-            event = event.with_actor(actor.clone());
-        }
-        record.entity.suppress(event);
     }
 }
 

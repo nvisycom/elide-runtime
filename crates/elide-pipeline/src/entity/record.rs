@@ -179,16 +179,25 @@ impl<M: RedactableModality> EntityRecord<M> {
         self.review = Some(Review::Redact { policy_id, action });
     }
 
-    /// Whether a reviewer marked this detection to leave alone.
+    /// Whether this detection will be left alone.
     ///
-    /// True once [`suppress`](Self::suppress) is called, and again
-    /// after the redaction pass has stamped the entity's trail: the
-    /// pending decision and the applied one both read as suppressed
-    /// so a reviewer sees one consistent answer either side of
-    /// apply.
+    /// A pending decision wins over what the trail already records,
+    /// so a reviewer who suppressed an entity, applied, then changed
+    /// their mind and called [`redact`](Self::redact) reads `false`
+    /// here — and the entity is redacted on the next apply. Reading
+    /// the trail alone would answer with the decision that has been
+    /// superseded.
+    ///
+    /// With no pending decision this falls back to the trail, so an
+    /// applied suppression still reads as suppressed after an audit
+    /// round-trip.
     #[must_use]
     pub fn is_suppressed(&self) -> bool {
-        matches!(self.review, Some(Review::Suppress { .. })) || self.entity.is_suppressed()
+        match self.review {
+            Some(Review::Suppress { .. }) => true,
+            Some(Review::Redact { .. }) => false,
+            None => self.entity.is_suppressed(),
+        }
     }
 }
 

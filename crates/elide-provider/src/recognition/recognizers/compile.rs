@@ -30,8 +30,8 @@ use elide::recognition::pattern::{PatternRecognizer, PatternRecognizerBuilder};
 use elide::{Error, ErrorKind, Result};
 use elide_bento::ner::BentoNer;
 
-use super::super::{Component, LlmBackend as LlmBackendConfig};
-use crate::recognition::{AttachTo, LlmConfig, LlmSource, NerBackend, NerConfig};
+use super::super::{Component, LlmBackend as LlmBackendConfig, NerBackend as NerBackendConfig};
+use crate::recognition::{AttachTo, LlmSource, NerBackend};
 
 /// Aggregate cap on total dictionary terms across every shipped
 /// dictionary, compiled into one shared Aho-Corasick automaton.
@@ -66,13 +66,13 @@ fn pattern_with_limits(builder: PatternRecognizerBuilder) -> PatternRecognizerBu
 /// deployment picks the lineup in its `ProviderConfig`.
 pub(in crate::recognition) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
-    ner: &NerConfig,
+    ner: &[Component<NerBackendConfig>],
 ) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     NerRecognizer: Recognizer<M> + 'static,
 {
-    for recognizer in &ner.recognizers {
+    for recognizer in ner {
         analyzer = attach_ner_one(analyzer, recognizer)?;
     }
     Ok(analyzer)
@@ -112,7 +112,7 @@ where
 /// - `Jinja2Prompt<M>: Prompt<M>`: same coverage.
 pub(in crate::recognition) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
-    llm: &LlmConfig,
+    llm: &[Component<LlmBackendConfig>],
     modality: AttachTo,
 ) -> Result<Analyzer<M>>
 where
@@ -120,7 +120,7 @@ where
     RigBackend: LlmBackend<M>,
     DefaultPrompt: Prompt<M>,
 {
-    for recognizer in &llm.recognizers {
+    for recognizer in llm {
         if recognizer.backend.modalities.is_empty() {
             return Err(Error::new(
                 ErrorKind::Configuration,

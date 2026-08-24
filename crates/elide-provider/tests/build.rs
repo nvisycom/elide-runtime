@@ -6,7 +6,7 @@
 //! assert is that seam: a config round-trips as data and builds a
 //! provider, while a key stays with the request that supplied it.
 
-use elide_provider::{Component, KeyConfig, OcrBackend, OcrConfig, ProviderConfig, RequestContext};
+use elide_provider::{Component, Enrichers, KeyConfig, OcrBackend, ProviderConfig, RequestContext};
 
 const KEY: &[u8] = b"deployment-wide-key-32-bytes-ok!";
 
@@ -16,27 +16,28 @@ fn an_empty_config_builds_a_provider_with_no_backends() {
     // pattern recognizers elide ships configures nothing.
     let provider = ProviderConfig::default().build();
     assert!(
-        provider.ner().recognizers.is_empty(),
+        provider.recognizers().ner.is_empty(),
         "no backends configured means none registered",
     );
-    assert!(provider.ocr().enrichers.is_empty());
+    assert!(provider.enrichers().ocr.is_empty());
 }
 
 #[test]
 fn configured_backends_reach_the_provider() {
     let config = ProviderConfig {
-        ocr: OcrConfig {
-            enrichers: vec![Component::<OcrBackend> {
+        enrichers: Enrichers {
+            ocr: vec![Component::<OcrBackend> {
                 name: "acme-ocr".into(),
                 description: None,
                 backend: OcrBackend::Mock,
             }],
+            ..Enrichers::default()
         },
         ..ProviderConfig::default()
     };
 
     let provider = config.build();
-    let ocr = &provider.ocr().enrichers;
+    let ocr = &provider.enrichers().ocr;
     assert_eq!(ocr.len(), 1, "the configured enricher is wired");
     assert_eq!(ocr[0].name.as_str(), "acme-ocr");
 }
@@ -46,12 +47,13 @@ fn a_config_round_trips_as_json() {
     // A host reads this from a file, or an encrypted row in its own
     // database; either way it is plain data.
     let config = ProviderConfig {
-        ocr: OcrConfig {
-            enrichers: vec![Component::<OcrBackend> {
+        enrichers: Enrichers {
+            ocr: vec![Component::<OcrBackend> {
                 name: "acme-ocr".into(),
                 description: Some("scanned intake forms".into()),
                 backend: OcrBackend::Mock,
             }],
+            ..Enrichers::default()
         },
         ..ProviderConfig::default()
     };
@@ -59,8 +61,8 @@ fn a_config_round_trips_as_json() {
     let json = serde_json::to_string(&config).expect("config serializes");
     let back: ProviderConfig = serde_json::from_str(&json).expect("config deserializes");
 
-    assert_eq!(back.ocr.enrichers.len(), 1);
-    assert_eq!(back.ocr.enrichers[0].name.as_str(), "acme-ocr");
+    assert_eq!(back.enrichers.ocr.len(), 1);
+    assert_eq!(back.enrichers.ocr[0].name.as_str(), "acme-ocr");
 }
 
 #[test]

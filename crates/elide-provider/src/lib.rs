@@ -57,8 +57,8 @@ pub use self::context::AuditContext;
 pub use self::key::KeyConfig;
 pub use self::override_set::{Override, Overrides};
 pub use self::recognition::{
-    AttachTo, AuthenticatedProvider, Backend, Component, LlmBackend, LlmConfig, LlmSource,
-    NerBackend, NerConfig, OcrBackend, OcrConfig, SttBackend, SttConfig, UnauthenticatedProvider,
+    AttachTo, AuthenticatedProvider, Backend, Component, Enrichers, LlmBackend, LlmSource,
+    NerBackend, OcrBackend, Recognizers, SttBackend, UnauthenticatedProvider,
 };
 pub use self::request::RequestContext;
 
@@ -70,35 +70,44 @@ pub use self::request::RequestContext;
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ProviderConfig {
-    /// The NER recognizer lineup.
-    pub ner: NerConfig,
-    /// The LLM recognizer lineup.
-    pub llm: LlmConfig,
-    /// The OCR enricher lineup.
-    pub ocr: OcrConfig,
-    /// The STT enricher lineup.
-    pub stt: SttConfig,
+    /// The recognizer lineups: which components find entities.
+    pub recognizers: Recognizers,
+    /// The enricher lineups: which components produce the context
+    /// recognizers read.
+    pub enrichers: Enrichers,
 }
 
 impl ProviderConfig {
     /// Build the provider this config describes.
     #[must_use]
     pub fn build(self) -> Provider {
-        Provider::from_parts(self.ner, self.llm, self.ocr, self.stt)
+        Provider::from_parts(self.recognizers, self.enrichers)
     }
 }
 
 /// A deployment's configuration, ready to build orchestrators from.
 ///
-/// Cheap to clone: every field is behind an [`Arc`], so a host can
-/// hand one to each worker rather than rebuilding it.
-#[derive(Clone)]
+/// Cheap to clone: one [`Arc`] around the whole configuration, so a
+/// host hands a clone to each worker rather than rebuilding it, and
+/// a clone costs one refcount rather than one per field.
+#[derive(Debug, Clone)]
 pub struct Provider {
-    pub(crate) formats: Arc<FormatRegistry>,
-    pub(crate) ner: Arc<NerConfig>,
-    pub(crate) llm: Arc<LlmConfig>,
-    pub(crate) ocr: Arc<OcrConfig>,
-    pub(crate) stt: Arc<SttConfig>,
+    inner: Arc<ProviderInner>,
+}
+
+/// The configuration a [`Provider`] shares between its clones.
+///
+/// Behind one [`Arc`] rather than an `Arc` per field: these are
+/// decided together at startup, read together on every request, and
+/// never change independently, so they are one value.
+#[derive(Debug)]
+struct ProviderInner {
+    /// The codec registry documents decode through.
+    formats: FormatRegistry,
+    /// The recognizer lineups.
+    recognizers: Recognizers,
+    /// The enricher lineups.
+    enrichers: Enrichers,
 }
 
 impl Provider {
@@ -108,43 +117,31 @@ impl Provider {
     /// [`ProviderConfig`] and builds through it. This exists for a
     /// caller holding the pieces already.
     #[must_use]
-    pub fn from_parts(ner: NerConfig, llm: LlmConfig, ocr: OcrConfig, stt: SttConfig) -> Self {
+    pub fn from_parts(recognizers: Recognizers, enrichers: Enrichers) -> Self {
         Self {
-            formats: Arc::new(FormatRegistry::with_builtin()),
-            ner: Arc::new(ner),
-            llm: Arc::new(llm),
-            ocr: Arc::new(ocr),
-            stt: Arc::new(stt),
+            inner: Arc::new(ProviderInner {
+                formats: FormatRegistry::with_builtin(),
+                recognizers,
+                enrichers,
+            }),
         }
     }
 
     /// The codec registry documents are decoded through.
     #[must_use]
     pub fn formats(&self) -> &FormatRegistry {
-        &self.formats
+        &self.inner.formats
     }
 
-    /// The NER lineup this provider was configured with.
+    /// The recognizer lineups this provider was configured with.
     #[must_use]
-    pub fn ner(&self) -> &NerConfig {
-        &self.ner
+    pub fn recognizers(&self) -> &Recognizers {
+        &self.inner.recognizers
     }
 
-    /// The LLM lineup this provider was configured with.
+    /// The enricher lineups this provider was configured with.
     #[must_use]
-    pub fn llm(&self) -> &LlmConfig {
-        &self.llm
-    }
-
-    /// The OCR lineup this provider was configured with.
-    #[must_use]
-    pub fn ocr(&self) -> &OcrConfig {
-        &self.ocr
-    }
-
-    /// The STT lineup this provider was configured with.
-    #[must_use]
-    pub fn stt(&self) -> &SttConfig {
-        &self.stt
+    pub fn enrichers(&self) -> &Enrichers {
+        &self.inner.enrichers
     }
 }

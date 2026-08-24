@@ -43,9 +43,9 @@ mod modality;
 mod recognizers;
 
 pub use self::component::{Backend, Component};
-pub use self::enrichers::{OcrBackend, OcrConfig, SttBackend, SttConfig};
+pub use self::enrichers::{Enrichers, OcrBackend, SttBackend};
 pub(crate) use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};
 pub use self::recognizers::{
-    AttachTo, AuthenticatedProvider, LlmBackend, LlmConfig, LlmSource, NerBackend, NerConfig,
+    AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, NerBackend, Recognizers,
     UnauthenticatedProvider,
 };

@@ -27,19 +27,6 @@ pub use elide::recognition::llm::provider::{AuthenticatedProvider, Unauthenticat
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::super::Component;
-
-/// Top-level LLM configuration. Loaded from the deployment's
-/// `[llm]` config section.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct LlmConfig {
-    /// The recognizer lineup. Every entry runs on every analyzer
-    /// whose modality it declares (see [`LlmBackend::modalities`]).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub recognizers: Vec<Component<LlmBackend>>,
-}
-
 /// Where a configured recognizer gets its LLM completions.
 ///
 /// The four rig variants mirror

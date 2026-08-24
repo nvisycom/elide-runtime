@@ -26,14 +26,17 @@ use super::enrichers::compile::{attach_language, attach_ocr, attach_stt};
 use super::layer::attach_dedup;
 use super::recognizers::compile::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
 use super::{Component, OcrBackend, SttBackend};
-use crate::recognition::{AttachTo, LlmConfig, NerConfig};
+use crate::recognition::{AttachTo, LlmBackend, NerBackend};
 
 /// Compile a text-modality [`Analyzer`].
 ///
 /// Text supports the full recognizer set: Pattern, NER, and LLM.
 /// Every wired NER and LLM recognizer whose modality list
 /// contains `Text` attaches. Language detection always attaches.
-pub(crate) fn compile_text(ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<Text>> {
+pub(crate) fn compile_text(
+    ner: &[Component<NerBackend>],
+    llm: &[Component<LlmBackend>],
+) -> Result<Analyzer<Text>> {
     let mut analyzer = Analyzer::<Text>::new();
 
     analyzer = attach_language(analyzer);
@@ -52,7 +55,7 @@ pub(crate) fn compile_text(ner: &NerConfig, llm: &LlmConfig) -> Result<Analyzer<
 /// language-scoped, so a cell would otherwise be analyzed with no
 /// language while the same value in a `.txt` had one. LLM has no
 /// `LlmModality` impl for Tabular in elide today.
-pub(crate) fn compile_tabular(ner: &NerConfig) -> Result<Analyzer<Tabular>> {
+pub(crate) fn compile_tabular(ner: &[Component<NerBackend>]) -> Result<Analyzer<Tabular>> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
     analyzer = attach_language(analyzer);
@@ -73,8 +76,8 @@ pub(crate) fn compile_tabular(ner: &NerConfig) -> Result<Analyzer<Tabular>> {
 /// its `ProviderConfig`.
 ///
 pub(crate) fn compile_image(
-    ner: &NerConfig,
-    llm: &LlmConfig,
+    ner: &[Component<NerBackend>],
+    llm: &[Component<LlmBackend>],
     ocr: Option<&Component<OcrBackend>>,
 ) -> Result<Analyzer<Image>> {
     let mut analyzer = Analyzer::<Image>::new();
@@ -104,7 +107,7 @@ pub(crate) fn compile_image(
 /// no-op. LLM has no `LlmModality` impl for Audio in elide today.
 ///
 pub(crate) fn compile_audio(
-    ner: &NerConfig,
+    ner: &[Component<NerBackend>],
     stt: Option<&Component<SttBackend>>,
 ) -> Result<Analyzer<Audio>> {
     let mut analyzer = Analyzer::<Audio>::new();

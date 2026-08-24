@@ -17,24 +17,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::super::Component;
-
 /// Top-level OCR configuration. Loaded from the deployment's
 /// `[ocr]` config section.
 ///
-/// Only one OCR enricher attaches per image analyzer today (an
-/// elide constraint on `Enricher<Image>`). The lineup shape
-/// mirrors [`NerConfig`](crate::NerConfig) for wire symmetry; the
-/// engine rejects `enrichers.len() > 1` at compile time.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct OcrConfig {
-    /// The enricher lineup. Empty means no OCR wired; the
-    /// image-modality analyzer skips the enricher attach.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub enrichers: Vec<Component<OcrBackend>>,
-}
-
 /// How a configured enricher talks to its OCR backend.
 ///
 /// One rig variant today (BentoML-hosted). The `Mock` variant

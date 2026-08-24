@@ -167,29 +167,29 @@ impl Engine {
         RegisteredComponents {
             ner: self
                 .provider
-                .ner()
-                .recognizers
+                .recognizers()
+                .ner
                 .iter()
                 .map(Into::into)
                 .collect(),
             llm: self
                 .provider
-                .llm()
-                .recognizers
+                .recognizers()
+                .llm
                 .iter()
                 .map(Into::into)
                 .collect(),
             ocr: self
                 .provider
-                .ocr()
-                .enrichers
+                .enrichers()
+                .ocr
                 .iter()
                 .map(Into::into)
                 .collect(),
             stt: self
                 .provider
-                .stt()
-                .enrichers
+                .enrichers()
+                .stt
                 .iter()
                 .map(Into::into)
                 .collect(),

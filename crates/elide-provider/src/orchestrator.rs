@@ -33,8 +33,7 @@ use uuid::Uuid;
 use crate::context::AuditContext;
 use crate::plan::AnalyzerParams;
 use crate::recognition::{
-    Component, OcrBackend, OcrConfig, SttBackend, SttConfig, compile_audio, compile_image,
-    compile_tabular, compile_text,
+    Component, OcrBackend, SttBackend, compile_audio, compile_image, compile_tabular, compile_text,
 };
 use crate::redaction::{
     TextOperatorContext, attach_override_audio, attach_override_image, attach_override_tabular,
@@ -81,27 +80,34 @@ impl Provider {
         let live_scope = build_scope(&context, catalog.clone());
 
         let text_anon = assemble_empty::<Text>(&catalog);
-        let text_analyzer = compile_text(&self.ner, &self.llm)?;
+        let text_analyzer = compile_text(&self.inner.recognizers.ner, &self.inner.recognizers.llm)?;
 
-        let orchestrator = Orchestrator::new(&self.formats)
+        let orchestrator = Orchestrator::new(&self.inner.formats)
             .with_scope(live_scope)
             .with_modality::<Text>(text_analyzer, text_anon);
 
         let orchestrator = {
             let anon = assemble_empty::<Tabular>(&catalog);
-            let analyzer = compile_tabular(&self.ner)?;
+            let analyzer = compile_tabular(&self.inner.recognizers.ner)?;
             orchestrator.with_modality::<Tabular>(analyzer, anon)
         };
 
         let orchestrator = {
             let anon = assemble_empty::<Image>(&catalog);
-            let analyzer = compile_image(&self.ner, &self.llm, pick_ocr(&self.ocr)?)?;
+            let analyzer = compile_image(
+                &self.inner.recognizers.ner,
+                &self.inner.recognizers.llm,
+                pick_ocr(&self.inner.enrichers.ocr)?,
+            )?;
             orchestrator.with_modality::<Image>(analyzer, anon)
         };
 
         let orchestrator = {
             let anon = assemble_empty::<Audio>(&catalog);
-            let analyzer = compile_audio(&self.ner, pick_stt(&self.stt)?)?;
+            let analyzer = compile_audio(
+                &self.inner.recognizers.ner,
+                pick_stt(&self.inner.enrichers.stt)?,
+            )?;
             orchestrator.with_modality::<Audio>(analyzer, anon)
         };
 
@@ -156,7 +162,7 @@ impl Provider {
             |anon, policies| attach_policies_text(anon, policies, &text_ctx),
         )?;
 
-        let orchestrator = Orchestrator::new(&self.formats)
+        let orchestrator = Orchestrator::new(&self.inner.formats)
             .with_scope(live_scope)
             .with_modality::<Text>(Analyzer::<Text>::new(), text_anon);
 
@@ -209,7 +215,7 @@ impl Provider {
     /// [`with_modality`]: elide::Orchestrator::with_modality
     pub fn report_orchestrator(&self) -> Orchestrator<'_> {
         let catalog = LabelCatalog::new();
-        Orchestrator::new(&self.formats)
+        Orchestrator::new(&self.inner.formats)
             .with_modality::<Text>(Analyzer::<Text>::new(), assemble_empty(&catalog))
             .with_modality::<Tabular>(Analyzer::<Tabular>::new(), assemble_empty(&catalog))
             .with_modality::<Image>(Analyzer::<Image>::new(), assemble_empty(&catalog))
@@ -453,8 +459,8 @@ where
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Image>` attaches at
 /// most one OCR enricher per analyzer.
-fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&Component<OcrBackend>>> {
-    match ocr.enrichers.as_slice() {
+fn pick_ocr(ocr: &[Component<OcrBackend>]) -> Result<Option<&Component<OcrBackend>>> {
+    match ocr {
         [] => Ok(None),
         [one] => Ok(Some(one)),
         many => Err(Error::new(
@@ -472,8 +478,8 @@ fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&Component<OcrBackend>>> {
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Audio>` attaches at
 /// most one STT enricher per analyzer.
-fn pick_stt(stt: &SttConfig) -> Result<Option<&Component<SttBackend>>> {
-    match stt.enrichers.as_slice() {
+fn pick_stt(stt: &[Component<SttBackend>]) -> Result<Option<&Component<SttBackend>>> {
+    match stt {
         [] => Ok(None),
         [one] => Ok(Some(one)),
         many => Err(Error::new(

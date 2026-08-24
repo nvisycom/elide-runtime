@@ -18,24 +18,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::super::Component;
-
 /// Top-level STT configuration. Loaded from the deployment's
 /// `[stt]` config section.
 ///
-/// Only one STT enricher attaches per audio analyzer today (an
-/// elide constraint on `Enricher<Audio>`). The lineup shape
-/// mirrors [`NerConfig`](crate::NerConfig) for wire symmetry; the
-/// engine rejects `enrichers.len() > 1` at compile time.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SttConfig {
-    /// The enricher lineup. Empty means no STT wired; the
-    /// audio-modality analyzer skips the enricher attach.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub enrichers: Vec<Component<SttBackend>>,
-}
-
 /// How a configured enricher talks to its STT backend.
 ///
 /// One rig variant today (BentoML-hosted). The `Mock` variant

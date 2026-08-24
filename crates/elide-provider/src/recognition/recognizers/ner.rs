@@ -20,20 +20,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::super::Component;
-
-/// Top-level NER configuration. Loaded from the deployment's
-/// `[ner]` config section.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct NerConfig {
-    /// The recognizer lineup. Each entry runs when the request's
-    /// `recognizers.ner` selects it (by allowlist name or by
-    /// running the whole lineup).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub recognizers: Vec<Component<NerBackend>>,
-}
-
 /// How a configured recognizer talks to its NER backend.
 ///
 /// One rig variant today (BentoML-hosted). Extensible with

@@ -285,11 +285,16 @@ impl Provider {
     ///
     /// # Errors
     ///
-    /// Returns the compile error if a policy's operators cannot be
-    /// wired (an `HmacHash` with no [`KeyProvider`], say). A pick is
-    /// informational, so callers on the analyze path may choose to
-    /// carry on without one: the same policy fails loudly again at
-    /// anonymize, where the operator would actually run.
+    /// Returns [`Configuration`](ErrorKind::Configuration) if a
+    /// policy declares a scope twice or a rule references a scope it
+    /// never declared, and nothing is recorded.
+    ///
+    /// Also returns the compile error if a policy's operators cannot
+    /// be wired (an `HmacHash` with no [`KeyProvider`], say). That
+    /// one is informational: a pick only names the operator that
+    /// *would* run, so callers on the analyze path may carry on
+    /// without one, and the same policy fails loudly again at
+    /// anonymize where the operator actually runs.
     ///
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     /// [`Selection`]: elide::entity::audit::AuditKind::Selection
@@ -300,6 +305,14 @@ impl Provider {
         correlation_id: Uuid,
         report: &mut Report,
     ) -> Result<()> {
+        // Same gate the orchestrator builders run. This method is a
+        // public entry point that *writes* to `report`, so skipping
+        // it would stamp `Selection` events resolved against the
+        // wrong labelset rather than failing: a duplicate scope name
+        // makes a `LabelInScope` rule pick one labelset while the
+        // catalog unions both, and the reviewer would act on the
+        // misleading provenance.
+        validate_scope_references(policies)?;
         let catalog = compile_catalog(policies)?;
         let scope = build_scope(scope, catalog.clone(), correlation_id);
         // No key: a pick records which operator *would* run, and

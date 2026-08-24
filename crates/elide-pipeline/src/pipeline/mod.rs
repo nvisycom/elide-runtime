@@ -149,8 +149,7 @@ impl Engine {
 
         // The report is the one part this engine must rebuild
         // itself; everything else on an audit is plain data.
-        let orchestrator = self.provider.report_orchestrator();
-        let report = orchestrator.deserialize_report(wire.report)?;
+        let report = self.provider.deserialize_report(wire.report)?;
 
         Ok(Audit {
             report,
@@ -279,10 +278,20 @@ impl Engine {
 
         // Record what each entity's policy pick would be, so the
         // returned audit answers "what happens to this, and why"
-        // before a reviewer overrides anything. Purely additive:
-        // it appends Selection events and redacts nothing.
-        self.provider
-            .record_picks(scope, policies, correlation_id, &mut report);
+        // before a reviewer overrides anything. Purely additive: it
+        // appends Selection events and redacts nothing.
+        //
+        // A failure here does not fail the analyze. Every reason the
+        // pick can fail — an unresolvable label, an operator with no
+        // capability wired — is raised again by `anonymize`, which
+        // compiles the same policies and does fail. Refusing to
+        // analyze because a redaction the caller has not asked for
+        // yet is misconfigured would deny them the detections too,
+        // and report the same fault twice. The observable signal is
+        // an audit carrying no `Selection` events.
+        let _: Result<()> =
+            self.provider
+                .record_picks(scope, policies, correlation_id, &mut report);
 
         Ok(Audit {
             report,

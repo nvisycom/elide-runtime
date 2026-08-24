@@ -93,8 +93,7 @@ pub use elide::{Error, ErrorKind, Result};
 /// Only what a caller needs to *export*: the traits and the table
 /// selector. `elide_export`'s implementor-facing plumbing
 /// (`write_rows`, `TableRows`) stays out — writing a new
-/// [`ExportCsv`](export::ExportCsv) impl means depending on that
-/// crate directly.
+/// `ExportCsv` impl means depending on that crate directly.
 #[cfg(any(feature = "audit-csv", feature = "audit-json"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "audit-csv", feature = "audit-json"))))]
 pub mod export {
@@ -105,9 +104,11 @@ pub mod export {
     #[cfg_attr(docsrs, doc(cfg(feature = "audit-json")))]
     #[doc(inline)]
     pub use elide_export::ExportJson;
-    /// Flat-table export: [`Audit`](crate::Audit) projects into CSV
-    /// tables, and [`write_zip`](ExportCsv::write_zip) bundles them
-    /// into one archive under the `audit-zip` feature.
+    /// Flat-table export: [`Audit`](crate::Audit) projects into one
+    /// CSV table per [`Table`] variant.
+    ///
+    /// The `audit-zip` feature adds `ExportCsv::write_zip`, bundling
+    /// every table into a single archive.
     #[cfg(feature = "audit-csv")]
     #[cfg_attr(docsrs, doc(cfg(feature = "audit-csv")))]
     #[doc(inline)]

@@ -118,6 +118,7 @@ jiff = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 # Internal crates
+elide-config = { workspace = true, features = ["test-utils"] }
 elide-export = { workspace = true, features = ["json", "csv", "zip"] }
 elide-pipeline = { path = ".", features = ["test-utils", "audit-json", "audit-csv", "audit-zip"] }
 

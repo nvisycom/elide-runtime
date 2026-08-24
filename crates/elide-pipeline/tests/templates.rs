@@ -7,13 +7,11 @@
 //! synthesis, and the operator wiring all agree end-to-end,
 //! rather than any one layer in isolation.
 
-use std::sync::Arc;
-
 use bytes::Bytes;
-use elide::redaction::operators::StaticKey;
+use elide_config::{EngineConfig, KeyConfig, Keyring};
+use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Engine, KeyProvider};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PciPanRender, PolicyTemplate, Template,
@@ -22,13 +20,20 @@ use elide_template::{
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
 fn engine() -> Engine {
-    Engine::new()
+    EngineConfig::default()
+        .build(&Keyring::new())
+        .expect("engine builds")
 }
 
 fn engine_with_key() -> Engine {
-    let provider: Arc<dyn KeyProvider> =
-        Arc::new(StaticKey::new(*b"elide-template-test-key-32bytes"));
-    Engine::new().with_key_provider(provider)
+    EngineConfig {
+        key: Some(KeyConfig::Static {
+            secret: "redaction".into(),
+        }),
+        ..EngineConfig::default()
+    }
+    .build(&Keyring::new().with_secret("redaction", *b"elide-template-test-key-32bytes"))
+    .expect("engine builds with a key provider")
 }
 
 fn raw_txt() -> Document {

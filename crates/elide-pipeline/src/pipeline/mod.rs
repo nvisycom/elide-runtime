@@ -121,96 +121,38 @@ pub struct Engine {
 }
 
 impl Engine {
-    /// New engine paired with elide's built-in codec set.
+    /// Assemble an engine from a deployment's configuration.
     ///
-    /// Uses [`FormatRegistry::with_builtin`] plus empty NER, LLM,
-    /// OCR, and STT lineups. Callers that want any inference
-    /// recognizer or enricher wire it via the corresponding
-    /// builder: [`with_ner`], [`with_llm`], [`with_ocr`],
-    /// [`with_stt`]. Callers whose policies use `HmacHash` or
-    /// `Encrypt` must wire a key provider via
-    /// [`with_key_provider`]. The language-detection enricher
-    /// always attaches to text with elide's unrestricted lingua
-    /// default.
+    /// Not the public path: [`elide-config`] owns engine creation,
+    /// so a deployment describes its backends and key provider
+    /// there and builds through it. Keeping one constructor, and
+    /// keeping it out of reach, means there is exactly one place
+    /// where "how is an engine configured" is answered.
     ///
-    /// [`with_key_provider`]: Self::with_key_provider
-    /// [`with_llm`]: Self::with_llm
-    /// [`with_ner`]: Self::with_ner
-    /// [`with_ocr`]: Self::with_ocr
-    /// [`with_stt`]: Self::with_stt
-    pub fn new() -> Self {
+    /// Pairs the given lineups with [`FormatRegistry::with_builtin`].
+    /// A `None` key provider is not an error here: a policy naming
+    /// `HmacHash` or `Encrypt` fails at request-compile time
+    /// instead, where it can say which policy and which operator.
+    /// The language-detection enricher always attaches to text with
+    /// elide's unrestricted lingua default.
+    ///
+    /// [`elide-config`]: https://docs.rs/elide-config
+    #[doc(hidden)]
+    pub fn from_parts(
+        ner: NerConfig,
+        llm: LlmConfig,
+        ocr: OcrConfig,
+        stt: SttConfig,
+        key_provider: Option<Arc<dyn KeyProvider>>,
+    ) -> Self {
         Self {
             formats: Arc::new(FormatRegistry::with_builtin()),
-            ner: Arc::new(NerConfig::default()),
-            llm: Arc::new(LlmConfig::default()),
-            ocr: Arc::new(OcrConfig::default()),
-            stt: Arc::new(SttConfig::default()),
-            key_provider: None,
+            ner: Arc::new(ner),
+            llm: Arc::new(llm),
+            ocr: Arc::new(ocr),
+            stt: Arc::new(stt),
+            key_provider,
         }
-    }
-
-    /// Set the deployment's NER lineup.
-    ///
-    /// Consumed once at setup; every wired recognizer attaches to
-    /// every request whose modality matches.
-    #[must_use]
-    pub fn with_ner(mut self, ner: NerConfig) -> Self {
-        self.ner = Arc::new(ner);
-        self
-    }
-
-    /// Set the deployment's LLM lineup.
-    ///
-    /// Consumed once at setup; every wired recognizer whose
-    /// modality list matches the analyzer's modality attaches to
-    /// every request.
-    #[must_use]
-    pub fn with_llm(mut self, llm: LlmConfig) -> Self {
-        self.llm = Arc::new(llm);
-        self
-    }
-
-    /// Set the deployment's OCR enricher lineup.
-    ///
-    /// The enricher attaches to the image-modality analyzer on
-    /// every request. Only one enricher attaches per analyzer
-    /// today; the request compile rejects `enrichers.len() > 1`
-    /// with a Configuration error. An empty lineup skips the
-    /// enricher attach.
-    #[must_use]
-    pub fn with_ocr(mut self, ocr: OcrConfig) -> Self {
-        self.ocr = Arc::new(ocr);
-        self
-    }
-
-    /// Set the deployment's STT enricher lineup.
-    ///
-    /// The enricher attaches to the audio-modality analyzer on
-    /// every request. Only one enricher attaches per analyzer
-    /// today; the request compile rejects `enrichers.len() > 1`
-    /// with a Configuration error. An empty lineup skips the
-    /// enricher attach.
-    #[must_use]
-    pub fn with_stt(mut self, stt: SttConfig) -> Self {
-        self.stt = Arc::new(stt);
-        self
-    }
-
-    /// Set the engine-level cryptographic [`KeyProvider`] the
-    /// `HmacHash` and `Encrypt` operators resolve their keys
-    /// through.
-    ///
-    /// One provider backs both operators; per-label keys are the
-    /// provider's own responsibility. A policy that names either
-    /// operator without a provider wired errors at request compile
-    /// time: the audit trail names the policy and operator so a
-    /// misconfiguration surfaces at load, not silently.
-    ///
-    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
-    #[must_use]
-    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
-        self.key_provider = Some(provider);
-        self
     }
 
     /// The codec registry the engine decodes documents through.
@@ -409,12 +351,11 @@ impl Engine {
     /// draw independent surrogates.
     /// [`TextRedaction::HmacHash`] and [`TextRedaction::Encrypt`]
     /// resolve their [`KeyProvider`] through the engine-level
-    /// provider set via [`Engine::with_key_provider`].
+    /// provider the deployment configured.
     ///
     /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
     /// [`TextRedaction::HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
     /// [`TextRedaction::Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
-    /// [`Engine::with_key_provider`]: Self::with_key_provider
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     ///
     /// [`LabelScope`]: elide_governance::LabelScope
@@ -635,12 +576,6 @@ where
         )
     })?;
     Ok(content.into_bytes())
-}
-
-impl Default for Engine {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 /// Assemble the per-analyze [`Directives`] from `spec.annotations`,

@@ -1005,6 +1005,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "elide-config"
+version = "0.1.0"
+dependencies = [
+ "elide",
+ "elide-pipeline",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "elide-context"
 version = "0.1.0"
 source = "git+https://github.com/nvisycom/elide?branch=main#16a231cf03f4c529fc378aaf64d36bda723dc4b9"
@@ -1234,6 +1245,7 @@ dependencies = [
  "bytes",
  "elide",
  "elide-bento",
+ "elide-config",
  "elide-export",
  "elide-governance",
  "elide-pipeline",

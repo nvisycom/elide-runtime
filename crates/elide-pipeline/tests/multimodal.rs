@@ -12,6 +12,7 @@ use elide::codec::PartId;
 use elide::modality::image::Image;
 use elide::modality::text::Text;
 use elide::{ErrorKind, Report};
+use elide_config::{EngineConfig, Keyring};
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::entity::Review;
@@ -30,13 +31,18 @@ fn raw_docx() -> Document {
 }
 
 fn engine() -> Engine {
-    Engine::new().with_ocr(OcrConfig {
-        enrichers: vec![OcrEnricherConfig {
-            name: "mock".into(),
-            description: None,
-            backend: OcrBackend::Mock,
-        }],
-    })
+    EngineConfig {
+        ocr: OcrConfig {
+            enrichers: vec![OcrEnricherConfig {
+                name: "mock".into(),
+                description: None,
+                backend: OcrBackend::Mock,
+            }],
+        },
+        ..EngineConfig::default()
+    }
+    .build(&Keyring::new())
+    .expect("engine builds")
 }
 
 fn default_spec() -> AnalyzerParams {

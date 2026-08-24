@@ -65,7 +65,7 @@ fn pattern_with_limits(builder: PatternRecognizerBuilder) -> PatternRecognizerBu
 /// Attach every recognizer in `ner` to `analyzer`.
 ///
 /// Every configured recognizer attaches to every request; the
-/// deployment picks the lineup at `Engine::with_ner` time.
+/// deployment picks the lineup in its `EngineConfig`.
 pub(super) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
     ner: &NerConfig,

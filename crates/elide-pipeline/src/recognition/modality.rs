@@ -69,9 +69,8 @@ pub(crate) fn compile_tabular(ner: &NerConfig) -> Result<Analyzer<Tabular>> {
 /// that same text, and LLM is available
 /// image-natively for vision-language models. The OCR enricher
 /// attaches when the deployment wired one via
-/// [`Engine::with_ocr`].
+/// its `EngineConfig`.
 ///
-/// [`Engine::with_ocr`]: crate::Engine::with_ocr
 pub(crate) fn compile_image(
     ner: &NerConfig,
     llm: &LlmConfig,
@@ -99,11 +98,10 @@ pub(crate) fn compile_image(
 /// Audio runs Pattern, NER, and language detection over the
 /// transcript text. The STT enricher stamps `TranscriptSegment`s
 /// onto the recognizer artifacts before recognition; it attaches
-/// when the deployment wired one via [`Engine::with_stt`], and
+/// when the deployment configured one, and
 /// without it the transcript is empty so language detection is a
 /// no-op. LLM has no `LlmModality` impl for Audio in elide today.
 ///
-/// [`Engine::with_stt`]: crate::Engine::with_stt
 pub(crate) fn compile_audio(
     ner: &NerConfig,
     stt: Option<&SttEnricherConfig>,

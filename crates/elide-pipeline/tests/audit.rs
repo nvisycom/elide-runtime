@@ -13,6 +13,7 @@ use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide::modality::text::Text;
+use elide_config::{EngineConfig, Keyring};
 use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::redaction::TextRedaction;
 use elide_pipeline::entity::Review;
@@ -29,7 +30,9 @@ fn raw_txt() -> Document {
 }
 
 fn engine() -> Engine {
-    Engine::new()
+    EngineConfig::default()
+        .build(&Keyring::new())
+        .expect("engine builds")
 }
 
 fn default_spec() -> AnalyzerParams {

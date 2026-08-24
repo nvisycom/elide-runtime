@@ -27,7 +27,7 @@ use super::annotation::AnyAnnotations;
 /// Everything else: the built-in pattern recognizer, every
 /// wired NER and LLM recognizer, every wired enricher, the
 /// dedup pipeline: always runs on every request. Deployment
-/// controls the lineup via `Engine::with_ner` / `Engine::with_llm`;
+/// controls the lineup through its `EngineConfig`;
 /// per-request opt-outs aren't shipped.
 ///
 /// [`scope`]: AnalyzerParams::scope

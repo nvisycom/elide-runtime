@@ -88,6 +88,32 @@ pub use elide::recognition::{
 #[doc(inline)]
 pub use elide::redaction::operators::KeyProvider;
 pub use elide::{Error, ErrorKind, Result};
+/// Rendering an [`Audit`] into a transport format.
+///
+/// Only what a caller needs to *export*: the traits and the table
+/// selector. `elide_export`'s implementor-facing plumbing
+/// (`write_rows`, `TableRows`) stays out — writing a new
+/// `ExportCsv` impl means depending on that crate directly.
+#[cfg(any(feature = "audit-csv", feature = "audit-json"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "audit-csv", feature = "audit-json"))))]
+pub mod export {
+    /// Whole-document export: blanket implemented for every
+    /// [`Serialize`](serde::Serialize) type, so
+    /// [`Audit`](crate::Audit) gains it from its own serialization.
+    #[cfg(feature = "audit-json")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "audit-json")))]
+    #[doc(inline)]
+    pub use elide_export::ExportJson;
+    /// Flat-table export: [`Audit`](crate::Audit) projects into one
+    /// CSV table per [`Table`] variant.
+    ///
+    /// The `audit-zip` feature adds `ExportCsv::write_zip`, bundling
+    /// every table into a single archive.
+    #[cfg(feature = "audit-csv")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "audit-csv")))]
+    #[doc(inline)]
+    pub use elide_export::{ExportCsv, Table};
+}
 /// Authored redaction governance: policies, rules, predicates,
 /// operators.
 #[doc(inline)]

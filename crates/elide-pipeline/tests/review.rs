@@ -18,8 +18,7 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelScope, PolicyDefinition};
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
-use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Audit, Engine};
+use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext, RequestScope};
 use uuid::Uuid;
 
 const SAMPLE: &[u8] = b"Email alice@example.com or bob@example.com. Case SECRET-9 open.";
@@ -73,13 +72,13 @@ fn mask() -> TextRedaction {
 /// the audit through JSON before anonymizing: the path a stateless
 /// host actually takes.
 async fn review_and_apply(edit: impl FnOnce(&mut Audit)) -> (String, Audit) {
-    let engine = Engine::new();
+    let engine = Engine::new(ProviderConfig::default().build());
     let policy = policy();
     let mut audit = engine
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -90,7 +89,12 @@ async fn review_and_apply(edit: impl FnOnce(&mut Audit)) -> (String, Audit) {
     let mut posted_back = round_trip(&engine, &json);
 
     let out = engine
-        .anonymize(doc(), std::slice::from_ref(&policy), &mut posted_back)
+        .anonymize(
+            doc(),
+            std::slice::from_ref(&policy),
+            &mut posted_back,
+            &RequestContext::new(),
+        )
         .await
         .expect("anonymize");
     (
@@ -228,13 +232,13 @@ async fn include_redacts_what_recognition_missed() {
 
 #[tokio::test]
 async fn include_stamps_manual_provenance() {
-    let engine = Engine::new();
+    let engine = Engine::new(ProviderConfig::default().build());
     let policy = policy();
     let mut audit = engine
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -256,13 +260,13 @@ async fn include_stamps_manual_provenance() {
 
 #[tokio::test]
 async fn include_rejects_a_foreign_modality() {
-    let engine = Engine::new();
+    let engine = Engine::new(ProviderConfig::default().build());
     let policy = policy();
     let mut audit = engine
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -376,13 +380,13 @@ async fn all_three_actions_compose_in_one_pass() {
 async fn analyze_records_the_policy_pick_for_review() {
     // The point of the pick pass: a reviewer must be able to see
     // *what would happen and why* before overriding anything.
-    let engine = Engine::new();
+    let engine = Engine::new(ProviderConfig::default().build());
     let policy = policy();
     let audit = engine
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -419,13 +423,13 @@ async fn a_suppression_supersedes_the_pick_before_it() {
     // pick lands after it: the trail reads "we would have erased
     // this, then a human said leave it", which is the history, and
     // the entity is skipped.
-    let engine = Engine::new();
+    let engine = Engine::new(ProviderConfig::default().build());
     let policy = policy();
     let mut audit = engine
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -444,7 +448,12 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         },
     );
     engine
-        .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
+        .anonymize(
+            doc(),
+            std::slice::from_ref(&policy),
+            &mut audit,
+            &RequestContext::new(),
+        )
         .await
         .expect("anonymize");
 
@@ -484,13 +493,13 @@ async fn a_reviewer_can_take_a_suppression_back() {
     // a Manual event on the trail, and `is_suppressed` reads the
     // trail — so without reconciling the state, the entity stays
     // skipped and the redaction silently never happens.
-    let engine = Engine::new();
+    let engine = Engine::new(ProviderConfig::default().build());
     let policy = policy();
     let mut audit = engine
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -504,7 +513,12 @@ async fn a_reviewer_can_take_a_suppression_back() {
         },
     );
     let first = engine
-        .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
+        .anonymize(
+            doc(),
+            std::slice::from_ref(&policy),
+            &mut audit,
+            &RequestContext::new(),
+        )
         .await
         .expect("anonymize");
     assert!(
@@ -532,7 +546,12 @@ async fn a_reviewer_can_take_a_suppression_back() {
     );
 
     let second = engine
-        .anonymize(doc(), std::slice::from_ref(&policy), &mut posted_back)
+        .anonymize(
+            doc(),
+            std::slice::from_ref(&policy),
+            &mut posted_back,
+            &RequestContext::new(),
+        )
         .await
         .expect("anonymize");
     let out = String::from_utf8_lossy(&second.bytes);
@@ -568,13 +587,13 @@ async fn a_reviewer_can_take_a_suppression_back() {
 async fn re_applying_an_audit_does_not_stack_manual_events() {
     // `apply_suppressions` runs on every anonymize, so a host that
     // re-applies the same audit must not grow the trail each time.
-    let engine = Engine::new();
+    let engine = Engine::new(ProviderConfig::default().build());
     let policy = policy();
     let mut audit = engine
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -589,7 +608,12 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
     );
     for _ in 0..3 {
         engine
-            .anonymize(doc(), std::slice::from_ref(&policy), &mut audit)
+            .anonymize(
+                doc(),
+                std::slice::from_ref(&policy),
+                &mut audit,
+                &RequestContext::new(),
+            )
             .await
             .expect("anonymize");
     }

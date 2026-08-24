@@ -2,13 +2,10 @@
 //!
 //! Long-lived state (only two things):
 //!
-//! - The [`FormatRegistry`] over elide's codec set. Decodes raw
-//!   bytes into a modality-typed [`DocumentHandle`] at analyze +
-//!   anonymize time.
-//! - The deployment's NER + LLM lineups (see [`crate::provider::ner`]
-//!   and [`crate::provider::llm`]). Consulted by the analyzer
-//!   compile whenever the request's
-//!   `AnalyzerParams.recognizers.{ner,llm}` selects any recognizer.
+//! - A [`Provider`]: the deployment's configuration, already
+//!   built. It owns the [`FormatRegistry`] documents decode
+//!   through and the recognizer and enricher lineups, and hands
+//!   out an [`Orchestrator`] per request.
 //!
 //! [`Engine`] clones cheaply (`Arc` under the hood). Callers pass
 //! a clone into every request-scoped code path they run.
@@ -34,10 +31,10 @@
 //!
 //! The recognition scope split has two owners: caller-asserted
 //! facts (languages, jurisdictions, tags) travel between calls on
-//! [`Audit::context`]; the label catalog is derived from
+//! [`Audit::scope`]; the label catalog is derived from
 //! `policies` afresh on every call so policies stay the single
 //! source of truth for label vocabulary. Callers do not re-pass
-//! an [`AnalyzerParams`] to anonymize.
+//! an [`RequestScope`] to anonymize.
 //!
 //! Hosts hold the returned [`Audit`] between analyze and
 //! anonymize however they see fit: in memory, in a run store, in
@@ -47,25 +44,16 @@
 //!
 //! ## Internal layout
 //!
-//! Sibling crate-level modules provide the modality-shaped
-//! plumbing:
+//! Sibling modules:
 //!
-//! - `crate::analyzer` and `crate::anonymizer` compile
-//!   per-modality `spec` and `policies` into per-modality elide
-//!   types.
 //! - `crate::entity` owns [`ReviewSet`] (the reviewer decisions
-//!   that sit beside elide's report) and the redaction override
-//!   they compile into.
-//!
-//! Inside this module:
-//!
-//! - `orchestrator` wires those into an [`Orchestrator`] for a
-//!   single request.
-//! - `audit` defines [`Audit`], [`AuditContext`], the analyze →
+//!   that sit beside elide's report) and the projection onto the
+//!   overrides a provider applies.
+//! - `audit` defines [`Audit`], [`RequestScope`], the analyze →
 //!   anonymize bridge; all re-exported at the crate root.
 //!
 //! [`Audit`]: crate::Audit
-//! [`AuditContext`]: crate::AuditContext
+//! [`RequestScope`]: crate::RequestScope
 //! [`ReviewSet`]: crate::entity::ReviewSet
 //! [`FormatRegistry`]: elide::codec::FormatRegistry
 //! [`DocumentHandle`]: elide::codec::DocumentHandle
@@ -75,11 +63,9 @@
 mod audit;
 #[cfg(feature = "audit-csv")]
 mod audit_csv;
-mod orchestrator;
 mod registered;
 
 use std::mem;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use elide::codec::{FormatRegistry, UntypedDocumentHandle};
@@ -90,135 +76,46 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::primitive::RasterMode;
 use elide::recognition::UsageReport;
-use elide::redaction::operators::KeyProvider;
 use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
+use elide_provider::{Provider, RequestContext, RequestScope};
 use serde::Deserialize;
 
-pub use self::audit::{Audit, AuditContext};
+pub use self::audit::Audit;
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
 use crate::entity::ReviewSet;
 use crate::file::Document;
-use crate::plan::AnalyzerParams;
-use crate::provider::llm::LlmConfig;
-use crate::provider::ner::NerConfig;
-use crate::provider::ocr::OcrConfig;
-use crate::provider::stt::SttConfig;
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
-/// Bundles the codec registry, the deployment's recognizer and
-/// enricher lineups (NER, LLM, OCR, STT), the shared
-/// [`KeyProvider`] (for `HmacHash` and `Encrypt`), and the
-/// per-request orchestrator constructor.
-///
-/// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+/// Wraps a [`Provider`] — the codec registry and the deployment's
+/// recognizer and enricher lineups — with the two verbs that run
+/// documents through it.
 #[derive(Clone)]
 pub struct Engine {
-    formats: Arc<FormatRegistry>,
-    ner: Arc<NerConfig>,
-    llm: Arc<LlmConfig>,
-    ocr: Arc<OcrConfig>,
-    stt: Arc<SttConfig>,
-    pub(super) key_provider: Option<Arc<dyn KeyProvider>>,
+    provider: Provider,
 }
 
 impl Engine {
-    /// New engine paired with elide's built-in codec set.
+    /// An engine over `provider`'s configuration.
     ///
-    /// Uses [`FormatRegistry::with_builtin`] plus empty NER, LLM,
-    /// OCR, and STT lineups. Callers that want any inference
-    /// recognizer or enricher wire it via the corresponding
-    /// builder: [`with_ner`], [`with_llm`], [`with_ocr`],
-    /// [`with_stt`]. Callers whose policies use `HmacHash` or
-    /// `Encrypt` must wire a key provider via
-    /// [`with_key_provider`]. The language-detection enricher
-    /// always attaches to text with elide's unrestricted lingua
-    /// default.
-    ///
-    /// [`with_key_provider`]: Self::with_key_provider
-    /// [`with_llm`]: Self::with_llm
-    /// [`with_ner`]: Self::with_ner
-    /// [`with_ocr`]: Self::with_ocr
-    /// [`with_stt`]: Self::with_stt
-    pub fn new() -> Self {
-        Self {
-            formats: Arc::new(FormatRegistry::with_builtin()),
-            ner: Arc::new(NerConfig::default()),
-            llm: Arc::new(LlmConfig::default()),
-            ocr: Arc::new(OcrConfig::default()),
-            stt: Arc::new(SttConfig::default()),
-            key_provider: None,
-        }
+    /// A [`Provider`] holds what a deployment decides once; an
+    /// engine adds the verbs that run documents through it. One
+    /// provider can back many engines, and cloning either is cheap.
+    #[must_use]
+    pub fn new(provider: Provider) -> Self {
+        Self { provider }
     }
 
-    /// Set the deployment's NER lineup.
-    ///
-    /// Consumed once at setup; every wired recognizer attaches to
-    /// every request whose modality matches.
+    /// The configuration this engine runs on.
     #[must_use]
-    pub fn with_ner(mut self, ner: NerConfig) -> Self {
-        self.ner = Arc::new(ner);
-        self
-    }
-
-    /// Set the deployment's LLM lineup.
-    ///
-    /// Consumed once at setup; every wired recognizer whose
-    /// modality list matches the analyzer's modality attaches to
-    /// every request.
-    #[must_use]
-    pub fn with_llm(mut self, llm: LlmConfig) -> Self {
-        self.llm = Arc::new(llm);
-        self
-    }
-
-    /// Set the deployment's OCR enricher lineup.
-    ///
-    /// The enricher attaches to the image-modality analyzer on
-    /// every request. Only one enricher attaches per analyzer
-    /// today; the request compile rejects `enrichers.len() > 1`
-    /// with a Configuration error. An empty lineup skips the
-    /// enricher attach.
-    #[must_use]
-    pub fn with_ocr(mut self, ocr: OcrConfig) -> Self {
-        self.ocr = Arc::new(ocr);
-        self
-    }
-
-    /// Set the deployment's STT enricher lineup.
-    ///
-    /// The enricher attaches to the audio-modality analyzer on
-    /// every request. Only one enricher attaches per analyzer
-    /// today; the request compile rejects `enrichers.len() > 1`
-    /// with a Configuration error. An empty lineup skips the
-    /// enricher attach.
-    #[must_use]
-    pub fn with_stt(mut self, stt: SttConfig) -> Self {
-        self.stt = Arc::new(stt);
-        self
-    }
-
-    /// Set the engine-level cryptographic [`KeyProvider`] the
-    /// `HmacHash` and `Encrypt` operators resolve their keys
-    /// through.
-    ///
-    /// One provider backs both operators; per-label keys are the
-    /// provider's own responsibility. A policy that names either
-    /// operator without a provider wired errors at request compile
-    /// time: the audit trail names the policy and operator so a
-    /// misconfiguration surfaces at load, not silently.
-    ///
-    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
-    #[must_use]
-    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
-        self.key_provider = Some(provider);
-        self
+    pub fn provider(&self) -> &Provider {
+        &self.provider
     }
 
     /// The codec registry the engine decodes documents through.
     pub fn formats(&self) -> &FormatRegistry {
-        &self.formats
+        self.provider.formats()
     }
 
     /// Read an [`Audit`] back from its serialized form.
@@ -252,13 +149,12 @@ impl Engine {
 
         // The report is the one part this engine must rebuild
         // itself; everything else on an audit is plain data.
-        let orchestrator = self.build_report_orchestrator();
-        let report = orchestrator.deserialize_report(wire.report)?;
+        let report = self.provider.deserialize_report(wire.report)?;
 
         Ok(Audit {
             report,
             reviews: wire.reviews,
-            context: wire.context,
+            scope: wire.scope,
             usage: wire.usage,
         })
     }
@@ -267,10 +163,34 @@ impl Engine {
     /// each lineup in configuration order.
     pub fn components(&self) -> RegisteredComponents {
         RegisteredComponents {
-            ner: self.ner.recognizers.iter().map(Into::into).collect(),
-            llm: self.llm.recognizers.iter().map(Into::into).collect(),
-            ocr: self.ocr.enrichers.iter().map(Into::into).collect(),
-            stt: self.stt.enrichers.iter().map(Into::into).collect(),
+            ner: self
+                .provider
+                .recognizers()
+                .ner
+                .iter()
+                .map(Into::into)
+                .collect(),
+            llm: self
+                .provider
+                .recognizers()
+                .llm
+                .iter()
+                .map(Into::into)
+                .collect(),
+            ocr: self
+                .provider
+                .enrichers()
+                .ocr
+                .iter()
+                .map(Into::into)
+                .collect(),
+            stt: self
+                .provider
+                .enrichers()
+                .stt
+                .iter()
+                .map(Into::into)
+                .collect(),
         }
     }
 
@@ -325,15 +245,17 @@ impl Engine {
         &self,
         document: Document,
         policies: &[PolicyDefinition],
-        spec: &AnalyzerParams,
+        scope: &RequestScope,
     ) -> Result<Audit> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
-        let mut handle = self.decode(document, spec.raster_mode).await?;
-        let (orchestrator, context) =
-            self.build_analyze_orchestrator(spec, policies, correlation_id)?;
-        let directives = build_analyze_directives(spec);
-        let mut report = orchestrator.analyze(&mut handle, &directives).await?;
+        let mut handle = self.decode(document, scope.raster_mode).await?;
+        let orchestrator = self
+            .provider
+            .analyze_orchestrator(scope, policies, correlation_id)?;
+        let mut report = orchestrator
+            .analyze(&mut handle, &Directives::new())
+            .await?;
         // Cloned off the report: elide derives usage during
         // analysis and drops it when a report is rebuilt from the
         // wire, so the audit carries its own copy.
@@ -356,14 +278,31 @@ impl Engine {
 
         // Record what each entity's policy pick would be, so the
         // returned audit answers "what happens to this, and why"
-        // before a reviewer overrides anything. Purely additive:
-        // it appends Selection events and redacts nothing.
-        self.record_picks(&context, policies, correlation_id, &mut report);
+        // before a reviewer overrides anything. Purely additive: it
+        // appends Selection events and redacts nothing.
+        //
+        // A failure here does not fail the analyze. Every reason the
+        // pick can fail — an unresolvable label, an operator whose
+        // key has not arrived yet — is raised again by `anonymize`,
+        // which compiles the same policies and does fail. The
+        // keyless `HmacHash` case is the common one: the request
+        // supplies its key at anonymize, so refusing to analyze
+        // would deny the caller detections over a redaction they
+        // have not asked for yet, and report the same fault twice.
+        //
+        // Scope-reference errors never reach here: `analyze_orchestrator`
+        // rejects them above, before any of this runs.
+        //
+        // The observable signal is an audit carrying no `Selection`
+        // events.
+        let _: Result<()> =
+            self.provider
+                .record_picks(scope, policies, correlation_id, &mut report);
 
         Ok(Audit {
             report,
             reviews: ReviewSet::default(),
-            context,
+            scope: scope.clone(),
             usage,
         })
     }
@@ -389,9 +328,11 @@ impl Engine {
     /// [`Self::analyze`]. The label catalog is re-derived from
     /// `policies` on every call: policies are the sole source
     /// of label vocabulary. The asserted scope (languages,
-    /// jurisdictions, metadata) travels on [`Audit::context`]
-    /// from analyze. The document's `correlation_id` is threaded
-    /// into tracing spans on the redaction path.
+    /// jurisdictions, metadata) travels on [`Audit::scope`]
+    /// from analyze. Tracing spans on this path carry the
+    /// `correlation_id` of the document being redacted: the id lives
+    /// on the document and nowhere else, so there is never a second
+    /// copy to disagree with it.
     ///
     /// **Composition semantics.** Rules attach in submission
     /// order; first match wins across the whole policy set.
@@ -411,13 +352,18 @@ impl Engine {
     /// but two different policies pseudonymising the same entity
     /// draw independent surrogates.
     /// [`TextRedaction::HmacHash`] and [`TextRedaction::Encrypt`]
-    /// resolve their [`KeyProvider`] through the engine-level
-    /// provider set via [`Engine::with_key_provider`].
+    /// resolve their [`KeyProvider`] from `request`. A key belongs
+    /// to the caller asking for redaction, not to the process
+    /// serving them, so it arrives per request rather than sitting
+    /// on the engine: one engine serves many callers, each with its
+    /// own. [`RequestContext::default`] supplies none, which is
+    /// right when no policy names a keyed operator; a policy that
+    /// names one without a key fails here, saying which policy and
+    /// which operator.
     ///
     /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
     /// [`TextRedaction::HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
     /// [`TextRedaction::Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
-    /// [`Engine::with_key_provider`]: Self::with_key_provider
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     ///
     /// [`LabelScope`]: elide_governance::LabelScope
@@ -434,11 +380,12 @@ impl Engine {
         document: Document,
         policies: &[PolicyDefinition],
         audit: &mut Audit,
+        request: &RequestContext,
     ) -> Result<Document> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let content_type = document.content_type.clone();
-        let mut handle = self.decode(document, audit.context.raster_mode).await?;
+        let mut handle = self.decode(document, audit.scope.raster_mode).await?;
 
         // An audit with no body was never analyzed. Applying it
         // would return the document unredacted and report success,
@@ -457,11 +404,11 @@ impl Engine {
         // the redaction pass skips.
         audit.apply_suppressions();
 
-        let overrides = audit.collect_overrides();
-        let orchestrator = self.build_anonymize_orchestrator(
-            &audit.context,
+        let orchestrator = self.provider.anonymize_orchestrator(
+            &audit.scope,
             policies,
-            &overrides,
+            &audit.overrides(),
+            request,
             correlation_id,
         )?;
 
@@ -491,7 +438,12 @@ impl Engine {
             bytes, extension, ..
         } = document;
         let result = match raster_mode {
-            RasterMode::Auto => self.formats.decode(bytes, extension.as_str()).await,
+            RasterMode::Auto => {
+                self.provider
+                    .formats()
+                    .decode(bytes, extension.as_str())
+                    .await
+            }
             _ => {
                 self.decode_with_raster_mode(bytes, extension.as_str(), raster_mode)
                     .await
@@ -568,7 +520,7 @@ struct AuditWire {
     report: serde_value::Value,
     #[serde(default)]
     reviews: ReviewSet,
-    context: AuditContext,
+    scope: RequestScope,
     #[serde(default)]
     usage: UsageReport,
 }
@@ -639,23 +591,4 @@ where
         )
     })?;
     Ok(content.into_bytes())
-}
-
-impl Default for Engine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Assemble the per-analyze [`Directives`] from `spec.annotations`,
-/// registering every modality's regions with the set.
-///
-/// The orchestrator's run-wide scope stays the default; no
-/// per-analysis scope override is used at this layer.
-fn build_analyze_directives(spec: &AnalyzerParams) -> Directives {
-    Directives::new()
-        .with_annotations::<Text>(spec.annotations.text.clone())
-        .with_annotations::<Tabular>(spec.annotations.tabular.clone())
-        .with_annotations::<Image>(spec.annotations.image.clone())
-        .with_annotations::<Audio>(spec.annotations.audio.clone())
 }

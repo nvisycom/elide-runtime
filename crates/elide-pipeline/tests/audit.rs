@@ -17,8 +17,7 @@ use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::redaction::TextRedaction;
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
-use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Audit, Engine};
+use elide_pipeline::{Audit, Engine, ProviderConfig, RequestScope};
 
 use self::fixtures::write_artefact;
 
@@ -29,11 +28,11 @@ fn raw_txt() -> Document {
 }
 
 fn engine() -> Engine {
-    Engine::new()
+    Engine::new(ProviderConfig::default().build())
 }
 
-fn default_spec() -> AnalyzerParams {
-    AnalyzerParams::default()
+fn default_spec() -> RequestScope {
+    RequestScope::default()
 }
 
 async fn analyze() -> Audit {

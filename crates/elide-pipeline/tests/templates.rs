@@ -7,13 +7,9 @@
 //! synthesis, and the operator wiring all agree end-to-end,
 //! rather than any one layer in isolation.
 
-use std::sync::Arc;
-
 use bytes::Bytes;
-use elide::redaction::operators::StaticKey;
 use elide_pipeline::file::Document;
-use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Engine, KeyProvider};
+use elide_pipeline::{Engine, KeyConfig, ProviderConfig, RequestContext, RequestScope};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PciPanRender, PolicyTemplate, Template,
@@ -22,26 +18,28 @@ use elide_template::{
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
 fn engine() -> Engine {
-    Engine::new()
+    Engine::new(ProviderConfig::default().build())
 }
 
-fn engine_with_key() -> Engine {
-    let provider: Arc<dyn KeyProvider> =
-        Arc::new(StaticKey::new(*b"elide-template-test-key-32bytes"));
-    Engine::new().with_key_provider(provider)
+/// The key a keyed-operator template redacts with. Supplied per
+/// request, so the engine itself carries none.
+fn key() -> KeyConfig {
+    KeyConfig::Static {
+        key: b"elide-template-test-key-32bytes!".to_vec(),
+    }
 }
 
 fn raw_txt() -> Document {
     Document::new(Bytes::from_static(SAMPLE_TXT), "txt")
 }
 
-fn default_spec() -> AnalyzerParams {
-    AnalyzerParams::default()
+fn default_spec() -> RequestScope {
+    RequestScope::default()
 }
 
 /// Run `template` through analyze + anonymize against the sample
 /// and return the redacted body as a UTF-8 string.
-async fn apply(engine: &Engine, template: Template) -> String {
+async fn apply(engine: &Engine, template: Template, request: &RequestContext) -> String {
     let mut analyzed = engine
         .analyze(
             raw_txt(),
@@ -55,6 +53,7 @@ async fn apply(engine: &Engine, template: Template) -> String {
             raw_txt(),
             std::slice::from_ref(&template.policy),
             &mut analyzed,
+            request,
         )
         .await
         .expect("anonymize succeeds");
@@ -68,7 +67,7 @@ async fn hipaa_safe_harbor_erases_contact_info_from_sample() {
         accounts: HipaaAccountNumbers::Standard,
     }
     .build();
-    let body = apply(&engine(), template).await;
+    let body = apply(&engine(), template, &RequestContext::new()).await;
     // The sample carries an email, a phone, and an SSN: every
     // one falls in a HIPAA identifier category and should be
     // gone from the output. (Address is present too but the
@@ -105,7 +104,7 @@ async fn hipaa_limited_data_set_erases_contact_info_from_sample() {
         accounts: HipaaAccountNumbers::Standard,
     }
     .build();
-    let body = apply(&engine(), template).await;
+    let body = apply(&engine(), template, &RequestContext::new()).await;
     assert!(
         !body.contains("jane.doe@example.com"),
         "email must be erased under HIPAA LDS; body was:\n{body}",
@@ -132,7 +131,7 @@ async fn hipaa_expert_determination_pseudonymizes_contact_info_from_sample() {
         accounts: HipaaAccountNumbers::Standard,
     }
     .build();
-    let body = apply(&engine(), template).await;
+    let body = apply(&engine(), template, &RequestContext::new()).await;
     assert!(
         !body.contains("jane.doe@example.com"),
         "email must not survive verbatim under HIPAA ED; body was:\n{body}",
@@ -161,6 +160,7 @@ async fn gdpr_article_9_leaves_non_special_categories_alone() {
             scope: GdprSensitiveScope::Article9,
         }
         .build(),
+        &RequestContext::new(),
     )
     .await;
     assert!(
@@ -186,6 +186,7 @@ async fn pci_dss_pan_truncate_leaves_non_pan_labels_alone() {
             },
         }
         .build(),
+        &RequestContext::new(),
     )
     .await;
     assert!(
@@ -211,6 +212,7 @@ async fn pci_dss_sav_erase_leaves_non_sav_labels_alone() {
             part: PciDssPart::SavErase,
         }
         .build(),
+        &RequestContext::new(),
     )
     .await;
     assert!(
@@ -242,15 +244,16 @@ async fn pci_dss_pan_hmac_requires_key_provider() {
             &default_spec(),
         )
         .await
-        .expect("analyze succeeds without a key provider");
+        .expect("analyze succeeds without a key");
     let err = engine()
         .anonymize(
             raw_txt(),
             std::slice::from_ref(&template.policy),
             &mut analyzed,
+            &RequestContext::new(),
         )
         .await
-        .expect_err("anonymize must fail without a key provider");
+        .expect_err("anonymize must fail when the request supplies no key");
     assert!(
         err.to_string().contains("KeyProvider"),
         "expected error naming the missing KeyProvider; got: {err}",
@@ -264,13 +267,14 @@ async fn pci_dss_pan_hmac_runs_with_a_key_provider() {
     // the engine carries a KeyProvider, which is the only PCI-
     // template-specific setup the operator needs.
     let body = apply(
-        &engine_with_key(),
+        &engine(),
         PolicyTemplate::PciDss {
             part: PciDssPart::PanRender {
                 render: PciPanRender::HmacSha256,
             },
         }
         .build(),
+        &RequestContext::new().with_key(key()),
     )
     .await;
     assert!(
@@ -285,7 +289,12 @@ async fn ccpa_erases_contact_info_and_identifiers_from_sample() {
     // every one shows up in the sample and should be redacted
     // under the shipped template. (Address is present too but
     // the spec runs NER off, so it isn't detected here.)
-    let body = apply(&engine(), PolicyTemplate::Ccpa.build()).await;
+    let body = apply(
+        &engine(),
+        PolicyTemplate::Ccpa.build(),
+        &RequestContext::new(),
+    )
+    .await;
     assert!(
         !body.contains("jane.doe@example.com"),
         "email is a CCPA §(A) identifier; must be erased. Body:\n{body}",

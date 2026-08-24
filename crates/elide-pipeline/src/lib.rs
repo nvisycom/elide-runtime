@@ -5,7 +5,7 @@
 //! Layers on top of the [elide] toolkit. This crate wires elide's
 //! per-modality analyzers, anonymizers, and orchestrator into a
 //! stateless per-request document pipeline, driven by its own
-//! request schemas ([`plan`], [`file`](mod@file)) and the
+//! request schemas ([`RequestScope`], [`file`](mod@file)) and the
 //! governance schema from [elide-governance].
 //!
 //! [elide]: https://github.com/nvisycom/elide
@@ -30,7 +30,7 @@
 //!   each policy carries its own [`LabelScope`]s inline via
 //!   [`PolicyDefinition::scopes`].
 //! - [`Audit`] carries the analyze → anonymize handoff: the
-//!   modality-tagged entity groups plus an [`AuditContext`] with
+//!   modality-tagged entity groups plus an [`RequestScope`] with
 //!   the request's asserted scope and correlation id.
 //!
 //! Ready-to-run policy sets for common regulatory postures
@@ -46,13 +46,9 @@
 //!
 //! [`elide`]: elide
 
-mod analyzer;
-mod anonymizer;
 pub mod entity;
 pub mod file;
 mod pipeline;
-pub mod plan;
-pub mod provider;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
@@ -96,6 +92,12 @@ pub use elide::{Error, ErrorKind, Result};
 /// operators.
 #[doc(inline)]
 pub use elide_governance as policy;
+#[doc(inline)]
+pub use elide_provider::{
+    AttachTo, Backend, Component, Enrichers, KeyConfig, LlmBackend, LlmSource, NerBackend,
+    OcrBackend, Override, Overrides, Provider, ProviderConfig, Recognizers, RequestContext,
+    RequestScope, SttBackend,
+};
 /// Ready-to-run policy templates for common regulatory postures
 /// (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA).
 #[doc(inline)]
@@ -104,5 +106,5 @@ pub use elide_template as template;
 pub use self::entity::ReviewSet;
 pub use self::file::{Document, FileMetadata};
 pub use self::pipeline::{
-    Audit, AuditContext, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
+    Audit, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
 };

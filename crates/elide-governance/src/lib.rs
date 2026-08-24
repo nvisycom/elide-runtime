@@ -57,10 +57,12 @@
 //! [`Predicated`]: RuleDispatch::Predicated
 //! [`Table`]: RuleDispatch::Table
 
+mod catalog;
 pub mod modality;
 mod policy;
 pub mod redaction;
 
+pub use self::catalog::compile_catalog;
 pub use self::policy::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch, TemplateOrigin,
 };

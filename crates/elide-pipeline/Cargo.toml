@@ -86,6 +86,7 @@ audit-zip = ["audit-csv", "elide-export/zip"]
 ## config cannot ship a mock recognizer.
 test-utils = [
     "elide/mock",
+    "elide-provider/test-utils",
 ]
 
 [package.metadata.docs.rs]
@@ -94,14 +95,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["engine", "codec", "codec-text", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-jinja2", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
-
-# Elide extensions
-elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }
+elide = { workspace = true, features = ["engine", "codec", "codec-text", "tabular", "image", "audio", "serde", "schema", "usage"] }
 
 # Internal crates
 elide-export = { workspace = true, features = [], optional = true }
 elide-governance = { workspace = true, features = [] }
+elide-provider = { workspace = true, features = [] }
 elide-template = { workspace = true }
 
 # Serialization
@@ -118,6 +117,7 @@ jiff = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 # Internal crates
+
 elide-export = { workspace = true, features = ["json", "csv", "zip"] }
 elide-pipeline = { path = ".", features = ["test-utils", "audit-json", "audit-csv", "audit-zip"] }
 

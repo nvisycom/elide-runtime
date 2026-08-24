@@ -9,10 +9,10 @@
 //!   decide what to skip. The reversal of a suppression is recorded
 //!   too, rather than erased, so the trail keeps both halves of a
 //!   reviewer's change of mind.
-//! - **An operator override** is compiled into an [`OverrideSet`]
-//!   and layered onto the anonymizer ahead of the policy rules,
-//!   because elide re-resolves operators from live policy at apply
-//!   time and has no per-entity override of its own.
+//! - **An operator override** is layered onto the anonymizer ahead
+//!   of the policy rules, straight from the review set, because
+//!   elide re-resolves operators from live policy at apply time and
+//!   has no per-entity override of its own.
 //!
 //! A retag is neither: it rewrites what the entity *is* before the
 //! policy set sees it, and is applied where the report is edited.
@@ -31,12 +31,31 @@ use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide_governance::modality::RedactableModality;
+use elide_provider::{Override, Overrides};
 use uuid::Uuid;
 
-use super::{OverrideEntry, OverrideSet, Review, ReviewBucket};
+use super::{Review, ReviewBucket};
 use crate::Audit;
 
 impl Audit {
+    /// Project the reviewer's operator overrides into the shape the
+    /// provider applies.
+    ///
+    /// Only [`Review::Redact`] yields one: a suppression names no
+    /// operator and is applied by stamping the entity itself, and a
+    /// retag hands the corrected entity back to the policy set. The
+    /// provider never learns about either, because neither changes
+    /// which operator it should compile.
+    #[must_use]
+    pub fn overrides(&self) -> Overrides {
+        Overrides {
+            text: overrides_for(&self.reviews.text),
+            tabular: overrides_for(&self.reviews.tabular),
+            image: overrides_for(&self.reviews.image),
+            audio: overrides_for(&self.reviews.audio),
+        }
+    }
+
     /// Stamp every pending [`Review::Suppress`] onto its entity's
     /// audit trail, so elide's redaction pass skips it.
     ///
@@ -51,21 +70,6 @@ impl Audit {
         apply_suppressions_for::<Tabular>(self);
         apply_suppressions_for::<Image>(self);
         apply_suppressions_for::<Audio>(self);
-    }
-
-    /// Compile the reviewer's operator overrides for the anonymize
-    /// path, bucketed by modality.
-    ///
-    /// Only [`Review::Redact`] yields one: a suppression names no
-    /// operator and is applied by stamping the entity itself, and a
-    /// retag hands the corrected entity back to the policy set.
-    pub(crate) fn collect_overrides(&self) -> OverrideSet {
-        OverrideSet {
-            text: overrides_for(&self.reviews.text),
-            tabular: overrides_for(&self.reviews.tabular),
-            image: overrides_for(&self.reviews.image),
-            audio: overrides_for(&self.reviews.audio),
-        }
     }
 }
 
@@ -148,6 +152,9 @@ impl Suppression {
 
 /// Find an entity by id anywhere in the report: the body first,
 /// then every container part.
+///
+/// A report indexes entities per location, not globally, so a
+/// decision keyed only by entity id has to be looked for.
 fn entity_mut<M: Modality>(report: &mut Report, id: Uuid) -> Option<&mut Entity<M>> {
     if report.entity_mut::<M>(id).is_some() {
         return report.entity_mut::<M>(id);
@@ -159,17 +166,20 @@ fn entity_mut<M: Modality>(report: &mut Report, id: Uuid) -> Option<&mut Entity<
         .and_then(move |part| report.part_entity_mut::<M>(&part, id))
 }
 
+/// The operator overrides in one modality's review bucket.
 fn overrides_for<M: RedactableModality>(
     reviews: &HashMap<Uuid, Review<M>>,
-) -> Vec<OverrideEntry<M>> {
+) -> HashMap<Uuid, Override<M>> {
     reviews
         .iter()
-        .filter_map(|(entity_id, review)| match review {
-            Review::Redact { policy_id, action } => Some(OverrideEntry {
-                entity_id: *entity_id,
-                policy_id: *policy_id,
-                action: action.clone(),
-            }),
+        .filter_map(|(id, review)| match review {
+            Review::Redact { policy_id, action } => Some((
+                *id,
+                Override {
+                    policy_id: *policy_id,
+                    action: action.clone(),
+                },
+            )),
             Review::Suppress { .. } | Review::Retag { .. } => None,
         })
         .collect()

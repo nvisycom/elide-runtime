@@ -79,7 +79,7 @@ use elide::recognition::UsageReport;
 use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
 use elide_provider::plan::AnalyzerParams;
-use elide_provider::{AuditContext, Provider};
+use elide_provider::{AuditContext, Provider, RequestContext};
 use serde::Deserialize;
 
 pub use self::audit::Audit;
@@ -89,12 +89,9 @@ use crate::file::Document;
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
-/// Bundles the codec registry, the deployment's recognizer and
-/// enricher lineups (NER, LLM, OCR, STT), the shared
-/// [`KeyProvider`] (for `HmacHash` and `Encrypt`), and the
-/// per-request orchestrator constructor.
-///
-/// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+/// Wraps a [`Provider`] — the codec registry and the deployment's
+/// recognizer and enricher lineups — with the two verbs that run
+/// documents through it.
 #[derive(Clone)]
 pub struct Engine {
     provider: Provider,
@@ -284,8 +281,7 @@ impl Engine {
         // returned audit answers "what happens to this, and why"
         // before a reviewer overrides anything. Purely additive:
         // it appends Selection events and redacts nothing.
-        self.provider
-            .record_picks(&context, policies, correlation_id, &mut report);
+        self.provider.record_picks(&context, policies, &mut report);
 
         Ok(Audit {
             report,
@@ -317,8 +313,9 @@ impl Engine {
     /// `policies` on every call: policies are the sole source
     /// of label vocabulary. The asserted scope (languages,
     /// jurisdictions, metadata) travels on [`Audit::context`]
-    /// from analyze. The document's `correlation_id` is threaded
-    /// into tracing spans on the redaction path.
+    /// from analyze. The document's `correlation_id` becomes the
+    /// audit's and is threaded into every tracing span on the
+    /// redaction path, so one document traces under one id.
     ///
     /// **Composition semantics.** Rules attach in submission
     /// order; first match wins across the whole policy set.
@@ -338,8 +335,14 @@ impl Engine {
     /// but two different policies pseudonymising the same entity
     /// draw independent surrogates.
     /// [`TextRedaction::HmacHash`] and [`TextRedaction::Encrypt`]
-    /// resolve their [`KeyProvider`] through the engine-level
-    /// provider the deployment configured.
+    /// resolve their [`KeyProvider`] from `request`. A key belongs
+    /// to the caller asking for redaction, not to the process
+    /// serving them, so it arrives per request rather than sitting
+    /// on the engine: one engine serves many callers, each with its
+    /// own. [`RequestContext::default`] supplies none, which is
+    /// right when no policy names a keyed operator; a policy that
+    /// names one without a key fails here, saying which policy and
+    /// which operator.
     ///
     /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
     /// [`TextRedaction::HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
@@ -360,11 +363,20 @@ impl Engine {
         document: Document,
         policies: &[PolicyDefinition],
         audit: &mut Audit,
+        request: &RequestContext,
     ) -> Result<Document> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let content_type = document.content_type.clone();
         let mut handle = self.decode(document, audit.context.raster_mode).await?;
+
+        // The document being redacted owns the id everything about
+        // this call is traced under: the scope built below, the
+        // audit the caller is left holding, and the bytes returned.
+        // Analyze recorded whichever document it saw; if the caller
+        // hands a different one to anonymize, that one is now the
+        // subject, and one id follows it through.
+        audit.context.correlation_id = correlation_id;
 
         // An audit with no body was never analyzed. Applying it
         // would return the document unredacted and report success,
@@ -387,7 +399,7 @@ impl Engine {
             &audit.context,
             policies,
             &audit.overrides(),
-            correlation_id,
+            request,
         )?;
 
         // The report moves through apply and comes back mutated,

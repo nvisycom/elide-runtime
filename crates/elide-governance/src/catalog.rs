@@ -1,5 +1,5 @@
 //! Compile a slice of [`PolicyDefinition`] into an
-//! [`elide::entity::LabelCatalog`].
+//! [`LabelCatalog`].
 //!
 //! Walks every policy's [`labels`] block and unions the builtin
 //! selections and the inline custom schemas into one catalog. The
@@ -17,20 +17,24 @@
 //! exists that a [`Predicate::TagOneOf`] could exploit to bypass
 //! per-policy group scoping.
 //!
-//! Kept engine-side so the cached `with_builtins` lookup and the
-//! collision policy stay out of `elide-governance`.
+//! Lives here because the collision policy is authoring policy:
+//! what makes a *set* of policies well-formed is the same kind of
+//! question as what makes one policy well-formed, and both belong
+//! to the crate that defines them. The engine only consumes the
+//! catalog this produces.
 //!
-//! [`Label`]: elide::entity::Label
-//! [`PolicyDefinition`]: elide_governance::PolicyDefinition
-//! [`labels`]: elide_governance::PolicyDefinition::label_scope
-//! [`Predicate::LabelInScope`]: elide_governance::Predicate::LabelInScope
-//! [`Predicate::TagOneOf`]: elide_governance::Predicate::TagOneOf
+//! [`Label`]: elide_core::entity::Label
+//! [`PolicyDefinition`]: crate::PolicyDefinition
+//! [`labels`]: crate::PolicyDefinition::label_scope
+//! [`Predicate::LabelInScope`]: crate::Predicate::LabelInScope
+//! [`Predicate::TagOneOf`]: crate::Predicate::TagOneOf
 
 use std::sync::OnceLock;
 
-use elide::entity::LabelCatalog;
-use elide::{Error, ErrorKind, Result};
-use elide_governance::PolicyDefinition;
+use elide_core::entity::LabelCatalog;
+use elide_core::{Error, ErrorKind, Result};
+
+use crate::PolicyDefinition;
 
 /// Compile the label catalog for a request from its policy set.
 ///
@@ -51,9 +55,9 @@ use elide_governance::PolicyDefinition;
 ///   same id but structurally different contents (byte-identical
 ///   redeclaration across templates is fine).
 ///
-/// [`labels`]: elide_governance::PolicyDefinition::label_scope
-/// [`Label`]: elide::entity::Label
-pub(crate) fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCatalog> {
+/// [`labels`]: crate::PolicyDefinition::label_scope
+/// [`Label`]: elide_core::entity::Label
+pub fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCatalog> {
     let mut catalog = LabelCatalog::new();
     for policy in policies {
         insert_params(&mut catalog, policy)?;
@@ -131,12 +135,12 @@ fn builtin_catalog() -> &'static LabelCatalog {
 
 #[cfg(test)]
 mod tests {
-    use elide::entity::{Label, LabelRef};
-    use elide_governance::{LabelScope, PolicyDefinition};
+    use elide_core::entity::{Label, LabelRef};
     use hipstr::HipStr;
     use uuid::Uuid;
 
     use super::*;
+    use crate::{LabelScope, PolicyDefinition};
 
     const POLICY_A: Uuid = Uuid::from_u128(0x01234567_89ab_7000_8000_000000000010_u128);
     const POLICY_B: Uuid = Uuid::from_u128(0x01234567_89ab_7000_8000_000000000011_u128);

@@ -13,7 +13,7 @@
 //!
 //! A [`Provider`] then builds an [`Orchestrator`] per request,
 //! because an orchestrator carries request data — the policies in
-//! force, the caller's scope, a correlation id — that no
+//! force, the caller's scope and key, a correlation id — that no
 //! deployment-wide value could hold. Config is parsed once, an
 //! orchestrator is constructed per request.
 //!
@@ -31,21 +31,19 @@
 //! and belongs wherever the deployment already keeps secrets rather
 //! than in version control.
 //!
-//! Key material is the exception, and is deliberately not a field:
-//! [`KeyConfig`] names its secrets by identifier, and the bytes
-//! arrive separately in a [`Keyring`], so they have no path into a
-//! serialized config at all.
+//! Cryptographic keys are not here at all. A key belongs to the
+//! caller asking for redaction, not to the process serving them, so
+//! it travels on a [`RequestContext`] with the request that needs
+//! it. One provider then serves many callers, each with its own.
 //!
 //! [`Orchestrator`]: elide::Orchestrator
 
 use std::sync::Arc;
 
 use elide::codec::FormatRegistry;
-use elide::redaction::operators::KeyProvider;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-mod catalog;
 mod context;
 mod key;
 mod orchestrator;
@@ -53,14 +51,16 @@ mod override_set;
 pub mod plan;
 mod recognition;
 mod redaction;
+mod request;
 
 pub use self::context::AuditContext;
-pub use self::key::{KeyConfig, Keyring};
+pub use self::key::KeyConfig;
 pub use self::override_set::{Override, Overrides};
 pub use self::recognition::{
     AttachTo, AuthenticatedProvider, Backend, Component, LlmBackend, LlmConfig, LlmSource,
     NerBackend, NerConfig, OcrBackend, OcrConfig, SttBackend, SttConfig, UnauthenticatedProvider,
 };
+pub use self::request::RequestContext;
 
 /// Everything a deployment decides once, at startup.
 ///
@@ -78,71 +78,13 @@ pub struct ProviderConfig {
     pub ocr: OcrConfig,
     /// The STT enricher lineup.
     pub stt: SttConfig,
-    /// Which key provider to build, if the deployment's policies
-    /// use `HmacHash` or `Encrypt`.
-    ///
-    /// `None` leaves the provider without one: a policy naming
-    /// either operator then fails at request-compile time, naming
-    /// the policy and the operator, rather than redacting with some
-    /// default key.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub key: Option<KeyConfig>,
 }
 
 impl ProviderConfig {
     /// Build the provider this config describes.
-    ///
-    /// `keyring` supplies the secrets [`key`] names. Pass an empty
-    /// one when no key provider is configured.
-    ///
-    /// A configured [`key`] whose secret the keyring does not hold,
-    /// or a keyring with secrets no config names, is a mistake
-    /// worth catching here rather than at the first request that
-    /// needs a key: the second case means the deployment believes
-    /// redaction is keyed when it is not.
-    ///
-    /// [`key`]: Self::key
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Configuration`](elide::ErrorKind::Configuration)
-    /// when the config and the keyring disagree.
-    pub fn build(self, keyring: &Keyring) -> elide::Result<Provider> {
-        let key_provider = match self.key.as_ref() {
-            Some(config) => {
-                let provider = config.build(keyring)?;
-                reject_unused_secrets(config, keyring)?;
-                Some(provider)
-            }
-            None if keyring.is_empty() => None,
-            None => {
-                return Err(elide::Error::new(
-                    elide::ErrorKind::Configuration,
-                    "a keyring was supplied but the config names no key provider",
-                ));
-            }
-        };
-        Ok(Provider::from_parts(
-            self.ner,
-            self.llm,
-            self.ocr,
-            self.stt,
-            key_provider,
-        ))
-    }
-
-    /// Build the provider, supplying the key provider directly.
-    ///
-    /// The escape hatch for a deployment whose keys are neither a
-    /// static blob nor anything [`KeyConfig`] can name: implement
-    /// [`KeyProvider`] and hand the instance over. [`key`] is
-    /// ignored, since the caller has already answered the question
-    /// it asks.
-    ///
-    /// [`key`]: Self::key
     #[must_use]
-    pub fn build_with_key_provider(self, key_provider: Arc<dyn KeyProvider>) -> Provider {
-        Provider::from_parts(self.ner, self.llm, self.ocr, self.stt, Some(key_provider))
+    pub fn build(self) -> Provider {
+        Provider::from_parts(self.ner, self.llm, self.ocr, self.stt)
     }
 }
 
@@ -157,7 +99,6 @@ pub struct Provider {
     pub(crate) llm: Arc<LlmConfig>,
     pub(crate) ocr: Arc<OcrConfig>,
     pub(crate) stt: Arc<SttConfig>,
-    pub(crate) key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 impl Provider {
@@ -167,20 +108,13 @@ impl Provider {
     /// [`ProviderConfig`] and builds through it. This exists for a
     /// caller holding the pieces already.
     #[must_use]
-    pub fn from_parts(
-        ner: NerConfig,
-        llm: LlmConfig,
-        ocr: OcrConfig,
-        stt: SttConfig,
-        key_provider: Option<Arc<dyn KeyProvider>>,
-    ) -> Self {
+    pub fn from_parts(ner: NerConfig, llm: LlmConfig, ocr: OcrConfig, stt: SttConfig) -> Self {
         Self {
             formats: Arc::new(FormatRegistry::with_builtin()),
             ner: Arc::new(ner),
             llm: Arc::new(llm),
             ocr: Arc::new(ocr),
             stt: Arc::new(stt),
-            key_provider,
         }
     }
 
@@ -213,29 +147,4 @@ impl Provider {
     pub fn stt(&self) -> &SttConfig {
         &self.stt
     }
-}
-
-/// Reject a keyring holding a secret `config` never asks for.
-///
-/// The mirror of the missing-secret check, and the one that catches
-/// a typo: a deployment that supplies `redcation` for a config
-/// naming `redaction` gets a clear failure at startup instead of a
-/// provider quietly built without the key it meant to use.
-fn reject_unused_secrets(config: &KeyConfig, keyring: &Keyring) -> elide::Result<()> {
-    let named: Vec<&str> = config.secrets().collect();
-    let mut unused: Vec<&str> = keyring
-        .names()
-        .filter(|name| !named.contains(name))
-        .collect();
-    if unused.is_empty() {
-        return Ok(());
-    }
-    unused.sort_unstable();
-    Err(elide::Error::new(
-        elide::ErrorKind::Configuration,
-        format!(
-            "the keyring holds secrets the config never names: {}",
-            unused.join(", ")
-        ),
-    ))
 }

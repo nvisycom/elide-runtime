@@ -8,14 +8,14 @@ Elide Runtime.
 ## Overview
 
 A deployment decides some things once: which NER model, which LLM
-provider, which OCR and STT engines, and the cryptographic key provider
-the HmacHash and Encrypt operators resolve through. ProviderConfig is
-that set as one serializable value, and building it yields a Provider.
+provider, and which OCR and STT engines. ProviderConfig is that set as
+one serializable value, and building it yields a Provider.
 
 A Provider then builds an Orchestrator per request, because an
 orchestrator carries request data the policies in force, the caller's
-scope, a correlation id that no deployment-wide value could hold.
-Config is parsed once; an orchestrator is constructed per request.
+scope and key, a correlation id that no deployment-wide value could
+hold. Config is parsed once; an orchestrator is constructed per
+request.
 
 This crate depends only on Elide and the governance vocabulary, never
 on the pipeline: it is the half that turns configuration into Elide
@@ -28,9 +28,10 @@ Backend credentials travel inside the backend configs, because that is
 where Elide's own provider types keep them: an LLM recognizer names its
 model and its API key together. A serialized config therefore contains
 credentials and belongs wherever the deployment already keeps secrets.
-Key material is the exception and is deliberately not a field: the
-config names the shape of provider to build, and the bytes are passed
-separately, so they have no path into a serialized config at all.
+Cryptographic keys are not in the provider config at all. A key
+belongs to the caller asking for redaction, not to the process serving
+them, so it travels on a RequestContext with the request that needs it.
+One provider then serves many callers, each with its own key.
 
 ## Changelog
 

@@ -18,7 +18,7 @@ use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::{
-    Audit, AuditContext, Component, Engine, Keyring, OcrBackend, OcrConfig, ProviderConfig,
+    Audit, AuditContext, Component, Engine, OcrBackend, OcrConfig, ProviderConfig, RequestContext,
     ReviewSet,
 };
 
@@ -32,19 +32,19 @@ fn raw_docx() -> Document {
 }
 
 fn engine() -> Engine {
-    ProviderConfig {
-        ocr: OcrConfig {
-            enrichers: vec![Component::<OcrBackend> {
-                name: "mock".into(),
-                description: None,
-                backend: OcrBackend::Mock,
-            }],
-        },
-        ..ProviderConfig::default()
-    }
-    .build(&Keyring::new())
-    .map(Engine::new)
-    .expect("engine builds")
+    Engine::new(
+        ProviderConfig {
+            ocr: OcrConfig {
+                enrichers: vec![Component::<OcrBackend> {
+                    name: "mock".into(),
+                    description: None,
+                    backend: OcrBackend::Mock,
+                }],
+            },
+            ..ProviderConfig::default()
+        }
+        .build(),
+    )
 }
 
 fn default_spec() -> AnalyzerParams {
@@ -132,6 +132,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
             raw_docx(),
             std::slice::from_ref(&review_policy),
             &mut analyzed,
+            &RequestContext::new(),
         )
         .await
         .expect("anonymize succeeds");
@@ -210,7 +211,12 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
         .expect("analyze succeeds");
 
     engine
-        .anonymize(raw_docx(), std::slice::from_ref(&policy), &mut analyzed)
+        .anonymize(
+            raw_docx(),
+            std::slice::from_ref(&policy),
+            &mut analyzed,
+            &RequestContext::new(),
+        )
         .await
         .expect("anonymize succeeds when catalog is re-derived from the same policy set");
 }
@@ -308,7 +314,10 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
         usage: Default::default(),
     };
 
-    let Err(err) = engine.anonymize(raw_docx(), &[], &mut audit).await else {
+    let Err(err) = engine
+        .anonymize(raw_docx(), &[], &mut audit, &RequestContext::new())
+        .await
+    else {
         panic!("an audit with no body must not silently redact nothing");
     };
     assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");

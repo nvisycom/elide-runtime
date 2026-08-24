@@ -27,10 +27,9 @@ use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
 use elide::{Error, ErrorKind, Orchestrator, Report, Result};
 use elide_governance::modality::RedactableModality;
-use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
+use elide_governance::{PolicyDefinition, PolicyRule, Predicate, compile_catalog};
 use uuid::Uuid;
 
-use crate::catalog::compile_catalog;
 use crate::context::AuditContext;
 use crate::plan::AnalyzerParams;
 use crate::recognition::{
@@ -42,7 +41,7 @@ use crate::redaction::{
     attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
     attach_policies_text,
 };
-use crate::{Override, Overrides, Provider};
+use crate::{KeyConfig, Override, Overrides, Provider, RequestContext};
 
 impl Provider {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -79,7 +78,7 @@ impl Provider {
             correlation_id,
             raster_mode: spec.raster_mode,
         };
-        let live_scope = build_scope(&context, catalog.clone(), correlation_id);
+        let live_scope = build_scope(&context, catalog.clone());
 
         let text_anon = assemble_empty::<Text>(&catalog);
         let text_analyzer = compile_text(&self.ner, &self.llm)?;
@@ -121,10 +120,10 @@ impl Provider {
     /// this path, so an empty analyzer is a zero-cost placeholder
     /// needed only to satisfy `with_modality`'s type contract.
     ///
-    /// The `correlation_id` from the anonymize-time
-    /// document is stamped fresh onto the returned
-    /// orchestrator's scope so anonymize-side tracing spans are
-    /// distinct from the analyze-side ones on `context`.
+    /// The scope is tagged with the correlation id `context`
+    /// carries, which is the document's own: analyze and anonymize
+    /// trace under the same id because they concern the same
+    /// document.
     ///
     /// [`Analyzer<M>`]: elide::detection::Analyzer
     pub fn anonymize_orchestrator(
@@ -132,21 +131,22 @@ impl Provider {
         context: &AuditContext,
         policies: &[PolicyDefinition],
         overrides: &Overrides,
-        correlation_id: Uuid,
+        request: &RequestContext,
     ) -> Result<Orchestrator<'_>> {
         validate_scope_references(policies)?;
         validate_override_authorities(policies, overrides)?;
         let catalog = compile_catalog(policies)?;
-        let live_scope = build_scope(context, catalog.clone(), correlation_id);
+        let live_scope = build_scope(context, catalog.clone());
 
         // Fresh per-request text-operator context. Pseudonym
         // vaults materialise per-policy on first access so two
         // policies pseudonymising the same entity don't share a
         // surrogate namespace. `HmacHash`/`Encrypt` resolve their
-        // `KeyProvider` through the engine-level default. Cross-
-        // request pseudonym consistency is a durable-vault story
-        // (see elide #143).
-        let text_ctx = TextOperatorContext::new(self.key_provider.clone());
+        // `KeyProvider` from the key this request supplied; a
+        // request that supplies none fails at compile time if a
+        // policy names either operator. Cross-request pseudonym
+        // consistency is a durable-vault story (see elide #143).
+        let text_ctx = TextOperatorContext::new(request.key.as_ref().map(KeyConfig::build));
 
         let text_anon = assemble::<Text, _, _>(
             &catalog,
@@ -246,7 +246,6 @@ impl Provider {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
-        correlation_id: Uuid,
         report: &mut Report,
     ) {
         // Deliberately discarded, not swallowed: every reason this
@@ -256,7 +255,7 @@ impl Provider {
         // would surface each one twice and turn analyze into a second
         // place a caller must handle redaction errors. The observable
         // signal is that the audit carries no `Selection` events.
-        let _ = self.try_record_picks(context, policies, correlation_id, report);
+        let _ = self.try_record_picks(context, policies, report);
     }
 
     /// The fallible body of [`record_picks`](Self::record_picks).
@@ -264,12 +263,15 @@ impl Provider {
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
-        correlation_id: Uuid,
         report: &mut Report,
     ) -> Result<()> {
         let catalog = compile_catalog(policies)?;
-        let scope = build_scope(context, catalog.clone(), correlation_id);
-        let text_ctx = TextOperatorContext::new(self.key_provider.clone());
+        let scope = build_scope(context, catalog.clone());
+        // No key: a pick records which operator *would* run, and
+        // `HmacHash`/`Encrypt` need one only to actually redact. A
+        // policy naming either still records its pick here and
+        // fails later at apply if the request supplies no key.
+        let text_ctx = TextOperatorContext::new(None);
         let picker = Picker {
             text: assemble::<Text, _, _>(
                 &catalog,
@@ -412,13 +414,18 @@ fn check_predicate_scopes(
 /// Combine engine-facing [`AuditContext`] with a freshly-derived
 /// [`LabelCatalog`] and the current phase's `correlation_id` into
 /// the elide-facing [`Scope`].
-fn build_scope(context: &AuditContext, catalog: LabelCatalog, correlation_id: Uuid) -> Scope {
+/// Build the request [`Scope`] from the recognition facts on
+/// `context`.
+///
+/// The correlation id comes from `context`, which took it from the
+/// document. One document, one id, everywhere it is traced.
+fn build_scope(context: &AuditContext, catalog: LabelCatalog) -> Scope {
     Scope {
         languages: context.languages.clone(),
         countries: context.countries.clone(),
         metadata: context.metadata.clone(),
         catalog,
-        correlation_id: Some(correlation_id),
+        correlation_id: Some(context.correlation_id),
     }
 }
 

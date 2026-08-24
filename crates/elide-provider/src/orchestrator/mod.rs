@@ -315,10 +315,13 @@ impl Provider {
         validate_scope_references(policies)?;
         let catalog = compile_catalog(policies)?;
         let scope = build_scope(scope, catalog.clone(), correlation_id);
-        // No key: a pick records which operator *would* run, and
-        // `HmacHash`/`Encrypt` need one only to actually redact. A
-        // policy naming either still records its pick here and
-        // fails later at apply if the request supplies no key.
+        // No key: a pick only names the operator that *would* run,
+        // and no key material is needed to name one. But elide
+        // compiles the operator to reach its name, so a policy using
+        // `HmacHash`/`Encrypt` still fails here rather than
+        // recording a keyless pick. That is why the analyze path
+        // tolerates this method failing: the key legitimately does
+        // not arrive until anonymize.
         let text_ctx = TextOperatorContext::new(None);
 
         // No overrides: none exist yet at analyze time, so this

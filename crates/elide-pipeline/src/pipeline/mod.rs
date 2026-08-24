@@ -282,13 +282,19 @@ impl Engine {
         // appends Selection events and redacts nothing.
         //
         // A failure here does not fail the analyze. Every reason the
-        // pick can fail — an unresolvable label, an operator with no
-        // capability wired — is raised again by `anonymize`, which
-        // compiles the same policies and does fail. Refusing to
-        // analyze because a redaction the caller has not asked for
-        // yet is misconfigured would deny them the detections too,
-        // and report the same fault twice. The observable signal is
-        // an audit carrying no `Selection` events.
+        // pick can fail — an unresolvable label, an operator whose
+        // key has not arrived yet — is raised again by `anonymize`,
+        // which compiles the same policies and does fail. The
+        // keyless `HmacHash` case is the common one: the request
+        // supplies its key at anonymize, so refusing to analyze
+        // would deny the caller detections over a redaction they
+        // have not asked for yet, and report the same fault twice.
+        //
+        // Scope-reference errors never reach here: `analyze_orchestrator`
+        // rejects them above, before any of this runs.
+        //
+        // The observable signal is an audit carrying no `Selection`
+        // events.
         let _: Result<()> =
             self.provider
                 .record_picks(scope, policies, correlation_id, &mut report);

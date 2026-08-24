@@ -15,7 +15,7 @@ use elide_governance::{
 };
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
-use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext, RequestScope};
+use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -27,8 +27,8 @@ fn raw_txt() -> Document {
     Document::new(Bytes::from_static(SAMPLE_TXT), "txt")
 }
 
-fn default_spec() -> RequestScope {
-    RequestScope::default()
+fn default_spec() -> RequestContext {
+    RequestContext::new()
 }
 
 /// Count redaction events on every text-modality entity of
@@ -107,7 +107,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
             raw_txt(),
             std::slice::from_ref(&policy),
             &mut analyzed,
-            &RequestContext::new(),
+            None,
         )
         .await
         .expect("anonymize succeeds");
@@ -211,7 +211,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
             raw_txt(),
             std::slice::from_ref(&policy),
             &mut analyzed,
-            &RequestContext::new(),
+            None,
         )
         .await
         .expect("anonymize succeeds");
@@ -295,7 +295,7 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
         .await
         .expect("analyze succeeds");
     engine
-        .anonymize(raw_txt(), &policies, &mut analyzed, &RequestContext::new())
+        .anonymize(raw_txt(), &policies, &mut analyzed, None)
         .await
         .expect("anonymize succeeds");
 
@@ -380,7 +380,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         .await
         .expect("analyze succeeds");
     let redacted = engine
-        .anonymize(raw_txt(), &policies, &mut analyzed, &RequestContext::new())
+        .anonymize(raw_txt(), &policies, &mut analyzed, None)
         .await
         .expect("anonymize succeeds");
 
@@ -504,7 +504,7 @@ async fn override_naming_unknown_policy_fails_the_request() {
             raw_txt(),
             std::slice::from_ref(&policy),
             &mut analyzed,
-            &RequestContext::new(),
+            None,
         )
         .await
         .expect_err("override with unknown policy authority must be rejected");
@@ -604,7 +604,7 @@ async fn fallback_carries_the_scope_attribution() {
             raw_txt(),
             std::slice::from_ref(&policy),
             &mut analyzed,
-            &RequestContext::new(),
+            None,
         )
         .await
         .expect("anonymize succeeds");
@@ -675,7 +675,7 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
             raw_txt(),
             std::slice::from_ref(&policy),
             &mut analyzed,
-            &RequestContext::new(),
+            None,
         )
         .await
         .expect("anonymize succeeds");

@@ -1,59 +1,36 @@
 //! [`Engine`]: the stateless pipeline over [`elide`].
 //!
-//! Long-lived state (only two things):
-//!
-//! - A [`Provider`]: the deployment's configuration, already
-//!   built. It owns the [`FormatRegistry`] documents decode
-//!   through and the recognizer and enricher lineups, and hands
-//!   out an [`Orchestrator`] per request.
-//!
-//! [`Engine`] clones cheaply (`Arc` under the hood). Callers pass
-//! a clone into every request-scoped code path they run.
+//! Its only long-lived state is a [`Provider`]: the deployment's
+//! configuration, already built. It owns the [`FormatRegistry`]
+//! documents decode through and the recognizer and enricher
+//! lineups. [`Engine`] clones cheaply (`Arc` under the hood).
 //!
 //! ## Per-document verbs
 //!
-//! - [`Engine::analyze`] decodes raw bytes, builds an
-//!   [`Orchestrator`] with one pipeline per modality + the
-//!   request scope, runs detection, and projects the report
-//!   (body + every container part) onto the caller-facing
+//! - [`Engine::analyze`] decodes raw bytes, runs detection, and
+//!   projects the report — body and every container part — onto an
 //!   [`Audit`].
-//! - [`Engine::anonymize`] decodes raw bytes again, rebuilds a
-//!   multi-group [`Report`] from the returned body + parts,
-//!   layers the reviewer overrides + filtered policy set onto
-//!   each modality's anonymizer, drives redaction, and returns
-//!   the re-encoded [`Document`].
+//! - [`Engine::anonymize`] decodes those bytes again, layers the
+//!   reviewer overrides and policy set onto each modality's
+//!   anonymizer, and returns the re-encoded [`Document`].
 //!
-//! Both methods build a fresh [`Orchestrator`] per call: it is a
-//! small map of trait objects keyed by modality `TypeId`, cheap
-//! to construct. The per-call shape lets us re-resolve policies
-//! per document at anonymize time without mutating a shared
-//! anonymizer.
+//! Both build a fresh [`Orchestrator`] per call: a small map of
+//! trait objects keyed by modality `TypeId`. Building per call is
+//! what lets policies re-resolve per document without mutating
+//! shared state.
 //!
-//! The recognition scope split has two owners: caller-asserted
-//! facts (languages, jurisdictions, tags) travel between calls on
-//! [`Audit::scope`]; the label catalog is derived from
-//! `policies` afresh on every call so policies stay the single
-//! source of truth for label vocabulary. Callers do not re-pass
-//! an [`RequestScope`] to anonymize.
+//! Recognition inputs have two owners. Caller-asserted facts
+//! (languages, jurisdictions, tags) travel between the calls on
+//! [`Audit::context`], so anonymize compiles against the vocabulary
+//! analyze used. The label catalog is derived from `policies`
+//! afresh every call, so policies stay the single source of truth
+//! for label vocabulary — and stay live between the two passes.
 //!
-//! Hosts hold the returned [`Audit`] between analyze and
-//! anonymize however they see fit: in memory, in a run store, in
-//! a reviewer UI's state, and hand it back to
-//! [`Engine::anonymize`] with any per-entity reviewer overrides
-//! folded in.
-//!
-//! ## Internal layout
-//!
-//! Sibling modules:
-//!
-//! - `crate::entity` owns [`ReviewSet`] (the reviewer decisions
-//!   that sit beside elide's report) and the projection onto the
-//!   overrides a provider applies.
-//! - `audit` defines [`Audit`], [`RequestScope`], the analyze →
-//!   anonymize bridge; all re-exported at the crate root.
+//! Hosts hold the [`Audit`] between the two calls however they see
+//! fit — in memory, a run store, a reviewer UI — and hand it back
+//! with any reviewer decisions folded in.
 //!
 //! [`Audit`]: crate::Audit
-//! [`RequestScope`]: crate::RequestScope
 //! [`ReviewSet`]: crate::entity::ReviewSet
 //! [`FormatRegistry`]: elide::codec::FormatRegistry
 //! [`DocumentHandle`]: elide::codec::DocumentHandle
@@ -78,7 +55,7 @@ use elide::primitive::RasterMode;
 use elide::recognition::UsageReport;
 use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
-use elide_provider::{Provider, RequestContext, RequestScope};
+use elide_provider::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};
 use serde::Deserialize;
 
 pub use self::audit::Audit;
@@ -154,7 +131,8 @@ impl Engine {
         Ok(Audit {
             report,
             reviews: wire.reviews,
-            scope: wire.scope,
+            context: wire.context,
+            codec: wire.codec,
             usage: wire.usage,
         })
     }
@@ -162,35 +140,13 @@ impl Engine {
     /// Every recognizer and enricher this engine has registered,
     /// each lineup in configuration order.
     pub fn components(&self) -> RegisteredComponents {
+        let recognizers = self.provider.recognizers();
+        let enrichers = self.provider.enrichers();
         RegisteredComponents {
-            ner: self
-                .provider
-                .recognizers()
-                .ner
-                .iter()
-                .map(Into::into)
-                .collect(),
-            llm: self
-                .provider
-                .recognizers()
-                .llm
-                .iter()
-                .map(Into::into)
-                .collect(),
-            ocr: self
-                .provider
-                .enrichers()
-                .ocr
-                .iter()
-                .map(Into::into)
-                .collect(),
-            stt: self
-                .provider
-                .enrichers()
-                .stt
-                .iter()
-                .map(Into::into)
-                .collect(),
+            ner: recognizers.ner.iter().map(Into::into).collect(),
+            llm: recognizers.llm.iter().map(Into::into).collect(),
+            ocr: enrichers.ocr.iter().map(Into::into).collect(),
+            stt: enrichers.stt.iter().map(Into::into).collect(),
         }
     }
 
@@ -199,60 +155,48 @@ impl Engine {
     /// Decodes `document`, drives [`Orchestrator::analyze`], and
     /// returns the report it produced — the body *and* every
     /// container part (DOCX embedded images, archive members, ...)
-    /// — wrapped in an [`Audit`] with the recognition context and
-    /// what the pass cost.
+    /// — with the recognition context and what the pass cost.
     ///
-    /// `policies` contributes the label catalog (each
-    /// [`PolicyDefinition::label_scope`] unions in) that drives
-    /// recognizer dispatch. Every policy carries its own
-    /// [`LabelScope`]s in [`PolicyDefinition::scopes`]; a
-    /// [`LabelInScope`] predicate can only name a group its own
-    /// policy declared (strict per-policy scoping, enforced at
-    /// request compile).
+    /// `policies` contributes the label catalog that drives
+    /// recognizer dispatch. Each carries its own [`LabelScope`]s,
+    /// and a [`LabelInScope`] predicate can only name a group its
+    /// own policy declared — enforced at request compile.
     ///
-    /// **Policy precedence.** Policies are evaluated in
-    /// submission order. Within a policy, rules are tried in the
-    /// order they appear; the first that matches an entity in
-    /// the policy's declared label scope wins. Across policies,
-    /// rules attach in the order `policies` was submitted, so
-    /// policy A's rule at slot N wins over policy B's rule at
-    /// slot N+1 for any entity in both policies' scope. Policy
-    /// fallbacks fire after every policy's rules have had a
-    /// shot (two-pass attach) so a coarse baseline's fallback
-    /// does not shadow a subsequent policy's more specific rule.
+    /// The catalog is not persisted: [`anonymize`](Self::anonymize)
+    /// re-derives it from the policy set it is handed. Pass the same
+    /// set there, so rule bodies match against a catalog they helped
+    /// define. See that method for how rules compose.
     ///
-    /// **Overlap clustering.** Elide clusters overlapping
-    /// detections and picks a single winner across the whole
-    /// request; the winner's attribution is stamped on every
-    /// clustered entity's redaction event. Two policies whose
-    /// entities overlap in the document medium can therefore see
-    /// each other's attribution recorded on shared cluster
-    /// members. See <https://github.com/nvisycom/elide/issues>
-    /// for the per-policy cluster segmentation follow-up.
+    /// # Overlap clustering
     ///
-    /// The catalog is not persisted onto the returned [`Audit`] -
-    /// the anonymize path re-derives it from the policy set it
-    /// was handed. Pass the same policy set to
-    /// [`Self::anonymize`] so its rule bodies match against a
-    /// catalog they helped define.
+    /// elide clusters overlapping detections and picks one winner
+    /// per cluster, stamping its attribution on every member. Two
+    /// policies whose entities overlap can therefore each see the
+    /// other's attribution on shared members. Per-policy cluster
+    /// segmentation is a follow-up upstream.
     ///
-    /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
-    /// [`LabelScope`]: elide_governance::LabelScope
+    /// # Errors
+    ///
+    /// Returns [`Configuration`](ErrorKind::Configuration) for a
+    /// policy that cannot compile, and
+    /// [`MalformedInput`](ErrorKind::MalformedInput) for a document
+    /// the codec cannot decode.
+    ///
     /// [`LabelInScope`]: elide_governance::Predicate::LabelInScope
-    /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
-    /// [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
+    /// [`LabelScope`]: elide_governance::LabelScope
+    /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     pub async fn analyze(
         &self,
         document: Document,
         policies: &[PolicyDefinition],
-        scope: &RequestScope,
+        request: &RequestContext,
     ) -> Result<Audit> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
-        let mut handle = self.decode(document, scope.raster_mode).await?;
-        let orchestrator = self
-            .provider
-            .analyze_orchestrator(scope, policies, correlation_id)?;
+        let mut handle = self.decode(document, request.codec).await?;
+        let orchestrator =
+            self.provider
+                .analyze_orchestrator(&request.context, policies, correlation_id)?;
         let mut report = orchestrator
             .analyze(&mut handle, &Directives::new())
             .await?;
@@ -297,95 +241,71 @@ impl Engine {
         // events.
         let _: Result<()> =
             self.provider
-                .record_picks(scope, policies, correlation_id, &mut report);
+                .record_picks(&request.context, policies, correlation_id, &mut report);
 
         Ok(Audit {
             report,
             reviews: ReviewSet::default(),
-            scope: scope.clone(),
+            context: request.context.clone(),
+            codec: request.codec,
             usage,
         })
     }
 
-    /// Anonymize one document against a policy set and reviewer
-    /// overrides.
+    /// Apply `policies` and the audit's reviewer decisions to
+    /// `document`, returning the re-encoded result.
     ///
-    /// Re-decodes `document`, rebuilds a multi-group [`Report`]
-    /// Drives [`Orchestrator::anonymize_with`] with the audit's own
-    /// report, the reviewer decisions compiled into per-entity
-    /// overrides, and the caller-filtered `policies`, then returns
-    /// the re-encoded [`Document`].
+    /// `audit` is taken by `&mut`: each entity gains a redaction
+    /// event per operator that fired, so its provenance records who
+    /// redacted what, under which rule.
     ///
-    /// `audit` is taken by `&mut`: after redaction, each entity's
-    /// `provenance.events` gains one redaction event per operator
-    /// that fired. Callers walk `audit.body`/`audit.parts`
-    /// entities' provenance to see who redacted what, under which
-    /// rule, and when.
+    /// The label catalog is re-derived from `policies` on every
+    /// call — policies are the sole source of label vocabulary, so
+    /// governance stays live between the two passes. What must
+    /// *not* drift travels on the audit: the recognition context
+    /// and the codec params [`analyze`](Self::analyze) used.
     ///
-    /// `policies` is the policy set the caller wants applied to
-    /// this document. Each policy carries its own [`LabelScope`]s
-    /// inline via [`PolicyDefinition::scopes`]: same shape as
-    /// [`Self::analyze`]. The label catalog is re-derived from
-    /// `policies` on every call: policies are the sole source
-    /// of label vocabulary. The asserted scope (languages,
-    /// jurisdictions, metadata) travels on [`Audit::scope`]
-    /// from analyze. Tracing spans on this path carry the
-    /// `correlation_id` of the document being redacted: the id lives
-    /// on the document and nowhere else, so there is never a second
-    /// copy to disagree with it.
+    /// `key` resolves [`HmacHash`] and [`Encrypt`]. It belongs to
+    /// the caller asking for redaction rather than the process
+    /// serving them, so it arrives per call and is never recorded
+    /// on an audit. `None` is right when no policy names a keyed
+    /// operator; a policy that names one without a key fails here.
     ///
-    /// **Composition semantics.** Rules attach in submission
-    /// order; first match wins across the whole policy set.
-    /// Every predicate filters by the enclosing policy's
-    /// declared label set: a rule inside policy A cannot fire
-    /// on labels only policy B declared. Policy fallbacks attach
-    /// after every policy's rules so a coarse baseline's
-    /// fallback doesn't shadow subsequent more-specific rules.
+    /// # Composition
     ///
-    /// **Reviewer overrides** attach before any policy rule and
-    /// carry the overriding policy's authority on the audit event.
+    /// Rules attach in submission order, first match wins across
+    /// the whole set. Every predicate filters by its own policy's
+    /// declared labels, so a rule in policy A cannot fire on labels
+    /// only B declared. Policy fallbacks attach after every
+    /// policy's rules, so a coarse baseline does not shadow a
+    /// later, more specific one. Reviewer overrides attach ahead of
+    /// all of them, carrying the overriding policy's authority.
     ///
-    /// **`Pseudonymize` and keyed operators** -
-    /// [`TextRedaction::Pseudonymize`] draws from a per-policy
-    /// in-memory vault: the same policy pseudonymising the same
-    /// entity twice in a document resolves to the same surrogate,
-    /// but two different policies pseudonymising the same entity
-    /// draw independent surrogates.
-    /// [`TextRedaction::HmacHash`] and [`TextRedaction::Encrypt`]
-    /// resolve their [`KeyProvider`] from `request`. A key belongs
-    /// to the caller asking for redaction, not to the process
-    /// serving them, so it arrives per request rather than sitting
-    /// on the engine: one engine serves many callers, each with its
-    /// own. [`RequestContext::default`] supplies none, which is
-    /// right when no policy names a keyed operator; a policy that
-    /// names one without a key fails here, saying which policy and
-    /// which operator.
+    /// [`Pseudonymize`] draws from a per-policy vault: one policy
+    /// pseudonymising an entity twice gets one surrogate, two
+    /// policies get independent ones.
     ///
-    /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
-    /// [`TextRedaction::HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
-    /// [`TextRedaction::Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
-    /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
+    /// # Errors
     ///
-    /// [`LabelScope`]: elide_governance::LabelScope
-    /// [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
+    /// Returns [`Configuration`](ErrorKind::Configuration) for a
+    /// policy that cannot compile or an audit that was never
+    /// analyzed, and [`MalformedInput`](ErrorKind::MalformedInput)
+    /// for a document the codec cannot decode.
     ///
-    /// The body's own modality pins which typed handle the
-    /// post-apply re-encode goes through: a container re-encodes
-    /// through its body's modality regardless of how many others
-    /// its parts ride on.
-    ///
-    /// [`Orchestrator::anonymize_with`]: elide::Orchestrator::anonymize_with
+    /// [`Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
+    /// [`HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
+    /// [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
     pub async fn anonymize(
         &self,
         document: Document,
         policies: &[PolicyDefinition],
         audit: &mut Audit,
-        request: &RequestContext,
+        key: Option<&KeyConfig>,
     ) -> Result<Document> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let content_type = document.content_type.clone();
-        let mut handle = self.decode(document, audit.scope.raster_mode).await?;
+        let mut handle = self.decode(document, audit.codec).await?;
 
         // An audit with no body was never analyzed. Applying it
         // would return the document unredacted and report success,
@@ -405,10 +325,10 @@ impl Engine {
         audit.apply_suppressions();
 
         let orchestrator = self.provider.anonymize_orchestrator(
-            &audit.scope,
+            &audit.context,
             policies,
             &audit.overrides(),
-            request,
+            key,
             correlation_id,
         )?;
 
@@ -432,12 +352,12 @@ impl Engine {
     async fn decode(
         &self,
         document: Document,
-        raster_mode: RasterMode,
+        codec: CodecParams,
     ) -> Result<UntypedDocumentHandle> {
         let Document {
             bytes, extension, ..
         } = document;
-        let result = match raster_mode {
+        let result = match codec.raster_mode {
             RasterMode::Auto => {
                 self.provider
                     .formats()
@@ -445,7 +365,7 @@ impl Engine {
                     .await
             }
             _ => {
-                self.decode_with_raster_mode(bytes, extension.as_str(), raster_mode)
+                self.decode_with_raster_mode(bytes, extension.as_str(), codec.raster_mode)
                     .await
             }
         };
@@ -520,7 +440,9 @@ struct AuditWire {
     report: serde_value::Value,
     #[serde(default)]
     reviews: ReviewSet,
-    scope: RequestScope,
+    context: DocumentContext,
+    #[serde(default)]
+    codec: CodecParams,
     #[serde(default)]
     usage: UsageReport,
 }

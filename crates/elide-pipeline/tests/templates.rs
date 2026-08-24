@@ -9,7 +9,7 @@
 
 use bytes::Bytes;
 use elide_pipeline::file::Document;
-use elide_pipeline::{Engine, KeyConfig, ProviderConfig, RequestContext, RequestScope};
+use elide_pipeline::{Engine, KeyConfig, ProviderConfig, RequestContext};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PciPanRender, PolicyTemplate, Template,
@@ -33,8 +33,8 @@ fn raw_txt() -> Document {
     Document::new(Bytes::from_static(SAMPLE_TXT), "txt")
 }
 
-fn default_spec() -> RequestScope {
-    RequestScope::default()
+fn default_spec() -> RequestContext {
+    RequestContext::new()
 }
 
 /// Run `template` through analyze + anonymize against the sample
@@ -53,7 +53,7 @@ async fn apply(engine: &Engine, template: Template, request: &RequestContext) ->
             raw_txt(),
             std::slice::from_ref(&template.policy),
             &mut analyzed,
-            request,
+            request.key.as_ref(),
         )
         .await
         .expect("anonymize succeeds");
@@ -250,7 +250,7 @@ async fn pci_dss_pan_hmac_requires_key_provider() {
             raw_txt(),
             std::slice::from_ref(&template.policy),
             &mut analyzed,
-            &RequestContext::new(),
+            None,
         )
         .await
         .expect_err("anonymize must fail when the request supplies no key");

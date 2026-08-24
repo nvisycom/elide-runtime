@@ -1,23 +1,25 @@
 //! Recognition: which entities to find, and how.
 //!
-//! Two halves of one story. The backend configuration is the
-//! deployment's own — which NER model, which LLM provider, which OCR
-//! and STT engines — as serializable types an operator writes once
-//! at startup. The rest of this module compiles that configuration
-//! into an [`elide::detection::Analyzer`] per modality.
+//! Split by what a component does. A **recognizer** produces
+//! entities; an **enricher** produces the context recognizers read,
+//! running before them to stamp a language hint, OCR'd text layout,
+//! or audio transcript segments onto the request.
 //!
-//! They live together because they change together: adding a
-//! backend means a config type *and* the code that compiles it, and
-//! splitting those across two module trees meant reading two files
-//! to follow one backend.
+//! Each group holds one module per backend, carrying the
+//! deployment's own configuration — which NER model, which LLM
+//! provider, which OCR and STT engines — beside the `compile` step
+//! that turns those lineups into an [`elide::detection::Analyzer`]
+//! per modality. Config and compile live together because they
+//! change together: adding a backend means a config type *and* the
+//! code that reads it.
 //!
 //! Mirrors the crate's redaction side, which does the same for the
 //! other direction: where recognition finds entities, redaction
 //! hides them.
 //!
-//! Scope is **not** per-modality: [`Scope`] is modality-free
-//! and is built once in the engine's orchestrator builder, then attached to the [`Orchestrator`] via
-//! [`Orchestrator::with_scope`].
+//! Scope is **not** per-modality: [`Scope`] is modality-free and is
+//! built once in the orchestrator builder, then attached to the
+//! [`Orchestrator`] via [`Orchestrator::with_scope`].
 //!
 //! [`Scope`]: elide::recognition::Scope
 //!
@@ -34,15 +36,16 @@
 //! [`Orchestrator`]: elide::Orchestrator
 //! [`Orchestrator::with_scope`]: elide::Orchestrator::with_scope
 
-mod backend;
+mod component;
 mod enrichers;
 mod layer;
 mod modality;
 mod recognizers;
 
-pub use self::backend::{
-    AttachTo, AuthenticatedProvider, LlmConfig, LlmPrompt, LlmRecognizerConfig, LlmSource,
-    NerBackend, NerConfig, NerRecognizerConfig, OcrBackend, OcrConfig, OcrEnricherConfig,
-    SttBackend, SttConfig, SttEnricherConfig, UnauthenticatedProvider,
-};
+pub use self::component::{Backend, Component};
+pub use self::enrichers::{OcrBackend, OcrConfig, SttBackend, SttConfig};
 pub(crate) use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};
+pub use self::recognizers::{
+    AttachTo, AuthenticatedProvider, LlmBackend, LlmConfig, LlmSource, NerBackend, NerConfig,
+    UnauthenticatedProvider,
+};

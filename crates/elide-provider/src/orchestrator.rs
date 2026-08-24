@@ -34,7 +34,7 @@ use crate::catalog::compile_catalog;
 use crate::context::AuditContext;
 use crate::plan::AnalyzerParams;
 use crate::recognition::{
-    OcrConfig, OcrEnricherConfig, SttConfig, SttEnricherConfig, compile_audio, compile_image,
+    Component, OcrBackend, OcrConfig, SttBackend, SttConfig, compile_audio, compile_image,
     compile_tabular, compile_text,
 };
 use crate::redaction::{
@@ -446,7 +446,7 @@ where
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Image>` attaches at
 /// most one OCR enricher per analyzer.
-fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrEnricherConfig>> {
+fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&Component<OcrBackend>>> {
     match ocr.enrichers.as_slice() {
         [] => Ok(None),
         [one] => Ok(Some(one)),
@@ -465,7 +465,7 @@ fn pick_ocr(ocr: &OcrConfig) -> Result<Option<&OcrEnricherConfig>> {
 /// return `None` when nothing was wired. Rejects a lineup with
 /// more than one entry: elide's `Enricher<Audio>` attaches at
 /// most one STT enricher per analyzer.
-fn pick_stt(stt: &SttConfig) -> Result<Option<&SttEnricherConfig>> {
+fn pick_stt(stt: &SttConfig) -> Result<Option<&Component<SttBackend>>> {
     match stt.enrichers.as_slice() {
         [] => Ok(None),
         [one] => Ok(Some(one)),

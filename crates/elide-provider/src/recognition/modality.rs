@@ -22,10 +22,11 @@ use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 
-use super::enrichers::{attach_language, attach_ocr, attach_stt};
+use super::enrichers::compile::{attach_language, attach_ocr, attach_stt};
 use super::layer::attach_dedup;
-use super::recognizers::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
-use crate::recognition::{AttachTo, LlmConfig, NerConfig, OcrEnricherConfig, SttEnricherConfig};
+use super::recognizers::compile::{attach_llm_lineup, attach_ner_lineup, attach_pattern};
+use super::{Component, OcrBackend, SttBackend};
+use crate::recognition::{AttachTo, LlmConfig, NerConfig};
 
 /// Compile a text-modality [`Analyzer`].
 ///
@@ -74,7 +75,7 @@ pub(crate) fn compile_tabular(ner: &NerConfig) -> Result<Analyzer<Tabular>> {
 pub(crate) fn compile_image(
     ner: &NerConfig,
     llm: &LlmConfig,
-    ocr: Option<&OcrEnricherConfig>,
+    ocr: Option<&Component<OcrBackend>>,
 ) -> Result<Analyzer<Image>> {
     let mut analyzer = Analyzer::<Image>::new();
 
@@ -104,7 +105,7 @@ pub(crate) fn compile_image(
 ///
 pub(crate) fn compile_audio(
     ner: &NerConfig,
-    stt: Option<&SttEnricherConfig>,
+    stt: Option<&Component<SttBackend>>,
 ) -> Result<Analyzer<Audio>> {
     let mut analyzer = Analyzer::<Audio>::new();
 

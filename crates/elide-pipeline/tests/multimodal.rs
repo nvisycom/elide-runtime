@@ -18,7 +18,7 @@ use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::{
-    Audit, AuditContext, Engine, Keyring, OcrBackend, OcrConfig, OcrEnricherConfig, ProviderConfig,
+    Audit, AuditContext, Component, Engine, Keyring, OcrBackend, OcrConfig, ProviderConfig,
     ReviewSet,
 };
 
@@ -34,7 +34,7 @@ fn raw_docx() -> Document {
 fn engine() -> Engine {
     ProviderConfig {
         ocr: OcrConfig {
-            enrichers: vec![OcrEnricherConfig {
+            enrichers: vec![Component::<OcrBackend> {
                 name: "mock".into(),
                 description: None,
                 backend: OcrBackend::Mock,

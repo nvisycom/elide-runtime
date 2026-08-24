@@ -7,9 +7,7 @@
 //! rather than at the first request that needs a key.
 
 use elide::ErrorKind;
-use elide_provider::{
-    KeyConfig, Keyring, OcrBackend, OcrConfig, OcrEnricherConfig, ProviderConfig,
-};
+use elide_provider::{Component, KeyConfig, Keyring, OcrBackend, OcrConfig, ProviderConfig};
 
 const KEY: &[u8] = b"deployment-wide-key-32-bytes-ok!";
 
@@ -31,7 +29,7 @@ fn an_empty_config_builds_a_provider_with_no_backends() {
 fn configured_backends_reach_the_provider() {
     let config = ProviderConfig {
         ocr: OcrConfig {
-            enrichers: vec![OcrEnricherConfig {
+            enrichers: vec![Component::<OcrBackend> {
                 name: "acme-ocr".into(),
                 description: None,
                 backend: OcrBackend::Mock,
@@ -55,7 +53,7 @@ fn a_config_round_trips_as_json() {
             secret: "redaction".into(),
         }),
         ocr: OcrConfig {
-            enrichers: vec![OcrEnricherConfig {
+            enrichers: vec![Component::<OcrBackend> {
                 name: "acme-ocr".into(),
                 description: Some("scanned intake forms".into()),
                 backend: OcrBackend::Mock,

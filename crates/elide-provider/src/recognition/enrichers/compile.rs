@@ -23,7 +23,8 @@ use elide::modality::image::Image;
 use elide_bento::ocr::BentoOcr;
 use elide_bento::stt::BentoStt;
 
-use crate::recognition::{OcrBackend, OcrEnricherConfig, SttBackend, SttEnricherConfig};
+use super::super::Component;
+use crate::recognition::{OcrBackend, SttBackend};
 
 /// Attach the lingua language-detection enricher.
 ///
@@ -39,7 +40,9 @@ use crate::recognition::{OcrBackend, OcrEnricherConfig, SttBackend, SttEnricherC
 ///
 /// [`TextRecognizable`]: elide::modality::TextRecognizable
 /// [`Text`]: elide::modality::text::Text
-pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Analyzer<M> {
+pub(in crate::recognition) fn attach_language<M: TextRecognizable>(
+    analyzer: Analyzer<M>,
+) -> Analyzer<M> {
     analyzer.with_enricher(LinguaEnricher::unrestricted())
 }
 
@@ -47,9 +50,9 @@ pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Ana
 ///
 /// The deployment's `Bento` backend wraps elide-bento's
 /// `BentoOcr` client.
-pub(super) fn attach_ocr(
+pub(in crate::recognition) fn attach_ocr(
     analyzer: Analyzer<Image>,
-    config: &OcrEnricherConfig,
+    config: &Component<OcrBackend>,
 ) -> Result<Analyzer<Image>> {
     // The deployment's name for the enricher becomes its usage id,
     // so a usage report names the enricher a caller configured
@@ -71,9 +74,9 @@ pub(super) fn attach_ocr(
 /// `BentoStt` client.
 ///
 /// [`SttEnricher`]: elide::enrichment::stt::SttEnricher
-pub(super) fn attach_stt(
+pub(in crate::recognition) fn attach_stt(
     analyzer: Analyzer<Audio>,
-    config: &SttEnricherConfig,
+    config: &Component<SttBackend>,
 ) -> Result<Analyzer<Audio>> {
     // Same as OCR: the configured name is the usage id.
     let builder = SttEnricher::builder().with_name(config.name.clone());

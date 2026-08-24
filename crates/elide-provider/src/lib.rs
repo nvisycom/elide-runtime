@@ -58,9 +58,8 @@ pub use self::context::AuditContext;
 pub use self::key::{KeyConfig, Keyring};
 pub use self::override_set::{Override, Overrides};
 pub use self::recognition::{
-    AttachTo, AuthenticatedProvider, LlmConfig, LlmPrompt, LlmRecognizerConfig, LlmSource,
-    NerBackend, NerConfig, NerRecognizerConfig, OcrBackend, OcrConfig, OcrEnricherConfig,
-    SttBackend, SttConfig, SttEnricherConfig, UnauthenticatedProvider,
+    AttachTo, AuthenticatedProvider, Backend, Component, LlmBackend, LlmConfig, LlmSource,
+    NerBackend, NerConfig, OcrBackend, OcrConfig, SttBackend, SttConfig, UnauthenticatedProvider,
 };
 
 /// Everything a deployment decides once, at startup.

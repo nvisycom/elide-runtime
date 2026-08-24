@@ -94,10 +94,9 @@ pub use elide::{Error, ErrorKind, Result};
 pub use elide_governance as policy;
 #[doc(inline)]
 pub use elide_provider::{
-    AttachTo, AuditContext, KeyConfig, Keyring, LlmConfig, LlmPrompt, LlmRecognizerConfig,
-    LlmSource, NerBackend, NerConfig, NerRecognizerConfig, OcrBackend, OcrConfig,
-    OcrEnricherConfig, Override, Overrides, Provider, ProviderConfig, SttBackend, SttConfig,
-    SttEnricherConfig, plan,
+    AttachTo, AuditContext, Backend, Component, KeyConfig, Keyring, LlmBackend, LlmConfig,
+    LlmSource, NerBackend, NerConfig, OcrBackend, OcrConfig, Override, Overrides, Provider,
+    ProviderConfig, SttBackend, SttConfig, plan,
 };
 /// Ready-to-run policy templates for common regulatory postures
 /// (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA).

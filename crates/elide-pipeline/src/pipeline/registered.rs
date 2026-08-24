@@ -9,9 +9,7 @@
 //! [`RegisteredEnricher`] is a type alias for the same shape,
 //! used for the OCR and STT lineups.
 
-use elide_provider::{
-    LlmRecognizerConfig, NerRecognizerConfig, OcrEnricherConfig, SttEnricherConfig,
-};
+use elide_provider::{Backend, Component};
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -53,22 +51,12 @@ pub struct RegisteredRecognizer {
     pub provider: HipStr<'static>,
 }
 
-impl From<&NerRecognizerConfig> for RegisteredRecognizer {
-    fn from(r: &NerRecognizerConfig) -> Self {
+impl<B: Backend> From<&Component<B>> for RegisteredRecognizer {
+    fn from(component: &Component<B>) -> Self {
         Self {
-            name: r.name.clone(),
-            description: r.description.clone(),
-            provider: HipStr::from(r.backend.provider()),
-        }
-    }
-}
-
-impl From<&LlmRecognizerConfig> for RegisteredRecognizer {
-    fn from(r: &LlmRecognizerConfig) -> Self {
-        Self {
-            name: r.name.clone(),
-            description: r.description.clone(),
-            provider: HipStr::from(r.source.provider()),
+            name: component.name.clone(),
+            description: component.description.clone(),
+            provider: HipStr::from(component.backend.provider()),
         }
     }
 }
@@ -77,26 +65,6 @@ impl From<&LlmRecognizerConfig> for RegisteredRecognizer {
 /// lineup. Same shape as [`RegisteredRecognizer`] because both
 /// carry a name, an optional description, and a provider slug.
 pub type RegisteredEnricher = RegisteredRecognizer;
-
-impl From<&OcrEnricherConfig> for RegisteredRecognizer {
-    fn from(e: &OcrEnricherConfig) -> Self {
-        Self {
-            name: e.name.clone(),
-            description: e.description.clone(),
-            provider: HipStr::from(e.backend.provider()),
-        }
-    }
-}
-
-impl From<&SttEnricherConfig> for RegisteredRecognizer {
-    fn from(e: &SttEnricherConfig) -> Self {
-        Self {
-            name: e.name.clone(),
-            description: e.description.clone(),
-            provider: HipStr::from(e.backend.provider()),
-        }
-    }
-}
 
 /// Every recognizer and enricher an [`Engine`] has registered,
 /// each lineup in configuration order.

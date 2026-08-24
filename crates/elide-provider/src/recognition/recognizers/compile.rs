@@ -22,7 +22,7 @@ use elide::recognition::context::Enhanced;
 #[cfg(feature = "test-utils")]
 use elide::recognition::llm::backend::MockBackend as MockLlmBackend;
 use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend};
-use elide::recognition::llm::prompt::{DefaultPrompt, Jinja2Prompt, Prompt};
+use elide::recognition::llm::prompt::{DefaultPrompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide::recognition::ner::NerRecognizer;
@@ -30,10 +30,8 @@ use elide::recognition::pattern::{PatternRecognizer, PatternRecognizerBuilder};
 use elide::{Error, ErrorKind, Result};
 use elide_bento::ner::BentoNer;
 
-use crate::recognition::{
-    AttachTo, LlmConfig, LlmPrompt, LlmRecognizerConfig, LlmSource, NerBackend, NerConfig,
-    NerRecognizerConfig,
-};
+use super::super::{Component, LlmBackend as LlmBackendConfig};
+use crate::recognition::{AttachTo, LlmConfig, LlmSource, NerBackend, NerConfig};
 
 /// Aggregate cap on total dictionary terms across every shipped
 /// dictionary, compiled into one shared Aho-Corasick automaton.
@@ -44,7 +42,7 @@ const MAX_DICTIONARY_TERM_BYTES: usize = 8 * 1024 * 1024;
 
 /// Attach the built-in [`PatternRecognizer`] wrapped in the
 /// `Enhanced` context layer.
-pub(super) fn attach_pattern<M>(analyzer: Analyzer<M>) -> Result<Analyzer<M>>
+pub(in crate::recognition) fn attach_pattern<M>(analyzer: Analyzer<M>) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     PatternRecognizer: Recognizer<M> + 'static,
@@ -66,7 +64,7 @@ fn pattern_with_limits(builder: PatternRecognizerBuilder) -> PatternRecognizerBu
 ///
 /// Every configured recognizer attaches to every request; the
 /// deployment picks the lineup in its `ProviderConfig`.
-pub(super) fn attach_ner_lineup<M>(
+pub(in crate::recognition) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
     ner: &NerConfig,
 ) -> Result<Analyzer<M>>
@@ -80,7 +78,7 @@ where
     Ok(analyzer)
 }
 
-fn attach_ner_one<M>(analyzer: Analyzer<M>, spec: &NerRecognizerConfig) -> Result<Analyzer<M>>
+fn attach_ner_one<M>(analyzer: Analyzer<M>, spec: &Component<NerBackend>) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     NerRecognizer: Recognizer<M> + 'static,
@@ -112,7 +110,7 @@ where
 /// - `DefaultPrompt: Prompt<M>`: elide ships text + image
 ///   default prompts.
 /// - `Jinja2Prompt<M>: Prompt<M>`: same coverage.
-pub(super) fn attach_llm_lineup<M>(
+pub(in crate::recognition) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &LlmConfig,
     modality: AttachTo,
@@ -121,10 +119,9 @@ where
     M: LlmModality,
     RigBackend: LlmBackend<M>,
     DefaultPrompt: Prompt<M>,
-    Jinja2Prompt<M>: Prompt<M>,
 {
     for recognizer in &llm.recognizers {
-        if recognizer.modalities.is_empty() {
+        if recognizer.backend.modalities.is_empty() {
             return Err(Error::new(
                 ErrorKind::Configuration,
                 format!(
@@ -134,7 +131,7 @@ where
                 ),
             ));
         }
-        if !recognizer.modalities.contains(&modality) {
+        if !recognizer.backend.modalities.contains(&modality) {
             continue;
         }
         analyzer = attach_llm_one(analyzer, recognizer)?;
@@ -142,34 +139,30 @@ where
     Ok(analyzer)
 }
 
-fn attach_llm_one<M>(analyzer: Analyzer<M>, spec: &LlmRecognizerConfig) -> Result<Analyzer<M>>
+fn attach_llm_one<M>(
+    analyzer: Analyzer<M>,
+    spec: &Component<LlmBackendConfig>,
+) -> Result<Analyzer<M>>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,
     DefaultPrompt: Prompt<M>,
-    Jinja2Prompt<M>: Prompt<M>,
 {
     let mut builder = LlmRecognizer::<M>::builder().with_name(spec.name.clone());
     builder = attach_llm_source(builder, spec)?;
-    builder = match &spec.prompt {
-        None => builder.with_default_prompt(),
-        Some(LlmPrompt::Inline { template }) => {
-            builder.with_prompt(Jinja2Prompt::<M>::from_template(template.clone())?)
-        }
-        Some(LlmPrompt::File { path }) => builder.with_prompt(Jinja2Prompt::<M>::from_file(path)?),
-    };
+    builder = builder.with_default_prompt();
     Ok(analyzer.with_recognizer(builder.build()?))
 }
 
 fn attach_llm_source<M>(
     builder: LlmRecognizerBuilder<M>,
-    spec: &LlmRecognizerConfig,
+    spec: &Component<LlmBackendConfig>,
 ) -> Result<LlmRecognizerBuilder<M>>
 where
     M: LlmModality,
     RigBackend: LlmBackend<M>,
 {
-    let provider = match &spec.source {
+    let provider = match &spec.backend.source {
         LlmSource::OpenAi(p) => Provider::OpenAi(p.clone()),
         LlmSource::Anthropic(p) => Provider::Anthropic(p.clone()),
         LlmSource::Gemini(p) => Provider::Gemini(p.clone()),

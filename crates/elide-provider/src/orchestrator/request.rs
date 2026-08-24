@@ -18,20 +18,15 @@
 //! could disagree about it; if they could, it is not deployment
 //! configuration.
 //!
-//! `correlation_id` is deliberately *not* here, despite arriving
-//! per request: it identifies a *document*, not a request. It rides
-//! on the document in and is stamped onto the redacted document
-//! out, so the two are linked. A copy here could name a different
-//! id than the document it travels with, and only one of them would
-//! reach the output.
+//! `correlation_id` is deliberately *not* here. Every call already
+//! takes a [`Document`], and that is where it lives: one id, on the
+//! thing it identifies.
 //!
-//! The test above still decides it. Two callers sharing a provider
-//! cannot disagree about a document's identity, because each brings
-//! its own document.
+//! [`Document`]: https://docs.rs/elide-pipeline
 //!
 //! [`Provider`]: crate::Provider
 
-use crate::KeyConfig;
+use super::KeyConfig;
 
 /// What one request supplies to the redaction path beyond its
 /// policies.

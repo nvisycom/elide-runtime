@@ -12,10 +12,10 @@ provider, and which OCR and STT engines. ProviderConfig is that set as
 one serializable value, and building it yields a Provider.
 
 A Provider then builds an Orchestrator per request, because an
-orchestrator carries request data the policies in force, the caller's
-scope and key, a correlation id that no deployment-wide value could
-hold. Config is parsed once; an orchestrator is constructed per
-request.
+orchestrator carries request data that no deployment-wide value could
+hold: the policies in force, the caller's scope and key, and a
+correlation id. Config is parsed once; an orchestrator is constructed
+per request.
 
 This crate depends only on Elide and the governance vocabulary, never
 on the pipeline: it is the half that turns configuration into Elide

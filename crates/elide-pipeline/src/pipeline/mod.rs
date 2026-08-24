@@ -31,10 +31,10 @@
 //!
 //! The recognition scope split has two owners: caller-asserted
 //! facts (languages, jurisdictions, tags) travel between calls on
-//! [`Audit::context`]; the label catalog is derived from
+//! [`Audit::scope`]; the label catalog is derived from
 //! `policies` afresh on every call so policies stay the single
 //! source of truth for label vocabulary. Callers do not re-pass
-//! an [`AnalyzerParams`] to anonymize.
+//! an [`RequestScope`] to anonymize.
 //!
 //! Hosts hold the returned [`Audit`] between analyze and
 //! anonymize however they see fit: in memory, in a run store, in
@@ -49,11 +49,11 @@
 //! - `crate::entity` owns [`ReviewSet`] (the reviewer decisions
 //!   that sit beside elide's report) and the projection onto the
 //!   overrides a provider applies.
-//! - `audit` defines [`Audit`], [`AuditContext`], the analyze →
+//! - `audit` defines [`Audit`], [`RequestScope`], the analyze →
 //!   anonymize bridge; all re-exported at the crate root.
 //!
 //! [`Audit`]: crate::Audit
-//! [`AuditContext`]: crate::AuditContext
+//! [`RequestScope`]: crate::RequestScope
 //! [`ReviewSet`]: crate::entity::ReviewSet
 //! [`FormatRegistry`]: elide::codec::FormatRegistry
 //! [`DocumentHandle`]: elide::codec::DocumentHandle
@@ -78,8 +78,7 @@ use elide::primitive::RasterMode;
 use elide::recognition::UsageReport;
 use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
-use elide_provider::plan::AnalyzerParams;
-use elide_provider::{AuditContext, Provider, RequestContext};
+use elide_provider::{Provider, RequestContext, RequestScope};
 use serde::Deserialize;
 
 pub use self::audit::Audit;
@@ -156,7 +155,7 @@ impl Engine {
         Ok(Audit {
             report,
             reviews: wire.reviews,
-            context: wire.context,
+            scope: wire.scope,
             usage: wire.usage,
         })
     }
@@ -247,16 +246,17 @@ impl Engine {
         &self,
         document: Document,
         policies: &[PolicyDefinition],
-        spec: &AnalyzerParams,
+        scope: &RequestScope,
     ) -> Result<Audit> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
-        let mut handle = self.decode(document, spec.raster_mode).await?;
-        let (orchestrator, context) =
-            self.provider
-                .analyze_orchestrator(spec, policies, correlation_id)?;
-        let directives = build_analyze_directives(spec);
-        let mut report = orchestrator.analyze(&mut handle, &directives).await?;
+        let mut handle = self.decode(document, scope.raster_mode).await?;
+        let orchestrator = self
+            .provider
+            .analyze_orchestrator(scope, policies, correlation_id)?;
+        let mut report = orchestrator
+            .analyze(&mut handle, &Directives::new())
+            .await?;
         // Cloned off the report: elide derives usage during
         // analysis and drops it when a report is rebuilt from the
         // wire, so the audit carries its own copy.
@@ -281,12 +281,13 @@ impl Engine {
         // returned audit answers "what happens to this, and why"
         // before a reviewer overrides anything. Purely additive:
         // it appends Selection events and redacts nothing.
-        self.provider.record_picks(&context, policies, &mut report);
+        self.provider
+            .record_picks(scope, policies, correlation_id, &mut report);
 
         Ok(Audit {
             report,
             reviews: ReviewSet::default(),
-            context,
+            scope: scope.clone(),
             usage,
         })
     }
@@ -312,10 +313,11 @@ impl Engine {
     /// [`Self::analyze`]. The label catalog is re-derived from
     /// `policies` on every call: policies are the sole source
     /// of label vocabulary. The asserted scope (languages,
-    /// jurisdictions, metadata) travels on [`Audit::context`]
-    /// from analyze. The document's `correlation_id` becomes the
-    /// audit's and is threaded into every tracing span on the
-    /// redaction path, so one document traces under one id.
+    /// jurisdictions, metadata) travels on [`Audit::scope`]
+    /// from analyze. Tracing spans on this path carry the
+    /// `correlation_id` of the document being redacted: the id lives
+    /// on the document and nowhere else, so there is never a second
+    /// copy to disagree with it.
     ///
     /// **Composition semantics.** Rules attach in submission
     /// order; first match wins across the whole policy set.
@@ -368,15 +370,7 @@ impl Engine {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let content_type = document.content_type.clone();
-        let mut handle = self.decode(document, audit.context.raster_mode).await?;
-
-        // The document being redacted owns the id everything about
-        // this call is traced under: the scope built below, the
-        // audit the caller is left holding, and the bytes returned.
-        // Analyze recorded whichever document it saw; if the caller
-        // hands a different one to anonymize, that one is now the
-        // subject, and one id follows it through.
-        audit.context.correlation_id = correlation_id;
+        let mut handle = self.decode(document, audit.scope.raster_mode).await?;
 
         // An audit with no body was never analyzed. Applying it
         // would return the document unredacted and report success,
@@ -396,10 +390,11 @@ impl Engine {
         audit.apply_suppressions();
 
         let orchestrator = self.provider.anonymize_orchestrator(
-            &audit.context,
+            &audit.scope,
             policies,
             &audit.overrides(),
             request,
+            correlation_id,
         )?;
 
         // The report moves through apply and comes back mutated,
@@ -510,7 +505,7 @@ struct AuditWire {
     report: serde_value::Value,
     #[serde(default)]
     reviews: ReviewSet,
-    context: AuditContext,
+    scope: RequestScope,
     #[serde(default)]
     usage: UsageReport,
 }
@@ -581,17 +576,4 @@ where
         )
     })?;
     Ok(content.into_bytes())
-}
-
-/// Assemble the per-analyze [`Directives`] from `spec.annotations`,
-/// registering every modality's regions with the set.
-///
-/// The orchestrator's run-wide scope stays the default; no
-/// per-analysis scope override is used at this layer.
-fn build_analyze_directives(spec: &AnalyzerParams) -> Directives {
-    Directives::new()
-        .with_annotations::<Text>(spec.annotations.text.clone())
-        .with_annotations::<Tabular>(spec.annotations.tabular.clone())
-        .with_annotations::<Image>(spec.annotations.image.clone())
-        .with_annotations::<Audio>(spec.annotations.audio.clone())
 }

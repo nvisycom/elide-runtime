@@ -1,25 +1,25 @@
 //! STT deployment configuration.
 //!
-//! Symmetric with [`super::ner`] and [`super::ocr`]: deployment
-//! operator owns backend choice, connection details, and
-//! (future) credentials. The request wire holds nothing about
-//! STT: every audio-modality analyzer picks up the operator's
-//! STT enricher automatically.
+//! Symmetric with the recognizer backends: the deployment operator
+//! owns backend choice, connection details, and (future)
+//! credentials. The request wire holds nothing about STT: every
+//! audio-modality analyzer picks up the operator's STT enricher
+//! automatically.
 //!
 //! ## Layout
 //!
-//! - [`SttConfig`] is the top-level bag: the enricher lineup.
+//! - [`Enrichers`] is the top-level bag, holding this lineup beside
+//!   the OCR one.
 //! - [`Component<SttBackend>`] declares one enricher instance: name
-//!   (for the list-enrichers accessor) + backend selection with
-//!   its per-kind fields flattened onto the wire.
-//! - [`SttBackend`] is the discriminated backend enum: Bento
-//!   today.
+//!   (for the list-enrichers accessor) + backend selection with its
+//!   per-kind fields flattened onto the wire.
+//! - [`SttBackend`] is the discriminated backend enum: Bento today.
+//!
+//! [`Enrichers`]: super::Enrichers
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Top-level STT configuration. Loaded from the deployment's
-/// `[stt]` config section.
 ///
 /// How a configured enricher talks to its STT backend.
 ///

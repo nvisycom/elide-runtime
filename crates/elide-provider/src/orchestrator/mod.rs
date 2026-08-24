@@ -12,6 +12,11 @@
 //! that made it, so a provider outlives every orchestrator it hands
 //! out. Hold one for the life of the process.
 
+mod key;
+mod override_set;
+mod request;
+mod scope;
+
 use std::collections::{HashMap, HashSet};
 use std::slice;
 
@@ -30,8 +35,11 @@ use elide_governance::modality::RedactableModality;
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate, compile_catalog};
 use uuid::Uuid;
 
-use crate::context::AuditContext;
-use crate::plan::AnalyzerParams;
+pub use self::key::KeyConfig;
+pub use self::override_set::{Override, Overrides};
+pub use self::request::RequestContext;
+pub use self::scope::{RequestScope, scope_metadata_is_empty};
+use crate::Provider;
 use crate::recognition::{
     Component, OcrBackend, SttBackend, compile_audio, compile_image, compile_tabular, compile_text,
 };
@@ -40,7 +48,6 @@ use crate::redaction::{
     attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
     attach_policies_text,
 };
-use crate::{KeyConfig, Override, Overrides, Provider, RequestContext};
 
 impl Provider {
     /// Build an [`Orchestrator`] for the analyze path: compile
@@ -54,7 +61,7 @@ impl Provider {
     /// tag-based selector matching.
     ///
     /// Returns both the orchestrator and the resolved
-    /// [`AuditContext`] so the caller can persist the
+    /// [`RequestScope`] so the caller can persist the
     /// caller-asserted scope + analyze-side correlation id onto
     /// the returned the audit. The orchestrator's own
     /// scope carries the same `correlation_id` for tracing spans.
@@ -64,20 +71,13 @@ impl Provider {
     /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
     pub fn analyze_orchestrator(
         &self,
-        spec: &AnalyzerParams,
+        scope: &RequestScope,
         policies: &[PolicyDefinition],
         correlation_id: Uuid,
-    ) -> Result<(Orchestrator<'_>, AuditContext)> {
+    ) -> Result<Orchestrator<'_>> {
         validate_scope_references(policies)?;
         let catalog = compile_catalog(policies)?;
-        let context = AuditContext {
-            languages: spec.scope.languages.clone(),
-            countries: spec.scope.countries.clone(),
-            metadata: spec.scope.metadata.clone(),
-            correlation_id,
-            raster_mode: spec.raster_mode,
-        };
-        let live_scope = build_scope(&context, catalog.clone());
+        let live_scope = build_scope(scope, catalog.clone(), correlation_id);
 
         let text_anon = assemble_empty::<Text>(&catalog);
         let text_analyzer = compile_text(&self.inner.recognizers.ner, &self.inner.recognizers.llm)?;
@@ -111,11 +111,11 @@ impl Provider {
             orchestrator.with_modality::<Audio>(analyzer, anon)
         };
 
-        Ok((orchestrator, context))
+        Ok(orchestrator)
     }
 
     /// Build an [`Orchestrator`] for the anonymize path: reuse
-    /// the persisted [`AuditContext`] from analyze, re-derive the
+    /// the persisted [`RequestScope`] from analyze, re-derive the
     /// label catalog from `policies`, wire the requested
     /// `policies` + reviewer `overrides` onto every modality's
     /// anonymizer, and skip the analyzer compile (analysis
@@ -134,15 +134,16 @@ impl Provider {
     /// [`Analyzer<M>`]: elide::detection::Analyzer
     pub fn anonymize_orchestrator(
         &self,
-        context: &AuditContext,
+        scope: &RequestScope,
         policies: &[PolicyDefinition],
         overrides: &Overrides,
         request: &RequestContext,
+        correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
         validate_scope_references(policies)?;
         validate_override_authorities(policies, overrides)?;
         let catalog = compile_catalog(policies)?;
-        let live_scope = build_scope(context, catalog.clone());
+        let live_scope = build_scope(scope, catalog.clone(), correlation_id);
 
         // Fresh per-request text-operator context. Pseudonym
         // vaults materialise per-policy on first access so two
@@ -250,8 +251,9 @@ impl Provider {
     /// [`Selection`]: elide::entity::audit::AuditKind::Selection
     pub fn record_picks(
         &self,
-        context: &AuditContext,
+        scope: &RequestScope,
         policies: &[PolicyDefinition],
+        correlation_id: Uuid,
         report: &mut Report,
     ) {
         // Deliberately discarded, not swallowed: every reason this
@@ -261,18 +263,19 @@ impl Provider {
         // would surface each one twice and turn analyze into a second
         // place a caller must handle redaction errors. The observable
         // signal is that the audit carries no `Selection` events.
-        let _ = self.try_record_picks(context, policies, report);
+        let _ = self.try_record_picks(scope, policies, correlation_id, report);
     }
 
     /// The fallible body of [`record_picks`](Self::record_picks).
     fn try_record_picks(
         &self,
-        context: &AuditContext,
+        scope: &RequestScope,
         policies: &[PolicyDefinition],
+        correlation_id: Uuid,
         report: &mut Report,
     ) -> Result<()> {
         let catalog = compile_catalog(policies)?;
-        let scope = build_scope(context, catalog.clone());
+        let scope = build_scope(scope, catalog.clone(), correlation_id);
         // No key: a pick records which operator *would* run, and
         // `HmacHash`/`Encrypt` need one only to actually redact. A
         // policy naming either still records its pick here and
@@ -417,21 +420,24 @@ fn check_predicate_scopes(
     }
 }
 
-/// Combine engine-facing [`AuditContext`] with a freshly-derived
+/// Combine engine-facing [`RequestScope`] with a freshly-derived
 /// [`LabelCatalog`] and the current phase's `correlation_id` into
 /// the elide-facing [`Scope`].
 /// Build the request [`Scope`] from the recognition facts on
-/// `context`.
+/// `context`, traced under `run_id`.
 ///
-/// The correlation id comes from `context`, which took it from the
-/// document. One document, one id, everywhere it is traced.
-fn build_scope(context: &AuditContext, catalog: LabelCatalog) -> Scope {
+/// `run_id` is the id of the document this call is processing, and
+/// it tags the tracing span. It is passed rather than read off
+/// `context` because the context is a record of what analyze saw:
+/// anonymize traces under the document it was handed, without
+/// rewriting what analyze wrote.
+fn build_scope(scope: &RequestScope, catalog: LabelCatalog, run_id: Uuid) -> Scope {
     Scope {
-        languages: context.languages.clone(),
-        countries: context.countries.clone(),
-        metadata: context.metadata.clone(),
+        languages: scope.languages.clone(),
+        countries: scope.countries.clone(),
+        metadata: scope.metadata.clone(),
         catalog,
-        correlation_id: Some(context.correlation_id),
+        correlation_id: Some(run_id),
     }
 }
 

@@ -15,8 +15,7 @@ use elide_governance::{
 };
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
-use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
+use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext, RequestScope};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -28,8 +27,8 @@ fn raw_txt() -> Document {
     Document::new(Bytes::from_static(SAMPLE_TXT), "txt")
 }
 
-fn default_spec() -> AnalyzerParams {
-    AnalyzerParams::default()
+fn default_spec() -> RequestScope {
+    RequestScope::default()
 }
 
 /// Count redaction events on every text-modality entity of

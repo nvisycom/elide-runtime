@@ -44,23 +44,17 @@ use elide::codec::FormatRegistry;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-mod context;
-mod key;
 mod orchestrator;
-mod override_set;
-pub mod plan;
 mod recognition;
 mod redaction;
-mod request;
 
-pub use self::context::AuditContext;
-pub use self::key::KeyConfig;
-pub use self::override_set::{Override, Overrides};
+pub use self::orchestrator::{
+    KeyConfig, Override, Overrides, RequestContext, RequestScope, scope_metadata_is_empty,
+};
 pub use self::recognition::{
     AttachTo, AuthenticatedProvider, Backend, Component, Enrichers, LlmBackend, LlmSource,
     NerBackend, OcrBackend, Recognizers, SttBackend, UnauthenticatedProvider,
 };
-pub use self::request::RequestContext;
 
 /// Everything a deployment decides once, at startup.
 ///

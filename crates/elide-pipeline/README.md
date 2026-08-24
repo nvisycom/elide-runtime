@@ -7,9 +7,9 @@ Stateless multimodal redaction pipeline over elide.
 ## Overview
 
 The engine bundles Elide's codec, detection, recognition, redaction,
-and orchestration layers into a single per-request pipeline. Callers
-construct an engine paired with the deployment's NER and LLM lineups,
-then drive documents through analyze and apply verbs. Every call is
+and orchestration layers into a single per-request pipeline. A caller
+builds a Provider from a ProviderConfig, wraps it with Engine::new,
+then drives documents through the analyze and apply verbs. Every call is
 self-contained: no persistence, no HTTP layer, no long-running
 background tasks. Hosts (a SaaS backend, a Tauri app, a CLI, an SDK)
 own their own workflow and storage on top.

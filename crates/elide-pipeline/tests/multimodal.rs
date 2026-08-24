@@ -16,9 +16,8 @@ use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
-use elide_pipeline::plan::AnalyzerParams;
 use elide_pipeline::{
-    Audit, AuditContext, Component, Engine, Enrichers, OcrBackend, ProviderConfig, RequestContext,
+    Audit, Component, Engine, Enrichers, OcrBackend, ProviderConfig, RequestContext, RequestScope,
     ReviewSet,
 };
 
@@ -48,8 +47,8 @@ fn engine() -> Engine {
     )
 }
 
-fn default_spec() -> AnalyzerParams {
-    AnalyzerParams::default()
+fn default_spec() -> RequestScope {
+    RequestScope::default()
 }
 
 fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
@@ -163,11 +162,10 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
     let engine = engine();
 
     let mut spec = default_spec();
-    spec.scope.metadata.tags = vec!["gdpr-request".into()];
-    spec.scope.metadata.purpose = Some("dsar-response".into());
-    spec.scope.metadata.audience = vec!["data-subject".into(), "compliance-review".into()];
+    spec.metadata.tags = vec!["gdpr-request".into()];
+    spec.metadata.purpose = Some("dsar-response".into());
+    spec.metadata.audience = vec!["data-subject".into(), "compliance-review".into()];
     let doc = raw_docx();
-    let correlation_id = doc.correlation_id;
 
     let audit = engine
         .analyze(doc, &[], &spec)
@@ -175,20 +173,16 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
         .expect("analyze succeeds");
 
     assert_eq!(
-        audit.context.metadata.tags, spec.scope.metadata.tags,
-        "audit context must mirror the caller-asserted scope tags",
+        audit.scope.metadata.tags, spec.metadata.tags,
+        "the audit must carry back the caller-asserted scope tags",
     );
     assert_eq!(
-        audit.context.metadata.purpose, spec.scope.metadata.purpose,
-        "audit context must mirror the caller-asserted scope purpose",
+        audit.scope.metadata.purpose, spec.metadata.purpose,
+        "the audit must carry back the caller-asserted scope purpose",
     );
     assert_eq!(
-        audit.context.metadata.audience, spec.scope.metadata.audience,
-        "audit context must mirror the caller-asserted scope audience",
-    );
-    assert_eq!(
-        audit.context.correlation_id, correlation_id,
-        "analyze-time correlation id must be recorded on the audit context",
+        audit.scope.metadata.audience, spec.metadata.audience,
+        "the audit must carry back the caller-asserted scope audience",
     );
 }
 
@@ -223,7 +217,7 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
 }
 
 #[tokio::test]
-async fn audit_rejects_missing_context_on_deserialize() {
+async fn audit_rejects_a_missing_scope_on_deserialize() {
     let engine = engine();
     let analyzed = engine
         .analyze(raw_docx(), &[], &default_spec())
@@ -233,19 +227,19 @@ async fn audit_rejects_missing_context_on_deserialize() {
     value
         .as_object_mut()
         .expect("object")
-        .remove("context")
-        .expect("context was serialized");
+        .remove("scope")
+        .expect("scope was serialized");
 
     // Deserialization runs through the engine, which holds the
     // modality registry a serialized report needs to be rebuilt.
     let json = serde_json::to_string(&value).expect("re-serialize");
     let mut de = serde_json::Deserializer::from_str(&json);
     let Err(err) = engine.deserialize_audit(&mut de) else {
-        panic!("deserializing without context must fail");
+        panic!("deserializing without a scope must fail");
     };
     assert!(
-        err.to_string().contains("context"),
-        "missing-field error must name `context`, got: {err}",
+        err.to_string().contains("scope"),
+        "missing-field error must name `scope`, got: {err}",
     );
 }
 
@@ -305,13 +299,7 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
     let mut audit = Audit {
         report: Report::new(),
         reviews: ReviewSet::default(),
-        context: AuditContext {
-            languages: Default::default(),
-            countries: Vec::new(),
-            metadata: Default::default(),
-            correlation_id: uuid::Uuid::now_v7(),
-            raster_mode: Default::default(),
-        },
+        scope: RequestScope::default(),
         usage: Default::default(),
     };
 

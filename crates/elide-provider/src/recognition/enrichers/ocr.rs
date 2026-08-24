@@ -1,24 +1,25 @@
 //! OCR deployment configuration.
 //!
-//! Symmetric with [`super::ner`]: deployment operator owns
-//! backend choice, connection details, and (future) credentials.
-//! The request wire holds nothing about OCR: every image-modality
-//! analyzer picks up the operator's OCR enricher automatically.
+//! Symmetric with the recognizer backends: the deployment operator
+//! owns backend choice, connection details, and (future)
+//! credentials. The request wire holds nothing about OCR: every
+//! image-modality analyzer picks up the operator's OCR enricher
+//! automatically.
 //!
 //! ## Layout
 //!
-//! - [`OcrConfig`] is the top-level bag: the enricher lineup.
+//! - [`Enrichers`] is the top-level bag, holding this lineup beside
+//!   the STT one.
 //! - [`Component<OcrBackend>`] declares one enricher instance: name
-//!   (for the list-enrichers accessor) + backend selection with
-//!   its per-kind fields flattened onto the wire.
-//! - [`OcrBackend`] is the discriminated backend enum: Bento
-//!   today.
+//!   (for the list-enrichers accessor) + backend selection with its
+//!   per-kind fields flattened onto the wire.
+//! - [`OcrBackend`] is the discriminated backend enum: Bento today.
+//!
+//! [`Enrichers`]: super::Enrichers
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Top-level OCR configuration. Loaded from the deployment's
-/// `[ocr]` config section.
 ///
 /// How a configured enricher talks to its OCR backend.
 ///

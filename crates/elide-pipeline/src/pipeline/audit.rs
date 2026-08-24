@@ -3,7 +3,7 @@
 //!
 //! [`Audit`] wraps elide's [`Report`] — the detections, their
 //! locations, and every entity's audit trail — with the three
-//! things elide does not model: the recognition [`AuditContext`],
+//! things elide does not model: the recognition [`RequestScope`],
 //! what the analyze pass cost, and the reviewer decisions in
 //! [`ReviewSet`].
 //!
@@ -13,7 +13,7 @@
 //! decisions elide *does* model — adding an entity, suppressing one
 //! — go on the report itself.
 //!
-//! [`AuditContext`] carries the recognition-side facts the
+//! [`RequestScope`] carries the recognition-side facts the
 //! anonymize step needs to rebuild an orchestrator against the
 //! exact vocabulary the analyze step used, minus the label
 //! catalog: labels are policy-owned and re-derived from the
@@ -31,7 +31,7 @@
 
 use elide::Report;
 use elide::recognition::UsageReport;
-use elide_provider::AuditContext;
+use elide_provider::RequestScope;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -42,7 +42,7 @@ use crate::entity::{Review, ReviewBucket, ReviewSet};
 ///
 /// Wraps elide's [`Report`] — the detections, their locations, and
 /// every entity's audit trail — with the three things elide does
-/// not model: the recognition [`AuditContext`] the entities were
+/// not model: the recognition [`RequestScope`] the entities were
 /// scored against, what the analyze pass cost, and the reviewer
 /// decisions in [`reviews`](Self::reviews).
 ///
@@ -92,15 +92,16 @@ pub struct Audit {
     /// [`anonymize_with`]: elide::Orchestrator::anonymize_with
     #[serde(skip_serializing_if = "ReviewSet::is_empty")]
     pub reviews: ReviewSet,
-    /// Recognition context.
+    /// What the caller asserted when this document was analyzed:
+    /// languages, jurisdictions, document tags, and the OCR mode it
+    /// was decoded under.
     ///
-    /// The asserted languages, countries, document tags, and the
-    /// analyze-side correlation id. Held so [`Engine::anonymize`]
-    /// can compile against the same vocabulary analyze used
-    /// without the caller re-passing an `AnalyzerParams`.
+    /// Carried back so [`Engine::anonymize`] compiles against the
+    /// same vocabulary analyze used, and re-decodes under the same
+    /// codec configuration, without the caller re-passing it.
     ///
     /// [`Engine::anonymize`]: super::Engine::anonymize
-    pub context: AuditContext,
+    pub scope: RequestScope,
     /// What the analyze pass cost: one entry per recognizer and
     /// enricher that ran, each self-identifying by the name the
     /// deployment configured it under.

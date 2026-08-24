@@ -18,8 +18,7 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelScope, PolicyDefinition};
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
-use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
+use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext, RequestScope};
 use uuid::Uuid;
 
 const SAMPLE: &[u8] = b"Email alice@example.com or bob@example.com. Case SECRET-9 open.";
@@ -79,7 +78,7 @@ async fn review_and_apply(edit: impl FnOnce(&mut Audit)) -> (String, Audit) {
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -239,7 +238,7 @@ async fn include_stamps_manual_provenance() {
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -267,7 +266,7 @@ async fn include_rejects_a_foreign_modality() {
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -387,7 +386,7 @@ async fn analyze_records_the_policy_pick_for_review() {
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -430,7 +429,7 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -500,7 +499,7 @@ async fn a_reviewer_can_take_a_suppression_back() {
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");
@@ -594,7 +593,7 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
         .analyze(
             doc(),
             std::slice::from_ref(&policy),
-            &AnalyzerParams::default(),
+            &RequestScope::default(),
         )
         .await
         .expect("analyze");

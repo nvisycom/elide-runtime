@@ -9,8 +9,7 @@
 
 use bytes::Bytes;
 use elide_pipeline::file::Document;
-use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Engine, KeyConfig, ProviderConfig, RequestContext};
+use elide_pipeline::{Engine, KeyConfig, ProviderConfig, RequestContext, RequestScope};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PciPanRender, PolicyTemplate, Template,
@@ -34,8 +33,8 @@ fn raw_txt() -> Document {
     Document::new(Bytes::from_static(SAMPLE_TXT), "txt")
 }
 
-fn default_spec() -> AnalyzerParams {
-    AnalyzerParams::default()
+fn default_spec() -> RequestScope {
+    RequestScope::default()
 }
 
 /// Run `template` through analyze + anonymize against the sample

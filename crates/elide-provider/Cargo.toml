@@ -25,19 +25,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 
-## Turn on the test-only mock backends (`{Ner,Ocr,Stt,Llm}Backend::Mock`)
-## and the elide mock backends they compile into. Off in production so
-## deployment config cannot name a mock recognizer.
+## Turn on the test-only mock backends and the elide mock backends
+## they compile into. Off in production so deployment config
+## cannot name a mock recognizer.
 test-utils = ["elide/mock"]
-
-[dev-dependencies]
-# Self, with the mock backends on: a plain `cargo test -p
-# elide-provider` then compiles the tests that name them, without
-# `--all-features` on the command line.
-elide-provider = { path = ".", features = ["test-utils"] }
-
-# Serialization
-serde_json = { workspace = true, features = [] }
 
 [dependencies]
 # Elide crates
@@ -56,3 +47,10 @@ schemars = { workspace = true, features = [] }
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 hipstr = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+# Self, with the mock backends on
+elide-provider = { path = ".", features = ["test-utils"] }
+
+# Serialization
+serde_json = { workspace = true, features = [] }

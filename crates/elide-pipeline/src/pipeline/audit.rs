@@ -1,37 +1,23 @@
 //! Analyze → anonymize bridge: what [`Engine::analyze`] returns
 //! and what [`Engine::anonymize`] accepts.
 //!
-//! [`Audit`] wraps elide's [`Report`] — the detections, their
-//! locations, and every entity's audit trail — with the three
-//! things elide does not model: the recognition [`RequestScope`],
-//! what the analyze pass cost, and the reviewer decisions in
-//! [`ReviewSet`].
+//! Reviewer decisions sit beside the report rather than inside it,
+//! keyed by entity id, because elide has no concept of a per-entity
+//! operator override: apply re-resolves operators from live policy.
+//! The decisions elide *does* model — adding an entity, suppressing
+//! one — go on the report itself.
 //!
-//! Decisions sit beside the report rather than inside it, keyed by
-//! entity id, because elide has no concept of a per-entity operator
-//! override: apply re-resolves operators from live policy. The
-//! decisions elide *does* model — adding an entity, suppressing one
-//! — go on the report itself.
+//! Hosts hold an [`Audit`] between the two passes and may persist
+//! it however they like: serialize it directly, and read it back
+//! with [`Engine::deserialize_audit`].
 //!
-//! [`RequestScope`] carries the recognition-side facts the
-//! anonymize step needs to rebuild an orchestrator against the
-//! exact vocabulary the analyze step used, minus the label
-//! catalog: labels are policy-owned and re-derived from the
-//! policy set on every anonymize call.
-//!
-//! Hosts hold this value between analyze and anonymize and may
-//! persist it however they like: serialize it directly, and read it
-//! back with [`Engine::deserialize_audit`].
-//!
-//! [`ReviewSet`]: crate::entity::ReviewSet
-//! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 //! [`Engine::analyze`]: super::Engine::analyze
 //! [`Engine::anonymize`]: super::Engine::anonymize
-//! [`Report`]: elide::Report
+//! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 
 use elide::Report;
 use elide::recognition::UsageReport;
-use elide_provider::RequestScope;
+use elide_provider::{CodecParams, DocumentContext};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
@@ -41,48 +27,31 @@ use crate::entity::{Review, ReviewBucket, ReviewSet};
 /// What detection found in one document, plus what a reviewer
 /// decided about it.
 ///
-/// Wraps elide's [`Report`] — the detections, their locations, and
-/// every entity's audit trail — with the three things elide does
-/// not model: the recognition [`RequestScope`] the entities were
-/// scored against, what the analyze pass cost, and the reviewer
+/// Wraps elide's [`Report`] with the three things elide does not
+/// model: the recognition [`DocumentContext`] the entities were
+/// scored against, how the document decoded, and the reviewer
 /// decisions in [`reviews`](Self::reviews).
-///
-/// The context travels with the entities so anonymize can rebuild
-/// an orchestrator against exactly the vocabulary analyze used.
-/// Anything a policy predicate compares against beyond the label
-/// catalog (asserted languages, jurisdictions, document tags) is
-/// here; labels are re-derived from the policy set on each
-/// anonymize call.
 ///
 /// # Serialization
 ///
-/// [`Serialize`] but deliberately **not** `Deserialize`. A
-/// serialized report tags each entity group with its modality
-/// *name*, not its concrete type, and deserialization cannot be
-/// object-safe — so rebuilding one needs the modality registry
-/// [`Engine`] holds. Read an audit back with
-/// [`Engine::deserialize_audit`]; a free `from_str` would need a
-/// global registry, which would close the door on modalities elide
-/// does not ship.
+/// [`Serialize`] but deliberately **not** `Deserialize`: a
+/// serialized report tags entity groups by modality *name*, so
+/// rebuilding one needs the registry [`Engine`] holds. Read an
+/// audit back with [`Engine::deserialize_audit`].
 ///
 /// # Schema
 ///
-/// [`JsonSchema`] describes the shape above, for OpenAPI documents
-/// and generated clients.
-///
-/// Generate it under the **serialize** contract
+/// Generate under the **serialize** contract
 /// ([`SchemaSettings::for_serialize`]). `reviews` and `usage` are
-/// `skip_serializing_if`, so they are absent from a payload that
-/// carries neither; only the serialize contract marks them
-/// optional. `schema_for!` defaults to the deserialize contract and
-/// would declare both required, so a generated client would reject
-/// responses this crate really emits.
-///
-/// [`SchemaSettings::for_serialize`]: schemars::generate::SchemaSettings::for_serialize
+/// `skip_serializing_if`, and only that contract marks them
+/// optional — `schema_for!` defaults to deserialize and declares
+/// both required, so a generated client would reject responses this
+/// crate really emits.
 ///
 /// [`Engine`]: super::Engine
 /// [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 /// [`Report`]: elide::Report
+/// [`SchemaSettings::for_serialize`]: schemars::generate::SchemaSettings::for_serialize
 #[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Audit {
@@ -109,15 +78,20 @@ pub struct Audit {
     #[serde(skip_serializing_if = "ReviewSet::is_empty")]
     pub reviews: ReviewSet,
     /// What the caller asserted when this document was analyzed:
-    /// languages, jurisdictions, document tags, and the OCR mode it
-    /// was decoded under.
+    /// languages, jurisdictions, document tags.
     ///
     /// Carried back so [`Engine::anonymize`] compiles against the
     /// same vocabulary analyze used, and re-decodes under the same
     /// codec configuration, without the caller re-passing it.
     ///
     /// [`Engine::anonymize`]: super::Engine::anonymize
-    pub scope: RequestScope,
+    pub context: DocumentContext,
+    /// How this document was decoded when it was analyzed.
+    ///
+    /// Carried back so anonymize decodes identically: the entity
+    /// offsets below are stored against the first decode, and a
+    /// differently-rendered second one would not line up.
+    pub codec: CodecParams,
     /// What the analyze pass cost: one entry per recognizer and
     /// enricher that ran, each self-identifying by the name the
     /// deployment configured it under.

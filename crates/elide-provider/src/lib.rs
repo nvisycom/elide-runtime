@@ -43,8 +43,8 @@ mod recognition;
 mod redaction;
 
 pub use self::orchestrator::{
-    KeyConfig, Override, Overrides, Provider, ProviderConfig, RequestContext, RequestScope,
-    scope_metadata_is_empty,
+    CodecParams, DocumentContext, KeyConfig, Override, Overrides, Provider, ProviderConfig,
+    RequestContext,
 };
 pub use self::recognition::{
     AttachTo, AuthenticatedProvider, Backend, Component, Enrichers, LlmBackend, LlmSource,

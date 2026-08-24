@@ -5,7 +5,7 @@
 //! Layers on top of the [elide] toolkit. This crate wires elide's
 //! per-modality analyzers, anonymizers, and orchestrator into a
 //! stateless per-request document pipeline, driven by its own
-//! request schemas ([`RequestScope`], [`file`](mod@file)) and the
+//! request schemas ([`RequestContext`], [`file`](mod@file)) and the
 //! governance schema from [elide-governance].
 //!
 //! [elide]: https://github.com/nvisycom/elide
@@ -30,7 +30,7 @@
 //!   each policy carries its own [`LabelScope`]s inline via
 //!   [`PolicyDefinition::scopes`].
 //! - [`Audit`] carries the analyze → anonymize handoff: the
-//!   modality-tagged entity groups plus an [`RequestScope`] with
+//!   modality-tagged entity groups plus a [`DocumentContext`] with
 //!   the request's asserted scope and correlation id.
 //!
 //! Ready-to-run policy sets for common regulatory postures
@@ -52,35 +52,28 @@ mod pipeline;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
+
 /// The modality markers every typed call is generic over.
 ///
-/// Re-exported because reading an [`Audit`] means naming one:
+/// Reading an [`Audit`] means naming one:
 /// `audit.report.entities::<Text>()`, `audit.review::<Image>(..)`.
 ///
 /// All four are always available: the modalities compile in
 /// unconditionally, and only their codecs are feature-gated.
-#[doc(inline)]
-pub use elide::modality::Modality;
-#[doc(inline)]
-pub use elide::modality::audio::Audio;
-#[doc(inline)]
-pub use elide::modality::image::Image;
-#[doc(inline)]
-pub use elide::modality::tabular::Tabular;
-#[doc(inline)]
-pub use elide::modality::text::Text;
+pub mod modality {
+    #[doc(inline)]
+    pub use elide::modality::Modality;
+    #[doc(inline)]
+    pub use elide::modality::audio::Audio;
+    #[doc(inline)]
+    pub use elide::modality::image::Image;
+    #[doc(inline)]
+    pub use elide::modality::tabular::Tabular;
+    #[doc(inline)]
+    pub use elide::modality::text::Text;
+}
 #[doc(inline)]
 pub use elide::primitive::{CountryCode, Languages, RasterMode};
-/// Per-component usage accounting, surfaced on [`Audit::usage`].
-///
-/// The whole chain is re-exported, not just the report: `entries`,
-/// [`UsageReport::by_name`], and [`UsageReport::extend`] all traffic
-/// in [`Usage`], whose `id` and `model` in turn expose
-/// [`RecognizerId`] and [`ModelUsage`] / [`TokenCounts`]. Without
-/// these a caller can reach a value off the audit but cannot name
-/// its type.
-///
-/// [`Audit::usage`]: crate::Audit::usage
 #[doc(inline)]
 pub use elide::recognition::{
     ModelUsage, RecognizerId, ScopeMetadata, TokenCounts, Usage, UsageReport,
@@ -88,6 +81,7 @@ pub use elide::recognition::{
 #[doc(inline)]
 pub use elide::redaction::operators::KeyProvider;
 pub use elide::{Error, ErrorKind, Result};
+
 /// Rendering an [`Audit`] into a transport format.
 ///
 /// Only what a caller needs to *export*: the traits and the table
@@ -114,23 +108,18 @@ pub mod export {
     #[doc(inline)]
     pub use elide_export::{ExportCsv, Table};
 }
-/// Authored redaction governance: policies, rules, predicates,
-/// operators.
+
 #[doc(inline)]
 pub use elide_governance as policy;
 #[doc(inline)]
 pub use elide_provider::{
-    AttachTo, Backend, Component, Enrichers, KeyConfig, LlmBackend, LlmSource, NerBackend,
-    OcrBackend, Override, Overrides, Provider, ProviderConfig, Recognizers, RequestContext,
-    RequestScope, SttBackend,
+    AttachTo, Backend, CodecParams, Component, DocumentContext, Enrichers, KeyConfig, LlmBackend,
+    LlmSource, NerBackend, OcrBackend, Override, Overrides, Provider, ProviderConfig, Recognizers,
+    RequestContext, SttBackend,
 };
-/// Ready-to-run policy templates for common regulatory postures
-/// (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA).
 #[doc(inline)]
 pub use elide_template as template;
 
-pub use self::entity::ReviewSet;
-pub use self::file::{Document, FileMetadata};
 pub use self::pipeline::{
     Audit, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
 };

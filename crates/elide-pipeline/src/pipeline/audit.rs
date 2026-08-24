@@ -32,6 +32,7 @@
 use elide::Report;
 use elide::recognition::UsageReport;
 use elide_provider::RequestScope;
+use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -64,10 +65,25 @@ use crate::entity::{Review, ReviewBucket, ReviewSet};
 /// global registry, which would close the door on modalities elide
 /// does not ship.
 ///
+/// # Schema
+///
+/// [`JsonSchema`] describes the shape above, for OpenAPI documents
+/// and generated clients.
+///
+/// Generate it under the **serialize** contract
+/// ([`SchemaSettings::for_serialize`]). `reviews` and `usage` are
+/// `skip_serializing_if`, so they are absent from a payload that
+/// carries neither; only the serialize contract marks them
+/// optional. `schema_for!` defaults to the deserialize contract and
+/// would declare both required, so a generated client would reject
+/// responses this crate really emits.
+///
+/// [`SchemaSettings::for_serialize`]: schemars::generate::SchemaSettings::for_serialize
+///
 /// [`Engine`]: super::Engine
 /// [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 /// [`Report`]: elide::Report
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Audit {
     /// The detections: elide's own report, body and container

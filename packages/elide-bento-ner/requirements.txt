@@ -736,9 +736,9 @@ tqdm==4.67.3 \
     #   huggingface-hub
     #   peft
     #   transformers
-transformers==5.15.0 \
-    --hash=sha256:bbf98f57b2ddd7c4ecbccfa2c0069017aa6fd01cc204bd50cbc0eeadcf2a13b8 \
-    --hash=sha256:d7f007736f67749ae9490c4f8cb5d30b452ae2d68c8675e50ba8d63ea7feb107
+transformers==5.15.1 \
+    --hash=sha256:27c996bd9075ddc82d40f8590dfdc81ea45f611bfca477e0db5d7fd257a482f7 \
+    --hash=sha256:b7cdf238ff583e3a58dbc7fa34da1aaf091ce063141f65a30538160bd5afe93f
     # via
     #   elide-bento-ner
     #   peft

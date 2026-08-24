@@ -217,30 +217,40 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
 }
 
 #[tokio::test]
-async fn audit_rejects_a_missing_context_on_deserialize() {
+async fn audit_rejects_a_missing_round_trip_field_on_deserialize() {
     let engine = engine();
     let analyzed = engine
         .analyze(raw_docx(), &[], &default_spec())
         .await
         .expect("analyze succeeds");
-    let mut value = serde_json::to_value(&analyzed).expect("serialize");
-    value
-        .as_object_mut()
-        .expect("object")
-        .remove("context")
-        .expect("context was serialized");
+    let serialized = serde_json::to_value(&analyzed).expect("serialize");
 
-    // Deserialization runs through the engine, which holds the
-    // modality registry a serialized report needs to be rebuilt.
-    let json = serde_json::to_string(&value).expect("re-serialize");
-    let mut de = serde_json::Deserializer::from_str(&json);
-    let Err(err) = engine.deserialize_audit(&mut de) else {
-        panic!("deserializing without a context must fail");
-    };
-    assert!(
-        err.to_string().contains("context"),
-        "missing-field error must name `context`, got: {err}",
-    );
+    // Both are always serialized, and both pin something anonymize
+    // must not re-derive: the recognition vocabulary, and how the
+    // document decodes. A payload missing either is malformed, not
+    // empty — defaulting `codec` would silently re-decode a PDF
+    // differently than analyze did, landing entity offsets on
+    // different content.
+    for field in ["context", "codec"] {
+        let mut value = serialized.clone();
+        value
+            .as_object_mut()
+            .expect("object")
+            .remove(field)
+            .unwrap_or_else(|| panic!("`{field}` was serialized"));
+
+        // Deserialization runs through the engine, which holds the
+        // modality registry a serialized report needs to be rebuilt.
+        let json = serde_json::to_string(&value).expect("re-serialize");
+        let mut de = serde_json::Deserializer::from_str(&json);
+        let Err(err) = engine.deserialize_audit(&mut de) else {
+            panic!("deserializing without `{field}` must fail");
+        };
+        assert!(
+            err.to_string().contains(field),
+            "missing-field error must name `{field}`, got: {err}",
+        );
+    }
 }
 
 #[tokio::test]

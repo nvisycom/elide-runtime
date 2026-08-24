@@ -441,7 +441,12 @@ struct AuditWire {
     #[serde(default)]
     reviews: ReviewSet,
     context: DocumentContext,
-    #[serde(default)]
+    // No `default`: unlike `reviews`/`usage` this is always
+    // serialized, so a payload omitting it is malformed rather
+    // than empty. Defaulting it to `RasterMode::Auto` would let a
+    // document re-decode differently than analyze decoded it, and
+    // the entity offsets recorded against the first decode would
+    // land on different content.
     codec: CodecParams,
     #[serde(default)]
     usage: UsageReport,

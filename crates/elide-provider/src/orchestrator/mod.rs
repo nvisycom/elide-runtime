@@ -123,11 +123,10 @@ impl Provider {
     /// [`LabelCatalog`] used to drive recognizer dispatch and
     /// tag-based selector matching.
     ///
-    /// Returns both the orchestrator and the resolved
-    /// [`DocumentContext`] so the caller can persist the
-    /// caller-asserted scope + analyze-side correlation id onto
-    /// the returned the audit. The orchestrator's own
-    /// scope carries the same `correlation_id` for tracing spans.
+    /// `correlation_id` tags the orchestrator's tracing spans. It
+    /// is passed rather than read off `context`, because it belongs
+    /// to the document being processed; persisting it onto the
+    /// audit is the caller's job.
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide::entity::LabelCatalog

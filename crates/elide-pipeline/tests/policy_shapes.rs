@@ -9,7 +9,6 @@ use bytes::Bytes;
 use elide::entity::LabelRef;
 use elide::entity::audit::AuditKind;
 use elide::modality::text::Text;
-use elide_config::{EngineConfig, Keyring};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
@@ -17,13 +16,14 @@ use elide_governance::{
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Audit, Engine};
+use elide_pipeline::{Audit, Engine, Keyring, ProviderConfig};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
 fn engine() -> Engine {
-    EngineConfig::default()
+    ProviderConfig::default()
         .build(&Keyring::new())
+        .map(Engine::new)
         .expect("engine builds")
 }
 

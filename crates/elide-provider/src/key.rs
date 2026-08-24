@@ -26,7 +26,7 @@
 //! to [`build_with_key_provider`], until a variant here covers it.
 //!
 //! [`KeyProvider`]: elide::redaction::operators::KeyProvider
-//! [`build_with_key_provider`]: crate::EngineConfig::build_with_key_provider
+//! [`build_with_key_provider`]: crate::ProviderConfig::build_with_key_provider
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -39,11 +39,11 @@ use serde::{Deserialize, Serialize};
 /// The secrets a [`KeyConfig`] refers to, by name.
 ///
 /// Filled by the deployment at startup and passed to
-/// [`EngineConfig::build`]; never serialized, and never part of a
+/// [`ProviderConfig::build`]; never serialized, and never part of a
 /// config. Names are the deployment's own: whatever its config says
 /// is what it must supply.
 ///
-/// [`EngineConfig::build`]: crate::EngineConfig::build
+/// [`ProviderConfig::build`]: crate::ProviderConfig::build
 #[derive(Default)]
 pub struct Keyring {
     secrets: HashMap<String, Vec<u8>>,
@@ -68,6 +68,12 @@ impl Keyring {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.secrets.is_empty()
+    }
+
+    /// The names this keyring holds, for reporting which of them a
+    /// config never asked for.
+    pub(crate) fn names(&self) -> impl Iterator<Item = &str> {
+        self.secrets.keys().map(String::as_str)
     }
 
     /// The secret named `name`.
@@ -120,6 +126,18 @@ pub enum KeyConfig {
 }
 
 impl KeyConfig {
+    /// Every keyring entry this config refers to.
+    ///
+    /// Lets the caller check the other direction: a secret the
+    /// deployment supplied that no config names is a typo, and a
+    /// typo in a secret name means redaction runs with the wrong
+    /// key or none at all.
+    pub(crate) fn secrets(&self) -> impl Iterator<Item = &str> {
+        match self {
+            Self::Static { secret } => std::iter::once(secret.as_str()),
+        }
+    }
+
     /// Build the provider this config names, reading whatever
     /// secrets it refers to out of `keyring`.
     ///

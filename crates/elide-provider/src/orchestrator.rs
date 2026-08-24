@@ -1,38 +1,16 @@
-//! Build a per-request [`Orchestrator`] from either an
-//! [`AnalyzerParams`] (at analyze time) or a persisted
-//! [`AuditContext`] (at anonymize time).
+//! [`Provider`]: a deployment's configuration, ready to build
+//! orchestrators from.
 //!
-//! One pipeline per modality, all wired against a single
-//! [`Scope`]. The orchestrator is built fresh per call: a small
-//! map of trait objects keyed by modality `TypeId`. The anonymize
-//! path is cheap: empty analyzers, per-request policy + override
-//! attachment. The analyze path is not free: LLM recognizers
-//! construct their [`RigBackend`] client on every compile: but
-//! the per-call shape is what lets us re-resolve policies and
-//! overrides per document at anonymize time without mutating a
-//! shared anonymizer.
+//! Configuration is parsed once; an [`Orchestrator`] is built per
+//! request, because it carries request data — the policies in
+//! force, the caller's scope, a correlation id — that no
+//! deployment-wide value could hold. What the provider holds is the
+//! half that does not change between requests: the codec registry,
+//! the recognizer and enricher lineups, and the key provider.
 //!
-//! [`RigBackend`]: elide::recognition::llm::backend::RigBackend
-//!
-//! Two entry points:
-//!
-//! - [`Engine::build_analyze_orchestrator`] compiles the analyzer
-//!   chain from an [`AnalyzerParams`]; empty policies + overrides.
-//!   Consumed by [`Engine::analyze`].
-//! - [`Engine::build_anonymize_orchestrator`] takes the persisted
-//!   analyze-time [`AuditContext`]; uses empty analyzers
-//!   (recognition already happened, apply just needs the
-//!   anonymizer stack) but a full policy + override set. Consumed
-//!   by [`Engine::anonymize`].
-//!
-//! Both entry points build the internal [`Scope`] the same way:
-//! merge `AuditContext` facts (languages, countries, tags) with a
-//! freshly-derived label catalog and the current phase's
-//! correlation id. The catalog is always re-derived from
-//! `policies`; there is no persisted catalog anywhere in the
-//! engine's public API.
-//!
-//! [`Scope`]: elide::recognition::Scope
+//! The returned orchestrator borrows the registry from the provider
+//! that made it, so a provider outlives every orchestrator it hands
+//! out. Hold one for the life of the process.
 
 use std::collections::{HashMap, HashSet};
 use std::slice;
@@ -52,10 +30,8 @@ use elide_governance::modality::RedactableModality;
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate};
 use uuid::Uuid;
 
-use super::Engine;
-use super::audit::AuditContext;
 use crate::catalog::compile_catalog;
-use crate::entity::{Review, ReviewSet};
+use crate::context::AuditContext;
 use crate::plan::AnalyzerParams;
 use crate::recognition::{
     OcrConfig, OcrEnricherConfig, SttConfig, SttEnricherConfig, compile_audio, compile_image,
@@ -66,8 +42,9 @@ use crate::redaction::{
     attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
     attach_policies_text,
 };
+use crate::{Override, Overrides, Provider};
 
-impl Engine {
+impl Provider {
     /// Build an [`Orchestrator`] for the analyze path: compile
     /// every per-modality analyzer from `spec`, wire empty
     /// anonymizers (analyze doesn't run redaction), and stamp the
@@ -79,15 +56,15 @@ impl Engine {
     /// tag-based selector matching.
     ///
     /// Returns both the orchestrator and the resolved
-    /// [`AuditContext`] so [`Engine::analyze`] can persist the
+    /// [`AuditContext`] so the caller can persist the
     /// caller-asserted scope + analyze-side correlation id onto
-    /// the returned [`super::Audit`]. The orchestrator's own
+    /// the returned the audit. The orchestrator's own
     /// scope carries the same `correlation_id` for tracing spans.
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide::entity::LabelCatalog
     /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
-    pub(super) fn build_analyze_orchestrator(
+    pub fn analyze_orchestrator(
         &self,
         spec: &AnalyzerParams,
         policies: &[PolicyDefinition],
@@ -145,20 +122,20 @@ impl Engine {
     /// needed only to satisfy `with_modality`'s type contract.
     ///
     /// The `correlation_id` from the anonymize-time
-    /// [`super::Document`] is stamped fresh onto the returned
+    /// document is stamped fresh onto the returned
     /// orchestrator's scope so anonymize-side tracing spans are
     /// distinct from the analyze-side ones on `context`.
     ///
     /// [`Analyzer<M>`]: elide::detection::Analyzer
-    pub(super) fn build_anonymize_orchestrator(
+    pub fn anonymize_orchestrator(
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
-        reviews: &ReviewSet,
+        overrides: &Overrides,
         correlation_id: Uuid,
     ) -> Result<Orchestrator<'_>> {
         validate_scope_references(policies)?;
-        validate_override_authorities(policies, reviews)?;
+        validate_override_authorities(policies, overrides)?;
         let catalog = compile_catalog(policies)?;
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
@@ -173,7 +150,7 @@ impl Engine {
 
         let text_anon = assemble::<Text, _, _>(
             &catalog,
-            &reviews.text,
+            &overrides.text,
             policies,
             |anon, id, policy, action| attach_override_text(anon, id, policy, action, &text_ctx),
             |anon, policies| attach_policies_text(anon, policies, &text_ctx),
@@ -186,7 +163,7 @@ impl Engine {
         let orchestrator = {
             let anon = assemble::<Tabular, _, _>(
                 &catalog,
-                &reviews.tabular,
+                &overrides.tabular,
                 policies,
                 |anon, id, policy, action| {
                     attach_override_tabular(anon, id, policy, action, &text_ctx)
@@ -199,7 +176,7 @@ impl Engine {
         let orchestrator = {
             let anon = assemble::<Image, _, _>(
                 &catalog,
-                &reviews.image,
+                &overrides.image,
                 policies,
                 attach_override_image,
                 attach_policies_image,
@@ -210,7 +187,7 @@ impl Engine {
         let orchestrator = {
             let anon = assemble::<Audio, _, _>(
                 &catalog,
-                &reviews.audio,
+                &overrides.audio,
                 policies,
                 attach_override_audio,
                 attach_policies_audio,
@@ -230,7 +207,7 @@ impl Engine {
     /// [`with_modality`] insists on.
     ///
     /// [`with_modality`]: elide::Orchestrator::with_modality
-    pub(super) fn build_report_orchestrator(&self) -> Orchestrator<'_> {
+    pub fn report_orchestrator(&self) -> Orchestrator<'_> {
         let catalog = LabelCatalog::new();
         Orchestrator::new(&self.formats)
             .with_modality::<Text>(Analyzer::<Text>::new(), assemble_empty(&catalog))
@@ -242,7 +219,7 @@ impl Engine {
     /// Record each entity's operator *pick* onto its audit trail,
     /// without applying anything.
     ///
-    /// Runs at the end of analyze so the returned [`Audit`] answers
+    /// Runs at the end of analyze so the returned the audit answers
     /// "what would happen to this entity, and why" before a reviewer
     /// decides anything. Each covered entity gains a [`Selection`]
     /// event naming the operator, the rule that matched it, and the
@@ -263,10 +240,9 @@ impl Engine {
     /// caller has not asked for yet is misconfigured would deny
     /// them the detections too.
     ///
-    /// [`Audit`]: super::Audit
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     /// [`Selection`]: elide::entity::audit::AuditKind::Selection
-    pub(super) fn record_picks(
+    pub fn record_picks(
         &self,
         context: &AuditContext,
         policies: &[PolicyDefinition],
@@ -340,9 +316,12 @@ impl Engine {
 /// policy would attribute to nothing and: worse: silently draw
 /// from an empty per-policy vault or fall back to the engine
 /// default `KeyProvider`, both of which are the wrong authority.
-fn validate_override_authorities(policies: &[PolicyDefinition], reviews: &ReviewSet) -> Result<()> {
+fn validate_override_authorities(
+    policies: &[PolicyDefinition],
+    overrides: &Overrides,
+) -> Result<()> {
     let known: HashSet<Uuid> = policies.iter().map(|p| p.id).collect();
-    for (entity_id, policy_id) in reviews.authorities() {
+    for (entity_id, policy_id) in overrides.authorities() {
         if !known.contains(&policy_id) {
             return Err(Error::new(
                 ErrorKind::Configuration,
@@ -504,18 +483,12 @@ fn pick_stt(stt: &SttConfig) -> Result<Option<&SttEnricherConfig>> {
 /// Build one modality's anonymizer: reviewer overrides first, so
 /// they win over the policy rules layered after them.
 ///
-/// `reviews` is the whole bucket for this modality, not just the
-/// operator overrides: only [`Review::Redact`] names an operator,
-/// and the other decisions are applied elsewhere (a suppression on
-/// the entity's trail, a retag on the report). Filtering here keeps
-/// that split in one place rather than in a parallel collection.
-///
 /// Iteration order is unspecified and does not matter: each
 /// override attaches a rule matching one entity id, so no two can
 /// ever claim the same entity.
 fn assemble<'a, M, O, P>(
     catalog: &LabelCatalog,
-    reviews: &HashMap<Uuid, Review<M>>,
+    overrides: &HashMap<Uuid, Override<M>>,
     policies: &'a [PolicyDefinition],
     attach_override: O,
     attach_policies: P,
@@ -526,11 +499,8 @@ where
     P: FnOnce(Anonymizer<M>, slice::Iter<'a, PolicyDefinition>) -> Result<Anonymizer<M>>,
 {
     let mut anonymizer = Anonymizer::<M>::new().with_catalog(catalog.clone());
-    for (entity_id, review) in reviews {
-        let Review::Redact { policy_id, action } = review else {
-            continue;
-        };
-        anonymizer = attach_override(anonymizer, *entity_id, *policy_id, action)?;
+    for (entity_id, over) in overrides {
+        anonymizer = attach_override(anonymizer, *entity_id, over.policy_id, &over.action)?;
     }
     attach_policies(anonymizer, policies.iter())
 }

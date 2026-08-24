@@ -1,23 +1,28 @@
-# elide-config
+# elide-provider
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-runtime/actions/workflows/build.yml)
 
-Deployment configuration for the Elide Runtime engine: backends,
-credentials, and key providers.
+Deployment-configured recognition and redaction providers for the
+Elide Runtime.
 
 ## Overview
 
-An engine is assembled once at startup from things a deployment owns:
-which NER model, which LLM provider, which OCR and STT engines, and the
-cryptographic key provider the HmacHash and Encrypt operators resolve
-through. EngineConfig is that set as one serializable value, and
-building it yields a running engine.
+A deployment decides some things once: which NER model, which LLM
+provider, which OCR and STT engines, and the cryptographic key provider
+the HmacHash and Encrypt operators resolve through. ProviderConfig is
+that set as one serializable value, and building it yields a Provider.
 
-This lives apart from elide-pipeline so the engine crate holds the
-running engine and nothing about where its configuration came from. A
-host reads a file, an environment variable, or an encrypted row in its
-own database, fills in an EngineConfig, and builds. The pipeline never
-learns which.
+A Provider then builds an Orchestrator per request, because an
+orchestrator carries request data the policies in force, the caller's
+scope, a correlation id that no deployment-wide value could hold.
+Config is parsed once; an orchestrator is constructed per request.
+
+This crate depends only on Elide and the governance vocabulary, never
+on the pipeline: it is the half that turns configuration into Elide
+runtime values, and knows nothing about documents, audits, or reviewer
+decisions. A host reads a file, an environment variable, or an
+encrypted row in its own database, fills in a ProviderConfig, and
+builds. Neither crate learns which.
 
 Backend credentials travel inside the backend configs, because that is
 where Elide's own provider types keep them: an LLM recognizer names its

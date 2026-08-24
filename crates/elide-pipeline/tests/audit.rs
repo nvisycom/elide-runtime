@@ -13,13 +13,12 @@ use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide::modality::text::Text;
-use elide_config::{EngineConfig, Keyring};
 use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::redaction::TextRedaction;
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::{Audit, Engine};
+use elide_pipeline::{Audit, Engine, Keyring, ProviderConfig};
 
 use self::fixtures::write_artefact;
 
@@ -30,8 +29,9 @@ fn raw_txt() -> Document {
 }
 
 fn engine() -> Engine {
-    EngineConfig::default()
+    ProviderConfig::default()
         .build(&Keyring::new())
+        .map(Engine::new)
         .expect("engine builds")
 }
 

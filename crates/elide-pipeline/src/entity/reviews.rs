@@ -67,20 +67,6 @@ impl ReviewSet {
             && self.audio.is_empty()
     }
 
-    /// Every operator override's `(entity_id, policy_id)` pair.
-    ///
-    /// Validation only needs the authority a reviewer named, not
-    /// the operator they picked, so this stays modality-agnostic
-    /// and spares the caller four near-identical loops. Only
-    /// [`Review::Redact`] names a policy; the other decisions
-    /// exercise no authority and are skipped.
-    pub(crate) fn authorities(&self) -> impl Iterator<Item = (Uuid, Uuid)> + '_ {
-        authorities_of(&self.text)
-            .chain(authorities_of(&self.tabular))
-            .chain(authorities_of(&self.image))
-            .chain(authorities_of(&self.audio))
-    }
-
     /// How many entities carry a decision, across every modality.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -123,18 +109,4 @@ impl_review_bucket! {
     Tabular => tabular,
     Image => image,
     Audio => audio,
-}
-
-/// The `(entity_id, policy_id)` pair of every operator override in
-/// one modality's bucket.
-///
-/// A free generic fn rather than a closure: each bucket has a
-/// different `M`, and a closure cannot be generic over it.
-fn authorities_of<M: RedactableModality>(
-    reviews: &HashMap<Uuid, Review<M>>,
-) -> impl Iterator<Item = (Uuid, Uuid)> + '_ {
-    reviews.iter().filter_map(|(id, review)| match review {
-        Review::Redact { policy_id, .. } => Some((*id, *policy_id)),
-        Review::Suppress { .. } | Review::Retag { .. } => None,
-    })
 }

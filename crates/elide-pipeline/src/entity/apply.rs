@@ -19,6 +19,8 @@
 //!
 //! [`ReviewSet`]: super::ReviewSet
 
+use std::collections::HashMap;
+
 use elide::Report;
 use elide::codec::PartId;
 use elide::entity::Entity;
@@ -29,12 +31,31 @@ use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide_governance::modality::RedactableModality;
+use elide_provider::{Override, Overrides};
 use uuid::Uuid;
 
 use super::{Review, ReviewBucket};
 use crate::Audit;
 
 impl Audit {
+    /// Project the reviewer's operator overrides into the shape the
+    /// provider applies.
+    ///
+    /// Only [`Review::Redact`] yields one: a suppression names no
+    /// operator and is applied by stamping the entity itself, and a
+    /// retag hands the corrected entity back to the policy set. The
+    /// provider never learns about either, because neither changes
+    /// which operator it should compile.
+    #[must_use]
+    pub fn overrides(&self) -> Overrides {
+        Overrides {
+            text: overrides_for(&self.reviews.text),
+            tabular: overrides_for(&self.reviews.tabular),
+            image: overrides_for(&self.reviews.image),
+            audio: overrides_for(&self.reviews.audio),
+        }
+    }
+
     /// Stamp every pending [`Review::Suppress`] onto its entity's
     /// audit trail, so elide's redaction pass skips it.
     ///
@@ -143,4 +164,23 @@ fn entity_mut<M: Modality>(report: &mut Report, id: Uuid) -> Option<&mut Entity<
         .into_iter()
         .find(|part| report.part_entity_mut::<M>(part, id).is_some())
         .and_then(move |part| report.part_entity_mut::<M>(&part, id))
+}
+
+/// The operator overrides in one modality's review bucket.
+fn overrides_for<M: RedactableModality>(
+    reviews: &HashMap<Uuid, Review<M>>,
+) -> HashMap<Uuid, Override<M>> {
+    reviews
+        .iter()
+        .filter_map(|(id, review)| match review {
+            Review::Redact { policy_id, action } => Some((
+                *id,
+                Override {
+                    policy_id: *policy_id,
+                    action: action.clone(),
+                },
+            )),
+            Review::Suppress { .. } | Review::Retag { .. } => None,
+        })
+        .collect()
 }

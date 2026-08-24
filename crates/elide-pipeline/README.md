@@ -14,18 +14,17 @@ self-contained: no persistence, no HTTP layer, no long-running
 background tasks. Hosts (a SaaS backend, a Tauri app, a CLI, an SDK)
 own their own workflow and storage on top.
 
-Owns the per-request orchestration that wires Elide's per-modality
-analyzers and anonymizers against a request-scoped view of the
-document, with policies and reviewer overrides layered onto each
-modality. Recognizers come from this crate's own analyzer parameters
-plus the deployment's NER and LLM configurations.
-The analyze verb returns a modality-tagged document body that hosts
-hold between analyze and apply, however they see fit.
+Owns the two verbs and the document model between them: analyze
+returns an audit a host holds and edits however it sees fit, and
+anonymize applies it. Building the orchestrators those verbs run on
+belongs to elide-provider, which turns a deployment's configuration
+into Elide runtime values; this crate holds an Engine over one and
+knows nothing about where that configuration came from.
 
 This crate is the umbrella entry point: everything a caller needs is
-surfaced here, including the request schemas (plan and file), the
-underlying Elide toolkit, and the governance vocabulary. A host
-depends on this crate alone.
+surfaced here, including the provider vocabulary, the request schemas
+(plan and file), the underlying Elide toolkit, and the governance
+vocabulary. A host depends on this crate alone.
 
 ## Changelog
 

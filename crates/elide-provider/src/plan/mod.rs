@@ -20,14 +20,8 @@
 //! elide's own `ScopeMetadata` block (tags, purpose, audience).
 //! The engine assembles these into an `elide::recognition::Scope`
 //! at compile time, together with the policy-derived label catalog
-//! and the correlation id it reads off
-//! [`Document::correlation_id`]: freshly minted by
-//! [`Document::new`], or whatever [`Document::with_correlation_id`]
-//! set.
-//!
-//! [`Document::correlation_id`]: crate::Document::correlation_id
-//! [`Document::new`]: crate::Document::new
-//! [`Document::with_correlation_id`]: crate::Document::with_correlation_id
+//! and the correlation id the caller supplies with the document,
+//! which the pipeline reads off `Document::correlation_id`.
 //!
 //! [`elide-governance`]: https://docs.rs/elide-governance
 

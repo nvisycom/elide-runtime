@@ -12,14 +12,15 @@ use elide::codec::PartId;
 use elide::modality::image::Image;
 use elide::modality::text::Text;
 use elide::{ErrorKind, Report};
-use elide_config::{EngineConfig, Keyring};
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::entity::Review;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
-use elide_pipeline::recognition::{OcrBackend, OcrConfig, OcrEnricherConfig};
-use elide_pipeline::{Audit, AuditContext, Engine, ReviewSet};
+use elide_pipeline::{
+    Audit, AuditContext, Engine, Keyring, OcrBackend, OcrConfig, OcrEnricherConfig, ProviderConfig,
+    ReviewSet,
+};
 
 use self::fixtures::write_artefact;
 
@@ -31,7 +32,7 @@ fn raw_docx() -> Document {
 }
 
 fn engine() -> Engine {
-    EngineConfig {
+    ProviderConfig {
         ocr: OcrConfig {
             enrichers: vec![OcrEnricherConfig {
                 name: "mock".into(),
@@ -39,9 +40,10 @@ fn engine() -> Engine {
                 backend: OcrBackend::Mock,
             }],
         },
-        ..EngineConfig::default()
+        ..ProviderConfig::default()
     }
     .build(&Keyring::new())
+    .map(Engine::new)
     .expect("engine builds")
 }
 

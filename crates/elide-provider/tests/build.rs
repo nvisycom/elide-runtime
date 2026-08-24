@@ -1,34 +1,35 @@
-//! Building an engine from a deployment's configuration.
+//! Building a provider from a deployment's configuration.
 //!
-//! The crate exists so `elide-pipeline` holds a running engine and
+//! The crate exists so the pipeline holds a running engine and
 //! nothing about where its configuration came from, so what these
-//! assert is the seam: a config round-trips as data, builds an
-//! engine, and disagreements about key material fail at build
+//! assert is the seam: a config round-trips as data, builds a
+//! provider, and disagreements about key material fail at build
 //! rather than at the first request that needs a key.
 
 use elide::ErrorKind;
-use elide_config::{EngineConfig, KeyConfig, Keyring};
-use elide_pipeline::recognition::{OcrBackend, OcrConfig, OcrEnricherConfig};
+use elide_provider::{
+    KeyConfig, Keyring, OcrBackend, OcrConfig, OcrEnricherConfig, ProviderConfig,
+};
 
 const KEY: &[u8] = b"deployment-wide-key-32-bytes-ok!";
 
 #[test]
-fn an_empty_config_builds_an_engine_with_no_backends() {
+fn an_empty_config_builds_a_provider_with_no_backends() {
     // The default is not an error: a deployment running only the
     // pattern recognizers elide ships configures nothing.
-    let engine = EngineConfig::default()
+    let provider = ProviderConfig::default()
         .build(&Keyring::new())
         .expect("an empty config builds");
     assert_eq!(
-        engine.components().len(),
+        provider.ocr().enrichers.len(),
         0,
         "no backends configured means none registered",
     );
 }
 
 #[test]
-fn configured_backends_reach_the_engine() {
-    let config = EngineConfig {
+fn configured_backends_reach_the_provider() {
+    let config = ProviderConfig {
         ocr: OcrConfig {
             enrichers: vec![OcrEnricherConfig {
                 name: "acme-ocr".into(),
@@ -36,20 +37,20 @@ fn configured_backends_reach_the_engine() {
                 backend: OcrBackend::Mock,
             }],
         },
-        ..EngineConfig::default()
+        ..ProviderConfig::default()
     };
 
-    let engine = config.build(&Keyring::new()).expect("engine builds");
-    let components = engine.components();
-    assert_eq!(components.ocr.len(), 1, "the configured enricher is wired");
-    assert_eq!(components.ocr[0].name.as_str(), "acme-ocr");
+    let provider = config.build(&Keyring::new()).expect("provider builds");
+    let ocr = &provider.ocr().enrichers;
+    assert_eq!(ocr.len(), 1, "the configured enricher is wired");
+    assert_eq!(ocr[0].name.as_str(), "acme-ocr");
 }
 
 #[test]
 fn a_config_round_trips_as_json() {
     // A host reads this from a file, or an encrypted row in its own
     // database; either way it is plain data.
-    let config = EngineConfig {
+    let config = ProviderConfig {
         key: Some(KeyConfig::Static {
             secret: "redaction".into(),
         }),
@@ -60,11 +61,11 @@ fn a_config_round_trips_as_json() {
                 backend: OcrBackend::Mock,
             }],
         },
-        ..EngineConfig::default()
+        ..ProviderConfig::default()
     };
 
     let json = serde_json::to_string(&config).expect("config serializes");
-    let back: EngineConfig = serde_json::from_str(&json).expect("config deserializes");
+    let back: ProviderConfig = serde_json::from_str(&json).expect("config deserializes");
 
     assert_eq!(
         back.key,
@@ -80,11 +81,11 @@ fn a_config_round_trips_as_json() {
 fn key_material_is_not_a_config_field() {
     // The whole point of naming the provider rather than carrying
     // the key: a serialized config cannot leak one.
-    let config = EngineConfig {
+    let config = ProviderConfig {
         key: Some(KeyConfig::Static {
             secret: "redaction".into(),
         }),
-        ..EngineConfig::default()
+        ..ProviderConfig::default()
     };
     let json = serde_json::to_string(&config).expect("config serializes");
 
@@ -100,11 +101,11 @@ fn key_material_is_not_a_config_field() {
 
 #[test]
 fn a_named_secret_the_keyring_lacks_fails_at_build() {
-    let config = EngineConfig {
+    let config = ProviderConfig {
         key: Some(KeyConfig::Static {
             secret: "redaction".into(),
         }),
-        ..EngineConfig::default()
+        ..ProviderConfig::default()
     };
 
     let Err(err) = config.build(&Keyring::new()) else {
@@ -123,7 +124,7 @@ fn a_keyring_no_config_names_fails_at_build() {
     // means the deployment believes redaction is keyed when it is
     // not.
     let keyring = Keyring::new().with_secret("redaction", KEY);
-    let Err(err) = EngineConfig::default().build(&keyring) else {
+    let Err(err) = ProviderConfig::default().build(&keyring) else {
         panic!("an unused keyring must not build silently");
     };
     assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
@@ -142,7 +143,37 @@ fn a_caller_can_supply_its_own_key_provider() {
 
     use elide::redaction::operators::{KeyProvider, StaticKey};
 
-    let provider: Arc<dyn KeyProvider> = Arc::new(StaticKey::new(KEY.to_vec()));
-    let engine = EngineConfig::default().build_with_key_provider(provider);
-    assert_eq!(engine.components().len(), 0);
+    let keys: Arc<dyn KeyProvider> = Arc::new(StaticKey::new(KEY.to_vec()));
+    let provider = ProviderConfig::default().build_with_key_provider(keys);
+    assert!(
+        provider.ner().recognizers.is_empty(),
+        "the rest of the config is untouched",
+    );
+}
+
+#[test]
+fn a_keyring_secret_the_config_never_names_fails_at_build() {
+    // The case a typo produces: the deployment supplies
+    // `redcation` for a config naming `redaction`. Without this,
+    // the missing secret fails but a *misspelled* one would too
+    // — and if both are present, the provider builds with the key
+    // nobody meant to use.
+    let config = ProviderConfig {
+        key: Some(KeyConfig::Static {
+            secret: "redaction".into(),
+        }),
+        ..ProviderConfig::default()
+    };
+    let keyring = Keyring::new()
+        .with_secret("redaction", KEY)
+        .with_secret("redcation", KEY);
+
+    let Err(err) = config.build(&keyring) else {
+        panic!("an unreferenced keyring secret must not build silently");
+    };
+    assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
+    assert!(
+        err.to_string().contains("redcation"),
+        "the error names the secret nothing asked for; got: {err}",
+    );
 }

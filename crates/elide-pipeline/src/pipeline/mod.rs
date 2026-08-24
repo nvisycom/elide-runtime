@@ -2,13 +2,10 @@
 //!
 //! Long-lived state (only two things):
 //!
-//! - The [`FormatRegistry`] over elide's codec set. Decodes raw
-//!   bytes into a modality-typed [`DocumentHandle`] at analyze +
-//!   anonymize time.
-//! - The deployment's NER + LLM lineups (see [`crate::recognition::backend::ner`]
-//!   and [`crate::recognition::backend::llm`]). Consulted by the analyzer
-//!   compile whenever the request's
-//!   `AnalyzerParams.recognizers.{ner,llm}` selects any recognizer.
+//! - A [`Provider`]: the deployment's configuration, already
+//!   built. It owns the [`FormatRegistry`] documents decode
+//!   through and the recognizer and enricher lineups, and hands
+//!   out an [`Orchestrator`] per request.
 //!
 //! [`Engine`] clones cheaply (`Arc` under the hood). Callers pass
 //! a clone into every request-scoped code path they run.
@@ -47,20 +44,11 @@
 //!
 //! ## Internal layout
 //!
-//! Sibling crate-level modules provide the modality-shaped
-//! plumbing:
+//! Sibling modules:
 //!
-//! - `crate::recognition` and `crate::redaction` compile
-//!   per-modality `spec` and `policies` into per-modality elide
-//!   types.
 //! - `crate::entity` owns [`ReviewSet`] (the reviewer decisions
-//!   that sit beside elide's report) and the redaction override
-//!   they compile into.
-//!
-//! Inside this module:
-//!
-//! - `orchestrator` wires those into an [`Orchestrator`] for a
-//!   single request.
+//!   that sit beside elide's report) and the projection onto the
+//!   overrides a provider applies.
 //! - `audit` defines [`Audit`], [`AuditContext`], the analyze →
 //!   anonymize bridge; all re-exported at the crate root.
 //!
@@ -75,11 +63,9 @@
 mod audit;
 #[cfg(feature = "audit-csv")]
 mod audit_csv;
-mod orchestrator;
 mod registered;
 
 use std::mem;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use elide::codec::{FormatRegistry, UntypedDocumentHandle};
@@ -90,17 +76,16 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::primitive::RasterMode;
 use elide::recognition::UsageReport;
-use elide::redaction::operators::KeyProvider;
 use elide::{Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
+use elide_provider::plan::AnalyzerParams;
+use elide_provider::{AuditContext, Provider};
 use serde::Deserialize;
 
-pub use self::audit::{Audit, AuditContext};
+pub use self::audit::Audit;
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
 use crate::entity::ReviewSet;
 use crate::file::Document;
-use crate::plan::AnalyzerParams;
-use crate::recognition::{LlmConfig, NerConfig, OcrConfig, SttConfig};
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
 ///
@@ -112,52 +97,29 @@ use crate::recognition::{LlmConfig, NerConfig, OcrConfig, SttConfig};
 /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
 #[derive(Clone)]
 pub struct Engine {
-    formats: Arc<FormatRegistry>,
-    ner: Arc<NerConfig>,
-    llm: Arc<LlmConfig>,
-    ocr: Arc<OcrConfig>,
-    stt: Arc<SttConfig>,
-    pub(super) key_provider: Option<Arc<dyn KeyProvider>>,
+    provider: Provider,
 }
 
 impl Engine {
-    /// Assemble an engine from a deployment's configuration.
+    /// An engine over `provider`'s configuration.
     ///
-    /// Not the public path: [`elide-config`] owns engine creation,
-    /// so a deployment describes its backends and key provider
-    /// there and builds through it. Keeping one constructor, and
-    /// keeping it out of reach, means there is exactly one place
-    /// where "how is an engine configured" is answered.
-    ///
-    /// Pairs the given lineups with [`FormatRegistry::with_builtin`].
-    /// A `None` key provider is not an error here: a policy naming
-    /// `HmacHash` or `Encrypt` fails at request-compile time
-    /// instead, where it can say which policy and which operator.
-    /// The language-detection enricher always attaches to text with
-    /// elide's unrestricted lingua default.
-    ///
-    /// [`elide-config`]: https://docs.rs/elide-config
-    #[doc(hidden)]
-    pub fn from_parts(
-        ner: NerConfig,
-        llm: LlmConfig,
-        ocr: OcrConfig,
-        stt: SttConfig,
-        key_provider: Option<Arc<dyn KeyProvider>>,
-    ) -> Self {
-        Self {
-            formats: Arc::new(FormatRegistry::with_builtin()),
-            ner: Arc::new(ner),
-            llm: Arc::new(llm),
-            ocr: Arc::new(ocr),
-            stt: Arc::new(stt),
-            key_provider,
-        }
+    /// A [`Provider`] holds what a deployment decides once; an
+    /// engine adds the verbs that run documents through it. One
+    /// provider can back many engines, and cloning either is cheap.
+    #[must_use]
+    pub fn new(provider: Provider) -> Self {
+        Self { provider }
+    }
+
+    /// The configuration this engine runs on.
+    #[must_use]
+    pub fn provider(&self) -> &Provider {
+        &self.provider
     }
 
     /// The codec registry the engine decodes documents through.
     pub fn formats(&self) -> &FormatRegistry {
-        &self.formats
+        self.provider.formats()
     }
 
     /// Read an [`Audit`] back from its serialized form.
@@ -191,7 +153,7 @@ impl Engine {
 
         // The report is the one part this engine must rebuild
         // itself; everything else on an audit is plain data.
-        let orchestrator = self.build_report_orchestrator();
+        let orchestrator = self.provider.report_orchestrator();
         let report = orchestrator.deserialize_report(wire.report)?;
 
         Ok(Audit {
@@ -206,10 +168,34 @@ impl Engine {
     /// each lineup in configuration order.
     pub fn components(&self) -> RegisteredComponents {
         RegisteredComponents {
-            ner: self.ner.recognizers.iter().map(Into::into).collect(),
-            llm: self.llm.recognizers.iter().map(Into::into).collect(),
-            ocr: self.ocr.enrichers.iter().map(Into::into).collect(),
-            stt: self.stt.enrichers.iter().map(Into::into).collect(),
+            ner: self
+                .provider
+                .ner()
+                .recognizers
+                .iter()
+                .map(Into::into)
+                .collect(),
+            llm: self
+                .provider
+                .llm()
+                .recognizers
+                .iter()
+                .map(Into::into)
+                .collect(),
+            ocr: self
+                .provider
+                .ocr()
+                .enrichers
+                .iter()
+                .map(Into::into)
+                .collect(),
+            stt: self
+                .provider
+                .stt()
+                .enrichers
+                .iter()
+                .map(Into::into)
+                .collect(),
         }
     }
 
@@ -270,7 +256,8 @@ impl Engine {
         let extension = document.extension.clone();
         let mut handle = self.decode(document, spec.raster_mode).await?;
         let (orchestrator, context) =
-            self.build_analyze_orchestrator(spec, policies, correlation_id)?;
+            self.provider
+                .analyze_orchestrator(spec, policies, correlation_id)?;
         let directives = build_analyze_directives(spec);
         let mut report = orchestrator.analyze(&mut handle, &directives).await?;
         // Cloned off the report: elide derives usage during
@@ -297,7 +284,8 @@ impl Engine {
         // returned audit answers "what happens to this, and why"
         // before a reviewer overrides anything. Purely additive:
         // it appends Selection events and redacts nothing.
-        self.record_picks(&context, policies, correlation_id, &mut report);
+        self.provider
+            .record_picks(&context, policies, correlation_id, &mut report);
 
         Ok(Audit {
             report,
@@ -395,10 +383,10 @@ impl Engine {
         // the redaction pass skips.
         audit.apply_suppressions();
 
-        let orchestrator = self.build_anonymize_orchestrator(
+        let orchestrator = self.provider.anonymize_orchestrator(
             &audit.context,
             policies,
-            &audit.reviews,
+            &audit.overrides(),
             correlation_id,
         )?;
 
@@ -428,7 +416,12 @@ impl Engine {
             bytes, extension, ..
         } = document;
         let result = match raster_mode {
-            RasterMode::Auto => self.formats.decode(bytes, extension.as_str()).await,
+            RasterMode::Auto => {
+                self.provider
+                    .formats()
+                    .decode(bytes, extension.as_str())
+                    .await
+            }
             _ => {
                 self.decode_with_raster_mode(bytes, extension.as_str(), raster_mode)
                     .await

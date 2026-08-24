@@ -8,10 +8,9 @@
 //! rather than any one layer in isolation.
 
 use bytes::Bytes;
-use elide_config::{EngineConfig, KeyConfig, Keyring};
-use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
 use elide_pipeline::plan::AnalyzerParams;
+use elide_pipeline::{Engine, KeyConfig, Keyring, ProviderConfig};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PciPanRender, PolicyTemplate, Template,
@@ -20,19 +19,21 @@ use elide_template::{
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
 fn engine() -> Engine {
-    EngineConfig::default()
+    ProviderConfig::default()
         .build(&Keyring::new())
+        .map(Engine::new)
         .expect("engine builds")
 }
 
 fn engine_with_key() -> Engine {
-    EngineConfig {
+    ProviderConfig {
         key: Some(KeyConfig::Static {
             secret: "redaction".into(),
         }),
-        ..EngineConfig::default()
+        ..ProviderConfig::default()
     }
     .build(&Keyring::new().with_secret("redaction", *b"elide-template-test-key-32bytes"))
+    .map(Engine::new)
     .expect("engine builds with a key provider")
 }
 

@@ -354,7 +354,7 @@ fn missing_infrastructure(
         ErrorKind::Configuration,
         format!(
             "policy `{policy_id}` uses `{operator}` which requires a {infrastructure}; \
-             configure one via `EngineConfig::key`",
+             configure one via `ProviderConfig::key`",
         ),
     )
 }

@@ -9,13 +9,12 @@
 //! [`RegisteredEnricher`] is a type alias for the same shape,
 //! used for the OCR and STT lineups.
 
+use elide_provider::{
+    LlmRecognizerConfig, NerRecognizerConfig, OcrEnricherConfig, SttEnricherConfig,
+};
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::recognition::{
-    LlmRecognizerConfig, NerRecognizerConfig, OcrEnricherConfig, SttEnricherConfig,
-};
 
 /// Public view of one recognizer in the engine's NER or LLM
 /// lineup.

@@ -69,7 +69,7 @@ pub(crate) fn compile_tabular(ner: &NerConfig) -> Result<Analyzer<Tabular>> {
 /// that same text, and LLM is available
 /// image-natively for vision-language models. The OCR enricher
 /// attaches when the deployment wired one via
-/// its `EngineConfig`.
+/// its `ProviderConfig`.
 ///
 pub(crate) fn compile_image(
     ner: &NerConfig,

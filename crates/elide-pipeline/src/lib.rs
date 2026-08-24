@@ -46,14 +46,9 @@
 //!
 //! [`elide`]: elide
 
-mod catalog;
-
 pub mod entity;
 pub mod file;
 mod pipeline;
-pub mod plan;
-pub mod recognition;
-mod redaction;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
@@ -97,6 +92,13 @@ pub use elide::{Error, ErrorKind, Result};
 /// operators.
 #[doc(inline)]
 pub use elide_governance as policy;
+#[doc(inline)]
+pub use elide_provider::{
+    AttachTo, AuditContext, KeyConfig, Keyring, LlmConfig, LlmPrompt, LlmRecognizerConfig,
+    LlmSource, NerBackend, NerConfig, NerRecognizerConfig, OcrBackend, OcrConfig,
+    OcrEnricherConfig, Override, Overrides, Provider, ProviderConfig, SttBackend, SttConfig,
+    SttEnricherConfig, plan,
+};
 /// Ready-to-run policy templates for common regulatory postures
 /// (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA).
 #[doc(inline)]
@@ -105,5 +107,5 @@ pub use elide_template as template;
 pub use self::entity::ReviewSet;
 pub use self::file::{Document, FileMetadata};
 pub use self::pipeline::{
-    Audit, AuditContext, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
+    Audit, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
 };

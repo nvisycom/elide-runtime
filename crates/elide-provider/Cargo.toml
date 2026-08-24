@@ -1,0 +1,58 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "elide-provider"
+description = "Deployment-configured recognition and redaction providers for the Elide Runtime"
+keywords = ["elide", "provider", "config", "deployment"]
+categories = ["config", "text-processing"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+
+## Turn on the test-only mock backends (`{Ner,Ocr,Stt,Llm}Backend::Mock`)
+## and the elide mock backends they compile into. Off in production so
+## deployment config cannot name a mock recognizer.
+test-utils = ["elide/mock"]
+
+[dev-dependencies]
+# Self, with the mock backends on: a plain `cargo test -p
+# elide-provider` then compiles the tests that name them, without
+# `--all-features` on the command line.
+elide-provider = { path = ".", features = ["test-utils"] }
+
+# Serialization
+serde_json = { workspace = true, features = [] }
+
+[dependencies]
+# Elide crates
+elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-jinja2", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
+
+# Elide extensions
+elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }
+
+# Internal crates
+elide-governance = { workspace = true, features = [] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = [] }
+
+# Primitive datatypes
+uuid = { workspace = true, features = [] }
+hipstr = { workspace = true, features = ["serde"] }

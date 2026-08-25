@@ -323,11 +323,16 @@ impl Engine {
         // half-honoured.
         audit.edits.validate()?;
 
-        // Land the pending edits on the report: added entities,
-        // corrected ones, and the suppression flag elide reads to
-        // decide what the redaction pass skips.
-        audit.edits.apply(&mut audit.report);
-
+        // Built before the edits are applied, because this can
+        // still fail — an override naming a policy the request did
+        // not submit, an operator that will not compile. Applying
+        // first would leave the caller's audit half-mutated after a
+        // request that returned an error: suppressions stamped onto
+        // entities, adds and retags consumed, nothing redacted.
+        //
+        // Safe to read the overrides this early: `apply` leaves
+        // `Edit::Redact` pending precisely because it belongs to the
+        // anonymizer rather than the report.
         let orchestrator = self.provider.anonymize_orchestrator(
             &audit.context,
             policies,
@@ -335,6 +340,11 @@ impl Engine {
             key,
             correlation_id,
         )?;
+
+        // Land the pending edits on the report: added entities,
+        // corrected ones, and the suppression flag elide reads to
+        // decide what the redaction pass skips.
+        audit.edits.apply(&mut audit.report);
 
         // The report moves through apply and comes back mutated,
         // every entity carrying the redaction event elide stamped.

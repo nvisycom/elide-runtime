@@ -12,7 +12,7 @@
 //!   `Rule::predicate`.
 //! - [`RuleDispatch::Table`]: N `(label, action)` entries under
 //!   one shared identity. Every entry attaches as `Rule::label`
-//!   directly and fires under the same rule id in the audit trail.
+//!   directly and answers to the same attribution.
 //!   Sugar over N predicated rules with identical
 //!   id/name/description: keeps templates that fan out per-label operators (HIPAA
 //!   Safe Harbor `age`→clamp, `date`→generalize, remainder→erase)
@@ -64,9 +64,10 @@ pub struct PolicyRule {
     /// Why this rule exists: the authority it answers to.
     ///
     /// The engine renders it into the redaction event's
-    /// [`Attribution`], so a reviewer sees the provision rather
-    /// than a bare UUID. `None` falls back to recording the
-    /// policy and rule ids alone.
+    /// [`Attribution`] verbatim, so a reviewer sees the provision
+    /// the rule answers to. `None` falls back to a freeform
+    /// attribution under the enclosing policy's name and
+    /// description — the rule itself is not named in the trail.
     ///
     /// Optional so ad-hoc and hand-authored rules stay cheap to
     /// write; the shipped templates set it on every rule.

@@ -6,7 +6,7 @@
 //! crate stands on its own.
 
 use elide::Report;
-use elide::entity::audit::{AuditEvent, AuditKind, AuditLog};
+use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::Confidence;
@@ -220,25 +220,31 @@ fn an_added_entity_keeps_its_reason_and_actor() {
     edits.apply(&mut report);
 
     let added = &report.entities::<Text>().expect("text body")[0];
-    let manual = added
+    let event = added
         .audit
         .events()
         .iter()
-        .find_map(|e| match &e.kind {
-            AuditKind::Manual(m) => Some(m),
-            _ => None,
-        })
+        .find(|e| matches!(e.kind, AuditKind::Manual(_)))
         .expect("an added entity carries a Manual event");
-    assert_eq!(manual.reason.as_deref(), Some("recognizer missed it"));
-    assert_eq!(manual.actor.as_deref(), Some("alice"));
+    assert_eq!(
+        event.source.as_str(),
+        "alice",
+        "the reviewer is the event's source",
+    );
+    let AuditKind::Manual(manual) = &event.kind else {
+        unreachable!("matched above")
+    };
+    let Some(Attribution::Freeform(freeform)) = &manual.attribution else {
+        panic!("the rationale rides on a freeform attribution");
+    };
+    assert_eq!(freeform.name.as_str(), "recognizer missed it");
 }
 
 #[test]
 fn retagging_does_not_unsuppress() {
-    // A retag records no `Manual` event: `intent` is what
-    // `is_suppressed` reads, and there is no "corrected" intent, so
-    // stamping an `Include` would silently revive a suppressed
-    // entity.
+    // A retag records `ManualIntent::Amend`, which `is_suppressed`
+    // skips: a correction says nothing about whether the entity is
+    // redacted, so it must not revive a suppressed one.
     let (mut report, id) = report_with_one();
 
     let mut edits = EditSet::default();
@@ -278,4 +284,82 @@ fn retagging_does_not_unsuppress() {
         "person_name",
         "but the retag still applied"
     );
+}
+
+#[test]
+fn an_edit_that_finds_no_entity_stays_pending() {
+    // Each modality gets its own pass over the same bucket, and an
+    // id may simply be stale. Dropping an edit that changed nothing
+    // would make a reviewer's decision vanish with no error and no
+    // record of it.
+    let mut report = Report::new().insert_body::<Text>(Vec::new());
+    let mut edits = EditSet::default();
+    edits.text.push(Edit::Suppress(Suppress {
+        id: Uuid::from_u128(999),
+        by: Reviewer {
+            reason: Some("false positive".into()),
+            actor: Some("alice".into()),
+        },
+    }));
+
+    edits.apply(&mut report);
+
+    assert_eq!(
+        edits.text.len(),
+        1,
+        "an edit naming an entity the report does not hold is not applied, so it is not history",
+    );
+}
+
+#[test]
+fn an_applied_edit_stops_being_pending() {
+    // The counterpart: what *did* land is history, because the
+    // entity's own trail now carries it.
+    let (mut report, id) = report_with_one();
+    let mut edits = EditSet::default();
+    edits.text.push(Edit::Suppress(Suppress {
+        id,
+        by: Reviewer::default(),
+    }));
+
+    edits.apply(&mut report);
+
+    assert!(edits.text.is_empty(), "the applied suppression is consumed");
+}
+
+#[test]
+fn a_retag_records_who_corrected_it() {
+    // `ManualIntent::Amend` is what lets a correction carry the
+    // reviewer's rationale onto the trail — the edit itself is
+    // consumed once applied, so without this the audit could not
+    // say who changed the entity.
+    let (mut report, id) = report_with_one();
+    let mut edits = EditSet::default();
+    edits.text.push(Edit::Retag(Retag {
+        id,
+        label: Some(LabelRef::new("person_name")),
+        location: None,
+        by: Reviewer {
+            reason: Some("recognizer mislabelled it".into()),
+            actor: Some("bob".into()),
+        },
+    }));
+
+    edits.apply(&mut report);
+
+    let entity = &report.entities::<Text>().expect("text body")[0];
+    let event = entity
+        .audit
+        .events()
+        .iter()
+        .find(|e| matches!(&e.kind, AuditKind::Manual(m) if m.intent == ManualIntent::Amend))
+        .expect("a retag records an Amend event");
+    assert_eq!(event.source.as_str(), "bob");
+    let AuditKind::Manual(manual) = &event.kind else {
+        unreachable!("matched above")
+    };
+    let Some(Attribution::Freeform(freeform)) = &manual.attribution else {
+        panic!("the rationale rides on a freeform attribution");
+    };
+    assert_eq!(freeform.name.as_str(), "recognizer mislabelled it");
 }

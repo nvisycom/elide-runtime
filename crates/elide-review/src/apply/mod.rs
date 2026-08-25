@@ -19,7 +19,6 @@
 //!
 //! [`EditSet`]: super::EditSet
 
-mod entity;
 mod landing;
 mod suppression;
 
@@ -65,16 +64,31 @@ fn apply_for<M: EditBucket + 'static>(edits: &mut EditSet, report: &mut Report) 
     // before it is mutated below: an `Edit<M>` cannot be cloned out
     // (its derive would need `M: Clone`, which a modality marker is
     // not).
-    let pending: Vec<Landing<M>> = M::bucket(edits).iter().filter_map(Landing::of).collect();
+    // One landing per edit, in bucket order, so the results line up
+    // with the `retain` below.
+    let landed: Vec<bool> = M::bucket(edits)
+        .iter()
+        .map(Landing::<M>::of)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|l| l.land(report))
+        .collect();
 
-    for landing in pending {
-        landing.land(report);
-    }
-
-    // Applied edits become history: the entity's trail now carries
-    // them, so leaving one pending would make a reviewer's *next*
-    // decision look like it contradicts one already carried out.
-    // Redacts stay — nothing stamps them here, and `overrides()`
-    // reads them after this runs.
-    M::bucket_mut(edits).retain(|edit| matches!(edit, Edit::Redact(_)));
+    // An applied edit becomes history: the entity's trail now
+    // carries it, so leaving one pending would make a reviewer's
+    // *next* decision look like it contradicts one already carried
+    // out.
+    //
+    // An edit that found no target stays. Its entity may belong to
+    // another modality — each gets its own pass over the same
+    // bucket — or the id may be stale, and dropping it would make a
+    // reviewer's decision vanish with nothing to show for it.
+    //
+    // Redacts stay either way: nothing stamps them here, and
+    // `overrides()` reads them after this runs.
+    let mut applied = landed.into_iter();
+    M::bucket_mut(edits).retain(|edit| {
+        let landed = applied.next().unwrap_or(false);
+        matches!(edit, Edit::Redact(_)) || !landed
+    });
 }

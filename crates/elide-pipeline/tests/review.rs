@@ -9,7 +9,7 @@
 //! survive serialization is a decision silently dropped.
 
 use bytes::Bytes;
-use elide::entity::audit::{AuditEvent, AuditKind, AuditLog, PatternEvent};
+use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, PatternEvent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
@@ -188,17 +188,24 @@ async fn suppress_leaves_the_entity_alone() {
         .iter()
         .find(|e| e.is_suppressed())
         .expect("an entity reports itself suppressed after the round-trip");
-    let manual = suppressed
+    let event = suppressed
         .audit
         .events()
         .iter()
-        .find_map(|e| match &e.kind {
-            AuditKind::Manual(m) => Some(m),
-            _ => None,
-        })
+        .find(|e| matches!(e.kind, AuditKind::Manual(_)))
         .expect("suppression records a Manual event");
-    assert_eq!(manual.reason.as_deref(), Some("known test account"));
-    assert_eq!(manual.actor.as_deref(), Some("reviewer"));
+    assert_eq!(
+        event.source.as_str(),
+        "reviewer",
+        "the reviewer is the event's source",
+    );
+    let AuditKind::Manual(manual) = &event.kind else {
+        unreachable!("matched above")
+    };
+    let Some(Attribution::Freeform(freeform)) = &manual.attribution else {
+        panic!("the rationale rides on a freeform attribution");
+    };
+    assert_eq!(freeform.name.as_str(), "known test account");
     assert!(
         suppressed.audit.verify().is_ok(),
         "the hash chain still verifies after a suppression round-trip"

@@ -7,7 +7,7 @@
 //! than erased.
 
 use elide::entity::Entity;
-use elide::entity::audit::AuditEvent;
+use elide::entity::audit::{Attribution, ManualIntent};
 use elide::modality::Modality;
 
 /// What an edit implies for elide's suppression flag, flattened
@@ -27,33 +27,28 @@ pub(super) enum Suppression {
 impl Suppression {
     /// Bring `entity`'s trail in line with this decision.
     ///
-    /// A no-op when the trail already says what the decision says,
-    /// so re-applying an audit does not stack duplicate events.
-    /// Reversal records a `Manual` include rather than rewriting
-    /// history: `is_suppressed` reads the most recent `Manual`
-    /// event, so the trail keeps both halves of a change of mind.
+    /// Idempotent, and directionally so: [`record_manual`] skips a
+    /// `Suppress` the trail already carries, while a `Flag` always
+    /// records — which is what keeps both halves of a reviewer's
+    /// change of mind on the trail rather than erasing the first.
+    ///
+    /// [`record_manual`]: elide::entity::Entity::record_manual
     pub(super) fn reconcile<M: Modality>(&self, entity: &mut Entity<M>) {
-        if matches!(self, Self::On { .. }) == entity.is_suppressed() {
-            return;
-        }
-        let location = entity.location.clone();
-        let confidence = entity.confidence;
         match self {
             Self::On { reason, actor } => {
-                let mut event = AuditEvent::manual_suppress(location, confidence);
-                if let Some(reason) = reason {
-                    event = event.with_reason(reason.clone());
-                }
-                if let Some(actor) = actor {
-                    event = event.with_actor(actor.clone());
-                }
-                entity.suppress(event);
+                entity.record_manual(
+                    ManualIntent::Suppress,
+                    reason.clone().map(Attribution::freeform).map(Into::into),
+                    actor.as_deref(),
+                );
             }
-            Self::Off => {
-                entity
-                    .audit
-                    .record(AuditEvent::manual_include(location, confidence));
+            // Reversal records a `Flag`: the redaction pass reads
+            // the most recent decision, so this lifts the earlier
+            // suppression without rewriting it.
+            Self::Off if entity.is_suppressed() => {
+                entity.record_manual(ManualIntent::Flag, None, None);
             }
+            Self::Off => {}
         }
     }
 }

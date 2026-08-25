@@ -6,14 +6,13 @@
 //! modality marker is not.
 
 use elide::Report;
-use elide::entity::audit::{AuditEvent, AuditLog};
+use elide::entity::audit::{Attribution, AuditLog, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::Modality;
 use elide::primitive::Confidence;
 use elide_governance::modality::RedactableModality;
 use uuid::Uuid;
 
-use super::entity::entity_mut;
 use super::suppression::Suppression;
 use crate::Edit;
 
@@ -50,13 +49,11 @@ pub(super) enum Landing<M: Modality> {
 }
 
 impl<M: Modality> Landing<M> {
-    /// Every edit lands on the report except a redact, which only
-    /// reaches the anonymizer — its `Unsuppress` arm exists to lift
-    /// a suppression applied on an earlier pass.
-    pub(super) fn of<R: RedactableModality<Location = M::Location>>(
-        edit: &Edit<R>,
-    ) -> Option<Self> {
-        Some(match edit {
+    /// Every edit maps to a landing: a redact's is `Unsuppress`,
+    /// which lifts a suppression applied on an earlier pass — the
+    /// operator itself reaches the anonymizer, not the report.
+    pub(super) fn of<R: RedactableModality<Location = M::Location>>(edit: &Edit<R>) -> Self {
+        match edit {
             Edit::Add(e) => Self::Add {
                 label: e.label.clone(),
                 location: e.location.clone(),
@@ -76,15 +73,17 @@ impl<M: Modality> Landing<M> {
                 actor: e.by.actor.clone(),
             },
             Edit::Redact(e) => Self::Unsuppress { id: e.id },
-        })
+        }
     }
 
-    /// Carry this edit out against `report`.
+    /// Carry this edit out against `report`, reporting whether it
+    /// found its target.
     ///
-    /// An edit naming an entity the report does not hold is ignored
-    /// rather than fatal: the entity may belong to another modality,
-    /// or to a part this pass is not walking.
-    pub(super) fn land(self, report: &mut Report) {
+    /// `false` when the named entity is not in this report — it may
+    /// belong to another modality, which each get their own pass, or
+    /// the id may simply be stale. Not fatal here, but the caller
+    /// must not treat an edit that changed nothing as applied.
+    pub(super) fn land(self, report: &mut Report) -> bool {
         match self {
             Self::Add {
                 label,
@@ -92,19 +91,17 @@ impl<M: Modality> Landing<M> {
                 reason,
                 actor,
             } => {
-                // `Entity::new` mints a v7 id and this `Manual` event
-                // is what marks the entity human-sourced, so a client
-                // can neither forge an id that shadows a real
-                // detection nor pass its addition off as automatic.
-                let mut event = AuditEvent::manual_include(location.clone(), Confidence::MAX);
-                if let Some(reason) = reason {
-                    event = event.with_reason(reason);
-                }
-                if let Some(actor) = actor {
-                    event = event.with_actor(actor);
-                }
-                let entity = Entity::new(label, location, Confidence::MAX, AuditLog::new(event));
-                report.include::<M>(entity);
+                // `Entity::new` mints a v7 id, so a client can
+                // neither forge one that shadows a real detection
+                // nor pass its addition off as automatic: the `Flag`
+                // is what marks the entity human-sourced.
+                let mut entity = Entity::new(label, location, Confidence::MAX, AuditLog::default());
+                entity.record_manual(
+                    ManualIntent::Flag,
+                    reason.map(Attribution::freeform).map(Into::into),
+                    actor.as_deref(),
+                );
+                report.include::<M>(entity)
             }
             Self::Retag {
                 id,
@@ -113,8 +110,8 @@ impl<M: Modality> Landing<M> {
                 reason,
                 actor,
             } => {
-                let Some(entity) = entity_mut::<M>(report, id) else {
-                    return;
+                let Some(entity) = report.entity_anywhere_mut::<M>(id) else {
+                    return false;
                 };
                 if let Some(label) = label {
                     entity.label = label;
@@ -122,26 +119,31 @@ impl<M: Modality> Landing<M> {
                 if let Some(location) = location {
                     entity.location = location;
                 }
-                // `reason`/`actor` are deliberately not recorded
-                // here. The only event kind that carries them is
-                // `Manual`, whose `intent` is what `is_suppressed`
-                // reads — stamping an `Include` for a correction
-                // would silently un-suppress a suppressed entity.
-                // A retag stays attributable through the edit
-                // itself, which the caller holds until it applies.
-                let _ = (reason, actor);
+                // Recorded against the *corrected* entity, which is
+                // what the policy set matches on. `Amend` is
+                // provenance-only: `is_suppressed` skips it, so a
+                // correction after a suppression does not revive the
+                // entity.
+                entity.record_manual(
+                    ManualIntent::Amend,
+                    reason.map(Attribution::freeform).map(Into::into),
+                    actor.as_deref(),
+                );
+                true
             }
             Self::Suppress { id, reason, actor } => {
-                let Some(entity) = entity_mut::<M>(report, id) else {
-                    return;
+                let Some(entity) = report.entity_anywhere_mut::<M>(id) else {
+                    return false;
                 };
                 Suppression::On { reason, actor }.reconcile(entity);
+                true
             }
             Self::Unsuppress { id } => {
-                let Some(entity) = entity_mut::<M>(report, id) else {
-                    return;
+                let Some(entity) = report.entity_anywhere_mut::<M>(id) else {
+                    return false;
                 };
                 Suppression::Off.reconcile(entity);
+                true
             }
         }
     }

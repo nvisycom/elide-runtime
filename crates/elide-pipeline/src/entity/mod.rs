@@ -21,6 +21,6 @@ pub use elide::entity::{
 mod overrides;
 
 #[doc(inline)]
-pub use elide_review::{Edit, EditBucket, EditSet};
+pub use elide_review::{Add, Edit, EditBucket, EditSet, Redact, Retag, Reviewer, Suppress};
 
 pub use self::overrides::overrides;

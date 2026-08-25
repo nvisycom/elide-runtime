@@ -34,17 +34,12 @@ fn overrides_for<M: RedactableModality>(edits: &[Edit<M>]) -> Vec<Override<M>> {
     edits
         .iter()
         .filter_map(|edit| match edit {
-            Edit::Redact {
-                id,
-                policy_id,
-                action,
-                ..
-            } => Some(Override {
-                entity_id: *id,
-                policy_id: *policy_id,
-                action: action.clone(),
+            Edit::Redact(e) => Some(Override {
+                entity_id: e.id,
+                policy_id: e.policy_id,
+                action: e.action.clone(),
             }),
-            Edit::Add { .. } | Edit::Suppress { .. } | Edit::Retag { .. } => None,
+            Edit::Add(_) | Edit::Suppress(_) | Edit::Retag(_) => None,
         })
         .collect()
 }

@@ -35,33 +35,29 @@ use uuid::Uuid;
 use super::audit::Audit;
 use crate::entity::Edit;
 
-/// Run `$body` once per modality, binding `$m` to the modality type
-/// and `$name` to its wire name.
+/// Run `$body` once per modality, binding `$m` to the modality
+/// type. Its wire name is `$m::NAME`.
 ///
 /// A report stores entities per modality and hands them back only
 /// through a typed accessor, so every walk over "all entities" is
 /// four probes. The modality list lives here so adding a fifth
 /// means touching one macro rather than every row builder.
 macro_rules! per_modality {
-    (|$m:ident, $name:ident| $body:expr) => {{
+    (|$m:ident| $body:expr) => {{
         {
             type $m = Text;
-            let $name = "text";
             $body
         }
         {
             type $m = Tabular;
-            let $name = "tabular";
             $body
         }
         {
             type $m = Image;
-            let $name = "image";
             $body
         }
         {
             type $m = Audio;
-            let $name = "audio";
             $body
         }
     }};
@@ -125,13 +121,13 @@ impl Audit {
     fn entity_rows(&self) -> Vec<EntityRow<'_>> {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
-        per_modality!(|M, name| {
+        per_modality!(|M| {
             if let Some(entities) = self.report.entities::<M>() {
-                extend_entity_rows(entities, None, name, &mut rows);
+                extend_entity_rows::<M>(entities, None, &mut rows);
             }
             for id in &parts {
                 if let Some(entities) = self.report.part_entities::<M>(id) {
-                    extend_entity_rows(entities, Some(id.as_str()), name, &mut rows);
+                    extend_entity_rows::<M>(entities, Some(id.as_str()), &mut rows);
                 }
             }
         });
@@ -148,7 +144,7 @@ impl Audit {
     fn provenance_rows(&self) -> Vec<ProvenanceRow<'_>> {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
-        per_modality!(|M, _name| {
+        per_modality!(|M| {
             if let Some(entities) = self.report.entities::<M>() {
                 extend_provenance_rows(entities, &mut rows);
             }
@@ -169,10 +165,10 @@ impl Audit {
     /// One row per reviewer decision, sorted by `entity_id`.
     fn review_rows(&self) -> Vec<ReviewRow> {
         let mut rows: Vec<ReviewRow> = Vec::new();
-        extend_review_rows(&self.edits.text, "text", &mut rows);
-        extend_review_rows(&self.edits.tabular, "tabular", &mut rows);
-        extend_review_rows(&self.edits.image, "image", &mut rows);
-        extend_review_rows(&self.edits.audio, "audio", &mut rows);
+        extend_review_rows(&self.edits.text, &mut rows);
+        extend_review_rows(&self.edits.tabular, &mut rows);
+        extend_review_rows(&self.edits.image, &mut rows);
+        extend_review_rows(&self.edits.audio, &mut rows);
         rows.sort_by_key(|row| row.entity_id);
         rows
     }
@@ -209,12 +205,11 @@ struct ProvenanceRow<'a> {
 fn extend_entity_rows<'a, M: Modality>(
     entities: &'a [Entity<M>],
     part_id: Option<&'a str>,
-    modality: &'static str,
     out: &mut Vec<EntityRow<'a>>,
 ) {
     out.extend(entities.iter().map(|e| EntityRow {
         part_id,
-        modality,
+        modality: M::NAME,
         entity_id: e.id,
         label: e.label.as_str(),
         confidence: f32::from(e.confidence),
@@ -248,26 +243,22 @@ fn extend_provenance_rows<'a, M: Modality>(
 /// exporting those alone would hide every "leave this alone" and
 /// every reviewer-added detection from the same report. Only a
 /// redact names an operator, so that column is empty for the rest.
-fn extend_review_rows<M: RedactableModality>(
-    edits: &[Edit<M>],
-    modality: &'static str,
-    out: &mut Vec<ReviewRow>,
-) {
+fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<ReviewRow>) {
     for edit in edits {
         let (decision, operator) = match edit {
-            Edit::Redact { action, .. } => {
-                let Some(operator) = operator_kind(action) else {
+            Edit::Redact(e) => {
+                let Some(operator) = operator_kind(&e.action) else {
                     continue;
                 };
                 ("redact", operator)
             }
-            Edit::Add { .. } => ("add", String::new()),
-            Edit::Suppress { .. } => ("suppress", String::new()),
-            Edit::Retag { .. } => ("retag", String::new()),
+            Edit::Add(_) => ("add", String::new()),
+            Edit::Suppress(_) => ("suppress", String::new()),
+            Edit::Retag(_) => ("retag", String::new()),
         };
         out.push(ReviewRow {
             entity_id: edit.target(),
-            modality,
+            modality: M::NAME,
             decision,
             operator,
             reason: edit.reason().unwrap_or_default().to_owned(),

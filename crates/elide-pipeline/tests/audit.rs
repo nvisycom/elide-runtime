@@ -15,7 +15,7 @@ use bytes::Bytes;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::redaction::TextRedaction;
-use elide_pipeline::entity::Edit;
+use elide_pipeline::entity::{Edit, Redact, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -66,13 +66,15 @@ const REVIEW_POLICY_ID: uuid::Uuid =
 fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
     let ids = text_entity_ids(audit);
     assert!(!ids.is_empty(), "sample fixture must produce entities");
-    audit.edit(Edit::<Text>::Redact {
+    audit.edit(Edit::Redact(Redact::<Text> {
         id: ids[0],
         policy_id: REVIEW_POLICY_ID,
         action: TextRedaction::Erase,
-        reason: None,
-        actor: None,
-    });
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
     ids[0]
 }
 
@@ -202,11 +204,13 @@ async fn write_reviews_csv_lists_a_suppression_with_no_operator() {
     let suppressed_id = {
         let ids = text_entity_ids(&audit);
         assert!(!ids.is_empty(), "sample fixture must produce entities");
-        audit.edit(Edit::<Text>::Suppress {
+        audit.edit(Edit::<Text>::Suppress(Suppress {
             id: ids[0],
-            reason: Some("false positive".into()),
-            actor: Some("reviewer".into()),
-        });
+            by: Reviewer {
+                reason: Some("false positive".into()),
+                actor: Some("reviewer".into()),
+            },
+        }));
         ids[0]
     };
 

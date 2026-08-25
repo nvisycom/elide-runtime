@@ -13,7 +13,7 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
-use elide_pipeline::entity::Edit;
+use elide_pipeline::entity::{Edit, Redact, Reviewer};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -136,7 +136,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         "email entries must be erased, not replaced; body was:\n{body}",
     );
 
-    // Attribution: both branches share the shared rule UUID.
+    // Reviewer: both branches share the shared rule UUID.
     let Some(entities) = analyzed.report.entities::<Text>() else {
         panic!("expected text body");
     };
@@ -491,13 +491,15 @@ async fn override_naming_unknown_policy_fails_the_request() {
         .expect("expected text body")[0]
         .id;
     // Ship an override that names a policy id no one submitted.
-    analyzed.edit(Edit::<Text>::Redact {
+    analyzed.edit(Edit::Redact(Redact::<Text> {
         id: target,
         policy_id: uuid::Uuid::now_v7(),
         action: TextRedaction::Erase,
-        reason: None,
-        actor: None,
-    });
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
 
     let err = engine
         .anonymize(

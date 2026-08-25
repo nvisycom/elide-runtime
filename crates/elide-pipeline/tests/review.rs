@@ -16,7 +16,7 @@ use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelScope, PolicyDefinition};
-use elide_pipeline::entity::Edit;
+use elide_pipeline::entity::{Add, Edit, Redact, Retag, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ErrorKind, ProviderConfig, RequestContext};
 use uuid::Uuid;
@@ -161,11 +161,13 @@ async fn baseline_redacts_every_detection() {
 async fn suppress_leaves_the_entity_alone() {
     let (out, audit) = review_and_apply(|audit| {
         let id = ordered(audit)[0];
-        audit.edit(Edit::<Text>::Suppress {
+        audit.edit(Edit::<Text>::Suppress(Suppress {
             id,
-            reason: Some("known test account".into()),
-            actor: Some("reviewer".into()),
-        });
+            by: Reviewer {
+                reason: Some("known test account".into()),
+                actor: Some("reviewer".into()),
+            },
+        }));
     })
     .await;
 
@@ -277,13 +279,15 @@ async fn include_rejects_a_foreign_modality() {
 async fn review_overrides_the_operator_the_policy_would_have_used() {
     let (out, _) = review_and_apply(|audit| {
         let id = ordered(audit)[1];
-        audit.edit(Edit::<Text>::Redact {
+        audit.edit(Edit::Redact(Redact::<Text> {
             id,
             policy_id: POLICY_ID,
             action: mask(),
-            reason: None,
-            actor: None,
-        });
+            by: Reviewer {
+                reason: None,
+                actor: None,
+            },
+        }));
     })
     .await;
 
@@ -309,18 +313,22 @@ async fn contradictory_edits_are_rejected_rather_than_one_winning() {
         .expect("analyze");
 
     let id = ordered(&audit)[0];
-    audit.edit(Edit::<Text>::Redact {
+    audit.edit(Edit::Redact(Redact::<Text> {
         id,
         policy_id: POLICY_ID,
         action: mask(),
-        reason: None,
-        actor: Some("alice".into()),
-    });
-    audit.edit(Edit::<Text>::Suppress {
+        by: Reviewer {
+            reason: None,
+            actor: Some("alice".into()),
+        },
+    }));
+    audit.edit(Edit::<Text>::Suppress(Suppress {
         id,
-        reason: Some("actually fine".into()),
-        actor: Some("bob".into()),
-    });
+        by: Reviewer {
+            reason: Some("actually fine".into()),
+            actor: Some("bob".into()),
+        },
+    }));
 
     let Err(err) = engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
@@ -348,20 +356,24 @@ async fn edits_on_different_channels_compose() {
     // per-entity map could not express at all.
     let (out, audit) = review_and_apply(|audit| {
         let id = ordered(audit)[0];
-        audit.edit(Edit::<Text>::Retag {
+        audit.edit(Edit::Retag(Retag::<Text> {
             id,
             label: None,
             location: None,
-            reason: Some("span was right after all".into()),
-            actor: None,
-        });
-        audit.edit(Edit::<Text>::Redact {
+            by: Reviewer {
+                reason: Some("span was right after all".into()),
+                actor: None,
+            },
+        }));
+        audit.edit(Edit::Redact(Redact::<Text> {
             id,
             policy_id: POLICY_ID,
             action: mask(),
-            reason: None,
-            actor: None,
-        });
+            by: Reviewer {
+                reason: None,
+                actor: None,
+            },
+        }));
     })
     .await;
 
@@ -383,18 +395,22 @@ async fn edits_on_different_channels_compose() {
 async fn all_three_actions_compose_in_one_pass() {
     let (out, _) = review_and_apply(|audit| {
         let ids = ordered(audit);
-        audit.edit(Edit::<Text>::Suppress {
+        audit.edit(Edit::<Text>::Suppress(Suppress {
             id: ids[0],
-            reason: Some("false positive".into()),
-            actor: None,
-        });
-        audit.edit(Edit::<Text>::Redact {
+            by: Reviewer {
+                reason: Some("false positive".into()),
+                actor: None,
+            },
+        }));
+        audit.edit(Edit::Redact(Redact::<Text> {
             id: ids[1],
             policy_id: POLICY_ID,
             action: mask(),
-            reason: None,
-            actor: None,
-        });
+            by: Reviewer {
+                reason: None,
+                actor: None,
+            },
+        }));
         audit
             .report
             .include::<Text>(manual_entity(span_of(b"SECRET-9")));
@@ -465,11 +481,13 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         "precondition: analyze recorded a pick",
     );
 
-    audit.edit(Edit::<Text>::Suppress {
+    audit.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        reason: Some("false positive".into()),
-        actor: None,
-    });
+        by: Reviewer {
+            reason: Some("false positive".into()),
+            actor: None,
+        },
+    }));
     engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
         .await
@@ -519,11 +537,13 @@ async fn a_reviewer_can_take_a_suppression_back() {
         .expect("analyze");
 
     let target = ordered(&audit)[0];
-    audit.edit(Edit::<Text>::Suppress {
+    audit.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        reason: Some("false positive".into()),
-        actor: None,
-    });
+        by: Reviewer {
+            reason: Some("false positive".into()),
+            actor: None,
+        },
+    }));
     let first = engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
         .await
@@ -540,13 +560,15 @@ async fn a_reviewer_can_take_a_suppression_back() {
         posted_back.is_suppressed::<Text>(target),
         "the applied suppression survives the round-trip",
     );
-    posted_back.edit(Edit::<Text>::Redact {
+    posted_back.edit(Edit::Redact(Redact::<Text> {
         id: target,
         policy_id: POLICY_ID,
         action: TextRedaction::Erase,
-        reason: None,
-        actor: None,
-    });
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
     assert!(
         !posted_back.is_suppressed::<Text>(target),
         "a pending redact supersedes the recorded suppression",
@@ -597,11 +619,13 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
         .expect("analyze");
 
     let target = ordered(&audit)[0];
-    audit.edit(Edit::<Text>::Suppress {
+    audit.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        reason: None,
-        actor: None,
-    });
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
     for _ in 0..3 {
         engine
             .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
@@ -628,12 +652,14 @@ async fn an_add_edit_redacts_what_recognition_missed() {
     // any detection. No hand-built entity, no fabricated pattern
     // event — elide mints the id and stamps the human provenance.
     let (out, audit) = review_and_apply(|audit| {
-        audit.edit(Edit::<Text>::Add {
+        audit.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
-            reason: Some("recognizer missed it".into()),
-            actor: Some("alice".into()),
-        });
+            by: Reviewer {
+                reason: Some("recognizer missed it".into()),
+                actor: Some("alice".into()),
+            },
+        }));
     })
     .await;
 
@@ -668,13 +694,15 @@ async fn a_retag_edit_moves_the_entity_out_of_policy_scope() {
     // being carried and ignored.
     let (out, _) = review_and_apply(|audit| {
         let id = ordered(audit)[0];
-        audit.edit(Edit::<Text>::Retag {
+        audit.edit(Edit::Retag(Retag::<Text> {
             id,
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,
-            reason: Some("wrong label".into()),
-            actor: None,
-        });
+            by: Reviewer {
+                reason: Some("wrong label".into()),
+                actor: None,
+            },
+        }));
     })
     .await;
 

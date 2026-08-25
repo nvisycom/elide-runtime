@@ -379,7 +379,7 @@ fn sav_template() -> Template {
 
 #[cfg(test)]
 mod tests {
-    use elide_core::entity::audit::AttributionKind;
+    use elide_core::entity::audit::Attribution;
 
     use super::*;
 
@@ -435,10 +435,10 @@ mod tests {
                 .attribution
                 .clone()
                 .unwrap_or_else(|| panic!("{render:?} scope must cite its provision"));
-            let AttributionKind::Cited { citation, .. } = attribution else {
+            let Attribution::Cited(cited) = attribution else {
                 panic!("{render:?} must carry a Cited attribution");
             };
-            assert_eq!(citation, want, "{render:?} cites the wrong provision");
+            assert_eq!(cited.citation, want, "{render:?} cites the wrong provision");
         }
     }
 
@@ -539,14 +539,14 @@ mod tests {
         // The scope carries the citation, so the fallback inherits
         // it: without this the erasure would land in the audit with
         // no provision behind it.
-        let AttributionKind::Cited { citation, .. } = t.policy.scopes[0]
+        let Attribution::Cited(cited) = t.policy.scopes[0]
             .attribution
             .clone()
             .expect("the SAV scope must cite its provision")
         else {
             panic!("SAV must carry a Cited attribution");
         };
-        assert_eq!(citation, "§3.3.1");
+        assert_eq!(cited.citation, "§3.3.1");
         // Every §3.3.1 SAV label must be in scope, since the
         // fallback acts on whatever the scope detects.
         for expected in SAV_LABELS {

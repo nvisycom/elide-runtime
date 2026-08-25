@@ -105,45 +105,38 @@ fn scope_lookup_entry(scope: &LabelScope) -> (String, HashSet<LabelRef>) {
 
 /// Build an [`Attribution`] for a concrete rule that fired.
 ///
-/// A rule carrying a attribution passes it through verbatim, so
+/// A rule carrying an attribution passes it through verbatim, so
 /// an audit records the provision rather than prose a consumer
 /// would have to parse.
 ///
 /// Without one the attribution falls back to [`Freeform`] under
 /// the policy's own name and description.
 ///
-/// Either way `source_id` carries the rule's UUID: it is
-/// orthogonal to whether the author supplied a citation, and it
-/// is what keeps two rules citing the same provision (Safe
-/// Harbor's age/date table and its bulk erase both cite
-/// §164.514(b)(2)) distinguishable in the trail.
+/// The rule's own id is not stamped: elide's [`Attribution`] names
+/// an authority, not a source record. Two rules citing the same
+/// provision — Safe Harbor's age/date table and its bulk erase
+/// both cite §164.514(b)(2) — therefore read alike in the trail.
+/// Distinguishing them means giving each a distinct attribution.
 ///
-/// [`Freeform`]: elide::entity::audit::AttributionKind::Freeform
+/// [`Freeform`]: elide::entity::audit::Attribution::Freeform
 pub(super) fn rule_attribution(policy: &PolicyDefinition, rule: &PolicyRule) -> Attribution {
-    let attribution = match &rule.attribution {
-        // No public constructor takes a prebuilt kind, and both
-        // fields are public, so a literal beats destructuring the
-        // enum only to rebuild it.
-        Some(kind) => Attribution {
-            kind: kind.clone(),
-            source_id: None,
-        },
+    match &rule.attribution {
+        Some(authored) => authored.clone(),
         None => {
             let freeform = Attribution::freeform(policy.name.clone());
             match &policy.description {
-                Some(description) => freeform.with_description(description.clone()),
-                None => freeform,
+                Some(description) => freeform.with_description(description.clone()).into(),
+                None => freeform.into(),
             }
         }
-    };
-    attribution.with_source_id(rule.id)
+    }
 }
 
 /// Build an [`Attribution`] for a policy's `fallback`.
 ///
 /// Freeform under the policy's own name: a catch-all fires
 /// because no rule claimed the entity, so there is no provision
-/// to cite. No `source_id` either, since no rule fired.
+/// to cite.
 pub(super) fn fallback_attribution(policy: &PolicyDefinition) -> Attribution {
     // A policy whose scopes all answer to one authority can cite it:
     // CCPA and GDPR do every redaction through the fallback, so
@@ -158,27 +151,27 @@ pub(super) fn fallback_attribution(policy: &PolicyDefinition) -> Attribution {
     if let Some(Some(first)) = declared.next()
         && declared.all(|other| other == Some(first))
     {
-        return Attribution {
-            kind: first.clone(),
-            source_id: None,
-        };
+        return first.clone();
     }
     Attribution::freeform(policy.name.clone())
         .with_description("policy fallback: no rule matched this entity")
+        .into()
 }
 
 /// Build an [`Attribution`] for a reviewer override.
 ///
 /// A reviewer's decision cites no provision, so it is freeform,
-/// named for the policy whose authority the reviewer exercised.
-/// `source_id` carries the overridden entity rather than a rule
-/// id, since the entity *is* the source record here, and the
-/// description marks the event as reviewer-driven so audits
-/// separate the two at a glance.
-pub(super) fn override_attribution(entity_id: Uuid, policy_id: Uuid) -> Attribution {
+/// named for the policy whose authority the reviewer exercised. The
+/// description marks the event as reviewer-driven, so an audit
+/// separates it from a rule-driven redaction at a glance.
+///
+/// The overridden entity is not named here: the event already sits
+/// on that entity's own trail, so carrying its id would restate
+/// where the event is.
+pub(super) fn override_attribution(policy_id: Uuid) -> Attribution {
     Attribution::freeform(policy_id.to_string())
         .with_description("reviewer override")
-        .with_source_id(entity_id)
+        .into()
 }
 
 /// Attach an `operator` to `anonymizer` for the single entity
@@ -202,7 +195,7 @@ where
             move |cx: &MatchContext<'_, M>| cx.entity.id == entity_id,
             operator,
         )
-        .because(override_attribution(entity_id, policy_id)),
+        .because(override_attribution(policy_id)),
     )
 }
 

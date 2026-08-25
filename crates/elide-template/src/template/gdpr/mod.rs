@@ -33,7 +33,7 @@
 //!
 //! [`Predicated`]: elide_governance::RuleDispatch::Predicated
 
-use elide_core::entity::audit::AttributionKind;
+use elide_core::entity::audit::Attribution;
 use jiff::civil::Date;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -103,7 +103,7 @@ pub(crate) fn template(treatment: GdprArticle9Treatment, scope: GdprSensitiveSco
 
 /// The Article 9(1) authority both postures' scopes answer to.
 /// Shared so erase and pseudonymize cite it identically.
-fn article_9_attribution() -> AttributionKind {
+fn article_9_attribution() -> Attribution {
     cited(
         "GDPR",
         "Article 9(1)",

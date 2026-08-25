@@ -8,7 +8,7 @@ pub(crate) mod gdpr;
 pub(crate) mod hipaa;
 pub(crate) mod pci;
 
-use elide_core::entity::audit::AttributionKind;
+use elide_core::entity::audit::Attribution;
 use elide_governance::{PolicyDefinition, TemplateOrigin};
 use hipstr::HipStr;
 use jiff::civil::Date;
@@ -108,17 +108,15 @@ pub struct Template {
 /// template writes and which reads poorly inline at the call
 /// sites.
 ///
-/// [`Cited`]: AttributionKind::Cited
+/// [`Cited`]: Attribution::Cited
 pub(crate) fn cited(
     authority: &'static str,
     citation: &'static str,
     rationale: &'static str,
-) -> AttributionKind {
-    AttributionKind::Cited {
-        authority: HipStr::borrowed(authority),
-        citation: HipStr::borrowed(citation),
-        rationale: HipStr::borrowed(rationale),
-    }
+) -> Attribution {
+    Attribution::cited(authority, citation)
+        .with_rationale(rationale)
+        .into()
 }
 
 /// The [`TemplateOrigin`] a shipped template stamps on its policy.

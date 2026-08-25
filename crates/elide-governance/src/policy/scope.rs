@@ -22,7 +22,7 @@
 //! [`fallback`]: super::PolicyDefinition::fallback
 
 use elide_core::entity::LabelRef;
-use elide_core::entity::audit::AttributionKind;
+use elide_core::entity::audit::Attribution;
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -67,7 +67,7 @@ pub struct LabelScope {
     /// categories), so this is where that mapping is recorded as
     /// data rather than prose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attribution: Option<AttributionKind>,
+    pub attribution: Option<Attribution>,
     /// The labels this scope covers, by ref.
     ///
     /// A label the current build doesn't emit (a modality-gated
@@ -93,7 +93,7 @@ impl LabelScope {
 
     /// Attach the authority this scope answers to.
     #[must_use]
-    pub fn with_attribution(mut self, attribution: AttributionKind) -> Self {
+    pub fn with_attribution(mut self, attribution: Attribution) -> Self {
         self.attribution = Some(attribution);
         self
     }

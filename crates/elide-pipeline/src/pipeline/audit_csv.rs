@@ -20,7 +20,7 @@ use std::{io, result};
 
 use elide::codec::PartId;
 use elide::entity::Entity;
-use elide::entity::audit::AuditKind;
+use elide::entity::audit::{AuditKind, ManualIntent};
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
@@ -340,7 +340,17 @@ fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Op
         AuditKind::Refinement(_) => ("refinement", None),
         AuditKind::Redaction(_) => ("redaction", None),
         AuditKind::Selection(e) => ("selection", Some(e.operator.name.as_str())),
-        AuditKind::Manual(e) => ("manual", e.actor.as_deref()),
+        // The reviewer is the event's own `source`, which the row
+        // already carries; what distinguishes one manual event from
+        // another is which decision it recorded.
+        AuditKind::Manual(e) => (
+            "manual",
+            Some(match e.intent {
+                ManualIntent::Flag => "flag",
+                ManualIntent::Suppress => "suppress",
+                ManualIntent::Amend => "amend",
+            }),
+        ),
         // `AuditKind` is `#[non_exhaustive]`: a kind added upstream
         // lands here rather than breaking the build. Every variant
         // elide ships today is named above, so this arm firing means

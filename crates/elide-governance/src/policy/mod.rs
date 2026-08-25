@@ -31,11 +31,11 @@ pub struct PolicyDefinition {
     /// Human-readable name. Display-only. Does not key anything.
     ///
     /// Names the policy in a redaction event's [`Attribution`]
-    /// when a rule that fired carried no [`AttributionKind::Cited`]
+    /// when a rule that fired carried no [`Attribution::Cited`]
     /// attribution to render.
     ///
     /// [`Attribution`]: elide_core::entity::audit::Attribution
-    /// [`AttributionKind::Cited`]: elide_core::entity::audit::AttributionKind::Cited
+    /// [`Attribution::Cited`]: elide_core::entity::audit::Attribution::Cited
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
     /// Optional description for reviewers.

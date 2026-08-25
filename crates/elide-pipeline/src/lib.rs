@@ -114,8 +114,8 @@ pub use elide_governance as policy;
 #[doc(inline)]
 pub use elide_provider::{
     AttachTo, Backend, CodecParams, Component, DocumentContext, Enrichers, KeyConfig, LlmBackend,
-    LlmSource, NerBackend, OcrBackend, Override, Overrides, Provider, ProviderConfig, Recognizers,
-    RequestContext, SttBackend,
+    LlmSource, NerBackend, OcrBackend, Provider, ProviderConfig, Recognizers, RequestContext,
+    SttBackend,
 };
 #[doc(inline)]
 pub use elide_template as template;

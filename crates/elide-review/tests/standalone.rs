@@ -10,7 +10,7 @@ use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, ManualI
 use elide::entity::{Entity, LabelRef};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::Confidence;
-use elide_review::{Add, Edit, EditSet, Redact, Retag, Reviewer, Suppress};
+use elide_review::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
 use uuid::Uuid;
 
 fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
@@ -53,28 +53,25 @@ fn edits_deserialize_from_a_request_body() {
 
 #[test]
 fn contradictions_are_caught_before_anything_is_applied() {
+    // Two retags setting the same field are two answers to one
+    // question. Disjoint fields merge, and a repeated suppress
+    // dedupes, so this is the pair that has to be rejected.
     let id = Uuid::from_u128(1);
+    let retag = |label: &str| {
+        Edit::Retag(Retag {
+            id,
+            label: Some(LabelRef::new(label)),
+            location: None,
+            by: Reviewer::default(),
+        })
+    };
     let mut edits = EditSet::default();
-    edits.text.push(Edit::Suppress(Suppress {
-        id,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
-    }));
-    edits.text.push(Edit::Redact(Redact {
-        id,
-        policy_id: Uuid::from_u128(9),
-        action: elide_governance::redaction::TextRedaction::Erase,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
-    }));
+    edits.text.push(retag("person_name"));
+    edits.text.push(retag("email_address"));
 
     let err = edits
         .validate()
-        .expect_err("suppress and redact contradict");
+        .expect_err("two labels for one entity contradict");
     assert!(err.to_string().contains(&id.to_string()), "{err}");
 }
 
@@ -120,12 +117,13 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
         "an added entity carries human provenance",
     );
 
-    // Applied edits are history; nothing is left pending.
-    assert!(edits.text.is_empty(), "add and retag are consumed");
+    // The caller keeps its edits either way; see
+    // `applying_leaves_the_caller_s_edits_alone`.
+    assert_eq!(edits.text.len(), 2, "the caller's edits are untouched");
 }
 
 #[test]
-fn suppress_marks_the_entity_and_a_redact_lifts_it() {
+fn suppress_stamps_the_entity() {
     let (mut report, id) = report_with_one();
 
     let mut edits = EditSet::default();
@@ -145,32 +143,6 @@ fn suppress_marks_the_entity_and_a_redact_lifts_it() {
         .find(|e| e.id == id)
         .unwrap();
     assert!(e.is_suppressed(), "suppression stamped on the trail");
-
-    // A later pass reverses it — the round trip a reviewer makes.
-    let mut edits = EditSet::default();
-    edits.text.push(Edit::Redact(Redact {
-        id,
-        policy_id: Uuid::from_u128(9),
-        action: elide_governance::redaction::TextRedaction::Erase,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
-    }));
-    edits.apply(&mut report);
-
-    let e = report
-        .entities::<Text>()
-        .unwrap()
-        .iter()
-        .find(|e| e.id == id)
-        .unwrap();
-    assert!(!e.is_suppressed(), "the redact lifted it");
-    assert_eq!(
-        edits.text.len(),
-        1,
-        "the redact stays pending for the anonymizer"
-    );
 }
 
 #[test]
@@ -287,44 +259,33 @@ fn retagging_does_not_unsuppress() {
 }
 
 #[test]
-fn an_edit_that_finds_no_entity_stays_pending() {
-    // Each modality gets its own pass over the same bucket, and an
-    // id may simply be stale. Dropping an edit that changed nothing
-    // would make a reviewer's decision vanish with no error and no
-    // record of it.
-    let mut report = Report::new().insert_body::<Text>(Vec::new());
-    let mut edits = EditSet::default();
-    edits.text.push(Edit::Suppress(Suppress {
-        id: Uuid::from_u128(999),
-        by: Reviewer {
-            reason: Some("false positive".into()),
-            actor: Some("alice".into()),
-        },
-    }));
-
-    edits.apply(&mut report);
-
-    assert_eq!(
-        edits.text.len(),
-        1,
-        "an edit naming an entity the report does not hold is not applied, so it is not history",
-    );
-}
-
-#[test]
-fn an_applied_edit_stops_being_pending() {
-    // The counterpart: what *did* land is history, because the
-    // entity's own trail now carries it.
+fn applying_leaves_the_caller_s_edits_alone() {
+    // `apply` takes `&self`: an edit set is the caller's own input,
+    // not state this crate keeps. A server holds the set it parsed
+    // from the request and can still report on it afterwards.
     let (mut report, id) = report_with_one();
     let mut edits = EditSet::default();
     edits.text.push(Edit::Suppress(Suppress {
         id,
         by: Reviewer::default(),
     }));
+    edits.text.push(Edit::Suppress(Suppress {
+        // An entity the report does not hold: skipped, not fatal.
+        id: Uuid::from_u128(999),
+        by: Reviewer::default(),
+    }));
 
     edits.apply(&mut report);
 
-    assert!(edits.text.is_empty(), "the applied suppression is consumed");
+    assert_eq!(edits.text.len(), 2, "both edits survive, applied or not",);
+    let stamped = report
+        .entities::<Text>()
+        .expect("text body")
+        .iter()
+        .find(|e| e.id == id)
+        .expect("the real entity")
+        .is_suppressed();
+    assert!(stamped, "the edit that found its target still applied");
 }
 
 #[test]

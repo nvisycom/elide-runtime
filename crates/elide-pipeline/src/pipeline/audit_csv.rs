@@ -246,12 +246,6 @@ fn extend_provenance_rows<'a, M: Modality>(
 fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<ReviewRow>) {
     for edit in edits {
         let (decision, operator) = match edit {
-            Edit::Redact(e) => {
-                let Some(operator) = operator_kind(&e.action) else {
-                    continue;
-                };
-                ("redact", operator)
-            }
             Edit::Add(_) => ("add", String::new()),
             Edit::Suppress(_) => ("suppress", String::new()),
             Edit::Retag(_) => ("retag", String::new()),
@@ -357,19 +351,6 @@ fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Op
         // a new one needs a column mapping.
         _ => ("unknown", None),
     }
-}
-
-/// Extract the operator `kind` discriminator from a review's
-/// redaction spec. Uses serde JSON as a universal `kind` reader
-/// across the four operator enums: each one is
-/// `#[serde(tag = "kind")]`, so the top-level JSON object always
-/// has a `"kind"` field.
-fn operator_kind<R: Serialize>(action: &R) -> Option<String> {
-    let value = serde_json::to_value(action).ok()?;
-    value
-        .get("kind")
-        .and_then(|k| k.as_str())
-        .map(|s| s.to_owned())
 }
 
 /// Format a `f32` confidence with three decimal places.

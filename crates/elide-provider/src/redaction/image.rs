@@ -6,9 +6,8 @@ use elide::modality::image::Image;
 use elide::redaction::Anonymizer;
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ImageRedaction, ModalityRedactions};
-use uuid::Uuid;
 
-use super::compile::{Target, attach_one_override, attach_policies};
+use super::compile::{Target, attach_policies};
 use super::operator::image::ImageOp;
 
 /// Attach every image-applicable rule from `policies` onto an
@@ -23,18 +22,6 @@ pub(crate) fn attach_policies_image<'a>(
     policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,
 ) -> Result<Anonymizer<Image>> {
     attach_policies(anonymizer, policies, compile_one)
-}
-
-/// Attach a reviewer override for one entity. Always attaches:
-/// the entry's spec is typed to this modality, so there is no
-/// absent-arm case to fall through.
-pub(crate) fn attach_override_image(
-    anonymizer: Anonymizer<Image>,
-    entity_id: Uuid,
-    policy_id: Uuid,
-    action: &ImageRedaction,
-) -> Result<Anonymizer<Image>> {
-    attach_one_override(anonymizer, entity_id, policy_id, action, compile_spec)
 }
 
 fn compile_one(

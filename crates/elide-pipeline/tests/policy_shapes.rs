@@ -13,7 +13,6 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
-use elide_pipeline::entity::{Edit, Redact, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -470,102 +469,6 @@ async fn cross_policy_group_reference_fails_the_request() {
     assert!(
         msg.contains("contact_info"),
         "error must name the unresolved group; got: {msg}",
-    );
-}
-
-/// Reviewer overrides carry a `policy_id` naming the policy
-/// whose authority the override exercises. Anonymize must reject
-/// a request whose override names a policy no submitted policy
-/// carries: that authority doesn't exist in the request, and
-/// silently attributing to nothing (or falling back to engine
-/// defaults) would misroute per-policy operator infrastructure.
-#[tokio::test]
-async fn override_naming_unknown_policy_fails_the_request() {
-    let engine = engine();
-    let policy = PolicyDefinition {
-        id: uuid::Uuid::now_v7(),
-        name: "authorising".into(),
-        description: None,
-        template: None,
-        scopes: Vec::new(),
-        custom: Vec::new(),
-        rules: Vec::new(),
-        fallback: None,
-    };
-    let mut analyzed = engine
-        .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
-        .await
-        .expect("analyze succeeds");
-    let entities = analyzed
-        .report
-        .entities::<Text>()
-        .expect("expected text body");
-    let target = entities[0].id;
-    // A different entity, so the two edits do not contradict each
-    // other — validation would reject that pair before the
-    // authority check this test is about.
-    let bystander = entities[1].id;
-    // Ship an override that names a policy id no one submitted,
-    // beside a suppression that *would* apply. The suppression is
-    // the one that proves atomicity: a redact stays pending either
-    // way, so on its own it cannot tell a rejected request from a
-    // half-applied one.
-    analyzed.edit(Edit::<Text>::Suppress(Suppress {
-        id: bystander,
-        by: Reviewer {
-            reason: Some("false positive".into()),
-            actor: None,
-        },
-    }));
-    analyzed.edit(Edit::Redact(Redact::<Text> {
-        id: target,
-        policy_id: uuid::Uuid::now_v7(),
-        action: TextRedaction::Erase,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
-    }));
-
-    let err = engine
-        .anonymize(
-            raw_txt(),
-            std::slice::from_ref(&policy),
-            &mut analyzed,
-            None,
-        )
-        .await
-        .expect_err("override with unknown policy authority must be rejected");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("no submitted policy") || msg.contains("policy"),
-        "error must explain the missing authority; got: {msg}",
-    );
-
-    // A rejected request leaves the audit as it found it. Applying
-    // before the orchestrator compiled would have stamped the
-    // suppression onto the entity and consumed the edit, leaving
-    // the caller holding a half-honoured audit for a call that
-    // returned an error.
-    // The entity's own trail, not `Audit::is_suppressed`: that
-    // reports pending edits first, so it answers "will this be
-    // suppressed" rather than "has it been".
-    let stamped = analyzed
-        .report
-        .entities::<Text>()
-        .expect("expected text body")
-        .iter()
-        .find(|e| e.id == bystander)
-        .expect("the bystander is still on the report")
-        .is_suppressed();
-    assert!(
-        !stamped,
-        "a rejected request must not stamp the suppression onto the entity",
-    );
-    assert_eq!(
-        analyzed.edits.text.len(),
-        2,
-        "and must not consume the edits it did not apply",
     );
 }
 

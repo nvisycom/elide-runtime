@@ -151,11 +151,10 @@ impl Audit {
 
     /// Whether the entity `id` will be left alone.
     ///
-    /// A pending edit wins over the entity's trail, so an entity
-    /// suppressed, applied, then given an [`Edit::Redact`] reads
-    /// `false` here and is redacted on the next apply. With no
-    /// pending edit this falls back to the trail, so an applied
-    /// suppression still reads as suppressed after a round trip.
+    /// A pending [`Edit::Suppress`] wins over the entity's trail.
+    /// With no pending edit this falls back to the trail, so an
+    /// applied suppression still reads as suppressed after a round
+    /// trip.
     #[must_use]
     pub fn is_suppressed<M: EditBucket + 'static>(&self, id: Uuid) -> bool {
         // Only the outcome channel speaks to this; a retag says
@@ -168,7 +167,6 @@ impl Audit {
             .rev()
             .find_map(|edit| match edit {
                 Edit::Suppress { .. } => Some(true),
-                Edit::Redact { .. } => Some(false),
                 Edit::Add { .. } | Edit::Retag { .. } => None,
             });
 

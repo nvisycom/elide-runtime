@@ -14,8 +14,7 @@ use std::io::{Cursor, Read};
 use bytes::Bytes;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
-use elide_governance::redaction::TextRedaction;
-use elide_pipeline::entity::{Edit, Redact, Reviewer, Suppress};
+use elide_pipeline::entity::{Edit, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -54,22 +53,13 @@ fn text_entity_ids(audit: &Audit) -> Vec<uuid::Uuid> {
         .collect()
 }
 
-/// Stable placeholder policy UUID for reviewer overrides in
-/// tests that don't submit real policies. Audit-export tests
-/// don't drive `Engine::anonymize`, so the authority validator
-/// never runs on this id.
-const REVIEW_POLICY_ID: uuid::Uuid =
-    uuid::Uuid::from_u128(0x01234567_89ab_7000_8000_000000000abc_u128);
-
 /// Tag the first detected entity with a text `Erase` review so
 /// the review-export path has something to emit.
 fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
     let ids = text_entity_ids(audit);
     assert!(!ids.is_empty(), "sample fixture must produce entities");
-    audit.edit(Edit::Redact(Redact::<Text> {
+    audit.edit(Edit::<Text>::Suppress(Suppress {
         id: ids[0],
-        policy_id: REVIEW_POLICY_ID,
-        action: TextRedaction::Erase,
         by: Reviewer {
             reason: None,
             actor: None,
@@ -189,9 +179,9 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
         "review row must carry the reviewed entity's id; row: {row}",
     );
     assert!(
-        row.contains(",text,redact,erase"),
-        "modality + decision + operator kind extracted from the text \
-         redaction; row: {row}",
+        row.contains(",text,suppress,"),
+        "modality and decision; a suppression names no operator, so \
+         that column is empty; row: {row}",
     );
 }
 

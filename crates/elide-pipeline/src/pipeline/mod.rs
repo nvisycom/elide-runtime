@@ -333,13 +333,9 @@ impl Engine {
         // Safe to read the overrides this early: `apply` leaves
         // `Edit::Redact` pending precisely because it belongs to the
         // anonymizer rather than the report.
-        let orchestrator = self.provider.anonymize_orchestrator(
-            &audit.context,
-            policies,
-            &crate::entity::overrides(&audit.edits),
-            key,
-            correlation_id,
-        )?;
+        let orchestrator =
+            self.provider
+                .anonymize_orchestrator(&audit.context, policies, key, correlation_id)?;
 
         // Land the pending edits on the report: added entities,
         // corrected ones, and the suppression flag elide reads to

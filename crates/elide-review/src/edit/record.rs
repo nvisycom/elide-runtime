@@ -59,8 +59,6 @@ pub enum Edit<M: RedactableModality> {
     Retag(Retag<M>),
     /// A false positive, to be left alone.
     Suppress(Suppress),
-    /// An operator to run instead of the policy's pick.
-    Redact(Redact<M>),
 }
 
 /// A detection recognition missed.
@@ -130,32 +128,6 @@ pub struct Suppress {
     pub by: Reviewer,
 }
 
-/// Redact this entity with `action` instead of the operator the
-/// policy picked.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-#[serde(bound = "M::Redaction: Serialize + for<'a> Deserialize<'a>")]
-#[schemars(bound = "M: JsonSchema, M::Redaction: JsonSchema")]
-#[schemars(rename = "{M}Redact")]
-pub struct Redact<M: RedactableModality> {
-    /// The entity to redact.
-    pub id: Uuid,
-    /// The policy whose authority the reviewer exercises. Must match
-    /// a submitted policy's `id`.
-    ///
-    /// Not only for audit: it picks which per-policy pseudonym vault
-    /// and `KeyProvider` the operator resolves against, so an
-    /// override using `Pseudonymize` or `HmacHash` stays consistent
-    /// with that policy's other rules.
-    pub policy_id: Uuid,
-    /// The operator to run, typed to the entity's own modality so a
-    /// text entity cannot be given an image operator.
-    pub action: M::Redaction,
-    /// Who made the call, and why.
-    #[serde(flatten)]
-    pub by: Reviewer,
-}
-
 /// Who made an edit, and why.
 ///
 /// Shared by all four operations: the reviewer's identity is not
@@ -182,7 +154,6 @@ impl<M: RedactableModality> Edit<M> {
             Self::Add(_) => None,
             Self::Retag(e) => Some(e.id),
             Self::Suppress(e) => Some(e.id),
-            Self::Redact(e) => Some(e.id),
         }
     }
 
@@ -193,7 +164,6 @@ impl<M: RedactableModality> Edit<M> {
             Self::Add(e) => &e.by,
             Self::Retag(e) => &e.by,
             Self::Suppress(e) => &e.by,
-            Self::Redact(e) => &e.by,
         }
     }
 
@@ -204,7 +174,6 @@ impl<M: RedactableModality> Edit<M> {
             Self::Add(_) => "add",
             Self::Retag(_) => "retag",
             Self::Suppress(_) => "suppress",
-            Self::Redact(_) => "redact",
         }
     }
 
@@ -217,7 +186,7 @@ impl<M: RedactableModality> Edit<M> {
         match self {
             Self::Add(_) => Channel::Add,
             Self::Retag(_) => Channel::Identity,
-            Self::Suppress(_) | Self::Redact(_) => Channel::Outcome,
+            Self::Suppress(_) => Channel::Outcome,
         }
     }
 

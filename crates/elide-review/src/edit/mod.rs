@@ -13,5 +13,5 @@
 mod record;
 mod set;
 
-pub use self::record::{Add, Edit, Redact, Retag, Reviewer, Suppress};
+pub use self::record::{Add, Edit, Retag, Reviewer, Suppress};
 pub use self::set::{EditBucket, EditSet};

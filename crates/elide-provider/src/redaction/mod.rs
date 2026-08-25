@@ -61,15 +61,12 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::KeyProvider;
 use elide::{Orchestrator, Result};
 use elide_governance::PolicyDefinition;
-use elide_governance::modality::RedactableModality;
-use uuid::Uuid;
 
-use self::audio::{attach_override_audio, attach_policies_audio};
-use self::image::{attach_override_image, attach_policies_image};
+use self::audio::attach_policies_audio;
+use self::image::attach_policies_image;
 use self::operator::text::TextOperatorContext;
-use self::tabular::{attach_override_tabular, attach_policies_tabular};
-use self::text::{attach_override_text, attach_policies_text};
-use crate::{Override, Overrides};
+use self::tabular::attach_policies_tabular;
+use self::text::attach_policies_text;
 
 /// An [`Orchestrator`] that can redact any of the four modalities,
 /// built from the `policies` this request submitted plus whatever
@@ -100,7 +97,6 @@ use crate::{Override, Overrides};
 pub fn anonymizers(
     catalog: &LabelCatalog,
     policies: &[PolicyDefinition],
-    overrides: &Overrides,
     key: Option<Arc<dyn KeyProvider>>,
 ) -> Result<Orchestrator> {
     // Fresh per-request text-operator context. Pseudonym vaults
@@ -111,33 +107,21 @@ pub fn anonymizers(
     // vault its policy's other rules use.
     let text_ctx = TextOperatorContext::new(key);
 
-    let text = attach_overrides(
+    let text = attach_policies_text(
         empty_anonymizer::<Text>(catalog),
-        &overrides.text,
-        |a, id, policy, action| attach_override_text(a, id, policy, action, &text_ctx),
+        policies.iter(),
+        &text_ctx,
     )?;
-    let text = attach_policies_text(text, policies.iter(), &text_ctx)?;
 
-    let tabular = attach_overrides(
+    let tabular = attach_policies_tabular(
         empty_anonymizer::<Tabular>(catalog),
-        &overrides.tabular,
-        |a, id, policy, action| attach_override_tabular(a, id, policy, action, &text_ctx),
+        policies.iter(),
+        &text_ctx,
     )?;
-    let tabular = attach_policies_tabular(tabular, policies.iter(), &text_ctx)?;
 
-    let image = attach_overrides(
-        empty_anonymizer::<Image>(catalog),
-        &overrides.image,
-        attach_override_image,
-    )?;
-    let image = attach_policies_image(image, policies.iter())?;
+    let image = attach_policies_image(empty_anonymizer::<Image>(catalog), policies.iter())?;
 
-    let audio = attach_overrides(
-        empty_anonymizer::<Audio>(catalog),
-        &overrides.audio,
-        attach_override_audio,
-    )?;
-    let audio = attach_policies_audio(audio, policies.iter())?;
+    let audio = attach_policies_audio(empty_anonymizer::<Audio>(catalog), policies.iter())?;
 
     Ok(Orchestrator::new()
         .with_anonymizer::<Text>(text)
@@ -192,24 +176,4 @@ where
     M: Modality + 'static,
 {
     Anonymizer::<M>::new().with_catalog(catalog.clone())
-}
-
-/// Layer this modality's reviewer overrides onto `anonymizer`.
-///
-/// Call before attaching the policy rules: elide's anonymizer is
-/// first-match, so overrides attached ahead of the rules *are* the
-/// precedence.
-fn attach_overrides<M, F>(
-    mut anonymizer: Anonymizer<M>,
-    overrides: &[Override<M>],
-    attach_one: F,
-) -> Result<Anonymizer<M>>
-where
-    M: RedactableModality + 'static,
-    F: Fn(Anonymizer<M>, Uuid, Uuid, &M::Redaction) -> Result<Anonymizer<M>>,
-{
-    for over in overrides {
-        anonymizer = attach_one(anonymizer, over.entity_id, over.policy_id, &over.action)?;
-    }
-    Ok(anonymizer)
 }

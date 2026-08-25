@@ -158,47 +158,6 @@ pub(super) fn fallback_attribution(policy: &PolicyDefinition) -> Attribution {
         .into()
 }
 
-/// Build an [`Attribution`] for a reviewer override.
-///
-/// A reviewer's decision cites no provision, so it is freeform,
-/// named for the policy whose authority the reviewer exercised. The
-/// description marks the event as reviewer-driven, so an audit
-/// separates it from a rule-driven redaction at a glance.
-///
-/// The overridden entity is not named here: the event already sits
-/// on that entity's own trail, so carrying its id would restate
-/// where the event is.
-pub(super) fn override_attribution(policy_id: Uuid) -> Attribution {
-    Attribution::freeform(policy_id.to_string())
-        .with_description("reviewer override")
-        .into()
-}
-
-/// Attach an `operator` to `anonymizer` for the single entity
-/// identified by `entity_id`. Used by the apply pipeline to give
-/// reviewer overrides higher precedence than any policy-driven
-/// rule. `policy_id` names the overriding policy: attribution
-/// stamps it, and per-policy operator infrastructure (pseudonym
-/// vault, `KeyProvider`) resolves against it.
-pub(super) fn attach_override<M, O>(
-    anonymizer: Anonymizer<M>,
-    entity_id: Uuid,
-    operator: O,
-    policy_id: Uuid,
-) -> Anonymizer<M>
-where
-    M: Modality,
-    O: Operator<M> + 'static,
-{
-    anonymizer.with(
-        Rule::predicate(
-            move |cx: &MatchContext<'_, M>| cx.entity.id == entity_id,
-            operator,
-        )
-        .because(override_attribution(policy_id)),
-    )
-}
-
 /// Attach `operator` to `anonymizer` for the rule's
 /// [`Predicate`], stamping `attribution` so every redaction it
 /// drives carries the policy's identity on its provenance event.

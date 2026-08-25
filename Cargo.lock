@@ -1238,6 +1238,7 @@ dependencies = [
  "elide-governance",
  "elide-pipeline",
  "elide-provider",
+ "elide-review",
  "elide-template",
  "hipstr",
  "jiff",
@@ -1273,6 +1274,18 @@ dependencies = [
  "elide-core",
  "hipstr",
  "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "elide-review"
+version = "0.1.0"
+dependencies = [
+ "elide",
+ "elide-governance",
+ "schemars",
+ "serde",
+ "serde_json",
  "uuid",
 ]
 

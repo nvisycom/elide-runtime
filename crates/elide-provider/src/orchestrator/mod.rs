@@ -19,7 +19,7 @@ mod key;
 mod override_set;
 mod request;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use elide::codec::{FormatRegistry, PartId};
@@ -510,15 +510,15 @@ where
 /// matching one entity id, so no two can ever claim the same entity.
 fn attach_overrides<M, F>(
     mut anonymizer: Anonymizer<M>,
-    overrides: &HashMap<Uuid, Override<M>>,
+    overrides: &[Override<M>],
     attach_one: F,
 ) -> Result<Anonymizer<M>>
 where
     M: RedactableModality + 'static,
     F: Fn(Anonymizer<M>, Uuid, Uuid, &M::Redaction) -> Result<Anonymizer<M>>,
 {
-    for (entity_id, over) in overrides {
-        anonymizer = attach_one(anonymizer, *entity_id, over.policy_id, &over.action)?;
+    for over in overrides {
+        anonymizer = attach_one(anonymizer, over.entity_id, over.policy_id, &over.action)?;
     }
     Ok(anonymizer)
 }

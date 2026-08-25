@@ -14,7 +14,7 @@ use elide::modality::text::Text;
 use elide::{ErrorKind, Report};
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_pipeline::entity::{Review, ReviewSet};
+use elide_pipeline::entity::{Edit, EditSet};
 use elide_pipeline::file::Document;
 use elide_pipeline::{
     Audit, CodecParams, Component, DocumentContext, Engine, Enrichers, OcrBackend, ProviderConfig,
@@ -119,13 +119,13 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         rules: Vec::new(),
         fallback: None,
     };
-    analyzed.review::<Text>(
-        target_id,
-        Review::Redact {
-            policy_id: review_policy.id,
-            action: TextRedaction::Erase,
-        },
-    );
+    analyzed.edit(Edit::<Text>::Redact {
+        id: target_id,
+        policy_id: review_policy.id,
+        action: TextRedaction::Erase,
+        reason: None,
+        actor: None,
+    });
 
     let outcome = engine
         .anonymize(
@@ -308,7 +308,7 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
     let engine = engine();
     let mut audit = Audit {
         report: Report::new(),
-        reviews: ReviewSet::default(),
+        edits: EditSet::default(),
         context: DocumentContext::default(),
         codec: CodecParams::default(),
         usage: Default::default(),

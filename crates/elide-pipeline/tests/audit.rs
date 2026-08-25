@@ -15,7 +15,7 @@ use bytes::Bytes;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::redaction::TextRedaction;
-use elide_pipeline::entity::Review;
+use elide_pipeline::entity::Edit;
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -66,13 +66,13 @@ const REVIEW_POLICY_ID: uuid::Uuid =
 fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
     let ids = text_entity_ids(audit);
     assert!(!ids.is_empty(), "sample fixture must produce entities");
-    audit.review::<Text>(
-        ids[0],
-        Review::Redact {
-            policy_id: REVIEW_POLICY_ID,
-            action: TextRedaction::Erase,
-        },
-    );
+    audit.edit(Edit::<Text>::Redact {
+        id: ids[0],
+        policy_id: REVIEW_POLICY_ID,
+        action: TextRedaction::Erase,
+        reason: None,
+        actor: None,
+    });
     ids[0]
 }
 
@@ -173,7 +173,7 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
 
     let mut lines = output.lines();
     let header = lines.next().expect("header line present");
-    assert_eq!(header, "entity_id,modality,decision,operator");
+    assert_eq!(header, "entity_id,modality,decision,operator,reason,actor");
 
     let rows: Vec<&str> = lines.collect();
     assert_eq!(
@@ -187,7 +187,7 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
         "review row must carry the reviewed entity's id; row: {row}",
     );
     assert!(
-        row.ends_with(",text,redact,erase"),
+        row.contains(",text,redact,erase"),
         "modality + decision + operator kind extracted from the text \
          redaction; row: {row}",
     );
@@ -202,13 +202,11 @@ async fn write_reviews_csv_lists_a_suppression_with_no_operator() {
     let suppressed_id = {
         let ids = text_entity_ids(&audit);
         assert!(!ids.is_empty(), "sample fixture must produce entities");
-        audit.review::<Text>(
-            ids[0],
-            Review::Suppress {
-                reason: Some("false positive".into()),
-                actor: Some("reviewer".into()),
-            },
-        );
+        audit.edit(Edit::<Text>::Suppress {
+            id: ids[0],
+            reason: Some("false positive".into()),
+            actor: Some("reviewer".into()),
+        });
         ids[0]
     };
 
@@ -224,7 +222,7 @@ async fn write_reviews_csv_lists_a_suppression_with_no_operator() {
         .find(|row| row.contains(&suppressed_id.to_string()))
         .expect("the suppressed entity has a review row");
     assert!(
-        row.ends_with(",text,suppress,"),
+        row.contains(",text,suppress,"),
         "a suppression exports its decision and an empty operator; row: {row}",
     );
 }
@@ -245,7 +243,7 @@ async fn write_reviews_csv_writes_header_when_no_reviews_set() {
     );
     assert_eq!(
         output.lines().next().unwrap(),
-        "entity_id,modality,decision,operator",
+        "entity_id,modality,decision,operator,reason,actor",
     );
 }
 

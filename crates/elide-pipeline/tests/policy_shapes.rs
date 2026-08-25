@@ -13,7 +13,7 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
-use elide_pipeline::entity::Review;
+use elide_pipeline::entity::Edit;
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -491,13 +491,13 @@ async fn override_naming_unknown_policy_fails_the_request() {
         .expect("expected text body")[0]
         .id;
     // Ship an override that names a policy id no one submitted.
-    analyzed.review::<Text>(
-        target,
-        Review::Redact {
-            policy_id: uuid::Uuid::now_v7(),
-            action: TextRedaction::Erase,
-        },
-    );
+    analyzed.edit(Edit::<Text>::Redact {
+        id: target,
+        policy_id: uuid::Uuid::now_v7(),
+        action: TextRedaction::Erase,
+        reason: None,
+        actor: None,
+    });
 
     let err = engine
         .anonymize(

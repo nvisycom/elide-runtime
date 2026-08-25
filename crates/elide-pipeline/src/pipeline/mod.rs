@@ -31,7 +31,6 @@
 //! with any reviewer decisions folded in.
 //!
 //! [`Audit`]: crate::Audit
-//! [`ReviewSet`]: crate::entity::ReviewSet
 //! [`FormatRegistry`]: elide::codec::FormatRegistry
 //! [`DocumentHandle`]: elide::codec::DocumentHandle
 //! [`Orchestrator`]: elide::Orchestrator
@@ -60,7 +59,7 @@ use serde::Deserialize;
 
 pub use self::audit::Audit;
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
-use crate::entity::ReviewSet;
+use crate::entity::EditSet;
 use crate::file::Document;
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
@@ -130,7 +129,7 @@ impl Engine {
 
         Ok(Audit {
             report,
-            reviews: wire.reviews,
+            edits: wire.edits,
             context: wire.context,
             codec: wire.codec,
             usage: wire.usage,
@@ -245,7 +244,7 @@ impl Engine {
 
         Ok(Audit {
             report,
-            reviews: ReviewSet::default(),
+            edits: EditSet::default(),
             context: request.context.clone(),
             codec: request.codec,
             usage,
@@ -319,15 +318,20 @@ impl Engine {
             ));
         }
 
-        // Materialise pending suppressions onto their entities:
-        // elide reads the trail, not our review set, to decide what
-        // the redaction pass skips.
-        audit.apply_suppressions();
+        // Before anything is applied, so a self-contradicting
+        // payload fails with the audit untouched rather than
+        // half-honoured.
+        audit.edits.validate()?;
+
+        // Land the pending edits on the report: added entities,
+        // corrected ones, and the suppression flag elide reads to
+        // decide what the redaction pass skips.
+        audit.edits.apply(&mut audit.report);
 
         let orchestrator = self.provider.anonymize_orchestrator(
             &audit.context,
             policies,
-            &audit.overrides(),
+            &crate::entity::overrides(&audit.edits),
             key,
             correlation_id,
         )?;
@@ -439,7 +443,7 @@ impl Engine {
 struct AuditWire {
     report: serde_value::Value,
     #[serde(default)]
-    reviews: ReviewSet,
+    edits: EditSet,
     context: DocumentContext,
     // No `default`: unlike `reviews`/`usage` this is always
     // serialized, so a payload omitting it is malformed rather

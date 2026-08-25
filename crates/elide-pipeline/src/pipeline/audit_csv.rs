@@ -9,14 +9,13 @@
 //!   essentials only.
 //! - [`Table::Provenance`]: one row per event on every entity's
 //!   provenance chain.
-//! - [`Table::Reviews`]: one row per reviewer decision.
+//! - [`Table::Reviews`]: one row per reviewer edit.
 //!
 //! All three join on `entity_id`. The design choice for CSV is
 //! honest scalar columns everywhere: no JSON blobs, no
 //! polymorphic locations. Callers that need location details or
 //! nested payloads use [`ExportJson`](elide_export::ExportJson).
 
-use std::collections::HashMap;
 use std::{io, result};
 
 use elide::codec::PartId;
@@ -34,7 +33,7 @@ use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use super::audit::Audit;
-use crate::entity::Review;
+use crate::entity::Edit;
 
 /// Run `$body` once per modality, binding `$m` to the modality type
 /// and `$name` to its wire name.
@@ -80,7 +79,7 @@ impl ExportCsv for Audit {
     /// |---|---|
     /// | [`Entities`] | `part_id, modality, entity_id, label, confidence, coref` |
     /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
-    /// | [`Reviews`] | `entity_id, modality, decision, operator` |
+    /// | [`Reviews`] | `entity_id, modality, decision, operator, reason, actor` |
     ///
     /// Every table carries `entity_id` so they join back together.
     /// Rows are sorted for stable diffs: entities by
@@ -170,10 +169,10 @@ impl Audit {
     /// One row per reviewer decision, sorted by `entity_id`.
     fn review_rows(&self) -> Vec<ReviewRow> {
         let mut rows: Vec<ReviewRow> = Vec::new();
-        extend_review_rows(&self.reviews.text, "text", &mut rows);
-        extend_review_rows(&self.reviews.tabular, "tabular", &mut rows);
-        extend_review_rows(&self.reviews.image, "image", &mut rows);
-        extend_review_rows(&self.reviews.audio, "audio", &mut rows);
+        extend_review_rows(&self.edits.text, "text", &mut rows);
+        extend_review_rows(&self.edits.tabular, "tabular", &mut rows);
+        extend_review_rows(&self.edits.image, "image", &mut rows);
+        extend_review_rows(&self.edits.audio, "audio", &mut rows);
         rows.sort_by_key(|row| row.entity_id);
         rows
     }
@@ -243,50 +242,57 @@ fn extend_provenance_rows<'a, M: Modality>(
     }
 }
 
-/// One row per decision in a modality's review bucket.
+/// One row per edit in a modality's list.
 ///
-/// A suppression is a reviewer decision too, so it earns a row:
-/// exporting only operator overrides would hide every "leave this
-/// alone" call from the same report. It names no operator, so that
-/// column stays empty — as does a retag, which corrects the
-/// detection and lets the policy set pick again.
+/// Every operation earns a row, not just operator overrides:
+/// exporting those alone would hide every "leave this alone" and
+/// every reviewer-added detection from the same report. Only a
+/// redact names an operator, so that column is empty for the rest.
 fn extend_review_rows<M: RedactableModality>(
-    reviews: &HashMap<Uuid, Review<M>>,
+    edits: &[Edit<M>],
     modality: &'static str,
     out: &mut Vec<ReviewRow>,
 ) {
-    for (entity_id, review) in reviews {
-        let decision = match review {
-            Review::Redact { action, .. } => {
+    for edit in edits {
+        let (decision, operator) = match edit {
+            Edit::Redact { action, .. } => {
                 let Some(operator) = operator_kind(action) else {
                     continue;
                 };
                 ("redact", operator)
             }
-            Review::Suppress { .. } => ("suppress", String::new()),
-            Review::Retag { .. } => ("retag", String::new()),
+            Edit::Add { .. } => ("add", String::new()),
+            Edit::Suppress { .. } => ("suppress", String::new()),
+            Edit::Retag { .. } => ("retag", String::new()),
         };
         out.push(ReviewRow {
-            entity_id: *entity_id,
+            entity_id: edit.target(),
             modality,
-            decision: decision.0,
-            operator: decision.1,
+            decision,
+            operator,
+            reason: edit.reason().unwrap_or_default().to_owned(),
+            actor: edit.actor().unwrap_or_default().to_owned(),
         });
     }
 }
 
-/// One reviewed entity, as the review CSV exports it.
+/// One reviewer edit, as the review CSV exports it.
 ///
 /// `decision` and `operator` stay separate columns: a suppression
 /// names no operator, so folding them would put a non-operator
 /// value in a column consumers map onto an operator enum.
+///
+/// `entity_id` is empty for an `add`, whose entity does not exist
+/// until the edit is applied.
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 struct ReviewRow {
-    entity_id: Uuid,
+    entity_id: Option<Uuid>,
     modality: &'static str,
     decision: &'static str,
     operator: String,
+    reason: String,
+    actor: String,
 }
 
 impl EntityRow<'_> {
@@ -318,7 +324,14 @@ impl ProvenanceRow<'_> {
 
 impl ReviewRow {
     const fn header() -> &'static [&'static str] {
-        &["entity_id", "modality", "decision", "operator"]
+        &[
+            "entity_id",
+            "modality",
+            "decision",
+            "operator",
+            "reason",
+            "actor",
+        ]
     }
 }
 

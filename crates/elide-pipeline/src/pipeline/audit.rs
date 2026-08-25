@@ -22,7 +22,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::entity::{Review, ReviewBucket, ReviewSet};
+use crate::entity::{Edit, EditBucket, EditSet};
 
 /// What detection found in one document, plus what a reviewer
 /// decided about it.
@@ -30,7 +30,7 @@ use crate::entity::{Review, ReviewBucket, ReviewSet};
 /// Wraps elide's [`Report`] with the three things elide does not
 /// model: the recognition [`DocumentContext`] the entities were
 /// scored against, how the document decoded, and the reviewer
-/// decisions in [`reviews`](Self::reviews).
+/// decisions in [`edits`](Self::edits).
 ///
 /// # Serialization
 ///
@@ -42,7 +42,7 @@ use crate::entity::{Review, ReviewBucket, ReviewSet};
 /// # Schema
 ///
 /// Generate under the **serialize** contract
-/// ([`SchemaSettings::for_serialize`]). `reviews` and `usage` are
+/// ([`SchemaSettings::for_serialize`]). `edits` and `usage` are
 /// `skip_serializing_if`, and only that contract marks them
 /// optional — `schema_for!` defaults to deserialize and declares
 /// both required, so a generated client would reject responses this
@@ -60,23 +60,27 @@ pub struct Audit {
     ///
     /// Edit it through [`Report`]'s own API — [`include`],
     /// [`suppress`], [`entities`] — for the decisions elide models.
-    /// Operator overrides live in [`reviews`](Self::reviews).
+    /// Operator overrides live in [`edits`](Self::edits).
     ///
     /// [`Report`]: elide::Report
     /// [`include`]: elide::Report::include
     /// [`suppress`]: elide::Report::suppress
     /// [`entities`]: elide::Report::entities
     pub report: Report,
-    /// What a reviewer decided about individual detections, keyed
-    /// by entity id.
+    /// What a reviewer changed: detections they added, corrected,
+    /// suppressed, or chose an operator for.
+    ///
+    /// A list rather than one decision per entity, because the
+    /// operations feed independent channels — a retag and an
+    /// operator override on the same entity are both legitimate.
     ///
     /// Separate from the report because elide has no concept of a
     /// per-entity operator override: [`anonymize_with`] re-resolves
     /// operators from live policy at apply time.
     ///
     /// [`anonymize_with`]: elide::Orchestrator::anonymize_with
-    #[serde(skip_serializing_if = "ReviewSet::is_empty")]
-    pub reviews: ReviewSet,
+    #[serde(skip_serializing_if = "EditSet::is_empty")]
+    pub edits: EditSet,
     /// What the caller asserted when this document was analyzed:
     /// languages, jurisdictions, document tags.
     ///
@@ -105,47 +109,74 @@ pub struct Audit {
 }
 
 impl Audit {
-    /// Record a reviewer's decision about the entity `id`.
+    /// Record a reviewer's edit.
     ///
-    /// Replaces any decision already held for it: one entity
-    /// carries one decision. The modality is the entity's own, so a
-    /// text entity can only be given a [`TextRedaction`] — a review
-    /// naming the wrong modality's operator will not compile.
+    /// Appends rather than replaces: edits feed independent
+    /// channels, so retagging an entity and choosing its operator
+    /// are both legitimate at once. Two edits that answer the same
+    /// question differently are rejected by
+    /// [`EditSet::validate`](crate::entity::EditSet::validate),
+    /// which [`Engine::anonymize`] runs before applying anything.
     ///
+    /// The modality is the entity's own, so a text entity can only
+    /// be given a [`TextRedaction`] — an edit naming the wrong
+    /// modality's operator will not compile.
+    ///
+    /// [`Engine::anonymize`]: super::Engine::anonymize
     /// [`TextRedaction`]: elide_governance::redaction::TextRedaction
-    pub fn review<M: ReviewBucket>(&mut self, id: Uuid, review: Review<M>) {
-        M::bucket_mut(&mut self.reviews).insert(id, review);
+    pub fn edit<M: EditBucket>(&mut self, edit: Edit<M>) -> &mut Self {
+        M::bucket_mut(&mut self.edits).push(edit);
+        self
     }
 
-    /// The decision held for the entity `id`, if any.
+    /// Every edit recorded for the entity `id`, in order.
     #[must_use]
-    pub fn reviewed<M: ReviewBucket>(&self, id: Uuid) -> Option<&Review<M>> {
-        M::bucket(&self.reviews).get(&id)
+    pub fn edits_for<M: EditBucket>(&self, id: Uuid) -> Vec<&Edit<M>> {
+        M::bucket(&self.edits)
+            .iter()
+            .filter(|edit| edit.target() == Some(id))
+            .collect()
     }
 
-    /// Drop any decision held for the entity `id`, restoring it to
+    /// Drop every edit recorded for the entity `id`, restoring it to
     /// whatever the policy set picks.
-    pub fn unreview<M: ReviewBucket>(&mut self, id: Uuid) -> Option<Review<M>> {
-        M::bucket_mut(&mut self.reviews).remove(&id)
+    ///
+    /// Returns how many were dropped.
+    pub fn unedit<M: EditBucket>(&mut self, id: Uuid) -> usize {
+        let bucket = M::bucket_mut(&mut self.edits);
+        let before = bucket.len();
+        bucket.retain(|edit| edit.target() != Some(id));
+        before - bucket.len()
     }
 
     /// Whether the entity `id` will be left alone.
     ///
-    /// A pending decision wins over the entity's trail, so an entity
-    /// suppressed, applied, then given a [`Review::Redact`] reads
+    /// A pending edit wins over the entity's trail, so an entity
+    /// suppressed, applied, then given an [`Edit::Redact`] reads
     /// `false` here and is redacted on the next apply. With no
-    /// pending decision this falls back to the trail, so an applied
+    /// pending edit this falls back to the trail, so an applied
     /// suppression still reads as suppressed after a round trip.
     #[must_use]
-    pub fn is_suppressed<M: ReviewBucket + 'static>(&self, id: Uuid) -> bool {
-        match self.reviewed::<M>(id) {
-            Some(Review::Suppress { .. }) => true,
-            Some(Review::Redact { .. } | Review::Retag { .. }) => false,
-            None => self
-                .report
+    pub fn is_suppressed<M: EditBucket + 'static>(&self, id: Uuid) -> bool {
+        // Only the outcome channel speaks to this; a retag says
+        // nothing about whether the entity is redacted. Read from
+        // the last edit backwards, so a reviewer's latest word
+        // wins over an earlier one they replaced.
+        let pending = self
+            .edits_for::<M>(id)
+            .into_iter()
+            .rev()
+            .find_map(|edit| match edit {
+                Edit::Suppress { .. } => Some(true),
+                Edit::Redact { .. } => Some(false),
+                Edit::Add { .. } | Edit::Retag { .. } => None,
+            });
+
+        pending.unwrap_or_else(|| {
+            self.report
                 .entities::<M>()
                 .and_then(|entities| entities.iter().find(|e| e.id == id))
-                .is_some_and(elide::entity::Entity::is_suppressed),
-        }
+                .is_some_and(elide::entity::Entity::is_suppressed)
+        })
     }
 }

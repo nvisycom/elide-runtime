@@ -10,7 +10,7 @@ use elide::entity::audit::{AuditEvent, AuditKind, AuditLog};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::Confidence;
-use elide_review::{Edit, EditSet};
+use elide_review::{Add, Edit, EditSet, Redact, Retag, Reviewer, Suppress};
 use uuid::Uuid;
 
 fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
@@ -55,18 +55,22 @@ fn edits_deserialize_from_a_request_body() {
 fn contradictions_are_caught_before_anything_is_applied() {
     let id = Uuid::from_u128(1);
     let mut edits = EditSet::default();
-    edits.text.push(Edit::Suppress {
+    edits.text.push(Edit::Suppress(Suppress {
         id,
-        reason: None,
-        actor: None,
-    });
-    edits.text.push(Edit::Redact {
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
+    edits.text.push(Edit::Redact(Redact {
         id,
         policy_id: Uuid::from_u128(9),
         action: elide_governance::redaction::TextRedaction::Erase,
-        reason: None,
-        actor: None,
-    });
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
 
     let err = edits
         .validate()
@@ -79,19 +83,23 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
     let (mut report, id) = report_with_one();
     let mut edits = EditSet::default();
 
-    edits.text.push(Edit::Add {
+    edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
-        reason: None,
-        actor: Some("alice".into()),
-    });
-    edits.text.push(Edit::Retag {
+        by: Reviewer {
+            reason: None,
+            actor: Some("alice".into()),
+        },
+    }));
+    edits.text.push(Edit::Retag(Retag {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        reason: None,
-        actor: None,
-    });
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
 
     edits.validate().expect("composable");
     edits.apply(&mut report);
@@ -121,11 +129,13 @@ fn suppress_marks_the_entity_and_a_redact_lifts_it() {
     let (mut report, id) = report_with_one();
 
     let mut edits = EditSet::default();
-    edits.text.push(Edit::Suppress {
+    edits.text.push(Edit::Suppress(Suppress {
         id,
-        reason: Some("fp".into()),
-        actor: None,
-    });
+        by: Reviewer {
+            reason: Some("fp".into()),
+            actor: None,
+        },
+    }));
     edits.apply(&mut report);
 
     let e = report
@@ -138,13 +148,15 @@ fn suppress_marks_the_entity_and_a_redact_lifts_it() {
 
     // A later pass reverses it — the round trip a reviewer makes.
     let mut edits = EditSet::default();
-    edits.text.push(Edit::Redact {
+    edits.text.push(Edit::Redact(Redact {
         id,
         policy_id: Uuid::from_u128(9),
         action: elide_governance::redaction::TextRedaction::Erase,
-        reason: None,
-        actor: None,
-    });
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
     edits.apply(&mut report);
 
     let e = report
@@ -158,5 +170,112 @@ fn suppress_marks_the_entity_and_a_redact_lifts_it() {
         edits.text.len(),
         1,
         "the redact stays pending for the anonymizer"
+    );
+}
+
+#[test]
+fn a_third_retag_conflicts_with_the_first() {
+    // label, then location, then label again. The middle edit
+    // merges with both neighbours, so comparing only against the
+    // most recent would let two labels through and silently apply
+    // the last.
+    let id = Uuid::from_u128(1);
+    let retag = |label: Option<&str>, location: Option<TextLocation>| {
+        Edit::Retag(Retag {
+            id,
+            label: label.map(LabelRef::new),
+            location,
+            by: Reviewer {
+                reason: None,
+                actor: None,
+            },
+        })
+    };
+
+    let mut edits = EditSet::default();
+    edits.text.push(retag(Some("a"), None));
+    edits.text.push(retag(None, Some(TextLocation::new(0, 4))));
+    edits.text.push(retag(Some("b"), None));
+
+    let err = edits
+        .validate()
+        .expect_err("two labels for one entity contradict, however they are interleaved");
+    assert!(err.to_string().contains(&id.to_string()), "{err}");
+}
+
+#[test]
+fn an_added_entity_keeps_its_reason_and_actor() {
+    // The edit is consumed once applied, so if the trail does not
+    // carry them the audit can no longer say who added the entity.
+    let mut report = Report::new().insert_body::<Text>(Vec::new());
+    let mut edits = EditSet::default();
+    edits.text.push(Edit::Add(Add {
+        label: LabelRef::new("phone_number"),
+        location: TextLocation::new(10, 22),
+        by: Reviewer {
+            reason: Some("recognizer missed it".into()),
+            actor: Some("alice".into()),
+        },
+    }));
+    edits.apply(&mut report);
+
+    let added = &report.entities::<Text>().expect("text body")[0];
+    let manual = added
+        .audit
+        .events()
+        .iter()
+        .find_map(|e| match &e.kind {
+            AuditKind::Manual(m) => Some(m),
+            _ => None,
+        })
+        .expect("an added entity carries a Manual event");
+    assert_eq!(manual.reason.as_deref(), Some("recognizer missed it"));
+    assert_eq!(manual.actor.as_deref(), Some("alice"));
+}
+
+#[test]
+fn retagging_does_not_unsuppress() {
+    // A retag records no `Manual` event: `intent` is what
+    // `is_suppressed` reads, and there is no "corrected" intent, so
+    // stamping an `Include` would silently revive a suppressed
+    // entity.
+    let (mut report, id) = report_with_one();
+
+    let mut edits = EditSet::default();
+    edits.text.push(Edit::Suppress(Suppress {
+        id,
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
+    edits.apply(&mut report);
+
+    let mut edits = EditSet::default();
+    edits.text.push(Edit::Retag(Retag {
+        id,
+        label: Some(LabelRef::new("person_name")),
+        location: None,
+        by: Reviewer {
+            reason: Some("wrong label".into()),
+            actor: Some("bob".into()),
+        },
+    }));
+    edits.apply(&mut report);
+
+    let e = report
+        .entities::<Text>()
+        .unwrap()
+        .iter()
+        .find(|e| e.id == id)
+        .unwrap();
+    assert!(
+        e.is_suppressed(),
+        "a correction must not lift a suppression"
+    );
+    assert_eq!(
+        e.label.as_str(),
+        "person_name",
+        "but the retag still applied"
     );
 }

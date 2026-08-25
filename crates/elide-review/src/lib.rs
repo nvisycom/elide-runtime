@@ -24,12 +24,18 @@
 //! drives — elide re-resolves operators from live policy at apply
 //! time and has no per-entity override of its own.
 //!
+//! ## Layout
+//!
+//! - `edit` is the data: the four operations, and the rules for
+//!   when two of them compose rather than contradict.
+//! - `apply` is the other half — landing an edit on a report, the
+//!   suppression flag elide actually reads, and finding an entity
+//!   across a report's body and its container parts.
+//!
 //! [`Report`]: elide::Report
 //! [`validate`]: EditSet::validate
 
 mod apply;
 mod edit;
-mod edits;
 
-pub use self::edit::Edit;
-pub use self::edits::{EditBucket, EditSet};
+pub use self::edit::{Add, Edit, EditBucket, EditSet, Redact, Retag, Reviewer, Suppress};

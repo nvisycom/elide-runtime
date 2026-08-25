@@ -20,7 +20,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::edit::{Channel, Edit};
+use super::record::{Channel, Edit};
 
 /// Reviewer edits for one document, one list per modality.
 ///
@@ -77,33 +77,33 @@ impl EditSet {
     /// the entity and both edits.
     ///
     pub fn validate(&self) -> Result<()> {
-        validate_modality(&self.text, "text")?;
-        validate_modality(&self.tabular, "tabular")?;
-        validate_modality(&self.image, "image")?;
-        validate_modality(&self.audio, "audio")
+        validate_modality(&self.text)?;
+        validate_modality(&self.tabular)?;
+        validate_modality(&self.image)?;
+        validate_modality(&self.audio)
     }
 }
 
 /// Reject contradictions among one modality's edits.
-fn validate_modality<M: RedactableModality>(edits: &[Edit<M>], modality: &str) -> Result<()> {
-    // Per entity, the edit already seen on each channel. An `Add`
-    // names no entity, so it can never contradict anything.
-    let mut seen: HashMap<(Uuid, Channel), &Edit<M>> = HashMap::new();
+///
+/// Tracks every edit already seen on a channel, not just the last:
+/// a retag setting the label, then one setting the location, then a
+/// second setting the label is a contradiction with the *first*,
+/// and comparing only against the most recent would miss it.
+fn validate_modality<M: RedactableModality>(edits: &[Edit<M>]) -> Result<()> {
+    // Per entity and channel, every edit seen so far. An `Add` names
+    // no entity, so it can never contradict anything.
+    let mut seen: HashMap<(Uuid, Channel), Vec<&Edit<M>>> = HashMap::new();
 
     for edit in edits {
         let Some(id) = edit.target() else {
             continue;
         };
-        let channel = edit.channel();
-        match seen.get(&(id, channel)) {
-            Some(earlier) if !earlier.merges_with(edit) => {
-                return Err(earlier.conflict_with(edit, modality, id));
-            }
-            // Merges cleanly, or first on this channel.
-            _ => {
-                seen.insert((id, channel), edit);
-            }
+        let channel = seen.entry((id, edit.channel())).or_default();
+        if let Some(earlier) = channel.iter().find(|e| !e.merges_with(edit)) {
+            return Err(earlier.conflict_with(edit, id));
         }
+        channel.push(edit);
     }
     Ok(())
 }

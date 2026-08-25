@@ -54,92 +54,121 @@ use uuid::Uuid;
 #[schemars(rename = "{M}Edit")]
 pub enum Edit<M: RedactableModality> {
     /// A detection recognition missed.
+    Add(Add<M>),
+    /// A correction to what an existing detection is or covers.
+    Retag(Retag<M>),
+    /// A false positive, to be left alone.
+    Suppress(Suppress),
+    /// An operator to run instead of the policy's pick.
+    Redact(Redact<M>),
+}
+
+/// A detection recognition missed.
+///
+/// Recorded on the report with human provenance, so it is never
+/// mistaken for an automatic hit, then redacted under the policy set
+/// like any other entity: an added label the policy does not cover
+/// is left alone.
+///
+/// Carries no entity id — the entity does not exist yet, and the
+/// engine mints one when the edit is applied, so a client cannot
+/// collide with a real detection or shadow an existing entity.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(bound = "M::Location: Serialize + for<'a> Deserialize<'a>")]
+#[schemars(bound = "M: JsonSchema, M::Location: JsonSchema")]
+#[schemars(rename = "{M}Add")]
+pub struct Add<M: RedactableModality> {
+    /// What the reviewer says this is.
+    pub label: LabelRef,
+    /// Where it sits in the document.
+    pub location: M::Location,
+    /// Who made the call, and why.
+    #[serde(flatten)]
+    pub by: Reviewer,
+}
+
+/// Correct what an existing detection *is* or *covers*, then redact
+/// it under the policy set as corrected.
+///
+/// A reviewer fixing recognition's mistake rather than overriding
+/// its consequence. Retagging into a label the policy does not cover
+/// leaves the entity alone, exactly as if it had been detected that
+/// way — which is why it is auditable rather than a mutable field.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(bound = "M::Location: Serialize + for<'a> Deserialize<'a>")]
+#[schemars(bound = "M: JsonSchema, M::Location: JsonSchema")]
+#[schemars(rename = "{M}Retag")]
+pub struct Retag<M: RedactableModality> {
+    /// The entity being corrected.
+    pub id: Uuid,
+    /// The corrected label, when recognition got it wrong.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<LabelRef>,
+    /// The corrected location, when the span clipped the value or
+    /// ran past it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<M::Location>,
+    /// Who made the call, and why.
+    #[serde(flatten)]
+    pub by: Reviewer,
+}
+
+/// Leave this entity alone: a reviewer calling it a false positive.
+///
+/// It keeps its place and its provenance; the redaction pass skips
+/// it. Recorded as a `Manual` event, so *who* decided and *why* is
+/// auditable rather than the detection silently disappearing.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Suppress {
+    /// The entity to leave alone.
+    pub id: Uuid,
+    /// Who made the call, and why.
+    #[serde(flatten)]
+    pub by: Reviewer,
+}
+
+/// Redact this entity with `action` instead of the operator the
+/// policy picked.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(bound = "M::Redaction: Serialize + for<'a> Deserialize<'a>")]
+#[schemars(bound = "M: JsonSchema, M::Redaction: JsonSchema")]
+#[schemars(rename = "{M}Redact")]
+pub struct Redact<M: RedactableModality> {
+    /// The entity to redact.
+    pub id: Uuid,
+    /// The policy whose authority the reviewer exercises. Must match
+    /// a submitted policy's `id`.
     ///
-    /// Recorded on the report with human provenance, so it is never
-    /// mistaken for an automatic hit, and then redacted under the
-    /// policy set like any other entity: an added label the policy
-    /// does not cover is left alone.
-    #[serde(rename_all = "camelCase")]
-    Add {
-        /// What the reviewer says this is.
-        label: LabelRef,
-        /// Where it sits in the document.
-        location: M::Location,
-        /// Why it was added.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        reason: Option<String>,
-        /// Who added it.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        actor: Option<String>,
-    },
-    /// Correct what an existing detection *is* or *covers*, then
-    /// redact it under the policy set as corrected.
-    ///
-    /// A reviewer fixing recognition's mistake rather than
-    /// overriding its consequence. Retagging into a label the policy
-    /// does not cover leaves the entity alone, exactly as if it had
-    /// been detected that way — which is why it is auditable rather
-    /// than a mutable field.
-    #[serde(rename_all = "camelCase")]
-    Retag {
-        /// The entity being corrected.
-        id: Uuid,
-        /// The corrected label, when recognition got it wrong.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        label: Option<LabelRef>,
-        /// The corrected location, when the span clipped the value
-        /// or ran past it.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        location: Option<M::Location>,
-        /// Why the correction was made.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        reason: Option<String>,
-        /// Who made it.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        actor: Option<String>,
-    },
-    /// Leave this entity alone: a reviewer calling it a false
-    /// positive.
-    ///
-    /// It keeps its place and its provenance; the redaction pass
-    /// skips it. Recorded as a `Manual` event, so *who* decided and
-    /// *why* is auditable rather than the detection silently
-    /// disappearing.
-    #[serde(rename_all = "camelCase")]
-    Suppress {
-        /// The entity to leave alone.
-        id: Uuid,
-        /// Why it was judged a false positive.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        reason: Option<String>,
-        /// Who made the call.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        actor: Option<String>,
-    },
-    /// Redact this entity with `action` instead of the operator the
-    /// policy picked.
-    #[serde(rename_all = "camelCase")]
-    Redact {
-        /// The entity to redact.
-        id: Uuid,
-        /// The policy whose authority the reviewer exercises. Must
-        /// match a submitted policy's `id`.
-        ///
-        /// Not only for audit: it picks which per-policy pseudonym
-        /// vault and `KeyProvider` the operator resolves against, so
-        /// an override using `Pseudonymize` or `HmacHash` stays
-        /// consistent with that policy's other rules.
-        policy_id: Uuid,
-        /// The operator to run, typed to the entity's own modality
-        /// so a text entity cannot be given an image operator.
-        action: M::Redaction,
-        /// Why the policy's pick was overridden.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        reason: Option<String>,
-        /// Who overrode it.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        actor: Option<String>,
-    },
+    /// Not only for audit: it picks which per-policy pseudonym vault
+    /// and `KeyProvider` the operator resolves against, so an
+    /// override using `Pseudonymize` or `HmacHash` stays consistent
+    /// with that policy's other rules.
+    pub policy_id: Uuid,
+    /// The operator to run, typed to the entity's own modality so a
+    /// text entity cannot be given an image operator.
+    pub action: M::Redaction,
+    /// Who made the call, and why.
+    #[serde(flatten)]
+    pub by: Reviewer,
+}
+
+/// Who made an edit, and why.
+///
+/// Shared by all four operations: the reviewer's identity is not
+/// part of the decision, so it does not vary with the decision.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Reviewer {
+    /// The rationale, when one was given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Who made it, when the caller said.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor: Option<String>,
 }
 
 impl<M: RedactableModality> Edit<M> {
@@ -150,10 +179,21 @@ impl<M: RedactableModality> Edit<M> {
     #[must_use]
     pub fn target(&self) -> Option<Uuid> {
         match self {
-            Self::Add { .. } => None,
-            Self::Retag { id, .. } | Self::Suppress { id, .. } | Self::Redact { id, .. } => {
-                Some(*id)
-            }
+            Self::Add(_) => None,
+            Self::Retag(e) => Some(e.id),
+            Self::Suppress(e) => Some(e.id),
+            Self::Redact(e) => Some(e.id),
+        }
+    }
+
+    /// Who made this edit, and why.
+    #[must_use]
+    pub fn by(&self) -> &Reviewer {
+        match self {
+            Self::Add(e) => &e.by,
+            Self::Retag(e) => &e.by,
+            Self::Suppress(e) => &e.by,
+            Self::Redact(e) => &e.by,
         }
     }
 
@@ -161,10 +201,10 @@ impl<M: RedactableModality> Edit<M> {
     #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Add { .. } => "add",
-            Self::Retag { .. } => "retag",
-            Self::Suppress { .. } => "suppress",
-            Self::Redact { .. } => "redact",
+            Self::Add(_) => "add",
+            Self::Retag(_) => "retag",
+            Self::Suppress(_) => "suppress",
+            Self::Redact(_) => "redact",
         }
     }
 
@@ -175,30 +215,22 @@ impl<M: RedactableModality> Edit<M> {
     #[must_use]
     pub(crate) fn channel(&self) -> Channel {
         match self {
-            Self::Add { .. } => Channel::Add,
-            Self::Retag { .. } => Channel::Identity,
-            Self::Suppress { .. } | Self::Redact { .. } => Channel::Outcome,
+            Self::Add(_) => Channel::Add,
+            Self::Retag(_) => Channel::Identity,
+            Self::Suppress(_) | Self::Redact(_) => Channel::Outcome,
         }
     }
 
     /// Why the reviewer made this edit.
     #[must_use]
     pub fn reason(&self) -> Option<&str> {
-        let (Self::Add { reason, .. }
-        | Self::Retag { reason, .. }
-        | Self::Suppress { reason, .. }
-        | Self::Redact { reason, .. }) = self;
-        reason.as_deref()
+        self.by().reason.as_deref()
     }
 
     /// Who made this edit.
     #[must_use]
     pub fn actor(&self) -> Option<&str> {
-        let (Self::Add { actor, .. }
-        | Self::Retag { actor, .. }
-        | Self::Suppress { actor, .. }
-        | Self::Redact { actor, .. }) = self;
-        actor.as_deref()
+        self.by().actor.as_deref()
     }
 }
 
@@ -229,25 +261,14 @@ impl<M: RedactableModality> Edit<M> {
             // fixing the label and one fixing the span are a single
             // correction split across two edits. Both setting the
             // same field are two answers.
-            (
-                Self::Retag {
-                    label: a_label,
-                    location: a_loc,
-                    ..
-                },
-                Self::Retag {
-                    label: b_label,
-                    location: b_loc,
-                    ..
-                },
-            ) => {
-                let same_label = a_label.is_some() && b_label.is_some();
-                let same_location = a_loc.is_some() && b_loc.is_some();
+            (Self::Retag(a), Self::Retag(b)) => {
+                let same_label = a.label.is_some() && b.label.is_some();
+                let same_location = a.location.is_some() && b.location.is_some();
                 !same_label && !same_location
             }
             // The same call made twice. A retrying client is not a
             // contradicting one.
-            (Self::Suppress { .. }, Self::Suppress { .. }) => true,
+            (Self::Suppress(_), Self::Suppress(_)) => true,
             // Two operators, or an operator against a suppression:
             // no midpoint exists.
             _ => false,
@@ -256,10 +277,11 @@ impl<M: RedactableModality> Edit<M> {
 
     /// The error this edit and `later` raise together, naming both
     /// so the caller can see which pair to reconcile.
-    pub(crate) fn conflict_with(&self, later: &Self, modality: &str, id: Uuid) -> Error {
+    pub(crate) fn conflict_with(&self, later: &Self, id: Uuid) -> Error {
         let mut message = format!(
-            "{modality} entity `{id}` carries contradictory edits: `{}` and `{}` answer \
+            "{} entity `{id}` carries contradictory edits: `{}` and `{}` answer \
              the same question differently. Send one.",
+            M::NAME,
             self.name(),
             later.name(),
         );

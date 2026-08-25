@@ -24,7 +24,6 @@ use std::sync::Arc;
 
 use elide::codec::{FormatRegistry, PartId};
 use elide::entity::LabelCatalog;
-use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
@@ -42,14 +41,8 @@ pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
 pub use self::override_set::{Override, Overrides};
 pub use self::request::RequestContext;
-use crate::recognition::{
-    Component, Enrichers, Recognizers, compile_audio, compile_image, compile_tabular, compile_text,
-};
-use crate::redaction::{
-    TextOperatorContext, attach_override_audio, attach_override_image, attach_override_tabular,
-    attach_override_text, attach_policies_audio, attach_policies_image, attach_policies_tabular,
-    attach_policies_text,
-};
+use crate::recognition::{Enrichers, Recognizers, analyzers};
+use crate::redaction::{Pickers, anonymizers, pickers};
 
 /// A deployment's configuration, ready to build orchestrators from.
 ///
@@ -136,27 +129,15 @@ impl Provider {
         context: &DocumentContext,
         policies: &[PolicyDefinition],
         correlation_id: Uuid,
-    ) -> Result<Orchestrator<'_>> {
+    ) -> Result<Orchestrator> {
         validate_scope_references(policies)?;
         let catalog = compile_catalog(policies)?;
         let live_scope = build_scope(context, catalog, correlation_id);
 
-        let ner = &self.inner.recognizers.ner;
-        let llm = &self.inner.recognizers.llm;
-        let ocr = pick_one(&self.inner.enrichers.ocr, "OCR")?;
-        let stt = pick_one(&self.inner.enrichers.stt, "STT")?;
-
-        // Analyzers only: analyze recognizes, it does not redact,
-        // so `with_analyzer` defaults each anonymizer half rather
-        // than us building four that go unused.
-        let orchestrator = Orchestrator::new(&self.inner.formats)
-            .with_scope(live_scope)
-            .with_analyzer::<Text>(compile_text(ner, llm)?)
-            .with_analyzer::<Tabular>(compile_tabular(ner)?)
-            .with_analyzer::<Image>(compile_image(ner, llm, ocr)?)
-            .with_analyzer::<Audio>(compile_audio(ner, stt)?);
-
-        Ok(orchestrator)
+        let orchestrator = analyzers(&self.inner.recognizers, &self.inner.enrichers)?;
+        Ok(orchestrator
+            .with_registry(self.inner.formats.clone())
+            .with_scope(live_scope))
     }
 
     /// Build an [`Orchestrator`] for the anonymize path: reuse
@@ -184,64 +165,16 @@ impl Provider {
         overrides: &Overrides,
         key: Option<&KeyConfig>,
         correlation_id: Uuid,
-    ) -> Result<Orchestrator<'_>> {
+    ) -> Result<Orchestrator> {
         validate_scope_references(policies)?;
         validate_override_authorities(policies, overrides)?;
         let catalog = compile_catalog(policies)?;
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
-        // Fresh per-request text-operator context. Pseudonym
-        // vaults materialise per-policy on first access so two
-        // policies pseudonymising the same entity don't share a
-        // surrogate namespace. `HmacHash`/`Encrypt` resolve their
-        // `KeyProvider` from the key this request supplied; a
-        // request that supplies none fails at compile time if a
-        // policy names either operator. Cross-request pseudonym
-        // consistency is a durable-vault story (see elide #143).
-        let text_ctx = TextOperatorContext::new(key.map(KeyConfig::build));
-
-        // Overrides attach ahead of the policy rules on every
-        // modality: elide's anonymizer is first-match, so that
-        // ordering *is* reviewer precedence.
-        let text = attach_overrides(
-            empty_anonymizer::<Text>(&catalog),
-            &overrides.text,
-            |a, id, policy, action| attach_override_text(a, id, policy, action, &text_ctx),
-        )?;
-        let text = attach_policies_text(text, policies.iter(), &text_ctx)?;
-
-        let tabular = attach_overrides(
-            empty_anonymizer::<Tabular>(&catalog),
-            &overrides.tabular,
-            |a, id, policy, action| attach_override_tabular(a, id, policy, action, &text_ctx),
-        )?;
-        let tabular = attach_policies_tabular(tabular, policies.iter(), &text_ctx)?;
-
-        let image = attach_overrides(
-            empty_anonymizer::<Image>(&catalog),
-            &overrides.image,
-            attach_override_image,
-        )?;
-        let image = attach_policies_image(image, policies.iter())?;
-
-        let audio = attach_overrides(
-            empty_anonymizer::<Audio>(&catalog),
-            &overrides.audio,
-            attach_override_audio,
-        )?;
-        let audio = attach_policies_audio(audio, policies.iter())?;
-
-        // Anonymizers only: analysis already happened, so
-        // `with_anonymizer` defaults each analyzer half rather
-        // than us constructing four empties to satisfy a type.
-        let orchestrator = Orchestrator::new(&self.inner.formats)
-            .with_scope(live_scope)
-            .with_anonymizer::<Text>(text)
-            .with_anonymizer::<Tabular>(tabular)
-            .with_anonymizer::<Image>(image)
-            .with_anonymizer::<Audio>(audio);
-
-        Ok(orchestrator)
+        let orchestrator = anonymizers(&catalog, policies, overrides, key.map(KeyConfig::build))?;
+        Ok(orchestrator
+            .with_registry(self.inner.formats.clone())
+            .with_scope(live_scope))
     }
 
     /// Rebuild a serialized [`Report`], routing each entity group
@@ -316,29 +249,8 @@ impl Provider {
         validate_scope_references(policies)?;
         let catalog = compile_catalog(policies)?;
         let scope = build_scope(context, catalog.clone(), correlation_id);
-        // No key: a pick only names the operator that *would* run,
-        // and no key material is needed to name one. But elide
-        // compiles the operator to reach its name, so a policy using
-        // `HmacHash`/`Encrypt` still fails here rather than
-        // recording a keyless pick. That is why the analyze path
-        // tolerates this method failing: the key legitimately does
-        // not arrive until anonymize.
-        let text_ctx = TextOperatorContext::new(None);
-
-        // No overrides: none exist yet at analyze time, so this
-        // records what the policy set alone would do.
-        let picker = Picker {
-            text: attach_policies_text(empty_anonymizer(&catalog), policies.iter(), &text_ctx)?,
-            tabular: attach_policies_tabular(
-                empty_anonymizer(&catalog),
-                policies.iter(),
-                &text_ctx,
-            )?,
-            image: attach_policies_image(empty_anonymizer(&catalog), policies.iter())?,
-            audio: attach_policies_audio(empty_anonymizer(&catalog), policies.iter())?,
-        };
-
-        picker.record_into(report, &scope);
+        let picker = pickers(&catalog, policies)?;
+        record_into(&picker, report, &scope);
         Ok(())
     }
 }
@@ -465,93 +377,24 @@ fn build_scope(context: &DocumentContext, catalog: LabelCatalog, run_id: Uuid) -
     }
 }
 
-/// The single enricher a lineup may wire, or `None` for an empty
-/// one.
+/// Record every entity's operator pick onto its own trail, across
+/// the body and every container part.
 ///
-/// elide attaches at most one enricher per analyzer, so a lineup
-/// naming two is a misconfiguration worth rejecting at request
-/// compile rather than silently running the first. `kind` names the
-/// lineup in that error.
-fn pick_one<'a, B>(lineup: &'a [Component<B>], kind: &str) -> Result<Option<&'a Component<B>>> {
-    match lineup {
-        [] => Ok(None),
-        [one] => Ok(Some(one)),
-        many => Err(Error::new(
-            ErrorKind::Configuration,
-            format!(
-                "{kind} enricher lineup carries {} entries; elide attaches at most \
-                 one per analyzer. Wire exactly one enricher.",
-                many.len(),
-            ),
-        )),
-    }
-}
+/// Each modality's anonymizer sees only its own entities, so a
+/// container whose parts span modalities is picked correctly without
+/// the caller sorting them first.
+fn record_into(pickers: &Pickers, report: &mut Report, scope: &Scope) {
+    pick_body(&pickers.text, report, scope);
+    pick_body(&pickers.tabular, report, scope);
+    pick_body(&pickers.image, report, scope);
+    pick_body(&pickers.audio, report, scope);
 
-/// An anonymizer knowing the request's label vocabulary and nothing
-/// else: no policies, no overrides.
-///
-/// The starting point every redacting anonymizer is built from.
-fn empty_anonymizer<M>(catalog: &LabelCatalog) -> Anonymizer<M>
-where
-    M: Modality + 'static,
-{
-    Anonymizer::<M>::new().with_catalog(catalog.clone())
-}
-
-/// Layer this modality's reviewer overrides onto `anonymizer`.
-///
-/// Call before attaching the policy rules. elide's anonymizer is
-/// first-match, so overrides attached ahead of the rules *are* the
-/// precedence: where a reviewer named an operator for one entity,
-/// that choice wins over whatever the policy set would have picked.
-/// Attach them after, and reviewers are silently ignored.
-///
-/// Iteration order does not matter: each override attaches a rule
-/// matching one entity id, so no two can ever claim the same entity.
-fn attach_overrides<M, F>(
-    mut anonymizer: Anonymizer<M>,
-    overrides: &[Override<M>],
-    attach_one: F,
-) -> Result<Anonymizer<M>>
-where
-    M: RedactableModality + 'static,
-    F: Fn(Anonymizer<M>, Uuid, Uuid, &M::Redaction) -> Result<Anonymizer<M>>,
-{
-    for over in overrides {
-        anonymizer = attach_one(anonymizer, over.entity_id, over.policy_id, &over.action)?;
-    }
-    Ok(anonymizer)
-}
-
-/// The four per-modality anonymizers a pick pass runs through,
-/// assembled once per request.
-pub(crate) struct Picker {
-    pub(crate) text: Anonymizer<Text>,
-    pub(crate) tabular: Anonymizer<Tabular>,
-    pub(crate) image: Anonymizer<Image>,
-    pub(crate) audio: Anonymizer<Audio>,
-}
-
-impl Picker {
-    /// Record every entity's operator pick onto its own trail,
-    /// across the body and every container part.
-    ///
-    /// Each modality's anonymizer sees only its own entities, so a
-    /// container whose parts span modalities is picked correctly
-    /// without the caller sorting them first.
-    fn record_into(&self, report: &mut Report, scope: &Scope) {
-        pick_body(&self.text, report, scope);
-        pick_body(&self.tabular, report, scope);
-        pick_body(&self.image, report, scope);
-        pick_body(&self.audio, report, scope);
-
-        let part_ids: Vec<PartId> = report.part_ids().map(|(id, _)| id.clone()).collect();
-        for id in part_ids {
-            pick_part(&self.text, report, &id, scope);
-            pick_part(&self.tabular, report, &id, scope);
-            pick_part(&self.image, report, &id, scope);
-            pick_part(&self.audio, report, &id, scope);
-        }
+    let part_ids: Vec<PartId> = report.part_ids().map(|(id, _)| id.clone()).collect();
+    for id in part_ids {
+        pick_part(&pickers.text, report, &id, scope);
+        pick_part(&pickers.tabular, report, &id, scope);
+        pick_part(&pickers.image, report, &id, scope);
+        pick_part(&pickers.audio, report, &id, scope);
     }
 }
 

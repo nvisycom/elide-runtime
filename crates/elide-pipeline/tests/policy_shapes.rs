@@ -7,13 +7,13 @@
 
 use bytes::Bytes;
 use elide::entity::LabelRef;
-use elide::entity::audit::AuditKind;
+use elide::entity::audit::{Attribution, AuditKind};
 use elide::modality::text::Text;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
-use elide_pipeline::entity::Review;
+use elide_pipeline::entity::{Edit, Redact, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -53,9 +53,8 @@ fn redaction_hits(audit: &Audit, label: &str) -> usize {
 #[tokio::test]
 async fn table_rule_dispatches_per_label_under_one_identity() {
     let engine = engine();
-    let rule_id = uuid::Uuid::now_v7();
     let table = PolicyRule {
-        id: rule_id,
+        id: uuid::Uuid::now_v7(),
         name: "contact-sweep".into(),
         description: None,
         attribution: None,
@@ -136,28 +135,40 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
         "email entries must be erased, not replaced; body was:\n{body}",
     );
 
-    // Attribution: both branches share the shared rule UUID.
+    // Both labels dispatch through the one rule, so both redaction
+    // events answer to the same authority.
     let Some(entities) = analyzed.report.entities::<Text>() else {
         panic!("expected text body");
     };
-    let attribution = entities
-        .iter()
-        .find(|e| e.label.as_str() == "email_address")
-        .and_then(|entity| {
-            entity
-                .audit
-                .events()
-                .iter()
-                .find_map(|event| match &event.kind {
-                    AuditKind::Redaction(r) => r.attribution.as_ref(),
-                    _ => None,
-                })
-        })
-        .expect("email entity must have a redaction event with an attribution");
+    let authority_of = |label: &str| {
+        entities
+            .iter()
+            .find(|e| e.label.as_str() == label)
+            .and_then(|entity| {
+                entity
+                    .audit
+                    .events()
+                    .iter()
+                    .find_map(|event| match &event.kind {
+                        AuditKind::Redaction(r) => r.attribution.as_ref(),
+                        _ => None,
+                    })
+            })
+            .and_then(|attribution| match attribution {
+                Attribution::Freeform(freeform) => Some(freeform.name.to_string()),
+                Attribution::Cited(_) => None,
+            })
+            .unwrap_or_else(|| panic!("{label} must carry a freeform redaction attribution"))
+    };
     assert_eq!(
-        attribution.source_id,
-        Some(rule_id),
-        "attribution.source_id must carry the shared rule UUID",
+        authority_of("email_address"),
+        "contact-info",
+        "an untitled rule attributes to its policy",
+    );
+    assert_eq!(
+        authority_of("email_address"),
+        authority_of("phone_number"),
+        "both labels dispatch through the one rule, under one identity",
     );
 }
 
@@ -485,19 +496,36 @@ async fn override_naming_unknown_policy_fails_the_request() {
         .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
         .expect("analyze succeeds");
-    let target = analyzed
+    let entities = analyzed
         .report
         .entities::<Text>()
-        .expect("expected text body")[0]
-        .id;
-    // Ship an override that names a policy id no one submitted.
-    analyzed.review::<Text>(
-        target,
-        Review::Redact {
-            policy_id: uuid::Uuid::now_v7(),
-            action: TextRedaction::Erase,
+        .expect("expected text body");
+    let target = entities[0].id;
+    // A different entity, so the two edits do not contradict each
+    // other — validation would reject that pair before the
+    // authority check this test is about.
+    let bystander = entities[1].id;
+    // Ship an override that names a policy id no one submitted,
+    // beside a suppression that *would* apply. The suppression is
+    // the one that proves atomicity: a redact stays pending either
+    // way, so on its own it cannot tell a rejected request from a
+    // half-applied one.
+    analyzed.edit(Edit::<Text>::Suppress(Suppress {
+        id: bystander,
+        by: Reviewer {
+            reason: Some("false positive".into()),
+            actor: None,
         },
-    );
+    }));
+    analyzed.edit(Edit::Redact(Redact::<Text> {
+        id: target,
+        policy_id: uuid::Uuid::now_v7(),
+        action: TextRedaction::Erase,
+        by: Reviewer {
+            reason: None,
+            actor: None,
+        },
+    }));
 
     let err = engine
         .anonymize(
@@ -512,6 +540,32 @@ async fn override_naming_unknown_policy_fails_the_request() {
     assert!(
         msg.contains("no submitted policy") || msg.contains("policy"),
         "error must explain the missing authority; got: {msg}",
+    );
+
+    // A rejected request leaves the audit as it found it. Applying
+    // before the orchestrator compiled would have stamped the
+    // suppression onto the entity and consumed the edit, leaving
+    // the caller holding a half-honoured audit for a call that
+    // returned an error.
+    // The entity's own trail, not `Audit::is_suppressed`: that
+    // reports pending edits first, so it answers "will this be
+    // suppressed" rather than "has it been".
+    let stamped = analyzed
+        .report
+        .entities::<Text>()
+        .expect("expected text body")
+        .iter()
+        .find(|e| e.id == bystander)
+        .expect("the bystander is still on the report")
+        .is_suppressed();
+    assert!(
+        !stamped,
+        "a rejected request must not stamp the suppression onto the entity",
+    );
+    assert_eq!(
+        analyzed.edits.text.len(),
+        2,
+        "and must not consume the edits it did not apply",
     );
 }
 
@@ -570,14 +624,11 @@ async fn duplicate_scope_names_fail_the_request() {
 /// redactions runs through the fallback.
 #[tokio::test]
 async fn fallback_carries_the_scope_attribution() {
-    use elide::entity::audit::AttributionKind;
-
     let engine = engine();
-    let cited = AttributionKind::Cited {
-        authority: "CCPA".into(),
-        citation: "Cal. Civ. Code §1798.140(v)(1)".into(),
-        rationale: "personal information".into(),
-    };
+    let cited = Attribution::from(
+        Attribution::cited("CCPA", "Cal. Civ. Code §1798.140(v)(1)")
+            .with_rationale("personal information"),
+    );
     let policy = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
         name: "sweep-everything".into(),
@@ -627,7 +678,7 @@ async fn fallback_carries_the_scope_attribution() {
         })
         .expect("the fallback must stamp an attribution");
     assert_eq!(
-        attribution.kind, cited,
+        *attribution, cited,
         "fallback must cite the scope's authority, not a generic label",
     );
 }
@@ -638,8 +689,6 @@ async fn fallback_carries_the_scope_attribution() {
 /// falls back to the policy's own name instead.
 #[tokio::test]
 async fn mixed_scope_attribution_does_not_borrow_a_citation() {
-    use elide::entity::audit::AttributionKind;
-
     let engine = engine();
     let policy = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
@@ -648,11 +697,10 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
         template: None,
         scopes: vec![
             LabelScope::new("cited", vec![LabelRef::new("email_address")]).with_attribution(
-                AttributionKind::Cited {
-                    authority: "CCPA".into(),
-                    citation: "Cal. Civ. Code §1798.140(v)(1)".into(),
-                    rationale: "personal information".into(),
-                },
+                Attribution::from(
+                    Attribution::cited("CCPA", "Cal. Civ. Code §1798.140(v)(1)")
+                        .with_rationale("personal information"),
+                ),
             ),
             // No attribution: `phone_number` answers to nothing the
             // policy declared.
@@ -698,8 +746,8 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
         })
         .expect("the fallback must stamp an attribution");
     assert!(
-        matches!(&attribution.kind, AttributionKind::Freeform { name, .. } if name == "half-cited"),
+        matches!(attribution, Attribution::Freeform(f) if f.name == "half-cited"),
         "a mixed-attribution policy must not borrow one scope's citation, got: {:?}",
-        attribution.kind,
+        attribution,
     );
 }

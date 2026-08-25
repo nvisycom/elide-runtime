@@ -9,16 +9,16 @@
 //! survive serialization is a decision silently dropped.
 
 use bytes::Bytes;
-use elide::entity::audit::{AuditEvent, AuditKind, AuditLog, PatternEvent};
+use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, PatternEvent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelScope, PolicyDefinition};
-use elide_pipeline::entity::Review;
+use elide_pipeline::entity::{Add, Edit, Redact, Retag, Reviewer, Suppress};
 use elide_pipeline::file::Document;
-use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
+use elide_pipeline::{Audit, Engine, ErrorKind, ProviderConfig, RequestContext};
 use uuid::Uuid;
 
 const SAMPLE: &[u8] = b"Email alice@example.com or bob@example.com. Case SECRET-9 open.";
@@ -161,13 +161,13 @@ async fn baseline_redacts_every_detection() {
 async fn suppress_leaves_the_entity_alone() {
     let (out, audit) = review_and_apply(|audit| {
         let id = ordered(audit)[0];
-        audit.review::<Text>(
+        audit.edit(Edit::<Text>::Suppress(Suppress {
             id,
-            Review::Suppress {
+            by: Reviewer {
                 reason: Some("known test account".into()),
                 actor: Some("reviewer".into()),
             },
-        );
+        }));
     })
     .await;
 
@@ -188,17 +188,24 @@ async fn suppress_leaves_the_entity_alone() {
         .iter()
         .find(|e| e.is_suppressed())
         .expect("an entity reports itself suppressed after the round-trip");
-    let manual = suppressed
+    let event = suppressed
         .audit
         .events()
         .iter()
-        .find_map(|e| match &e.kind {
-            AuditKind::Manual(m) => Some(m),
-            _ => None,
-        })
+        .find(|e| matches!(e.kind, AuditKind::Manual(_)))
         .expect("suppression records a Manual event");
-    assert_eq!(manual.reason.as_deref(), Some("known test account"));
-    assert_eq!(manual.actor.as_deref(), Some("reviewer"));
+    assert_eq!(
+        event.source.as_str(),
+        "reviewer",
+        "the reviewer is the event's source",
+    );
+    let AuditKind::Manual(manual) = &event.kind else {
+        unreachable!("matched above")
+    };
+    let Some(Attribution::Freeform(freeform)) = &manual.attribution else {
+        panic!("the rationale rides on a freeform attribution");
+    };
+    assert_eq!(freeform.name.as_str(), "known test account");
     assert!(
         suppressed.audit.verify().is_ok(),
         "the hash chain still verifies after a suppression round-trip"
@@ -279,13 +286,15 @@ async fn include_rejects_a_foreign_modality() {
 async fn review_overrides_the_operator_the_policy_would_have_used() {
     let (out, _) = review_and_apply(|audit| {
         let id = ordered(audit)[1];
-        audit.review::<Text>(
+        audit.edit(Edit::Redact(Redact::<Text> {
             id,
-            Review::Redact {
-                policy_id: POLICY_ID,
-                action: mask(),
+            policy_id: POLICY_ID,
+            action: mask(),
+            by: Reviewer {
+                reason: None,
+                actor: None,
             },
-        );
+        }));
     })
     .await;
 
@@ -297,33 +306,95 @@ async fn review_overrides_the_operator_the_policy_would_have_used() {
 }
 
 #[tokio::test]
-async fn a_later_decision_replaces_an_earlier_one() {
-    // `Review` is one enum, so redact-then-suppress cannot leave
-    // both set with one silently winning: the second call is the
-    // decision that stands.
-    let (out, _) = review_and_apply(|audit| {
+async fn contradictory_edits_are_rejected_rather_than_one_winning() {
+    // Redact and suppress answer the same question — what happens
+    // to this entity — and there is no midpoint. Letting the later
+    // one win would drop a decision a reviewer actually made,
+    // silently, which is what the old one-decision-per-entity map
+    // did. Fail at the boundary instead.
+    let engine = Engine::new(ProviderConfig::default().build());
+    let policy = policy();
+    let mut audit = engine
+        .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
+        .await
+        .expect("analyze");
+
+    let id = ordered(&audit)[0];
+    audit.edit(Edit::Redact(Redact::<Text> {
+        id,
+        policy_id: POLICY_ID,
+        action: mask(),
+        by: Reviewer {
+            reason: None,
+            actor: Some("alice".into()),
+        },
+    }));
+    audit.edit(Edit::<Text>::Suppress(Suppress {
+        id,
+        by: Reviewer {
+            reason: Some("actually fine".into()),
+            actor: Some("bob".into()),
+        },
+    }));
+
+    let Err(err) = engine
+        .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
+        .await
+    else {
+        panic!("a redact and a suppress on one entity must not both apply");
+    };
+    assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
+    let message = err.to_string();
+    assert!(
+        message.contains(&id.to_string()) && message.contains("redact"),
+        "the error must name the entity and the conflicting ops: {message}",
+    );
+    assert!(
+        message.contains("alice") && message.contains("bob"),
+        "and who disagreed, when the payload said: {message}",
+    );
+}
+
+#[tokio::test]
+async fn edits_on_different_channels_compose() {
+    // Retag corrects what a detection *is*; redact decides what
+    // happens to it. Both at once is a reviewer doing two
+    // legitimate things, not a contradiction — the case the old
+    // per-entity map could not express at all.
+    let (out, audit) = review_and_apply(|audit| {
         let id = ordered(audit)[0];
-        audit.review::<Text>(
+        audit.edit(Edit::Retag(Retag::<Text> {
             id,
-            Review::Redact {
-                policy_id: POLICY_ID,
-                action: mask(),
-            },
-        );
-        audit.review::<Text>(
-            id,
-            Review::Suppress {
-                reason: Some("actually fine".into()),
+            label: None,
+            location: None,
+            by: Reviewer {
+                reason: Some("span was right after all".into()),
                 actor: None,
             },
-        );
-        assert!(audit.is_suppressed::<Text>(id));
+        }));
+        audit.edit(Edit::Redact(Redact::<Text> {
+            id,
+            policy_id: POLICY_ID,
+            action: mask(),
+            by: Reviewer {
+                reason: None,
+                actor: None,
+            },
+        }));
     })
     .await;
 
     assert!(
-        out.contains("alice@example.com"),
-        "the suppression that replaced the override is what applies: {out}"
+        !out.contains("alice@example.com"),
+        "the operator override still applies alongside the retag: {out}",
+    );
+    // The retag has landed on the report, so it is no longer
+    // pending; the redact stays because `overrides()` reads it.
+    // What matters is that neither replaced the other on the way.
+    assert_eq!(
+        audit.edits.text.len(),
+        1,
+        "the applied retag is history; the redact remains pending",
     );
 }
 
@@ -331,20 +402,22 @@ async fn a_later_decision_replaces_an_earlier_one() {
 async fn all_three_actions_compose_in_one_pass() {
     let (out, _) = review_and_apply(|audit| {
         let ids = ordered(audit);
-        audit.review::<Text>(
-            ids[0],
-            Review::Suppress {
+        audit.edit(Edit::<Text>::Suppress(Suppress {
+            id: ids[0],
+            by: Reviewer {
                 reason: Some("false positive".into()),
                 actor: None,
             },
-        );
-        audit.review::<Text>(
-            ids[1],
-            Review::Redact {
-                policy_id: POLICY_ID,
-                action: mask(),
+        }));
+        audit.edit(Edit::Redact(Redact::<Text> {
+            id: ids[1],
+            policy_id: POLICY_ID,
+            action: mask(),
+            by: Reviewer {
+                reason: None,
+                actor: None,
             },
-        );
+        }));
         audit
             .report
             .include::<Text>(manual_entity(span_of(b"SECRET-9")));
@@ -415,13 +488,13 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         "precondition: analyze recorded a pick",
     );
 
-    audit.review::<Text>(
-        target,
-        Review::Suppress {
+    audit.edit(Edit::<Text>::Suppress(Suppress {
+        id: target,
+        by: Reviewer {
             reason: Some("false positive".into()),
             actor: None,
         },
-    );
+    }));
     engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
         .await
@@ -471,13 +544,13 @@ async fn a_reviewer_can_take_a_suppression_back() {
         .expect("analyze");
 
     let target = ordered(&audit)[0];
-    audit.review::<Text>(
-        target,
-        Review::Suppress {
+    audit.edit(Edit::<Text>::Suppress(Suppress {
+        id: target,
+        by: Reviewer {
             reason: Some("false positive".into()),
             actor: None,
         },
-    );
+    }));
     let first = engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
         .await
@@ -494,13 +567,15 @@ async fn a_reviewer_can_take_a_suppression_back() {
         posted_back.is_suppressed::<Text>(target),
         "the applied suppression survives the round-trip",
     );
-    posted_back.review::<Text>(
-        target,
-        Review::Redact {
-            policy_id: POLICY_ID,
-            action: TextRedaction::Erase,
+    posted_back.edit(Edit::Redact(Redact::<Text> {
+        id: target,
+        policy_id: POLICY_ID,
+        action: TextRedaction::Erase,
+        by: Reviewer {
+            reason: None,
+            actor: None,
         },
-    );
+    }));
     assert!(
         !posted_back.is_suppressed::<Text>(target),
         "a pending redact supersedes the recorded suppression",
@@ -551,13 +626,13 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
         .expect("analyze");
 
     let target = ordered(&audit)[0];
-    audit.review::<Text>(
-        target,
-        Review::Suppress {
+    audit.edit(Edit::<Text>::Suppress(Suppress {
+        id: target,
+        by: Reviewer {
             reason: None,
             actor: None,
         },
-    );
+    }));
     for _ in 0..3 {
         engine
             .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
@@ -574,5 +649,72 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
     assert_eq!(
         manual_count, 1,
         "three applies of one suppression leave one Manual event",
+    );
+}
+
+#[tokio::test]
+async fn an_add_edit_redacts_what_recognition_missed() {
+    // The whole point of `Edit::Add`: a reviewer names a span the
+    // recognizers never flagged, and the policy set redacts it like
+    // any detection. No hand-built entity, no fabricated pattern
+    // event — elide mints the id and stamps the human provenance.
+    let (out, audit) = review_and_apply(|audit| {
+        audit.edit(Edit::Add(Add::<Text> {
+            label: LabelRef::new("email_address"),
+            location: span_of(b"SECRET-9"),
+            by: Reviewer {
+                reason: Some("recognizer missed it".into()),
+                actor: Some("alice".into()),
+            },
+        }));
+    })
+    .await;
+
+    assert!(
+        !out.contains("SECRET-9"),
+        "a reviewer-added entity is redacted by the policy set: {out}",
+    );
+
+    let added = audit
+        .report
+        .entities::<Text>()
+        .expect("text body")
+        .iter()
+        .find(|e| e.location == span_of(b"SECRET-9"))
+        .expect("the added entity is on the report");
+    assert!(
+        added
+            .audit
+            .events()
+            .iter()
+            .any(|e| matches!(e.kind, AuditKind::Manual(_))),
+        "it carries Manual provenance, so it is never mistaken for \
+         an automatic detection",
+    );
+}
+
+#[tokio::test]
+async fn a_retag_edit_moves_the_entity_out_of_policy_scope() {
+    // Retagging into a label the policy does not cover leaves the
+    // entity alone — exactly as if it had been detected that way.
+    // Proves the retag actually reaches the report rather than
+    // being carried and ignored.
+    let (out, _) = review_and_apply(|audit| {
+        let id = ordered(audit)[0];
+        audit.edit(Edit::Retag(Retag::<Text> {
+            id,
+            label: Some(LabelRef::new("not_covered_by_policy")),
+            location: None,
+            by: Reviewer {
+                reason: Some("wrong label".into()),
+                actor: None,
+            },
+        }));
+    })
+    .await;
+
+    assert!(
+        out.contains("alice@example.com"),
+        "retagged out of the policy's scope, so nothing redacts it: {out}",
     );
 }

@@ -12,7 +12,7 @@
 //!   `Rule::predicate`.
 //! - [`RuleDispatch::Table`]: N `(label, action)` entries under
 //!   one shared identity. Every entry attaches as `Rule::label`
-//!   directly and fires under the same rule id in the audit trail.
+//!   directly and answers to the same attribution.
 //!   Sugar over N predicated rules with identical
 //!   id/name/description: keeps templates that fan out per-label operators (HIPAA
 //!   Safe Harbor `age`→clamp, `date`→generalize, remainder→erase)
@@ -28,7 +28,7 @@
 //! [`name`]: PolicyRule::name
 
 use elide_core::entity::LabelRef;
-use elide_core::entity::audit::AttributionKind;
+use elide_core::entity::audit::Attribution;
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -45,12 +45,14 @@ use crate::redaction::ModalityRedactions;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyRule {
-    /// Stable identifier. UUIDv7 recommended. Engine stamps it
-    /// into the redaction event's [`Attribution::source_id`] so
-    /// reviewers can trace which rule fired. Every attachment a
-    /// [`RuleDispatch::Table`] expands into shares this UUID.
+    /// Stable identifier. UUIDv7 recommended. Every attachment a
+    /// [`RuleDispatch::Table`] expands into shares this UUID, so
+    /// one authored rule stays one rule however many labels it
+    /// dispatches over.
     ///
-    /// [`Attribution::source_id`]: elide_core::entity::audit::Attribution::source_id
+    /// Not carried onto the audit trail: a redaction event names
+    /// the [`attribution`](Self::attribution) the rule declared, or
+    /// its policy's, rather than the rule's own id.
     pub id: Uuid,
     /// Human-readable name. Display-only.
     #[schemars(with = "String")]
@@ -62,16 +64,17 @@ pub struct PolicyRule {
     /// Why this rule exists: the authority it answers to.
     ///
     /// The engine renders it into the redaction event's
-    /// [`Attribution`], so a reviewer sees the provision rather
-    /// than a bare UUID. `None` falls back to recording the
-    /// policy and rule ids alone.
+    /// [`Attribution`] verbatim, so a reviewer sees the provision
+    /// the rule answers to. `None` falls back to a freeform
+    /// attribution under the enclosing policy's name and
+    /// description — the rule itself is not named in the trail.
     ///
     /// Optional so ad-hoc and hand-authored rules stay cheap to
     /// write; the shipped templates set it on every rule.
     ///
     /// [`Attribution`]: elide_core::entity::audit::Attribution
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attribution: Option<AttributionKind>,
+    pub attribution: Option<Attribution>,
     /// How this rule selects targets and picks operators. See
     /// [`RuleDispatch`] for the two shipped strategies.
     #[serde(flatten)]

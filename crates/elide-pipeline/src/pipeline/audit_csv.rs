@@ -9,19 +9,18 @@
 //!   essentials only.
 //! - [`Table::Provenance`]: one row per event on every entity's
 //!   provenance chain.
-//! - [`Table::Reviews`]: one row per reviewer decision.
+//! - [`Table::Reviews`]: one row per reviewer edit.
 //!
 //! All three join on `entity_id`. The design choice for CSV is
 //! honest scalar columns everywhere: no JSON blobs, no
 //! polymorphic locations. Callers that need location details or
 //! nested payloads use [`ExportJson`](elide_export::ExportJson).
 
-use std::collections::HashMap;
 use std::{io, result};
 
 use elide::codec::PartId;
 use elide::entity::Entity;
-use elide::entity::audit::AuditKind;
+use elide::entity::audit::{AuditKind, ManualIntent};
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
@@ -34,35 +33,31 @@ use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use super::audit::Audit;
-use crate::entity::Review;
+use crate::entity::Edit;
 
-/// Run `$body` once per modality, binding `$m` to the modality type
-/// and `$name` to its wire name.
+/// Run `$body` once per modality, binding `$m` to the modality
+/// type. Its wire name is `$m::NAME`.
 ///
 /// A report stores entities per modality and hands them back only
 /// through a typed accessor, so every walk over "all entities" is
 /// four probes. The modality list lives here so adding a fifth
 /// means touching one macro rather than every row builder.
 macro_rules! per_modality {
-    (|$m:ident, $name:ident| $body:expr) => {{
+    (|$m:ident| $body:expr) => {{
         {
             type $m = Text;
-            let $name = "text";
             $body
         }
         {
             type $m = Tabular;
-            let $name = "tabular";
             $body
         }
         {
             type $m = Image;
-            let $name = "image";
             $body
         }
         {
             type $m = Audio;
-            let $name = "audio";
             $body
         }
     }};
@@ -80,7 +75,7 @@ impl ExportCsv for Audit {
     /// |---|---|
     /// | [`Entities`] | `part_id, modality, entity_id, label, confidence, coref` |
     /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
-    /// | [`Reviews`] | `entity_id, modality, decision, operator` |
+    /// | [`Reviews`] | `entity_id, modality, decision, operator, reason, actor` |
     ///
     /// Every table carries `entity_id` so they join back together.
     /// Rows are sorted for stable diffs: entities by
@@ -126,13 +121,13 @@ impl Audit {
     fn entity_rows(&self) -> Vec<EntityRow<'_>> {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
-        per_modality!(|M, name| {
+        per_modality!(|M| {
             if let Some(entities) = self.report.entities::<M>() {
-                extend_entity_rows(entities, None, name, &mut rows);
+                extend_entity_rows::<M>(entities, None, &mut rows);
             }
             for id in &parts {
                 if let Some(entities) = self.report.part_entities::<M>(id) {
-                    extend_entity_rows(entities, Some(id.as_str()), name, &mut rows);
+                    extend_entity_rows::<M>(entities, Some(id.as_str()), &mut rows);
                 }
             }
         });
@@ -149,7 +144,7 @@ impl Audit {
     fn provenance_rows(&self) -> Vec<ProvenanceRow<'_>> {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
-        per_modality!(|M, _name| {
+        per_modality!(|M| {
             if let Some(entities) = self.report.entities::<M>() {
                 extend_provenance_rows(entities, &mut rows);
             }
@@ -170,10 +165,10 @@ impl Audit {
     /// One row per reviewer decision, sorted by `entity_id`.
     fn review_rows(&self) -> Vec<ReviewRow> {
         let mut rows: Vec<ReviewRow> = Vec::new();
-        extend_review_rows(&self.reviews.text, "text", &mut rows);
-        extend_review_rows(&self.reviews.tabular, "tabular", &mut rows);
-        extend_review_rows(&self.reviews.image, "image", &mut rows);
-        extend_review_rows(&self.reviews.audio, "audio", &mut rows);
+        extend_review_rows(&self.edits.text, &mut rows);
+        extend_review_rows(&self.edits.tabular, &mut rows);
+        extend_review_rows(&self.edits.image, &mut rows);
+        extend_review_rows(&self.edits.audio, &mut rows);
         rows.sort_by_key(|row| row.entity_id);
         rows
     }
@@ -210,12 +205,11 @@ struct ProvenanceRow<'a> {
 fn extend_entity_rows<'a, M: Modality>(
     entities: &'a [Entity<M>],
     part_id: Option<&'a str>,
-    modality: &'static str,
     out: &mut Vec<EntityRow<'a>>,
 ) {
     out.extend(entities.iter().map(|e| EntityRow {
         part_id,
-        modality,
+        modality: M::NAME,
         entity_id: e.id,
         label: e.label.as_str(),
         confidence: f32::from(e.confidence),
@@ -243,50 +237,53 @@ fn extend_provenance_rows<'a, M: Modality>(
     }
 }
 
-/// One row per decision in a modality's review bucket.
+/// One row per edit in a modality's list.
 ///
-/// A suppression is a reviewer decision too, so it earns a row:
-/// exporting only operator overrides would hide every "leave this
-/// alone" call from the same report. It names no operator, so that
-/// column stays empty — as does a retag, which corrects the
-/// detection and lets the policy set pick again.
-fn extend_review_rows<M: RedactableModality>(
-    reviews: &HashMap<Uuid, Review<M>>,
-    modality: &'static str,
-    out: &mut Vec<ReviewRow>,
-) {
-    for (entity_id, review) in reviews {
-        let decision = match review {
-            Review::Redact { action, .. } => {
-                let Some(operator) = operator_kind(action) else {
+/// Every operation earns a row, not just operator overrides:
+/// exporting those alone would hide every "leave this alone" and
+/// every reviewer-added detection from the same report. Only a
+/// redact names an operator, so that column is empty for the rest.
+fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<ReviewRow>) {
+    for edit in edits {
+        let (decision, operator) = match edit {
+            Edit::Redact(e) => {
+                let Some(operator) = operator_kind(&e.action) else {
                     continue;
                 };
                 ("redact", operator)
             }
-            Review::Suppress { .. } => ("suppress", String::new()),
-            Review::Retag { .. } => ("retag", String::new()),
+            Edit::Add(_) => ("add", String::new()),
+            Edit::Suppress(_) => ("suppress", String::new()),
+            Edit::Retag(_) => ("retag", String::new()),
         };
         out.push(ReviewRow {
-            entity_id: *entity_id,
-            modality,
-            decision: decision.0,
-            operator: decision.1,
+            entity_id: edit.target(),
+            modality: M::NAME,
+            decision,
+            operator,
+            reason: edit.reason().unwrap_or_default().to_owned(),
+            actor: edit.actor().unwrap_or_default().to_owned(),
         });
     }
 }
 
-/// One reviewed entity, as the review CSV exports it.
+/// One reviewer edit, as the review CSV exports it.
 ///
 /// `decision` and `operator` stay separate columns: a suppression
 /// names no operator, so folding them would put a non-operator
 /// value in a column consumers map onto an operator enum.
+///
+/// `entity_id` is empty for an `add`, whose entity does not exist
+/// until the edit is applied.
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 struct ReviewRow {
-    entity_id: Uuid,
+    entity_id: Option<Uuid>,
     modality: &'static str,
     decision: &'static str,
     operator: String,
+    reason: String,
+    actor: String,
 }
 
 impl EntityRow<'_> {
@@ -318,7 +315,14 @@ impl ProvenanceRow<'_> {
 
 impl ReviewRow {
     const fn header() -> &'static [&'static str] {
-        &["entity_id", "modality", "decision", "operator"]
+        &[
+            "entity_id",
+            "modality",
+            "decision",
+            "operator",
+            "reason",
+            "actor",
+        ]
     }
 }
 
@@ -336,7 +340,17 @@ fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Op
         AuditKind::Refinement(_) => ("refinement", None),
         AuditKind::Redaction(_) => ("redaction", None),
         AuditKind::Selection(e) => ("selection", Some(e.operator.name.as_str())),
-        AuditKind::Manual(e) => ("manual", e.actor.as_deref()),
+        // The reviewer is the event's own `source`, which the row
+        // already carries; what distinguishes one manual event from
+        // another is which decision it recorded.
+        AuditKind::Manual(e) => (
+            "manual",
+            Some(match e.intent {
+                ManualIntent::Flag => "flag",
+                ManualIntent::Suppress => "suppress",
+                ManualIntent::Amend => "amend",
+            }),
+        ),
         // `AuditKind` is `#[non_exhaustive]`: a kind added upstream
         // lands here rather than breaking the build. Every variant
         // elide ships today is named above, so this arm firing means

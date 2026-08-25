@@ -13,8 +13,6 @@
 //!
 //! [`TextRedaction`]: elide_governance::redaction::TextRedaction
 
-use std::collections::HashMap;
-
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
@@ -25,6 +23,8 @@ use uuid::Uuid;
 /// A reviewer's operator choice for one entity.
 #[derive(Debug, Clone)]
 pub struct Override<M: RedactableModality> {
+    /// The entity this override applies to.
+    pub entity_id: Uuid,
     /// The policy whose authority the reviewer exercises.
     ///
     /// Not only for the audit trail: it also picks which per-policy
@@ -39,21 +39,26 @@ pub struct Override<M: RedactableModality> {
 }
 
 /// Reviewer overrides for one request, bucketed by the modality of
-/// the entity each one targets and keyed by entity id.
+/// the entity each one targets.
 ///
-/// One map per modality rather than one map of type-erased
+/// One list per modality rather than one list of type-erased
 /// overrides: an [`Override<M>`] names an `M::Redaction`, so erasing
 /// it would let an image redaction attach to a text entity.
+///
+/// Lists, not maps: nothing here looks an override up by id, so a
+/// map would hash on insert for no lookup — and keying on the entity
+/// would silently collapse two overrides a caller meant as a
+/// contradiction.
 #[derive(Debug, Clone, Default)]
 pub struct Overrides {
     /// Overrides on text entities.
-    pub text: HashMap<Uuid, Override<Text>>,
+    pub text: Vec<Override<Text>>,
     /// Overrides on tabular entities.
-    pub tabular: HashMap<Uuid, Override<Tabular>>,
+    pub tabular: Vec<Override<Tabular>>,
     /// Overrides on image entities.
-    pub image: HashMap<Uuid, Override<Image>>,
+    pub image: Vec<Override<Image>>,
     /// Overrides on audio entities.
-    pub audio: HashMap<Uuid, Override<Audio>>,
+    pub audio: Vec<Override<Audio>>,
 }
 
 impl Overrides {
@@ -76,7 +81,7 @@ impl Overrides {
 /// A free generic fn rather than a closure: each bucket has a
 /// different `M`, and a closure cannot be generic over it.
 fn authorities_of<M: RedactableModality>(
-    overrides: &HashMap<Uuid, Override<M>>,
+    overrides: &[Override<M>],
 ) -> impl Iterator<Item = (Uuid, Uuid)> + '_ {
-    overrides.iter().map(|(id, o)| (*id, o.policy_id))
+    overrides.iter().map(|o| (o.entity_id, o.policy_id))
 }

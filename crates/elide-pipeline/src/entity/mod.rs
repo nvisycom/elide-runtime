@@ -1,9 +1,9 @@
 //! Reviewer decisions over elide's detected entities.
 //!
 //! Detections themselves live in elide's [`Report`], inside the
-//! [`Audit`]. What sits here is the layer elide does not model: a
-//! [`Review`] per entity, collected in a [`ReviewSet`] keyed by
-//! entity id.
+//! [`Audit`]. The layer elide does not model — a reviewer's
+//! [`Edit`]s — lives in `elide-review` and is re-exported here, so
+//! a caller reads a report and edits it through one crate.
 //!
 //! Re-exports elide's own entity vocabulary — [`Entity`],
 //! [`Label`], [`LabelCatalog`], the audit-trail types — so a caller
@@ -12,16 +12,15 @@
 //! [`Audit`]: crate::Audit
 //! [`Report`]: elide::Report
 
-mod apply;
-mod record;
-mod reviews;
-
 pub use elide::entity::audit::{
     Attribution, AuditEvent, AuditKind, AuditLog, ModelEvent, PatternEvent, RuleMatch,
 };
 pub use elide::entity::{
     Entity, EntityCoRef, EntityRef, Label, LabelCatalog, LabelLocale, LabelRef,
 };
+mod overrides;
 
-pub use self::record::Review;
-pub use self::reviews::{ReviewBucket, ReviewSet};
+#[doc(inline)]
+pub use elide_review::{Add, Edit, EditBucket, EditSet, Redact, Retag, Reviewer, Suppress};
+
+pub use self::overrides::overrides;

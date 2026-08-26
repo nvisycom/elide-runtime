@@ -103,18 +103,17 @@ impl Audit {
     /// Record a reviewer's edit.
     ///
     /// Appends rather than replaces: edits feed independent
-    /// channels, so retagging an entity and choosing its operator
-    /// are both legitimate at once. Two edits that answer the same
-    /// question differently are rejected by
+    /// channels, so retagging an entity and suppressing it are both
+    /// legitimate at once. Two edits that answer the same question
+    /// differently are rejected by
     /// [`EditSet::validate`](crate::entity::EditSet::validate),
     /// which [`Engine::anonymize`] runs before applying anything.
     ///
-    /// The modality is the entity's own, so a text entity can only
-    /// be given a [`TextRedaction`] — an edit naming the wrong
-    /// modality's operator will not compile.
+    /// The modality is the entity's own, so an edit carrying a
+    /// location carries that modality's — a text entity cannot be
+    /// given an image span, and the mismatch will not compile.
     ///
     /// [`Engine::anonymize`]: super::Engine::anonymize
-    /// [`TextRedaction`]: elide_governance::redaction::TextRedaction
     pub fn edit<M: EditBucket>(&mut self, edit: Edit<M>) -> &mut Self {
         M::bucket_mut(&mut self.edits).push(edit);
         self

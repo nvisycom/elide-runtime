@@ -165,7 +165,7 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
 
     let mut lines = output.lines();
     let header = lines.next().expect("header line present");
-    assert_eq!(header, "entity_id,modality,decision,operator,reason,actor");
+    assert_eq!(header, "entity_id,modality,decision,reason,actor");
 
     let rows: Vec<&str> = lines.collect();
     assert_eq!(
@@ -186,7 +186,7 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
 }
 
 #[tokio::test]
-async fn write_reviews_csv_lists_a_suppression_with_no_operator() {
+async fn write_reviews_csv_lists_a_suppression() {
     // A suppression is a reviewer decision too, so it earns a row.
     // It names no operator, so that column stays empty rather than
     // carrying a value that is not an operator kind.
@@ -237,7 +237,7 @@ async fn write_reviews_csv_writes_header_when_no_reviews_set() {
     );
     assert_eq!(
         output.lines().next().unwrap(),
-        "entity_id,modality,decision,operator,reason,actor",
+        "entity_id,modality,decision,reason,actor",
     );
 }
 

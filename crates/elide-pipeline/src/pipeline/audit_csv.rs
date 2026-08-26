@@ -75,15 +75,14 @@ impl ExportCsv for Audit {
     /// |---|---|
     /// | [`Entities`] | `part_id, modality, entity_id, label, confidence, coref` |
     /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
-    /// | [`Reviews`] | `entity_id, modality, decision, operator, reason, actor` |
+    /// | [`Reviews`] | `entity_id, modality, decision, reason, actor` |
     ///
     /// Every table carries `entity_id` so they join back together.
     /// Rows are sorted for stable diffs: entities by
     /// `(part_id, entity_id)`, the others by `entity_id`.
     ///
-    /// `part_id` is empty for body entities, `coref` is empty
-    /// outside a coreference cluster, and `operator` is empty for a
-    /// suppression, which names none.
+    /// `part_id` is empty for body entities and `coref` is empty
+    /// outside a coreference cluster.
     ///
     /// Locations and nested event payloads are dropped: CSV holds
     /// neither polymorphic locations nor event chains. Callers who
@@ -239,22 +238,15 @@ fn extend_provenance_rows<'a, M: Modality>(
 
 /// One row per edit in a modality's list.
 ///
-/// Every operation earns a row:
-/// exporting those alone would hide every "leave this alone" and
-/// every reviewer-added detection from the same report. Only a
-/// redact names an operator, so that column is empty for the rest.
+/// Every operation earns a row, so an export shows each "leave this
+/// alone" and each reviewer-added detection beside the detections
+/// they answer to.
 fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<ReviewRow>) {
     for edit in edits {
-        let (decision, operator) = match edit {
-            Edit::Add(_) => ("add", String::new()),
-            Edit::Suppress(_) => ("suppress", String::new()),
-            Edit::Retag(_) => ("retag", String::new()),
-        };
         out.push(ReviewRow {
             entity_id: edit.target(),
             modality: M::NAME,
-            decision,
-            operator,
+            decision: edit.name(),
             reason: edit.reason().unwrap_or_default().to_owned(),
             actor: edit.actor().unwrap_or_default().to_owned(),
         });
@@ -262,10 +254,6 @@ fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<Re
 }
 
 /// One reviewer edit, as the review CSV exports it.
-///
-/// `decision` and `operator` stay separate columns: a suppression
-/// names no operator, so folding them would put a non-operator
-/// value in a column consumers map onto an operator enum.
 ///
 /// `entity_id` is empty for an `add`, whose entity does not exist
 /// until the edit is applied.
@@ -275,7 +263,6 @@ struct ReviewRow {
     entity_id: Option<Uuid>,
     modality: &'static str,
     decision: &'static str,
-    operator: String,
     reason: String,
     actor: String,
 }
@@ -309,14 +296,7 @@ impl ProvenanceRow<'_> {
 
 impl ReviewRow {
     const fn header() -> &'static [&'static str] {
-        &[
-            "entity_id",
-            "modality",
-            "decision",
-            "operator",
-            "reason",
-            "actor",
-        ]
+        &["entity_id", "modality", "decision", "reason", "actor"]
     }
 }
 

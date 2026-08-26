@@ -11,8 +11,8 @@
 //!   projects the report — body and every container part — onto an
 //!   [`Audit`].
 //! - [`Engine::anonymize`] decodes those bytes again, layers the
-//!   reviewer overrides and policy set onto each modality's
-//!   anonymizer, and returns the re-encoded [`Document`].
+//!   policy set onto each modality's anonymizer, and returns the
+//!   re-encoded [`Document`].
 //!
 //! Both build a fresh [`Orchestrator`] per call: a small map of
 //! trait objects keyed by modality `TypeId`. Building per call is
@@ -59,7 +59,6 @@ use serde::Deserialize;
 
 pub use self::audit::Audit;
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
-use crate::entity::EditSet;
 use crate::file::Document;
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
@@ -129,7 +128,6 @@ impl Engine {
 
         Ok(Audit {
             report,
-            edits: wire.edits,
             context: wire.context,
             codec: wire.codec,
             usage: wire.usage,
@@ -221,7 +219,7 @@ impl Engine {
 
         // Record what each entity's policy pick would be, so the
         // returned audit answers "what happens to this, and why"
-        // before a reviewer overrides anything. Purely additive: it
+        // before a reviewer decides anything. Purely additive: it
         // appends Selection events and redacts nothing.
         //
         // A failure here does not fail the analyze. Every reason the
@@ -244,7 +242,6 @@ impl Engine {
 
         Ok(Audit {
             report,
-            edits: EditSet::default(),
             context: request.context.clone(),
             codec: request.codec,
             usage,
@@ -277,8 +274,7 @@ impl Engine {
     /// declared labels, so a rule in policy A cannot fire on labels
     /// only B declared. Policy fallbacks attach after every
     /// policy's rules, so a coarse baseline does not shadow a
-    /// later, more specific one. Reviewer overrides attach ahead of
-    /// all of them, carrying the overriding policy's authority.
+    /// later, more specific one.
     ///
     /// [`Pseudonymize`] draws from a per-policy vault: one policy
     /// pseudonymising an entity twice gets one surrogate, two
@@ -318,33 +314,9 @@ impl Engine {
             ));
         }
 
-        // Before anything is applied, so a self-contradicting
-        // payload fails with the audit untouched rather than
-        // half-honoured.
-        audit.edits.validate()?;
-
-        // Built before the edits are applied, because this can
-        // still fail — an override naming a policy the request did
-        // not submit, an operator that will not compile. Applying
-        // first would leave the caller's audit half-mutated after a
-        // request that returned an error: suppressions stamped onto
-        // entities, adds and retags consumed, nothing redacted.
-        //
-        // Safe to read the overrides this early: `apply` leaves
-        // `Edit::Redact` pending precisely because it belongs to the
-        // anonymizer rather than the report.
-        let orchestrator = self.provider.anonymize_orchestrator(
-            &audit.context,
-            policies,
-            &crate::entity::overrides(&audit.edits),
-            key,
-            correlation_id,
-        )?;
-
-        // Land the pending edits on the report: added entities,
-        // corrected ones, and the suppression flag elide reads to
-        // decide what the redaction pass skips.
-        audit.edits.apply(&mut audit.report);
+        let orchestrator =
+            self.provider
+                .anonymize_orchestrator(&audit.context, policies, key, correlation_id)?;
 
         // The report moves through apply and comes back mutated,
         // every entity carrying the redaction event elide stamped.
@@ -452,8 +424,6 @@ impl Engine {
 #[serde(rename_all = "camelCase")]
 struct AuditWire {
     report: serde_value::Value,
-    #[serde(default)]
-    edits: EditSet,
     context: DocumentContext,
     // No `default`: unlike `reviews`/`usage` this is always
     // serialized, so a payload omitting it is malformed rather

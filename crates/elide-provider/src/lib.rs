@@ -43,8 +43,7 @@ mod recognition;
 mod redaction;
 
 pub use self::orchestrator::{
-    CodecParams, DocumentContext, KeyConfig, Override, Overrides, Provider, ProviderConfig,
-    RequestContext,
+    CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
 };
 pub use self::recognition::{
     AttachTo, AuthenticatedProvider, Backend, Component, Enrichers, LlmBackend, LlmSource,

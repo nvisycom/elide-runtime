@@ -15,9 +15,8 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow};
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::{ModalityRedactions, TabularRedaction};
-use uuid::Uuid;
 
-use super::compile::{Target, attach_one_override, attach_policies};
+use super::compile::{Target, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
 
 /// Attach every tabular-applicable rule from `policies` onto an
@@ -33,21 +32,6 @@ pub(crate) fn attach_policies_tabular<'a>(
 ) -> Result<Anonymizer<Tabular>> {
     attach_policies(anonymizer, policies, |target, redactions| {
         compile_one(target, redactions, ctx)
-    })
-}
-
-/// Attach a reviewer override for one entity. Always attaches:
-/// the entry's spec is typed to this modality, so there is no
-/// absent-arm case to fall through.
-pub(crate) fn attach_override_tabular(
-    anonymizer: Anonymizer<Tabular>,
-    entity_id: Uuid,
-    policy_id: Uuid,
-    action: &TabularRedaction,
-    ctx: &TextOperatorContext,
-) -> Result<Anonymizer<Tabular>> {
-    attach_one_override(anonymizer, entity_id, policy_id, action, |target, spec| {
-        compile_spec(target, spec, ctx)
     })
 }
 

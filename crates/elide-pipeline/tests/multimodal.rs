@@ -13,8 +13,7 @@ use elide::modality::image::Image;
 use elide::modality::text::Text;
 use elide::{ErrorKind, Report};
 use elide_governance::PolicyDefinition;
-use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_pipeline::entity::{Edit, EditSet, Redact, Reviewer};
+use elide_governance::redaction::ModalityRedactions;
 use elide_pipeline::file::Document;
 use elide_pipeline::{
     Audit, CodecParams, Component, DocumentContext, Engine, Enrichers, OcrBackend, ProviderConfig,
@@ -103,31 +102,24 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         !entities.is_empty(),
         "fixture should carry at least one entity"
     );
-    let target_id = entities[0].id;
-
-    // Reviewer overrides carry a policy authority. Ship a
-    // minimal policy the override can attribute to (no rules,
-    // no fallback: it exists only so the override validator
-    // accepts the request).
+    // A policy that erases everything it sees, so the body is
+    // guaranteed to change while the image part is left alone.
     let review_policy = PolicyDefinition {
         id: uuid::Uuid::now_v7(),
-        name: "review-authority".into(),
+        name: "erase-everything".into(),
         description: None,
         template: None,
-        scopes: Vec::new(),
+        scopes: vec![elide_governance::LabelScope::new(
+            "contact",
+            vec![elide::entity::LabelRef::new("email_address")],
+        )],
         custom: Vec::new(),
         rules: Vec::new(),
-        fallback: None,
+        fallback: Some(ModalityRedactions {
+            text: Some(elide_governance::redaction::TextRedaction::Erase),
+            ..Default::default()
+        }),
     };
-    analyzed.edit(Edit::Redact(Redact::<Text> {
-        id: target_id,
-        policy_id: review_policy.id,
-        action: TextRedaction::Erase,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
-    }));
 
     let outcome = engine
         .anonymize(
@@ -146,7 +138,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         .expect("redacted docx still has word/document.xml");
     assert_ne!(
         redacted_body, original_body,
-        "Erase override must change the body XML",
+        "the policy's erase must change the body XML",
     );
 
     let image_bytes =
@@ -310,7 +302,6 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
     let engine = engine();
     let mut audit = Audit {
         report: Report::new(),
-        edits: EditSet::default(),
         context: DocumentContext::default(),
         codec: CodecParams::default(),
         usage: Default::default(),

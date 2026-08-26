@@ -22,4 +22,4 @@
 mod dispatch;
 mod selector;
 
-pub(in crate::redaction) use self::dispatch::{Target, attach_one_override, attach_policies};
+pub(in crate::redaction) use self::dispatch::{Target, attach_policies};

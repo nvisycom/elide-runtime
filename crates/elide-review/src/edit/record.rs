@@ -1,25 +1,28 @@
 //! [`Edit`]: one change a reviewer makes to an analyzed document.
 //!
-//! Four operations, in two groups.
+//! Three operations, in two groups.
 //!
 //! [`Add`] records a detection recognition missed. It is not a
 //! judgement about a detection — it *is* one, sourced from a human
 //! instead of a recognizer, so it carries no entity id and lands on
 //! the report beside the automatic hits.
 //!
-//! [`Retag`], [`Suppress`], and [`Redact`] each name an existing
-//! entity and override what the policy set decided for it. Only
-//! `Redact` is something elide has no concept of: apply re-resolves
-//! operators from live policy, because an `OperatorId` carries type
-//! and version but no configuration, so an operator override is a
-//! governance decision rather than an engine one.
+//! [`Retag`] and [`Suppress`] each name an existing entity and
+//! correct what recognition said about it: a wrong label, a clipped
+//! span, or a false positive.
+//!
+//! Which operator runs is not among them. elide re-resolves
+//! operators from live policy at apply time, and an `OperatorId`
+//! carries a name and version but no configuration — so a reviewer's
+//! operator choice has nowhere to live on a report. Changing what
+//! redacts an entity means changing the policy.
 //!
 //! # Composing
 //!
 //! Edits are a list rather than one-per-entity, because they feed
 //! independent channels: `Retag` corrects *what a detection is*,
-//! while `Suppress`/`Redact` decide *what happens to it*. Retagging
-//! an entity and choosing its operator are both legitimate at once.
+//! while `Suppress` decides *what happens to it*. Retagging an
+//! entity and suppressing it are both legitimate at once.
 //!
 //! Within one channel, two different answers are a contradiction
 //! rather than a refinement, so [`EditSet::validate`] rejects them
@@ -28,14 +31,10 @@
 //! suppress is a duplicate rather than a conflict.
 //!
 //! [`Add`]: Edit::Add
-//! [`Redact`]: Edit::Redact
 //! [`Retag`]: Edit::Retag
 //! [`Suppress`]: Edit::Suppress
 
-use std::fmt::Write as _;
-
 use elide::entity::LabelRef;
-use elide::{Error, ErrorKind};
 use elide_governance::modality::RedactableModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -59,8 +58,6 @@ pub enum Edit<M: RedactableModality> {
     Retag(Retag<M>),
     /// A false positive, to be left alone.
     Suppress(Suppress),
-    /// An operator to run instead of the policy's pick.
-    Redact(Redact<M>),
 }
 
 /// A detection recognition missed.
@@ -130,32 +127,6 @@ pub struct Suppress {
     pub by: Reviewer,
 }
 
-/// Redact this entity with `action` instead of the operator the
-/// policy picked.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-#[serde(bound = "M::Redaction: Serialize + for<'a> Deserialize<'a>")]
-#[schemars(bound = "M: JsonSchema, M::Redaction: JsonSchema")]
-#[schemars(rename = "{M}Redact")]
-pub struct Redact<M: RedactableModality> {
-    /// The entity to redact.
-    pub id: Uuid,
-    /// The policy whose authority the reviewer exercises. Must match
-    /// a submitted policy's `id`.
-    ///
-    /// Not only for audit: it picks which per-policy pseudonym vault
-    /// and `KeyProvider` the operator resolves against, so an
-    /// override using `Pseudonymize` or `HmacHash` stays consistent
-    /// with that policy's other rules.
-    pub policy_id: Uuid,
-    /// The operator to run, typed to the entity's own modality so a
-    /// text entity cannot be given an image operator.
-    pub action: M::Redaction,
-    /// Who made the call, and why.
-    #[serde(flatten)]
-    pub by: Reviewer,
-}
-
 /// Who made an edit, and why.
 ///
 /// Shared by all four operations: the reviewer's identity is not
@@ -182,7 +153,6 @@ impl<M: RedactableModality> Edit<M> {
             Self::Add(_) => None,
             Self::Retag(e) => Some(e.id),
             Self::Suppress(e) => Some(e.id),
-            Self::Redact(e) => Some(e.id),
         }
     }
 
@@ -193,7 +163,6 @@ impl<M: RedactableModality> Edit<M> {
             Self::Add(e) => &e.by,
             Self::Retag(e) => &e.by,
             Self::Suppress(e) => &e.by,
-            Self::Redact(e) => &e.by,
         }
     }
 
@@ -204,7 +173,6 @@ impl<M: RedactableModality> Edit<M> {
             Self::Add(_) => "add",
             Self::Retag(_) => "retag",
             Self::Suppress(_) => "suppress",
-            Self::Redact(_) => "redact",
         }
     }
 
@@ -217,7 +185,7 @@ impl<M: RedactableModality> Edit<M> {
         match self {
             Self::Add(_) => Channel::Add,
             Self::Retag(_) => Channel::Identity,
-            Self::Suppress(_) | Self::Redact(_) => Channel::Outcome,
+            Self::Suppress(_) => Channel::Outcome,
         }
     }
 
@@ -273,23 +241,5 @@ impl<M: RedactableModality> Edit<M> {
             // no midpoint exists.
             _ => false,
         }
-    }
-
-    /// The error this edit and `later` raise together, naming both
-    /// so the caller can see which pair to reconcile.
-    pub(crate) fn conflict_with(&self, later: &Self, id: Uuid) -> Error {
-        let mut message = format!(
-            "{} entity `{id}` carries contradictory edits: `{}` and `{}` answer \
-             the same question differently. Send one.",
-            M::NAME,
-            self.name(),
-            later.name(),
-        );
-        // Actors, when the payload named them: a reviewer
-        // reconciling this wants to know who disagreed.
-        if let (Some(a), Some(b)) = (self.actor(), later.actor()) {
-            let _ = write!(message, " (from `{a}` and `{b}`)");
-        }
-        Error::new(ErrorKind::Configuration, message)
     }
 }

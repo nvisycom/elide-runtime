@@ -10,9 +10,9 @@
 //! a container document whose parts span several modalities. It is
 //! the wrong shape wherever the modality is already pinned by an
 //! `M: Modality` type parameter, because three of its four slots
-//! are then unreachable. A reviewer override on a text entity that
-//! names only [`ImageRedaction`] type-checks against that shape and
-//! then silently does nothing: the text compile path reads
+//! are then unreachable. A rule targeting a text entity that names
+//! only [`ImageRedaction`] type-checks against that shape and then
+//! silently does nothing: the text compile path reads
 //! `redactions.text`, finds `None`, and passes the entity through
 //! to whatever policy rule matches next.
 //!

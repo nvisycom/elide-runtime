@@ -13,7 +13,6 @@ use elide::primitive::Confidence;
 use elide_governance::modality::RedactableModality;
 use uuid::Uuid;
 
-use super::suppression::Suppression;
 use crate::Edit;
 
 /// What an edit does to the report, flattened away from the
@@ -42,16 +41,10 @@ pub(super) enum Landing<M: Modality> {
         reason: Option<String>,
         actor: Option<String>,
     },
-    /// Lift an earlier *applied* suppression: a reviewer changing
-    /// their mind across a round trip, with both halves kept on the
-    /// trail.
-    Unsuppress { id: Uuid },
 }
 
 impl<M: Modality> Landing<M> {
-    /// Every edit maps to a landing: a redact's is `Unsuppress`,
-    /// which lifts a suppression applied on an earlier pass — the
-    /// operator itself reaches the anonymizer, not the report.
+    /// Every edit maps to a landing: all four reach the report.
     pub(super) fn of<R: RedactableModality<Location = M::Location>>(edit: &Edit<R>) -> Self {
         match edit {
             Edit::Add(e) => Self::Add {
@@ -72,18 +65,15 @@ impl<M: Modality> Landing<M> {
                 reason: e.by.reason.clone(),
                 actor: e.by.actor.clone(),
             },
-            Edit::Redact(e) => Self::Unsuppress { id: e.id },
         }
     }
 
-    /// Carry this edit out against `report`, reporting whether it
-    /// found its target.
+    /// Carry this edit out against `report`.
     ///
-    /// `false` when the named entity is not in this report — it may
-    /// belong to another modality, which each get their own pass, or
-    /// the id may simply be stale. Not fatal here, but the caller
-    /// must not treat an edit that changed nothing as applied.
-    pub(super) fn land(self, report: &mut Report) -> bool {
+    /// An edit naming an entity the report does not hold is a
+    /// no-op: it may belong to another modality, which each get
+    /// their own pass, or the id may simply be stale.
+    pub(super) fn land(self, report: &mut Report) {
         match self {
             Self::Add {
                 label,
@@ -101,7 +91,7 @@ impl<M: Modality> Landing<M> {
                     reason.map(Attribution::freeform).map(Into::into),
                     actor.as_deref(),
                 );
-                report.include::<M>(entity)
+                report.include::<M>(entity);
             }
             Self::Retag {
                 id,
@@ -111,7 +101,7 @@ impl<M: Modality> Landing<M> {
                 actor,
             } => {
                 let Some(entity) = report.entity_anywhere_mut::<M>(id) else {
-                    return false;
+                    return;
                 };
                 if let Some(label) = label {
                     entity.label = label;
@@ -129,21 +119,19 @@ impl<M: Modality> Landing<M> {
                     reason.map(Attribution::freeform).map(Into::into),
                     actor.as_deref(),
                 );
-                true
             }
             Self::Suppress { id, reason, actor } => {
                 let Some(entity) = report.entity_anywhere_mut::<M>(id) else {
-                    return false;
+                    return;
                 };
-                Suppression::On { reason, actor }.reconcile(entity);
-                true
-            }
-            Self::Unsuppress { id } => {
-                let Some(entity) = report.entity_anywhere_mut::<M>(id) else {
-                    return false;
-                };
-                Suppression::Off.reconcile(entity);
-                true
+                // elide skips a `Suppress` the trail already
+                // carries, so re-applying a set does not stack
+                // duplicate events.
+                entity.record_manual(
+                    ManualIntent::Suppress,
+                    reason.map(Attribution::freeform).map(Into::into),
+                    actor.as_deref(),
+                );
             }
         }
     }

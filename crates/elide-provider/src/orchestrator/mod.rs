@@ -16,7 +16,6 @@ mod codec;
 mod config;
 mod context;
 mod key;
-mod override_set;
 mod request;
 
 use std::collections::HashSet;
@@ -39,7 +38,6 @@ pub use self::codec::CodecParams;
 pub use self::config::ProviderConfig;
 pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
-pub use self::override_set::{Override, Overrides};
 pub use self::request::RequestContext;
 use crate::recognition::{Enrichers, Recognizers, analyzers};
 use crate::redaction::{Pickers, anonymizers, pickers};
@@ -142,10 +140,10 @@ impl Provider {
 
     /// Build an [`Orchestrator`] for the anonymize path: reuse
     /// the persisted [`DocumentContext`] from analyze, re-derive the
-    /// label catalog from `policies`, wire the requested
-    /// `policies` + reviewer `overrides` onto every modality's
-    /// anonymizer, and skip the analyzer compile (analysis
-    /// already happened; only [`Anonymizer`] state matters here).
+    /// label catalog from `policies`, wire them onto every
+    /// modality's anonymizer, and skip the analyzer compile
+    /// (analysis already happened; only [`Anonymizer`] state
+    /// matters here).
     ///
     /// Only the anonymizer half of each pipeline is built:
     /// recognition already ran at analyze, so [`with_anonymizer`]
@@ -162,16 +160,14 @@ impl Provider {
         &self,
         context: &DocumentContext,
         policies: &[PolicyDefinition],
-        overrides: &Overrides,
         key: Option<&KeyConfig>,
         correlation_id: Uuid,
     ) -> Result<Orchestrator> {
         validate_scope_references(policies)?;
-        validate_override_authorities(policies, overrides)?;
         let catalog = compile_catalog(policies)?;
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
-        let orchestrator = anonymizers(&catalog, policies, overrides, key.map(KeyConfig::build))?;
+        let orchestrator = anonymizers(&catalog, policies, key.map(KeyConfig::build))?;
         Ok(orchestrator
             .with_registry(self.inner.formats.clone())
             .with_scope(live_scope))
@@ -212,10 +208,9 @@ impl Provider {
     /// policy's own rationale.
     ///
     /// Without this a reviewer sees only *that* an entity was
-    /// detected: the pick would first appear after apply, when it is
-    /// too late to override. Overrides are deliberately not passed:
-    /// none exist yet at analyze time, so this records what the
-    /// policy set alone would do.
+    /// detected, never what is about to happen to it: the pick would
+    /// first appear after apply, when the document is already
+    /// redacted.
     ///
     /// # Errors
     ///
@@ -253,36 +248,6 @@ impl Provider {
         record_into(&picker, report, &scope);
         Ok(())
     }
-}
-
-/// Reject a request whose reviewer override names a policy id
-/// no submitted policy carries.
-///
-/// Overrides inherit the authority of the policy they name: the
-/// audit event stamps that policy, and any per-policy operator
-/// infrastructure (pseudonym vault, `KeyProvider`) is looked up
-/// under that policy id. An override that names a non-existent
-/// policy would attribute to nothing and: worse: silently draw
-/// from an empty per-policy vault or fall back to the engine
-/// default `KeyProvider`, both of which are the wrong authority.
-fn validate_override_authorities(
-    policies: &[PolicyDefinition],
-    overrides: &Overrides,
-) -> Result<()> {
-    let known: HashSet<Uuid> = policies.iter().map(|p| p.id).collect();
-    for (entity_id, policy_id) in overrides.authorities() {
-        if !known.contains(&policy_id) {
-            return Err(Error::new(
-                ErrorKind::Configuration,
-                format!(
-                    "override for entity `{entity_id}` names policy `{policy_id}` that \
-                     no submitted policy in this request carries; overrides inherit a \
-                     policy's authority and must name one that's actually loaded",
-                ),
-            ));
-        }
-    }
-    Ok(())
 }
 
 /// Reject a request whose rule references a [`LabelScope`] name

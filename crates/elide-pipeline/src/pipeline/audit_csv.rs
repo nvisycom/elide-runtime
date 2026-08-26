@@ -9,7 +9,6 @@
 //!   essentials only.
 //! - [`Table::Provenance`]: one row per event on every entity's
 //!   provenance chain.
-//! - [`Table::Reviews`]: one row per reviewer edit.
 //!
 //! All three join on `entity_id`. The design choice for CSV is
 //! honest scalar columns everywhere: no JSON blobs, no
@@ -28,12 +27,10 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{Error, ErrorKind, Report, Result};
 use elide_export::{ExportCsv, Table, write_rows};
-use elide_governance::modality::RedactableModality;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use super::audit::Audit;
-use crate::entity::Edit;
 
 /// Run `$body` once per modality, binding `$m` to the modality
 /// type. Its wire name is `$m::NAME`.
@@ -67,7 +64,7 @@ impl ExportCsv for Audit {
     /// Entities first, then their provenance, then reviewer
     /// decisions: each table joins onto the previous one's
     /// `entity_id`, so this is the order a reader builds them up in.
-    const TABLES: &'static [Table] = &[Table::Entities, Table::Provenance, Table::Reviews];
+    const TABLES: &'static [Table] = &[Table::Entities, Table::Provenance];
 
     /// Write one table of this audit as CSV.
     ///
@@ -75,15 +72,17 @@ impl ExportCsv for Audit {
     /// |---|---|
     /// | [`Entities`] | `part_id, modality, entity_id, label, confidence, coref` |
     /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
-    /// | [`Reviews`] | `entity_id, modality, decision, operator, reason, actor` |
     ///
-    /// Every table carries `entity_id` so they join back together.
+    /// Both tables carry `entity_id` so they join back together.
+    ///
+    /// Reviewer edits are not here: they are a separate input the
+    /// caller applies to the report, so what an audit exports is
+    /// the amended detections, not the amendments.
     /// Rows are sorted for stable diffs: entities by
     /// `(part_id, entity_id)`, the others by `entity_id`.
     ///
-    /// `part_id` is empty for body entities, `coref` is empty
-    /// outside a coreference cluster, and `operator` is empty for a
-    /// suppression, which names none.
+    /// `part_id` is empty for body entities and `coref` is empty
+    /// outside a coreference cluster.
     ///
     /// Locations and nested event payloads are dropped: CSV holds
     /// neither polymorphic locations nor event chains. Callers who
@@ -91,7 +90,6 @@ impl ExportCsv for Audit {
     ///
     /// [`Entities`]: Table::Entities
     /// [`Provenance`]: Table::Provenance
-    /// [`Reviews`]: Table::Reviews
     ///
     /// # Errors
     ///
@@ -103,7 +101,6 @@ impl ExportCsv for Audit {
             Table::Provenance => {
                 write_rows(writer, ProvenanceRow::header(), self.provenance_rows())
             }
-            Table::Reviews => write_rows(writer, ReviewRow::header(), self.review_rows()),
             // `Table` is `#[non_exhaustive]`: a table added there
             // that this audit cannot project is a caller error, not
             // a silent empty file.
@@ -159,17 +156,6 @@ impl Audit {
                 .cmp(&b.entity_id)
                 .then(a.event_index.cmp(&b.event_index))
         });
-        rows
-    }
-
-    /// One row per reviewer decision, sorted by `entity_id`.
-    fn review_rows(&self) -> Vec<ReviewRow> {
-        let mut rows: Vec<ReviewRow> = Vec::new();
-        extend_review_rows(&self.edits.text, &mut rows);
-        extend_review_rows(&self.edits.tabular, &mut rows);
-        extend_review_rows(&self.edits.image, &mut rows);
-        extend_review_rows(&self.edits.audio, &mut rows);
-        rows.sort_by_key(|row| row.entity_id);
         rows
     }
 }
@@ -237,55 +223,6 @@ fn extend_provenance_rows<'a, M: Modality>(
     }
 }
 
-/// One row per edit in a modality's list.
-///
-/// Every operation earns a row, not just operator overrides:
-/// exporting those alone would hide every "leave this alone" and
-/// every reviewer-added detection from the same report. Only a
-/// redact names an operator, so that column is empty for the rest.
-fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<ReviewRow>) {
-    for edit in edits {
-        let (decision, operator) = match edit {
-            Edit::Redact(e) => {
-                let Some(operator) = operator_kind(&e.action) else {
-                    continue;
-                };
-                ("redact", operator)
-            }
-            Edit::Add(_) => ("add", String::new()),
-            Edit::Suppress(_) => ("suppress", String::new()),
-            Edit::Retag(_) => ("retag", String::new()),
-        };
-        out.push(ReviewRow {
-            entity_id: edit.target(),
-            modality: M::NAME,
-            decision,
-            operator,
-            reason: edit.reason().unwrap_or_default().to_owned(),
-            actor: edit.actor().unwrap_or_default().to_owned(),
-        });
-    }
-}
-
-/// One reviewer edit, as the review CSV exports it.
-///
-/// `decision` and `operator` stay separate columns: a suppression
-/// names no operator, so folding them would put a non-operator
-/// value in a column consumers map onto an operator enum.
-///
-/// `entity_id` is empty for an `add`, whose entity does not exist
-/// until the edit is applied.
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-struct ReviewRow {
-    entity_id: Option<Uuid>,
-    modality: &'static str,
-    decision: &'static str,
-    operator: String,
-    reason: String,
-    actor: String,
-}
-
 impl EntityRow<'_> {
     const fn header() -> &'static [&'static str] {
         &[
@@ -309,19 +246,6 @@ impl ProvenanceRow<'_> {
             "confidence",
             "timestamp",
             "payload_id",
-        ]
-    }
-}
-
-impl ReviewRow {
-    const fn header() -> &'static [&'static str] {
-        &[
-            "entity_id",
-            "modality",
-            "decision",
-            "operator",
-            "reason",
-            "actor",
         ]
     }
 }
@@ -357,19 +281,6 @@ fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Op
         // a new one needs a column mapping.
         _ => ("unknown", None),
     }
-}
-
-/// Extract the operator `kind` discriminator from a review's
-/// redaction spec. Uses serde JSON as a universal `kind` reader
-/// across the four operator enums: each one is
-/// `#[serde(tag = "kind")]`, so the top-level JSON object always
-/// has a `"kind"` field.
-fn operator_kind<R: Serialize>(action: &R) -> Option<String> {
-    let value = serde_json::to_value(action).ok()?;
-    value
-        .get("kind")
-        .and_then(|k| k.as_str())
-        .map(|s| s.to_owned())
 }
 
 /// Format a `f32` confidence with three decimal places.

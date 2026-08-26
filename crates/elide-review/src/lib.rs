@@ -18,11 +18,8 @@
 //! anything to apply them to.
 //!
 //! [`EditSet::apply`] is the other half, landing those edits on a
-//! [`Report`]. Three of the four reach the document that way. The
-//! operator override does not: it names an operator for the
-//! anonymizer to run, so a consumer projects it onto whatever it
-//! drives — elide re-resolves operators from live policy at apply
-//! time and has no per-entity override of its own.
+//! [`Report`]. All three reach the document that way, so a caller
+//! that has applied an edit set needs nothing further from it.
 //!
 //! ## Layout
 //!
@@ -38,4 +35,4 @@
 mod apply;
 mod edit;
 
-pub use self::edit::{Add, Edit, EditBucket, EditSet, Redact, Retag, Reviewer, Suppress};
+pub use self::edit::{Add, Edit, EditBucket, EditError, EditSet, Retag, Reviewer, Suppress};

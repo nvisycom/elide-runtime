@@ -18,9 +18,5 @@ pub use elide::entity::audit::{
 pub use elide::entity::{
     Entity, EntityCoRef, EntityRef, Label, LabelCatalog, LabelLocale, LabelRef,
 };
-mod overrides;
-
 #[doc(inline)]
-pub use elide_review::{Add, Edit, EditBucket, EditSet, Redact, Retag, Reviewer, Suppress};
-
-pub use self::overrides::overrides;
+pub use elide_review::{Add, Edit, EditBucket, EditSet, Retag, Reviewer, Suppress};

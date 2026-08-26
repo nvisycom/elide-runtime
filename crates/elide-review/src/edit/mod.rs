@@ -10,8 +10,10 @@
 //! - `set` collects them per modality and rejects the pairs that
 //!   answer one question twice.
 
+mod error;
 mod record;
 mod set;
 
-pub use self::record::{Add, Edit, Redact, Retag, Reviewer, Suppress};
+pub use self::error::EditError;
+pub use self::record::{Add, Edit, Retag, Reviewer, Suppress};
 pub use self::set::{EditBucket, EditSet};

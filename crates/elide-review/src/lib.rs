@@ -35,4 +35,4 @@
 mod apply;
 mod edit;
 
-pub use self::edit::{Add, Edit, EditBucket, EditSet, Retag, Reviewer, Suppress};
+pub use self::edit::{Add, Edit, EditBucket, EditError, EditSet, Retag, Reviewer, Suppress};

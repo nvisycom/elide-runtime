@@ -10,7 +10,7 @@ use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, ManualI
 use elide::entity::{Entity, LabelRef};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::Confidence;
-use elide_review::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
+use elide_review::{Add, Edit, EditError, EditSet, Retag, Reviewer, Suppress};
 use uuid::Uuid;
 
 fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
@@ -48,7 +48,10 @@ fn edits_deserialize_from_a_request_body() {
     }"#;
     let edits: EditSet = serde_json::from_str(body).expect("edits deserialize");
     assert_eq!(edits.len(), 2);
-    edits.validate().expect("no contradictions");
+
+    // Validating needs the report the edits target — an id is only
+    // meaningful against one — so a handler parses here and
+    // validates once it has the audit.
 }
 
 #[test]
@@ -56,7 +59,7 @@ fn contradictions_are_caught_before_anything_is_applied() {
     // Two retags setting the same field are two answers to one
     // question. Disjoint fields merge, and a repeated suppress
     // dedupes, so this is the pair that has to be rejected.
-    let id = Uuid::from_u128(1);
+    let (report, id) = report_with_one();
     let retag = |label: &str| {
         Edit::Retag(Retag {
             id,
@@ -70,7 +73,7 @@ fn contradictions_are_caught_before_anything_is_applied() {
     edits.text.push(retag("email_address"));
 
     let err = edits
-        .validate()
+        .validate(&report)
         .expect_err("two labels for one entity contradict");
     assert!(err.to_string().contains(&id.to_string()), "{err}");
 }
@@ -98,7 +101,7 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
         },
     }));
 
-    edits.validate().expect("composable");
+    edits.validate(&report).expect("composable");
     edits.apply(&mut report);
 
     let entities = report.entities::<Text>().expect("text body");
@@ -151,7 +154,7 @@ fn a_third_retag_conflicts_with_the_first() {
     // merges with both neighbours, so comparing only against the
     // most recent would let two labels through and silently apply
     // the last.
-    let id = Uuid::from_u128(1);
+    let (report, id) = report_with_one();
     let retag = |label: Option<&str>, location: Option<TextLocation>| {
         Edit::Retag(Retag {
             id,
@@ -170,7 +173,7 @@ fn a_third_retag_conflicts_with_the_first() {
     edits.text.push(retag(Some("b"), None));
 
     let err = edits
-        .validate()
+        .validate(&report)
         .expect_err("two labels for one entity contradict, however they are interleaved");
     assert!(err.to_string().contains(&id.to_string()), "{err}");
 }
@@ -323,4 +326,58 @@ fn a_retag_records_who_corrected_it() {
         panic!("the rationale rides on a freeform attribution");
     };
     assert_eq!(freeform.name.as_str(), "recognizer mislabelled it");
+}
+
+#[test]
+fn an_edit_naming_no_entity_in_the_report_is_rejected() {
+    // `apply` skips a target it cannot find, without a word. A
+    // reviewer would be told their suppression took effect while
+    // the document still carries the entity, so the set has to be
+    // rejected before it is applied.
+    let (report, _) = report_with_one();
+    let stale = Uuid::from_u128(999);
+
+    let mut edits = EditSet::default();
+    edits.edit(Edit::<Text>::Suppress(Suppress {
+        id: stale,
+        by: Reviewer::default(),
+    }));
+
+    let err = edits
+        .validate(&report)
+        .expect_err("a stale id is not applicable to this report");
+    assert_eq!(err.entity_id(), stale);
+    assert!(
+        matches!(err, EditError::UnknownTarget { .. }),
+        "the reason is the missing target, not a contradiction: {err}",
+    );
+}
+
+#[test]
+fn an_edit_filed_under_the_wrong_modality_is_rejected() {
+    // Each modality is applied in its own pass, so a text entity's
+    // id in the image bucket finds nothing and vanishes silently.
+    // The report is searched under the bucket's modality, so this
+    // reads as an unknown target — which it is, for that modality.
+    let (report, id) = report_with_one();
+
+    let mut edits = EditSet::default();
+    edits.image.push(Edit::Suppress(Suppress {
+        id,
+        by: Reviewer::default(),
+    }));
+
+    let err = edits
+        .validate(&report)
+        .expect_err("a text entity is not an image entity");
+    assert!(
+        matches!(
+            err,
+            EditError::UnknownTarget {
+                modality: "image",
+                ..
+            }
+        ),
+        "reported against the bucket it was filed under: {err}",
+    );
 }

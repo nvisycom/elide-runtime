@@ -34,10 +34,7 @@
 //! [`Retag`]: Edit::Retag
 //! [`Suppress`]: Edit::Suppress
 
-use std::fmt::Write as _;
-
 use elide::entity::LabelRef;
-use elide::{Error, ErrorKind};
 use elide_governance::modality::RedactableModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -244,23 +241,5 @@ impl<M: RedactableModality> Edit<M> {
             // no midpoint exists.
             _ => false,
         }
-    }
-
-    /// The error this edit and `later` raise together, naming both
-    /// so the caller can see which pair to reconcile.
-    pub(crate) fn conflict_with(&self, later: &Self, id: Uuid) -> Error {
-        let mut message = format!(
-            "{} entity `{id}` carries contradictory edits: `{}` and `{}` answer \
-             the same question differently. Send one.",
-            M::NAME,
-            self.name(),
-            later.name(),
-        );
-        // Actors, when the payload named them: a reviewer
-        // reconciling this wants to know who disagreed.
-        if let (Some(a), Some(b)) = (self.actor(), later.actor()) {
-            let _ = write!(message, " (from `{a}` and `{b}`)");
-        }
-        Error::new(ErrorKind::Configuration, message)
     }
 }

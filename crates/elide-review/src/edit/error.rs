@@ -14,8 +14,10 @@ use uuid::Uuid;
 /// Why an [`EditSet`](super::EditSet) cannot be applied.
 ///
 /// Both variants name the entity at fault, so a caller answering a
-/// request can point the reviewer at the edit to fix.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// request can point the reviewer at the edit to fix. Who made that
+/// edit is not here: the caller still holds the set it submitted,
+/// and the entity plus the operation names identify the pair.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum EditError {
     /// Two edits answer the same question about one entity
@@ -31,9 +33,6 @@ pub enum EditError {
         earlier: &'static str,
         /// The operation that contradicts it.
         later: &'static str,
-        /// Who made each, when the payload named them: a reviewer
-        /// reconciling this wants to know who disagreed.
-        actors: Option<(String, String)>,
     },
     /// An edit names an entity the report does not hold — a stale
     /// id, or one filed under the wrong modality.
@@ -66,14 +65,12 @@ impl EditError {
         entity_id: Uuid,
         earlier: &'static str,
         later: &'static str,
-        actors: Option<(String, String)>,
     ) -> Self {
         Self::Contradiction {
             entity_id,
             modality: M::NAME,
             earlier,
             later,
-            actors,
         }
     }
 
@@ -94,19 +91,12 @@ impl fmt::Display for EditError {
                 modality,
                 earlier,
                 later,
-                actors,
-            } => {
-                write!(
-                    f,
-                    "{modality} entity `{entity_id}` carries contradictory edits: \
-                     `{earlier}` and `{later}` answer the same question \
-                     differently. Send one.",
-                )?;
-                match actors {
-                    Some((a, b)) => write!(f, " (from `{a}` and `{b}`)"),
-                    None => Ok(()),
-                }
-            }
+            } => write!(
+                f,
+                "{modality} entity `{entity_id}` carries contradictory edits: \
+                 `{earlier}` and `{later}` answer the same question differently. \
+                 Send one.",
+            ),
             Self::UnknownTarget {
                 entity_id,
                 modality,

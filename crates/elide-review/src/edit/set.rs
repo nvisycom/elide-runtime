@@ -150,15 +150,10 @@ fn validate_modality<M: RedactableModality>(
         }
         let channel = seen.entry((id, edit.channel())).or_default();
         if let Some(earlier) = channel.iter().find(|e| !e.merges_with(edit)) {
-            let actors = earlier
-                .actor()
-                .zip(edit.actor())
-                .map(|(a, b)| (a.to_owned(), b.to_owned()));
             return Err(EditError::contradiction::<M>(
                 id,
                 earlier.name(),
                 edit.name(),
-                actors,
             ));
         }
         channel.push(edit);

@@ -239,7 +239,7 @@ fn extend_provenance_rows<'a, M: Modality>(
 
 /// One row per edit in a modality's list.
 ///
-/// Every operation earns a row, not just operator overrides:
+/// Every operation earns a row:
 /// exporting those alone would hide every "leave this alone" and
 /// every reviewer-added detection from the same report. Only a
 /// redact names an operator, so that column is empty for the rest.

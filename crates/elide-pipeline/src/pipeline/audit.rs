@@ -1,11 +1,9 @@
 //! Analyze → anonymize bridge: what [`Engine::analyze`] returns
 //! and what [`Engine::anonymize`] accepts.
 //!
-//! Reviewer decisions sit beside the report rather than inside it,
-//! keyed by entity id, because elide has no concept of a per-entity
-//! operator override: apply re-resolves operators from live policy.
-//! The decisions elide *does* model — adding an entity, suppressing
-//! one — go on the report itself.
+//! Reviewer decisions land on the report itself: an added entity, a
+//! corrected one, a suppressed one. They travel with the audit
+//! because they are part of what analysis found, as amended.
 //!
 //! Hosts hold an [`Audit`] between the two passes and may persist
 //! it however they like: serialize it directly, and read it back
@@ -60,7 +58,6 @@ pub struct Audit {
     ///
     /// Edit it through [`Report`]'s own API — [`include`],
     /// [`suppress`], [`entities`] — for the decisions elide models.
-    /// Operator overrides live in [`edits`](Self::edits).
     ///
     /// [`Report`]: elide::Report
     /// [`include`]: elide::Report::include
@@ -68,17 +65,11 @@ pub struct Audit {
     /// [`entities`]: elide::Report::entities
     pub report: Report,
     /// What a reviewer changed: detections they added, corrected,
-    /// suppressed, or chose an operator for.
+    /// or suppressed.
     ///
     /// A list rather than one decision per entity, because the
-    /// operations feed independent channels — a retag and an
-    /// operator override on the same entity are both legitimate.
-    ///
-    /// Separate from the report because elide has no concept of a
-    /// per-entity operator override: [`anonymize_with`] re-resolves
-    /// operators from live policy at apply time.
-    ///
-    /// [`anonymize_with`]: elide::Orchestrator::anonymize_with
+    /// operations feed independent channels — retagging an entity
+    /// and suppressing it are both legitimate at once.
     #[serde(skip_serializing_if = "EditSet::is_empty")]
     pub edits: EditSet,
     /// What the caller asserted when this document was analyzed:

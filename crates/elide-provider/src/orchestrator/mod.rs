@@ -140,10 +140,10 @@ impl Provider {
 
     /// Build an [`Orchestrator`] for the anonymize path: reuse
     /// the persisted [`DocumentContext`] from analyze, re-derive the
-    /// label catalog from `policies`, wire the requested
-    /// `policies` + reviewer `overrides` onto every modality's
-    /// anonymizer, and skip the analyzer compile (analysis
-    /// already happened; only [`Anonymizer`] state matters here).
+    /// label catalog from `policies`, wire them onto every
+    /// modality's anonymizer, and skip the analyzer compile
+    /// (analysis already happened; only [`Anonymizer`] state
+    /// matters here).
     ///
     /// Only the anonymizer half of each pipeline is built:
     /// recognition already ran at analyze, so [`with_anonymizer`]
@@ -208,10 +208,9 @@ impl Provider {
     /// policy's own rationale.
     ///
     /// Without this a reviewer sees only *that* an entity was
-    /// detected: the pick would first appear after apply, when it is
-    /// too late to override. Overrides are deliberately not passed:
-    /// none exist yet at analyze time, so this records what the
-    /// policy set alone would do.
+    /// detected, never what is about to happen to it: the pick would
+    /// first appear after apply, when the document is already
+    /// redacted.
     ///
     /// # Errors
     ///

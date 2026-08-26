@@ -11,8 +11,8 @@
 //!   projects the report — body and every container part — onto an
 //!   [`Audit`].
 //! - [`Engine::anonymize`] decodes those bytes again, layers the
-//!   reviewer overrides and policy set onto each modality's
-//!   anonymizer, and returns the re-encoded [`Document`].
+//!   policy set onto each modality's anonymizer, and returns the
+//!   re-encoded [`Document`].
 //!
 //! Both build a fresh [`Orchestrator`] per call: a small map of
 //! trait objects keyed by modality `TypeId`. Building per call is
@@ -221,7 +221,7 @@ impl Engine {
 
         // Record what each entity's policy pick would be, so the
         // returned audit answers "what happens to this, and why"
-        // before a reviewer overrides anything. Purely additive: it
+        // before a reviewer decides anything. Purely additive: it
         // appends Selection events and redacts nothing.
         //
         // A failure here does not fail the analyze. Every reason the
@@ -277,8 +277,7 @@ impl Engine {
     /// declared labels, so a rule in policy A cannot fire on labels
     /// only B declared. Policy fallbacks attach after every
     /// policy's rules, so a coarse baseline does not shadow a
-    /// later, more specific one. Reviewer overrides attach ahead of
-    /// all of them, carrying the overriding policy's authority.
+    /// later, more specific one.
     ///
     /// [`Pseudonymize`] draws from a per-policy vault: one policy
     /// pseudonymising an entity twice gets one surrogate, two
@@ -324,15 +323,11 @@ impl Engine {
         audit.edits.validate()?;
 
         // Built before the edits are applied, because this can
-        // still fail — an override naming a policy the request did
-        // not submit, an operator that will not compile. Applying
-        // first would leave the caller's audit half-mutated after a
-        // request that returned an error: suppressions stamped onto
-        // entities, adds and retags consumed, nothing redacted.
-        //
-        // Safe to read the overrides this early: `apply` leaves
-        // `Edit::Redact` pending precisely because it belongs to the
-        // anonymizer rather than the report.
+        // still fail — a policy naming an operator that will not
+        // compile, say. Applying first would leave the caller's
+        // audit half-mutated after a request that returned an
+        // error: suppressions stamped onto entities, added entities
+        // on the report, nothing redacted.
         let orchestrator =
             self.provider
                 .anonymize_orchestrator(&audit.context, policies, key, correlation_id)?;

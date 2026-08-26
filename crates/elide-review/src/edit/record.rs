@@ -1,25 +1,28 @@
 //! [`Edit`]: one change a reviewer makes to an analyzed document.
 //!
-//! Four operations, in two groups.
+//! Three operations, in two groups.
 //!
 //! [`Add`] records a detection recognition missed. It is not a
 //! judgement about a detection — it *is* one, sourced from a human
 //! instead of a recognizer, so it carries no entity id and lands on
 //! the report beside the automatic hits.
 //!
-//! [`Retag`], [`Suppress`], and [`Redact`] each name an existing
-//! entity and override what the policy set decided for it. Only
-//! `Redact` is something elide has no concept of: apply re-resolves
-//! operators from live policy, because an `OperatorId` carries type
-//! and version but no configuration, so an operator override is a
-//! governance decision rather than an engine one.
+//! [`Retag`] and [`Suppress`] each name an existing entity and
+//! correct what recognition said about it: a wrong label, a clipped
+//! span, or a false positive.
+//!
+//! Which operator runs is not among them. elide re-resolves
+//! operators from live policy at apply time, and an `OperatorId`
+//! carries a name and version but no configuration — so a reviewer's
+//! operator choice has nowhere to live on a report. Changing what
+//! redacts an entity means changing the policy.
 //!
 //! # Composing
 //!
 //! Edits are a list rather than one-per-entity, because they feed
 //! independent channels: `Retag` corrects *what a detection is*,
-//! while `Suppress`/`Redact` decide *what happens to it*. Retagging
-//! an entity and choosing its operator are both legitimate at once.
+//! while `Suppress` decides *what happens to it*. Retagging an
+//! entity and suppressing it are both legitimate at once.
 //!
 //! Within one channel, two different answers are a contradiction
 //! rather than a refinement, so [`EditSet::validate`] rejects them
@@ -28,7 +31,6 @@
 //! suppress is a duplicate rather than a conflict.
 //!
 //! [`Add`]: Edit::Add
-//! [`Redact`]: Edit::Redact
 //! [`Retag`]: Edit::Retag
 //! [`Suppress`]: Edit::Suppress
 

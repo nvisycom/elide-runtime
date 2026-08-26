@@ -1,21 +1,22 @@
 //! Applying reviewer decisions to a report.
 //!
 //! An [`EditSet`] records what a reviewer changed; this is where
-//! those decisions reach the document. They land in two different
-//! ways, because elide models one of them and not the other:
+//! those decisions reach the document. All three land on the
+//! report, each in its own way:
 //!
-//! - **Suppression** is stamped onto the entity's own audit trail,
-//!   because that trail is what elide's redaction pass reads to
-//!   decide what to skip. The reversal of a suppression is recorded
-//!   too, rather than erased, so the trail keeps both halves of a
-//!   reviewer's change of mind.
-//! - **An operator override** is layered onto the anonymizer ahead
-//!   of the policy rules, straight from the edit list, because
-//!   elide re-resolves operators from live policy at apply time and
-//!   has no per-entity override of its own.
+//! - **An add** appends a new entity, stamped human-sourced so it
+//!   is never mistaken for an automatic detection.
+//! - **A retag** rewrites what an entity *is* before the policy set
+//!   sees it, so the corrected entity is redacted as if it had been
+//!   detected that way.
+//! - **A suppression** is stamped onto the entity's own audit
+//!   trail, because that trail is what elide's redaction pass reads
+//!   to decide what to skip.
 //!
-//! A retag is neither: it rewrites what the entity *is* before the
-//! policy set sees it, and is applied where the report is edited.
+//! Which operator runs is not a reviewer's to choose: elide
+//! re-resolves operators from live policy at apply time, and an
+//! `OperatorId` carries a name and version but no configuration —
+//! so there is nowhere on a report to record one.
 //!
 //! [`EditSet`]: super::EditSet
 
@@ -34,8 +35,8 @@ impl EditSet {
     /// Land every edit on the report.
     ///
     /// An add appends a new entity, a retag rewrites what an
-    /// existing one is, and a suppress or restore stamps the trail
-    /// elide's redaction pass reads to decide what to skip.
+    /// existing one is, and a suppress stamps the trail elide's
+    /// redaction pass reads to decide what to skip.
     ///
     /// Takes `&self`: an edit set is the caller's own input, not
     /// state this crate keeps, so nothing is consumed and the

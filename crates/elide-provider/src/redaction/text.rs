@@ -11,9 +11,7 @@ use super::compile::{Target, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
 
 /// Attach every text-applicable rule from `policies` onto an
-/// already-constructed anonymizer. The apply pipeline calls this
-/// after layering per-entity override rules so the overrides
-/// keep first-match precedence. Takes an iterator (not a slice)
+/// already-constructed anonymizer. Takes an iterator (not a slice)
 /// so callers can pre-filter by [`PolicyDefinition::when`] without
 /// cloning the policy set.
 ///

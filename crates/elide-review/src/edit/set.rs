@@ -2,7 +2,7 @@
 //!
 //! A list per modality rather than a map keyed by entity id: edits
 //! feed independent channels, so one entity can legitimately carry
-//! both a retag and an operator override. A map would hold one and
+//! both a retag and a suppression. A map would hold one and
 //! silently drop the other.
 //!
 //! Ordered, so a contradiction is reported against the edit that

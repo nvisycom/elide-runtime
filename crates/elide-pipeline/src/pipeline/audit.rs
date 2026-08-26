@@ -14,7 +14,12 @@
 //! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 
 use elide::Report;
+use elide::codec::PartId;
 use elide::modality::Modality;
+use elide::modality::audio::Audio;
+use elide::modality::image::Image;
+use elide::modality::tabular::Tabular;
+use elide::modality::text::Text;
 use elide::recognition::UsageReport;
 use elide_provider::{CodecParams, DocumentContext};
 use schemars::JsonSchema;
@@ -97,6 +102,59 @@ pub struct Audit {
 impl Audit {
     /// Whether the entity `id` will be left alone.
     ///
+    /// Entities no policy acted on, by modality and label.
+    ///
+    /// An entity here was detected, was not suppressed by a
+    /// reviewer, and no operator was even *picked* for it — so it
+    /// survives into the output with nothing recording why. The
+    /// usual cause is a policy whose rules name an operator for one
+    /// modality and not the entity's: the rule matches, attaches
+    /// nothing, and the value passes through unredacted.
+    ///
+    /// Keyed on the absence of a [`Selection`] rather than a
+    /// redaction, so an operator that deliberately kept a value
+    /// (`Keep`) does not read as a gap — it was chosen.
+    ///
+    /// Empty after a pass that covered everything it found. Worth
+    /// checking before returning a document as de-identified.
+    ///
+    /// [`Selection`]: elide::entity::audit::AuditKind::Selection
+    #[must_use]
+    pub fn unhandled(&self) -> Vec<Unhandled> {
+        self.unhandled_in::<Text>()
+            .chain(self.unhandled_in::<Tabular>())
+            .chain(self.unhandled_in::<Image>())
+            .chain(self.unhandled_in::<Audio>())
+            .collect()
+    }
+
+    /// One modality's unhandled detections, across the body and
+    /// every container part.
+    ///
+    /// A part is where this matters most: a DOCX's embedded image
+    /// is exactly the place a text-only policy leaves something
+    /// behind, so reading the body alone would miss the case the
+    /// method exists for.
+    fn unhandled_in<M: Modality>(&self) -> impl Iterator<Item = Unhandled> + '_ {
+        let parts: Vec<PartId> = self.report.part_ids().map(|(id, _)| id.clone()).collect();
+        let body = self.report.entities::<M>().unwrap_or_default();
+        let in_parts = parts.into_iter().flat_map(move |id| {
+            self.report
+                .part_entities::<M>(&id)
+                .unwrap_or_default()
+                .iter()
+        });
+
+        body.iter()
+            .chain(in_parts)
+            .filter(|e| e.audit.selection().is_none() && !e.audit.is_suppressed())
+            .map(|e| Unhandled {
+                entity_id: e.id,
+                modality: M::NAME,
+                label: e.label.as_str().to_owned(),
+            })
+    }
+
     /// Reads the entity's own trail, so an applied suppression
     /// still reports as suppressed after a round trip.
     ///
@@ -109,4 +167,16 @@ impl Audit {
             .entity_anywhere::<M>(id)
             .is_some_and(elide::entity::Entity::is_suppressed)
     }
+}
+
+/// One detection no policy acted on. See
+/// [`Audit::unhandled`](Audit::unhandled).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Unhandled {
+    /// The entity that survived.
+    pub entity_id: Uuid,
+    /// The modality it belongs to.
+    pub modality: &'static str,
+    /// What it was detected as.
+    pub label: String,
 }

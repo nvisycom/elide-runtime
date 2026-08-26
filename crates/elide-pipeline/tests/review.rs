@@ -523,3 +523,96 @@ async fn a_retag_edit_moves_the_entity_out_of_policy_scope() {
         "retagged out of the policy's scope, so nothing redacts it: {out}",
     );
 }
+
+#[tokio::test]
+async fn unhandled_is_empty_when_the_policy_covered_everything() {
+    // The policy scopes `email_address` and erases it, and the
+    // sample carries nothing else, so every detection was acted on.
+    let (_, audit) = review_and_apply(|_, _| {}).await;
+
+    assert!(
+        audit.unhandled().is_empty(),
+        "every detection carries a Selection: {:?}",
+        audit.unhandled(),
+    );
+}
+
+#[tokio::test]
+async fn unhandled_names_a_detection_no_policy_acted_on() {
+    // Analyze with no policies at all: the recognizers still find
+    // entities, and nothing picks an operator for them. That is the
+    // shape of a policy set that misses a modality — the detection
+    // survives into the output with no record of why.
+    let engine = Engine::new(ProviderConfig::default().build());
+    let audit = engine
+        .analyze(doc(), &[], &RequestContext::new())
+        .await
+        .expect("analyze");
+
+    let unhandled = audit.unhandled();
+    assert!(
+        !unhandled.is_empty(),
+        "an unredacted detection is reported, not silent",
+    );
+    assert!(
+        unhandled.iter().all(|u| u.modality == "text"),
+        "named by modality: {unhandled:?}",
+    );
+    assert!(
+        unhandled.iter().any(|u| u.label == "email_address"),
+        "and by label: {unhandled:?}",
+    );
+}
+
+#[tokio::test]
+async fn unhandled_reaches_into_container_parts() {
+    // A DOCX's embedded image is exactly where a text-only policy
+    // leaves something behind, so reading the body alone would miss
+    // the case this method exists for.
+    use elide::Report;
+    use elide::codec::PartId;
+    use elide::entity::audit::{AuditEvent, AuditLog, PatternEvent};
+    use elide::entity::{Entity, LabelRef};
+    use elide::modality::text::{Text, TextLocation};
+    use elide::primitive::Confidence;
+    use elide_provider::{CodecParams, DocumentContext};
+
+    let detection = |label: &str| {
+        let location = TextLocation::new(0, 4);
+        Entity::new(
+            LabelRef::new(label),
+            location.clone(),
+            Confidence::MAX,
+            AuditLog::new(AuditEvent::pattern(
+                "probe",
+                Confidence::MAX,
+                location,
+                PatternEvent::default(),
+            )),
+        )
+    };
+
+    // A body detection and a part detection, neither acted on.
+    let audit = Audit {
+        report: Report::new()
+            .insert_body::<Text>(vec![detection("email_address")])
+            .insert_part::<Text>(
+                PartId::new("word/embedded.txt"),
+                vec![detection("phone_number")],
+            ),
+        context: DocumentContext::default(),
+        codec: CodecParams::default(),
+        usage: elide::recognition::UsageReport::default(),
+    };
+
+    let unhandled = audit.unhandled();
+    let labels: Vec<&str> = unhandled.iter().map(|u| u.label.as_str()).collect();
+    assert!(
+        labels.contains(&"phone_number"),
+        "a part's unredacted detection is reported: {labels:?}",
+    );
+    assert!(
+        labels.contains(&"email_address"),
+        "alongside the body's: {labels:?}",
+    );
+}

@@ -61,7 +61,7 @@ fn expert_determination_policy(accounts: HipaaAccountNumbers) -> PolicyDefinitio
         // Same split as Safe Harbor: the table claims age and the
         // dates, the fallback pseudonymizes the rest of the scope.
         rules: vec![ed_table_rule(accounts)],
-        fallback: Some(ModalityRedactions::text(TextRedaction::Pseudonymize)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Pseudonymize)),
     }
 }
 
@@ -116,7 +116,7 @@ fn ed_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
             operators: vec![
                 LabelEntry {
                     label: LabelRef::from_static("age"),
-                    action: ModalityRedactions::text(TextRedaction::Clamp {
+                    action: ModalityRedactions::textual(TextRedaction::Clamp {
                         ceiling: Some(90.0),
                         ceiling_bucket: Some(ClampBucket::Plain("90 or older".to_owned())),
                         floor: None,
@@ -126,7 +126,7 @@ fn ed_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
                 },
                 LabelEntry {
                     label: LabelRef::from_static("date_of_birth"),
-                    action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
+                    action: ModalityRedactions::textual(TextRedaction::GeneralizeDate {
                         granularity: DateGranularity::Year,
                         style: DateStyle::Iso,
                         fallback: None,
@@ -134,7 +134,7 @@ fn ed_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
                 },
                 LabelEntry {
                     label: LabelRef::from_static("individual_date"),
-                    action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
+                    action: ModalityRedactions::textual(TextRedaction::GeneralizeDate {
                         granularity: DateGranularity::Year,
                         style: DateStyle::Iso,
                         fallback: None,

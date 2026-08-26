@@ -106,7 +106,7 @@ fn limited_data_set_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
         // No rules: every §164.514(e)(2) identifier gets the same
         // treatment, which is what the fallback expresses.
         rules: Vec::new(),
-        fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
     }
 }
 

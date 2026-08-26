@@ -44,7 +44,7 @@ fn policy(scope: GdprSensitiveScope) -> PolicyDefinition {
         custom: Vec::new(),
         // No rules: the whole scope gets one treatment.
         rules: Vec::new(),
-        fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
     }
 }
 

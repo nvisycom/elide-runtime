@@ -181,7 +181,7 @@ fn policy() -> PolicyDefinition {
         // No rules: every label in scope gets the same treatment,
         // which is exactly what the fallback expresses.
         rules: Vec::new(),
-        fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
     }
 }
 

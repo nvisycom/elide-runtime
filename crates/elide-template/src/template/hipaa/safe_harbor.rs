@@ -129,7 +129,7 @@ fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
         // only ever sees labels the table did not take, so no rule
         // ordering can turn a Clamp into an Erase.
         rules: vec![safe_harbor_table_rule(accounts)],
-        fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
     }
 }
 
@@ -182,7 +182,7 @@ fn safe_harbor_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
             operators: vec![
                 LabelEntry {
                     label: LabelRef::from_static("age"),
-                    action: ModalityRedactions::text(TextRedaction::Clamp {
+                    action: ModalityRedactions::textual(TextRedaction::Clamp {
                         ceiling: Some(90.0),
                         ceiling_bucket: Some(ClampBucket::Plain("90 or older".to_owned())),
                         floor: None,
@@ -192,7 +192,7 @@ fn safe_harbor_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
                 },
                 LabelEntry {
                     label: LabelRef::from_static("date_of_birth"),
-                    action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
+                    action: ModalityRedactions::textual(TextRedaction::GeneralizeDate {
                         granularity: DateGranularity::Year,
                         style: DateStyle::Iso,
                         fallback: None,
@@ -200,7 +200,7 @@ fn safe_harbor_table_rule(accounts: HipaaAccountNumbers) -> PolicyRule {
                 },
                 LabelEntry {
                     label: LabelRef::from_static("individual_date"),
-                    action: ModalityRedactions::text(TextRedaction::GeneralizeDate {
+                    action: ModalityRedactions::textual(TextRedaction::GeneralizeDate {
                         granularity: DateGranularity::Year,
                         style: DateStyle::Iso,
                         fallback: None,

@@ -88,6 +88,28 @@ impl ModalityRedactions {
         }
     }
 
+    /// A text operator applied wherever text lives: the text
+    /// modality, and tabular cells, which elide backs with text.
+    ///
+    /// The shape a records-oriented policy wants. A rule built with
+    /// [`text`](Self::text) alone matches a tabular entity and
+    /// attaches nothing, so the cell passes through unredacted with
+    /// no error — this closes that gap for the operators tabular
+    /// shares.
+    ///
+    /// Image and audio are deliberately absent: their vocabularies
+    /// are regions and spans, so a `GeneralizeDate` or a `Clamp` has
+    /// no counterpart there. A policy covering those media names
+    /// their operators explicitly.
+    #[must_use]
+    pub fn textual(spec: TextRedaction) -> Self {
+        Self {
+            text: Some(spec.clone()),
+            tabular: Some(TabularRedaction::Cell { spec }),
+            ..Self::default()
+        }
+    }
+
     /// See [`Self::text`]. Same shortcut, tabular slot.
     #[must_use]
     pub fn tabular(spec: TabularRedaction) -> Self {
@@ -124,5 +146,40 @@ impl ModalityRedactions {
             && self.tabular.is_none()
             && self.image.is_none()
             && self.audio.is_none()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ModalityRedactions, TabularRedaction, TextRedaction};
+
+    #[test]
+    fn textual_reaches_cells_as_well_as_text() {
+        // A rule built with `text` alone matches a tabular entity
+        // and attaches nothing, so the cell survives unredacted
+        // with no error. `textual` is what closes that.
+        let action = ModalityRedactions::textual(TextRedaction::Erase);
+
+        assert_eq!(action.text, Some(TextRedaction::Erase));
+        assert_eq!(
+            action.tabular,
+            Some(TabularRedaction::Cell {
+                spec: TextRedaction::Erase,
+            }),
+            "the same operator, applied to the cell's own text",
+        );
+    }
+
+    #[test]
+    fn textual_leaves_image_and_audio_alone() {
+        // Deliberate: their vocabularies are regions and spans, so
+        // an operator like `GeneralizeDate` has no counterpart. A
+        // policy covering those media names their operators itself
+        // rather than inheriting a substitute that would change
+        // what the policy promises.
+        let action = ModalityRedactions::textual(TextRedaction::Pseudonymize);
+
+        assert!(action.image.is_none());
+        assert!(action.audio.is_none());
     }
 }

@@ -216,7 +216,7 @@ fn pan_template(render: PciPanRender) -> Template {
             // of the variant is what happens to it, so the fallback
             // carries the action and inherits the scope's citation.
             rules: Vec::new(),
-            fallback: Some(ModalityRedactions::text(spec.action)),
+            fallback: Some(ModalityRedactions::textual(spec.action)),
         },
     }
 }
@@ -372,7 +372,7 @@ fn sav_template() -> Template {
             // the scope's citation. Unlike §3.5.1, there is no
             // render choice to cite per-variant.
             rules: Vec::new(),
-            fallback: Some(ModalityRedactions::text(TextRedaction::Erase)),
+            fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
         },
     }
 }

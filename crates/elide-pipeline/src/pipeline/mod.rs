@@ -57,7 +57,7 @@ use elide_governance::PolicyDefinition;
 use elide_provider::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};
 use serde::Deserialize;
 
-pub use self::audit::Audit;
+pub use self::audit::{Audit, Unhandled};
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
 use crate::file::Document;
 

@@ -12,9 +12,10 @@ mod fixtures;
 use std::io::{Cursor, Read};
 
 use bytes::Bytes;
-use elide::modality::text::Text;
+use elide::entity::LabelRef;
+use elide::modality::text::{Text, TextLocation};
 use elide_export::{ExportCsv, ExportJson, Table};
-use elide_pipeline::entity::{Edit, Reviewer, Suppress};
+use elide_pipeline::entity::{Add, Edit, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -180,16 +181,15 @@ async fn write_reviews_csv_only_lists_reviewed_entities() {
     );
     assert!(
         row.contains(",text,suppress,"),
-        "modality and decision; a suppression names no operator, so \
-         that column is empty; row: {row}",
+        "the row carries the entity's modality and the decision \
+         recorded against it; row: {row}",
     );
 }
 
 #[tokio::test]
 async fn write_reviews_csv_lists_a_suppression() {
-    // A suppression is a reviewer decision too, so it earns a row.
-    // It names no operator, so that column stays empty rather than
-    // carrying a value that is not an operator kind.
+    // A suppression is a reviewer decision too, so it earns a row
+    // rather than being visible only as an absence.
     let mut audit = analyze().await;
     let suppressed_id = {
         let ids = text_entity_ids(&audit);
@@ -217,7 +217,39 @@ async fn write_reviews_csv_lists_a_suppression() {
         .expect("the suppressed entity has a review row");
     assert!(
         row.contains(",text,suppress,"),
-        "a suppression exports its decision and an empty operator; row: {row}",
+        "a suppression exports its decision against the entity it \
+         names; row: {row}",
+    );
+}
+
+#[tokio::test]
+async fn write_reviews_csv_omits_an_add_which_names_no_entity() {
+    // Every table joins on `entity_id`, and an add has none until
+    // the engine mints one at apply. A row with an empty key would
+    // join to nothing, and nothing is lost by omitting it: an
+    // applied add appears in Entities under its real id, with its
+    // `flag` event in Provenance carrying the same reviewer and
+    // rationale.
+    let mut audit = analyze().await;
+    audit.edit(Edit::<Text>::Add(Add {
+        label: LabelRef::new("email_address"),
+        location: TextLocation::new(0, 5),
+        by: Reviewer {
+            reason: Some("recognizer missed it".into()),
+            actor: Some("reviewer".into()),
+        },
+    }));
+
+    let mut buf = Vec::new();
+    audit
+        .write_csv(Table::Reviews, &mut buf)
+        .expect("reviews table exports");
+    let output = String::from_utf8(buf).expect("csv is utf-8");
+
+    assert_eq!(
+        output.lines().skip(1).count(),
+        0,
+        "an add names no entity, so it earns no review row; got:\n{output}",
     );
 }
 

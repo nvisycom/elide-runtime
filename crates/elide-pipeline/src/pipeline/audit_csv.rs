@@ -77,7 +77,9 @@ impl ExportCsv for Audit {
     /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
     /// | [`Reviews`] | `entity_id, modality, decision, reason, actor` |
     ///
-    /// Every table carries `entity_id` so they join back together.
+    /// Every table carries `entity_id` so they join back together;
+    /// an `add`, which names no entity, is therefore reported
+    /// through `Entities` and `Provenance` rather than `Reviews`.
     /// Rows are sorted for stable diffs: entities by
     /// `(part_id, entity_id)`, the others by `entity_id`.
     ///
@@ -236,15 +238,24 @@ fn extend_provenance_rows<'a, M: Modality>(
     }
 }
 
-/// One row per edit in a modality's list.
+/// One row per edit naming an existing entity, so each decision
+/// joins to the detection it answers.
 ///
-/// Every operation earns a row, so an export shows each "leave this
-/// alone" and each reviewer-added detection beside the detections
-/// they answer to.
+/// An [`Add`](Edit::Add) produces no row here. It names no entity —
+/// the engine mints the id when the edit lands — so a row for one
+/// could only carry an empty `entity_id` and join to nothing.
+///
+/// It is still exported, just elsewhere: an applied add appears in
+/// [`Entities`](Table::Entities) under its real id, and its `flag`
+/// event in [`Provenance`](Table::Provenance) carries the same
+/// reviewer and rationale a row here would have.
 fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<ReviewRow>) {
     for edit in edits {
+        let Some(entity_id) = edit.target() else {
+            continue;
+        };
         out.push(ReviewRow {
-            entity_id: edit.target(),
+            entity_id,
             modality: M::NAME,
             decision: edit.name(),
             reason: edit.reason().unwrap_or_default().to_owned(),
@@ -260,7 +271,7 @@ fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<Re
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 struct ReviewRow {
-    entity_id: Option<Uuid>,
+    entity_id: Uuid,
     modality: &'static str,
     decision: &'static str,
     reason: String,

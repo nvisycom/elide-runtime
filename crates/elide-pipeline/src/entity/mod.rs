@@ -19,4 +19,4 @@ pub use elide::entity::{
     Entity, EntityCoRef, EntityRef, Label, LabelCatalog, LabelLocale, LabelRef,
 };
 #[doc(inline)]
-pub use elide_review::{Add, Edit, EditBucket, EditSet, Retag, Reviewer, Suppress};
+pub use elide_review::{Add, Edit, EditBucket, EditError, EditSet, Retag, Reviewer, Suppress};

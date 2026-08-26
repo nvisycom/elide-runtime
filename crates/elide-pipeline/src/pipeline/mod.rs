@@ -59,7 +59,6 @@ use serde::Deserialize;
 
 pub use self::audit::Audit;
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
-use crate::entity::EditSet;
 use crate::file::Document;
 
 /// Cheaply-cloneable pipeline adapter over [`elide`].
@@ -129,7 +128,6 @@ impl Engine {
 
         Ok(Audit {
             report,
-            edits: wire.edits,
             context: wire.context,
             codec: wire.codec,
             usage: wire.usage,
@@ -244,7 +242,6 @@ impl Engine {
 
         Ok(Audit {
             report,
-            edits: EditSet::default(),
             context: request.context.clone(),
             codec: request.codec,
             usage,
@@ -317,25 +314,9 @@ impl Engine {
             ));
         }
 
-        // Before anything is applied, so a self-contradicting
-        // payload fails with the audit untouched rather than
-        // half-honoured.
-        audit.edits.validate()?;
-
-        // Built before the edits are applied, because this can
-        // still fail — a policy naming an operator that will not
-        // compile, say. Applying first would leave the caller's
-        // audit half-mutated after a request that returned an
-        // error: suppressions stamped onto entities, added entities
-        // on the report, nothing redacted.
         let orchestrator =
             self.provider
                 .anonymize_orchestrator(&audit.context, policies, key, correlation_id)?;
-
-        // Land the pending edits on the report: added entities,
-        // corrected ones, and the suppression flag elide reads to
-        // decide what the redaction pass skips.
-        audit.edits.apply(&mut audit.report);
 
         // The report moves through apply and comes back mutated,
         // every entity carrying the redaction event elide stamped.
@@ -443,8 +424,6 @@ impl Engine {
 #[serde(rename_all = "camelCase")]
 struct AuditWire {
     report: serde_value::Value,
-    #[serde(default)]
-    edits: EditSet,
     context: DocumentContext,
     // No `default`: unlike `reviews`/`usage` this is always
     // serialized, so a payload omitting it is malformed rather

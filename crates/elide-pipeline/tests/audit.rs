@@ -12,10 +12,9 @@ mod fixtures;
 use std::io::{Cursor, Read};
 
 use bytes::Bytes;
-use elide::entity::LabelRef;
-use elide::modality::text::{Text, TextLocation};
+use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
-use elide_pipeline::entity::{Add, Edit, Reviewer, Suppress};
+use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 
@@ -59,7 +58,8 @@ fn text_entity_ids(audit: &Audit) -> Vec<uuid::Uuid> {
 fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
     let ids = text_entity_ids(audit);
     assert!(!ids.is_empty(), "sample fixture must produce entities");
-    audit.edit(Edit::<Text>::Suppress(Suppress {
+    let mut edits = EditSet::default();
+    edits.edit(Edit::<Text>::Suppress(Suppress {
         id: ids[0],
         by: Reviewer {
             reason: None,
@@ -149,127 +149,6 @@ async fn write_provenance_csv_emits_one_row_per_event() {
     assert_eq!(
         row_count, expected_events,
         "one row per event across the whole audit",
-    );
-}
-
-#[tokio::test]
-async fn write_reviews_csv_only_lists_reviewed_entities() {
-    let mut audit = analyze().await;
-    let reviewed_id = tag_first_with_review(&mut audit);
-
-    let mut buf = Vec::new();
-    audit
-        .write_csv(Table::Reviews, &mut buf)
-        .expect("reviews table exports");
-    write_artefact("sample", "audit-reviews.csv", &buf);
-    let output = String::from_utf8(buf).expect("csv is utf-8");
-
-    let mut lines = output.lines();
-    let header = lines.next().expect("header line present");
-    assert_eq!(header, "entity_id,modality,decision,reason,actor");
-
-    let rows: Vec<&str> = lines.collect();
-    assert_eq!(
-        rows.len(),
-        1,
-        "only the one reviewed entity should appear; got {rows:?}",
-    );
-    let row = rows[0];
-    assert!(
-        row.contains(&reviewed_id.to_string()),
-        "review row must carry the reviewed entity's id; row: {row}",
-    );
-    assert!(
-        row.contains(",text,suppress,"),
-        "the row carries the entity's modality and the decision \
-         recorded against it; row: {row}",
-    );
-}
-
-#[tokio::test]
-async fn write_reviews_csv_lists_a_suppression() {
-    // A suppression is a reviewer decision too, so it earns a row
-    // rather than being visible only as an absence.
-    let mut audit = analyze().await;
-    let suppressed_id = {
-        let ids = text_entity_ids(&audit);
-        assert!(!ids.is_empty(), "sample fixture must produce entities");
-        audit.edit(Edit::<Text>::Suppress(Suppress {
-            id: ids[0],
-            by: Reviewer {
-                reason: Some("false positive".into()),
-                actor: Some("reviewer".into()),
-            },
-        }));
-        ids[0]
-    };
-
-    let mut buf = Vec::new();
-    audit
-        .write_csv(Table::Reviews, &mut buf)
-        .expect("reviews table exports");
-    let output = String::from_utf8(buf).expect("csv is utf-8");
-
-    let row = output
-        .lines()
-        .skip(1)
-        .find(|row| row.contains(&suppressed_id.to_string()))
-        .expect("the suppressed entity has a review row");
-    assert!(
-        row.contains(",text,suppress,"),
-        "a suppression exports its decision against the entity it \
-         names; row: {row}",
-    );
-}
-
-#[tokio::test]
-async fn write_reviews_csv_omits_an_add_which_names_no_entity() {
-    // Every table joins on `entity_id`, and an add has none until
-    // the engine mints one at apply. A row with an empty key would
-    // join to nothing, and nothing is lost by omitting it: an
-    // applied add appears in Entities under its real id, with its
-    // `flag` event in Provenance carrying the same reviewer and
-    // rationale.
-    let mut audit = analyze().await;
-    audit.edit(Edit::<Text>::Add(Add {
-        label: LabelRef::new("email_address"),
-        location: TextLocation::new(0, 5),
-        by: Reviewer {
-            reason: Some("recognizer missed it".into()),
-            actor: Some("reviewer".into()),
-        },
-    }));
-
-    let mut buf = Vec::new();
-    audit
-        .write_csv(Table::Reviews, &mut buf)
-        .expect("reviews table exports");
-    let output = String::from_utf8(buf).expect("csv is utf-8");
-
-    assert_eq!(
-        output.lines().skip(1).count(),
-        0,
-        "an add names no entity, so it earns no review row; got:\n{output}",
-    );
-}
-
-#[tokio::test]
-async fn write_reviews_csv_writes_header_when_no_reviews_set() {
-    let audit = analyze().await;
-    let mut buf = Vec::new();
-    audit
-        .write_csv(Table::Reviews, &mut buf)
-        .expect("reviews table exports");
-    let output = String::from_utf8(buf).expect("csv is utf-8");
-
-    let line_count = output.lines().count();
-    assert_eq!(
-        line_count, 1,
-        "header must be written even when there are no data rows",
-    );
-    assert_eq!(
-        output.lines().next().unwrap(),
-        "entity_id,modality,decision,reason,actor",
     );
 }
 

@@ -9,7 +9,6 @@
 //!   essentials only.
 //! - [`Table::Provenance`]: one row per event on every entity's
 //!   provenance chain.
-//! - [`Table::Reviews`]: one row per reviewer edit.
 //!
 //! All three join on `entity_id`. The design choice for CSV is
 //! honest scalar columns everywhere: no JSON blobs, no
@@ -28,12 +27,10 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{Error, ErrorKind, Report, Result};
 use elide_export::{ExportCsv, Table, write_rows};
-use elide_governance::modality::RedactableModality;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use super::audit::Audit;
-use crate::entity::Edit;
 
 /// Run `$body` once per modality, binding `$m` to the modality
 /// type. Its wire name is `$m::NAME`.
@@ -67,7 +64,7 @@ impl ExportCsv for Audit {
     /// Entities first, then their provenance, then reviewer
     /// decisions: each table joins onto the previous one's
     /// `entity_id`, so this is the order a reader builds them up in.
-    const TABLES: &'static [Table] = &[Table::Entities, Table::Provenance, Table::Reviews];
+    const TABLES: &'static [Table] = &[Table::Entities, Table::Provenance];
 
     /// Write one table of this audit as CSV.
     ///
@@ -75,11 +72,12 @@ impl ExportCsv for Audit {
     /// |---|---|
     /// | [`Entities`] | `part_id, modality, entity_id, label, confidence, coref` |
     /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
-    /// | [`Reviews`] | `entity_id, modality, decision, reason, actor` |
     ///
-    /// Every table carries `entity_id` so they join back together;
-    /// an `add`, which names no entity, is therefore reported
-    /// through `Entities` and `Provenance` rather than `Reviews`.
+    /// Both tables carry `entity_id` so they join back together.
+    ///
+    /// Reviewer edits are not here: they are a separate input the
+    /// caller applies to the report, so what an audit exports is
+    /// the amended detections, not the amendments.
     /// Rows are sorted for stable diffs: entities by
     /// `(part_id, entity_id)`, the others by `entity_id`.
     ///
@@ -92,7 +90,6 @@ impl ExportCsv for Audit {
     ///
     /// [`Entities`]: Table::Entities
     /// [`Provenance`]: Table::Provenance
-    /// [`Reviews`]: Table::Reviews
     ///
     /// # Errors
     ///
@@ -104,7 +101,6 @@ impl ExportCsv for Audit {
             Table::Provenance => {
                 write_rows(writer, ProvenanceRow::header(), self.provenance_rows())
             }
-            Table::Reviews => write_rows(writer, ReviewRow::header(), self.review_rows()),
             // `Table` is `#[non_exhaustive]`: a table added there
             // that this audit cannot project is a caller error, not
             // a silent empty file.
@@ -160,17 +156,6 @@ impl Audit {
                 .cmp(&b.entity_id)
                 .then(a.event_index.cmp(&b.event_index))
         });
-        rows
-    }
-
-    /// One row per reviewer decision, sorted by `entity_id`.
-    fn review_rows(&self) -> Vec<ReviewRow> {
-        let mut rows: Vec<ReviewRow> = Vec::new();
-        extend_review_rows(&self.edits.text, &mut rows);
-        extend_review_rows(&self.edits.tabular, &mut rows);
-        extend_review_rows(&self.edits.image, &mut rows);
-        extend_review_rows(&self.edits.audio, &mut rows);
-        rows.sort_by_key(|row| row.entity_id);
         rows
     }
 }
@@ -238,46 +223,6 @@ fn extend_provenance_rows<'a, M: Modality>(
     }
 }
 
-/// One row per edit naming an existing entity, so each decision
-/// joins to the detection it answers.
-///
-/// An [`Add`](Edit::Add) produces no row here. It names no entity —
-/// the engine mints the id when the edit lands — so a row for one
-/// could only carry an empty `entity_id` and join to nothing.
-///
-/// It is still exported, just elsewhere: an applied add appears in
-/// [`Entities`](Table::Entities) under its real id, and its `flag`
-/// event in [`Provenance`](Table::Provenance) carries the same
-/// reviewer and rationale a row here would have.
-fn extend_review_rows<M: RedactableModality>(edits: &[Edit<M>], out: &mut Vec<ReviewRow>) {
-    for edit in edits {
-        let Some(entity_id) = edit.target() else {
-            continue;
-        };
-        out.push(ReviewRow {
-            entity_id,
-            modality: M::NAME,
-            decision: edit.name(),
-            reason: edit.reason().unwrap_or_default().to_owned(),
-            actor: edit.actor().unwrap_or_default().to_owned(),
-        });
-    }
-}
-
-/// One reviewer edit, as the review CSV exports it.
-///
-/// `entity_id` is empty for an `add`, whose entity does not exist
-/// until the edit is applied.
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-struct ReviewRow {
-    entity_id: Uuid,
-    modality: &'static str,
-    decision: &'static str,
-    reason: String,
-    actor: String,
-}
-
 impl EntityRow<'_> {
     const fn header() -> &'static [&'static str] {
         &[
@@ -302,12 +247,6 @@ impl ProvenanceRow<'_> {
             "timestamp",
             "payload_id",
         ]
-    }
-}
-
-impl ReviewRow {
-    const fn header() -> &'static [&'static str] {
-        &["entity_id", "modality", "decision", "reason", "actor"]
     }
 }
 

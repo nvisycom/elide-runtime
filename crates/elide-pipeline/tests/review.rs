@@ -16,7 +16,7 @@ use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelScope, PolicyDefinition};
-use elide_pipeline::entity::{Add, Edit, Retag, Reviewer, Suppress};
+use elide_pipeline::entity::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 use uuid::Uuid;
@@ -58,10 +58,10 @@ fn doc() -> Document {
     Document::new(Bytes::from_static(SAMPLE), "txt")
 }
 
-/// Analyze, let `edit` apply reviewer decisions, then round-trip
-/// the audit through JSON before anonymizing: the path a stateless
-/// host actually takes.
-async fn review_and_apply(edit: impl FnOnce(&mut Audit)) -> (String, Audit) {
+/// Analyze, collect reviewer edits, apply them, then round-trip the
+/// audit through JSON before anonymizing: the path a stateless host
+/// actually takes.
+async fn review_and_apply(review: impl FnOnce(&Audit, &mut EditSet)) -> (String, Audit) {
     let engine = Engine::new(ProviderConfig::default().build());
     let policy = policy();
     let mut audit = engine
@@ -69,7 +69,15 @@ async fn review_and_apply(edit: impl FnOnce(&mut Audit)) -> (String, Audit) {
         .await
         .expect("analyze");
 
-    edit(&mut audit);
+    // The reviewer's edits are the caller's own value; applying
+    // them amends the report, and the audit carries the amended
+    // detections onward.
+    let mut edits = EditSet::default();
+    review(&audit, &mut edits);
+    edits
+        .validate(&audit.report)
+        .expect("edits apply to this report");
+    edits.apply(&mut audit.report);
 
     let json = serde_json::to_string(&audit).expect("audit serializes");
     let mut posted_back = round_trip(&engine, &json);
@@ -140,7 +148,7 @@ fn entity(audit: &Audit, id: Uuid) -> &Entity<Text> {
 
 #[tokio::test]
 async fn baseline_redacts_every_detection() {
-    let (out, _) = review_and_apply(|_| {}).await;
+    let (out, _) = review_and_apply(|_, _| {}).await;
     assert!(!out.contains("alice@example.com"), "{out}");
     assert!(!out.contains("bob@example.com"), "{out}");
     // Not detected, so untouched without a manual include.
@@ -149,9 +157,9 @@ async fn baseline_redacts_every_detection() {
 
 #[tokio::test]
 async fn suppress_leaves_the_entity_alone() {
-    let (out, audit) = review_and_apply(|audit| {
+    let (out, audit) = review_and_apply(|audit, edits| {
         let id = ordered(audit)[0];
-        audit.edit(Edit::<Text>::Suppress(Suppress {
+        edits.edit(Edit::<Text>::Suppress(Suppress {
             id,
             by: Reviewer {
                 reason: Some("known test account".into()),
@@ -204,11 +212,12 @@ async fn suppress_leaves_the_entity_alone() {
 
 #[tokio::test]
 async fn include_redacts_what_recognition_missed() {
-    let (out, _) = review_and_apply(|audit| {
-        let added = audit
-            .report
-            .include::<Text>(manual_entity(span_of(b"SECRET-9")));
-        assert!(added, "include into the matching modality");
+    let (out, _) = review_and_apply(|_, edits| {
+        edits.edit(Edit::Add(Add::<Text> {
+            label: LabelRef::new("email_address"),
+            location: span_of(b"SECRET-9"),
+            by: Reviewer::default(),
+        }));
     })
     .await;
 
@@ -274,16 +283,16 @@ async fn include_rejects_a_foreign_modality() {
 
 #[tokio::test]
 async fn several_edits_compose_in_one_pass() {
-    let (out, _) = review_and_apply(|audit| {
+    let (out, _) = review_and_apply(|audit, edits| {
         let ids = ordered(audit);
-        audit.edit(Edit::<Text>::Suppress(Suppress {
+        edits.edit(Edit::<Text>::Suppress(Suppress {
             id: ids[0],
             by: Reviewer {
                 reason: Some("false positive".into()),
                 actor: None,
             },
         }));
-        audit.edit(Edit::Retag(Retag::<Text> {
+        edits.edit(Edit::Retag(Retag::<Text> {
             id: ids[1],
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,
@@ -292,9 +301,11 @@ async fn several_edits_compose_in_one_pass() {
                 actor: None,
             },
         }));
-        audit
-            .report
-            .include::<Text>(manual_entity(span_of(b"SECRET-9")));
+        edits.edit(Edit::Add(Add::<Text> {
+            label: LabelRef::new("email_address"),
+            location: span_of(b"SECRET-9"),
+            by: Reviewer::default(),
+        }));
     })
     .await;
 
@@ -362,13 +373,15 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         "precondition: analyze recorded a pick",
     );
 
-    audit.edit(Edit::<Text>::Suppress(Suppress {
+    let mut edits = EditSet::default();
+    edits.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
         by: Reviewer {
             reason: Some("false positive".into()),
             actor: None,
         },
     }));
+    edits.apply(&mut audit.report);
     engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
         .await
@@ -416,13 +429,15 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
         .expect("analyze");
 
     let target = ordered(&audit)[0];
-    audit.edit(Edit::<Text>::Suppress(Suppress {
+    let mut edits = EditSet::default();
+    edits.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
         by: Reviewer {
             reason: None,
             actor: None,
         },
     }));
+    edits.apply(&mut audit.report);
     for _ in 0..3 {
         engine
             .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
@@ -448,8 +463,8 @@ async fn an_add_edit_redacts_what_recognition_missed() {
     // recognizers never flagged, and the policy set redacts it like
     // any detection. No hand-built entity, no fabricated pattern
     // event — elide mints the id and stamps the human provenance.
-    let (out, audit) = review_and_apply(|audit| {
-        audit.edit(Edit::Add(Add::<Text> {
+    let (out, audit) = review_and_apply(|_, edits| {
+        edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
             by: Reviewer {
@@ -489,9 +504,9 @@ async fn a_retag_edit_moves_the_entity_out_of_policy_scope() {
     // entity alone — exactly as if it had been detected that way.
     // Proves the retag actually reaches the report rather than
     // being carried and ignored.
-    let (out, _) = review_and_apply(|audit| {
+    let (out, _) = review_and_apply(|audit, edits| {
         let id = ordered(audit)[0];
-        audit.edit(Edit::Retag(Retag::<Text> {
+        edits.edit(Edit::Retag(Retag::<Text> {
             id,
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,

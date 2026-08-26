@@ -14,7 +14,6 @@ use elide::modality::text::Text;
 use elide::{ErrorKind, Report};
 use elide_governance::PolicyDefinition;
 use elide_governance::redaction::ModalityRedactions;
-use elide_pipeline::entity::EditSet;
 use elide_pipeline::file::Document;
 use elide_pipeline::{
     Audit, CodecParams, Component, DocumentContext, Engine, Enrichers, OcrBackend, ProviderConfig,
@@ -303,7 +302,6 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
     let engine = engine();
     let mut audit = Audit {
         report: Report::new(),
-        edits: EditSet::default(),
         context: DocumentContext::default(),
         codec: CodecParams::default(),
         usage: Default::default(),

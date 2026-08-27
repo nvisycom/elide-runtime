@@ -6,6 +6,7 @@
 //! crate stands on its own.
 
 use elide::Report;
+use elide::codec::PartId;
 use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::text::{Text, TextLocation};
@@ -43,11 +44,19 @@ fn edits_deserialize_from_a_request_body() {
             {"op": "suppress", "id": "01958ccd-0000-7000-8000-000000000001",
              "reason": "false positive", "actor": "alice"},
             {"op": "add", "label": "phone_number",
-             "location": {"range": {"start": 10, "end": 22}}}
+             "location": {"range": {"start": 10, "end": 22}},
+             "part": "word/document.xml"}
         ]
     }"#;
     let edits: EditSet = serde_json::from_str(body).expect("edits deserialize");
     assert_eq!(edits.len(), 2);
+
+    // A container's reviewer names the part they were looking at;
+    // an add without one lands on the body.
+    let Some(Edit::Add(add)) = edits.text.get(1) else {
+        panic!("the second edit is the add");
+    };
+    assert_eq!(add.part.as_deref(), Some("word/document.xml"));
 
     // Validating needs the report the edits target — an id is only
     // meaningful against one — so a handler parses here and
@@ -86,6 +95,7 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
     edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
+        part: None,
         by: Reviewer {
             reason: None,
             actor: Some("alice".into()),
@@ -187,6 +197,7 @@ fn an_added_entity_keeps_its_reason_and_actor() {
     edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
+        part: None,
         by: Reviewer {
             reason: Some("recognizer missed it".into()),
             actor: Some("alice".into()),
@@ -346,7 +357,7 @@ fn an_edit_naming_no_entity_in_the_report_is_rejected() {
     let err = edits
         .validate(&report)
         .expect_err("a stale id is not applicable to this report");
-    assert_eq!(err.entity_id(), stale);
+    assert_eq!(err.entity_id(), Some(stale));
     assert!(
         matches!(err, EditError::UnknownTarget { .. }),
         "the reason is the missing target, not a contradiction: {err}",
@@ -380,4 +391,65 @@ fn an_edit_filed_under_the_wrong_modality_is_rejected() {
         ),
         "reported against the bucket it was filed under: {err}",
     );
+}
+
+#[test]
+fn an_add_lands_in_the_part_it_names() {
+    // A reviewer working on a DOCX is looking at a part, not the
+    // body — the body is the container. Each part decodes
+    // separately, so the location is in *that* part's coordinates
+    // and the part has to be named alongside it.
+    let part = PartId::new("word/document.xml");
+    let mut report = Report::new()
+        .insert_body::<Text>(Vec::new())
+        .insert_part::<Text>(part.clone(), Vec::new());
+
+    let mut edits = EditSet::default();
+    edits.edit(Edit::Add(Add::<Text> {
+        label: LabelRef::new("email_address"),
+        location: TextLocation::new(10, 22),
+        part: Some("word/document.xml".to_owned()),
+        by: Reviewer::default(),
+    }));
+
+    edits.validate(&report).expect("the part exists");
+    edits.apply(&mut report);
+
+    assert_eq!(
+        report
+            .part_entities::<Text>(&part)
+            .expect("the part carries entities")
+            .len(),
+        1,
+        "the addition landed in the part",
+    );
+    assert!(
+        report.entities::<Text>().expect("body").is_empty(),
+        "and not on the body",
+    );
+}
+
+#[test]
+fn an_add_naming_an_absent_part_is_rejected() {
+    // `include_part` returns `false` for a part the report does not
+    // carry, so without this the addition would vanish and the
+    // reviewer would be told it landed.
+    let report = Report::new().insert_body::<Text>(Vec::new());
+
+    let mut edits = EditSet::default();
+    edits.edit(Edit::Add(Add::<Text> {
+        label: LabelRef::new("email_address"),
+        location: TextLocation::new(0, 4),
+        part: Some("word/nonexistent.xml".to_owned()),
+        by: Reviewer::default(),
+    }));
+
+    let err = edits
+        .validate(&report)
+        .expect_err("the part is not in this report");
+    assert!(
+        matches!(&err, EditError::UnknownPart { part } if part == "word/nonexistent.xml"),
+        "the error names the missing part: {err}",
+    );
+    assert_eq!(err.entity_id(), None, "an add names no entity");
 }

@@ -78,8 +78,22 @@ pub enum Edit<M: RedactableModality> {
 pub struct Add<M: RedactableModality> {
     /// What the reviewer says this is.
     pub label: LabelRef,
-    /// Where it sits in the document.
+    /// Where it sits, in the coordinates of whatever it sits *in*:
+    /// the body's decoded text, or — when [`part`](Self::part) names
+    /// one — that part's.
+    ///
+    /// A container decodes each part separately, so there is no
+    /// document-wide stream to address. An offset is only meaningful
+    /// against the part it came from.
     pub location: M::Location,
+    /// The container part this belongs to, e.g.
+    /// `"word/document.xml"`. `None` puts it on the body.
+    ///
+    /// A reviewer working on a DOCX is looking at a part, not the
+    /// body — the body is the container itself. Without this, an
+    /// addition they make in `word/document.xml` has nowhere to go.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<String>,
     /// Who made the call, and why.
     #[serde(flatten)]
     pub by: Reviewer,

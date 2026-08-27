@@ -216,6 +216,7 @@ async fn include_redacts_what_recognition_missed() {
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
+            part: None,
             by: Reviewer::default(),
         }));
     })
@@ -304,6 +305,7 @@ async fn several_edits_compose_in_one_pass() {
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
+            part: None,
             by: Reviewer::default(),
         }));
     })
@@ -467,6 +469,7 @@ async fn an_add_edit_redacts_what_recognition_missed() {
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
+            part: None,
             by: Reviewer {
                 reason: Some("recognizer missed it".into()),
                 actor: Some("alice".into()),

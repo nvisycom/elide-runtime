@@ -142,6 +142,17 @@ fn validate_modality<M: RedactableModality>(
     let mut seen: HashMap<(Uuid, Channel), Vec<&Edit<M>>> = HashMap::new();
 
     for edit in edits {
+        // An add names no entity — the engine mints the id when it
+        // lands — but it may name a part, and `include_part` is
+        // silent about one the report does not carry.
+        if let Edit::Add(add) = edit
+            && let Some(part) = add.part.as_deref()
+            && !report.part_ids().any(|(id, _)| id.as_str() == part)
+        {
+            return Err(EditError::UnknownPart {
+                part: part.to_owned(),
+            });
+        }
         let Some(id) = edit.target() else {
             continue;
         };

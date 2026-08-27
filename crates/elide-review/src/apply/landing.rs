@@ -6,6 +6,7 @@
 //! modality marker is not.
 
 use elide::Report;
+use elide::codec::PartId;
 use elide::entity::audit::{Attribution, AuditLog, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::Modality;
@@ -23,6 +24,7 @@ pub(super) enum Landing<M: Modality> {
     Add {
         label: LabelRef,
         location: M::Location,
+        part: Option<String>,
         reason: Option<String>,
         actor: Option<String>,
     },
@@ -50,6 +52,7 @@ impl<M: Modality> Landing<M> {
             Edit::Add(e) => Self::Add {
                 label: e.label.clone(),
                 location: e.location.clone(),
+                part: e.part.clone(),
                 reason: e.by.reason.clone(),
                 actor: e.by.actor.clone(),
             },
@@ -78,6 +81,7 @@ impl<M: Modality> Landing<M> {
             Self::Add {
                 label,
                 location,
+                part,
                 reason,
                 actor,
             } => {
@@ -91,7 +95,10 @@ impl<M: Modality> Landing<M> {
                     reason.map(Attribution::freeform).map(Into::into),
                     actor.as_deref(),
                 );
-                report.include::<M>(entity);
+                match part {
+                    Some(part) => report.include_part::<M>(&PartId::from(part), entity),
+                    None => report.include::<M>(entity),
+                };
             }
             Self::Retag {
                 id,

@@ -216,6 +216,7 @@ async fn include_redacts_what_recognition_missed() {
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
+            part: None,
             by: Reviewer::default(),
         }));
     })
@@ -304,6 +305,7 @@ async fn several_edits_compose_in_one_pass() {
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
+            part: None,
             by: Reviewer::default(),
         }));
     })
@@ -467,6 +469,7 @@ async fn an_add_edit_redacts_what_recognition_missed() {
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
+            part: None,
             by: Reviewer {
                 reason: Some("recognizer missed it".into()),
                 actor: Some("alice".into()),
@@ -475,6 +478,16 @@ async fn an_add_edit_redacts_what_recognition_missed() {
     })
     .await;
 
+    // A reviewer-added entity the policy covers is picked like any
+    // other, so it carries a `Selection` and does not read as
+    // unhandled. Excluding manually-flagged entities outright would
+    // hide the case that matters: an addition the policy set does
+    // *not* cover, which survives into the output.
+    assert!(
+        audit.unhandled().is_empty(),
+        "a redacted addition is not unhandled: {:?}",
+        audit.unhandled(),
+    );
     assert!(
         !out.contains("SECRET-9"),
         "a reviewer-added entity is redacted by the policy set: {out}",

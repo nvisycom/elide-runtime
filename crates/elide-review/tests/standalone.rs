@@ -6,10 +6,12 @@
 //! crate stands on its own.
 
 use elide::Report;
+use elide::codec::PartId;
 use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, ManualIntent};
 use elide::entity::{Entity, LabelRef};
+use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
-use elide::primitive::Confidence;
+use elide::primitive::{BoundingBox, Confidence, Point};
 use elide_review::{Add, Edit, EditError, EditSet, Retag, Reviewer, Suppress};
 use uuid::Uuid;
 
@@ -43,11 +45,29 @@ fn edits_deserialize_from_a_request_body() {
             {"op": "suppress", "id": "01958ccd-0000-7000-8000-000000000001",
              "reason": "false positive", "actor": "alice"},
             {"op": "add", "label": "phone_number",
-             "location": {"range": {"start": 10, "end": 22}}}
+             "location": {
+                 "range": {"start": 0, "end": 0},
+                 "source": [{"range": {"start": 200, "end": 215},
+                             "part": "word/document.xml"}]
+             }}
         ]
     }"#;
     let edits: EditSet = serde_json::from_str(body).expect("edits deserialize");
     assert_eq!(edits.len(), 2);
+
+    // A reviewer selecting rendered text in a container has raw
+    // file bytes, not a decoded offset — the engine reverse-resolves
+    // `source`, and the part rides along inside it. The add itself
+    // names no part: a container's text is its body.
+    let Some(Edit::Add(add)) = edits.text.get(1) else {
+        panic!("the second edit is the add");
+    };
+    assert_eq!(add.part, None, "text goes to the body");
+    assert_eq!(
+        add.location.source.first().and_then(|s| s.part.as_deref()),
+        Some("word/document.xml"),
+        "and the part is carried by the source reference",
+    );
 
     // Validating needs the report the edits target — an id is only
     // meaningful against one — so a handler parses here and
@@ -86,6 +106,7 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
     edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
+        part: None,
         by: Reviewer {
             reason: None,
             actor: Some("alice".into()),
@@ -187,6 +208,7 @@ fn an_added_entity_keeps_its_reason_and_actor() {
     edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
+        part: None,
         by: Reviewer {
             reason: Some("recognizer missed it".into()),
             actor: Some("alice".into()),
@@ -346,7 +368,7 @@ fn an_edit_naming_no_entity_in_the_report_is_rejected() {
     let err = edits
         .validate(&report)
         .expect_err("a stale id is not applicable to this report");
-    assert_eq!(err.entity_id(), stale);
+    assert_eq!(err.entity_id(), Some(stale));
     assert!(
         matches!(err, EditError::UnknownTarget { .. }),
         "the reason is the missing target, not a contradiction: {err}",
@@ -380,4 +402,65 @@ fn an_edit_filed_under_the_wrong_modality_is_rejected() {
         ),
         "reported against the bucket it was filed under: {err}",
     );
+}
+
+#[test]
+fn an_image_add_lands_in_the_part_it_names() {
+    // The case this field exists for. A container's embedded media
+    // is a report group of its own, so an image entity lives under
+    // its part — a reviewer boxing a face in `image1.png` has
+    // nowhere to put it otherwise.
+    //
+    // Text does not need this: a DOCX's `word/document.xml` text is
+    // the *body*, and where a span came from is carried by
+    // `TextLocation::source`.
+    let part = PartId::new("word/media/image1.png");
+    let mut report = Report::new()
+        .insert_body::<Text>(Vec::new())
+        .insert_part::<Image>(part.clone(), Vec::new());
+
+    let mut edits = EditSet::default();
+    edits.edit(Edit::Add(Add::<Image> {
+        label: LabelRef::new("person_name"),
+        location: ImageLocation::new(BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0))),
+        part: Some("word/media/image1.png".to_owned()),
+        by: Reviewer::default(),
+    }));
+
+    edits.validate(&report).expect("the part exists");
+    edits.apply(&mut report);
+
+    assert_eq!(
+        report
+            .part_entities::<Image>(&part)
+            .expect("the part carries entities")
+            .len(),
+        1,
+        "the addition landed in the part",
+    );
+}
+
+#[test]
+fn an_add_naming_an_absent_part_is_rejected() {
+    // `include_part` returns `false` for a part the report does not
+    // carry, so without this the addition would vanish and the
+    // reviewer would be told it landed.
+    let report = Report::new().insert_body::<Text>(Vec::new());
+
+    let mut edits = EditSet::default();
+    edits.edit(Edit::Add(Add::<Text> {
+        label: LabelRef::new("email_address"),
+        location: TextLocation::new(0, 4),
+        part: Some("word/nonexistent.xml".to_owned()),
+        by: Reviewer::default(),
+    }));
+
+    let err = edits
+        .validate(&report)
+        .expect_err("the part is not in this report");
+    assert!(
+        matches!(&err, EditError::UnknownPart { part } if part == "word/nonexistent.xml"),
+        "the error names the missing part: {err}",
+    );
+    assert_eq!(err.entity_id(), None, "an add names no entity");
 }

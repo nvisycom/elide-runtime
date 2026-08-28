@@ -78,20 +78,27 @@ pub enum Edit<M: RedactableModality> {
 pub struct Add<M: RedactableModality> {
     /// What the reviewer says this is.
     pub label: LabelRef,
-    /// Where it sits, in the coordinates of whatever it sits *in*:
-    /// the body's decoded text, or — when [`part`](Self::part) names
-    /// one — that part's.
+    /// Where it sits, in the coordinates of the group it joins.
     ///
-    /// A container decodes each part separately, so there is no
-    /// document-wide stream to address. An offset is only meaningful
-    /// against the part it came from.
+    /// For text in a container, that is the body's decoded stream —
+    /// a DOCX's `word/document.xml` text *is* the body, not a part.
+    /// A caller who has raw file bytes rather than a decoded offset
+    /// (a reviewer selecting rendered text, say) leaves `range`
+    /// empty and fills [`TextLocation::source`] instead, which the
+    /// engine reverse-resolves.
+    ///
+    /// [`TextLocation::source`]: elide::modality::text::TextLocation::source
     pub location: M::Location,
     /// The container part this belongs to, e.g.
-    /// `"word/document.xml"`. `None` puts it on the body.
+    /// `"word/media/image1.png"`. `None` puts it on the body.
     ///
-    /// A reviewer working on a DOCX is looking at a part, not the
-    /// body — the body is the container itself. Without this, an
-    /// addition they make in `word/document.xml` has nowhere to go.
+    /// For the media a container embeds, which the report holds as
+    /// its own group: an image entity lives under its part, and an
+    /// addition to one has nowhere to go without naming it.
+    ///
+    /// Text does not need this. A container's text is its body, and
+    /// where a span came from is already in `TextLocation::source`,
+    /// which carries the part alongside the raw range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub part: Option<String>,
     /// Who made the call, and why.

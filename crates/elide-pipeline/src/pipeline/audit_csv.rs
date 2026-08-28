@@ -209,15 +209,15 @@ fn extend_provenance_rows<'a, M: Modality>(
 ) {
     for entity in entities {
         for (index, event) in entity.audit.events().iter().enumerate() {
-            let (kind, payload_id) = event_kind_and_payload(&event.kind);
+            let columns = EventColumns::of(&event.kind);
             out.push(ProvenanceRow {
                 entity_id: entity.id,
                 event_index: index,
-                kind,
+                kind: columns.kind,
                 source: event.source.as_str(),
                 confidence: f32::from(event.confidence),
                 timestamp: event.timestamp.to_string(),
-                payload_id,
+                payload_id: columns.payload_id,
             });
         }
     }
@@ -250,36 +250,66 @@ impl ProvenanceRow<'_> {
     }
 }
 
-/// Discriminator + optional payload id for a provenance event
-/// kind. Payload id carries the pattern rule name or model name
-/// when the variant has one; empty otherwise.
-fn event_kind_and_payload<M: Modality>(kind: &AuditKind<M>) -> (&'static str, Option<&str>) {
-    match kind {
-        AuditKind::Pattern(e) => ("pattern", Some(e.pattern.name.as_str())),
-        AuditKind::Model(e) => ("model", Some(e.model.name.as_str())),
-        AuditKind::Deduplication(e) => ("deduplication", Some(e.strategy.as_str())),
-        AuditKind::Conflict(e) => ("conflict", Some(e.resolved_by.as_str())),
-        AuditKind::Contested(e) => ("contested", Some(e.flagged_by.as_str())),
-        AuditKind::Calibration(_) => ("calibration", None),
-        AuditKind::Refinement(_) => ("refinement", None),
-        AuditKind::Redaction(_) => ("redaction", None),
-        AuditKind::Selection(e) => ("selection", Some(e.operator.name.as_str())),
-        // The reviewer is the event's own `source`, which the row
-        // already carries; what distinguishes one manual event from
-        // another is which decision it recorded.
-        AuditKind::Manual(e) => (
-            "manual",
-            Some(match e.intent {
-                ManualIntent::Flag => "flag",
-                ManualIntent::Suppress => "suppress",
-                ManualIntent::Amend => "amend",
-            }),
-        ),
-        // `AuditKind` is `#[non_exhaustive]`: a kind added upstream
-        // lands here rather than breaking the build. Every variant
-        // elide ships today is named above, so this arm firing means
-        // a new one needs a column mapping.
-        _ => ("unknown", None),
+/// How a provenance event renders in the CSV: its kind, and the
+/// one identifier that kind carries.
+///
+/// `payload_id` is the pattern rule name, the model name, the
+/// strategy that deduplicated, and so on — whichever single string
+/// names *what* produced the event. `None` for the kinds that carry
+/// no such name.
+struct EventColumns<'a> {
+    /// The event kind, as the `kind` column.
+    kind: &'static str,
+    /// What produced it, as the `payload_id` column.
+    payload_id: Option<&'a str>,
+}
+
+impl<'a> EventColumns<'a> {
+    /// A kind that names what produced it.
+    const fn named(kind: &'static str, payload_id: &'a str) -> Self {
+        Self {
+            kind,
+            payload_id: Some(payload_id),
+        }
+    }
+
+    /// A kind that carries no such name.
+    const fn bare(kind: &'static str) -> Self {
+        Self {
+            kind,
+            payload_id: None,
+        }
+    }
+
+    /// Read the columns off one provenance event kind.
+    fn of<M: Modality>(kind: &'a AuditKind<M>) -> Self {
+        match kind {
+            AuditKind::Pattern(e) => Self::named("pattern", e.pattern.name.as_str()),
+            AuditKind::Model(e) => Self::named("model", e.model.name.as_str()),
+            AuditKind::Deduplication(e) => Self::named("deduplication", e.strategy.as_str()),
+            AuditKind::Conflict(e) => Self::named("conflict", e.resolved_by.as_str()),
+            AuditKind::Contested(e) => Self::named("contested", e.flagged_by.as_str()),
+            AuditKind::Calibration(_) => Self::bare("calibration"),
+            AuditKind::Refinement(_) => Self::bare("refinement"),
+            AuditKind::Redaction(_) => Self::bare("redaction"),
+            AuditKind::Selection(e) => Self::named("selection", e.operator.name.as_str()),
+            // The reviewer is the event's own `source`, which the row
+            // already carries; what distinguishes one manual event from
+            // another is which decision it recorded.
+            AuditKind::Manual(e) => Self::named(
+                "manual",
+                match e.intent {
+                    ManualIntent::Flag => "flag",
+                    ManualIntent::Suppress => "suppress",
+                    ManualIntent::Amend => "amend",
+                },
+            ),
+            // `AuditKind` is `#[non_exhaustive]`: a kind added upstream
+            // lands here rather than breaking the build. Every variant
+            // elide ships today is named above, so this arm firing means
+            // a new one needs a column mapping.
+            _ => Self::bare("unknown"),
+        }
     }
 }
 

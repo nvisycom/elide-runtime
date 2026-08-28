@@ -285,8 +285,8 @@ fn validate_scope_references(policies: &[PolicyDefinition]) -> Result<()> {
             }
         }
         for rule in &policy.rules {
-            for (predicate, _) in rule.attachments() {
-                check_predicate_scopes(&predicate, &known, policy, rule)?;
+            for attachment in rule.attachments() {
+                check_predicate_scopes(&attachment.predicate, &known, policy, rule)?;
             }
         }
     }

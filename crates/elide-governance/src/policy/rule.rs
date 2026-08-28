@@ -93,21 +93,41 @@ impl PolicyRule {
     /// `Table` yields in the entries' declared order.
     ///
     /// [`Predicate::LabelOneOf`]: crate::Predicate::LabelOneOf
-    pub fn attachments(&self) -> Box<dyn Iterator<Item = (Predicate, &ModalityRedactions)> + '_> {
+    pub fn attachments(&self) -> Box<dyn Iterator<Item = Attachment<'_>> + '_> {
         match &self.dispatch {
             RuleDispatch::Predicated { predicate, action } => {
-                Box::new(std::iter::once((predicate.clone(), action.as_ref())))
+                Box::new(std::iter::once(Attachment {
+                    predicate: predicate.clone(),
+                    action: action.as_ref(),
+                }))
             }
-            RuleDispatch::Table { operators } => Box::new(operators.iter().map(|entry| {
-                (
-                    Predicate::LabelOneOf {
+            RuleDispatch::Table { operators } => {
+                Box::new(operators.iter().map(|entry| Attachment {
+                    predicate: Predicate::LabelOneOf {
                         labels: vec![entry.label.clone()],
                     },
-                    &entry.action,
-                )
-            })),
+                    action: &entry.action,
+                }))
+            }
         }
     }
+}
+
+/// One `(predicate, action)` pairing a [`PolicyRule`] expands into.
+///
+/// A [`Predicated`] rule yields one; a [`Table`] yields one per
+/// entry, each with a synthetic predicate matching that entry's
+/// label. Every attachment from one rule answers to that rule's
+/// attribution.
+///
+/// [`Predicated`]: RuleDispatch::Predicated
+/// [`Table`]: RuleDispatch::Table
+#[derive(Debug, Clone)]
+pub struct Attachment<'a> {
+    /// Which entities this attachment claims.
+    pub predicate: Predicate,
+    /// The per-modality operators to run on them.
+    pub action: &'a ModalityRedactions,
 }
 
 /// How a [`PolicyRule`] selects candidate entities and pairs them

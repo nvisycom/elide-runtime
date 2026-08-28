@@ -79,9 +79,15 @@ impl PolicyContext {
     ///
     /// [`scopes`]: elide_governance::PolicyDefinition::scopes
     pub(in crate::redaction) fn from_policy(policy: &PolicyDefinition) -> Self {
+        /// One scope as a lookup entry, keyed by the name a
+        /// `LabelInScope` predicate cites.
+        fn entry(scope: &LabelScope) -> (String, HashSet<LabelRef>) {
+            let labels: HashSet<LabelRef> = scope.labels.iter().cloned().collect();
+            (scope.name.to_string(), labels)
+        }
+
         let label_scope: HashSet<LabelRef> = policy.label_scope().into_iter().collect();
-        let scopes: HashMap<String, HashSet<LabelRef>> =
-            policy.scopes.iter().map(scope_lookup_entry).collect();
+        let scopes: HashMap<String, HashSet<LabelRef>> = policy.scopes.iter().map(entry).collect();
         Self {
             policy_id: policy.id,
             label_scope: Arc::new(label_scope),
@@ -96,11 +102,6 @@ impl PolicyContext {
     pub(in crate::redaction) fn label_scope_contains(&self, label: &LabelRef) -> bool {
         self.label_scope.contains(label)
     }
-}
-
-fn scope_lookup_entry(scope: &LabelScope) -> (String, HashSet<LabelRef>) {
-    let labels: HashSet<LabelRef> = scope.labels.iter().cloned().collect();
-    (scope.name.to_string(), labels)
 }
 
 /// Build an [`Attribution`] for a concrete rule that fired.

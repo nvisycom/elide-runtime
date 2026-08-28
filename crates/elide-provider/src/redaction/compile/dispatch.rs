@@ -177,15 +177,15 @@ where
         let context = PolicyContext::from_policy(policy);
         for rule in &policy.rules {
             let attribution = rule_attribution(policy, rule);
-            for (predicate, action) in rule.attachments() {
+            for attachment in rule.attachments() {
                 anonymizer = compile_one(
                     Target::Rule {
                         anonymizer,
-                        predicate: &predicate,
+                        predicate: &attachment.predicate,
                         attribution: attribution.clone(),
                         context: context.clone(),
                     },
-                    action,
+                    attachment.action,
                 )?;
             }
         }

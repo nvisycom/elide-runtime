@@ -289,6 +289,21 @@ fn validate_scope_references(policies: &[PolicyDefinition]) -> Result<()> {
                 check_predicate_scopes(&attachment.predicate, &known, policy, rule)?;
             }
         }
+        // Detected but unredactable: the policy scopes no labels
+        // for the operators it carries, so its rules match nothing
+        // while another policy's labels still reach it.
+        if policy.scopes_nothing_it_redacts() {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "policy `{}` declares scopes but no labels in any of them, so its \
+                     operators can match nothing: entities another policy asks for \
+                     still reach it and go unredacted. Name the labels the policy \
+                     covers.",
+                    policy.id,
+                ),
+            ));
+        }
     }
     Ok(())
 }

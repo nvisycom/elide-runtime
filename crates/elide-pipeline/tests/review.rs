@@ -552,13 +552,22 @@ async fn unhandled_is_empty_when_the_policy_covered_everything() {
 
 #[tokio::test]
 async fn unhandled_names_a_detection_no_policy_acted_on() {
-    // Analyze with no policies at all: the recognizers still find
-    // entities, and nothing picks an operator for them. That is the
-    // shape of a policy set that misses a modality — the detection
-    // survives into the output with no record of why.
+    // A policy that scopes a label but carries no operator: the
+    // recognizers find the entity, and nothing picks an operator
+    // for it. That is the shape of a policy set that misses a
+    // modality — the detection survives into the output with no
+    // record of why.
+    let detect_only = PolicyDefinition {
+        fallback: None,
+        ..policy()
+    };
     let engine = Engine::new(ProviderConfig::default().build());
     let audit = engine
-        .analyze(doc(), &[], &RequestContext::new())
+        .analyze(
+            doc(),
+            std::slice::from_ref(&detect_only),
+            &RequestContext::new(),
+        )
         .await
         .expect("analyze");
 

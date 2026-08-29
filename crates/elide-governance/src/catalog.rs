@@ -53,7 +53,12 @@ use crate::PolicyDefinition;
 ///   `pii` / `phi` / `pci` tags for every rule in the request);
 /// - two policies contribute a `labels.custom` [`Label`] with the
 ///   same id but structurally different contents (byte-identical
-///   redeclaration across templates is fine).
+///   redeclaration across templates is fine);
+/// - the compiled catalog is empty — no policies, or none naming
+///   a label. Elide reads an empty catalog as a request for no
+///   entity types and detects nothing, so such a request can only
+///   ever return an empty report. Failing here names the cause
+///   rather than handing back a clean empty answer.
 ///
 /// [`labels`]: crate::PolicyDefinition::label_scope
 /// [`Label`]: elide_core::entity::Label
@@ -61,6 +66,14 @@ pub fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCatalog> {
     let mut catalog = LabelCatalog::new();
     for policy in policies {
         insert_params(&mut catalog, policy)?;
+    }
+    if catalog.is_empty() {
+        return Err(Error::new(
+            ErrorKind::Configuration,
+            "the request names no labels to detect, so it can only return an \
+             empty report: supply at least one policy scoping the labels to \
+             find",
+        ));
     }
     Ok(catalog)
 }
@@ -170,8 +183,16 @@ mod tests {
     }
 
     #[test]
-    fn empty_policy_set_yields_empty_catalog() {
-        assert!(compile_catalog(&[]).unwrap().is_empty());
+    fn a_policy_set_naming_no_labels_is_rejected() {
+        // An empty catalog is a request for no entity types, so it
+        // detects nothing: refuse rather than compile a request
+        // that can only return an empty report.
+        let err = compile_catalog(&[]).expect_err("empty policy set is refused");
+        assert_eq!(err.kind(), ErrorKind::Configuration);
+
+        let bare = policy_named(POLICY_A, Vec::new(), Vec::new());
+        compile_catalog(std::slice::from_ref(&bare))
+            .expect_err("a policy naming no labels is refused too");
     }
 
     #[test]

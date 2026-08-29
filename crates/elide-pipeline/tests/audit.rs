@@ -12,8 +12,10 @@ mod fixtures;
 use std::io::{Cursor, Read};
 
 use bytes::Bytes;
+use elide::entity::LabelRef;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
+use elide_governance::{LabelScope, PolicyDefinition};
 use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
@@ -34,9 +36,31 @@ fn default_spec() -> RequestContext {
     RequestContext::new()
 }
 
+/// Detect the sample's contact labels without redacting them: a
+/// request names the labels to find, and these tests exercise the
+/// export writers over what detection produced.
+fn detect_only() -> PolicyDefinition {
+    PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "detect-contacts".into(),
+        description: None,
+        template: None,
+        scopes: vec![LabelScope::new(
+            "contact",
+            vec![
+                LabelRef::new("email_address"),
+                LabelRef::new("phone_number"),
+            ],
+        )],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: None,
+    }
+}
+
 async fn analyze() -> Audit {
     engine()
-        .analyze(raw_txt(), &[], &default_spec())
+        .analyze(raw_txt(), &[detect_only()], &default_spec())
         .await
         .expect("analyze succeeds")
 }

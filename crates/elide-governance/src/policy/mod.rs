@@ -122,6 +122,28 @@ impl PolicyDefinition {
         scope
     }
 
+    /// Whether this policy carries operators it can never run.
+    ///
+    /// Scopes flatten into a request-wide label catalog for
+    /// analysis, but each policy's own scope gates its redaction:
+    /// a rule matches an entity only when the scope contains its
+    /// label. A policy declaring `LabelScope::new("x", vec![])`
+    /// alongside an operator therefore contributes nothing to
+    /// detection and matches nothing at redaction, while any
+    /// *other* policy's labels still reach it as entities it
+    /// cannot act on — detected, and silently left in place.
+    ///
+    /// `false` for a policy that names no operators, which redacts
+    /// nothing by design, and for one whose [`scopes`] are absent
+    /// rather than empty, which says nothing about coverage.
+    ///
+    /// [`scopes`]: Self::scopes
+    #[must_use]
+    pub fn scopes_nothing_it_redacts(&self) -> bool {
+        let redacts = self.fallback.is_some() || !self.rules.is_empty();
+        redacts && !self.scopes.is_empty() && self.label_scope().is_empty()
+    }
+
     /// The labels of the scope named `name`, if this policy
     /// declares one.
     ///

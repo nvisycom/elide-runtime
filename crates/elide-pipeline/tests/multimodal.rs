@@ -9,11 +9,12 @@ use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide::codec::PartId;
+use elide::entity::LabelRef;
 use elide::modality::image::Image;
 use elide::modality::text::Text;
 use elide::{ErrorKind, Report};
-use elide_governance::PolicyDefinition;
 use elide_governance::redaction::ModalityRedactions;
+use elide_governance::{LabelScope, PolicyDefinition};
 use elide_pipeline::file::Document;
 use elide_pipeline::{
     Audit, CodecParams, Component, DocumentContext, Engine, Enrichers, OcrBackend, ProviderConfig,
@@ -50,6 +51,28 @@ fn default_spec() -> RequestContext {
     RequestContext::new()
 }
 
+/// Detect the fixture's contact labels without redacting them.
+/// A request names the labels to find; these tests assert on what
+/// detection produced and on part round-tripping.
+fn detect_only() -> PolicyDefinition {
+    PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "detect-contacts".into(),
+        description: None,
+        template: None,
+        scopes: vec![LabelScope::new(
+            "contact",
+            vec![
+                LabelRef::new("email_address"),
+                LabelRef::new("phone_number"),
+            ],
+        )],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: None,
+    }
+}
+
 fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
     let mut zip = zip::ZipArchive::new(Cursor::new(buf.to_vec())).ok()?;
     let mut entry = zip.by_name(name).ok()?;
@@ -62,7 +85,7 @@ fn read_zip_entry(buf: &[u8], name: &str) -> Option<Vec<u8>> {
 async fn analyze_captures_text_body_and_image_part() {
     let engine = engine();
     let analyzed = engine
-        .analyze(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[detect_only()], &default_spec())
         .await
         .expect("analyze succeeds");
 
@@ -91,7 +114,7 @@ async fn analyze_captures_text_body_and_image_part() {
 async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let engine = engine();
     let mut analyzed = engine
-        .analyze(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[detect_only()], &default_spec())
         .await
         .expect("analyze succeeds");
     let entities = analyzed
@@ -109,9 +132,9 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         name: "erase-everything".into(),
         description: None,
         template: None,
-        scopes: vec![elide_governance::LabelScope::new(
+        scopes: vec![LabelScope::new(
             "contact",
-            vec![elide::entity::LabelRef::new("email_address")],
+            vec![LabelRef::new("email_address")],
         )],
         custom: Vec::new(),
         rules: Vec::new(),
@@ -162,7 +185,7 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
     let doc = raw_docx();
 
     let audit = engine
-        .analyze(doc, &[], &spec)
+        .analyze(doc, &[detect_only()], &spec)
         .await
         .expect("analyze succeeds");
 
@@ -184,16 +207,7 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
 async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
     let engine = engine();
 
-    let policy = PolicyDefinition {
-        id: uuid::Uuid::now_v7(),
-        name: "test".into(),
-        description: None,
-        template: None,
-        scopes: Vec::new(),
-        custom: Vec::new(),
-        rules: Vec::new(),
-        fallback: None,
-    };
+    let policy = detect_only();
     let mut analyzed = engine
         .analyze(raw_docx(), std::slice::from_ref(&policy), &default_spec())
         .await
@@ -214,7 +228,7 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
 async fn audit_rejects_a_missing_round_trip_field_on_deserialize() {
     let engine = engine();
     let analyzed = engine
-        .analyze(raw_docx(), &[], &default_spec())
+        .analyze(raw_docx(), &[detect_only()], &default_spec())
         .await
         .expect("analyze succeeds");
     let serialized = serde_json::to_value(&analyzed).expect("serialize");
@@ -307,7 +321,10 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
         usage: Default::default(),
     };
 
-    let Err(err) = engine.anonymize(raw_docx(), &[], &mut audit, None).await else {
+    let Err(err) = engine
+        .anonymize(raw_docx(), &[detect_only()], &mut audit, None)
+        .await
+    else {
         panic!("an audit with no body must not silently redact nothing");
     };
     assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");

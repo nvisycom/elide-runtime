@@ -14,7 +14,7 @@ use elide_governance::{
     LabelEntry, LabelScope, PolicyDefinition, PolicyRule, Predicate, RuleDispatch,
 };
 use elide_pipeline::file::Document;
-use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
+use elide_pipeline::{Audit, Engine, ErrorKind, ProviderConfig, RequestContext};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -652,5 +652,131 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
         matches!(attribution, Attribution::Freeform(f) if f.name == "half-cited"),
         "a mixed-attribution policy must not borrow one scope's citation, got: {:?}",
         attribution,
+    );
+}
+
+/// A scope with no labels contributes nothing to detection, and a
+/// rule matches an entity only when the scope contains its label,
+/// so the policy's operators match nothing — while another
+/// policy's labels still reach it as entities it cannot act on.
+/// The request used to succeed, handing back a document that
+/// looked processed.
+///
+/// The empty-scoped policy rides alongside one that names a label,
+/// so the request-level "no labels at all" check cannot be what
+/// rejects it.
+#[tokio::test]
+async fn a_policy_scoping_no_labels_is_rejected() {
+    let engine = engine();
+    let detects = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "detects".into(),
+        description: None,
+        template: None,
+        scopes: vec![LabelScope::new(
+            "contact",
+            vec![LabelRef::new("email_address")],
+        )],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: None,
+    };
+    let empty_scope_id = uuid::Uuid::now_v7();
+    let policy = PolicyDefinition {
+        id: empty_scope_id,
+        name: "empty-scope".into(),
+        description: None,
+        template: None,
+        scopes: vec![LabelScope::new("everything", Vec::new())],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+    };
+
+    let Err(err) = engine
+        .analyze(raw_txt(), &[detects, policy], &default_spec())
+        .await
+    else {
+        panic!("a policy that can redact nothing it detects must be rejected");
+    };
+    assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
+    assert!(
+        err.to_string().contains(&empty_scope_id.to_string()),
+        "the error names the offending policy, not the request: {err}",
+    );
+}
+
+/// The counterpart: a policy with no scopes *at all* says nothing
+/// about coverage and stays legal, as does one that redacts
+/// nothing. Only "declares scopes, names no labels, and carries an
+/// operator" is incoherent.
+///
+/// Each shape rides alongside a policy that does name a label:
+/// a request naming no labels at all is rejected separately, and
+/// pairing them keeps that from masking the shape under test.
+#[tokio::test]
+async fn a_policy_with_no_scopes_or_no_operators_is_fine() {
+    let engine = engine();
+    let detects = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "detects".into(),
+        description: None,
+        template: None,
+        scopes: vec![LabelScope::new(
+            "contact",
+            vec![LabelRef::new("email_address")],
+        )],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: None,
+    };
+
+    let no_scopes = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "no-scopes".into(),
+        description: None,
+        template: None,
+        scopes: Vec::new(),
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+    };
+    engine
+        .analyze(raw_txt(), &[detects.clone(), no_scopes], &default_spec())
+        .await
+        .expect("absent scopes say nothing about coverage");
+
+    let no_operators = PolicyDefinition {
+        id: uuid::Uuid::now_v7(),
+        name: "no-operators".into(),
+        description: None,
+        template: None,
+        scopes: vec![LabelScope::new("everything", Vec::new())],
+        custom: Vec::new(),
+        rules: Vec::new(),
+        fallback: None,
+    };
+    engine
+        .analyze(raw_txt(), &[detects, no_operators], &default_spec())
+        .await
+        .expect("a policy that redacts nothing is a legitimate no-op");
+}
+
+/// A request that names no labels anywhere can only ever return an
+/// empty report, since elide reads an empty catalog as a request
+/// for no entity types. It is refused rather than answered with a
+/// clean empty result a caller cannot distinguish from a clean
+/// document.
+#[tokio::test]
+async fn a_request_naming_no_labels_is_rejected() {
+    let engine = engine();
+
+    let Err(err) = engine.analyze(raw_txt(), &[], &default_spec()).await else {
+        panic!("a request that can detect nothing must be rejected");
+    };
+    assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
+    assert!(
+        err.to_string().contains("no labels to detect"),
+        "the error says what is missing: {err}",
     );
 }

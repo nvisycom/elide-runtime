@@ -967,7 +967,7 @@ dependencies = [
 [[package]]
 name = "elide-bento"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide-bento?branch=main#68d4cae3615aa164c34c1646c332ca1d13824c6b"
+source = "git+https://github.com/nvisycom/elide-bento?branch=main#391c8ec6c1f5ff614d32c8a9888eacdb8f546ed5"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1018,7 +1018,7 @@ dependencies = [
 [[package]]
 name = "elide-core"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#7da9b52534d1024602872816ce27feaad54c6a40"
+source = "git+https://github.com/nvisycom/elide?branch=main#32800c04a92dfbdacb6976c1d2ef5a430b8063d5"
 dependencies = [
  "async-trait",
  "blake3",
@@ -1136,7 +1136,7 @@ dependencies = [
 [[package]]
 name = "elide-ner"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#7da9b52534d1024602872816ce27feaad54c6a40"
+source = "git+https://github.com/nvisycom/elide?branch=main#32800c04a92dfbdacb6976c1d2ef5a430b8063d5"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1150,7 +1150,7 @@ dependencies = [
 [[package]]
 name = "elide-ocr"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#7da9b52534d1024602872816ce27feaad54c6a40"
+source = "git+https://github.com/nvisycom/elide?branch=main#32800c04a92dfbdacb6976c1d2ef5a430b8063d5"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1291,7 +1291,7 @@ dependencies = [
 [[package]]
 name = "elide-stt"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#7da9b52534d1024602872816ce27feaad54c6a40"
+source = "git+https://github.com/nvisycom/elide?branch=main#32800c04a92dfbdacb6976c1d2ef5a430b8063d5"
 dependencies = [
  "async-trait",
  "derive_builder",

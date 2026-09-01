@@ -38,7 +38,7 @@ elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", d
 elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Elide extensions
-elide-bento = { git = "https://github.com/nvisycom/elide-bento", branch = "main", default-features = false }
+elide-bentoml = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
 
 # Internal crates
 elide-export = { path = "./crates/elide-export", version = "0.1.0" }

@@ -20,8 +20,8 @@ use elide::enrichment::stt::SttEnricher;
 use elide::modality::TextRecognizable;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
-use elide_bento::ocr::BentoOcr;
-use elide_bento::stt::BentoStt;
+use elide_bentoml::ocr::BentoOcr;
+use elide_bentoml::stt::BentoStt;
 
 use super::super::Component;
 use crate::recognition::{OcrBackend, SttBackend};
@@ -48,7 +48,7 @@ pub(in crate::recognition) fn attach_language<M: TextRecognizable>(
 
 /// Attach an [`OcrEnricher`] for the image modality.
 ///
-/// The deployment's `Bento` backend wraps elide-bento's
+/// The deployment's `Bento` backend wraps elide-bentoml's
 /// `BentoOcr` client.
 pub(in crate::recognition) fn attach_ocr(
     analyzer: Analyzer<Image>,
@@ -70,7 +70,7 @@ pub(in crate::recognition) fn attach_ocr(
 
 /// Attach an [`SttEnricher`] for the audio modality.
 ///
-/// The deployment's `Bento` backend wraps elide-bento's
+/// The deployment's `Bento` backend wraps elide-bentoml's
 /// `BentoStt` client.
 ///
 /// [`SttEnricher`]: elide::enrichment::stt::SttEnricher

@@ -35,7 +35,7 @@ test-utils = ["elide/test-utils"]
 elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
 
 # Elide extensions
-elide-bento = { workspace = true, features = ["ner", "ocr", "stt"] }
+elide-bentoml = { workspace = true, features = ["ner", "ocr", "stt"] }
 
 # Internal crates
 elide-governance = { workspace = true, features = [] }

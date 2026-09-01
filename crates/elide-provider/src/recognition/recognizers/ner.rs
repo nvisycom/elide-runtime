@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NerBackend {
     /// BentoML-hosted NER service. Engine wires the shared
-    /// `elide-bento` client; per-recognizer URL + model come
+    /// `elide-bentoml` client; per-recognizer URL + model come
     /// from this variant.
     Bento {
         /// Base URL of the BentoML service.

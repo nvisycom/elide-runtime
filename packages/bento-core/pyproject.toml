@@ -1,0 +1,18 @@
+[project]
+name = "bento-core"
+version = "0.1.0"
+description = "Shared wire-contract schema and types for elide-bento inference services"
+readme = "README.md"
+requires-python = "==3.12.*"
+license = "Apache-2.0"
+authors = [{ name = "Nvisy" }]
+dependencies = [
+    # 2.11 introduced `serialize_by_alias`, which every wire model relies on
+    # for camelCase output. On 2.7-2.10 the setting is silently ignored and
+    # snake_case field names reach the wire, which the Rust client rejects.
+    "pydantic>=2.11,<3",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.4,<0.13"]
+build-backend = "uv_build"

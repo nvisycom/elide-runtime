@@ -1,6 +1,6 @@
 # NER — schema-driven extraction with GLiNER2
 
-`elide-bento-ner` extracts PII and named entities from text and is the source of the
+`bento-gliner2` extracts PII and named entities from text and is the source of the
 spans the runtime redacts. It is a **schema-driven** service backed by a single
 [GLiNER2](https://github.com/fastino-ai/GLiNER2) model: each request carries a
 schema (entities, classification tasks, structured records) and the service runs
@@ -24,7 +24,7 @@ The service returns each span's **raw model label** (`person`, `email`, `iban`,
 …) together with the `modelId` that produced it. It does not map labels onto a
 shared taxonomy — that is the **consumer's** job (the runtime's `nvisy-schema`
 owns the map, keyed by `modelId`). The contract lives in
-[`elide_bento_core.ner.v1`](../../packages/elide-bento-core/src/elide_bento_core/ner/v1.py).
+[`bento_core.ner.v1`](../../packages/bento-core/src/bento_core/ner/v1.py).
 
 ## The schema
 
@@ -38,7 +38,7 @@ A request's schema composes three optional groups, mirroring GLiNER2's own
 - **structures** — named records of fields; a field can carry an enum of choices
   and a regex pattern (compiled to a GLiNER2 `RegexValidator`).
 
-The engine ([`engine.py`](../../packages/elide-bento-ner/src/elide_bento_ner/engine.py))
+The engine ([`engine.py`](../../packages/bento-gliner2/src/bento_gliner2/engine.py))
 translates the wire schema into a `gliner2.Schema`, calls `batch_extract`, and
 projects the result back into the typed response (GLiNER2's `confidence` becomes
 `score`).

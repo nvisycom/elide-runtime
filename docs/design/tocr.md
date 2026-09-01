@@ -1,6 +1,6 @@
 # Traditional OCR (docTR) — why we use it
 
-`elide-bento-ocr` (docTR) is the default OCR engine. It turns an image into a
+`bento-doctr` (docTR) is the default OCR engine. It turns an image into a
 `Page → Block → Line → Word` hierarchy with geometry, and is the source of the
 text regions the runtime masks.
 
@@ -35,7 +35,7 @@ Per word: text, confidence, an axis-aligned pixel `BoundingBox`, and a `polygon`
 when the region is rotated. Confidence is word-level only (docTR does not
 aggregate to the line). Base docTR has no layout classification, so blocks
 default to `BlockKind.TEXT`. Contract:
-[`elide_bento_core.ocr.v1`](../../packages/elide-bento-core/src/elide_bento_core/ocr/v1.py).
+[`bento_core.ocr.v1`](../../packages/bento-core/src/bento_core/ocr/v1.py).
 
 ## What it is *not*
 

@@ -11,7 +11,7 @@ authors = [{ name = "Nvisy" }]
 members = ["packages/*"]
 
 [tool.uv.sources]
-elide-bento-core = { workspace = true }
+bento-core = { workspace = true }
 
 [tool.uv]
 required-version = ">=0.7"
@@ -24,7 +24,7 @@ constraint-dependencies = [
     "python-multipart>=0.0.31",  # CVE-2026-53540
     "setuptools>=83.0.0",      # PYSEC-2026-3447
     "starlette>=1.3.1",        # CVE-2026-54282, CVE-2026-54283
-    "tornado>=6.5.7",          # GHSA-pw6j-qg29-8w7f
+    "tornado>=6.5.8",          # GHSA-pw6j-qg29-8w7f, -wwv5-g3v4-889x, -8423-8fgw-73vq
     "ujson>=5.13.0",           # CVE-2026-54911
 ]
 

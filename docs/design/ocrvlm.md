@@ -1,6 +1,6 @@
 # Vision-language OCR — why we use it
 
-`elide-bento-vl` (PaddleOCR-VL) is the vision-language OCR service. It reads a
+`bento-paddleocr` (PaddleOCR-VL) is the vision-language OCR service. It reads a
 document image and returns block-level **regions** — each with text, a layout
 kind (text/table/figure/other), a bounding box, and a reading-order index. It is
 the source of high-accuracy *text* the runtime uses to refine the detection-OCR
@@ -35,10 +35,10 @@ docTR's and aren't safe to bet mask precision on.
 - **Multilingual.** 109 languages out of the box, no per-language routing.
 
 Contract:
-[`elide_bento_core.ocrvl.v1`](../../packages/elide-bento-core/src/elide_bento_core/ocrvl/v1.py).
+[`bento_core.ocrvl.v1`](../../packages/bento-core/src/bento_core/ocrvl/v1.py).
 Maps the engine's fine-grained labels onto the canonical `BlockKind` via the
 service's
-[`block_map`](../../packages/elide-bento-vl/src/elide_bento_vl/block_map.py).
+[`block_map`](../../packages/bento-paddleocr/src/bento_paddleocr/block_map.py).
 
 ## What it is *not*
 

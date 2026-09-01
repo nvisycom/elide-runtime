@@ -1,0 +1,1 @@
+"""STT wire contract package."""

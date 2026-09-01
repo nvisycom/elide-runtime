@@ -80,6 +80,20 @@ pub use elide::recognition::{
 };
 #[doc(inline)]
 pub use elide::redaction::operators::KeyProvider;
+/// The two halves of what an analysis produced, re-exported so a
+/// consumer can name what [`Analyzed`] hands it.
+///
+/// [`Report`] is the reference half — entities and their audit
+/// trails, no content — and rides on [`Audit::report`].
+/// [`ArtifactSet`] is the content half, the enrichment a pass
+/// extracted, and rides on [`Analyzed::artifacts`]. Both are
+/// public fields, so both types have to be nameable to write a
+/// signature over them.
+///
+/// [`Audit::report`]: Audit::report
+/// [`Analyzed::artifacts`]: Analyzed::artifacts
+#[doc(inline)]
+pub use elide::{ArtifactSet, Report};
 pub use elide::{Error, ErrorKind, Result};
 
 /// Rendering an [`Audit`] into a transport format.

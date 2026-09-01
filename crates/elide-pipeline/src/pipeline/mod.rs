@@ -52,12 +52,12 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::primitive::RasterMode;
 use elide::recognition::UsageReport;
-use elide::{Directives, Error, ErrorKind, Report, Result};
+use elide::{AnalyzedDocument, ArtifactSet, Directives, Error, ErrorKind, Report, Result};
 use elide_governance::PolicyDefinition;
 use elide_provider::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};
 use serde::Deserialize;
 
-pub use self::audit::{Audit, Unhandled};
+pub use self::audit::{Analyzed, Audit, Unhandled};
 pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
 use crate::file::Document;
 
@@ -134,6 +134,26 @@ impl Engine {
         })
     }
 
+    /// Rebuild an [`ArtifactSet`] persisted beside an [`Audit`],
+    /// for handing back to [`re_analyze`](Self::re_analyze).
+    ///
+    /// The artifact-side counterpart to
+    /// [`deserialize_audit`](Self::deserialize_audit), and needs
+    /// this engine for the same reason: a serialized artifact set
+    /// tags each group with its modality *name*, so rebuilding one
+    /// takes a name-to-type registry, and the engine is it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MalformedInput`](ErrorKind::MalformedInput) if the
+    /// payload is not a well-formed artifact set.
+    pub fn deserialize_artifacts<'de, D>(&self, deserializer: D) -> Result<ArtifactSet>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        self.provider.deserialize_artifacts(deserializer)
+    }
+
     /// Every recognizer and enricher this engine has registered,
     /// each lineup in configuration order.
     pub fn components(&self) -> RegisteredComponents {
@@ -147,12 +167,17 @@ impl Engine {
         }
     }
 
-    /// Analyze one document into an [`Audit`].
+    /// Analyze one document into an [`Audit`] and the enrichment
+    /// beside it.
     ///
     /// Decodes `document`, drives [`Orchestrator::analyze`], and
-    /// returns the report it produced — the body *and* every
-    /// container part (DOCX embedded images, archive members, ...)
-    /// — with the recognition context and what the pass cost.
+    /// returns an [`Analyzed`]: the audit over the report it
+    /// produced — the body *and* every container part (DOCX
+    /// embedded images, archive members, ...) — with the
+    /// recognition context and what the pass cost, plus the
+    /// [`ArtifactSet`] the pass extracted. The artifacts stay off
+    /// the audit because they carry document content; see
+    /// [`Analyzed`].
     ///
     /// `policies` contributes the label catalog that drives
     /// recognizer dispatch. Each carries its own [`LabelScope`]s,
@@ -187,15 +212,64 @@ impl Engine {
         document: Document,
         policies: &[PolicyDefinition],
         request: &RequestContext,
-    ) -> Result<Audit> {
+    ) -> Result<Analyzed> {
+        // A first pass is a re-run seeded with nothing: every group
+        // enriches from scratch. Sharing the driver keeps the two
+        // entry points from drifting.
+        self.drive(document, policies, request, &ArtifactSet::new())
+            .await
+    }
+
+    /// Re-detect over `document`, seeding recognition with the
+    /// enrichment from a previous pass so the OCR/transcript is
+    /// reused instead of recomputed.
+    ///
+    /// The re-run counterpart to [`analyze`](Self::analyze), for
+    /// detection separated in time from a first pass: after a
+    /// review gap, re-run with an added recognizer or a narrowed
+    /// policy set without paying for OCR/STT again — which also
+    /// keeps entity offsets meaningful, since a second transcript
+    /// need not agree with the first.
+    ///
+    /// `prior` must be the artifacts this same document produced.
+    /// Seeding one document's enrichment into another's analysis
+    /// yields entity offsets into content that is not there.
+    ///
+    /// # Errors
+    ///
+    /// As [`analyze`](Self::analyze).
+    pub async fn re_analyze(
+        &self,
+        document: Document,
+        policies: &[PolicyDefinition],
+        request: &RequestContext,
+        prior: &ArtifactSet,
+    ) -> Result<Analyzed> {
+        self.drive(document, policies, request, prior).await
+    }
+
+    /// The shared driver behind [`analyze`](Self::analyze) and
+    /// [`re_analyze`](Self::re_analyze): decode, detect seeded with
+    /// `prior` (empty on a first pass), then record each entity's
+    /// policy pick.
+    async fn drive(
+        &self,
+        document: Document,
+        policies: &[PolicyDefinition],
+        request: &RequestContext,
+        prior: &ArtifactSet,
+    ) -> Result<Analyzed> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document, request.codec).await?;
         let orchestrator =
             self.provider
                 .analyze_orchestrator(&request.context, policies, correlation_id)?;
-        let mut report = orchestrator
-            .analyze(&mut handle, &Directives::new())
+        let AnalyzedDocument {
+            mut report,
+            artifacts,
+        } = orchestrator
+            .re_analyze(&mut handle, prior, &Directives::new())
             .await?;
         // Cloned off the report: elide derives usage during
         // analysis and drops it when a report is rebuilt from the
@@ -240,11 +314,14 @@ impl Engine {
             self.provider
                 .record_picks(&request.context, policies, correlation_id, &mut report);
 
-        Ok(Audit {
-            report,
-            context: request.context.clone(),
-            codec: request.codec,
-            usage,
+        Ok(Analyzed {
+            audit: Audit {
+                report,
+                context: request.context.clone(),
+                codec: request.codec,
+                usage,
+            },
+            artifacts,
         })
     }
 

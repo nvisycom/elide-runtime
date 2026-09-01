@@ -9,11 +9,16 @@
 //! it however they like: serialize it directly, and read it back
 //! with [`Engine::deserialize_audit`].
 //!
+//! The enrichment content an analysis produced — an image's OCR
+//! layout, an audio clip's transcript — is *not* on the audit. It
+//! rides beside it in [`Analyzed`], so an audit stays references
+//! and decisions while the content a re-run needs is persisted
+//! (and governed) separately.
+//!
 //! [`Engine::analyze`]: super::Engine::analyze
 //! [`Engine::anonymize`]: super::Engine::anonymize
 //! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 
-use elide::Report;
 use elide::codec::PartId;
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
@@ -21,10 +26,42 @@ use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::UsageReport;
+use elide::{ArtifactSet, Report};
 use elide_provider::{CodecParams, DocumentContext};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
+
+/// What [`Engine::analyze`] produced: the [`Audit`] and, beside
+/// it, the enrichment content the pass extracted.
+///
+/// The two are separate because they are governed differently. An
+/// [`Audit`] is references and decisions — entity locations plus
+/// their provenance — and carries no content of its own, so it is
+/// safe to hand around, log, and export. An [`ArtifactSet`] is the
+/// opposite: an OCR layout or a transcript *is* the source text,
+/// so a recording's transcript is as sensitive as the recording.
+/// Keeping it out of the audit means serializing an audit can
+/// never leak the document's content by accident; a caller that
+/// wants the artifacts persists them deliberately.
+///
+/// Persist both to re-detect after a review gap without paying for
+/// OCR/STT twice — see [`Engine::re_analyze`].
+///
+/// [`Engine::analyze`]: super::Engine::analyze
+/// [`Engine::re_analyze`]: super::Engine::re_analyze
+pub struct Analyzed {
+    /// What detection found, and what the policies would do about
+    /// it: the reviewable half.
+    pub audit: Audit,
+    /// The enrichment the pass extracted — an image's OCR layout,
+    /// an audio clip's transcript. Empty for a document whose
+    /// modality needs no enrichment (text, tabular).
+    ///
+    /// Carries document content: govern it as you would the
+    /// document itself.
+    pub artifacts: ArtifactSet,
+}
 
 /// What detection found in one document.
 ///

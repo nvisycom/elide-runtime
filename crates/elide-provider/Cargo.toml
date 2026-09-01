@@ -28,7 +28,7 @@ default = []
 ## Turn on the test-only mock backends and the elide mock backends
 ## they compile into. Off in production so deployment config
 ## cannot name a mock recognizer.
-test-utils = ["elide/mock"]
+test-utils = ["elide/test-utils"]
 
 [dependencies]
 # Elide crates

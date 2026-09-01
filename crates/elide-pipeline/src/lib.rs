@@ -121,5 +121,6 @@ pub use elide_provider::{
 pub use elide_template as template;
 
 pub use self::pipeline::{
-    Audit, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer, Unhandled,
+    Analyzed, Audit, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
+    Unhandled,
 };

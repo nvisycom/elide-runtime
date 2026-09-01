@@ -29,7 +29,7 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::{Error, ErrorKind, Orchestrator, Report, Result};
+use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, Report, Result};
 use elide_governance::modality::RedactableModality;
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate, compile_catalog};
 use uuid::Uuid;
@@ -196,6 +196,26 @@ impl Provider {
             .with_modality::<Image>()
             .with_modality::<Audio>()
             .deserialize(deserializer)
+    }
+
+    /// Rebuild an [`ArtifactSet`] from the wire, routing each group
+    /// to the modality it names. The artifact-side counterpart to
+    /// [`deserialize_report`](Self::deserialize_report).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MalformedInput`](ErrorKind::MalformedInput) if the
+    /// payload is not a well-formed artifact set.
+    pub fn deserialize_artifacts<'de, D>(&self, deserializer: D) -> Result<ArtifactSet>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Report::deserializer()
+            .with_modality::<Text>()
+            .with_modality::<Tabular>()
+            .with_modality::<Image>()
+            .with_modality::<Audio>()
+            .deserialize_artifacts(deserializer)
     }
 
     /// Record each entity's operator *pick* onto its audit trail,

@@ -47,7 +47,8 @@ async fn apply(engine: &Engine, template: Template, request: &RequestContext) ->
             &default_spec(),
         )
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     let redacted = engine
         .anonymize(
             raw_txt(),
@@ -244,7 +245,8 @@ async fn pci_dss_pan_hmac_requires_key_provider() {
             &default_spec(),
         )
         .await
-        .expect("analyze succeeds without a key");
+        .expect("analyze succeeds without a key")
+        .audit;
     let err = engine()
         .anonymize(
             raw_txt(),

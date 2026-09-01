@@ -85,7 +85,7 @@ audit-zip = ["audit-csv", "elide-export/zip"]
 ## backends they compile into. Off in production so deployment
 ## config cannot ship a mock recognizer.
 test-utils = [
-    "elide/mock",
+    "elide/test-utils",
     "elide-provider/test-utils",
 ]
 

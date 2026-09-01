@@ -99,7 +99,8 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
     let mut analyzed = engine
         .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     let redacted = engine
         .anonymize(
             raw_txt(),
@@ -215,7 +216,8 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
     let mut analyzed = engine
         .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     engine
         .anonymize(
             raw_txt(),
@@ -303,7 +305,8 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
     let mut analyzed = engine
         .analyze(raw_txt(), &policies, &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     engine
         .anonymize(raw_txt(), &policies, &mut analyzed, None)
         .await
@@ -388,7 +391,8 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
     let mut analyzed = engine
         .analyze(raw_txt(), &policies, &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     let redacted = engine
         .anonymize(raw_txt(), &policies, &mut analyzed, None)
         .await
@@ -552,7 +556,8 @@ async fn fallback_carries_the_scope_attribution() {
     let mut analyzed = engine
         .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     engine
         .anonymize(
             raw_txt(),
@@ -620,7 +625,8 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
     let mut analyzed = engine
         .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     engine
         .anonymize(
             raw_txt(),

@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum OcrBackend {
     /// BentoML-hosted OCR service. Engine wires the shared
-    /// `elide-bento` client; per-enricher URL + model come from
+    /// `elide-bentoml` client; per-enricher URL + model come from
     /// this variant.
     Bento {
         /// Base URL of the BentoML service.

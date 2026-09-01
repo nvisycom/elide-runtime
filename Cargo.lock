@@ -965,9 +965,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "elide-bento"
+name = "elide-bentoml"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide-bento?branch=main#391c8ec6c1f5ff614d32c8a9888eacdb8f546ed5"
+source = "git+https://github.com/nvisycom/elide-provider?branch=main#17b3fb2282a5a5aec7dab3cf2d9ebc6d3d0ad5e7"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1255,7 +1255,7 @@ name = "elide-provider"
 version = "0.1.0"
 dependencies = [
  "elide",
- "elide-bento",
+ "elide-bentoml",
  "elide-governance",
  "elide-provider",
  "hipstr",

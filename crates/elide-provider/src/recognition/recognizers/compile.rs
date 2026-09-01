@@ -28,7 +28,7 @@ use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide::recognition::ner::NerRecognizer;
 use elide::recognition::pattern::{PatternRecognizer, PatternRecognizerBuilder};
 use elide::{Error, ErrorKind, Result};
-use elide_bento::ner::BentoNer;
+use elide_bentoml::ner::BentoNer;
 
 use super::super::{Component, LlmBackend as LlmBackendConfig, NerBackend as NerBackendConfig};
 use crate::recognition::{AttachTo, LlmSource, NerBackend};

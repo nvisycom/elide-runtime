@@ -20,7 +20,7 @@ members = [
     "bento-gliner2",
     "bento-paddleocr",
     "bento-whisper",
-    "elide-bento",
+    "elide-provider",
 ]
 constraints = [
     { name = "aiohttp", specifier = ">=3.14.0" },
@@ -765,7 +765,7 @@ wheels = [
 ]
 
 [[package]]
-name = "elide-bento"
+name = "elide-provider"
 version = "0.1.0"
 source = { virtual = "." }
 

@@ -1,8 +1,8 @@
 # bento-core
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-bento/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-bento/actions/workflows/build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-provider/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-provider/actions/workflows/build.yml)
 
-Shared wire-contract types for the elide-bento inference services. The OCR,
+Shared wire-contract types for the elide-provider inference services. The OCR,
 NER, vision-language OCR and speech-to-text services all depend on this
 package, so the HTTP contract is defined once on the Python side.
 
@@ -35,5 +35,5 @@ Apache 2.0 License, see [LICENSE](../../LICENSE)
 ## Support
 
 - **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
-- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-bento/issues)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-provider/issues)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)

@@ -1,5 +1,5 @@
 [project]
-name = "elide-bento"
+name = "elide-provider"
 version = "0.1.0"
 description = "Externalized model inference for elide (BentoML HTTP services)"
 readme = "README.md"

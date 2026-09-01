@@ -1,6 +1,6 @@
 # elide-gladia
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-bento/rust-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-bento/actions/workflows/rust-build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-provider/rust-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-provider/actions/workflows/rust-build.yml)
 
 Gladia-backed speech-to-text backend for elide.
 
@@ -46,5 +46,5 @@ Apache 2.0 License, see [LICENSE](../../LICENSE)
 ## Support
 
 - **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
-- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-bento/issues)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-provider/issues)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)

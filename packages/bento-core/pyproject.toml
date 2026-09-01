@@ -1,7 +1,7 @@
 [project]
 name = "bento-core"
 version = "0.1.0"
-description = "Shared wire-contract schema and types for elide-bento inference services"
+description = "Shared wire-contract schema and types for elide-provider inference services"
 readme = "README.md"
 requires-python = "==3.12.*"
 license = "Apache-2.0"

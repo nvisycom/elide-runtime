@@ -1,6 +1,6 @@
 # bento-paddleocr
 
-[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-bento/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-bento/actions/workflows/build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-provider/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-provider/actions/workflows/build.yml)
 
 Vision-language OCR verification service for nvisy. Wraps
 [PaddleOCR-VL](https://github.com/PaddlePaddle/PaddleOCR) behind an HTTP/JSON
@@ -44,5 +44,5 @@ Apache 2.0 License, see [LICENSE](../../LICENSE)
 ## Support
 
 - **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
-- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-bento/issues)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-provider/issues)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)

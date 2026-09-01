@@ -63,6 +63,7 @@ async fn analyze() -> Audit {
         .analyze(raw_txt(), &[detect_only()], &default_spec())
         .await
         .expect("analyze succeeds")
+        .audit
 }
 
 /// The body's text entity ids, in the order the recognizer emitted

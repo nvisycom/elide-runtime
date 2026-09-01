@@ -87,7 +87,8 @@ async fn analyze_captures_text_body_and_image_part() {
     let analyzed = engine
         .analyze(raw_docx(), &[detect_only()], &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
 
     let text_entities = analyzed
         .report
@@ -116,7 +117,8 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     let mut analyzed = engine
         .analyze(raw_docx(), &[detect_only()], &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     let entities = analyzed
         .report
         .entities::<Text>()
@@ -187,7 +189,8 @@ async fn audit_context_mirrors_spec_scope_and_carries_correlation_id() {
     let audit = engine
         .analyze(doc, &[detect_only()], &spec)
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
 
     assert_eq!(
         audit.context.metadata.tags, spec.context.metadata.tags,
@@ -211,7 +214,8 @@ async fn anonymize_succeeds_when_policies_supply_catalog_afresh() {
     let mut analyzed = engine
         .analyze(raw_docx(), std::slice::from_ref(&policy), &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
 
     engine
         .anonymize(
@@ -230,7 +234,8 @@ async fn audit_rejects_a_missing_round_trip_field_on_deserialize() {
     let analyzed = engine
         .analyze(raw_docx(), &[detect_only()], &default_spec())
         .await
-        .expect("analyze succeeds");
+        .expect("analyze succeeds")
+        .audit;
     let serialized = serde_json::to_value(&analyzed).expect("serialize");
 
     // Both are always serialized, and both pin something anonymize
@@ -331,5 +336,58 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
     assert!(
         err.to_string().contains("analyze must run first"),
         "the error names the missing step; got: {err}",
+    );
+}
+
+/// Artifacts ride beside the audit, not on it: an image body's OCR
+/// enrichment reaches the caller through [`Analyzed::artifacts`],
+/// survives a JSON round trip through `Engine::deserialize_artifacts`,
+/// and seeds `re_analyze` — while the serialized audit itself carries
+/// no document content.
+#[tokio::test]
+async fn artifacts_round_trip_beside_the_audit_and_seed_a_re_run() {
+    let engine = engine();
+    let analyzed = engine
+        .analyze(raw_docx(), &[detect_only()], &default_spec())
+        .await
+        .expect("analyze succeeds");
+
+    // The audit serializes without the enrichment: an audit is
+    // references and decisions, so persisting one cannot leak the
+    // document's content.
+    let audit_json = serde_json::to_string(&analyzed.audit).expect("audit serializes");
+    assert!(
+        !audit_json.contains("artifacts"),
+        "the audit must not carry enrichment content",
+    );
+
+    // The artifacts serialize separately and rebuild through the engine.
+    let json = serde_json::to_string(&analyzed.artifacts).expect("artifacts serialize");
+    let mut de = serde_json::Deserializer::from_str(&json);
+    let restored = engine
+        .deserialize_artifacts(&mut de)
+        .expect("artifacts rebuild from the wire");
+
+    // The restored set seeds a re-run, which detects as the first pass did.
+    let again = engine
+        .re_analyze(raw_docx(), &[detect_only()], &default_spec(), &restored)
+        .await
+        .expect("re_analyze succeeds");
+
+    let first = analyzed
+        .audit
+        .report
+        .entities::<Text>()
+        .expect("expected a Text body")
+        .len();
+    let second = again
+        .audit
+        .report
+        .entities::<Text>()
+        .expect("expected a Text body")
+        .len();
+    assert_eq!(
+        first, second,
+        "a seeded re-run finds what the first pass found",
     );
 }

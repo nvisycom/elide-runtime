@@ -67,7 +67,8 @@ async fn review_and_apply(review: impl FnOnce(&Audit, &mut EditSet)) -> (String,
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
         .await
-        .expect("analyze");
+        .expect("analyze")
+        .audit;
 
     // The reviewer's edits are the caller's own value; applying
     // them amends the report, and the audit carries the amended
@@ -235,7 +236,8 @@ async fn include_stamps_manual_provenance() {
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
         .await
-        .expect("analyze");
+        .expect("analyze")
+        .audit;
 
     let added = manual_entity(span_of(b"SECRET-9"));
     let id = added.id;
@@ -259,7 +261,8 @@ async fn include_rejects_a_foreign_modality() {
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
         .await
-        .expect("analyze");
+        .expect("analyze")
+        .audit;
 
     let bounds = BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0));
     let location = ImageLocation::new(bounds);
@@ -328,7 +331,8 @@ async fn analyze_records_the_policy_pick_for_review() {
     let audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
         .await
-        .expect("analyze");
+        .expect("analyze")
+        .audit;
 
     let json = serde_json::to_string(&audit).expect("serializes");
     let posted_back = round_trip(&engine, &json);
@@ -367,7 +371,8 @@ async fn a_suppression_supersedes_the_pick_before_it() {
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
         .await
-        .expect("analyze");
+        .expect("analyze")
+        .audit;
 
     let target = ordered(&audit)[0];
     assert!(
@@ -428,7 +433,8 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
         .await
-        .expect("analyze");
+        .expect("analyze")
+        .audit;
 
     let target = ordered(&audit)[0];
     let mut edits = EditSet::default();
@@ -569,7 +575,8 @@ async fn unhandled_names_a_detection_no_policy_acted_on() {
             &RequestContext::new(),
         )
         .await
-        .expect("analyze");
+        .expect("analyze")
+        .audit;
 
     let unhandled = audit.unhandled();
     assert!(

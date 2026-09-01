@@ -63,7 +63,7 @@ pub(in crate::recognition) fn attach_ocr(
             builder.with_backend(BentoOcr::new(base_url.clone(), model.clone())?)
         }
         #[cfg(feature = "test-utils")]
-        OcrBackend::Mock => builder.with_backend(MockOcrBackend),
+        OcrBackend::Mock => builder.with_backend(MockOcrBackend::new()),
     };
     Ok(analyzer.with_enricher(builder.build()?))
 }
@@ -85,7 +85,7 @@ pub(in crate::recognition) fn attach_stt(
             builder.with_backend(BentoStt::new(base_url.clone(), model.clone())?)
         }
         #[cfg(feature = "test-utils")]
-        SttBackend::Mock => builder.with_backend(MockSttBackend),
+        SttBackend::Mock => builder.with_backend(MockSttBackend::new()),
     };
     Ok(analyzer.with_enricher(builder.build()?))
 }

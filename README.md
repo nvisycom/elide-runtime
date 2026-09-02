@@ -1,24 +1,32 @@
+<div align="center">
+
 # Elide Runtime
 
-[![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-runtime/build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/elide-runtime/actions/workflows/build.yml)
-[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-bento/build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/elide-bento/actions/workflows/build.yml)
+**Multimodal redaction pipeline as a stateless Rust library.**
 
-Multimodal redaction pipeline as a stateless Rust library.
+Governance vocabulary and ready-to-run regulatory policy templates, over the
+Elide detection and redaction toolkit.
+
+[![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-runtime/build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/elide-runtime/actions/workflows/build.yml)
+[![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-provider/build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/elide-provider/actions/workflows/build.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE.txt)
+
+[**nvisy.com**](https://nvisy.com) · [**docs.nvisy.com**](https://docs.nvisy.com)
+
+</div>
 
 Elide Runtime layers on top of the [Elide](https://github.com/nvisycom/elide)
-toolkit. Elide provides the low-level primitives: the recognizers,
-anonymizers, and the tamper-evident audit log, and Elide Runtime
-wires them into a document-oriented pipeline with governance
-vocabulary, regulatory policy templates, and a stateless engine. Use
-this crate set alongside Elide, not instead of it.
+toolkit. Elide provides the low-level primitives (recognizers, anonymizers,
+and the tamper-evident audit log) and Elide Runtime wires them into a
+document-oriented pipeline. Use this crate set alongside Elide, not instead
+of it.
 
-A workspace of library crates hosts (a SaaS backend, a Tauri app, a
-language SDK, a custom pipeline) embed directly. No long-running
-process, no HTTP layer of its own. Inference is delegated over HTTP to
-model services that live in the sibling
-[nvisycom/elide-bento](https://github.com/nvisycom/elide-bento) repository; the
-engine ships with a client that speaks their wire contract, and any
-service reproducing that contract is a drop-in replacement.
+A workspace of library crates a host embeds directly. No long-running process,
+no HTTP layer of its own. Inference is delegated over HTTP to model services
+in the sibling
+[nvisycom/elide-provider](https://github.com/nvisycom/elide-provider)
+repository; the engine ships with a client that speaks their wire contract,
+and any service reproducing that contract is a drop-in replacement.
 
 > [!WARNING]
 > **Active development: API not stable.** This project is under active
@@ -28,27 +36,37 @@ service reproducing that contract is a drop-in replacement.
 
 ## Features
 
-- **Multimodal codecs**: read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text through a unified span-based content model
-- **Layered detection**: regex, dictionary, and checksum patterns run first at low cost; NER, OCR, VLM, and LLM classification handle what deterministic methods cannot
-- **Context-aware redaction**: mask, replace, hash, encrypt, blur, block, and pixelate with policy-driven rules scoped to entity type, document class, and confidence threshold
-- **Stateless engine**: no persistence, no HTTP layer, no background tasks; every analyze and apply call is self-contained
-- **Bring your own inference**: any service that reproduces the wire contract is a drop-in replacement for the shipped bento services, including self-hosted or custom models and weights
+**Multimodal codecs**  
+Read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text through a unified span-based content model.
+
+**Layered detection**  
+Regex, dictionary, and checksum patterns run first at low cost; NER, OCR, VLM, and LLM classification handle what deterministic methods cannot.
+
+**Context-aware redaction**  
+Mask, replace, hash, encrypt, blur, block, and pixelate, with policy-driven rules scoped to entity type, document class, and confidence threshold.
+
+**Regulatory templates**  
+Ready-to-run policy postures for HIPAA, GDPR, PCI DSS, CCPA, and SOC 2, so a common obligation does not start from an empty rule set.
+
+**Stateless engine**  
+No persistence, no HTTP layer, no background tasks. Every analyze and apply call is self-contained.
+
+**Bring your own inference**  
+Any service reproducing the wire contract is a drop-in replacement for the shipped services, including self-hosted or custom models and weights.
 
 ## Quick Start
 
 The fastest way to get started is with [Nvisy Cloud](https://nvisy.com).
 
-For self-hosted use, embed the engine crate directly and deploy the
-inference services from [nvisycom/elide-bento](https://github.com/nvisycom/elide-bento)
+For self-hosted use, embed the engine crate directly and deploy the inference
+services from [nvisycom/elide-provider](https://github.com/nvisycom/elide-provider)
 as sidecar containers. See each crate README for details.
 
-## Changelog
+## Project
 
-See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
-
-## License
-
-Apache 2.0 License, see [LICENSE.txt](LICENSE.txt)
+- **Changelog**: [CHANGELOG.md](CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
+- **License**: Apache 2.0, see [LICENSE.txt](LICENSE.txt)
 
 ## Support
 

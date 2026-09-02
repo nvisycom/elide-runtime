@@ -49,7 +49,7 @@ Mask, replace, hash, encrypt, blur, block, and pixelate, with policy-driven rule
 Ready-to-run policy postures for HIPAA, GDPR, PCI DSS, CCPA, and SOC 2, so a common obligation does not start from an empty rule set.
 
 **Stateless engine**  
-No persistence, no HTTP layer, no background tasks. Every analyze and apply call is self-contained.
+No persistence, no HTTP layer, no background tasks. Each call to `analyze` or `anonymize` is self-contained.
 
 **Bring your own inference**  
 Any service reproducing the wire contract is a drop-in replacement for the shipped services, including self-hosted or custom models and weights.

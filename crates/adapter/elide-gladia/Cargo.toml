@@ -39,6 +39,3 @@ async-trait = { workspace = true, features = [] }
 # Speech-to-text provider
 gladia = { workspace = true }
 
-[dev-dependencies]
-serde_json = { workspace = true, features = ["std"] }
-tokio = { workspace = true, features = ["rt", "macros"] }

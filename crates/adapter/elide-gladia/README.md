@@ -18,7 +18,8 @@ pre-recorded API is asynchronous — upload, submit, then poll — but the
 SDK's `transcribe_file` covers all three, which matches the
 `SttBackend` contract's single `await`. Pass a pre-configured
 `gladia::Client` to `from_client` to set a regional base URL, timeouts
-or retries.
+or retries. The SDK is re-exported as `elide_gladia::gladia`, so doing
+that needs no second dependency.
 
 Timings arrive as float seconds and are rounded to whole milliseconds,
 so adjacent spans do not gap. Speaker indices become `SPEAKER_00`-style

@@ -9,7 +9,7 @@
 //! onto the response under the `usage` feature.
 
 #[cfg(feature = "usage")]
-use elide_core::recognition::TokenCounts;
+use elide_core::primitive::TokenCounts;
 use elide_ner::backend::{NerResponse, NerSpan};
 use serde::Deserialize;
 

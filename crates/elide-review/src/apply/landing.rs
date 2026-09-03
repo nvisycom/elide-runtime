@@ -5,10 +5,9 @@
 //! cloned out, because its derive would need `M: Clone` and a
 //! modality marker is not.
 
-use elide::entity::audit::{Attribution, AuditLog, ManualIntent};
+use elide::entity::audit::{Attribution, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::Modality;
-use elide::primitive::Confidence;
 use elide::{PartId, Report};
 use elide_governance::modality::RedactableModality;
 use uuid::Uuid;
@@ -97,19 +96,23 @@ impl<M: Modality> Landing<M> {
                 reason,
                 actor,
             } => {
-                // `Entity::new` mints a v7 id, so a client can
-                // neither forge one that shadows a real detection
-                // nor pass its addition off as automatic: the `Flag`
-                // is what marks the entity human-sourced.
-                let mut entity = Entity::new(label, location, Confidence::MAX, AuditLog::default());
-                entity.record_manual(
-                    ManualIntent::Flag,
-                    reason.map(Attribution::freeform).map(Into::into),
-                    actor.as_deref(),
-                );
+                // The id is minted, never client-supplied, so an
+                // add can neither shadow a real detection nor pass
+                // itself off as automatic: the `Flag` the builder
+                // stamps is what marks the entity human-sourced,
+                // and it carries the reviewer's name and reason on
+                // that one event.
+                let mut custom = Entity::<M>::custom(label, location);
+                if let Some(actor) = actor {
+                    custom = custom.by(actor);
+                }
+                if let Some(reason) = reason {
+                    custom = custom.because(Attribution::freeform(reason));
+                }
+                let entity = custom.build();
+
                 // A named part is a path; `None` means the sole
-                // document, which `sole_document_id` resolves. A
-                // multi-document request has no sole document, and
+                // document. A multi-document request has none, and
                 // validation rejects that before landing.
                 let Some(target) = part
                     .map(PartId::from_segments)

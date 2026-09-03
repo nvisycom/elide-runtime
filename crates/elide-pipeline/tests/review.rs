@@ -120,7 +120,6 @@ fn manual_entity(location: TextLocation) -> Entity<Text> {
     Entity::new(
         LabelRef::new("email_address"),
         location,
-        Confidence::MAX,
         AuditLog::new(event),
     )
 }
@@ -135,7 +134,7 @@ fn ordered(audit: &Audit) -> Vec<Uuid> {
         .expect("a text body")
         .iter()
         .collect();
-    entities.sort_by_key(|e| e.location.range.start);
+    entities.sort_by_key(|e| e.location.range().map(|r| r.start).unwrap_or(usize::MAX));
     entities.iter().map(|e| e.id).collect()
 }
 
@@ -277,7 +276,6 @@ async fn include_rejects_a_foreign_modality() {
     let foreign = Entity::new(
         LabelRef::new("email_address"),
         location,
-        Confidence::MAX,
         AuditLog::new(event),
     );
 
@@ -612,7 +610,6 @@ async fn unhandled_reaches_into_container_parts() {
         Entity::new(
             LabelRef::new(label),
             location.clone(),
-            Confidence::MAX,
             AuditLog::new(AuditEvent::pattern(
                 "probe",
                 Confidence::MAX,

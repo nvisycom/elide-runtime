@@ -22,12 +22,7 @@ fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
         location.clone(),
         elide::entity::audit::PatternEvent::default(),
     );
-    Entity::new(
-        LabelRef::new(label),
-        location,
-        Confidence::MAX,
-        AuditLog::new(event),
-    )
+    Entity::new(LabelRef::new(label), location, AuditLog::new(event))
 }
 
 /// The one document these reports hold. Since elide unified the
@@ -54,9 +49,11 @@ fn edits_deserialize_from_a_request_body() {
              "reason": "false positive", "actor": "alice"},
             {"op": "add", "label": "phone_number",
              "location": {
-                 "range": {"start": 0, "end": 0},
-                 "source": [{"range": {"start": 200, "end": 215},
-                             "part": "word/document.xml"}]
+                 "coord": {
+                     "kind": "source",
+                     "source": [{"range": {"start": 200, "end": 215},
+                                 "part": "word/document.xml"}]
+                 }
              }}
         ]
     }"#;
@@ -64,17 +61,37 @@ fn edits_deserialize_from_a_request_body() {
     assert_eq!(edits.len(), 2);
 
     // A reviewer selecting rendered text in a container has raw
-    // file bytes, not a decoded offset — the engine reverse-resolves
-    // `source`, and the part rides along inside it. The add itself
-    // names no part: a container's text is its body.
+    // file bytes, not a decoded offset, so the location is
+    // source-only: there is no range to give, and elide models that
+    // as its own coordinate kind rather than a zero-length span.
+    // The engine reverse-resolves `source`, and the part rides
+    // along inside it. The add names no part of its own: a
+    // container's text belongs to the document.
     let Some(Edit::Add(add)) = edits.text.get(1) else {
         panic!("the second edit is the add");
     };
-    assert_eq!(add.part, None, "text goes to the body");
+    assert_eq!(add.part, None, "text goes to the document itself");
     assert_eq!(
-        add.location.source.first().and_then(|s| s.part.as_deref()),
+        add.location.range(),
+        None,
+        "a reviewer selection has no decoded range to report",
+    );
+    let source = add
+        .location
+        .source()
+        .first()
+        .expect("the add carries a source reference");
+    assert_eq!(
+        source.part.as_deref(),
         Some("word/document.xml"),
-        "and the part is carried by the source reference",
+        "the part is carried by the source reference",
+    );
+    assert_eq!(
+        source.range,
+        200..215,
+        "and so are the raw offsets, which are what the engine \
+         reverse-resolves: without the range there is nothing to \
+         resolve, so a deserializer dropping it must fail here",
     );
 
     // Validating needs the report the edits target — an id is only

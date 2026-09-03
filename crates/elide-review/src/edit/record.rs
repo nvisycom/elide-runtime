@@ -80,14 +80,20 @@ pub struct Add<M: RedactableModality> {
     pub label: LabelRef,
     /// Where it sits, in the coordinates of the part it joins.
     ///
-    /// For text in a container, that is the document's decoded
-    /// stream — a DOCX's `word/document.xml` text belongs to the
-    /// document itself, not to a nested part. A caller who has raw
-    /// file bytes rather than a decoded offset (a reviewer
-    /// selecting rendered text, say) leaves `range` empty and fills
-    /// [`TextLocation::source`] instead, which the engine
-    /// reverse-resolves.
+    /// Each medium addresses its own way: text a character range
+    /// over the decoded stream, images a bounding box, audio a time
+    /// span, tabular a row and column. A DOCX's
+    /// `word/document.xml` text belongs to the document part
+    /// itself, not to a nested one.
     ///
+    /// For text specifically, a caller holding raw file bytes
+    /// rather than a decoded offset — a reviewer selecting rendered
+    /// text, say — leaves [`TextLocation::range`] empty and fills
+    /// [`TextLocation::source`] instead, which the engine
+    /// reverse-resolves. The other three have no such alternative:
+    /// their coordinates are the only way in.
+    ///
+    /// [`TextLocation::range`]: elide::modality::text::TextLocation::range
     /// [`TextLocation::source`]: elide::modality::text::TextLocation::source
     pub location: M::Location,
     /// The part this belongs to, as a path: `["report.docx"]` for

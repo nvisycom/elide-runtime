@@ -74,6 +74,14 @@ pub enum SttBackend {
         /// intended trade: a secret is supplied, not round-tripped.
         #[serde(skip_serializing)]
         api_key: String,
+        /// Base URL of the Gladia API, overriding the SDK's
+        /// default (`https://api.gladia.io`).
+        ///
+        /// For a regional endpoint, or to point a test deployment
+        /// at a local stand-in rather than the live service. Unlike
+        /// the key this is not a secret, so it round-trips.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        base_url: Option<String>,
     },
     /// No-op backend; emits no segments. Test-only.
     #[cfg(feature = "test-utils")]
@@ -92,7 +100,11 @@ impl fmt::Debug for SttBackend {
                 .field("model", model)
                 .finish(),
             #[cfg(feature = "gladia")]
-            Self::Gladia { .. } => f.debug_struct("Gladia").field("api_key", &"***").finish(),
+            Self::Gladia { base_url, .. } => f
+                .debug_struct("Gladia")
+                .field("api_key", &"***")
+                .field("base_url", base_url)
+                .finish(),
             #[cfg(feature = "test-utils")]
             Self::Mock => f.write_str("Mock"),
         }
@@ -126,6 +138,7 @@ mod tests {
         const SECRET: &str = "sk-super-secret-value";
         let backend = SttBackend::Gladia {
             api_key: SECRET.to_owned(),
+            base_url: Some("https://eu-west.gladia.io".to_owned()),
         };
 
         let debugged = format!("{backend:?}");
@@ -139,6 +152,10 @@ mod tests {
         assert!(
             !json.contains(SECRET),
             "the API key reached a serialized config: {json}",
+        );
+        assert!(
+            json.contains("eu-west.gladia.io"),
+            "but the base URL is not a secret and round-trips: {json}",
         );
     }
 }

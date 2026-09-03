@@ -76,13 +76,22 @@ fn edits_deserialize_from_a_request_body() {
         None,
         "a reviewer selection has no decoded range to report",
     );
+    let source = add
+        .location
+        .source()
+        .first()
+        .expect("the add carries a source reference");
     assert_eq!(
-        add.location
-            .source()
-            .first()
-            .and_then(|s| s.part.as_deref()),
+        source.part.as_deref(),
         Some("word/document.xml"),
-        "and the part is carried by the source reference",
+        "the part is carried by the source reference",
+    );
+    assert_eq!(
+        source.range,
+        200..215,
+        "and so are the raw offsets, which are what the engine \
+         reverse-resolves: without the range there is nothing to \
+         resolve, so a deserializer dropping it must fail here",
     );
 
     // Validating needs the report the edits target — an id is only

@@ -115,23 +115,16 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
         part: None,
-        by: Reviewer {
-            reason: None,
-            actor: Some("alice".into()),
-        },
+        by: Reviewer::actor("alice"),
     }));
     edits.text.push(Edit::Retag(Retag {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
+        by: Reviewer::default(),
     }));
 
-    edits.validate(&report).expect("composable");
-    edits.apply(&mut report);
+    edits.apply(&mut report).expect("composable");
 
     let entities = report.entities::<Text>().expect("text body");
     assert_eq!(entities.len(), 2, "the added entity is on the report");
@@ -161,12 +154,11 @@ fn suppress_stamps_the_entity() {
     let mut edits = EditSet::default();
     edits.text.push(Edit::Suppress(Suppress {
         id,
-        by: Reviewer {
-            reason: Some("fp".into()),
-            actor: None,
-        },
+        by: Reviewer::reason("fp"),
     }));
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let e = report
         .entities::<Text>()
@@ -189,10 +181,7 @@ fn a_third_retag_conflicts_with_the_first() {
             id,
             label: label.map(LabelRef::new),
             location,
-            by: Reviewer {
-                reason: None,
-                actor: None,
-            },
+            by: Reviewer::default(),
         })
     };
 
@@ -217,12 +206,11 @@ fn an_added_entity_keeps_its_reason_and_actor() {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
         part: None,
-        by: Reviewer {
-            reason: Some("recognizer missed it".into()),
-            actor: Some("alice".into()),
-        },
+        by: Reviewer::reason("recognizer missed it").with_actor("alice"),
     }));
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let added = &report.entities::<Text>().expect("text body")[0];
     let event = added
@@ -255,24 +243,22 @@ fn retagging_does_not_unsuppress() {
     let mut edits = EditSet::default();
     edits.text.push(Edit::Suppress(Suppress {
         id,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
+        by: Reviewer::default(),
     }));
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let mut edits = EditSet::default();
     edits.text.push(Edit::Retag(Retag {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer {
-            reason: Some("wrong label".into()),
-            actor: Some("bob".into()),
-        },
+        by: Reviewer::reason("wrong label").with_actor("bob"),
     }));
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let e = report
         .entities::<Text>()
@@ -303,14 +289,17 @@ fn applying_leaves_the_caller_s_edits_alone() {
         by: Reviewer::default(),
     }));
     edits.text.push(Edit::Suppress(Suppress {
-        // An entity the report does not hold: skipped, not fatal.
-        id: Uuid::from_u128(999),
+        // A second decision on the same channel that merges with
+        // the first rather than contradicting it.
+        id,
         by: Reviewer::default(),
     }));
 
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
-    assert_eq!(edits.text.len(), 2, "both edits survive, applied or not",);
+    assert_eq!(edits.text.len(), 2, "both edits survive the apply");
     let stamped = report
         .entities::<Text>()
         .expect("text body")
@@ -333,13 +322,12 @@ fn a_retag_records_who_corrected_it() {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer {
-            reason: Some("recognizer mislabelled it".into()),
-            actor: Some("bob".into()),
-        },
+        by: Reviewer::reason("recognizer mislabelled it").with_actor("bob"),
     }));
 
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let entity = &report.entities::<Text>().expect("text body")[0];
     let event = entity
@@ -438,8 +426,7 @@ fn an_image_add_lands_in_the_part_it_names() {
         by: Reviewer::default(),
     }));
 
-    edits.validate(&report).expect("the part exists");
-    edits.apply(&mut report);
+    edits.apply(&mut report).expect("the part exists");
 
     assert_eq!(
         report

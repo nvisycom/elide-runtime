@@ -99,13 +99,14 @@ impl EditSet {
     /// edits can answer the same question about one entity
     /// differently — two labels for one retag — and preferring
     /// either would discard a decision a reviewer made. Or an edit
-    /// can name an entity the report does not hold, which
-    /// [`apply`](Self::apply) skips without a word, so a reviewer
-    /// would be told their decision took effect when the document
-    /// says otherwise.
+    /// can name an entity the report does not hold, which landing
+    /// skips without a word, so a reviewer would be told their
+    /// decision took effect when the document says otherwise.
     ///
-    /// Call before [`apply`](Self::apply), which is infallible and
-    /// applies what it is given.
+    /// [`apply`](Self::apply) runs this itself, so a caller needs
+    /// it only to check a set against a report *before* deciding to
+    /// apply — surfacing a conflict to a reviewer while they can
+    /// still resolve it, rather than at the point of no return.
     ///
     /// Edits on different channels still compose, and composable
     /// pairs still merge: a retag beside a suppression is two

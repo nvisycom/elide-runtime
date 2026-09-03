@@ -168,6 +168,46 @@ pub struct Reviewer {
     pub actor: Option<String>,
 }
 
+impl Reviewer {
+    /// Who made the call, with no rationale given.
+    ///
+    /// The two fields are independent — a decision can name its
+    /// author, its reason, both, or neither — so each has its own
+    /// builder and they chain.
+    #[must_use]
+    pub fn actor(actor: impl Into<String>) -> Self {
+        Self {
+            reason: None,
+            actor: Some(actor.into()),
+        }
+    }
+
+    /// Why the call was made, without naming who made it.
+    #[must_use]
+    pub fn reason(reason: impl Into<String>) -> Self {
+        Self {
+            reason: Some(reason.into()),
+            actor: None,
+        }
+    }
+
+    /// Attach the rationale to a reviewer that already names an
+    /// actor, and the reverse.
+    #[must_use]
+    pub fn with_reason(mut self, reason: impl Into<String>) -> Self {
+        self.reason = Some(reason.into());
+        self
+    }
+
+    /// Attach the actor to a reviewer that already carries a
+    /// reason.
+    #[must_use]
+    pub fn with_actor(mut self, actor: impl Into<String>) -> Self {
+        self.actor = Some(actor.into());
+        self
+    }
+}
+
 impl<M: RedactableModality> Edit<M> {
     /// The entity this edit names, or `None` for an [`Add`], whose
     /// entity does not exist yet.

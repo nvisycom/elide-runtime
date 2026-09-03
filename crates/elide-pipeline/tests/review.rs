@@ -80,9 +80,8 @@ async fn review_and_apply(review: impl FnOnce(&Audit, &mut EditSet)) -> (String,
     let mut edits = EditSet::default();
     review(&audit, &mut edits);
     edits
-        .validate(&audit.report)
+        .apply(&mut audit.report)
         .expect("edits apply to this report");
-    edits.apply(&mut audit.report);
 
     let json = serde_json::to_string(&audit).expect("audit serializes");
     let mut posted_back = round_trip(&engine, &json);
@@ -166,10 +165,7 @@ async fn suppress_leaves_the_entity_alone() {
         let id = ordered(audit)[0];
         edits.edit(Edit::<Text>::Suppress(Suppress {
             id,
-            by: Reviewer {
-                reason: Some("known test account".into()),
-                actor: Some("reviewer".into()),
-            },
+            by: Reviewer::reason("known test account").with_actor("reviewer"),
         }));
     })
     .await;
@@ -299,19 +295,13 @@ async fn several_edits_compose_in_one_pass() {
         let ids = ordered(audit);
         edits.edit(Edit::<Text>::Suppress(Suppress {
             id: ids[0],
-            by: Reviewer {
-                reason: Some("false positive".into()),
-                actor: None,
-            },
+            by: Reviewer::reason("false positive"),
         }));
         edits.edit(Edit::Retag(Retag::<Text> {
             id: ids[1],
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,
-            by: Reviewer {
-                reason: None,
-                actor: None,
-            },
+            by: Reviewer::default(),
         }));
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
@@ -391,12 +381,11 @@ async fn a_suppression_supersedes_the_pick_before_it() {
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        by: Reviewer {
-            reason: Some("false positive".into()),
-            actor: None,
-        },
+        by: Reviewer::reason("false positive"),
     }));
-    edits.apply(&mut audit.report);
+    edits
+        .apply(&mut audit.report)
+        .expect("the edits apply to this report");
     engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
         .await
@@ -448,12 +437,11 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
+        by: Reviewer::default(),
     }));
-    edits.apply(&mut audit.report);
+    edits
+        .apply(&mut audit.report)
+        .expect("the edits apply to this report");
     for _ in 0..3 {
         engine
             .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
@@ -484,10 +472,7 @@ async fn an_add_edit_redacts_what_recognition_missed() {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
             part: None,
-            by: Reviewer {
-                reason: Some("recognizer missed it".into()),
-                actor: Some("alice".into()),
-            },
+            by: Reviewer::reason("recognizer missed it").with_actor("alice"),
         }));
     })
     .await;
@@ -537,10 +522,7 @@ async fn a_retag_edit_moves_the_entity_out_of_policy_scope() {
             id,
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,
-            by: Reviewer {
-                reason: Some("wrong label".into()),
-                actor: None,
-            },
+            by: Reviewer::reason("wrong label"),
         }));
     })
     .await;
@@ -590,6 +572,18 @@ async fn unhandled_names_a_detection_no_policy_acted_on() {
     assert!(
         !unhandled.is_empty(),
         "an unredacted detection is reported, not silent",
+    );
+    // The sole document is itself a part, so reading the
+    // single-document shorthand *and* walking the part tree would
+    // report every entity of a one-document report twice.
+    let mut ids: Vec<_> = unhandled.iter().map(|u| u.entity_id).collect();
+    let found = ids.len();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(
+        found,
+        ids.len(),
+        "each unhandled entity is named once: {unhandled:?}",
     );
     assert!(
         unhandled.iter().all(|u| u.modality == "text"),

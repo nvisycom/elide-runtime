@@ -169,22 +169,24 @@ impl Audit {
     /// One modality's unhandled detections, across the body and
     /// every container part.
     ///
-    /// A part is where this matters most: a DOCX's embedded image
-    /// is exactly the place a text-only policy leaves something
-    /// behind, so reading the body alone would miss the case the
-    /// method exists for.
+    /// A nested part is where this matters most: a DOCX's embedded
+    /// image is exactly the place a text-only policy leaves
+    /// something behind, so reading the document alone would miss
+    /// the case the method exists for.
     fn unhandled_in<M: Modality>(&self) -> impl Iterator<Item = Unhandled> + '_ {
+        // The part tree alone. `entities::<M>()` is shorthand for
+        // the sole document, which is itself a depth-1 part, so
+        // reading both would report every entity of a
+        // single-document report twice.
         let parts: Vec<PartId> = self.report.part_ids().map(|(id, _)| id.clone()).collect();
-        let body = self.report.entities::<M>().unwrap_or_default();
-        let in_parts = parts.into_iter().flat_map(move |id| {
-            self.report
-                .part_entities::<M>(&id)
-                .unwrap_or_default()
-                .iter()
-        });
-
-        body.iter()
-            .chain(in_parts)
+        parts
+            .into_iter()
+            .flat_map(move |id| {
+                self.report
+                    .part_entities::<M>(&id)
+                    .unwrap_or_default()
+                    .iter()
+            })
             .filter(|e| e.audit.selection().is_none() && !e.audit.is_suppressed())
             .map(|e| Unhandled {
                 entity_id: e.id,

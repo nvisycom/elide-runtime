@@ -86,15 +86,20 @@ pub struct Add<M: RedactableModality> {
     /// `word/document.xml` text belongs to the document part
     /// itself, not to a nested one.
     ///
-    /// For text specifically, a caller holding raw file bytes
-    /// rather than a decoded offset — a reviewer selecting rendered
-    /// text, say — leaves [`TextLocation::range`] empty and fills
-    /// [`TextLocation::source`] instead, which the engine
-    /// reverse-resolves. The other three have no such alternative:
-    /// their coordinates are the only way in.
+    /// Text carries either coordinate kind of [`TextCoord`]: a
+    /// [`Decoded`] span for a caller with an offset into the
+    /// decoded stream, or a [`Source`] one for a caller holding
+    /// only raw file bytes — a reviewer selecting rendered text,
+    /// say — which the engine reverse-resolves. Source-only is its
+    /// own kind rather than a decoded span left empty, so such a
+    /// selection is representable as itself.
     ///
-    /// [`TextLocation::range`]: elide::modality::text::TextLocation::range
-    /// [`TextLocation::source`]: elide::modality::text::TextLocation::source
+    /// The other three media have no such alternative: their
+    /// coordinates are the only way in.
+    ///
+    /// [`TextCoord`]: elide::modality::text::TextCoord
+    /// [`Decoded`]: elide::modality::text::TextCoord::Decoded
+    /// [`Source`]: elide::modality::text::TextCoord::Source
     pub location: M::Location,
     /// The part this belongs to, as a path: `["report.docx"]` for
     /// the document itself, `["report.docx", "word/media/image1.png"]`
@@ -104,9 +109,9 @@ pub struct Add<M: RedactableModality> {
     ///
     /// Nested media needs this: the report holds an embedded image
     /// as its own part, and an addition to one has nowhere to go
-    /// without naming it. Text usually does not — where a span came
-    /// from is already in `TextLocation::source`, which carries the
-    /// part alongside the raw range.
+    /// without naming it. Text usually does not — a source
+    /// reference already names the part it came from, alongside the
+    /// raw range.
     ///
     /// `None` is an error when the request carried several
     /// documents, since there is then no sole document to mean.

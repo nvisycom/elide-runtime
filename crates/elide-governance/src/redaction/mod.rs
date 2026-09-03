@@ -32,7 +32,7 @@
 //! [`Clamp`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Clamp.html
 //! [`GeneralizeDate`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.GeneralizeDate.html
 //! [`WithFallback`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.WithFallback.html
-//! [`Operator<M>`]: elide_core::operator::Operator
+//! [`Operator<M>`]: elide_core::redaction::Operator
 
 mod audio;
 mod image;

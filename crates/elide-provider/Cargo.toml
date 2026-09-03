@@ -30,12 +30,19 @@ default = []
 ## cannot name a mock recognizer.
 test-utils = ["elide/test-utils"]
 
+## Ship the Gladia-backed STT backend, so a deployment can transcribe
+## through Gladia's hosted API instead of a self-hosted service. Off by
+## default: it pulls a third-party HTTP client, and it sends audio off
+## your infrastructure. See `SttBackend::Gladia`.
+gladia = ["dep:elide-gladia"]
+
 [dependencies]
 # Elide crates
 elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
 
 # Elide extensions
 elide-bentoml = { workspace = true, features = ["ner", "ocr", "stt"] }
+elide-gladia = { workspace = true, optional = true }
 
 # Internal crates
 elide-governance = { workspace = true, features = [] }

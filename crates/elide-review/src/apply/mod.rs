@@ -29,7 +29,7 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 
 use self::landing::Landing;
-use crate::{EditBucket, EditSet};
+use crate::{EditBucket, EditError, EditSet};
 
 impl EditSet {
     /// Land every edit on the report.
@@ -42,19 +42,31 @@ impl EditSet {
     /// state this crate keeps, so nothing is consumed and the
     /// caller still holds every edit it submitted.
     ///
-    /// An edit naming an entity the report does not hold is
-    /// skipped rather than fatal — the id may be stale, or belong
-    /// to a modality this report has no group for.
+    /// [`validate`](Self::validate) runs first and its error is
+    /// returned unapplied, so a set that cannot land in full lands
+    /// not at all. Landing is silent by nature — elide's
+    /// `include_part` returns `false` for an unknown part and a
+    /// missing entity is simply not found — so validating here is
+    /// what keeps a reviewer from being told a decision took effect
+    /// when the document says otherwise. It is not a second set of
+    /// rules; it is the same one, made impossible to skip.
     ///
     /// Not idempotent across calls. A repeated suppress is a no-op
     /// (elide guards it), but a repeated add appends a second
     /// entity and a repeated retag double-records its amendment.
     /// Apply one set once.
-    pub fn apply(&self, report: &mut Report) {
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`EditError`](crate::EditError) found,
+    /// having applied nothing.
+    pub fn apply(&self, report: &mut Report) -> Result<(), EditError> {
+        self.validate(report)?;
         apply_for::<Text>(self, report);
         apply_for::<Tabular>(self, report);
         apply_for::<Image>(self, report);
         apply_for::<Audio>(self, report);
+        Ok(())
     }
 }
 

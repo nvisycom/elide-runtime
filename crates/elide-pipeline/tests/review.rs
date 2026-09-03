@@ -9,6 +9,7 @@
 //! survive serialization is a decision silently dropped.
 
 use bytes::Bytes;
+use elide::PartId;
 use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, PatternEvent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
@@ -18,10 +19,13 @@ use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_governance::{LabelScope, PolicyDefinition};
 use elide_pipeline::entity::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
 use elide_pipeline::file::Document;
-use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
+use elide_pipeline::{Audit, Engine, ErrorKind, ProviderConfig, RequestContext};
 use uuid::Uuid;
 
 const SAMPLE: &[u8] = b"Email alice@example.com or bob@example.com. Case SECRET-9 open.";
+/// The name the sample is analyzed under, which roots every part
+/// path in the report.
+const DOCUMENT: &str = "sample.txt";
 const POLICY_ID: uuid::Uuid = uuid::Uuid::from_u128(0x0123_4567_89ab_7000_8000_0000_0000_0042);
 
 /// Byte range of `needle` in the sample, so a hand-built entity
@@ -55,7 +59,7 @@ fn policy() -> PolicyDefinition {
 }
 
 fn doc() -> Document {
-    Document::new(Bytes::from_static(SAMPLE), "txt")
+    Document::new(DOCUMENT, Bytes::from_static(SAMPLE))
 }
 
 /// Analyze, collect reviewer edits, apply them, then round-trip the
@@ -76,9 +80,8 @@ async fn review_and_apply(review: impl FnOnce(&Audit, &mut EditSet)) -> (String,
     let mut edits = EditSet::default();
     review(&audit, &mut edits);
     edits
-        .validate(&audit.report)
+        .apply(&mut audit.report)
         .expect("edits apply to this report");
-    edits.apply(&mut audit.report);
 
     let json = serde_json::to_string(&audit).expect("audit serializes");
     let mut posted_back = round_trip(&engine, &json);
@@ -162,10 +165,7 @@ async fn suppress_leaves_the_entity_alone() {
         let id = ordered(audit)[0];
         edits.edit(Edit::<Text>::Suppress(Suppress {
             id,
-            by: Reviewer {
-                reason: Some("known test account".into()),
-                actor: Some("reviewer".into()),
-            },
+            by: Reviewer::reason("known test account").with_actor("reviewer"),
         }));
     })
     .await;
@@ -241,7 +241,9 @@ async fn include_stamps_manual_provenance() {
 
     let added = manual_entity(span_of(b"SECRET-9"));
     let id = added.id;
-    audit.report.include::<Text>(added);
+    audit
+        .report
+        .include_part::<Text>(&PartId::new(DOCUMENT), added);
 
     assert!(
         entity(&audit, id)
@@ -280,8 +282,10 @@ async fn include_rejects_a_foreign_modality() {
     );
 
     assert!(
-        !audit.report.include::<Image>(foreign),
-        "an image entity cannot join a text body",
+        !audit
+            .report
+            .include_part::<Image>(&PartId::new(DOCUMENT), foreign),
+        "an image entity cannot join a text document",
     );
 }
 
@@ -291,19 +295,13 @@ async fn several_edits_compose_in_one_pass() {
         let ids = ordered(audit);
         edits.edit(Edit::<Text>::Suppress(Suppress {
             id: ids[0],
-            by: Reviewer {
-                reason: Some("false positive".into()),
-                actor: None,
-            },
+            by: Reviewer::reason("false positive"),
         }));
         edits.edit(Edit::Retag(Retag::<Text> {
             id: ids[1],
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,
-            by: Reviewer {
-                reason: None,
-                actor: None,
-            },
+            by: Reviewer::default(),
         }));
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
@@ -383,12 +381,11 @@ async fn a_suppression_supersedes_the_pick_before_it() {
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        by: Reviewer {
-            reason: Some("false positive".into()),
-            actor: None,
-        },
+        by: Reviewer::reason("false positive"),
     }));
-    edits.apply(&mut audit.report);
+    edits
+        .apply(&mut audit.report)
+        .expect("the edits apply to this report");
     engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
         .await
@@ -440,12 +437,11 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
+        by: Reviewer::default(),
     }));
-    edits.apply(&mut audit.report);
+    edits
+        .apply(&mut audit.report)
+        .expect("the edits apply to this report");
     for _ in 0..3 {
         engine
             .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
@@ -476,10 +472,7 @@ async fn an_add_edit_redacts_what_recognition_missed() {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
             part: None,
-            by: Reviewer {
-                reason: Some("recognizer missed it".into()),
-                actor: Some("alice".into()),
-            },
+            by: Reviewer::reason("recognizer missed it").with_actor("alice"),
         }));
     })
     .await;
@@ -529,10 +522,7 @@ async fn a_retag_edit_moves_the_entity_out_of_policy_scope() {
             id,
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,
-            by: Reviewer {
-                reason: Some("wrong label".into()),
-                actor: None,
-            },
+            by: Reviewer::reason("wrong label"),
         }));
     })
     .await;
@@ -583,6 +573,18 @@ async fn unhandled_names_a_detection_no_policy_acted_on() {
         !unhandled.is_empty(),
         "an unredacted detection is reported, not silent",
     );
+    // The sole document is itself a part, so reading the
+    // single-document shorthand *and* walking the part tree would
+    // report every entity of a one-document report twice.
+    let mut ids: Vec<_> = unhandled.iter().map(|u| u.entity_id).collect();
+    let found = ids.len();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(
+        found,
+        ids.len(),
+        "each unhandled entity is named once: {unhandled:?}",
+    );
     assert!(
         unhandled.iter().all(|u| u.modality == "text"),
         "named by modality: {unhandled:?}",
@@ -598,12 +600,11 @@ async fn unhandled_reaches_into_container_parts() {
     // A DOCX's embedded image is exactly where a text-only policy
     // leaves something behind, so reading the body alone would miss
     // the case this method exists for.
-    use elide::Report;
-    use elide::codec::PartId;
     use elide::entity::audit::{AuditEvent, AuditLog, PatternEvent};
     use elide::entity::{Entity, LabelRef};
     use elide::modality::text::{Text, TextLocation};
     use elide::primitive::Confidence;
+    use elide::{PartId, Report};
     use elide_provider::{CodecParams, DocumentContext};
 
     let detection = |label: &str| {
@@ -621,12 +622,13 @@ async fn unhandled_reaches_into_container_parts() {
         )
     };
 
-    // A body detection and a part detection, neither acted on.
+    // A document detection and a nested-part detection, neither
+    // acted on.
     let audit = Audit {
         report: Report::new()
-            .insert_body::<Text>(vec![detection("email_address")])
+            .insert_part::<Text>(PartId::new(DOCUMENT), vec![detection("email_address")])
             .insert_part::<Text>(
-                PartId::new("word/embedded.txt"),
+                PartId::new(DOCUMENT).child("word/embedded.txt"),
                 vec![detection("phone_number")],
             ),
         context: DocumentContext::default(),
@@ -643,5 +645,40 @@ async fn unhandled_reaches_into_container_parts() {
     assert!(
         labels.contains(&"email_address"),
         "alongside the body's: {labels:?}",
+    );
+}
+
+/// A document renamed between the two passes is refused, not
+/// silently returned unredacted.
+///
+/// The name roots every part path in the report, and elide matches
+/// a document to its entities by it: a name the report does not
+/// carry matches nothing, and elide skips that document rather
+/// than failing. Without the guard this call hands back the
+/// original bytes with a clean `Ok` — the exact "you believe it is
+/// clean" fault the no-document check exists to prevent, reached by
+/// a different route.
+#[tokio::test]
+async fn anonymize_rejects_a_document_renamed_since_analyze() {
+    let engine = Engine::new(ProviderConfig::default().build());
+    let policy = policy();
+    let mut audit = engine
+        .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
+        .await
+        .expect("analyze")
+        .audit;
+
+    // Same bytes, different name.
+    let renamed = Document::new("renamed.txt", Bytes::from_static(SAMPLE));
+    let Err(err) = engine
+        .anonymize(renamed, std::slice::from_ref(&policy), &mut audit, None)
+        .await
+    else {
+        panic!("a renamed document must not come back reported as redacted");
+    };
+    assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
+    assert!(
+        err.to_string().contains("renamed.txt") && err.to_string().contains(DOCUMENT),
+        "the error names both what was sent and what the audit holds: {err}",
     );
 }

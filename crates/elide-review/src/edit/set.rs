@@ -10,11 +10,11 @@
 
 use std::collections::HashMap;
 
-use elide::Report;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
+use elide::{PartId, Report};
 use elide_governance::modality::RedactableModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -99,13 +99,14 @@ impl EditSet {
     /// edits can answer the same question about one entity
     /// differently — two labels for one retag — and preferring
     /// either would discard a decision a reviewer made. Or an edit
-    /// can name an entity the report does not hold, which
-    /// [`apply`](Self::apply) skips without a word, so a reviewer
-    /// would be told their decision took effect when the document
-    /// says otherwise.
+    /// can name an entity the report does not hold, which landing
+    /// skips without a word, so a reviewer would be told their
+    /// decision took effect when the document says otherwise.
     ///
-    /// Call before [`apply`](Self::apply), which is infallible and
-    /// applies what it is given.
+    /// [`apply`](Self::apply) runs this itself, so a caller needs
+    /// it only to check a set against a report *before* deciding to
+    /// apply — surfacing a conflict to a reviewer while they can
+    /// still resolve it, rather than at the point of no return.
     ///
     /// Edits on different channels still compose, and composable
     /// pairs still merge: a retag beside a suppression is two
@@ -143,15 +144,40 @@ fn validate_modality<M: RedactableModality>(
 
     for edit in edits {
         // An add names no entity — the engine mints the id when it
-        // lands — but it may name a part, and `include_part` is
-        // silent about one the report does not carry.
-        if let Edit::Add(add) = edit
-            && let Some(part) = add.part.as_deref()
-            && !report.part_ids().any(|(id, _)| id.as_str() == part)
-        {
-            return Err(EditError::UnknownPart {
-                part: part.to_owned(),
-            });
+        // lands — but it addresses a part, and `include_part` is
+        // silent about one the report does not carry. A named part
+        // must exist; an unnamed one means the sole document, which
+        // only resolves when there is exactly one.
+        if let Edit::Add(add) = edit {
+            match add.part.as_deref() {
+                Some(part) => {
+                    // Checked through `part_entities::<M>`, not by
+                    // path alone: `include_part` returns `false` for
+                    // a modality mismatch just as silently as for a
+                    // missing part, and landing ignores that bool.
+                    // A text add naming an image part would
+                    // otherwise validate and then vanish.
+                    let id = PartId::from_segments(part.to_vec());
+                    if report.part_entities::<M>(&id).is_none() {
+                        return Err(EditError::UnknownPart {
+                            part: part.to_vec(),
+                            modality: M::NAME,
+                        });
+                    }
+                }
+                None => {
+                    // Zero and many fail for different reasons and
+                    // take different fixes, so they are told apart:
+                    // naming a part answers the second and cannot
+                    // answer the first.
+                    let documents = report.part_ids().filter(|(id, _)| id.depth() == 1).count();
+                    match documents {
+                        1 => {}
+                        0 => return Err(EditError::EmptyReport),
+                        _ => return Err(EditError::AmbiguousPart { documents }),
+                    }
+                }
+            }
         }
         let Some(id) = edit.target() else {
             continue;

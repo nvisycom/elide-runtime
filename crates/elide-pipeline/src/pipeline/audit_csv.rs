@@ -17,7 +17,6 @@
 
 use std::{io, result};
 
-use elide::codec::PartId;
 use elide::entity::Entity;
 use elide::entity::audit::{AuditKind, ManualIntent};
 use elide::modality::Modality;
@@ -25,7 +24,7 @@ use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
-use elide::{Error, ErrorKind, Report, Result};
+use elide::{Error, ErrorKind, PartId, Report, Result};
 use elide_export::{ExportCsv, Table, write_rows};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
@@ -81,7 +80,8 @@ impl ExportCsv for Audit {
     /// Rows are sorted for stable diffs: entities by
     /// `(part_id, entity_id)`, the others by `entity_id`.
     ///
-    /// `part_id` is empty for body entities and `coref` is empty
+    /// `part_id` is the part's path, segments joined for display,
+    /// and `coref` is empty
     /// outside a coreference cluster.
     ///
     /// Locations and nested event payloads are dropped: CSV holds
@@ -113,18 +113,15 @@ impl ExportCsv for Audit {
 }
 
 impl Audit {
-    /// Iterate every entity across body + parts, sorted by
+    /// Iterate every entity across every part, sorted by
     /// `(part_id, entity_id)` for stable output.
     fn entity_rows(&self) -> Vec<EntityRow<'_>> {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
         per_modality!(|M| {
-            if let Some(entities) = self.report.entities::<M>() {
-                extend_entity_rows::<M>(entities, None, &mut rows);
-            }
             for id in &parts {
                 if let Some(entities) = self.report.part_entities::<M>(id) {
-                    extend_entity_rows::<M>(entities, Some(id.as_str()), &mut rows);
+                    extend_entity_rows::<M>(entities, &encode_part_path(id), &mut rows);
                 }
             }
         });
@@ -142,9 +139,6 @@ impl Audit {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
         per_modality!(|M| {
-            if let Some(entities) = self.report.entities::<M>() {
-                extend_provenance_rows(entities, &mut rows);
-            }
             for id in &parts {
                 if let Some(entities) = self.report.part_entities::<M>(id) {
                     extend_provenance_rows(entities, &mut rows);
@@ -165,7 +159,7 @@ impl Audit {
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 struct EntityRow<'a> {
-    part_id: Option<&'a str>,
+    part_id: String,
     modality: &'a str,
     entity_id: Uuid,
     label: &'a str,
@@ -190,11 +184,11 @@ struct ProvenanceRow<'a> {
 
 fn extend_entity_rows<'a, M: Modality>(
     entities: &'a [Entity<M>],
-    part_id: Option<&'a str>,
+    part_id: &str,
     out: &mut Vec<EntityRow<'a>>,
 ) {
     out.extend(entities.iter().map(|e| EntityRow {
-        part_id,
+        part_id: part_id.to_owned(),
         modality: M::NAME,
         entity_id: e.id,
         label: e.label.as_str(),
@@ -318,14 +312,27 @@ fn serialize_confidence<S: Serializer>(value: &f32, s: S) -> result::Result<S::O
     s.serialize_str(&format!("{value:.3}"))
 }
 
+/// One part path as a CSV cell: its segments as a JSON array.
+///
+/// Not [`PartId`]'s `Display`, which joins on `\u{203a}` and is
+/// documented upstream as "a display convenience for error messages
+/// and logs, never parsed back". A CSV is machine-read, and a
+/// segment may itself contain any delimiter, so the cell carries the
+/// same segment array the wire form uses and a consumer parses it
+/// back rather than splitting on a separator that may change.
+fn encode_part_path(id: &PartId) -> String {
+    let segments: Vec<&str> = id.segments().collect();
+    serde_json::to_string(&segments).unwrap_or_else(|_| id.to_string())
+}
+
 /// The report's container part ids, sorted, so an export is stable
 /// across runs.
 ///
-/// Borrowed from the report rather than cloned: the entity rows
-/// carry `part_id` as a `&str` into it, so an owned vec here would
-/// not outlive the rows that point at it.
+/// Borrowed from the report rather than cloned: nothing here needs
+/// ownership, and the ids outlive every row built from them.
 fn sorted_part_ids(report: &Report) -> Vec<&PartId> {
     let mut ids: Vec<&PartId> = report.part_ids().map(|(id, _)| id).collect();
-    ids.sort_by_key(|id| id.as_str());
+    // By path, so a document sorts before the parts nested under it.
+    ids.sort_by(|a, b| a.segments().cmp(b.segments()));
     ids
 }

@@ -19,14 +19,13 @@
 //! [`Engine::anonymize`]: super::Engine::anonymize
 //! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 
-use elide::codec::PartId;
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::UsageReport;
-use elide::{ArtifactSet, Report};
+use elide::{ArtifactSet, PartId, Report};
 use elide_provider::{CodecParams, DocumentContext};
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -98,16 +97,18 @@ pub struct Analyzed {
 #[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Audit {
-    /// The detections: elide's own report, body and container
-    /// parts, each entity carrying its provenance chain.
+    /// The detections: elide's own report, every document and the
+    /// parts nested in one, each entity carrying its provenance
+    /// chain.
     ///
-    /// Edit it through [`Report`]'s own API — [`include`],
-    /// [`suppress`], [`entities`] — for the decisions elide models.
+    /// Edit it through [`Report`]'s own API — [`include_part`],
+    /// [`suppress_part`], [`part_entities`] — for the decisions
+    /// elide models.
     ///
     /// [`Report`]: elide::Report
-    /// [`include`]: elide::Report::include
-    /// [`suppress`]: elide::Report::suppress
-    /// [`entities`]: elide::Report::entities
+    /// [`include_part`]: elide::Report::include_part
+    /// [`suppress_part`]: elide::Report::suppress_part
+    /// [`part_entities`]: elide::Report::part_entities
     pub report: Report,
     /// What the caller asserted when this document was analyzed:
     /// languages, jurisdictions, document tags.
@@ -168,22 +169,24 @@ impl Audit {
     /// One modality's unhandled detections, across the body and
     /// every container part.
     ///
-    /// A part is where this matters most: a DOCX's embedded image
-    /// is exactly the place a text-only policy leaves something
-    /// behind, so reading the body alone would miss the case the
-    /// method exists for.
+    /// A nested part is where this matters most: a DOCX's embedded
+    /// image is exactly the place a text-only policy leaves
+    /// something behind, so reading the document alone would miss
+    /// the case the method exists for.
     fn unhandled_in<M: Modality>(&self) -> impl Iterator<Item = Unhandled> + '_ {
+        // The part tree alone. `entities::<M>()` is shorthand for
+        // the sole document, which is itself a depth-1 part, so
+        // reading both would report every entity of a
+        // single-document report twice.
         let parts: Vec<PartId> = self.report.part_ids().map(|(id, _)| id.clone()).collect();
-        let body = self.report.entities::<M>().unwrap_or_default();
-        let in_parts = parts.into_iter().flat_map(move |id| {
-            self.report
-                .part_entities::<M>(&id)
-                .unwrap_or_default()
-                .iter()
-        });
-
-        body.iter()
-            .chain(in_parts)
+        parts
+            .into_iter()
+            .flat_map(move |id| {
+                self.report
+                    .part_entities::<M>(&id)
+                    .unwrap_or_default()
+                    .iter()
+            })
             .filter(|e| e.audit.selection().is_none() && !e.audit.is_suppressed())
             .map(|e| Unhandled {
                 entity_id: e.id,

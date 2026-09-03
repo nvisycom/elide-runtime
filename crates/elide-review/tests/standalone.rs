@@ -5,13 +5,12 @@
 //! No engine, no provider, no pipeline — if this file compiles, the
 //! crate stands on its own.
 
-use elide::Report;
-use elide::codec::PartId;
 use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
+use elide::{PartId, Report};
 use elide_review::{Add, Edit, EditError, EditSet, Retag, Reviewer, Suppress};
 use uuid::Uuid;
 
@@ -31,10 +30,19 @@ fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
     )
 }
 
+/// The one document these reports hold. Since elide unified the
+/// body into the part tree, a document is a named depth-1 part and
+/// anything it embeds is a child of it.
+const DOCUMENT: &str = "report.docx";
+
+fn document() -> PartId {
+    PartId::new(DOCUMENT)
+}
+
 fn report_with_one() -> (Report, Uuid) {
     let e = entity("email_address", (0, 5));
     let id = e.id;
-    (Report::new().insert_body::<Text>(vec![e]), id)
+    (Report::new().insert_part::<Text>(document(), vec![e]), id)
 }
 
 #[test]
@@ -107,23 +115,16 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
         part: None,
-        by: Reviewer {
-            reason: None,
-            actor: Some("alice".into()),
-        },
+        by: Reviewer::actor("alice"),
     }));
     edits.text.push(Edit::Retag(Retag {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
+        by: Reviewer::default(),
     }));
 
-    edits.validate(&report).expect("composable");
-    edits.apply(&mut report);
+    edits.apply(&mut report).expect("composable");
 
     let entities = report.entities::<Text>().expect("text body");
     assert_eq!(entities.len(), 2, "the added entity is on the report");
@@ -153,12 +154,11 @@ fn suppress_stamps_the_entity() {
     let mut edits = EditSet::default();
     edits.text.push(Edit::Suppress(Suppress {
         id,
-        by: Reviewer {
-            reason: Some("fp".into()),
-            actor: None,
-        },
+        by: Reviewer::reason("fp"),
     }));
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let e = report
         .entities::<Text>()
@@ -181,10 +181,7 @@ fn a_third_retag_conflicts_with_the_first() {
             id,
             label: label.map(LabelRef::new),
             location,
-            by: Reviewer {
-                reason: None,
-                actor: None,
-            },
+            by: Reviewer::default(),
         })
     };
 
@@ -203,18 +200,17 @@ fn a_third_retag_conflicts_with_the_first() {
 fn an_added_entity_keeps_its_reason_and_actor() {
     // The edit is consumed once applied, so if the trail does not
     // carry them the audit can no longer say who added the entity.
-    let mut report = Report::new().insert_body::<Text>(Vec::new());
+    let mut report = Report::new().insert_part::<Text>(document(), Vec::new());
     let mut edits = EditSet::default();
     edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
         location: TextLocation::new(10, 22),
         part: None,
-        by: Reviewer {
-            reason: Some("recognizer missed it".into()),
-            actor: Some("alice".into()),
-        },
+        by: Reviewer::reason("recognizer missed it").with_actor("alice"),
     }));
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let added = &report.entities::<Text>().expect("text body")[0];
     let event = added
@@ -247,24 +243,22 @@ fn retagging_does_not_unsuppress() {
     let mut edits = EditSet::default();
     edits.text.push(Edit::Suppress(Suppress {
         id,
-        by: Reviewer {
-            reason: None,
-            actor: None,
-        },
+        by: Reviewer::default(),
     }));
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let mut edits = EditSet::default();
     edits.text.push(Edit::Retag(Retag {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer {
-            reason: Some("wrong label".into()),
-            actor: Some("bob".into()),
-        },
+        by: Reviewer::reason("wrong label").with_actor("bob"),
     }));
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let e = report
         .entities::<Text>()
@@ -295,14 +289,17 @@ fn applying_leaves_the_caller_s_edits_alone() {
         by: Reviewer::default(),
     }));
     edits.text.push(Edit::Suppress(Suppress {
-        // An entity the report does not hold: skipped, not fatal.
-        id: Uuid::from_u128(999),
+        // A second decision on the same channel that merges with
+        // the first rather than contradicting it.
+        id,
         by: Reviewer::default(),
     }));
 
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
-    assert_eq!(edits.text.len(), 2, "both edits survive, applied or not",);
+    assert_eq!(edits.text.len(), 2, "both edits survive the apply");
     let stamped = report
         .entities::<Text>()
         .expect("text body")
@@ -325,13 +322,12 @@ fn a_retag_records_who_corrected_it() {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer {
-            reason: Some("recognizer mislabelled it".into()),
-            actor: Some("bob".into()),
-        },
+        by: Reviewer::reason("recognizer mislabelled it").with_actor("bob"),
     }));
 
-    edits.apply(&mut report);
+    edits
+        .apply(&mut report)
+        .expect("the edits apply to this report");
 
     let entity = &report.entities::<Text>().expect("text body")[0];
     let event = entity
@@ -411,24 +407,26 @@ fn an_image_add_lands_in_the_part_it_names() {
     // its part — a reviewer boxing a face in `image1.png` has
     // nowhere to put it otherwise.
     //
-    // Text does not need this: a DOCX's `word/document.xml` text is
-    // the *body*, and where a span came from is carried by
-    // `TextLocation::source`.
-    let part = PartId::new("word/media/image1.png");
+    // Text does not need this: a DOCX's `word/document.xml` text
+    // belongs to the document part itself, and where a span came
+    // from is carried by `TextLocation::source`.
+    let part = document().child("word/media/image1.png");
     let mut report = Report::new()
-        .insert_body::<Text>(Vec::new())
+        .insert_part::<Text>(document(), Vec::new())
         .insert_part::<Image>(part.clone(), Vec::new());
 
     let mut edits = EditSet::default();
     edits.edit(Edit::Add(Add::<Image> {
         label: LabelRef::new("person_name"),
         location: ImageLocation::new(BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0))),
-        part: Some("word/media/image1.png".to_owned()),
+        part: Some(vec![
+            DOCUMENT.to_owned(),
+            "word/media/image1.png".to_owned(),
+        ]),
         by: Reviewer::default(),
     }));
 
-    edits.validate(&report).expect("the part exists");
-    edits.apply(&mut report);
+    edits.apply(&mut report).expect("the part exists");
 
     assert_eq!(
         report
@@ -445,13 +443,13 @@ fn an_add_naming_an_absent_part_is_rejected() {
     // `include_part` returns `false` for a part the report does not
     // carry, so without this the addition would vanish and the
     // reviewer would be told it landed.
-    let report = Report::new().insert_body::<Text>(Vec::new());
+    let report = Report::new().insert_part::<Text>(document(), Vec::new());
 
     let mut edits = EditSet::default();
     edits.edit(Edit::Add(Add::<Text> {
         label: LabelRef::new("email_address"),
         location: TextLocation::new(0, 4),
-        part: Some("word/nonexistent.xml".to_owned()),
+        part: Some(vec![DOCUMENT.to_owned(), "word/nonexistent.xml".to_owned()]),
         by: Reviewer::default(),
     }));
 
@@ -459,7 +457,7 @@ fn an_add_naming_an_absent_part_is_rejected() {
         .validate(&report)
         .expect_err("the part is not in this report");
     assert!(
-        matches!(&err, EditError::UnknownPart { part } if part == "word/nonexistent.xml"),
+        matches!(&err, EditError::UnknownPart { part, .. } if part.last().map(String::as_str) == Some("word/nonexistent.xml")),
         "the error names the missing part: {err}",
     );
     assert_eq!(err.entity_id(), None, "an add names no entity");

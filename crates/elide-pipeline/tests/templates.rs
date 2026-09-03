@@ -30,7 +30,7 @@ fn key() -> KeyConfig {
 }
 
 fn raw_txt() -> Document {
-    Document::new(Bytes::from_static(SAMPLE_TXT), "txt")
+    Document::new("sample.txt", Bytes::from_static(SAMPLE_TXT))
 }
 
 fn default_spec() -> RequestContext {

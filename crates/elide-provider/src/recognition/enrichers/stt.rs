@@ -74,6 +74,22 @@ pub enum SttBackend {
         /// intended trade: a secret is supplied, not round-tripped.
         #[serde(skip_serializing)]
         api_key: String,
+        /// Base URL of the Gladia API, overriding the SDK's
+        /// default (`https://api.gladia.io`).
+        ///
+        /// For a regional endpoint, or to point a test deployment
+        /// at a local stand-in rather than the live service.
+        ///
+        /// Read from configuration but never written back, like
+        /// [`api_key`](Self::Gladia::api_key) beside it. A URL can
+        /// carry its own credential — `https://user:pw@host` — and
+        /// this type is `Serialize`, so a host dumping its
+        /// effective settings would put that password wherever the
+        /// dump lands. Not serializing it costs nothing: the key is
+        /// already skipped, so a serialized config was never
+        /// loadable as-is.
+        #[serde(default, skip_serializing)]
+        base_url: Option<String>,
     },
     /// No-op backend; emits no segments. Test-only.
     #[cfg(feature = "test-utils")]
@@ -92,7 +108,14 @@ impl fmt::Debug for SttBackend {
                 .field("model", model)
                 .finish(),
             #[cfg(feature = "gladia")]
-            Self::Gladia { .. } => f.debug_struct("Gladia").field("api_key", &"***").finish(),
+            // `base_url` is redacted beside the key: a URL can
+            // carry its own credential, and this is the rendering
+            // a panic or a tracing line takes.
+            Self::Gladia { .. } => f
+                .debug_struct("Gladia")
+                .field("api_key", &"***")
+                .field("base_url", &"***")
+                .finish(),
             #[cfg(feature = "test-utils")]
             Self::Mock => f.write_str("Mock"),
         }
@@ -126,6 +149,7 @@ mod tests {
         const SECRET: &str = "sk-super-secret-value";
         let backend = SttBackend::Gladia {
             api_key: SECRET.to_owned(),
+            base_url: Some("https://eu-west.gladia.io".to_owned()),
         };
 
         let debugged = format!("{backend:?}");
@@ -133,12 +157,22 @@ mod tests {
             !debugged.contains(SECRET),
             "the API key reached a Debug rendering: {debugged}",
         );
+        assert!(
+            !debugged.contains("eu-west.gladia.io"),
+            "nor did the base URL, which can carry a credential of its own: \
+             {debugged}",
+        );
         assert!(debugged.contains("***"), "expected a redaction: {debugged}");
 
         let json = serde_json::to_string(&backend).expect("the config serializes");
         assert!(
             !json.contains(SECRET),
             "the API key reached a serialized config: {json}",
+        );
+        assert!(
+            !json.contains("eu-west.gladia.io"),
+            "the base URL is not serialized either: a URL can carry its own \
+             credential, so it is read from config and never written back: {json}",
         );
     }
 }

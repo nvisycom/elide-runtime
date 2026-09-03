@@ -20,10 +20,12 @@ use elide::enrichment::stt::SttEnricher;
 use elide::modality::TextRecognizable;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
+#[cfg(feature = "gladia")]
+use elide::{Error, ErrorKind};
 use elide_bentoml::ocr::BentoOcr;
 use elide_bentoml::stt::BentoStt;
 #[cfg(feature = "gladia")]
-use elide_gladia::GladiaStt;
+use elide_gladia::{GladiaStt, gladia};
 
 use super::super::Component;
 use crate::recognition::{OcrBackend, SttBackend};
@@ -70,6 +72,37 @@ pub(in crate::recognition) fn attach_ocr(
     Ok(analyzer.with_enricher(builder.build()?))
 }
 
+/// Build the Gladia backend, going through the SDK client only
+/// when the deployment overrode the base URL.
+///
+/// `GladiaStt::new` builds its own client against Gladia's public
+/// endpoint, which is the common case; a regional endpoint or a
+/// local stand-in needs the client built explicitly.
+///
+/// The `map_err` mirrors what `GladiaStt::new` does internally.
+/// elide-gladia keeps its `GladiaError` conversion crate-private
+/// and the SDK's own error has no `From` into elide's, so there is
+/// nothing to delegate to from here. Naming the rejected URL is
+/// worth the closure regardless: a bare conversion would report
+/// only that a client could not be built.
+#[cfg(feature = "gladia")]
+fn gladia_backend(api_key: &str, base_url: Option<&str>) -> Result<GladiaStt> {
+    let Some(base_url) = base_url else {
+        return GladiaStt::new(api_key);
+    };
+    let client = gladia::Client::builder()
+        .with_api_key(api_key)
+        .with_base_url(base_url)
+        .build()
+        .map_err(|err| {
+            Error::new(
+                ErrorKind::Configuration,
+                format!("gladia: base_url {base_url:?} did not build a client: {err}"),
+            )
+        })?;
+    GladiaStt::from_client(client)
+}
+
 /// Attach an [`SttEnricher`] for the audio modality.
 ///
 /// The deployment's `Bento` backend wraps elide-bentoml's
@@ -87,7 +120,9 @@ pub(in crate::recognition) fn attach_stt(
             builder.with_backend(BentoStt::new(base_url.clone(), model.clone())?)
         }
         #[cfg(feature = "gladia")]
-        SttBackend::Gladia { api_key } => builder.with_backend(GladiaStt::new(api_key.clone())?),
+        SttBackend::Gladia { api_key, base_url } => {
+            builder.with_backend(gladia_backend(api_key, base_url.as_deref())?)
+        }
         #[cfg(feature = "test-utils")]
         SttBackend::Mock => builder.with_backend(MockSttBackend::new()),
     };

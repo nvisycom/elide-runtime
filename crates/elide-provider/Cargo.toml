@@ -55,9 +55,6 @@ schemars = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
 hipstr = { workspace = true, features = ["serde"] }
 
-# Encoding and hashing
-url = { workspace = true, features = [] }
-
 [dev-dependencies]
 # Self, with the mock backends on
 elide-provider = { path = ".", features = ["test-utils"] }

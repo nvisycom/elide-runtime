@@ -25,7 +25,7 @@ use self::fixtures::write_artefact;
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
 fn raw_txt() -> Document {
-    Document::new(Bytes::from_static(SAMPLE_TXT), "txt")
+    Document::new("sample.txt", Bytes::from_static(SAMPLE_TXT))
 }
 
 fn engine() -> Engine {
@@ -144,7 +144,9 @@ async fn write_entities_csv_has_header_and_one_row_per_entity() {
     assert_eq!(
         row_count,
         entities.len(),
-        "one row per entity (body only, no parts in this fixture)",
+        "one row per entity: the fixture is one document with no \
+         nested parts, and the sole-document shorthand must not \
+         double-count it against the part tree",
     );
 }
 

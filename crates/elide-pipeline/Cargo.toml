@@ -80,6 +80,12 @@ audit-csv = ["dep:elide-export", "elide-export/csv", "dep:serde_json"]
 ## `elide_export::ExportCsv::write_zip`.
 audit-zip = ["audit-csv", "elide-export/zip"]
 
+## Ship the Gladia-backed STT backend, so a deployment can
+## transcribe through Gladia's hosted API instead of a self-hosted
+## service. Off by default: it pulls a third-party HTTP client, and
+## it sends audio off your infrastructure before redaction runs.
+gladia = ["elide-provider/gladia"]
+
 ## Turn on the test-only mock variants
 ## (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) and the elide mock
 ## backends they compile into. Off in production so deployment

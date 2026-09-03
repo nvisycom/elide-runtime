@@ -21,7 +21,7 @@ mod request;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use elide::codec::{FormatRegistry, PartId};
+use elide::codec::FormatRegistry;
 use elide::entity::LabelCatalog;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
@@ -29,7 +29,7 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
-use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, Report, Result};
+use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, PartId, Report, Result};
 use elide_governance::modality::RedactableModality;
 use elide_governance::{PolicyDefinition, PolicyRule, Predicate, compile_catalog};
 use uuid::Uuid;

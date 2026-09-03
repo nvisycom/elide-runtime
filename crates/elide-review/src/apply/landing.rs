@@ -5,12 +5,11 @@
 //! cloned out, because its derive would need `M: Clone` and a
 //! modality marker is not.
 
-use elide::Report;
-use elide::codec::PartId;
 use elide::entity::audit::{Attribution, AuditLog, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::Modality;
 use elide::primitive::Confidence;
+use elide::{PartId, Report};
 use elide_governance::modality::RedactableModality;
 use uuid::Uuid;
 
@@ -24,7 +23,7 @@ pub(super) enum Landing<M: Modality> {
     Add {
         label: LabelRef,
         location: M::Location,
-        part: Option<String>,
+        part: Option<Vec<String>>,
         reason: Option<String>,
         actor: Option<String>,
     },
@@ -43,6 +42,19 @@ pub(super) enum Landing<M: Modality> {
         reason: Option<String>,
         actor: Option<String>,
     },
+}
+
+/// The single top-level document's [`PartId`], or `None` when the
+/// report holds zero or several.
+///
+/// elide keeps its own `sole_document_id` private, so this rebuilds
+/// it over the public [`Report::part_ids`]: a top-level document is
+/// a depth-1 path, and "sole" means exactly one of them.
+fn sole_document_id(report: &Report) -> Option<PartId> {
+    let mut tops = report.part_ids().filter(|(id, _)| id.depth() == 1);
+    let (first, _) = tops.next()?;
+    let first = first.clone();
+    tops.next().is_none().then_some(first)
 }
 
 impl<M: Modality> Landing<M> {
@@ -95,10 +107,17 @@ impl<M: Modality> Landing<M> {
                     reason.map(Attribution::freeform).map(Into::into),
                     actor.as_deref(),
                 );
-                match part {
-                    Some(part) => report.include_part::<M>(&PartId::from(part), entity),
-                    None => report.include::<M>(entity),
+                // A named part is a path; `None` means the sole
+                // document, which `sole_document_id` resolves. A
+                // multi-document request has no sole document, and
+                // validation rejects that before landing.
+                let Some(target) = part
+                    .map(PartId::from_segments)
+                    .or_else(|| sole_document_id(report))
+                else {
+                    return;
                 };
+                report.include_part::<M>(&target, entity);
             }
             Self::Retag {
                 id,

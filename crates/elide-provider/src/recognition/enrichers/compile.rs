@@ -22,6 +22,8 @@ use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide_bentoml::ocr::BentoOcr;
 use elide_bentoml::stt::BentoStt;
+#[cfg(feature = "gladia")]
+use elide_gladia::GladiaStt;
 
 use super::super::Component;
 use crate::recognition::{OcrBackend, SttBackend};
@@ -71,7 +73,7 @@ pub(in crate::recognition) fn attach_ocr(
 /// Attach an [`SttEnricher`] for the audio modality.
 ///
 /// The deployment's `Bento` backend wraps elide-bentoml's
-/// `BentoStt` client.
+/// `BentoStt` client; `Gladia` wraps elide-gladia's hosted one.
 ///
 /// [`SttEnricher`]: elide::enrichment::stt::SttEnricher
 pub(in crate::recognition) fn attach_stt(
@@ -84,6 +86,8 @@ pub(in crate::recognition) fn attach_stt(
         SttBackend::Bento { base_url, model } => {
             builder.with_backend(BentoStt::new(base_url.clone(), model.clone())?)
         }
+        #[cfg(feature = "gladia")]
+        SttBackend::Gladia { api_key } => builder.with_backend(GladiaStt::new(api_key.clone())?),
         #[cfg(feature = "test-utils")]
         SttBackend::Mock => builder.with_backend(MockSttBackend::new()),
     };

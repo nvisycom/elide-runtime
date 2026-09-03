@@ -5,13 +5,12 @@
 //! No engine, no provider, no pipeline — if this file compiles, the
 //! crate stands on its own.
 
-use elide::Report;
-use elide::codec::PartId;
 use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
+use elide::{PartId, Report};
 use elide_review::{Add, Edit, EditError, EditSet, Retag, Reviewer, Suppress};
 use uuid::Uuid;
 
@@ -31,10 +30,19 @@ fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
     )
 }
 
+/// The one document these reports hold. Since elide unified the
+/// body into the part tree, a document is a named depth-1 part and
+/// anything it embeds is a child of it.
+const DOCUMENT: &str = "report.docx";
+
+fn document() -> PartId {
+    PartId::new(DOCUMENT)
+}
+
 fn report_with_one() -> (Report, Uuid) {
     let e = entity("email_address", (0, 5));
     let id = e.id;
-    (Report::new().insert_body::<Text>(vec![e]), id)
+    (Report::new().insert_part::<Text>(document(), vec![e]), id)
 }
 
 #[test]
@@ -203,7 +211,7 @@ fn a_third_retag_conflicts_with_the_first() {
 fn an_added_entity_keeps_its_reason_and_actor() {
     // The edit is consumed once applied, so if the trail does not
     // carry them the audit can no longer say who added the entity.
-    let mut report = Report::new().insert_body::<Text>(Vec::new());
+    let mut report = Report::new().insert_part::<Text>(document(), Vec::new());
     let mut edits = EditSet::default();
     edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
@@ -411,19 +419,22 @@ fn an_image_add_lands_in_the_part_it_names() {
     // its part — a reviewer boxing a face in `image1.png` has
     // nowhere to put it otherwise.
     //
-    // Text does not need this: a DOCX's `word/document.xml` text is
-    // the *body*, and where a span came from is carried by
-    // `TextLocation::source`.
-    let part = PartId::new("word/media/image1.png");
+    // Text does not need this: a DOCX's `word/document.xml` text
+    // belongs to the document part itself, and where a span came
+    // from is carried by `TextLocation::source`.
+    let part = document().child("word/media/image1.png");
     let mut report = Report::new()
-        .insert_body::<Text>(Vec::new())
+        .insert_part::<Text>(document(), Vec::new())
         .insert_part::<Image>(part.clone(), Vec::new());
 
     let mut edits = EditSet::default();
     edits.edit(Edit::Add(Add::<Image> {
         label: LabelRef::new("person_name"),
         location: ImageLocation::new(BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0))),
-        part: Some("word/media/image1.png".to_owned()),
+        part: Some(vec![
+            DOCUMENT.to_owned(),
+            "word/media/image1.png".to_owned(),
+        ]),
         by: Reviewer::default(),
     }));
 
@@ -445,13 +456,13 @@ fn an_add_naming_an_absent_part_is_rejected() {
     // `include_part` returns `false` for a part the report does not
     // carry, so without this the addition would vanish and the
     // reviewer would be told it landed.
-    let report = Report::new().insert_body::<Text>(Vec::new());
+    let report = Report::new().insert_part::<Text>(document(), Vec::new());
 
     let mut edits = EditSet::default();
     edits.edit(Edit::Add(Add::<Text> {
         label: LabelRef::new("email_address"),
         location: TextLocation::new(0, 4),
-        part: Some("word/nonexistent.xml".to_owned()),
+        part: Some(vec![DOCUMENT.to_owned(), "word/nonexistent.xml".to_owned()]),
         by: Reviewer::default(),
     }));
 
@@ -459,7 +470,7 @@ fn an_add_naming_an_absent_part_is_rejected() {
         .validate(&report)
         .expect_err("the part is not in this report");
     assert!(
-        matches!(&err, EditError::UnknownPart { part } if part == "word/nonexistent.xml"),
+        matches!(&err, EditError::UnknownPart { part, .. } if part.last().map(String::as_str) == Some("word/nonexistent.xml")),
         "the error names the missing part: {err}",
     );
     assert_eq!(err.entity_id(), None, "an add names no entity");

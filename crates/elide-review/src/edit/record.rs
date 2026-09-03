@@ -78,29 +78,34 @@ pub enum Edit<M: RedactableModality> {
 pub struct Add<M: RedactableModality> {
     /// What the reviewer says this is.
     pub label: LabelRef,
-    /// Where it sits, in the coordinates of the group it joins.
+    /// Where it sits, in the coordinates of the part it joins.
     ///
-    /// For text in a container, that is the body's decoded stream —
-    /// a DOCX's `word/document.xml` text *is* the body, not a part.
-    /// A caller who has raw file bytes rather than a decoded offset
-    /// (a reviewer selecting rendered text, say) leaves `range`
-    /// empty and fills [`TextLocation::source`] instead, which the
-    /// engine reverse-resolves.
+    /// For text in a container, that is the document's decoded
+    /// stream — a DOCX's `word/document.xml` text belongs to the
+    /// document itself, not to a nested part. A caller who has raw
+    /// file bytes rather than a decoded offset (a reviewer
+    /// selecting rendered text, say) leaves `range` empty and fills
+    /// [`TextLocation::source`] instead, which the engine
+    /// reverse-resolves.
     ///
     /// [`TextLocation::source`]: elide::modality::text::TextLocation::source
     pub location: M::Location,
-    /// The container part this belongs to, e.g.
-    /// `"word/media/image1.png"`. `None` puts it on the body.
+    /// The part this belongs to, as a path: `["report.docx"]` for
+    /// the document itself, `["report.docx", "word/media/image1.png"]`
+    /// for media it embeds. `None` means the request's sole
+    /// document, which is the common case and saves a caller
+    /// naming what it already sent.
     ///
-    /// For the media a container embeds, which the report holds as
-    /// its own group: an image entity lives under its part, and an
-    /// addition to one has nowhere to go without naming it.
+    /// Nested media needs this: the report holds an embedded image
+    /// as its own part, and an addition to one has nowhere to go
+    /// without naming it. Text usually does not — where a span came
+    /// from is already in `TextLocation::source`, which carries the
+    /// part alongside the raw range.
     ///
-    /// Text does not need this. A container's text is its body, and
-    /// where a span came from is already in `TextLocation::source`,
-    /// which carries the part alongside the raw range.
+    /// `None` is an error when the request carried several
+    /// documents, since there is then no sole document to mean.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub part: Option<String>,
+    pub part: Option<Vec<String>>,
     /// Who made the call, and why.
     #[serde(flatten)]
     pub by: Reviewer,

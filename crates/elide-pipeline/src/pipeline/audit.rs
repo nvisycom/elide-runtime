@@ -19,14 +19,13 @@
 //! [`Engine::anonymize`]: super::Engine::anonymize
 //! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 
-use elide::codec::PartId;
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::UsageReport;
-use elide::{ArtifactSet, Report};
+use elide::{ArtifactSet, PartId, Report};
 use elide_provider::{CodecParams, DocumentContext};
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -98,16 +97,18 @@ pub struct Analyzed {
 #[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Audit {
-    /// The detections: elide's own report, body and container
-    /// parts, each entity carrying its provenance chain.
+    /// The detections: elide's own report, every document and the
+    /// parts nested in one, each entity carrying its provenance
+    /// chain.
     ///
-    /// Edit it through [`Report`]'s own API — [`include`],
-    /// [`suppress`], [`entities`] — for the decisions elide models.
+    /// Edit it through [`Report`]'s own API — [`include_part`],
+    /// [`suppress_part`], [`part_entities`] — for the decisions
+    /// elide models.
     ///
     /// [`Report`]: elide::Report
-    /// [`include`]: elide::Report::include
-    /// [`suppress`]: elide::Report::suppress
-    /// [`entities`]: elide::Report::entities
+    /// [`include_part`]: elide::Report::include_part
+    /// [`suppress_part`]: elide::Report::suppress_part
+    /// [`part_entities`]: elide::Report::part_entities
     pub report: Report,
     /// What the caller asserted when this document was analyzed:
     /// languages, jurisdictions, document tags.

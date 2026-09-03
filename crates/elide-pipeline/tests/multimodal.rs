@@ -8,11 +8,10 @@ mod fixtures;
 use std::io::{Cursor, Read};
 
 use bytes::Bytes;
-use elide::codec::PartId;
 use elide::entity::LabelRef;
 use elide::modality::image::Image;
 use elide::modality::text::Text;
-use elide::{ErrorKind, Report};
+use elide::{ErrorKind, PartId, Report};
 use elide_governance::redaction::ModalityRedactions;
 use elide_governance::{LabelScope, PolicyDefinition};
 use elide_pipeline::file::Document;
@@ -25,9 +24,12 @@ use self::fixtures::write_artefact;
 
 const SAMPLE_DOCX: &[u8] = include_bytes!("testdata/sample.docx");
 const IMAGE_PART_ID: &str = "word/media/image1.png";
+/// The name the fixture is analyzed under: since elide unified the
+/// body into the part tree, it roots every part path in the report.
+const DOCUMENT: &str = "sample.docx";
 
 fn raw_docx() -> Document {
-    Document::new(Bytes::from_static(SAMPLE_DOCX), "docx")
+    Document::new(DOCUMENT, Bytes::from_static(SAMPLE_DOCX))
 }
 
 fn engine() -> Engine {
@@ -99,14 +101,14 @@ async fn analyze_captures_text_body_and_image_part() {
         "fixture should carry at least one body entity",
     );
 
-    let part_id = PartId::from(IMAGE_PART_ID.to_owned());
+    let part_id = PartId::new(DOCUMENT).child(IMAGE_PART_ID);
     assert!(
         analyzed.report.part_entities::<Image>(&part_id).is_some(),
         "expected part `{IMAGE_PART_ID}` to carry Image entities; got parts: {:?}",
         analyzed
             .report
             .part_ids()
-            .map(|(id, _)| id.as_str())
+            .map(|(id, _)| id.to_string())
             .collect::<Vec<_>>(),
     );
 }

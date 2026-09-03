@@ -52,7 +52,10 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::primitive::RasterMode;
 use elide::recognition::UsageReport;
-use elide::{AnalyzedDocument, ArtifactSet, Directives, Error, ErrorKind, Report, Result};
+use elide::{
+    AnalyzedDocument, ArtifactSet, Directives, Document as EngineDocument, Error, ErrorKind,
+    Report, Result,
+};
 use elide_governance::PolicyDefinition;
 use elide_provider::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};
 use serde::Deserialize;
@@ -172,7 +175,7 @@ impl Engine {
     ///
     /// Decodes `document`, drives [`Orchestrator::analyze`], and
     /// returns an [`Analyzed`]: the audit over the report it
-    /// produced — the body *and* every container part (DOCX
+    /// produced — every document *and* every part nested in one (DOCX
     /// embedded images, archive members, ...) — with the
     /// recognition context and what the pass cost, plus the
     /// [`ArtifactSet`] the pass extracted. The artifacts stay off
@@ -277,11 +280,9 @@ impl Engine {
         let usage = report.usage().clone();
 
         // A document whose codec resolved to a modality with no
-        // registered pipeline produces no body, and nothing
-        // downstream can act on it. Probing each modality in turn
-        // is how the body's own modality is discovered: a report
-        // exposes its parts' modalities but not its body's.
-        if !has_body(&report) {
+        // registered pipeline produces no part at all, and nothing
+        // downstream can act on it.
+        if !has_documents(&report) {
             return Err(Error::new(
                 ErrorKind::CapabilityUnavailable,
                 format!(
@@ -375,19 +376,41 @@ impl Engine {
         key: Option<&KeyConfig>,
     ) -> Result<Document> {
         let correlation_id = document.correlation_id;
+        let name = document.name.clone();
         let extension = document.extension.clone();
         let content_type = document.content_type.clone();
-        let mut handle = self.decode(document, audit.codec).await?;
+        let mut decoded = self.decode(document, audit.codec).await?;
 
-        // An audit with no body was never analyzed. Applying it
-        // would return the document unredacted and report success,
-        // which reads exactly like "nothing to redact" — so refuse
-        // instead of handing back bytes a caller may believe are
-        // clean.
-        if !has_body(&audit.report) {
+        // An audit describing no document was never analyzed.
+        // Applying it would return the document unredacted and
+        // report success, which reads exactly like "nothing to
+        // redact" — so refuse instead of handing back bytes a
+        // caller may believe are clean.
+        if !has_documents(&audit.report) {
             return Err(Error::new(
                 ErrorKind::Configuration,
-                "anonymize: the audit has no body; analyze must run first",
+                "anonymize: the audit describes no document; analyze must run first",
+            ));
+        }
+
+        // The name is the join key between the two passes: it roots
+        // every part path in the report, and elide matches a
+        // document to its entities by it. A name the report does
+        // not carry matches nothing, and elide skips that document
+        // rather than failing — so without this the call returns
+        // the original bytes, unredacted, with a clean `Ok`. That is
+        // the same fault the check above refuses, reached by a
+        // different route: an audit rebuilt against a re-derived or
+        // normalised filename.
+        if !names_a_document(&audit.report, name.as_str()) {
+            let known: Vec<&str> = document_names(&audit.report).collect();
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "anonymize: this audit describes {known:?}, not `{name}`. The \
+                     document must carry the name it was analyzed under, since the \
+                     report keys its entities by it.",
+                ),
             ));
         }
 
@@ -400,11 +423,12 @@ impl Engine {
         // Swapped out and back so the caller's audit ends up holding
         // the applied report rather than the pre-apply one.
         let report = mem::replace(&mut audit.report, Report::new());
-        audit.report = orchestrator.anonymize_with(&mut handle, report).await?;
+        audit.report = orchestrator.anonymize_with(&mut decoded, report).await?;
 
-        let bytes = encode_redacted(handle)?;
+        let bytes = encode_redacted(decoded.handle)?;
 
         Ok(Document {
+            name,
             bytes,
             extension,
             content_type,
@@ -412,27 +436,29 @@ impl Engine {
         })
     }
 
-    async fn decode(
-        &self,
-        document: Document,
-        codec: CodecParams,
-    ) -> Result<UntypedDocumentHandle> {
-        let Document {
-            bytes, extension, ..
-        } = document;
+    async fn decode(&self, document: Document, codec: CodecParams) -> Result<EngineDocument> {
+        // The format comes from the document's name unless it
+        // carries an explicit override; neither means there is
+        // nothing to resolve a codec from.
+        let extension = document.resolved_extension().ok_or_else(|| {
+            Error::new(
+                ErrorKind::MalformedInput,
+                format!(
+                    "document `{}` has no extension to resolve a format from: give the \
+                     name one, or set it explicitly with `Document::with_extension`.",
+                    document.name,
+                ),
+            )
+        })?;
+        let Document { name, bytes, .. } = document;
         let result = match codec.raster_mode {
-            RasterMode::Auto => {
-                self.provider
-                    .formats()
-                    .decode(bytes, extension.as_str())
-                    .await
-            }
+            RasterMode::Auto => self.provider.formats().decode(bytes, &extension).await,
             _ => {
-                self.decode_with_raster_mode(bytes, extension.as_str(), codec.raster_mode)
+                self.decode_with_raster_mode(bytes, &extension, codec.raster_mode)
                     .await
             }
         };
-        result.map_err(|err| {
+        let handle = result.map_err(|err| {
             // A missing renderer is not malformed input; keep the kind so
             // callers can tell "unsupported build" from "bad document".
             let kind = match err.kind() {
@@ -443,7 +469,11 @@ impl Engine {
                 kind,
                 format!("codec decode failed for extension {extension:?}: {err}"),
             )
-        })
+        })?;
+        // The name roots every part path the report reports, so it
+        // is attached here rather than left to the codec: a handle
+        // is bytes and format, never an identity.
+        Ok(EngineDocument::new(name.as_str().to_owned(), handle))
     }
 
     /// Slow-path decode for requests overriding the default raster
@@ -513,18 +543,33 @@ struct AuditWire {
     usage: UsageReport,
 }
 
-/// Whether `report` has a body at all.
+/// Whether `report` describes any document at all.
 ///
-/// A report exposes its parts' modalities but not its body's, so
-/// the body is discovered by probing each modality in turn: at most
-/// one matches. Analyze uses this to reject a document whose codec
-/// resolved to a modality with no registered pipeline; anonymize
-/// uses it to reject an audit that never went through analyze.
-fn has_body(report: &Report) -> bool {
-    report.entities::<Text>().is_some()
-        || report.entities::<Tabular>().is_some()
-        || report.entities::<Image>().is_some()
-        || report.entities::<Audio>().is_some()
+/// Since elide unified the body into the part tree, a document is a
+/// depth-1 part, so this is simply "did anything land". Analyze uses
+/// it to reject a document whose codec resolved to a modality with
+/// no registered pipeline; anonymize uses it to reject an audit that
+/// never went through analyze.
+///
+/// Deliberately not the per-modality `entities::<M>()` probe it
+/// replaced: that shorthand answers only for a *sole* document, so a
+/// multi-document report would read as empty and be refused.
+fn has_documents(report: &Report) -> bool {
+    document_names(report).next().is_some()
+}
+
+/// The names of the documents `report` describes, one per depth-1
+/// part.
+fn document_names(report: &Report) -> impl Iterator<Item = &str> {
+    report
+        .part_ids()
+        .filter(|(id, _)| id.depth() == 1)
+        .map(|(id, _)| id.last_segment())
+}
+
+/// Whether `report` describes a document called `name`.
+fn names_a_document(report: &Report, name: &str) -> bool {
+    document_names(report).any(|known| known == name)
 }
 
 /// Re-encode the redacted handle back into document bytes.

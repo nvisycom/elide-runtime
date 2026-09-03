@@ -34,16 +34,47 @@ pub enum EditError {
         /// The operation that contradicts it.
         later: &'static str,
     },
-    /// An add names a container part the report does not hold.
+    /// An add names a part the report does not hold *for this
+    /// modality* — an unknown path, or a real one holding another
+    /// medium.
     ///
     /// Rejected rather than skipped for the same reason as an
-    /// unknown target: elide's `include_part` returns `false` for an
-    /// unknown part, so the addition would vanish and the reviewer
-    /// would be told it landed.
+    /// unknown target: elide's `include_part` returns `false` for
+    /// both, equally silently, so the addition would vanish and the
+    /// reviewer would be told it landed.
     UnknownPart {
-        /// The part the edit names.
-        part: String,
+        /// The part path the edit names, top-level document first.
+        part: Vec<String>,
+        /// The modality the add carries, which is what the part was
+        /// searched for.
+        modality: &'static str,
     },
+    /// An add leaves its part unset against a report describing
+    /// several documents, so "the one I sent" names nothing.
+    ///
+    /// An unset part is shorthand for the sole document, which only
+    /// resolves when the report holds exactly one. With several,
+    /// there is nothing to resolve it to and the addition would
+    /// silently go nowhere.
+    AmbiguousPart {
+        /// How many documents the report describes. Always more
+        /// than one: an empty report is [`EmptyReport`] instead,
+        /// and exactly one is the case this variant excludes.
+        ///
+        /// [`EmptyReport`]: Self::EmptyReport
+        documents: usize,
+    },
+    /// An edit is applied to a report describing no document at
+    /// all.
+    ///
+    /// Distinct from [`AmbiguousPart`]: naming a part cannot help,
+    /// because the report holds none. A report is empty only when
+    /// analysis never ran, or ran against a document the
+    /// orchestrator has no pipeline for, so the fix is upstream of
+    /// the edit.
+    ///
+    /// [`AmbiguousPart`]: Self::AmbiguousPart
+    EmptyReport,
     /// An edit names an entity the report does not hold — a stale
     /// id, or one filed under the wrong modality.
     ///
@@ -69,7 +100,7 @@ impl EditError {
             }
             // An add names no entity: the engine mints the id when
             // the edit lands.
-            Self::UnknownPart { .. } => None,
+            Self::UnknownPart { .. } | Self::AmbiguousPart { .. } | Self::EmptyReport => None,
         }
     }
 
@@ -110,10 +141,22 @@ impl fmt::Display for EditError {
                  `{earlier}` and `{later}` answer the same question differently. \
                  Send one.",
             ),
-            Self::UnknownPart { part } => write!(
+            Self::UnknownPart { part, modality } => write!(
                 f,
-                "no container part `{part}` in this report: the add \
-                 names a part the document does not carry.",
+                "no `{modality}` part `{}` in this report: the add names \
+                 a part the document does not carry, or one holding a \
+                 different medium.",
+                part.join(" / "),
+            ),
+            Self::AmbiguousPart { documents } => write!(
+                f,
+                "the add leaves its part unset, which means the sole \
+                 document, but this report describes {documents} of them. \
+                 Name the part the addition belongs to.",
+            ),
+            Self::EmptyReport => f.write_str(
+                "this report describes no document, so there is nothing \
+                 to edit: analyze must run first.",
             ),
             Self::UnknownTarget {
                 entity_id,

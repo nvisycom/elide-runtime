@@ -73,7 +73,7 @@ base64 = { version = "0.23", features = [] }
 sha2 = { version = "0.11", features = [] }
 
 # Test utilities
-criterion = { version = "0.7", features = [] }
+criterion = { version = "0.8", features = [] }
 tempfile = { version = "3.10", features = [] }
 zip = { version = "8.6", default-features = false, features = ["deflate"] }
 

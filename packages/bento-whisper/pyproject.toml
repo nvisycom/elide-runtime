@@ -12,7 +12,7 @@ dependencies = [
     "bentoml>=1.4.39,<2",
     "bento-core",
     # Audio decoding: librosa reads whatever the image's ffmpeg understands.
-    "librosa>=0.11,<1",
+    "librosa>=0.11,<2",
     "prometheus-client>=0.26.0",
     # ASR. WhisperX is deliberately not used: it pins huggingface-hub<1.0.0,
     # which cannot coexist with bento-gliner2's transformers>=5.15.0. Its

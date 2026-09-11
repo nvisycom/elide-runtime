@@ -15,7 +15,23 @@ db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 unmaintained = "workspace"
 yanked = "deny"
-ignore = []
+ignore = [
+    # quick-xml 0.37.5 XML-parsing DoS, reached only through
+    # `little_exif 0.6.23` (an EXIF/XMP dependency of elide-image, new with
+    # the metadata modality). It pins `^0.37`, the fix landed in the
+    # semver-incompatible 0.41, and 0.6.23 is the latest release, so there is
+    # no in-range update: unresolvable here until upstream `little_exif`
+    # bumps. Our own quick-xml is 0.42, which is patched.
+    #
+    # 0194 is reachable — `little_exif`'s `xmp.rs` calls `attributes()` on an
+    # XMP packet, which is XML embedded in image metadata — but bounded:
+    # quadratic time over one start tag's attribute list, capped by the
+    # packet, not unbounded allocation.
+    "RUSTSEC-2026-0194",
+    # 0195 does not apply at all: it is an `NsReader` namespace-resolution
+    # bug, and `little_exif` uses no `NsReader`.
+    "RUSTSEC-2026-0195",
+]
 
 [licenses]
 confidence-threshold = 0.8

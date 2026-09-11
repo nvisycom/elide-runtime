@@ -9,7 +9,7 @@ Elide detection and redaction toolkit.
 
 [![Runtime](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-runtime/build.yml?branch=main&label=runtime&style=flat-square)](https://github.com/nvisycom/elide-runtime/actions/workflows/build.yml)
 [![Inference](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-provider/build.yml?branch=main&label=inference&style=flat-square)](https://github.com/nvisycom/elide-provider/actions/workflows/build.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE.txt)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 
 [**nvisy.com**](https://nvisy.com) · [**docs.nvisy.com**](https://docs.nvisy.com)
 
@@ -66,7 +66,7 @@ as sidecar containers. See each crate README for details.
 
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md) for release notes and version history
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
-- **License**: Apache 2.0, see [LICENSE.txt](LICENSE.txt)
+- **License**: Apache 2.0, see [LICENSE](LICENSE)
 
 ## Support
 

@@ -16,6 +16,25 @@ use uuid::Uuid;
 /// a [`FileMetadata`] + its bytes when the engine reads a stored
 /// file, or from an upload's body + headers at ingest.
 ///
+/// # Bound the bytes before you hand them over
+///
+/// Nothing here limits [`bytes`]. This crate is a stateless
+/// library with no request boundary of its own, so the size a
+/// document may be is the host's policy, not this crate's — an
+/// archival scan and a chat attachment do not want the same
+/// ceiling.
+///
+/// That makes it the host's job, and some decoding is worse than
+/// linear. Clearing EXIF from a PNG parses its XMP metadata
+/// through a dependency with a known quadratic path over one
+/// tag's attributes (RUSTSEC-2026-0194): a crafted image can hold
+/// a core for minutes, and because it is pure computation an I/O
+/// timeout will not interrupt it. A host taking untrusted uploads
+/// should reject oversized ones before calling
+/// [`Engine::analyze`].
+///
+/// [`bytes`]: Document::bytes
+/// [`Engine::analyze`]: crate::Engine::analyze
 /// [`FileMetadata`]: super::FileMetadata
 #[derive(Debug, Clone)]
 pub struct Document {

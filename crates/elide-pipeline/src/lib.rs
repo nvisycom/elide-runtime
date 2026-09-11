@@ -62,8 +62,6 @@ pub use elide::codec::FormatRegistry;
 /// unconditionally, and only their codecs are feature-gated.
 pub mod modality {
     #[doc(inline)]
-    pub use elide::modality::Modality;
-    #[doc(inline)]
     pub use elide::modality::audio::Audio;
     #[doc(inline)]
     pub use elide::modality::image::Image;
@@ -71,7 +69,30 @@ pub mod modality {
     pub use elide::modality::tabular::Tabular;
     #[doc(inline)]
     pub use elide::modality::text::Text;
+    #[doc(inline)]
+    pub use elide::modality::{Modality, ModalityLocation};
+    /// Each medium's own vocabulary: its location and coordinate
+    /// types, its data and replacement types.
+    ///
+    /// The marker types above name a modality; these say where
+    /// something sits inside one — an [`image::ImageLocation`]'s
+    /// bounding box, a [`text::TextLocation`]'s coordinate, an
+    /// [`audio::AudioLocation`]'s time span, a
+    /// [`tabular::TabularLocation`]'s row and column. A consumer
+    /// addressing an entity needs the whole set.
+    #[doc(inline)]
+    pub use elide::modality::{audio, image, tabular, text};
 }
+/// The geometry and time primitives a modality location is built
+/// from: an image bounding box and polygon, a point, an audio
+/// time span.
+///
+/// Re-exported beside the locations that carry them, so a consumer
+/// naming an [`ImageLocation`](modality::image::ImageLocation) can
+/// also name its `bounding_box` without depending on elide
+/// directly.
+#[doc(inline)]
+pub use elide::primitive::{BoundingBox, Point, Polygon, TimeSpan};
 #[doc(inline)]
 pub use elide::primitive::{CountryCode, Languages, RasterMode};
 #[doc(inline)]

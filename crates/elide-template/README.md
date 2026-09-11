@@ -56,3 +56,13 @@ of the regulatory text it encodes, both independent of the crate
 release. A customer transitioning between regulatory revisions
 pins the template version per document class rather than pinning
 the crate.
+
+## License
+
+Apache 2.0 License, see [LICENSE](../../LICENSE)
+
+## Support
+
+- **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-runtime/issues)
+- **Email**: [support@nvisy.com](mailto:support@nvisy.com)

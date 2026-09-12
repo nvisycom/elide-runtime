@@ -148,9 +148,9 @@ pub mod export {
 pub use elide_governance as policy;
 #[doc(inline)]
 pub use elide_provider::{
-    AttachTo, Backend, CodecParams, Component, DocumentContext, Enrichers, KeyConfig, LlmBackend,
-    LlmSource, NerBackend, OcrBackend, Provider, ProviderConfig, Recognition, Recognizers,
-    RequestContext, SttBackend,
+    AttachTo, Backend, CodecParams, Component, CustomMatcher, DocumentContext, Enrichers,
+    KeyConfig, LlmBackend, LlmSource, MatchOn, NerBackend, OcrBackend, Provider, ProviderConfig,
+    Recognition, Recognizers, RequestContext, SttBackend,
 };
 #[doc(inline)]
 pub use elide_template as template;

@@ -43,9 +43,12 @@ mod recognition;
 mod redaction;
 
 /// The vocabulary a request introduces, carried on
-/// [`RequestContext`]. Re-exported so a caller setting it need not
-/// depend on `elide-governance` directly.
-pub use elide_governance::recognition::Recognition;
+/// [`RequestContext`], with the matcher types it is built from.
+///
+/// Re-exported together: a `Recognition` is a list of matchers, so
+/// naming one without being able to name the other leaves the type
+/// unusable from this facade alone.
+pub use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
 
 pub use self::orchestrator::{
     CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,

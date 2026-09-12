@@ -1,6 +1,6 @@
 //! Redaction: which entities to hide, and how.
 //!
-//! Compiles a [`elide_governance::Policy`] set into an
+//! Compiles a [`elide_governance::policy::Policy`] set into an
 //! [`Anonymizer`] per modality at request time.
 //!
 //! Mirrors [`crate::recognition`], which does the same for the

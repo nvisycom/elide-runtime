@@ -31,6 +31,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** a policy no longer carries the vocabulary it detects.
+  `custom` and `matchers` move off `PolicyDefinition` onto
+  `RequestContext` as `recognition: Vec<Recognition>`, where a
+  `Recognition` is `{ custom, matchers }`. A policy says what
+  *happens* to sensitive data; a request says what the engine can
+  *find*. Detection vocabulary was request-wide already — the engine
+  unions every policy's labels into one catalog before a recognizer
+  runs — so scoping a matcher to the policy that declared it meant
+  two policies covering one custom label had to declare it twice.
+  Migration: move the two fields out of each policy into
+  `RequestContext::with_recognition([Recognition { custom, matchers }])`;
+  a `Vec` so a tenant's standing vocabulary composes with a
+  per-document addition without flattening by hand. The vocabulary is
+  recorded on the `Audit` alongside `context` and `codec`, because
+  `anonymize` takes no `RequestContext` and must compile against the
+  same labels analyze detected with.
+- **Breaking:** `PolicyDefinition` is renamed `Policy`, so
+  `analyze`/`anonymize` take `&[Policy]`. The suffix named the older
+  shape, when the type was the whole declaration blob; with seven
+  fields doing one job a plain noun fits.
+- **Breaking:** `Recognition`, `CustomMatcher` and `MatchOn` live in
+  `elide_governance::recognition`, and the flat crate-root re-exports
+  are gone — `policy` is public, so both halves are reached through
+  the module that owns them. `elide-provider` and `elide-pipeline`
+  still re-export all three at their top level, so a caller using
+  either facade is unaffected.
+
 - **Breaking:** a policy's `labels` and `groups` are replaced by
   `scopes: Vec<LabelScope>`. A scope is a named, attributed label
   set; their union (plus `custom`) is what the policy detects. Rules

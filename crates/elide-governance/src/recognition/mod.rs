@@ -24,11 +24,19 @@ pub use self::matcher::{CustomMatcher, MatchOn};
 
 /// Labels a request introduces, and how to detect them.
 ///
-/// Both halves are needed. A label on its own joins the
-/// vocabulary and is never found, because nothing looks for it;
-/// a matcher on its own names a label the catalog does not hold.
-/// Declaring one without the other is refused rather than
-/// silently ignored.
+/// The two halves are independent, and only one pairing is an
+/// error.
+///
+/// A label with no matcher is legitimate: it joins the catalog, a
+/// policy may scope it, and a reviewer may add entities under it
+/// through [`Edit::Add`]. Nothing detects it automatically — there
+/// is no matcher to look for it — which is the point when the
+/// label marks something only a human can recognise.
+///
+/// A matcher with no label is refused, since it would detect into
+/// a vocabulary the catalog never held.
+///
+/// [`Edit::Add`]: https://docs.rs/elide-review
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Recognition {

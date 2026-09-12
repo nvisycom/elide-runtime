@@ -101,7 +101,25 @@ fn insert_custom(catalog: &mut LabelCatalog, recognition: &[Recognition]) -> Res
                 ),
             ));
         }
-        catalog.insert(label.clone());
+        // `insert` returns what it replaced. A byte-identical
+        // redeclaration is a shared vocabulary composed from two
+        // sources and unions cleanly; two different definitions for
+        // one id is a caller bug — glued-together vocabularies —
+        // and silently keeping the last would misredact under the
+        // wrong schema, tags and category.
+        if let Some(replaced) = catalog.insert(label.clone())
+            && &replaced != label
+        {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "custom label `{}` is declared twice in this request with \
+                     different contents: the engine cannot pick which schema, \
+                     tags and category a rule should act under",
+                    label.id(),
+                ),
+            ));
+        }
     }
     Ok(())
 }
@@ -227,6 +245,35 @@ mod tests {
         )
         .unwrap();
         assert!(catalog.contains(&LabelRef::new("project_code")));
+    }
+
+    /// Two sources composing the same label is a shared vocabulary
+    /// and unions cleanly; two *different* definitions for one id is
+    /// a caller bug, and keeping the last silently would misredact
+    /// under the wrong schema and tags.
+    #[test]
+    fn conflicting_custom_definitions_are_refused() {
+        let p = policy_scoping(vec![LabelRef::new("project_code")]);
+        let same = Label::new("project_code", "Project code");
+        compile_catalog(
+            std::slice::from_ref(&p),
+            &[introducing(vec![same.clone()]), introducing(vec![same])],
+        )
+        .expect("a byte-identical redeclaration is one shared label");
+
+        let err = compile_catalog(
+            std::slice::from_ref(&p),
+            &[
+                introducing(vec![Label::new("project_code", "Project code")]),
+                introducing(vec![Label::new("project_code", "Legacy code")]),
+            ],
+        )
+        .expect_err("two different definitions for one id must be refused");
+        assert_eq!(err.kind(), ErrorKind::Configuration);
+        assert!(
+            err.to_string().contains("project_code"),
+            "the error names the label: {err}",
+        );
     }
 
     /// A label the request introduces is shared: two policies both

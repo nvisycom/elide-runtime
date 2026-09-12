@@ -1,5 +1,5 @@
 //! Modality-generic dispatch machinery for
-//! [`elide_governance::Policy`] compilation.
+//! [`elide_governance::policy::Policy`] compilation.
 //!
 //! Two files:
 //!

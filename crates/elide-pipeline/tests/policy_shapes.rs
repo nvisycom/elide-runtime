@@ -914,3 +914,77 @@ async fn the_vocabulary_survives_an_audit_round_trip() {
         "the custom label still redacts after the round trip: {text}",
     );
 }
+
+/// An audit whose vocabulary is gone — a payload predating the
+/// field, or one that dropped it — is refused rather than
+/// anonymized against a catalog that cannot resolve its labels.
+///
+/// Nothing new enforces this: the policy still scopes the custom
+/// label, and `compile_catalog` already rejects a scope naming a
+/// label it cannot resolve. Pinned because the alternative is the
+/// silent one — redacting nothing and reporting success.
+#[tokio::test]
+async fn an_audit_without_its_vocabulary_is_refused() {
+    let engine = engine();
+    let policy = Policy {
+        name: "custom".into(),
+        scopes: vec![LabelScope::new(
+            "internal",
+            vec![LabelRef::new("employee_id")],
+        )],
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        ..Policy::default()
+    };
+    let request = default_spec().with_recognition([Recognition {
+        custom: vec![Label::new("employee_id", "Employee ID")],
+        matchers: vec![CustomMatcher {
+            label: LabelRef::new("employee_id"),
+            name: "employee-id".into(),
+            confidence: Confidence::clamped(0.6),
+            match_on: MatchOn::Pattern {
+                pattern: r"EMP-\d{4}".to_owned(),
+            },
+        }],
+    }]);
+    let document = || {
+        Document::new(
+            "sample.txt",
+            Bytes::from_static(b"Employee EMP-4471 filed."),
+        )
+    };
+
+    let audit = engine
+        .analyze(document(), std::slice::from_ref(&policy), &request)
+        .await
+        .expect("analyze")
+        .audit;
+
+    // Strip the vocabulary, as a payload written before the field
+    // existed would lack it.
+    let mut wire = serde_json::to_value(&audit).expect("audit serializes");
+    wire.as_object_mut()
+        .expect("an audit is a JSON object")
+        .remove("recognition");
+    let stripped = serde_json::to_string(&wire).expect("re-serializes");
+    let mut de = serde_json::Deserializer::from_str(&stripped);
+    let mut restored = engine
+        .deserialize_audit(&mut de)
+        .expect("the audit itself still parses");
+
+    let Err(err) = engine
+        .anonymize(
+            document(),
+            std::slice::from_ref(&policy),
+            &mut restored,
+            None,
+        )
+        .await
+    else {
+        panic!("anonymizing without the vocabulary must not report success");
+    };
+    assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
+    assert!(
+        err.to_string().contains("employee_id"),
+        "the error names the label it cannot resolve: {err}",
+    );
+}

@@ -47,7 +47,7 @@ pub enum Predicate {
         tags: Vec<String>,
     },
     /// Entity label is in the named [`LabelScope`] declared by
-    /// the same [`PolicyDefinition`] this rule lives in.
+    /// the same [`Policy`] this rule lives in.
     ///
     /// Only useful when a policy declares more than one scope, or
     /// when a rule should act on part of the vocabulary while
@@ -61,8 +61,8 @@ pub enum Predicate {
     /// no-op.
     ///
     /// [`LabelScope`]: super::LabelScope
-    /// [`PolicyDefinition`]: super::PolicyDefinition
-    /// [`fallback`]: super::PolicyDefinition::fallback
+    /// [`Policy`]: super::Policy
+    /// [`fallback`]: super::Policy::fallback
     LabelInScope {
         /// Name of the [`LabelScope`] to match against.
         ///

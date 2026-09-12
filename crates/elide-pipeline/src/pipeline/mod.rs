@@ -56,7 +56,8 @@ use elide::{
     AnalyzedDocument, ArtifactSet, Directives, Document as EngineDocument, Error, ErrorKind,
     Report, Result,
 };
-use elide_governance::PolicyDefinition;
+use elide_governance::policy::Policy;
+use elide_governance::recognition::Recognition;
 use elide_provider::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};
 use serde::Deserialize;
 
@@ -132,6 +133,7 @@ impl Engine {
         Ok(Audit {
             report,
             context: wire.context,
+            recognition: wire.recognition,
             codec: wire.codec,
             usage: wire.usage,
         })
@@ -207,13 +209,13 @@ impl Engine {
     /// [`MalformedInput`](ErrorKind::MalformedInput) for a document
     /// the codec cannot decode.
     ///
-    /// [`LabelInScope`]: elide_governance::Predicate::LabelInScope
-    /// [`LabelScope`]: elide_governance::LabelScope
+    /// [`LabelInScope`]: elide_governance::policy::Predicate::LabelInScope
+    /// [`LabelScope`]: elide_governance::policy::LabelScope
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     pub async fn analyze(
         &self,
         document: Document,
-        policies: &[PolicyDefinition],
+        policies: &[Policy],
         request: &RequestContext,
     ) -> Result<Analyzed> {
         // A first pass is a re-run seeded with nothing: every group
@@ -244,7 +246,7 @@ impl Engine {
     pub async fn re_analyze(
         &self,
         document: Document,
-        policies: &[PolicyDefinition],
+        policies: &[Policy],
         request: &RequestContext,
         prior: &ArtifactSet,
     ) -> Result<Analyzed> {
@@ -258,16 +260,19 @@ impl Engine {
     async fn drive(
         &self,
         document: Document,
-        policies: &[PolicyDefinition],
+        policies: &[Policy],
         request: &RequestContext,
         prior: &ArtifactSet,
     ) -> Result<Analyzed> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document, request.codec).await?;
-        let orchestrator =
-            self.provider
-                .analyze_orchestrator(&request.context, policies, correlation_id)?;
+        let orchestrator = self.provider.analyze_orchestrator(
+            &request.context,
+            &request.recognition,
+            policies,
+            correlation_id,
+        )?;
         let AnalyzedDocument {
             mut report,
             artifacts,
@@ -311,14 +316,19 @@ impl Engine {
         //
         // The observable signal is an audit carrying no `Selection`
         // events.
-        let _: Result<()> =
-            self.provider
-                .record_picks(&request.context, policies, correlation_id, &mut report);
+        let _: Result<()> = self.provider.record_picks(
+            &request.context,
+            &request.recognition,
+            policies,
+            correlation_id,
+            &mut report,
+        );
 
         Ok(Analyzed {
             audit: Audit {
                 report,
                 context: request.context.clone(),
+                recognition: request.recognition.clone(),
                 codec: request.codec,
                 usage,
             },
@@ -371,7 +381,7 @@ impl Engine {
     pub async fn anonymize(
         &self,
         document: Document,
-        policies: &[PolicyDefinition],
+        policies: &[Policy],
         audit: &mut Audit,
         key: Option<&KeyConfig>,
     ) -> Result<Document> {
@@ -414,9 +424,13 @@ impl Engine {
             ));
         }
 
-        let orchestrator =
-            self.provider
-                .anonymize_orchestrator(&audit.context, policies, key, correlation_id)?;
+        let orchestrator = self.provider.anonymize_orchestrator(
+            &audit.context,
+            &audit.recognition,
+            policies,
+            key,
+            correlation_id,
+        )?;
 
         // The report moves through apply and comes back mutated,
         // every entity carrying the redaction event elide stamped.
@@ -539,6 +553,11 @@ struct AuditWire {
     // the entity offsets recorded against the first decode would
     // land on different content.
     codec: CodecParams,
+    // Defaulted: most requests introduce no vocabulary of their
+    // own, so an audit omitting it is the common case rather than
+    // a malformed one.
+    #[serde(default)]
+    recognition: Vec<Recognition>,
     #[serde(default)]
     usage: UsageReport,
 }

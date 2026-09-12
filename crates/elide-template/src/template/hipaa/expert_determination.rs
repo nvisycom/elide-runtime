@@ -1,6 +1,6 @@
 use elide_core::entity::LabelRef;
+use elide_governance::policy::{LabelEntry, LabelScope, Policy, PolicyRule, RuleDispatch};
 use elide_governance::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
-use elide_governance::{LabelEntry, LabelScope, PolicyDefinition, PolicyRule, RuleDispatch};
 use elide_operator::operators::{DateGranularity, DateStyle};
 use semver::Version;
 
@@ -39,8 +39,8 @@ pub(super) fn expert_determination_template(accounts: HipaaAccountNumbers) -> Te
     }
 }
 
-fn expert_determination_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
-    PolicyDefinition {
+fn expert_determination_policy(accounts: HipaaAccountNumbers) -> Policy {
+    Policy {
         id: derived_id(&format!("{}:policy", template_id(ED_ID, accounts))),
         name: "hipaa-expert-determination".into(),
         description: Some(
@@ -61,7 +61,6 @@ fn expert_determination_policy(accounts: HipaaAccountNumbers) -> PolicyDefinitio
         // dates, the fallback pseudonymizes the rest of the scope.
         rules: vec![ed_table_rule(accounts)],
         fallback: Some(ModalityRedactions::textual(TextRedaction::Pseudonymize)),
-        ..PolicyDefinition::default()
     }
 }
 

@@ -34,7 +34,7 @@ use elide::recognition::pattern::{
 };
 use elide::{Error, ErrorKind, Result};
 use elide_bentoml::ner::BentoNer;
-use elide_governance::{CustomMatcher, MatchOn, PolicyDefinition};
+use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
 
 use super::super::{Component, LlmBackend as LlmBackendConfig, NerBackend as NerBackendConfig};
 use crate::recognition::{AttachTo, LlmSource, NerBackend};
@@ -118,13 +118,13 @@ where
 /// not compile.
 pub(in crate::recognition) fn attach_custom<M>(
     analyzer: Analyzer<M>,
-    policies: &[PolicyDefinition],
+    recognition: &[Recognition],
 ) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     PatternRecognizer: Recognizer<M> + 'static,
 {
-    let total: usize = policies.iter().map(|p| p.matchers.len()).sum();
+    let total: usize = recognition.iter().map(|r| r.matchers.len()).sum();
     if total == 0 {
         return Ok(analyzer);
     }
@@ -142,9 +142,9 @@ where
     let mut builder = pattern_with_limits(PatternRecognizer::builder())
         .with_size_limit(MAX_CUSTOM_REGEX_BYTES)
         .with_dfa_size_limit(MAX_CUSTOM_REGEX_BYTES);
-    for policy in policies {
-        for matcher in &policy.matchers {
-            builder = extend(builder, policy, matcher)?;
+    for vocabulary in recognition {
+        for matcher in &vocabulary.matchers {
+            builder = extend(builder, recognition, matcher)?;
         }
     }
     // Not context-enhanced: boosting reads keyword lists a matcher
@@ -156,10 +156,10 @@ where
 /// `builder`.
 fn extend(
     builder: PatternRecognizerBuilder,
-    policy: &PolicyDefinition,
+    recognition: &[Recognition],
     matcher: &CustomMatcher,
 ) -> Result<PatternRecognizerBuilder> {
-    check_label(policy, matcher)?;
+    check_label(recognition, matcher)?;
     match &matcher.match_on {
         MatchOn::Pattern { pattern } => {
             let variant = Variant::new(pattern.clone())
@@ -198,13 +198,13 @@ fn extend(
     }
 }
 
-/// A matcher may only detect a label its own policy introduces.
+/// A matcher may only detect a label the request introduces.
 ///
-/// Naming a label the policy does not declare would detect into a
-/// vocabulary the policy never claimed; naming a shipped built-in
+/// Naming a label the request does not declare would detect into a
+/// vocabulary the catalog never held; naming a shipped built-in
 /// would race elide's own definition, and reconciliation would
 /// pick a winner by confidence rather than by intent.
-fn check_label(policy: &PolicyDefinition, matcher: &CustomMatcher) -> Result<()> {
+fn check_label(recognition: &[Recognition], matcher: &CustomMatcher) -> Result<()> {
     if BUILTIN_LABELS.contains(&matcher.label) {
         return Err(invalid(
             matcher,
@@ -215,14 +215,20 @@ fn check_label(policy: &PolicyDefinition, matcher: &CustomMatcher) -> Result<()>
             ),
         ));
     }
-    if policy.custom.iter().any(|l| l.to_ref() == matcher.label) {
+    // Any of the request's vocabularies may declare it: they merge
+    // into one catalog, so which one carries the label is moot.
+    if recognition
+        .iter()
+        .flat_map(|r| &r.custom)
+        .any(|l| l.to_ref() == matcher.label)
+    {
         return Ok(());
     }
     Err(invalid(
         matcher,
         format!(
-            "`{}` is not among the policy's own `custom` labels: a matcher \
-             detects a label the policy introduces, so declare it there first.",
+            "`{}` is not among the request's own `custom` labels: a matcher \
+             detects a label the request introduces, so declare it there first.",
             matcher.label.as_str(),
         ),
     ))

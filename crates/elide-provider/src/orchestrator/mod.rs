@@ -30,8 +30,10 @@ use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
 use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, PartId, Report, Result};
+use elide_governance::compile_catalog;
 use elide_governance::modality::RedactableModality;
-use elide_governance::{PolicyDefinition, PolicyRule, Predicate, compile_catalog};
+use elide_governance::policy::{Policy, PolicyRule, Predicate};
+use elide_governance::recognition::Recognition;
 use uuid::Uuid;
 
 pub use self::codec::CodecParams;
@@ -110,7 +112,7 @@ impl Provider {
     /// request-scoped [`Scope`].
     ///
     /// The label catalog is derived from `policies`: every
-    /// submitted [`PolicyDefinition::label_scope`] unions into one
+    /// submitted [`Policy::label_scope`] unions into one
     /// [`LabelCatalog`] used to drive recognizer dispatch and
     /// tag-based selector matching.
     ///
@@ -121,18 +123,19 @@ impl Provider {
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide::entity::LabelCatalog
-    /// [`PolicyDefinition::label_scope`]: elide_governance::PolicyDefinition::label_scope
+    /// [`Policy::label_scope`]: elide_governance::policy::Policy::label_scope
     pub fn analyze_orchestrator(
         &self,
         context: &DocumentContext,
-        policies: &[PolicyDefinition],
+        recognition: &[Recognition],
+        policies: &[Policy],
         correlation_id: Uuid,
     ) -> Result<Orchestrator> {
         validate_scope_references(policies)?;
-        let catalog = compile_catalog(policies)?;
+        let catalog = compile_catalog(policies, recognition)?;
         let live_scope = build_scope(context, catalog, correlation_id);
 
-        let orchestrator = analyzers(&self.inner.recognizers, &self.inner.enrichers, policies)?;
+        let orchestrator = analyzers(&self.inner.recognizers, &self.inner.enrichers, recognition)?;
         Ok(orchestrator
             .with_registry(self.inner.formats.clone())
             .with_scope(live_scope))
@@ -159,12 +162,13 @@ impl Provider {
     pub fn anonymize_orchestrator(
         &self,
         context: &DocumentContext,
-        policies: &[PolicyDefinition],
+        recognition: &[Recognition],
+        policies: &[Policy],
         key: Option<&KeyConfig>,
         correlation_id: Uuid,
     ) -> Result<Orchestrator> {
         validate_scope_references(policies)?;
-        let catalog = compile_catalog(policies)?;
+        let catalog = compile_catalog(policies, recognition)?;
         let live_scope = build_scope(context, catalog.clone(), correlation_id);
 
         let orchestrator = anonymizers(&catalog, policies, key.map(KeyConfig::build))?;
@@ -250,7 +254,8 @@ impl Provider {
     pub fn record_picks(
         &self,
         context: &DocumentContext,
-        policies: &[PolicyDefinition],
+        recognition: &[Recognition],
+        policies: &[Policy],
         correlation_id: Uuid,
         report: &mut Report,
     ) -> Result<()> {
@@ -262,7 +267,7 @@ impl Provider {
         // catalog unions both, and the reviewer would act on the
         // misleading provenance.
         validate_scope_references(policies)?;
-        let catalog = compile_catalog(policies)?;
+        let catalog = compile_catalog(policies, recognition)?;
         let scope = build_scope(context, catalog.clone(), correlation_id);
         let picker = pickers(&catalog, policies)?;
         record_into(&picker, report, &scope);
@@ -282,9 +287,9 @@ impl Provider {
 /// [`Configuration`](ErrorKind::Configuration) error at request
 /// validation time, not as a silent underfire at apply time.
 ///
-/// [`LabelScope`]: elide_governance::LabelScope
-/// [`scopes`]: elide_governance::PolicyDefinition::scopes
-fn validate_scope_references(policies: &[PolicyDefinition]) -> Result<()> {
+/// [`LabelScope`]: elide_governance::policy::LabelScope
+/// [`scopes`]: elide_governance::policy::Policy::scopes
+fn validate_scope_references(policies: &[Policy]) -> Result<()> {
     for policy in policies {
         let mut known: HashSet<&str> = HashSet::new();
         for declared in &policy.scopes {
@@ -335,7 +340,7 @@ fn validate_scope_references(policies: &[PolicyDefinition]) -> Result<()> {
 fn check_predicate_scopes(
     predicate: &Predicate,
     known: &HashSet<&str>,
-    policy: &PolicyDefinition,
+    policy: &Policy,
     rule: &PolicyRule,
 ) -> Result<()> {
     match predicate {

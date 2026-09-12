@@ -28,7 +28,7 @@
 //!   run the full [`elide::Orchestrator`] against one document.
 //!   Both take the request's `policies` alongside the document;
 //!   each policy carries its own [`LabelScope`]s inline via
-//!   [`PolicyDefinition::scopes`].
+//!   [`Policy::scopes`].
 //! - [`Audit`] carries the analyze → anonymize handoff: the
 //!   modality-tagged entity groups plus a [`DocumentContext`] with
 //!   the request's asserted scope and correlation id.
@@ -37,12 +37,12 @@
 //! (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA)
 //! live in the sibling `elide-template` crate, re-exported here
 //! as [`template`]. Each template carries a single
-//! `PolicyDefinition` (with inline [`LabelScope`]s) that a caller
+//! `Policy` (with inline [`LabelScope`]s) that a caller
 //! hands to [`Engine::analyze`] / [`Engine::anonymize`] as a
 //! one-element slice.
 //!
-//! [`LabelScope`]: elide_governance::LabelScope
-//! [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
+//! [`LabelScope`]: elide_governance::policy::LabelScope
+//! [`Policy::scopes`]: elide_governance::policy::Policy::scopes
 //!
 //! [`elide`]: elide
 
@@ -149,8 +149,8 @@ pub use elide_governance as policy;
 #[doc(inline)]
 pub use elide_provider::{
     AttachTo, Backend, CodecParams, Component, DocumentContext, Enrichers, KeyConfig, LlmBackend,
-    LlmSource, NerBackend, OcrBackend, Provider, ProviderConfig, Recognizers, RequestContext,
-    SttBackend,
+    LlmSource, NerBackend, OcrBackend, Provider, ProviderConfig, Recognition, Recognizers,
+    RequestContext, SttBackend,
 };
 #[doc(inline)]
 pub use elide_template as template;

@@ -1,16 +1,16 @@
-//! [`CustomMatcher`]: how a policy's own label gets detected.
+//! [`CustomMatcher`]: how a caller's own label gets detected.
 //!
-//! A policy can already introduce a label elide does not ship, via
-//! [`custom`]. That declares the *vocabulary* — what the thing is
-//! called — and nothing more: no recognizer looks for it, so the
-//! label is scoped, rules target it, and it never matches. A
-//! matcher is the other half, saying how to find it.
+//! A request introduces labels elide does not ship via [`custom`].
+//! That declares the *vocabulary* — what the thing is called — and
+//! nothing more: no recognizer looks for it, so the label is
+//! scoped, rules target it, and it never matches. A matcher is the
+//! other half, saying how to find it.
 //!
 //! The split mirrors elide's own: a `Label` is identity, a
 //! `Regex`/`Dictionary` is detection. Keeping them apart also
 //! leaves room for several matchers per label.
 //!
-//! [`custom`]: super::PolicyDefinition::custom
+//! [`custom`]: super::Recognition::custom
 
 use elide_core::entity::LabelRef;
 use elide_core::primitive::Confidence;
@@ -35,16 +35,17 @@ fn default_confidence() -> Confidence {
 
 /// How to detect one caller-authored label.
 ///
-/// Names a label the same policy declares in [`custom`]. A matcher
-/// for a shipped built-in is rejected: elide already detects those,
-/// and two definitions for one label would race in reconciliation.
+/// Names a label the same request declares in [`custom`]. A
+/// matcher for a shipped built-in is rejected: elide already
+/// detects those, and two definitions for one label would race in
+/// reconciliation.
 ///
-/// [`custom`]: super::PolicyDefinition::custom
+/// [`custom`]: super::Recognition::custom
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomMatcher {
-    /// The label this detects, which the policy must declare in
-    /// [`custom`](super::PolicyDefinition::custom).
+    /// The label this detects, which the request must declare in
+    /// [`custom`](super::Recognition::custom).
     pub label: LabelRef,
     /// Human-readable name, recorded in the audit as the
     /// recognizer that found the entity, so a trail distinguishes

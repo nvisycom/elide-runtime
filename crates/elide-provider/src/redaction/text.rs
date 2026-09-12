@@ -4,7 +4,7 @@
 use elide::Result;
 use elide::modality::text::Text;
 use elide::redaction::Anonymizer;
-use elide_governance::PolicyDefinition;
+use elide_governance::policy::Policy;
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 
 use super::compile::{Target, attach_policies};
@@ -12,13 +12,13 @@ use super::operator::text::{TextOperatorContext, compile_and_attach};
 
 /// Attach every text-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator (not a slice)
-/// so callers can pre-filter by [`PolicyDefinition::when`] without
+/// so callers can pre-filter by [`Policy::when`] without
 /// cloning the policy set.
 ///
-/// [`PolicyDefinition::when`]: elide_governance::PolicyDefinition::when
+/// [`Policy::when`]: elide_governance::policy::Policy::when
 pub(crate) fn attach_policies_text<'a>(
     anonymizer: Anonymizer<Text>,
-    policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,
+    policies: impl Iterator<Item = &'a Policy> + Clone,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Text>> {
     attach_policies(anonymizer, policies, |target, redactions| {

@@ -4,7 +4,7 @@
 use elide::Result;
 use elide::modality::audio::Audio;
 use elide::redaction::Anonymizer;
-use elide_governance::PolicyDefinition;
+use elide_governance::policy::Policy;
 use elide_governance::redaction::{AudioRedaction, ModalityRedactions};
 
 use super::compile::{Target, attach_policies};
@@ -14,12 +14,12 @@ use super::operator::audio::AudioOp;
 /// already-constructed anonymizer.
 ///
 /// Takes an iterator so the apply pipeline can pre-filter by
-/// [`PolicyDefinition::when`] without cloning.
+/// [`Policy::when`] without cloning.
 ///
-/// [`PolicyDefinition::when`]: elide_governance::PolicyDefinition::when
+/// [`Policy::when`]: elide_governance::policy::Policy::when
 pub(crate) fn attach_policies_audio<'a>(
     anonymizer: Anonymizer<Audio>,
-    policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,
+    policies: impl Iterator<Item = &'a Policy> + Clone,
 ) -> Result<Anonymizer<Audio>> {
     attach_policies(anonymizer, policies, compile_one)
 }

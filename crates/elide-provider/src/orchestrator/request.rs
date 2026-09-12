@@ -6,18 +6,19 @@
 //! the same reason: one engine serves many callers, so anything
 //! belonging to the caller cannot sit on the provider.
 //!
-//! Three things have that shape today: what the caller asserts
+//! Four things have that shape today: what the caller asserts
 //! about the document ([`DocumentContext`]), how its bytes decode
-//! ([`CodecParams`]), and the cryptographic key. The key is the
+//! ([`CodecParams`]), the vocabulary it introduces
+//! ([`Recognition`]), and the cryptographic key. The key is the
 //! clearest case — it belongs to whoever asked for redaction, not
 //! to the process serving them: putting one on the provider would
 //! mean rebuilding it per tenant, and would make it impossible to
 //! run two tenants through the same one.
 //!
-//! The three do not share a lifecycle, and the split matters.
-//! `context` and `codec` are recorded onto the audit, because
-//! anonymize must recognize against the same vocabulary and decode
-//! to the same bytes analyze did. The key is never recorded: it is
+//! They do not share a lifecycle, and the split matters.
+//! `context`, `codec` and `recognition` are recorded onto the
+//! audit, because anonymize must recognize against the same
+//! vocabulary and decode to the same bytes analyze did. The key is never recorded: it is
 //! a secret, and it is supplied again at anonymize where the
 //! operators actually run.
 //!
@@ -34,6 +35,8 @@
 //! [`Document`]: https://docs.rs/elide-pipeline
 //!
 //! [`Provider`]: crate::Provider
+
+use elide_governance::recognition::Recognition;
 
 use super::{CodecParams, DocumentContext, KeyConfig};
 
@@ -56,6 +59,26 @@ pub struct RequestContext {
     /// Recorded onto the audit so anonymize decodes identically:
     /// entity offsets are stored against the first decode.
     pub codec: CodecParams,
+    /// Vocabularies this request introduces beyond the shipped
+    /// set: labels, and how to find them.
+    ///
+    /// A slice for the same reason policies are one — a caller
+    /// composes them from several sources (a tenant's standing
+    /// vocabulary, a per-document addition) without flattening by
+    /// hand. They merge into one catalog, so which entry carries a
+    /// label does not matter.
+    ///
+    /// Here rather than on a policy because detection vocabulary
+    /// is request-wide: the engine unions every policy's labels
+    /// into one catalog before a recognizer runs. A policy decides
+    /// what *happens* to sensitive data; this decides what the
+    /// engine can *find*.
+    ///
+    /// Recorded onto the audit for the same reason `codec` is. If
+    /// anonymize compiled against a narrower vocabulary than
+    /// analyze detected with, a custom-label entity would be found
+    /// and then silently not redacted.
+    pub recognition: Vec<Recognition>,
     /// The key `HmacHash` and `Encrypt` resolve through.
     ///
     /// `None` when the caller supplied none. A policy naming
@@ -88,6 +111,14 @@ impl RequestContext {
     #[must_use]
     pub fn with_codec(mut self, codec: CodecParams) -> Self {
         self.codec = codec;
+        self
+    }
+
+    /// The same context, detecting these vocabularies' labels as
+    /// well as elide's shipped ones.
+    #[must_use]
+    pub fn with_recognition(mut self, recognition: impl IntoIterator<Item = Recognition>) -> Self {
+        self.recognition = recognition.into_iter().collect();
         self
     }
 

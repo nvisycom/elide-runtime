@@ -12,8 +12,8 @@ use elide::entity::LabelRef;
 use elide::modality::image::Image;
 use elide::modality::text::Text;
 use elide::{ErrorKind, PartId, Report};
+use elide_governance::policy::{LabelScope, Policy};
 use elide_governance::redaction::ModalityRedactions;
-use elide_governance::{LabelScope, PolicyDefinition};
 use elide_pipeline::file::Document;
 use elide_pipeline::{
     Audit, CodecParams, Component, DocumentContext, Engine, Enrichers, OcrBackend, ProviderConfig,
@@ -56,8 +56,8 @@ fn default_spec() -> RequestContext {
 /// Detect the fixture's contact labels without redacting them.
 /// A request names the labels to find; these tests assert on what
 /// detection produced and on part round-tripping.
-fn detect_only() -> PolicyDefinition {
-    PolicyDefinition {
+fn detect_only() -> Policy {
+    Policy {
         id: uuid::Uuid::now_v7(),
         name: "detect-contacts".into(),
         scopes: vec![LabelScope::new(
@@ -67,7 +67,7 @@ fn detect_only() -> PolicyDefinition {
                 LabelRef::new("phone_number"),
             ],
         )],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     }
 }
 
@@ -127,7 +127,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
     );
     // A policy that erases everything it sees, so the body is
     // guaranteed to change while the image part is left alone.
-    let review_policy = PolicyDefinition {
+    let review_policy = Policy {
         id: uuid::Uuid::now_v7(),
         name: "erase-everything".into(),
         scopes: vec![LabelScope::new(
@@ -138,7 +138,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
             text: Some(elide_governance::redaction::TextRedaction::Erase),
             ..Default::default()
         }),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let outcome = engine
@@ -263,8 +263,8 @@ async fn audit_rejects_a_missing_round_trip_field_on_deserialize() {
 
 #[tokio::test]
 async fn analyze_rejects_policy_that_references_unknown_group() {
+    use elide_governance::policy::{PolicyRule, Predicate, RuleDispatch};
     use elide_governance::redaction::TextRedaction;
-    use elide_governance::{PolicyRule, Predicate, RuleDispatch};
 
     let engine = engine();
     let rule = PolicyRule {
@@ -282,11 +282,11 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
             }),
         },
     };
-    let policy = PolicyDefinition {
+    let policy = Policy {
         id: uuid::Uuid::now_v7(),
         name: "unknown-group".into(),
         rules: vec![rule],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     // `Audit` is not `Debug` (it holds an elide `Report`), so the
@@ -311,6 +311,7 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
     // is refused instead.
     let engine = engine();
     let mut audit = Audit {
+        recognition: Vec::new(),
         report: Report::new(),
         context: DocumentContext::default(),
         codec: CodecParams::default(),

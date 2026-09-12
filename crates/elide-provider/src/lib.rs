@@ -42,6 +42,11 @@ mod orchestrator;
 mod recognition;
 mod redaction;
 
+/// The vocabulary a request introduces, carried on
+/// [`RequestContext`]. Re-exported so a caller setting it need not
+/// depend on `elide-governance` directly.
+pub use elide_governance::recognition::Recognition;
+
 pub use self::orchestrator::{
     CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
 };

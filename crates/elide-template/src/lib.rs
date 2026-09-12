@@ -3,7 +3,7 @@
 #![doc = include_str!("../README.md")]
 
 //! Layers on top of the [elide] toolkit. This crate adds
-//! ready-to-run [`PolicyDefinition`]s for common regulatory
+//! ready-to-run [`Policy`]s for common regulatory
 //! postures (HIPAA §164.514, GDPR Article 9, PCI DSS, CCPA / CPRA)
 //! so callers submit a template instead of authoring the
 //! governance surface by hand.
@@ -24,7 +24,7 @@
 //! [`GdprSensitiveScope`] widening the label set.
 //!
 //! [`PolicyTemplate::build`] materialises the picked variant
-//! into a [`Template`]: the [`PolicyDefinition`] carrying its
+//! into a [`Template`]: the [`Policy`] carrying its
 //! own inline [`LabelScope`]s, matched to how the engine
 //! consumes it. Callers hand `template.policy` (as a
 //! one-element slice via [`std::slice::from_ref`]) to
@@ -37,7 +37,7 @@
 //! caller wanting to diverge from the shipped operator (say,
 //! swap the default [`TextRedaction::Erase`] for a
 //! [`TextRedaction::Pseudonymize`] for retained analytics use)
-//! mutates the returned [`PolicyDefinition`] before submitting.
+//! mutates the returned [`Policy`] before submitting.
 //!
 //! Every [`Template`] carries a machine [`Template::id`]
 //! (snake_case) distinct from its display [`Template::name`],
@@ -48,8 +48,8 @@
 //! [`Template::version`], not the crate version.
 //!
 //! [`Date`]: jiff::civil::Date
-//! [`LabelScope`]: elide_governance::LabelScope
-//! [`PolicyDefinition`]: elide_governance::PolicyDefinition
+//! [`LabelScope`]: elide_governance::policy::LabelScope
+//! [`Policy`]: elide_governance::policy::Policy
 //! [`TextRedaction::Erase`]: elide_governance::redaction::TextRedaction::Erase
 //! [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
 //! [`Version`]: semver::Version
@@ -119,14 +119,14 @@ pub enum PolicyTemplate {
     /// CCPA "personal information" categories per Cal. Civ.
     /// Code §1798.140(v). Ships a `ccpa_personal_information`
     /// [`LabelScope`] naming the enumerated categories, plus a
-    /// [`PolicyDefinition`] using [`Predicate::LabelInScope`]
+    /// [`Policy`] using [`Predicate::LabelInScope`]
     /// to erase every match. Customers commonly override the
     /// operator to [`TextRedaction::Pseudonymize`] where the
     /// retained data drives analytics.
     ///
-    /// [`LabelScope`]: elide_governance::LabelScope
-    /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
-    /// [`Predicate::LabelInScope`]: elide_governance::Predicate::LabelInScope
+    /// [`LabelScope`]: elide_governance::policy::LabelScope
+    /// [`Policy`]: elide_governance::policy::Policy
+    /// [`Predicate::LabelInScope`]: elide_governance::policy::Predicate::LabelInScope
     /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
     Ccpa,
 }

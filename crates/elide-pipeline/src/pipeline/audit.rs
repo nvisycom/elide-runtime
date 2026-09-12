@@ -26,6 +26,7 @@ use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::UsageReport;
 use elide::{ArtifactSet, PartId, Report};
+use elide_governance::recognition::Recognition;
 use elide_provider::{CodecParams, DocumentContext};
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -119,6 +120,17 @@ pub struct Audit {
     ///
     /// [`Engine::anonymize`]: super::Engine::anonymize
     pub context: DocumentContext,
+    /// The vocabularies this request introduced: labels elide does
+    /// not ship, and how they were found.
+    ///
+    /// Carried back for the same reason [`context`] is. Anonymize
+    /// compiles its catalog afresh, and a custom label missing
+    /// from it resolves to nothing — the entity would be detected
+    /// and then silently not redacted.
+    ///
+    /// [`context`]: Audit::context
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recognition: Vec<Recognition>,
     /// How this document was decoded when it was analyzed.
     ///
     /// Carried back so anonymize decodes identically: the entity

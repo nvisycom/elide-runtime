@@ -18,7 +18,8 @@ use bytes::Bytes;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use elide_governance::policy::Policy;
 use elide_pipeline::file::Document;
-use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
+use elide_pipeline::provider::{ProviderConfig, RequestContext};
+use elide_pipeline::{Audit, Engine};
 use elide_template::PolicyTemplate;
 use tokio::runtime::{Builder, Runtime};
 

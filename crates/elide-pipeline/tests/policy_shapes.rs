@@ -16,7 +16,8 @@ use elide_governance::policy::{
 use elide_governance::recognition::{CustomMatcher, MatchOn};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::file::Document;
-use elide_pipeline::{Audit, Engine, ErrorKind, ProviderConfig, Recognition, RequestContext};
+use elide_pipeline::provider::{ProviderConfig, Recognition, RequestContext};
+use elide_pipeline::{Audit, Engine, ErrorKind};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 

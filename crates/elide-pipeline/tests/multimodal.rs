@@ -15,10 +15,10 @@ use elide::{ErrorKind, PartId, Report};
 use elide_governance::policy::{LabelScope, Policy};
 use elide_governance::redaction::ModalityRedactions;
 use elide_pipeline::file::Document;
-use elide_pipeline::{
-    Audit, CodecParams, Component, DocumentContext, Engine, Enrichers, OcrBackend, ProviderConfig,
-    RequestContext,
+use elide_pipeline::provider::{
+    CodecParams, Component, DocumentContext, Enrichers, OcrBackend, ProviderConfig, RequestContext,
 };
+use elide_pipeline::{Audit, Engine};
 
 use self::fixtures::write_artefact;
 

@@ -2,7 +2,7 @@
 
 [package]
 name = "elide-template"
-description = "Ready-to-run policy templates on top of elide for common regulatory postures (HIPAA, GDPR, PCI DSS, CCPA, SOC 2)"
+description = "Ready-to-run policy templates on top of elide for common regulatory postures (HIPAA, GDPR, PCI DSS, CCPA)"
 keywords = ["elide", "policy", "template", "hipaa", "gdpr"]
 categories = ["data-structures"]
 readme = "README.md"

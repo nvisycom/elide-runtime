@@ -46,7 +46,7 @@ Regex, dictionary, and checksum patterns run first at low cost; NER, OCR, VLM, a
 Mask, replace, hash, encrypt, blur, block, and pixelate, with policy-driven rules scoped to entity type, document class, and confidence threshold.
 
 **Regulatory templates**  
-Ready-to-run policy postures for HIPAA, GDPR, PCI DSS, CCPA, and SOC 2, so a common obligation does not start from an empty rule set.
+Ready-to-run policy postures for HIPAA, GDPR, PCI DSS and CCPA, so a common obligation does not start from an empty rule set.
 
 **Stateless engine**  
 No persistence, no HTTP layer, no background tasks. Each call to `analyze` or `anonymize` is self-contained.

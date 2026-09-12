@@ -19,12 +19,15 @@
 //! what lets policies re-resolve per document without mutating
 //! shared state.
 //!
-//! Recognition inputs have two owners. Caller-asserted facts
-//! (languages, jurisdictions, tags) travel between the calls on
-//! [`Audit::context`], so anonymize compiles against the vocabulary
-//! analyze used. The label catalog is derived from `policies`
-//! afresh every call, so policies stay the single source of truth
-//! for label vocabulary — and stay live between the two passes.
+//! Recognition inputs have two owners, and the split decides what
+//! may change between the calls. Policies bring the scopes and the
+//! rules, re-compiled afresh each call, so governance stays live:
+//! edit a policy in the gap and it takes effect. Everything the
+//! caller asserted about *this* run travels on the audit instead —
+//! languages, jurisdictions and tags on [`Audit::context`], the
+//! labels the request introduced on `Audit::recognition` — because
+//! a caller re-supplies policies but not the request, and anonymize
+//! must compile against the vocabulary analyze detected with.
 //!
 //! Hosts hold the [`Audit`] between the two calls however they see
 //! fit — in memory, a run store, a reviewer UI — and hand it back
@@ -343,11 +346,21 @@ impl Engine {
     /// event per operator that fired, so its provenance records who
     /// redacted what, under which rule.
     ///
-    /// The label catalog is re-derived from `policies` on every
-    /// call — policies are the sole source of label vocabulary, so
-    /// governance stays live between the two passes. What must
-    /// *not* drift travels on the audit: the recognition context
-    /// and the codec params [`analyze`](Self::analyze) used.
+    /// The label catalog is re-derived on every call, from two
+    /// sources. `policies` bring the scopes and the rules, so
+    /// governance stays live between the two passes: a policy
+    /// edited in the gap takes effect here. The audit brings the
+    /// labels the *request* introduced, because a caller
+    /// re-supplies policies but not the [`RequestContext`] — and a
+    /// custom label missing from the catalog is a label a policy
+    /// scope cannot resolve, which fails the call rather than
+    /// redacting nothing.
+    ///
+    /// What must *not* drift travels on the audit for the same
+    /// reason: the recognition context, the codec params, and that
+    /// vocabulary, all as [`analyze`](Self::analyze) saw them.
+    ///
+    /// [`RequestContext`]: elide_provider::RequestContext
     ///
     /// `key` resolves [`HmacHash`] and [`Encrypt`]. It belongs to
     /// the caller asking for redaction rather than the process

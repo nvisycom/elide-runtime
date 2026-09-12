@@ -8,8 +8,9 @@
 //! rather than any one layer in isolation.
 
 use bytes::Bytes;
+use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
-use elide_pipeline::{Engine, KeyConfig, ProviderConfig, RequestContext};
+use elide_pipeline::provider::{KeyConfig, ProviderConfig, RequestContext};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PciPanRender, PolicyTemplate, Template,

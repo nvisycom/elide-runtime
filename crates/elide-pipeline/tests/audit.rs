@@ -18,7 +18,8 @@ use elide_export::{ExportCsv, ExportJson, Table};
 use elide_governance::policy::{LabelScope, Policy};
 use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
 use elide_pipeline::file::Document;
-use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
+use elide_pipeline::provider::{ProviderConfig, RequestContext};
+use elide_pipeline::{Audit, Engine};
 
 use self::fixtures::write_artefact;
 

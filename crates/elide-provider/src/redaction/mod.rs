@@ -1,6 +1,6 @@
 //! Redaction: which entities to hide, and how.
 //!
-//! Compiles a [`elide_governance::PolicyDefinition`] set into an
+//! Compiles a [`elide_governance::policy::Policy`] set into an
 //! [`Anonymizer`] per modality at request time.
 //!
 //! Mirrors [`crate::recognition`], which does the same for the
@@ -9,7 +9,7 @@
 //! from — recognition's is deployment-owned and wired once at
 //! startup, redaction's arrives per request as policies.
 //!
-//! PolicyDefinition specs are serialisable and modality-agnostic; elide's
+//! Policy specs are serialisable and modality-agnostic; elide's
 //! [`Anonymizer`]`<M>` is a runtime, modality-typed value that
 //! drives actual redaction. This module bridges the two: it walks every
 //! enabled rule in precedence order, builds the matching elide
@@ -26,7 +26,7 @@
 //!   Blackbox).
 //! - `audio` handles the audio specs (Erase, Keep, Silence, Beep).
 //!
-//! Each per-modality `compile` entry walks `&[PolicyDefinition]` in
+//! Each per-modality `compile` entry walks `&[Policy]` in
 //! precedence order; within each policy, rules are tried in
 //! declared order; the first matching rule's operator wins. A
 //! policy's `fallback`, if Redact with that modality's arm set,
@@ -60,7 +60,7 @@ use elide::modality::text::Text;
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::KeyProvider;
 use elide::{Orchestrator, Result};
-use elide_governance::PolicyDefinition;
+use elide_governance::policy::Policy;
 
 use self::audio::attach_policies_audio;
 use self::image::attach_policies_image;
@@ -90,7 +90,7 @@ use self::text::attach_policies_text;
 /// catalog does not carry.
 pub fn anonymizers(
     catalog: &LabelCatalog,
-    policies: &[PolicyDefinition],
+    policies: &[Policy],
     key: Option<Arc<dyn KeyProvider>>,
 ) -> Result<Orchestrator> {
     // Fresh per-request text-operator context. Pseudonym vaults
@@ -135,7 +135,7 @@ pub fn anonymizers(
 ///
 /// Returns [`Configuration`](elide::ErrorKind::Configuration) if a
 /// policy's operators cannot be compiled.
-pub fn pickers(catalog: &LabelCatalog, policies: &[PolicyDefinition]) -> Result<Pickers> {
+pub fn pickers(catalog: &LabelCatalog, policies: &[Policy]) -> Result<Pickers> {
     let text_ctx = TextOperatorContext::new(None);
     Ok(Pickers {
         text: attach_policies_text(empty_anonymizer(catalog), policies.iter(), &text_ctx)?,

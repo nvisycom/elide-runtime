@@ -1,10 +1,10 @@
 //! Modality-generic dispatch machinery for
-//! [`elide_governance::PolicyDefinition`] compilation.
+//! [`elide_governance::policy::Policy`] compilation.
 //!
 //! Two files:
 //!
 //! - [`dispatch`]: the modality-generic outer loop that walks
-//!   `&[PolicyDefinition]` in precedence order, per-rule dispatches through
+//!   `&[Policy]` in precedence order, per-rule dispatches through
 //!   a caller-supplied bridge callback. Defines the [`Target`]
 //!   enum (rule / fallback / override) that per-modality entries
 //!   attach their built operator onto.
@@ -16,7 +16,7 @@
 //! files ([`super::text`] etc.) pass their [`operator::Op`]
 //! builders in as callbacks.
 //!
-//! [`Predicate`]: elide_governance::Predicate
+//! [`Predicate`]: elide_governance::policy::Predicate
 //! [`operator::Op`]: super::operator
 
 mod dispatch;

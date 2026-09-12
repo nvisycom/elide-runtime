@@ -2,20 +2,18 @@
 //! rules inside them, the predicates that gate those rules, and
 //! the operator specs the rules dispatch to.
 
-mod matcher;
 mod origin;
 mod predicate;
 mod rule;
 mod scope;
 
-use elide_core::entity::{Label, LabelRef};
+use elide_core::entity::LabelRef;
 use hipstr::HipStr;
 pub use predicate::Predicate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::matcher::{CustomMatcher, MatchOn};
 pub use self::origin::TemplateOrigin;
 pub use self::rule::{LabelEntry, PolicyRule, RuleDispatch};
 pub use self::scope::LabelScope;
@@ -26,7 +24,7 @@ use crate::redaction::ModalityRedactions;
 /// Identity is the UUID; `name` is display-only.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct PolicyDefinition {
+pub struct Policy {
     /// Stable identifier. UUIDv7 recommended (time-ordered);
     /// customer-supplied so re-submissions carry the same id.
     pub id: Uuid,
@@ -56,43 +54,19 @@ pub struct PolicyDefinition {
     /// What this policy detects: one or more named, attributed
     /// label sets.
     ///
-    /// The union of every scope, plus [`custom`], is the policy's
-    /// recognition vocabulary. A label no scope names is never
-    /// detected, so no rule can fire on it and the policy is inert
-    /// with respect to it.
+    /// The union of every scope is what this policy acts on. A
+    /// label no scope names is never detected, so no rule can fire
+    /// on it and the policy is inert with respect to it — whether
+    /// the label is one elide ships or one the request introduced.
     ///
     /// Detecting more than the rules act on is deliberate: scope a
     /// whole regulatory category, write rules for the labels
     /// needing special treatment, and let [`fallback`] sweep the
     /// rest.
     ///
-    /// [`custom`]: Self::custom
     /// [`fallback`]: Self::fallback
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes: Vec<LabelScope>,
-    /// Caller-authored label schemas this policy introduces.
-    ///
-    /// Only for labels elide does not ship. These join the
-    /// recognition vocabulary alongside [`scopes`], and a rule may
-    /// target them the same way.
-    ///
-    /// [`scopes`]: Self::scopes
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub custom: Vec<Label>,
-    /// How to detect the labels [`custom`] introduces.
-    ///
-    /// A custom label declares vocabulary and nothing more, so
-    /// without a matcher it is scoped, targeted by rules, and never
-    /// found. Each matcher names a label this policy declares;
-    /// naming a shipped built-in is rejected, since elide already
-    /// detects those.
-    ///
-    /// Compiled per request, so a policy declaring none costs
-    /// nothing.
-    ///
-    /// [`custom`]: Self::custom
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub matchers: Vec<CustomMatcher>,
     /// Ordered rules. First match wins within this policy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<PolicyRule>,
@@ -117,15 +91,15 @@ pub struct PolicyDefinition {
 /// and callers building a policy up field by field:
 ///
 /// ```
-/// # use elide_governance::PolicyDefinition;
+/// # use elide_governance::policy::Policy;
 /// # use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-/// let sweep = PolicyDefinition {
+/// let sweep = Policy {
 ///     name: "sweep".into(),
 ///     fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-///     ..PolicyDefinition::default()
+///     ..Policy::default()
 /// };
 /// ```
-impl Default for PolicyDefinition {
+impl Default for Policy {
     fn default() -> Self {
         Self {
             id: Uuid::now_v7(),
@@ -133,27 +107,29 @@ impl Default for PolicyDefinition {
             description: None,
             template: None,
             scopes: Vec::new(),
-            custom: Vec::new(),
-            matchers: Vec::new(),
             rules: Vec::new(),
             fallback: None,
         }
     }
 }
 
-impl PolicyDefinition {
+impl Policy {
     /// Every label this policy detects: the union of its
-    /// [`scopes`] and its [`custom`] schemas.
+    /// [`scopes`].
+    ///
+    /// A label the request introduces reaches a policy the same
+    /// way a shipped one does — by being scoped. The vocabulary is
+    /// request-wide; a policy's scopes say which of it this policy
+    /// acts on.
     ///
     /// The engine unions this across all submitted policies into
     /// the per-request `LabelCatalog` that drives recognizer
     /// dispatch, and applies it again at match time so one policy
     /// cannot act on an entity another policy pulled in.
     ///
-    /// Order follows declaration order, scopes first, and a label
-    /// named twice appears once.
+    /// Order follows declaration order, and a label named twice
+    /// appears once.
     ///
-    /// [`custom`]: Self::custom
     /// [`scopes`]: Self::scopes
     #[must_use]
     pub fn label_scope(&self) -> Vec<LabelRef> {
@@ -167,9 +143,6 @@ impl PolicyDefinition {
             for label in &declared.labels {
                 push(label.clone());
             }
-        }
-        for label in &self.custom {
-            push(label.to_ref());
         }
         scope
     }

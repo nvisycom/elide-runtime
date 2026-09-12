@@ -15,8 +15,8 @@ use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
+use elide_governance::policy::{LabelScope, Policy};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelScope, PolicyDefinition};
 use elide_pipeline::entity::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ErrorKind, ProviderConfig, RequestContext};
@@ -39,8 +39,8 @@ fn span_of(needle: &[u8]) -> TextLocation {
 }
 
 /// Erase every `email_address` through the policy fallback.
-fn policy() -> PolicyDefinition {
-    PolicyDefinition {
+fn policy() -> Policy {
+    Policy {
         id: POLICY_ID,
         name: "sweep".into(),
         scopes: vec![LabelScope::new(
@@ -51,7 +51,7 @@ fn policy() -> PolicyDefinition {
             text: Some(TextRedaction::Erase),
             ..Default::default()
         }),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     }
 }
 
@@ -548,7 +548,7 @@ async fn unhandled_names_a_detection_no_policy_acted_on() {
     // for it. That is the shape of a policy set that misses a
     // modality — the detection survives into the output with no
     // record of why.
-    let detect_only = PolicyDefinition {
+    let detect_only = Policy {
         // No operator: the label is scoped and nothing acts on it.
         fallback: None,
         ..policy()
@@ -620,6 +620,7 @@ async fn unhandled_reaches_into_container_parts() {
     // A document detection and a nested-part detection, neither
     // acted on.
     let audit = Audit {
+        recognition: Vec::new(),
         report: Report::new()
             .insert_part::<Text>(PartId::new(DOCUMENT), vec![detection("email_address")])
             .insert_part::<Text>(

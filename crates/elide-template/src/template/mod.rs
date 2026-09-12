@@ -1,5 +1,5 @@
 //! The [`Template`] value every template constructor returns:
-//! the [`PolicyDefinition`]s a caller submits, plus identity
+//! the [`Policy`]s a caller submits, plus identity
 //! metadata the engine records on every run driven by this
 //! template.
 
@@ -9,7 +9,7 @@ pub(crate) mod hipaa;
 pub(crate) mod pci;
 
 use elide_core::entity::audit::Attribution;
-use elide_governance::{PolicyDefinition, TemplateOrigin};
+use elide_governance::policy::{Policy, TemplateOrigin};
 use hipstr::HipStr;
 use jiff::civil::Date;
 use schemars::JsonSchema;
@@ -28,7 +28,7 @@ pub use self::pci::{PciDssPart, PciPanRender};
 /// before submitting. The engine never sees the [`Template`]
 /// itself: only its [`policy`] via `Engine::analyze` /
 /// `Engine::anonymize`. The policy carries its own
-/// [`LabelScope`]s inline via [`PolicyDefinition::scopes`].
+/// [`LabelScope`]s inline via [`Policy::scopes`].
 ///
 /// # Identity
 ///
@@ -59,9 +59,9 @@ pub use self::pci::{PciDssPart, PciPanRender};
 ///   that fired was the one in force at the time.
 ///
 /// [`Label`]: elide_core::entity::Label
-/// [`LabelScope`]: elide_governance::LabelScope
-/// [`PolicyDefinition`]: elide_governance::PolicyDefinition
-/// [`PolicyDefinition::scopes`]: elide_governance::PolicyDefinition::scopes
+/// [`LabelScope`]: elide_governance::policy::LabelScope
+/// [`Policy`]: elide_governance::policy::Policy
+/// [`Policy::scopes`]: elide_governance::policy::Policy::scopes
 /// [`description`]: Self::description
 /// [`effective_date`]: Self::effective_date
 /// [`id`]: Self::id
@@ -91,15 +91,15 @@ pub struct Template {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub description: Option<HipStr<'static>>,
-    /// The [`PolicyDefinition`] this template encodes. Carries
+    /// The [`Policy`] this template encodes. Carries
     /// its own [`LabelScope`]s inline. A caller composing
     /// several regulatory postures in one request submits
     /// multiple templates and unions their policies into the
-    /// engine's `&[PolicyDefinition]` slice.
+    /// engine's `&[Policy]` slice.
     ///
-    /// [`LabelScope`]: elide_governance::LabelScope
-    /// [`PolicyDefinition`]: elide_governance::PolicyDefinition
-    pub policy: PolicyDefinition,
+    /// [`LabelScope`]: elide_governance::policy::LabelScope
+    /// [`Policy`]: elide_governance::policy::Policy
+    pub policy: Policy,
 }
 
 /// A [`Cited`] attribution for a rule or scope.

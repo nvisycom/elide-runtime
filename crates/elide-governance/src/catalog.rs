@@ -1,4 +1,4 @@
-//! Compile a slice of [`PolicyDefinition`] into an
+//! Compile a slice of [`Policy`] into an
 //! [`LabelCatalog`].
 //!
 //! Walks every policy's [`labels`] block and unions the builtin
@@ -24,17 +24,18 @@
 //! catalog this produces.
 //!
 //! [`Label`]: elide_core::entity::Label
-//! [`PolicyDefinition`]: crate::PolicyDefinition
-//! [`labels`]: crate::PolicyDefinition::label_scope
-//! [`Predicate::LabelInScope`]: crate::Predicate::LabelInScope
-//! [`Predicate::TagOneOf`]: crate::Predicate::TagOneOf
+//! [`Policy`]: crate::policy::Policy
+//! [`labels`]: crate::policy::Policy::label_scope
+//! [`Predicate::LabelInScope`]: crate::policy::Predicate::LabelInScope
+//! [`Predicate::TagOneOf`]: crate::policy::Predicate::TagOneOf
 
 use std::sync::OnceLock;
 
 use elide_core::entity::LabelCatalog;
 use elide_core::{Error, ErrorKind, Result};
 
-use crate::PolicyDefinition;
+use crate::policy::Policy;
+use crate::recognition::Recognition;
 
 /// Compile the label catalog for a request from its policy set.
 ///
@@ -60,10 +61,13 @@ use crate::PolicyDefinition;
 ///   ever return an empty report. Failing here names the cause
 ///   rather than handing back a clean empty answer.
 ///
-/// [`labels`]: crate::PolicyDefinition::label_scope
+/// [`labels`]: crate::policy::Policy::label_scope
 /// [`Label`]: elide_core::entity::Label
-pub fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCatalog> {
+pub fn compile_catalog(policies: &[Policy], recognition: &[Recognition]) -> Result<LabelCatalog> {
     let mut catalog = LabelCatalog::new();
+    // The request's own labels first: a policy scope may name one,
+    // and the builtin lookup below would reject it as unknown.
+    insert_custom(&mut catalog, recognition)?;
     for policy in policies {
         insert_params(&mut catalog, policy)?;
     }
@@ -78,45 +82,59 @@ pub fn compile_catalog(policies: &[PolicyDefinition]) -> Result<LabelCatalog> {
     Ok(catalog)
 }
 
-fn insert_params(catalog: &mut LabelCatalog, policy: &PolicyDefinition) -> Result<()> {
+/// Insert the labels this request introduces.
+///
+/// Request-wide, so a label is declared once however many policies
+/// scope it. A custom id colliding with a shipped builtin is
+/// refused: it would shadow elide's own definition, and every rule
+/// naming that label would silently act on the wrong schema.
+fn insert_custom(catalog: &mut LabelCatalog, recognition: &[Recognition]) -> Result<()> {
     let builtins = builtin_catalog();
-
-    // Customs first: a scope may name one, and the builtin lookup
-    // below would otherwise reject it as unknown.
-    for label in &policy.custom {
+    for label in recognition.iter().flat_map(|r| &r.custom) {
         if builtins.contains(&label.to_ref()) {
             return Err(Error::new(
                 ErrorKind::Configuration,
                 format!(
-                    "policy `{}` declares custom label `{}` whose id collides with a \
-                     shipped builtin: customs cannot shadow builtins",
-                    policy.id,
+                    "custom label `{}` collides with a shipped builtin: a request \
+                     cannot shadow elide's own definition",
                     label.id(),
                 ),
             ));
         }
-        if let Some(existing) = catalog.get(&label.to_ref())
-            && existing != label
+        // `insert` returns what it replaced. A byte-identical
+        // redeclaration is a shared vocabulary composed from two
+        // sources and unions cleanly; two different definitions for
+        // one id is a caller bug — glued-together vocabularies —
+        // and silently keeping the last would misredact under the
+        // wrong schema, tags and category.
+        if let Some(replaced) = catalog.insert(label.clone())
+            && &replaced != label
         {
             return Err(Error::new(
                 ErrorKind::Configuration,
                 format!(
-                    "policy `{}` declares custom label `{}` that another policy in the \
-                     same request already contributed with different contents",
-                    policy.id,
+                    "custom label `{}` is declared twice in this request with \
+                     different contents: the engine cannot pick which schema, \
+                     tags and category a rule should act under",
                     label.id(),
                 ),
             ));
         }
-        catalog.insert(label.clone());
     }
+    Ok(())
+}
 
-    // Then every label the policy's scopes name. Resolution is
+fn insert_params(catalog: &mut LabelCatalog, policy: &Policy) -> Result<()> {
+    let builtins = builtin_catalog();
+
+    // Every label the policy's scopes name. A request's own labels
+    // are already in the catalog, so a scope naming one resolves
+    // through that rather than through the builtins.
     // policy-local: an earlier policy's custom schema must not make
     // this policy's reference to it resolve, or a rule could act on
     // a label its own policy never declared.
     for label_ref in policy.label_scope() {
-        if policy.custom.iter().any(|l| l.to_ref() == label_ref) {
+        if catalog.contains(&label_ref) {
             continue;
         }
         let label = builtins.get(&label_ref).ok_or_else(|| {
@@ -124,7 +142,7 @@ fn insert_params(catalog: &mut LabelCatalog, policy: &PolicyDefinition) -> Resul
                 ErrorKind::Configuration,
                 format!(
                     "policy `{}` scopes label `{}`, which is neither a shipped elide \
-                     builtin nor one of the policy's own custom labels",
+                     builtin nor one of the request's own custom labels",
                     policy.id,
                     label_ref.as_str(),
                 ),
@@ -153,30 +171,36 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::{LabelScope, PolicyDefinition};
+    use crate::policy::{LabelScope, Policy};
 
     const POLICY_A: Uuid = Uuid::from_u128(0x01234567_89ab_7000_8000_000000000010_u128);
     const POLICY_B: Uuid = Uuid::from_u128(0x01234567_89ab_7000_8000_000000000011_u128);
 
-    fn policy_named(id: Uuid, custom: Vec<Label>, scopes: Vec<LabelScope>) -> PolicyDefinition {
-        PolicyDefinition {
+    fn policy_named(id: Uuid, scopes: Vec<LabelScope>) -> Policy {
+        Policy {
             id,
             name: HipStr::from("test"),
             scopes,
-            custom,
-            ..PolicyDefinition::default()
+            ..Policy::default()
         }
     }
 
-    /// A policy whose vocabulary is one scope naming `builtins`,
-    /// plus any inline `custom` schemas.
-    fn policy_with_labels(builtins: Vec<LabelRef>, custom: Vec<Label>) -> PolicyDefinition {
-        let scopes = if builtins.is_empty() {
+    /// A policy scoping `labels`, or scoping nothing when empty.
+    fn policy_scoping(labels: Vec<LabelRef>) -> Policy {
+        let scopes = if labels.is_empty() {
             Vec::new()
         } else {
-            vec![LabelScope::new("scope", builtins)]
+            vec![LabelScope::new("scope", labels)]
         };
-        policy_named(POLICY_A, custom, scopes)
+        policy_named(POLICY_A, scopes)
+    }
+
+    /// A request introducing `custom` and nothing else.
+    fn introducing(custom: Vec<Label>) -> Recognition {
+        Recognition {
+            custom,
+            matchers: Vec::new(),
+        }
     }
 
     #[test]
@@ -184,29 +208,26 @@ mod tests {
         // An empty catalog is a request for no entity types, so it
         // detects nothing: refuse rather than compile a request
         // that can only return an empty report.
-        let err = compile_catalog(&[]).expect_err("empty policy set is refused");
+        let err = compile_catalog(&[], &[]).expect_err("empty policy set is refused");
         assert_eq!(err.kind(), ErrorKind::Configuration);
 
-        let bare = policy_named(POLICY_A, Vec::new(), Vec::new());
-        compile_catalog(std::slice::from_ref(&bare))
+        let bare = policy_named(POLICY_A, Vec::new());
+        compile_catalog(std::slice::from_ref(&bare), &[])
             .expect_err("a policy naming no labels is refused too");
     }
 
     #[test]
     fn builtin_names_land_in_the_catalog() {
-        let p = policy_with_labels(vec![LabelRef::new("email_address")], Vec::new());
-        let catalog = compile_catalog(std::slice::from_ref(&p)).unwrap();
+        let p = policy_scoping(vec![LabelRef::new("email_address")]);
+        let catalog = compile_catalog(std::slice::from_ref(&p), &[]).unwrap();
         assert!(catalog.contains(&LabelRef::new("email_address")));
         assert_eq!(catalog.len(), 1);
     }
 
     #[test]
     fn unknown_builtin_name_fails_the_request() {
-        let p = policy_with_labels(
-            vec![LabelRef::new("definitely_not_a_real_label")],
-            Vec::new(),
-        );
-        let err = compile_catalog(std::slice::from_ref(&p))
+        let p = policy_scoping(vec![LabelRef::new("definitely_not_a_real_label")]);
+        let err = compile_catalog(std::slice::from_ref(&p), &[])
             .expect_err("unknown builtin must reject the request");
         assert!(err.to_string().contains("definitely_not_a_real_label"));
         assert!(err.to_string().contains(&POLICY_A.to_string()));
@@ -214,16 +235,80 @@ mod tests {
 
     #[test]
     fn custom_labels_land_in_the_catalog() {
-        let p = policy_with_labels(Vec::new(), vec![Label::new("project_code", "Project code")]);
-        let catalog = compile_catalog(std::slice::from_ref(&p)).unwrap();
+        let p = policy_scoping(vec![LabelRef::new("project_code")]);
+        let catalog = compile_catalog(
+            std::slice::from_ref(&p),
+            &[introducing(vec![Label::new(
+                "project_code",
+                "Project code",
+            )])],
+        )
+        .unwrap();
         assert!(catalog.contains(&LabelRef::new("project_code")));
+    }
+
+    /// Two sources composing the same label is a shared vocabulary
+    /// and unions cleanly; two *different* definitions for one id is
+    /// a caller bug, and keeping the last silently would misredact
+    /// under the wrong schema and tags.
+    #[test]
+    fn conflicting_custom_definitions_are_refused() {
+        let p = policy_scoping(vec![LabelRef::new("project_code")]);
+        let same = Label::new("project_code", "Project code");
+        compile_catalog(
+            std::slice::from_ref(&p),
+            &[introducing(vec![same.clone()]), introducing(vec![same])],
+        )
+        .expect("a byte-identical redeclaration is one shared label");
+
+        let err = compile_catalog(
+            std::slice::from_ref(&p),
+            &[
+                introducing(vec![Label::new("project_code", "Project code")]),
+                introducing(vec![Label::new("project_code", "Legacy code")]),
+            ],
+        )
+        .expect_err("two different definitions for one id must be refused");
+        assert_eq!(err.kind(), ErrorKind::Configuration);
+        assert!(
+            err.to_string().contains("project_code"),
+            "the error names the label: {err}",
+        );
+    }
+
+    /// A label the request introduces is shared: two policies both
+    /// scoping it is one label, not a collision. Declaring it per
+    /// policy is what made that a conflict to police.
+    #[test]
+    fn two_policies_may_scope_one_custom_label() {
+        let a = policy_named(
+            POLICY_A,
+            vec![LabelScope::new("a", vec![LabelRef::new("project_code")])],
+        );
+        let b = policy_named(
+            POLICY_B,
+            vec![LabelScope::new("b", vec![LabelRef::new("project_code")])],
+        );
+        let catalog = compile_catalog(
+            &[a, b],
+            &[introducing(vec![Label::new(
+                "project_code",
+                "Project code",
+            )])],
+        )
+        .unwrap();
+        assert!(catalog.contains(&LabelRef::new("project_code")));
+        assert_eq!(
+            catalog.len(),
+            1,
+            "one label, however many policies scope it"
+        );
     }
 
     #[test]
     fn multiple_policies_union_their_labels() {
         let a = policy_named(
             POLICY_A,
-            Vec::new(),
             vec![LabelScope::new(
                 "scope",
                 vec![LabelRef::new("email_address")],
@@ -231,13 +316,12 @@ mod tests {
         );
         let b = policy_named(
             POLICY_B,
-            Vec::new(),
             vec![LabelScope::new(
                 "scope",
                 vec![LabelRef::new("phone_number")],
             )],
         );
-        let catalog = compile_catalog(&[a, b]).unwrap();
+        let catalog = compile_catalog(&[a, b], &[]).unwrap();
         assert!(catalog.contains(&LabelRef::new("email_address")));
         assert!(catalog.contains(&LabelRef::new("phone_number")));
         assert_eq!(catalog.len(), 2);
@@ -245,61 +329,21 @@ mod tests {
 
     #[test]
     fn custom_label_shadowing_a_builtin_fails_the_request() {
-        // `email_address` is a shipped builtin; a policy that
-        // declares a custom label with that id would silently strip
-        // elide's `contact_info`/`pii` tags for every rule in the
-        // request. Reject it.
-        let p = policy_with_labels(
-            Vec::new(),
-            vec![Label::new("email_address", "Adresse électronique")],
-        );
-        let err = compile_catalog(std::slice::from_ref(&p))
-            .expect_err("shadowing a builtin must reject the request");
+        // `email_address` is a shipped builtin; a request declaring
+        // a custom label with that id would silently strip elide's
+        // `contact_info`/`pii` tags for every rule in the request.
+        // Reject it.
+        let p = policy_scoping(vec![LabelRef::new("email_address")]);
+        let err = compile_catalog(
+            std::slice::from_ref(&p),
+            &[introducing(vec![Label::new(
+                "email_address",
+                "Adresse électronique",
+            )])],
+        )
+        .expect_err("shadowing a builtin must reject the request");
         assert!(err.to_string().contains("email_address"));
         assert!(err.to_string().contains("shadow"));
-    }
-
-    #[test]
-    fn same_custom_label_declared_identically_across_policies_is_fine() {
-        // Two policies (templates, deployed side-by-side) that
-        // both declare the same custom label with byte-identical
-        // contents represent a shared vocabulary. Union cleanly.
-        let label = Label::new("project_code", "Project code");
-        let a = policy_named(
-            POLICY_A,
-            vec![label.clone()],
-            vec![LabelScope::new("scope", Vec::new())],
-        );
-        let b = policy_named(
-            POLICY_B,
-            vec![label],
-            vec![LabelScope::new("scope", Vec::new())],
-        );
-        let catalog = compile_catalog(&[a, b]).unwrap();
-        assert!(catalog.contains(&LabelRef::new("project_code")));
-        assert_eq!(catalog.len(), 1);
-    }
-
-    #[test]
-    fn same_custom_label_id_with_different_contents_fails_the_request() {
-        // Two policies contributing `project_code` with different
-        // descriptions is silent last-write-wins in the legacy
-        // shape. Reject: the caller has a bug (glued two conflicting
-        // templates) and picking a winner would silently misredact.
-        let a = policy_named(
-            POLICY_A,
-            vec![Label::new("project_code", "Project code")],
-            vec![LabelScope::new("scope", Vec::new())],
-        );
-        let b = policy_named(
-            POLICY_B,
-            vec![Label::new("project_code", "Legacy code")],
-            vec![LabelScope::new("scope", Vec::new())],
-        );
-        let err = compile_catalog(&[a, b])
-            .expect_err("conflicting custom labels must reject the request");
-        assert!(err.to_string().contains("project_code"));
-        assert!(err.to_string().contains(&POLICY_B.to_string()));
     }
 
     #[test]
@@ -308,15 +352,8 @@ mod tests {
         // at predicate-evaluation time; nothing on the catalog
         // carries a `scope:*` tag a `TagOneOf` could exploit to
         // reach across policies.
-        let p = policy_named(
-            POLICY_A,
-            Vec::new(),
-            vec![LabelScope::new(
-                "scope",
-                vec![LabelRef::new("email_address")],
-            )],
-        );
-        let catalog = compile_catalog(std::slice::from_ref(&p)).unwrap();
+        let p = policy_scoping(vec![LabelRef::new("email_address")]);
+        let catalog = compile_catalog(std::slice::from_ref(&p), &[]).unwrap();
         let stamped = catalog.get(&LabelRef::new("email_address")).unwrap();
         assert!(
             !stamped
@@ -334,19 +371,21 @@ mod tests {
         );
     }
 
+    /// A policy's scope is its scopes, whatever the label's origin.
+    /// A request-introduced label reaches a policy by being scoped,
+    /// exactly as a shipped one does.
     #[test]
-    fn label_scope_unions_scopes_and_customs() {
-        let p = policy_with_labels(
-            vec![
-                LabelRef::new("email_address"),
-                LabelRef::new("phone_number"),
-            ],
-            vec![Label::new("project_code", "Project code")],
-        );
+    fn label_scope_is_the_union_of_the_scopes() {
+        let p = policy_scoping(vec![
+            LabelRef::new("email_address"),
+            LabelRef::new("project_code"),
+        ]);
         let scope = p.label_scope();
         assert!(scope.contains(&LabelRef::new("email_address")));
-        assert!(scope.contains(&LabelRef::new("phone_number")));
-        assert!(scope.contains(&LabelRef::new("project_code")));
-        assert_eq!(scope.len(), 3);
+        assert!(
+            scope.contains(&LabelRef::new("project_code")),
+            "a custom label is scoped like any other",
+        );
+        assert_eq!(scope.len(), 2);
     }
 }

@@ -1,5 +1,5 @@
+use elide_governance::policy::{LabelScope, Policy};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelScope, PolicyDefinition};
 use semver::Version;
 
 use super::super::{derived_id, origin};
@@ -30,8 +30,8 @@ pub(super) fn template(scope: GdprSensitiveScope) -> Template {
     }
 }
 
-fn policy(scope: GdprSensitiveScope) -> PolicyDefinition {
-    PolicyDefinition {
+fn policy(scope: GdprSensitiveScope) -> Policy {
+    Policy {
         id: derived_id(&format!("{}:policy", template_id(ERASE_ID, scope))),
         name: "gdpr-article-9-erase".into(),
         description: Some(
@@ -43,7 +43,7 @@ fn policy(scope: GdprSensitiveScope) -> PolicyDefinition {
         scopes: vec![label_scope(scope)],
         // No rules: the whole scope gets one treatment.
         fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     }
 }
 

@@ -17,9 +17,9 @@
 //! rules for the labels needing special treatment, and lets
 //! [`fallback`] sweep the rest.
 //!
-//! [`PolicyDefinition`]: super::PolicyDefinition
-//! [`Predicate::LabelInScope`]: crate::Predicate::LabelInScope
-//! [`fallback`]: super::PolicyDefinition::fallback
+//! [`Policy`]: super::Policy
+//! [`Predicate::LabelInScope`]: crate::policy::Predicate::LabelInScope
+//! [`fallback`]: super::Policy::fallback
 
 use elide_core::entity::LabelRef;
 use elide_core::entity::audit::Attribution;
@@ -27,7 +27,7 @@ use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// A named set of labels a [`PolicyDefinition`] detects.
+/// A named set of labels a [`Policy`] detects.
 ///
 /// Scopes live on the policy that declares them and are visible
 /// only to that policy's own rules. Two policies that both declare
@@ -43,7 +43,7 @@ use serde::{Deserialize, Serialize};
 /// **Unknown scope names error at request validation**, not at
 /// apply time. A typo doesn't silently underfire.
 ///
-/// [`PolicyDefinition`]: super::PolicyDefinition
+/// [`Policy`]: super::Policy
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelScope {
@@ -53,7 +53,7 @@ pub struct LabelScope {
     /// snake_case identifiers (`hipaa_safe_harbor`,
     /// `gdpr_article_9`): they read cleanly in audit provenance.
     ///
-    /// [`Predicate::LabelInScope`]: crate::Predicate::LabelInScope
+    /// [`Predicate::LabelInScope`]: crate::policy::Predicate::LabelInScope
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
     /// Optional description for reviewers.

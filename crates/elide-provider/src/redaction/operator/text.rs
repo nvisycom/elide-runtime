@@ -45,7 +45,7 @@ use crate::redaction::compile::Target;
 /// build time.
 ///
 /// Two pieces of per-request state, both keyed by
-/// [`PolicyDefinition::id`]:
+/// [`Policy::id`]:
 ///
 /// - **Pseudonym vaults.** [`TextRedaction::Pseudonymize`]
 ///   resolves through an [`InMemoryVault`] so every mention of
@@ -67,7 +67,7 @@ use crate::redaction::compile::Target;
 /// [`Arc`] clones.
 ///
 /// [`InMemoryVault`]: elide::redaction::vault::InMemoryVault
-/// [`PolicyDefinition::id`]: elide_governance::PolicyDefinition::id
+/// [`Policy::id`]: elide_governance::policy::Policy::id
 /// [`TextRedaction::Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
 /// [`TextRedaction::HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
 /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize

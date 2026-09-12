@@ -16,7 +16,7 @@ use std::hint::black_box;
 
 use bytes::Bytes;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use elide_governance::PolicyDefinition;
+use elide_governance::policy::Policy;
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
 use elide_template::PolicyTemplate;
@@ -58,7 +58,7 @@ fn runtime() -> Runtime {
 /// CCPA: one policy scoping many labels with a single terminal, so
 /// the number reflects the pipeline rather than a template's own
 /// rule count.
-fn policies() -> Vec<PolicyDefinition> {
+fn policies() -> Vec<Policy> {
     vec![PolicyTemplate::Ccpa.build().policy]
 }
 

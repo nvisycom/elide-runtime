@@ -13,11 +13,11 @@
 //!
 //! Authored vocabulary for redaction governance.
 //!
-//! A request submits `Vec<PolicyDefinition>` in precedence order.
+//! A request submits `Vec<Policy>` in precedence order.
 //! Engine walks the policies; for each policy it walks
-//! [`PolicyDefinition::rules`] in order and runs the first matching
+//! [`Policy::rules`] in order and runs the first matching
 //! rule's redaction operators. If no rule in a policy matches, the
-//! policy's [`PolicyDefinition::fallback`] runs (and the chain
+//! policy's [`Policy::fallback`] runs (and the chain
 //! halts) if set; otherwise the engine moves to the next policy.
 //! If no policy matches and no policy carries a fallback, the
 //! entity is skipped.
@@ -42,28 +42,31 @@
 //! Scopes are policy-local: a rule can only name a scope its own
 //! policy declared, and unknown names error at validation.
 //!
-//! Identity is UUID-keyed: every [`PolicyDefinition`] and every
+//! Identity is UUID-keyed: every [`Policy`] and every
 //! [`PolicyRule`] carries a stable [`Uuid`](uuid::Uuid). Engine stamps
 //! `policy.id` and `rule.id` into the redaction event's
 //! [`Attribution`] so reviewers can trace any redaction back to
 //! the exact rule that fired.
 //!
 //! [`Attribution`]: elide_core::entity::audit::Attribution
+//! [`LabelEntry`]: crate::policy::LabelEntry
+//! [`LabelScope`]: crate::policy::LabelScope
+//! [`Policy`]: crate::policy::Policy
+//! [`Policy::fallback`]: crate::policy::Policy::fallback
+//! [`Policy::rules`]: crate::policy::Policy::rules
+//! [`PolicyRule`]: crate::policy::PolicyRule
 //! [`LabelRef`]: elide_core::entity::LabelRef
 //! [`ModalityRedactions`]: redaction::ModalityRedactions
-//! [`Predicate`]: Predicate
-//! [`Predicate::LabelInScope`]: Predicate::LabelInScope
-//! [`fallback`]: PolicyDefinition::fallback
-//! [`Predicated`]: RuleDispatch::Predicated
-//! [`Table`]: RuleDispatch::Table
+//! [`Predicate`]: crate::policy::Predicate
+//! [`Predicate::LabelInScope`]: crate::policy::Predicate::LabelInScope
+//! [`fallback`]: crate::policy::Policy::fallback
+//! [`Predicated`]: crate::policy::RuleDispatch::Predicated
+//! [`Table`]: crate::policy::RuleDispatch::Table
 
 mod catalog;
 pub mod modality;
-mod policy;
+pub mod policy;
+pub mod recognition;
 pub mod redaction;
 
 pub use self::catalog::compile_catalog;
-pub use self::policy::{
-    CustomMatcher, LabelEntry, LabelScope, MatchOn, PolicyDefinition, PolicyRule, Predicate,
-    RuleDispatch, TemplateOrigin,
-};

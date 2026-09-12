@@ -1,6 +1,6 @@
 use elide_core::entity::LabelRef;
+use elide_governance::policy::{LabelEntry, LabelScope, Policy, PolicyRule, RuleDispatch};
 use elide_governance::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
-use elide_governance::{LabelEntry, LabelScope, PolicyDefinition, PolicyRule, RuleDispatch};
 use elide_operator::operators::{DateGranularity, DateStyle};
 use semver::Version;
 
@@ -111,8 +111,8 @@ pub(super) fn safe_harbor_template(accounts: HipaaAccountNumbers) -> Template {
     }
 }
 
-fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
-    PolicyDefinition {
+fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> Policy {
+    Policy {
         id: derived_id(&format!("{}:policy", template_id(SAFE_HARBOR_ID, accounts))),
         name: "hipaa-safe-harbor".into(),
         description: Some(
@@ -129,7 +129,6 @@ fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
         // ordering can turn a Clamp into an Erase.
         rules: vec![safe_harbor_table_rule(accounts)],
         fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-        ..PolicyDefinition::default()
     }
 }
 

@@ -15,7 +15,7 @@ use bytes::Bytes;
 use elide::entity::LabelRef;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
-use elide_governance::{LabelScope, PolicyDefinition};
+use elide_governance::policy::{LabelScope, Policy};
 use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::{Audit, Engine, ProviderConfig, RequestContext};
@@ -39,8 +39,8 @@ fn default_spec() -> RequestContext {
 /// Detect the sample's contact labels without redacting them: a
 /// request names the labels to find, and these tests exercise the
 /// export writers over what detection produced.
-fn detect_only() -> PolicyDefinition {
-    PolicyDefinition {
+fn detect_only() -> Policy {
+    Policy {
         id: uuid::Uuid::now_v7(),
         name: "detect-contacts".into(),
         scopes: vec![LabelScope::new(
@@ -50,7 +50,7 @@ fn detect_only() -> PolicyDefinition {
                 LabelRef::new("phone_number"),
             ],
         )],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     }
 }
 

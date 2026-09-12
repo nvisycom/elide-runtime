@@ -28,8 +28,8 @@ use elide::Result;
 use elide::entity::audit::Attribution;
 use elide::modality::Modality;
 use elide::redaction::{Anonymizer, MatchContext, Operator, Rule};
+use elide_governance::policy::{Policy, Predicate};
 use elide_governance::redaction::ModalityRedactions;
-use elide_governance::{PolicyDefinition, Predicate};
 use uuid::Uuid;
 
 use super::selector::{PolicyContext, attach, fallback_attribution, rule_attribution};
@@ -48,7 +48,7 @@ pub(in crate::redaction) enum Target<'a, M: Modality> {
         attribution: Attribution,
         context: PolicyContext,
     },
-    /// PolicyDefinition `fallback`: catch-all redaction attached
+    /// Policy `fallback`: catch-all redaction attached
     /// via [`Rule::fallback`], but filtered by the enclosing
     /// policy's label scope so a fallback fires only on entities
     /// the policy actually declared vocabulary for.
@@ -165,7 +165,7 @@ where
 /// propagate.
 pub(in crate::redaction) fn attach_policies<'a, M, F>(
     mut anonymizer: Anonymizer<M>,
-    policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,
+    policies: impl Iterator<Item = &'a Policy> + Clone,
     mut compile_one: F,
 ) -> Result<Anonymizer<M>>
 where

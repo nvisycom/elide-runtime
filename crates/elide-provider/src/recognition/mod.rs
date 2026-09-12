@@ -64,7 +64,7 @@ use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{Error, ErrorKind, Orchestrator, Result};
-use elide_governance::PolicyDefinition;
+use elide_governance::recognition::Recognition;
 
 pub use self::config::*;
 use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};
@@ -97,7 +97,7 @@ use self::modality::{compile_audio, compile_image, compile_tabular, compile_text
 pub fn analyzers(
     recognizers: &Recognizers,
     enrichers: &Enrichers,
-    policies: &[PolicyDefinition],
+    recognition: &[Recognition],
 ) -> Result<Orchestrator> {
     let ner = &recognizers.ner;
     let llm = &recognizers.llm;
@@ -105,10 +105,10 @@ pub fn analyzers(
     let stt = pick_one(&enrichers.stt, "STT")?;
 
     Ok(Orchestrator::new()
-        .with_analyzer::<Text>(compile_text(ner, llm, policies)?)
-        .with_analyzer::<Tabular>(compile_tabular(ner, policies)?)
-        .with_analyzer::<Image>(compile_image(ner, llm, ocr, policies)?)
-        .with_analyzer::<Audio>(compile_audio(ner, stt, policies)?))
+        .with_analyzer::<Text>(compile_text(ner, llm, recognition)?)
+        .with_analyzer::<Tabular>(compile_tabular(ner, recognition)?)
+        .with_analyzer::<Image>(compile_image(ner, llm, ocr, recognition)?)
+        .with_analyzer::<Audio>(compile_audio(ner, stt, recognition)?))
 }
 
 /// The single enricher a lineup may wire, or `None` for an empty

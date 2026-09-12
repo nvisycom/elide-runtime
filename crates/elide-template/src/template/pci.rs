@@ -33,7 +33,7 @@
 //! All render variants target the elide-builtin `payment_card`
 //! label. Each template declares its own local [`LabelScope`].
 //! Callers wanting more than one dispatched from one policy
-//! compose the [`PolicyDefinition`]s themselves.
+//! compose the [`Policy`]s themselves.
 //!
 //! ## §3.3.1: never store Sensitive Authentication Data
 //!
@@ -47,12 +47,12 @@
 //!
 //! [`Erase`]: elide_governance::redaction::TextRedaction::Erase
 //!
-//! [`LabelScope`]: elide_governance::LabelScope
-//! [`PolicyDefinition`]: elide_governance::PolicyDefinition
+//! [`LabelScope`]: elide_governance::policy::LabelScope
+//! [`Policy`]: elide_governance::policy::Policy
 
 use elide_core::entity::LabelRef;
+use elide_governance::policy::{LabelScope, Policy};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelScope, PolicyDefinition};
 use elide_operator::operators::Sha2Algorithm;
 use jiff::civil::Date;
 use schemars::JsonSchema;
@@ -205,7 +205,7 @@ fn pan_template(render: PciPanRender) -> Template {
         version: Version::new(1, 0, 0),
         effective_date,
         description: Some(spec.description.into()),
-        policy: PolicyDefinition {
+        policy: Policy {
             id: spec.policy_id,
             name: spec.policy_name.into(),
             description: Some(spec.policy_description.into()),
@@ -215,7 +215,7 @@ fn pan_template(render: PciPanRender) -> Template {
             // of the variant is what happens to it, so the fallback
             // carries the action and inherits the scope's citation.
             fallback: Some(ModalityRedactions::textual(spec.action)),
-            ..PolicyDefinition::default()
+            ..Policy::default()
         },
     }
 }
@@ -341,7 +341,7 @@ fn sav_template() -> Template {
              erasure, not render-unreadable."
                 .into(),
         ),
-        policy: PolicyDefinition {
+        policy: Policy {
             id: SAV_POLICY_ID,
             name: "pci-dss-sav-erase".into(),
             template: Some(origin("pci_dss_sav_erase", Version::new(1, 0, 0))),
@@ -370,7 +370,7 @@ fn sav_template() -> Template {
             // the scope's citation. Unlike §3.5.1, there is no
             // render choice to cite per-variant.
             fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-            ..PolicyDefinition::default()
+            ..Policy::default()
         },
     }
 }

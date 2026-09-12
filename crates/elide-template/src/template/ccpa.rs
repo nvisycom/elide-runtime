@@ -14,18 +14,18 @@
 //! request. Callers whose posture retains PI under a
 //! §1798.145 exception (fraud detection, security incident,
 //! transactional necessity, ...) override the operator on the
-//! returned [`PolicyDefinition`]: commonly to [`Pseudonymize`]
+//! returned [`Policy`]: commonly to [`Pseudonymize`]
 //! for retained analytics that keep coreference without exposing
 //! the underlying identifier.
 //!
-//! [`LabelScope`]: elide_governance::LabelScope
-//! [`PolicyDefinition`]: elide_governance::PolicyDefinition
-//! [`Predicated`]: elide_governance::RuleDispatch::Predicated
+//! [`LabelScope`]: elide_governance::policy::LabelScope
+//! [`Policy`]: elide_governance::policy::Policy
+//! [`Predicated`]: elide_governance::policy::RuleDispatch::Predicated
 //! [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
 
 use elide_core::entity::LabelRef;
+use elide_governance::policy::{LabelScope, Policy};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelScope, PolicyDefinition};
 use jiff::civil::Date;
 use semver::Version;
 use uuid::{Uuid, uuid};
@@ -165,8 +165,8 @@ fn scope() -> LabelScope {
     }
 }
 
-fn policy() -> PolicyDefinition {
-    PolicyDefinition {
+fn policy() -> Policy {
+    Policy {
         id: POLICY_ID,
         name: "ccpa-personal-information".into(),
         description: Some(
@@ -180,7 +180,7 @@ fn policy() -> PolicyDefinition {
         // No rules: every label in scope gets the same treatment,
         // which is exactly what the fallback expresses.
         fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     }
 }
 

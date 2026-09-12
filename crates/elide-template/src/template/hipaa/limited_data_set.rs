@@ -1,6 +1,6 @@
 use elide_core::entity::LabelRef;
+use elide_governance::policy::{LabelScope, Policy};
 use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{LabelScope, PolicyDefinition};
 use semver::Version;
 
 use super::super::{cited, derived_id, origin};
@@ -91,8 +91,8 @@ pub(super) fn limited_data_set_template(accounts: HipaaAccountNumbers) -> Templa
     }
 }
 
-fn limited_data_set_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
-    PolicyDefinition {
+fn limited_data_set_policy(accounts: HipaaAccountNumbers) -> Policy {
+    Policy {
         id: derived_id(&format!("{}:policy", template_id(LDS_ID, accounts))),
         name: "hipaa-limited-data-set".into(),
         description: Some(
@@ -105,7 +105,7 @@ fn limited_data_set_policy(accounts: HipaaAccountNumbers) -> PolicyDefinition {
         // No rules: every §164.514(e)(2) identifier gets the same
         // treatment, which is what the fallback expresses.
         fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     }
 }
 

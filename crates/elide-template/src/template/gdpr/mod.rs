@@ -31,7 +31,7 @@
 //!   adds Article 10's criminal-justice labels
 //!   (`criminal_record`, `criminal_charge`, `judicial_narrative`).
 //!
-//! [`Predicated`]: elide_governance::RuleDispatch::Predicated
+//! [`Predicated`]: elide_governance::policy::RuleDispatch::Predicated
 
 use elide_core::entity::audit::Attribution;
 use jiff::civil::Date;

@@ -1,4 +1,4 @@
-//! One rule inside a [`PolicyDefinition`]: identity + dispatch.
+//! One rule inside a [`Policy`]: identity + dispatch.
 //!
 //! Every rule carries the same identity metadata ([`id`], [`name`],
 //! [`description`]) plus a [`RuleDispatch`] picking how targets are
@@ -19,13 +19,13 @@
 //!   from ballooning to one predicated rule per label with the
 //!   same identity boilerplate repeated.
 //!
-//! [`PolicyDefinition`]: super::PolicyDefinition
-//! [`Predicate`]: crate::Predicate
-//! [`Predicate::LabelOneOf`]: crate::Predicate::LabelOneOf
-//! [`Predicate::TagOneOf`]: crate::Predicate::TagOneOf
-//! [`description`]: PolicyRule::description
-//! [`id`]: PolicyRule::id
-//! [`name`]: PolicyRule::name
+//! [`Policy`]: super::Policy
+//! [`Predicate`]: crate::policy::Predicate
+//! [`Predicate::LabelOneOf`]: crate::policy::Predicate::LabelOneOf
+//! [`Predicate::TagOneOf`]: crate::policy::Predicate::TagOneOf
+//! [`description`]: crate::policy::PolicyRule::description
+//! [`id`]: crate::policy::PolicyRule::id
+//! [`name`]: crate::policy::PolicyRule::name
 
 use elide_core::entity::LabelRef;
 use elide_core::entity::audit::Attribution;
@@ -37,11 +37,11 @@ use uuid::Uuid;
 use super::predicate::Predicate;
 use crate::redaction::ModalityRedactions;
 
-/// One rule inside a [`PolicyDefinition`]. Identity is the UUID;
+/// One rule inside a [`Policy`]. Identity is the UUID;
 /// `name` / `description` are display-only. `dispatch` picks the
 /// selection strategy.
 ///
-/// [`PolicyDefinition`]: super::PolicyDefinition
+/// [`Policy`]: super::Policy
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyRule {
@@ -92,7 +92,7 @@ impl PolicyRule {
     /// Iteration order is stable: `Predicated` yields once;
     /// `Table` yields in the entries' declared order.
     ///
-    /// [`Predicate::LabelOneOf`]: crate::Predicate::LabelOneOf
+    /// [`Predicate::LabelOneOf`]: crate::policy::Predicate::LabelOneOf
     pub fn attachments(&self) -> Box<dyn Iterator<Item = Attachment<'_>> + '_> {
         match &self.dispatch {
             RuleDispatch::Predicated { predicate, action } => {
@@ -120,8 +120,8 @@ impl PolicyRule {
 /// label. Every attachment from one rule answers to that rule's
 /// attribution.
 ///
-/// [`Predicated`]: RuleDispatch::Predicated
-/// [`Table`]: RuleDispatch::Table
+/// [`Predicated`]: crate::policy::RuleDispatch::Predicated
+/// [`Table`]: crate::policy::RuleDispatch::Table
 #[derive(Debug, Clone)]
 pub struct Attachment<'a> {
     /// Which entities this attachment claims.

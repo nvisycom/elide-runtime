@@ -34,11 +34,11 @@
 //! [`Erase`]: elide_governance::redaction::TextRedaction::Erase
 //! [`GeneralizeDate`]: elide_governance::redaction::TextRedaction::GeneralizeDate
 //! [`HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
-//! [`LabelScope`]: elide_governance::LabelScope
-//! [`PolicyDefinition`]: elide_governance::PolicyDefinition
-//! [`Predicated`]: elide_governance::RuleDispatch::Predicated
+//! [`LabelScope`]: elide_governance::policy::LabelScope
+//! [`Policy`]: elide_governance::policy::Policy
+//! [`Predicated`]: elide_governance::policy::RuleDispatch::Predicated
 //! [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
-//! [`RuleDispatch`]: elide_governance::RuleDispatch
+//! [`RuleDispatch`]: elide_governance::policy::RuleDispatch
 
 use jiff::civil::Date;
 use schemars::JsonSchema;
@@ -147,7 +147,7 @@ pub(super) fn template_id(base: &str, accounts: HipaaAccountNumbers) -> String {
 
 #[cfg(test)]
 mod tests {
-    use elide_governance::RuleDispatch;
+    use elide_governance::policy::RuleDispatch;
     use elide_governance::redaction::TextRedaction;
 
     use super::limited_data_set::LDS_LABELS;

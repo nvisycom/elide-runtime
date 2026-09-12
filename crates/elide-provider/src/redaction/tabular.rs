@@ -13,7 +13,7 @@ use elide::Result;
 use elide::modality::tabular::Tabular;
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow};
-use elide_governance::PolicyDefinition;
+use elide_governance::policy::Policy;
 use elide_governance::redaction::{ModalityRedactions, TabularRedaction};
 
 use super::compile::{Target, attach_policies};
@@ -21,13 +21,13 @@ use super::operator::text::{TextOperatorContext, compile_and_attach};
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the
-/// apply pipeline can pre-filter by [`PolicyDefinition::when`]
+/// apply pipeline can pre-filter by [`Policy::when`]
 /// without cloning.
 ///
-/// [`PolicyDefinition::when`]: elide_governance::PolicyDefinition::when
+/// [`Policy::when`]: elide_governance::policy::Policy::when
 pub(crate) fn attach_policies_tabular<'a>(
     anonymizer: Anonymizer<Tabular>,
-    policies: impl Iterator<Item = &'a PolicyDefinition> + Clone,
+    policies: impl Iterator<Item = &'a Policy> + Clone,
     ctx: &TextOperatorContext,
 ) -> Result<Anonymizer<Tabular>> {
     attach_policies(anonymizer, policies, |target, redactions| {

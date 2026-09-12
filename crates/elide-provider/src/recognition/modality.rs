@@ -21,7 +21,7 @@ use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
-use elide_governance::PolicyDefinition;
+use elide_governance::recognition::Recognition;
 
 use super::enrichers::compile::{attach_language, attach_ocr, attach_stt};
 use super::layer::attach_dedup;
@@ -39,13 +39,13 @@ use crate::recognition::{AttachTo, LlmBackend, NerBackend};
 pub(crate) fn compile_text(
     ner: &[Component<NerBackend>],
     llm: &[Component<LlmBackend>],
-    policies: &[PolicyDefinition],
+    recognition: &[Recognition],
 ) -> Result<Analyzer<Text>> {
     let mut analyzer = Analyzer::<Text>::new();
 
     analyzer = attach_language(analyzer);
     analyzer = attach_pattern(analyzer);
-    analyzer = attach_custom(analyzer, policies)?;
+    analyzer = attach_custom(analyzer, recognition)?;
     analyzer = attach_ner_lineup(analyzer, ner)?;
     analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Text)?;
 
@@ -62,13 +62,13 @@ pub(crate) fn compile_text(
 /// `LlmModality` impl for Tabular in elide today.
 pub(crate) fn compile_tabular(
     ner: &[Component<NerBackend>],
-    policies: &[PolicyDefinition],
+    recognition: &[Recognition],
 ) -> Result<Analyzer<Tabular>> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
     analyzer = attach_language(analyzer);
     analyzer = attach_pattern(analyzer);
-    analyzer = attach_custom(analyzer, policies)?;
+    analyzer = attach_custom(analyzer, recognition)?;
     analyzer = attach_ner_lineup(analyzer, ner)?;
 
     Ok(attach_dedup(analyzer))
@@ -88,7 +88,7 @@ pub(crate) fn compile_image(
     ner: &[Component<NerBackend>],
     llm: &[Component<LlmBackend>],
     ocr: Option<&Component<OcrBackend>>,
-    policies: &[PolicyDefinition],
+    recognition: &[Recognition],
 ) -> Result<Analyzer<Image>> {
     let mut analyzer = Analyzer::<Image>::new();
 
@@ -101,7 +101,7 @@ pub(crate) fn compile_image(
     // has run.
     analyzer = attach_language(analyzer);
     analyzer = attach_pattern(analyzer);
-    analyzer = attach_custom(analyzer, policies)?;
+    analyzer = attach_custom(analyzer, recognition)?;
     analyzer = attach_ner_lineup(analyzer, ner)?;
     analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Image)?;
 
@@ -120,7 +120,7 @@ pub(crate) fn compile_image(
 pub(crate) fn compile_audio(
     ner: &[Component<NerBackend>],
     stt: Option<&Component<SttBackend>>,
-    policies: &[PolicyDefinition],
+    recognition: &[Recognition],
 ) -> Result<Analyzer<Audio>> {
     let mut analyzer = Analyzer::<Audio>::new();
 
@@ -132,7 +132,7 @@ pub(crate) fn compile_audio(
     // artifact, so language detection reads nothing before it lands.
     analyzer = attach_language(analyzer);
     analyzer = attach_pattern(analyzer);
-    analyzer = attach_custom(analyzer, policies)?;
+    analyzer = attach_custom(analyzer, recognition)?;
     analyzer = attach_ner_lineup(analyzer, ner)?;
 
     Ok(attach_dedup(analyzer))

@@ -10,13 +10,13 @@ use elide::entity::audit::{Attribution, AuditKind};
 use elide::entity::{Label, LabelRef};
 use elide::modality::text::Text;
 use elide::primitive::Confidence;
-use elide_governance::redaction::{ModalityRedactions, TextRedaction};
-use elide_governance::{
-    CustomMatcher, LabelEntry, LabelScope, MatchOn, PolicyDefinition, PolicyRule, Predicate,
-    RuleDispatch,
+use elide_governance::policy::{
+    LabelEntry, LabelScope, Policy, PolicyRule, Predicate, RuleDispatch,
 };
+use elide_governance::recognition::{CustomMatcher, MatchOn};
+use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::file::Document;
-use elide_pipeline::{Audit, Engine, ErrorKind, ProviderConfig, RequestContext};
+use elide_pipeline::{Audit, Engine, ErrorKind, ProviderConfig, Recognition, RequestContext};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -80,7 +80,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
             ],
         },
     };
-    let policy = PolicyDefinition {
+    let policy = Policy {
         id: uuid::Uuid::now_v7(),
         name: "contact-info".into(),
         // The table targets both; the scope must detect both.
@@ -92,7 +92,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
             ],
         )],
         rules: vec![table],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let mut analyzed = engine
@@ -187,7 +187,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
             LabelRef::new("phone_number"),
         ],
     };
-    let policy = PolicyDefinition {
+    let policy = Policy {
         id: uuid::Uuid::now_v7(),
         name: "sweep".into(),
         scopes: vec![group],
@@ -206,7 +206,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
                 }),
             },
         }],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let mut analyzed = engine
@@ -249,7 +249,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
 #[tokio::test]
 async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
     let engine = engine();
-    let policy_a = PolicyDefinition {
+    let policy_a = Policy {
         id: uuid::Uuid::now_v7(),
         name: "email-only".into(),
         // A TagOneOf rule names no label, so the scope is what
@@ -273,9 +273,9 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
                 }),
             },
         }],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
-    let policy_b = PolicyDefinition {
+    let policy_b = Policy {
         id: uuid::Uuid::now_v7(),
         name: "phone-only-no-rules".into(),
         // Policy B contributes `phone_number` to the request's
@@ -287,7 +287,7 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
             vec![LabelRef::new("phone_number")],
         )],
         // No rules: policy B only contributes vocabulary.
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let policies = vec![policy_a, policy_b];
@@ -324,7 +324,7 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
 #[tokio::test]
 async fn coarse_fallback_does_not_shadow_specific_later_rule() {
     let engine = engine();
-    let coarse = PolicyDefinition {
+    let coarse = Policy {
         id: uuid::Uuid::now_v7(),
         name: "coarse-baseline".into(),
         // The fallback sweeps whatever this scope detects.
@@ -340,9 +340,9 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
             text: Some(TextRedaction::Erase),
             ..Default::default()
         }),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
-    let specific = PolicyDefinition {
+    let specific = Policy {
         id: uuid::Uuid::now_v7(),
         name: "specific-refinement".into(),
         // Refines just email; the coarse policy keeps the rest.
@@ -367,7 +367,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
                 }),
             },
         }],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let policies = vec![coarse, specific];
@@ -401,7 +401,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
 #[tokio::test]
 async fn cross_policy_group_reference_fails_the_request() {
     let engine = engine();
-    let policy_a = PolicyDefinition {
+    let policy_a = Policy {
         id: uuid::Uuid::now_v7(),
         name: "borrower".into(),
         // Scope carries what this policy detects.
@@ -425,16 +425,16 @@ async fn cross_policy_group_reference_fails_the_request() {
                 }),
             },
         }],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
-    let policy_b = PolicyDefinition {
+    let policy_b = Policy {
         id: uuid::Uuid::now_v7(),
         name: "declares-group".into(),
         scopes: vec![LabelScope::new(
             "contact_info",
             vec![LabelRef::new("email_address")],
         )],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     // `Audit` is not `Debug` (it holds an elide `Report`), so the
@@ -459,7 +459,7 @@ async fn cross_policy_group_reference_fails_the_request() {
 #[tokio::test]
 async fn duplicate_scope_names_fail_the_request() {
     let engine = engine();
-    let policy = PolicyDefinition {
+    let policy = Policy {
         id: uuid::Uuid::now_v7(),
         name: "ambiguous".into(),
         scopes: vec![
@@ -481,7 +481,7 @@ async fn duplicate_scope_names_fail_the_request() {
                 }),
             },
         }],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let Err(err) = engine
@@ -509,7 +509,7 @@ async fn fallback_carries_the_scope_attribution() {
         Attribution::cited("CCPA", "Cal. Civ. Code §1798.140(v)(1)")
             .with_rationale("personal information"),
     );
-    let policy = PolicyDefinition {
+    let policy = Policy {
         id: uuid::Uuid::now_v7(),
         name: "sweep-everything".into(),
         scopes: vec![
@@ -520,7 +520,7 @@ async fn fallback_carries_the_scope_attribution() {
             text: Some(TextRedaction::Erase),
             ..Default::default()
         }),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let mut analyzed = engine
@@ -568,7 +568,7 @@ async fn fallback_carries_the_scope_attribution() {
 #[tokio::test]
 async fn mixed_scope_attribution_does_not_borrow_a_citation() {
     let engine = engine();
-    let policy = PolicyDefinition {
+    let policy = Policy {
         id: uuid::Uuid::now_v7(),
         name: "half-cited".into(),
         scopes: vec![
@@ -586,7 +586,7 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
             text: Some(TextRedaction::Erase),
             ..Default::default()
         }),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let mut analyzed = engine
@@ -641,22 +641,22 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
 #[tokio::test]
 async fn a_policy_scoping_no_labels_is_rejected() {
     let engine = engine();
-    let detects = PolicyDefinition {
+    let detects = Policy {
         id: uuid::Uuid::now_v7(),
         name: "detects".into(),
         scopes: vec![LabelScope::new(
             "contact",
             vec![LabelRef::new("email_address")],
         )],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
     let empty_scope_id = uuid::Uuid::now_v7();
-    let policy = PolicyDefinition {
+    let policy = Policy {
         id: empty_scope_id,
         name: "empty-scope".into(),
         scopes: vec![LabelScope::new("everything", Vec::new())],
         fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
     let Err(err) = engine
@@ -683,32 +683,32 @@ async fn a_policy_scoping_no_labels_is_rejected() {
 #[tokio::test]
 async fn a_policy_with_no_scopes_or_no_operators_is_fine() {
     let engine = engine();
-    let detects = PolicyDefinition {
+    let detects = Policy {
         id: uuid::Uuid::now_v7(),
         name: "detects".into(),
         scopes: vec![LabelScope::new(
             "contact",
             vec![LabelRef::new("email_address")],
         )],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
 
-    let no_scopes = PolicyDefinition {
+    let no_scopes = Policy {
         id: uuid::Uuid::now_v7(),
         name: "no-scopes".into(),
         fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
     engine
         .analyze(raw_txt(), &[detects.clone(), no_scopes], &default_spec())
         .await
         .expect("absent scopes say nothing about coverage");
 
-    let no_operators = PolicyDefinition {
+    let no_operators = Policy {
         id: uuid::Uuid::now_v7(),
         name: "no-operators".into(),
         scopes: vec![LabelScope::new("everything", Vec::new())],
-        ..PolicyDefinition::default()
+        ..Policy::default()
     };
     engine
         .analyze(raw_txt(), &[detects, no_operators], &default_spec())
@@ -742,12 +742,18 @@ async fn a_request_naming_no_labels_is_rejected() {
 async fn a_custom_matcher_detects_and_redacts_its_label() {
     async fn redact(on: MatchOn, text: &'static str) -> String {
         let engine = engine();
-        let policy = PolicyDefinition {
+        // The request introduces the label and how to find it; the
+        // policy only says what happens to it once found.
+        let policy = Policy {
             name: "custom".into(),
             scopes: vec![LabelScope::new(
                 "internal",
                 vec![LabelRef::new("employee_id")],
             )],
+            fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+            ..Policy::default()
+        };
+        let request = default_spec().with_recognition([Recognition {
             custom: vec![Label::new("employee_id", "Employee ID")],
             matchers: vec![CustomMatcher {
                 label: LabelRef::new("employee_id"),
@@ -755,12 +761,10 @@ async fn a_custom_matcher_detects_and_redacts_its_label() {
                 confidence: Confidence::clamped(0.6),
                 match_on: on,
             }],
-            fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
-            ..PolicyDefinition::default()
-        };
+        }]);
         let document = || Document::new("sample.txt", Bytes::from_static(text.as_bytes()));
         let mut audit = engine
-            .analyze(document(), std::slice::from_ref(&policy), &default_spec())
+            .analyze(document(), std::slice::from_ref(&policy), &request)
             .await
             .expect("analyze")
             .audit;
@@ -802,18 +806,20 @@ async fn a_custom_matcher_detects_and_redacts_its_label() {
 #[tokio::test]
 async fn a_matcher_the_engine_cannot_honour_is_refused() {
     async fn refuse(matchers: Vec<CustomMatcher>) -> ErrorKind {
-        let policy = PolicyDefinition {
+        let policy = Policy {
             name: "custom".into(),
             scopes: vec![LabelScope::new(
                 "internal",
                 vec![LabelRef::new("employee_id")],
             )],
+            ..Policy::default()
+        };
+        let request = default_spec().with_recognition([Recognition {
             custom: vec![Label::new("employee_id", "Employee ID")],
             matchers,
-            ..PolicyDefinition::default()
-        };
+        }]);
         let Err(err) = engine()
-            .analyze(raw_txt(), std::slice::from_ref(&policy), &default_spec())
+            .analyze(raw_txt(), std::slice::from_ref(&policy), &request)
             .await
         else {
             panic!("a matcher the engine cannot honour must be refused");
@@ -836,4 +842,149 @@ async fn a_matcher_the_engine_cannot_honour_is_refused() {
     ] {
         assert_eq!(refuse(vec![named(broken)]).await, ErrorKind::Configuration);
     }
+}
+
+/// The request's vocabulary is recorded onto the audit, so a
+/// stateless host that persists one and comes back still redacts
+/// its custom labels.
+///
+/// Without it, anonymize compiles a catalog that has never heard
+/// of the label: the entity is detected, nothing matches it, and
+/// the document comes back with the finding intact under a clean
+/// `Ok` — the failure this recording exists to prevent.
+#[tokio::test]
+async fn the_vocabulary_survives_an_audit_round_trip() {
+    let engine = engine();
+    let policy = Policy {
+        name: "custom".into(),
+        scopes: vec![LabelScope::new(
+            "internal",
+            vec![LabelRef::new("employee_id")],
+        )],
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        ..Policy::default()
+    };
+    let request = default_spec().with_recognition([Recognition {
+        custom: vec![Label::new("employee_id", "Employee ID")],
+        matchers: vec![CustomMatcher {
+            label: LabelRef::new("employee_id"),
+            name: "employee-id".into(),
+            confidence: Confidence::clamped(0.6),
+            match_on: MatchOn::Pattern {
+                pattern: r"EMP-\d{4}".to_owned(),
+            },
+        }],
+    }]);
+    let document = || {
+        Document::new(
+            "sample.txt",
+            Bytes::from_static(b"Employee EMP-4471 filed."),
+        )
+    };
+
+    let audit = engine
+        .analyze(document(), std::slice::from_ref(&policy), &request)
+        .await
+        .expect("analyze")
+        .audit;
+
+    // The round trip a stateless host makes between the two passes.
+    let json = serde_json::to_string(&audit).expect("audit serializes");
+    let mut de = serde_json::Deserializer::from_str(&json);
+    let mut restored = engine
+        .deserialize_audit(&mut de)
+        .expect("audit deserializes");
+    assert!(
+        !restored.recognition.is_empty(),
+        "the vocabulary rides along with the audit",
+    );
+
+    let outcome = engine
+        .anonymize(
+            document(),
+            std::slice::from_ref(&policy),
+            &mut restored,
+            None,
+        )
+        .await
+        .expect("anonymize");
+    let text = String::from_utf8_lossy(&outcome.bytes);
+    assert!(
+        !text.contains("EMP-4471"),
+        "the custom label still redacts after the round trip: {text}",
+    );
+}
+
+/// An audit whose vocabulary is gone — a payload predating the
+/// field, or one that dropped it — is refused rather than
+/// anonymized against a catalog that cannot resolve its labels.
+///
+/// Nothing new enforces this: the policy still scopes the custom
+/// label, and `compile_catalog` already rejects a scope naming a
+/// label it cannot resolve. Pinned because the alternative is the
+/// silent one — redacting nothing and reporting success.
+#[tokio::test]
+async fn an_audit_without_its_vocabulary_is_refused() {
+    let engine = engine();
+    let policy = Policy {
+        name: "custom".into(),
+        scopes: vec![LabelScope::new(
+            "internal",
+            vec![LabelRef::new("employee_id")],
+        )],
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        ..Policy::default()
+    };
+    let request = default_spec().with_recognition([Recognition {
+        custom: vec![Label::new("employee_id", "Employee ID")],
+        matchers: vec![CustomMatcher {
+            label: LabelRef::new("employee_id"),
+            name: "employee-id".into(),
+            confidence: Confidence::clamped(0.6),
+            match_on: MatchOn::Pattern {
+                pattern: r"EMP-\d{4}".to_owned(),
+            },
+        }],
+    }]);
+    let document = || {
+        Document::new(
+            "sample.txt",
+            Bytes::from_static(b"Employee EMP-4471 filed."),
+        )
+    };
+
+    let audit = engine
+        .analyze(document(), std::slice::from_ref(&policy), &request)
+        .await
+        .expect("analyze")
+        .audit;
+
+    // Strip the vocabulary, as a payload written before the field
+    // existed would lack it.
+    let mut wire = serde_json::to_value(&audit).expect("audit serializes");
+    wire.as_object_mut()
+        .expect("an audit is a JSON object")
+        .remove("recognition");
+    let stripped = serde_json::to_string(&wire).expect("re-serializes");
+    let mut de = serde_json::Deserializer::from_str(&stripped);
+    let mut restored = engine
+        .deserialize_audit(&mut de)
+        .expect("the audit itself still parses");
+
+    let Err(err) = engine
+        .anonymize(
+            document(),
+            std::slice::from_ref(&policy),
+            &mut restored,
+            None,
+        )
+        .await
+    else {
+        panic!("anonymizing without the vocabulary must not report success");
+    };
+    assert_eq!(err.kind(), ErrorKind::Configuration, "{err}");
+    assert!(
+        err.to_string().contains("employee_id"),
+        "the error names the label it cannot resolve: {err}",
+    );
 }

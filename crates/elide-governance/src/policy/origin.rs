@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-/// The template a [`PolicyDefinition`] was built from.
+/// The template a [`Policy`] was built from.
 ///
 /// Records **provenance, not fidelity**. Templates are plain data
 /// and callers are expected to mutate the returned policy before
@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 /// set, a changed operator), and an audit that records only the id
 /// cannot tell the two apart.
 ///
-/// [`PolicyDefinition`]: super::PolicyDefinition
+/// [`Policy`]: super::Policy
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TemplateOrigin {

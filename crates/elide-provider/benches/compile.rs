@@ -15,7 +15,8 @@
 use std::hint::black_box;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use elide_governance::PolicyDefinition;
+use elide_governance::policy::Policy;
+use elide_governance::recognition::Recognition;
 use elide_provider::{DocumentContext, Provider, ProviderConfig};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
@@ -24,7 +25,7 @@ use elide_template::{
 use uuid::Uuid;
 
 /// The four shipped postures, as a deployment would submit them.
-fn templates() -> Vec<(&'static str, Vec<PolicyDefinition>)> {
+fn templates() -> Vec<(&'static str, Vec<Policy>)> {
     let hipaa = PolicyTemplate::HipaaDeidentification {
         method: HipaaDeidMethod::SafeHarbor,
         accounts: HipaaAccountNumbers::default(),
@@ -47,7 +48,7 @@ fn templates() -> Vec<(&'static str, Vec<PolicyDefinition>)> {
 /// Every template at once: the stacked posture a regulated
 /// deployment actually runs, and the case where cross-policy
 /// catalog merging does the most work.
-fn stacked() -> Vec<PolicyDefinition> {
+fn stacked() -> Vec<Policy> {
     templates().into_iter().flat_map(|(_, p)| p).collect()
 }
 
@@ -58,6 +59,9 @@ fn provider() -> Provider {
 fn compile(c: &mut Criterion) {
     let provider = provider();
     let context = DocumentContext::default();
+    // Templates introduce no vocabulary of their own: a regulatory
+    // posture names shipped labels.
+    let vocabulary: Vec<Recognition> = Vec::new();
     let correlation_id = Uuid::now_v7();
 
     let mut group = c.benchmark_group("compile");
@@ -67,7 +71,7 @@ fn compile(c: &mut Criterion) {
             b.iter(|| {
                 black_box(
                     provider
-                        .analyze_orchestrator(&context, p, correlation_id)
+                        .analyze_orchestrator(&context, &vocabulary, p, correlation_id)
                         .expect("analyze orchestrator"),
                 )
             });
@@ -78,7 +82,7 @@ fn compile(c: &mut Criterion) {
             b.iter(|| {
                 black_box(
                     provider
-                        .anonymize_orchestrator(&context, p, None, correlation_id)
+                        .anonymize_orchestrator(&context, &vocabulary, p, None, correlation_id)
                         .expect("anonymize orchestrator"),
                 )
             });
@@ -93,7 +97,7 @@ fn compile(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 provider
-                    .analyze_orchestrator(&context, &all, correlation_id)
+                    .analyze_orchestrator(&context, &vocabulary, &all, correlation_id)
                     .expect("analyze orchestrator"),
             )
         });
@@ -102,7 +106,7 @@ fn compile(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 provider
-                    .anonymize_orchestrator(&context, &all, None, correlation_id)
+                    .anonymize_orchestrator(&context, &vocabulary, &all, None, correlation_id)
                     .expect("anonymize orchestrator"),
             )
         });

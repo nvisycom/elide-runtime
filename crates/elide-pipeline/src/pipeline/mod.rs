@@ -19,12 +19,15 @@
 //! what lets policies re-resolve per document without mutating
 //! shared state.
 //!
-//! Recognition inputs have two owners. Caller-asserted facts
-//! (languages, jurisdictions, tags) travel between the calls on
-//! [`Audit::context`], so anonymize compiles against the vocabulary
-//! analyze used. The label catalog is derived from `policies`
-//! afresh every call, so policies stay the single source of truth
-//! for label vocabulary — and stay live between the two passes.
+//! Recognition inputs have two owners, and the split decides what
+//! may change between the calls. Policies bring the scopes and the
+//! rules, re-compiled afresh each call, so governance stays live:
+//! edit a policy in the gap and it takes effect. Everything the
+//! caller asserted about *this* run travels on the audit instead —
+//! languages, jurisdictions and tags on [`Audit::context`], the
+//! labels the request introduced on `Audit::recognition` — because
+//! a caller re-supplies policies but not the request, and anonymize
+//! must compile against the vocabulary analyze detected with.
 //!
 //! Hosts hold the [`Audit`] between the two calls however they see
 //! fit — in memory, a run store, a reviewer UI — and hand it back
@@ -56,7 +59,8 @@ use elide::{
     AnalyzedDocument, ArtifactSet, Directives, Document as EngineDocument, Error, ErrorKind,
     Report, Result,
 };
-use elide_governance::PolicyDefinition;
+use elide_governance::policy::Policy;
+use elide_governance::recognition::Recognition;
 use elide_provider::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};
 use serde::Deserialize;
 
@@ -132,6 +136,7 @@ impl Engine {
         Ok(Audit {
             report,
             context: wire.context,
+            recognition: wire.recognition,
             codec: wire.codec,
             usage: wire.usage,
         })
@@ -207,13 +212,13 @@ impl Engine {
     /// [`MalformedInput`](ErrorKind::MalformedInput) for a document
     /// the codec cannot decode.
     ///
-    /// [`LabelInScope`]: elide_governance::Predicate::LabelInScope
-    /// [`LabelScope`]: elide_governance::LabelScope
+    /// [`LabelInScope`]: elide_governance::policy::Predicate::LabelInScope
+    /// [`LabelScope`]: elide_governance::policy::LabelScope
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     pub async fn analyze(
         &self,
         document: Document,
-        policies: &[PolicyDefinition],
+        policies: &[Policy],
         request: &RequestContext,
     ) -> Result<Analyzed> {
         // A first pass is a re-run seeded with nothing: every group
@@ -244,7 +249,7 @@ impl Engine {
     pub async fn re_analyze(
         &self,
         document: Document,
-        policies: &[PolicyDefinition],
+        policies: &[Policy],
         request: &RequestContext,
         prior: &ArtifactSet,
     ) -> Result<Analyzed> {
@@ -258,16 +263,19 @@ impl Engine {
     async fn drive(
         &self,
         document: Document,
-        policies: &[PolicyDefinition],
+        policies: &[Policy],
         request: &RequestContext,
         prior: &ArtifactSet,
     ) -> Result<Analyzed> {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document, request.codec).await?;
-        let orchestrator =
-            self.provider
-                .analyze_orchestrator(&request.context, policies, correlation_id)?;
+        let orchestrator = self.provider.analyze_orchestrator(
+            &request.context,
+            &request.recognition,
+            policies,
+            correlation_id,
+        )?;
         let AnalyzedDocument {
             mut report,
             artifacts,
@@ -311,14 +319,19 @@ impl Engine {
         //
         // The observable signal is an audit carrying no `Selection`
         // events.
-        let _: Result<()> =
-            self.provider
-                .record_picks(&request.context, policies, correlation_id, &mut report);
+        let _: Result<()> = self.provider.record_picks(
+            &request.context,
+            &request.recognition,
+            policies,
+            correlation_id,
+            &mut report,
+        );
 
         Ok(Analyzed {
             audit: Audit {
                 report,
                 context: request.context.clone(),
+                recognition: request.recognition.clone(),
                 codec: request.codec,
                 usage,
             },
@@ -333,11 +346,21 @@ impl Engine {
     /// event per operator that fired, so its provenance records who
     /// redacted what, under which rule.
     ///
-    /// The label catalog is re-derived from `policies` on every
-    /// call — policies are the sole source of label vocabulary, so
-    /// governance stays live between the two passes. What must
-    /// *not* drift travels on the audit: the recognition context
-    /// and the codec params [`analyze`](Self::analyze) used.
+    /// The label catalog is re-derived on every call, from two
+    /// sources. `policies` bring the scopes and the rules, so
+    /// governance stays live between the two passes: a policy
+    /// edited in the gap takes effect here. The audit brings the
+    /// labels the *request* introduced, because a caller
+    /// re-supplies policies but not the [`RequestContext`] — and a
+    /// custom label missing from the catalog is a label a policy
+    /// scope cannot resolve, which fails the call rather than
+    /// redacting nothing.
+    ///
+    /// What must *not* drift travels on the audit for the same
+    /// reason: the recognition context, the codec params, and that
+    /// vocabulary, all as [`analyze`](Self::analyze) saw them.
+    ///
+    /// [`RequestContext`]: elide_provider::RequestContext
     ///
     /// `key` resolves [`HmacHash`] and [`Encrypt`]. It belongs to
     /// the caller asking for redaction rather than the process
@@ -371,7 +394,7 @@ impl Engine {
     pub async fn anonymize(
         &self,
         document: Document,
-        policies: &[PolicyDefinition],
+        policies: &[Policy],
         audit: &mut Audit,
         key: Option<&KeyConfig>,
     ) -> Result<Document> {
@@ -414,9 +437,13 @@ impl Engine {
             ));
         }
 
-        let orchestrator =
-            self.provider
-                .anonymize_orchestrator(&audit.context, policies, key, correlation_id)?;
+        let orchestrator = self.provider.anonymize_orchestrator(
+            &audit.context,
+            &audit.recognition,
+            policies,
+            key,
+            correlation_id,
+        )?;
 
         // The report moves through apply and comes back mutated,
         // every entity carrying the redaction event elide stamped.
@@ -539,6 +566,11 @@ struct AuditWire {
     // the entity offsets recorded against the first decode would
     // land on different content.
     codec: CodecParams,
+    // Defaulted: most requests introduce no vocabulary of their
+    // own, so an audit omitting it is the common case rather than
+    // a malformed one.
+    #[serde(default)]
+    recognition: Vec<Recognition>,
     #[serde(default)]
     usage: UsageReport,
 }

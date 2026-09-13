@@ -465,6 +465,11 @@ impl Engine {
         })
     }
 
+    /// Turn a document's bytes into content the engine can address.
+    ///
+    /// Resolves the format from the document's extension, then
+    /// decodes under `codec` — sharing the prebuilt registry when
+    /// the params are default, rebuilding one when they are not.
     async fn decode(&self, document: Document, codec: CodecParams) -> Result<EngineDocument> {
         // The format comes from the document's name unless it
         // carries an explicit override; neither means there is

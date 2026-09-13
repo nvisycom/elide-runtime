@@ -15,10 +15,14 @@ use elide_pipeline::provider::{CodecParams, ExifMetadata, ProviderConfig, Reques
 /// an address that must be reachable like any other.
 const HEADERLESS: &[u8] = b"ada@example.com,1\ngrace@example.com,2\n";
 
+/// An engine with no enrichers: these tests exercise the codec,
+/// not detection backends.
 fn engine() -> Engine {
     Engine::new(ProviderConfig::default().build())
 }
 
+/// A policy finding the fixture's addresses, so there is something
+/// for a row-drop to act on.
 fn detect_email() -> Policy {
     Policy {
         id: uuid::Uuid::now_v7(),
@@ -31,6 +35,8 @@ fn detect_email() -> Policy {
     }
 }
 
+/// The fixture as a named `.csv`, so the extension resolves to the
+/// CSV codec.
 fn csv(bytes: &'static [u8]) -> Document {
     Document::new("contacts.csv", Bytes::from_static(bytes))
 }

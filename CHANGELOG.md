@@ -49,6 +49,11 @@ does today rather than how it got here.
   only the redacted spans. `codec-mp3` and `codec-pdf-render` stay
   opt-in: MP3 patent licensing may not be satisfiable downstream, and
   PDF rasterisation pulls in a native dependency.
+- Per-format codec settings on `CodecParams`: how a PDF rasterises,
+  whether a CSV has a header row and what separates its fields, and
+  what happens to an image's EXIF metadata when no metadata pipeline
+  strips it. Each defaults to the codec's own behaviour, and a request
+  that sets none shares the prebuilt format registry.
 
 ### What a request supplies
 

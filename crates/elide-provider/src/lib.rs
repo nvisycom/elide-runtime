@@ -51,7 +51,7 @@ mod redaction;
 pub use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
 
 pub use self::orchestrator::{
-    CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
+    CodecParams, DocumentContext, ExifMetadata, KeyConfig, Provider, ProviderConfig, RequestContext,
 };
 pub use self::recognition::{
     AttachTo, AuthenticatedProvider, Backend, Component, Enrichers, LlmBackend, LlmSource,

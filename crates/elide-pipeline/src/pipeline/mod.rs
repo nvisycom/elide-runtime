@@ -61,7 +61,9 @@ use elide::{
 };
 use elide_governance::policy::Policy;
 use elide_governance::recognition::Recognition;
-use elide_provider::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};
+use elide_provider::{
+    CodecParams, DocumentContext, ExifMetadata, KeyConfig, Provider, RequestContext,
+};
 use serde::Deserialize;
 
 pub use self::audit::{Analyzed, Audit, Unhandled};
@@ -463,6 +465,11 @@ impl Engine {
         })
     }
 
+    /// Turn a document's bytes into content the engine can address.
+    ///
+    /// Resolves the format from the document's extension, then
+    /// decodes under `codec` — sharing the prebuilt registry when
+    /// the params are default, rebuilding one when they are not.
     async fn decode(&self, document: Document, codec: CodecParams) -> Result<EngineDocument> {
         // The format comes from the document's name unless it
         // carries an explicit override; neither means there is
@@ -478,12 +485,12 @@ impl Engine {
             )
         })?;
         let Document { name, bytes, .. } = document;
-        let result = match codec.raster_mode {
-            RasterMode::Auto => self.provider.formats().decode(bytes, &extension).await,
-            _ => {
-                self.decode_with_raster_mode(bytes, &extension, codec.raster_mode)
-                    .await
-            }
+        // The shared registry is built for the default params, so
+        // only a request that overrides one has to pay for a rebuild.
+        let result = if codec.is_default() {
+            self.provider.formats().decode(bytes, &extension).await
+        } else {
+            self.decode_configured(bytes, &extension, codec).await
         };
         let handle = result.map_err(|err| {
             // A missing renderer is not malformed input; keep the kind so
@@ -503,45 +510,104 @@ impl Engine {
         Ok(EngineDocument::new(name.as_str().to_owned(), handle))
     }
 
-    /// Slow-path decode for requests overriding the default raster
-    /// mode. Rebuilds a [`FormatRegistry`] with the PDF handler
-    /// replaced by one wired to `raster_mode`; other codecs come
-    /// from the built-in set. Callers pay one registry build per
-    /// non-default request: trivial next to the render itself
-    /// (`Always { dpi }` pages the whole document at the chosen
-    /// DPI), but not free, so the default path skips it.
-    #[cfg(feature = "codec-pdf-render")]
-    async fn decode_with_raster_mode(
+    /// Slow-path decode for a request overriding any codec default.
+    ///
+    /// Rebuilds a [`FormatRegistry`] with each configured format
+    /// replaced; every other codec comes from the built-in set. One
+    /// registry build per non-default request: trivial next to the
+    /// work it configures (`Always { dpi }` pages a whole document
+    /// at the chosen DPI), but not free, so the default path skips
+    /// it entirely.
+    async fn decode_configured(
         &self,
         bytes: bytes::Bytes,
         extension: &str,
-        raster_mode: RasterMode,
+        codec: CodecParams,
     ) -> std::result::Result<UntypedDocumentHandle, elide::Error> {
-        use elide::codec::handler::pdf_format_with;
-        let registry =
-            FormatRegistry::with_builtin().with_replaced_format(pdf_format_with(raster_mode));
+        let mut registry = FormatRegistry::with_builtin();
+
+        // A raster mode other than `Auto` cannot be honoured without
+        // the renderer. Refuse rather than decode without it:
+        // silently falling back to `Auto` would hand a text-layer
+        // extraction to a caller who asked to rasterize.
+        if codec.raster_mode != RasterMode::default() {
+            #[cfg(feature = "codec-pdf-render")]
+            {
+                registry = registry.with_replaced_format(elide::codec::handler::pdf_format_with(
+                    codec.raster_mode,
+                ));
+            }
+            #[cfg(not(feature = "codec-pdf-render"))]
+            return Err(elide::Error::new(
+                elide::ErrorKind::CapabilityUnavailable,
+                format!(
+                    "raster mode {:?} requires the `codec-pdf-render` feature; \
+                     rebuild with it enabled or request the default mode",
+                    codec.raster_mode
+                ),
+            ));
+        }
+
+        #[cfg(feature = "codec-csv")]
+        if codec.csv_has_headers != CodecParams::default().csv_has_headers
+            || codec.csv_delimiter.is_some()
+        {
+            registry = registry.with_replaced_format(elide::codec::handler::csv_format_with(
+                codec.csv_has_headers,
+                codec.csv_delimiter,
+            ));
+        }
+
+        registry = self.with_exif_formats(registry, codec.exif_metadata);
+
         registry.decode(bytes, extension).await
     }
 
-    /// Fallback when the render feature is off. Only non-default
-    /// modes reach here, and none of them can be honoured without
-    /// the renderer, so refuse rather than decode with the shared
-    /// registry: silently substituting `Auto` would hand back a
-    /// text-layer extraction to a caller who asked to rasterize.
-    #[cfg(not(feature = "codec-pdf-render"))]
-    async fn decode_with_raster_mode(
+    /// Replace each built image format with one carrying `metadata`
+    /// as its no-pipeline EXIF fallback.
+    ///
+    /// Split out so the per-format `cfg`s stay in one place: the
+    /// three image codecs are independently switchable, and the
+    /// policy applies to whichever are built.
+    #[allow(unused_mut, unused_variables)]
+    fn with_exif_formats(
         &self,
-        _bytes: bytes::Bytes,
-        _extension: &str,
-        raster_mode: RasterMode,
-    ) -> std::result::Result<UntypedDocumentHandle, elide::Error> {
-        Err(elide::Error::new(
-            elide::ErrorKind::CapabilityUnavailable,
-            format!(
-                "raster mode {raster_mode:?} requires the `codec-pdf-render` feature; \
-                 rebuild with it enabled or request the default mode"
-            ),
-        ))
+        mut registry: FormatRegistry,
+        metadata: ExifMetadata,
+    ) -> FormatRegistry {
+        if metadata == ExifMetadata::default() {
+            return registry;
+        }
+        #[cfg(any(feature = "codec-png", feature = "codec-jpeg", feature = "codec-tiff"))]
+        {
+            use elide::codec::handler::ExifPolicy;
+            let policy = match metadata {
+                ExifMetadata::Keep => ExifPolicy::Keep,
+                ExifMetadata::StripSensitive => ExifPolicy::StripSensitive,
+                ExifMetadata::StripAll => ExifPolicy::StripAll,
+                // `ExifMetadata` is `#[non_exhaustive]`. A variant
+                // added later is some *narrower* disclosure than
+                // `Keep`, so fall back to stripping everything
+                // rather than to the permissive end.
+                _ => ExifPolicy::StripAll,
+            };
+            #[cfg(feature = "codec-png")]
+            {
+                registry =
+                    registry.with_replaced_format(elide::codec::handler::png_format_with(policy));
+            }
+            #[cfg(feature = "codec-jpeg")]
+            {
+                registry =
+                    registry.with_replaced_format(elide::codec::handler::jpeg_format_with(policy));
+            }
+            #[cfg(feature = "codec-tiff")]
+            {
+                registry =
+                    registry.with_replaced_format(elide::codec::handler::tiff_format_with(policy));
+            }
+        }
+        registry
     }
 }
 

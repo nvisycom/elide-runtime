@@ -27,7 +27,7 @@ use elide::modality::text::Text;
 use elide::recognition::UsageReport;
 use elide::{ArtifactSet, PartId, Report};
 use elide_governance::recognition::Recognition;
-use elide_provider::{CodecParams, DocumentContext};
+use elide_provider::{CodecParams, DocumentContext, Selection};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
@@ -137,6 +137,16 @@ pub struct Audit {
     /// offsets below are stored against the first decode, and a
     /// differently-rendered second one would not line up.
     pub codec: CodecParams,
+    /// Which recognizers this request selected.
+    ///
+    /// Carried back for the same reason [`codec`] is. Anonymize
+    /// compiles its analyzers afresh, and a lineup narrower than
+    /// the one analyze detected with would leave an entity found
+    /// and then silently not redacted.
+    ///
+    /// [`codec`]: Audit::codec
+    #[serde(default, skip_serializing_if = "Selection::is_empty")]
+    pub selection: Selection,
     /// What the analyze pass cost: one entry per recognizer and
     /// enricher that ran, each self-identifying by the name the
     /// deployment configured it under.

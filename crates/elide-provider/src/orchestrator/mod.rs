@@ -41,7 +41,9 @@ pub use self::config::ProviderConfig;
 pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
 pub use self::request::RequestContext;
-use crate::recognition::{Enrichers, Recognizers, analyzers};
+use crate::recognition::{
+    Availability, Enrichers, Recognizers, ResolvedComponents, Resolver, Selection, analyzers,
+};
 use crate::redaction::{Pickers, anonymizers, pickers};
 
 /// A deployment's configuration, ready to build orchestrators from.
@@ -64,9 +66,19 @@ pub(crate) struct ProviderInner {
     /// The codec registry documents decode through.
     pub(crate) formats: FormatRegistry,
     /// The recognizer lineups.
-    pub(crate) recognizers: Recognizers,
-    /// The enricher lineups.
-    pub(crate) enrichers: Enrichers,
+    ///
+    /// Behind their own [`Arc`] because [`Provider::restricted_to`]
+    /// rebuilds this struct per restricted caller while the lineups
+    /// themselves never change: sharing them by refcount keeps that
+    /// from copying every configured component each time.
+    pub(crate) recognizers: Arc<Recognizers>,
+    /// The enricher lineups, shared for the same reason as
+    /// [`recognizers`](Self::recognizers).
+    pub(crate) enrichers: Arc<Enrichers>,
+    /// Which of those components a caller through this provider
+    /// may run. Fixed here rather than per request: it is a
+    /// property of who is calling, not of the document.
+    pub(crate) availability: Availability,
 }
 
 impl Provider {
@@ -80,10 +92,64 @@ impl Provider {
         Self {
             inner: Arc::new(ProviderInner {
                 formats: FormatRegistry::with_builtin(),
-                recognizers,
-                enrichers,
+                recognizers: Arc::new(recognizers),
+                enrichers: Arc::new(enrichers),
+                availability: Availability::All,
             }),
         }
+    }
+
+    /// The same provider, restricted to the components
+    /// `availability` permits.
+    ///
+    /// Cheap: the lineups and the codec registry are shared behind
+    /// an [`Arc`], so a deployment serving several restricted
+    /// callers builds one provider and narrows it per caller
+    /// rather than rebuilding.
+    #[must_use]
+    pub fn restricted_to(&self, availability: Availability) -> Self {
+        Self {
+            inner: Arc::new(ProviderInner {
+                formats: self.inner.formats.clone(),
+                recognizers: Arc::clone(&self.inner.recognizers),
+                enrichers: Arc::clone(&self.inner.enrichers),
+                availability,
+            }),
+        }
+    }
+
+    /// Which components a caller through this provider may run.
+    #[must_use]
+    pub fn availability(&self) -> &Availability {
+        &self.inner.availability
+    }
+
+    /// The recognizer names `selection` resolves to under this
+    /// provider's availability, in configuration order.
+    ///
+    /// The same resolution a request performs, exposed so a caller
+    /// can show what a selection would run — or discover what it
+    /// may run at all — without analyzing a document.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same refusals a request would: naming a
+    /// component this provider withholds, naming one that is not
+    /// registered at all, or narrowing every component away.
+    pub fn resolved_components(&self, selection: &Selection) -> Result<ResolvedComponents> {
+        let availability = &self.inner.availability;
+        let recognizers = &self.inner.recognizers;
+        let enrichers = &self.inner.enrichers;
+        let resolver = Resolver::new(availability, selection);
+        resolver.validate_keys(recognizers, enrichers)?;
+        let resolved = ResolvedComponents {
+            ner: resolver.resolve_names(&recognizers.ner),
+            llm: resolver.resolve_names(&recognizers.llm),
+            ocr: resolver.resolve_names(&enrichers.ocr),
+            stt: resolver.resolve_names(&enrichers.stt),
+        };
+        resolver.refuse_if_no_recognizer(recognizers, resolved.ner.len() + resolved.llm.len())?;
+        Ok(resolved)
     }
 
     /// The codec registry documents are decoded through.
@@ -130,12 +196,19 @@ impl Provider {
         recognition: &[Recognition],
         policies: &[Policy],
         correlation_id: Uuid,
+        selection: &Selection,
     ) -> Result<Orchestrator> {
         validate_scope_references(policies)?;
         let catalog = compile_catalog(policies, recognition)?;
         let live_scope = build_scope(context, catalog, correlation_id);
 
-        let orchestrator = analyzers(&self.inner.recognizers, &self.inner.enrichers, recognition)?;
+        let orchestrator = analyzers(
+            &self.inner.recognizers,
+            &self.inner.enrichers,
+            recognition,
+            &self.inner.availability,
+            selection,
+        )?;
         Ok(orchestrator
             .with_registry(self.inner.formats.clone())
             .with_scope(live_scope))

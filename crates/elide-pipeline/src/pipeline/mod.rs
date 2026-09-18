@@ -62,7 +62,7 @@ use elide::{
 use elide_governance::policy::Policy;
 use elide_governance::recognition::Recognition;
 use elide_provider::{
-    CodecParams, DocumentContext, ExifMetadata, KeyConfig, Provider, RequestContext,
+    CodecParams, DocumentContext, ExifMetadata, KeyConfig, Provider, RequestContext, Selection,
 };
 use serde::Deserialize;
 
@@ -140,6 +140,7 @@ impl Engine {
             context: wire.context,
             recognition: wire.recognition,
             codec: wire.codec,
+            selection: wire.selection,
             usage: wire.usage,
         })
     }
@@ -277,6 +278,7 @@ impl Engine {
             &request.recognition,
             policies,
             correlation_id,
+            &request.selection,
         )?;
         let AnalyzedDocument {
             mut report,
@@ -335,6 +337,7 @@ impl Engine {
                 context: request.context.clone(),
                 recognition: request.recognition.clone(),
                 codec: request.codec,
+                selection: request.selection.clone(),
                 usage,
             },
             artifacts,
@@ -632,6 +635,11 @@ struct AuditWire {
     // the entity offsets recorded against the first decode would
     // land on different content.
     codec: CodecParams,
+    // Defaulted: most requests run every recognizer they have, so
+    // an audit omitting this is the common case rather than a
+    // malformed one.
+    #[serde(default)]
+    selection: Selection,
     // Defaulted: most requests introduce no vocabulary of their
     // own, so an audit omitting it is the common case rather than
     // a malformed one.

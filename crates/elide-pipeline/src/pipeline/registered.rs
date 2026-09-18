@@ -33,10 +33,15 @@ pub struct RegisteredRecognizer {
     /// picks by.
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
-    /// Optional human-readable description.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
-    pub description: Option<HipStr<'static>>,
+    /// The groupings this component belongs to, as the deployment
+    /// tagged it.
+    ///
+    /// What a request's selection and the engine's availability
+    /// match on besides the name, so a caller listing components
+    /// can see which families it may ask for.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(with = "Vec<String>")]
+    pub tags: Vec<HipStr<'static>>,
     /// Provider slug. NER: `"bento"`, `"mock"`. LLM: `"openai"`,
     /// `"anthropic"`, `"gemini"`, `"ollama"`, `"mock"`.
     ///
@@ -55,7 +60,7 @@ impl<B: Backend> From<&Component<B>> for RegisteredRecognizer {
     fn from(component: &Component<B>) -> Self {
         Self {
             name: component.name.clone(),
-            description: component.description.clone(),
+            tags: component.tags.clone(),
             provider: HipStr::from(component.backend.provider()),
         }
     }

@@ -38,7 +38,7 @@ fn engine() -> Engine {
             enrichers: Enrichers {
                 ocr: vec![Component::<OcrBackend> {
                     name: "mock".into(),
-                    description: None,
+                    tags: Vec::new(),
                     backend: OcrBackend::Mock,
                 }],
                 ..Enrichers::default()
@@ -315,6 +315,7 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
         report: Report::new(),
         context: DocumentContext::default(),
         codec: CodecParams::default(),
+        selection: Default::default(),
         usage: Default::default(),
     };
 

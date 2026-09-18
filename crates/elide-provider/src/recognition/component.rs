@@ -31,12 +31,20 @@ pub struct Component<B> {
     /// Must be unique across its lineup.
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
-    /// Optional human-readable description. Surfaces on the
-    /// list-components accessor so operators and SDK callers can
-    /// identify what each one is for.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
-    pub description: Option<HipStr<'static>>,
+    /// Deployment-defined groupings this component belongs to.
+    ///
+    /// Free-form: `"general"`, `"medical"`, `"advanced"`,
+    /// `"eu-only"` — whatever a deployment sorts its lineups by.
+    /// The runtime matches on them and assigns them no meaning, so
+    /// a deployment can restrict or select a family of components
+    /// without naming each one, and adding a component to a family
+    /// needs no change anywhere else.
+    ///
+    /// Empty by default, which places a component in no family: it
+    /// is then reachable only by its own name.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(with = "Vec<String>")]
+    pub tags: Vec<HipStr<'static>>,
     /// Backend selection and its per-kind fields, flattened onto
     /// this component's wire shape.
     #[serde(flatten)]

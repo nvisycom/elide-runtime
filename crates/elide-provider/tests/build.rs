@@ -28,7 +28,7 @@ fn configured_backends_reach_the_provider() {
         enrichers: Enrichers {
             ocr: vec![Component::<OcrBackend> {
                 name: "acme-ocr".into(),
-                description: None,
+                tags: Vec::new(),
                 backend: OcrBackend::Mock,
             }],
             ..Enrichers::default()
@@ -50,7 +50,7 @@ fn a_config_round_trips_as_json() {
         enrichers: Enrichers {
             ocr: vec![Component::<OcrBackend> {
                 name: "acme-ocr".into(),
-                description: Some("scanned intake forms".into()),
+                tags: vec!["intake".into()],
                 backend: OcrBackend::Mock,
             }],
             ..Enrichers::default()

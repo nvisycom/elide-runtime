@@ -36,6 +36,7 @@
 //! [`Orchestrator`]: elide::Orchestrator
 //! [`Orchestrator::with_scope`]: elide::Orchestrator::with_scope
 
+mod availability;
 mod component;
 mod enrichers;
 mod layer;
@@ -51,6 +52,7 @@ mod recognizers;
 /// analyzer is [`analyzers`](super::analyzers), which
 /// needs the elide runtime and stays out of the config vocabulary.
 pub mod config {
+    pub use super::availability::{Availability, ResolvedComponents, Selection};
     pub use super::component::{Backend, Component};
     pub use super::enrichers::{Enrichers, OcrBackend, SttBackend};
     pub use super::recognizers::{
@@ -63,9 +65,10 @@ use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
-use elide::{Error, ErrorKind, Orchestrator, Result};
+use elide::{Orchestrator, Result};
 use elide_governance::recognition::Recognition;
 
+pub(crate) use self::availability::Resolver;
 pub use self::config::*;
 use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};
 
@@ -98,37 +101,35 @@ pub fn analyzers(
     recognizers: &Recognizers,
     enrichers: &Enrichers,
     recognition: &[Recognition],
+    availability: &Availability,
+    selection: &Selection,
 ) -> Result<Orchestrator> {
-    let ner = &recognizers.ner;
-    let llm = &recognizers.llm;
-    let ocr = pick_one(&enrichers.ocr, "OCR")?;
-    let stt = pick_one(&enrichers.stt, "STT")?;
+    // Keys are checked against both lineups before either is
+    // filtered: a key naming a NER component is legitimate even
+    // though the LLM lineup has never heard of it.
+    let resolver = Resolver::new(availability, selection);
+    resolver.validate_keys(recognizers, enrichers)?;
+    // Resolved once here rather than per modality: every analyzer
+    // draws from the same two lineups, so resolving inside each
+    // would repeat the work and let them disagree.
+    let ner: Vec<_> = resolver
+        .resolve(&recognizers.ner)
+        .into_iter()
+        .cloned()
+        .collect();
+    let llm: Vec<_> = resolver
+        .resolve(&recognizers.llm)
+        .into_iter()
+        .cloned()
+        .collect();
+    resolver.refuse_if_no_recognizer(recognizers, ner.len() + llm.len())?;
+    let (ner, llm) = (ner.as_slice(), llm.as_slice());
+    let ocr = resolver.pick_one(&enrichers.ocr, "OCR")?;
+    let stt = resolver.pick_one(&enrichers.stt, "STT")?;
 
     Ok(Orchestrator::new()
         .with_analyzer::<Text>(compile_text(ner, llm, recognition)?)
         .with_analyzer::<Tabular>(compile_tabular(ner, recognition)?)
         .with_analyzer::<Image>(compile_image(ner, llm, ocr, recognition)?)
         .with_analyzer::<Audio>(compile_audio(ner, stt, recognition)?))
-}
-
-/// The single enricher a lineup may wire, or `None` for an empty
-/// one.
-///
-/// elide attaches at most one enricher per analyzer, so a lineup
-/// naming two is a misconfiguration worth rejecting at request
-/// compile rather than silently running the first. `kind` names the
-/// lineup in that error.
-fn pick_one<'a, B>(lineup: &'a [Component<B>], kind: &str) -> Result<Option<&'a Component<B>>> {
-    match lineup {
-        [] => Ok(None),
-        [one] => Ok(Some(one)),
-        many => Err(Error::new(
-            ErrorKind::Configuration,
-            format!(
-                "{kind} enricher lineup carries {} entries; elide attaches at most \
-                 one per analyzer. Wire exactly one enricher.",
-                many.len(),
-            ),
-        )),
-    }
 }

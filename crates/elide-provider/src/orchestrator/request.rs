@@ -39,6 +39,7 @@
 use elide_governance::recognition::Recognition;
 
 use super::{CodecParams, DocumentContext, KeyConfig};
+use crate::recognition::Selection;
 
 /// What one request supplies beyond its policies.
 ///
@@ -59,6 +60,20 @@ pub struct RequestContext {
     /// Recorded onto the audit so anonymize decodes identically:
     /// entity offsets are stored against the first decode.
     pub codec: CodecParams,
+    /// Which of the available recognizers this request runs.
+    ///
+    /// Empty by default, meaning every recognizer the caller has
+    /// available. Narrowing only: a request cannot reach a
+    /// component the engine's availability withholds, and asking
+    /// for one is refused rather than ignored.
+    ///
+    /// Recorded onto the audit for the same reason [`codec`] is.
+    /// Anonymize compiles its own analyzers, and a lineup narrower
+    /// than the one analyze detected with would leave an entity
+    /// found and then silently not redacted.
+    ///
+    /// [`codec`]: RequestContext::codec
+    pub selection: Selection,
     /// Vocabularies this request introduces beyond the shipped
     /// set: labels, and how to find them.
     ///
@@ -104,6 +119,13 @@ impl RequestContext {
     #[must_use]
     pub fn with_context(mut self, context: DocumentContext) -> Self {
         self.context = context;
+        self
+    }
+
+    /// The same context, running only the selected recognizers.
+    #[must_use]
+    pub fn with_selection(mut self, selection: Selection) -> Self {
+        self.selection = selection;
         self
     }
 

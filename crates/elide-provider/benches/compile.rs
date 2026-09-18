@@ -17,7 +17,7 @@ use std::hint::black_box;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use elide_governance::policy::Policy;
 use elide_governance::recognition::Recognition;
-use elide_provider::{DocumentContext, Provider, ProviderConfig};
+use elide_provider::{DocumentContext, Provider, ProviderConfig, Selection};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PolicyTemplate,
@@ -71,7 +71,13 @@ fn compile(c: &mut Criterion) {
             b.iter(|| {
                 black_box(
                     provider
-                        .analyze_orchestrator(&context, &vocabulary, p, correlation_id)
+                        .analyze_orchestrator(
+                            &context,
+                            &vocabulary,
+                            p,
+                            correlation_id,
+                            &Selection::new(),
+                        )
                         .expect("analyze orchestrator"),
                 )
             });
@@ -97,7 +103,13 @@ fn compile(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 provider
-                    .analyze_orchestrator(&context, &vocabulary, &all, correlation_id)
+                    .analyze_orchestrator(
+                        &context,
+                        &vocabulary,
+                        &all,
+                        correlation_id,
+                        &Selection::new(),
+                    )
                     .expect("analyze orchestrator"),
             )
         });

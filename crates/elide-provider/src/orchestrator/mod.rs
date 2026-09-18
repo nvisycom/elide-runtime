@@ -66,9 +66,15 @@ pub(crate) struct ProviderInner {
     /// The codec registry documents decode through.
     pub(crate) formats: FormatRegistry,
     /// The recognizer lineups.
-    pub(crate) recognizers: Recognizers,
-    /// The enricher lineups.
-    pub(crate) enrichers: Enrichers,
+    ///
+    /// Behind their own [`Arc`] because [`Provider::restricted_to`]
+    /// rebuilds this struct per restricted caller while the lineups
+    /// themselves never change: sharing them by refcount keeps that
+    /// from copying every configured component each time.
+    pub(crate) recognizers: Arc<Recognizers>,
+    /// The enricher lineups, shared for the same reason as
+    /// [`recognizers`](Self::recognizers).
+    pub(crate) enrichers: Arc<Enrichers>,
     /// Which of those components a caller through this provider
     /// may run. Fixed here rather than per request: it is a
     /// property of who is calling, not of the document.
@@ -86,8 +92,8 @@ impl Provider {
         Self {
             inner: Arc::new(ProviderInner {
                 formats: FormatRegistry::with_builtin(),
-                recognizers,
-                enrichers,
+                recognizers: Arc::new(recognizers),
+                enrichers: Arc::new(enrichers),
                 availability: Availability::All,
             }),
         }
@@ -105,8 +111,8 @@ impl Provider {
         Self {
             inner: Arc::new(ProviderInner {
                 formats: self.inner.formats.clone(),
-                recognizers: self.inner.recognizers.clone(),
-                enrichers: self.inner.enrichers.clone(),
+                recognizers: Arc::clone(&self.inner.recognizers),
+                enrichers: Arc::clone(&self.inner.enrichers),
                 availability,
             }),
         }

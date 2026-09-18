@@ -1133,7 +1133,7 @@ dependencies = [
 [[package]]
 name = "elide-bentoml"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide-provider?branch=main#11c1c2301f737bf0e7ab46bc6ff9a0355f1c04e1"
+source = "git+https://github.com/nvisycom/elide-provider?branch=main#1cc51805baa927d225cce95a6f6c4e58e7a7bd34"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1257,7 +1257,7 @@ dependencies = [
 [[package]]
 name = "elide-gladia"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide-provider?branch=main#11c1c2301f737bf0e7ab46bc6ff9a0355f1c04e1"
+source = "git+https://github.com/nvisycom/elide-provider?branch=main#1cc51805baa927d225cce95a6f6c4e58e7a7bd34"
 dependencies = [
  "async-trait",
  "elide-core",

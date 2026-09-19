@@ -53,7 +53,9 @@ does today rather than how it got here.
   whether a CSV has a header row and what separates its fields, and
   what happens to an image's EXIF metadata when no metadata pipeline
   strips it. Each defaults to the codec's own behaviour, and a request
-  that sets none shares the prebuilt format registry.
+  that sets none shares the prebuilt format registry. EXIF is stripped
+  by default — GPS, device and timestamp fields do not survive a
+  re-encode unless a request asks to retain them.
 
 ### What a request supplies
 

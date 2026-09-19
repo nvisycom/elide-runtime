@@ -32,6 +32,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 # Elide crates
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-image = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }

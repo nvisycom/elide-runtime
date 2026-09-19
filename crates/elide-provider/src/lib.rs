@@ -49,9 +49,14 @@ mod redaction;
 /// naming one without being able to name the other leaves the type
 /// unusable from this facade alone.
 pub use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
+/// The EXIF policy a request carries on [`CodecParams`].
+///
+/// Re-exported from `elide-image` so a caller can name the field's
+/// type without taking its own dependency on that crate.
+pub use elide_image::ExifPolicy;
 
 pub use self::orchestrator::{
-    CodecParams, DocumentContext, ExifMetadata, KeyConfig, Provider, ProviderConfig, RequestContext,
+    CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
 };
 pub use self::recognition::{
     AttachTo, AuthenticatedProvider, Availability, Backend, Component, Enrichers, LlmBackend,

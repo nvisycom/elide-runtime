@@ -9,7 +9,7 @@ use elide_governance::policy::{LabelScope, Policy};
 use elide_governance::redaction::{ModalityRedactions, TabularRedaction};
 use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{CodecParams, ExifMetadata, ProviderConfig, RequestContext};
+use elide_pipeline::provider::{CodecParams, ExifPolicy, ProviderConfig, RequestContext};
 
 /// A headerless CSV: every row is data, and the first row carries
 /// an address that must be reachable like any other.
@@ -112,7 +112,7 @@ fn codec_params_survive_the_audit_round_trip() {
     let codec = CodecParams::new()
         .with_csv_has_headers(false)
         .with_csv_delimiter(b';')
-        .with_exif_metadata(ExifMetadata::StripAll);
+        .with_exif_policy(ExifPolicy::StripAll);
 
     let json = serde_json::to_value(codec).expect("params serialize");
     let back: CodecParams = serde_json::from_value(json).expect("params deserialize");
@@ -131,8 +131,8 @@ fn omitted_params_default_to_the_codecs_own_behaviour() {
         "a CSV's first row is its header unless a request says otherwise",
     );
     assert_eq!(
-        params.exif_metadata,
-        ExifMetadata::Keep,
+        params.exif_policy,
+        ExifPolicy::Keep,
         "EXIF is kept unless a request asks for stripping",
     );
     assert!(params.is_default(), "the defaults must report as default");
@@ -149,7 +149,31 @@ fn a_configured_param_is_not_default() {
     assert!(!CodecParams::new().with_csv_delimiter(b'\t').is_default());
     assert!(
         !CodecParams::new()
-            .with_exif_metadata(ExifMetadata::StripAll)
+            .with_exif_policy(ExifPolicy::StripAll)
             .is_default()
+    );
+}
+
+/// `ExifPolicy` is reused from the codec rather than mirrored, and
+/// its own `Default` is `StripAll` while the codec registers
+/// `Keep`. Anything comparing a request against `Default` — rather
+/// than against `Keep` — would treat a strip request as "nothing
+/// to configure" and skip it, which is the silent direction.
+#[test]
+fn a_strip_request_is_not_mistaken_for_the_default() {
+    let strip = CodecParams::new().with_exif_policy(ExifPolicy::StripAll);
+    assert!(
+        !strip.is_default(),
+        "StripAll must take the configured path, not be read as the default",
+    );
+    assert_eq!(
+        ExifPolicy::default(),
+        ExifPolicy::StripAll,
+        "guards the premise: if the enum default ever becomes Keep, the \
+         comparison in the decode path can be simplified",
+    );
+    assert!(
+        CodecParams::new().is_default(),
+        "and Keep, the codec's registered default, is the default",
     );
 }

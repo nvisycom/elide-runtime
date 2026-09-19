@@ -45,6 +45,12 @@ elide-bentoml = { workspace = true, features = ["ner", "ocr", "stt"] }
 elide-gladia = { workspace = true, optional = true }
 
 # Internal crates
+# The `ExifPolicy` config enum a request carries on `CodecParams`.
+# Direct rather than through the `elide` facade: there it rides the
+# image codec features, and this crate owns the format registry but
+# decodes nothing itself, so pulling image codecs in to name one
+# enum would be backwards. `schema` implies `serde`.
+elide-image = { workspace = true, features = ["schema"] }
 elide-governance = { workspace = true, features = [] }
 
 # Serialization

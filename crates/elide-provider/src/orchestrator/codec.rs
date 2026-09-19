@@ -10,6 +10,7 @@
 //! [`DocumentContext`]: super::DocumentContext
 
 use elide::primitive::RasterMode;
+use elide_image::ExifPolicy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -43,37 +44,14 @@ pub struct CodecParams {
     pub csv_delimiter: Option<u8>,
     /// What happens to an image's EXIF metadata on re-encode.
     ///
-    /// Defaults to [`ExifMetadata::Keep`], the codec's own
-    /// behaviour.
+    /// Defaults to [`ExifPolicy::Keep`], the codec's own behaviour
+    /// — *not* [`ExifPolicy::default`], which is `StripAll`.
     ///
     /// This governs the output only when no metadata pipeline ran:
     /// a wired EXIF recognizer and anonymizer strip through the
     /// `#exif` sub-part and always win. It is the knob for
     /// stripping unconditionally *without* wiring one.
-    pub exif_metadata: ExifMetadata,
-}
-
-/// What happens to an image's EXIF metadata when it is re-encoded.
-///
-/// Mirrors the codec's own `ExifPolicy`, declared here instead of
-/// re-exported so that [`CodecParams`] — a wire type every request
-/// carries — does not depend on the image codec features. The
-/// decode path translates it where those features live.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum ExifMetadata {
-    /// Leave the metadata untouched. The codec's registered
-    /// default, and so this crate's.
-    #[default]
-    Keep,
-    /// Drop only the privacy-sensitive fields (GPS, device,
-    /// timestamps), keeping what a viewer needs to render the
-    /// image as intended.
-    StripSensitive,
-    /// Drop the entire metadata block, benign fields included.
-    StripAll,
+    pub exif_policy: ExifPolicy,
 }
 
 impl Default for CodecParams {
@@ -89,7 +67,7 @@ impl Default for CodecParams {
             raster_mode: RasterMode::default(),
             csv_has_headers: true,
             csv_delimiter: None,
-            exif_metadata: ExifMetadata::Keep,
+            exif_policy: ExifPolicy::Keep,
         }
     }
 }
@@ -122,10 +100,10 @@ impl CodecParams {
         self
     }
 
-    /// The same params, re-encoding images under `metadata`.
+    /// The same params, re-encoding images under `policy`.
     #[must_use]
-    pub fn with_exif_metadata(mut self, metadata: ExifMetadata) -> Self {
-        self.exif_metadata = metadata;
+    pub fn with_exif_policy(mut self, policy: ExifPolicy) -> Self {
+        self.exif_policy = policy;
         self
     }
 

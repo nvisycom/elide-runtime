@@ -36,7 +36,7 @@ use elide_governance::policy::{Policy, PolicyRule, Predicate};
 use elide_governance::recognition::Recognition;
 use uuid::Uuid;
 
-pub use self::codec::{CodecParams, ExifMetadata};
+pub use self::codec::CodecParams;
 pub use self::config::ProviderConfig;
 pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;

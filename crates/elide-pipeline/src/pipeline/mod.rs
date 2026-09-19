@@ -62,7 +62,7 @@ use elide::{
 use elide_governance::policy::Policy;
 use elide_governance::recognition::Recognition;
 use elide_provider::{
-    CodecParams, DocumentContext, ExifMetadata, KeyConfig, Provider, RequestContext, Selection,
+    CodecParams, DocumentContext, ExifPolicy, KeyConfig, Provider, RequestContext, Selection,
 };
 use serde::Deserialize;
 
@@ -561,12 +561,12 @@ impl Engine {
             ));
         }
 
-        registry = self.with_exif_formats(registry, codec.exif_metadata);
+        registry = self.with_exif_formats(registry, codec.exif_policy);
 
         registry.decode(bytes, extension).await
     }
 
-    /// Replace each built image format with one carrying `metadata`
+    /// Replace each built image format with one carrying `policy`
     /// as its no-pipeline EXIF fallback.
     ///
     /// Split out so the per-format `cfg`s stay in one place: the
@@ -576,24 +576,18 @@ impl Engine {
     fn with_exif_formats(
         &self,
         mut registry: FormatRegistry,
-        metadata: ExifMetadata,
+        policy: ExifPolicy,
     ) -> FormatRegistry {
-        if metadata == ExifMetadata::default() {
+        // Against the codec's registered default, not
+        // `ExifPolicy::default()` — the enum's own default is
+        // `StripAll` while the codec registers `Keep`, so comparing
+        // against the derive would skip configuring exactly the
+        // requests that asked for stripping.
+        if policy == ExifPolicy::Keep {
             return registry;
         }
         #[cfg(any(feature = "codec-png", feature = "codec-jpeg", feature = "codec-tiff"))]
         {
-            use elide::codec::handler::ExifPolicy;
-            let policy = match metadata {
-                ExifMetadata::Keep => ExifPolicy::Keep,
-                ExifMetadata::StripSensitive => ExifPolicy::StripSensitive,
-                ExifMetadata::StripAll => ExifPolicy::StripAll,
-                // `ExifMetadata` is `#[non_exhaustive]`. A variant
-                // added later is some *narrower* disclosure than
-                // `Keep`, so fall back to stripping everything
-                // rather than to the permissive end.
-                _ => ExifPolicy::StripAll,
-            };
             #[cfg(feature = "codec-png")]
             {
                 registry =

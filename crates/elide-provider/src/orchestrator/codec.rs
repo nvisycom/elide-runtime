@@ -44,13 +44,17 @@ pub struct CodecParams {
     pub csv_delimiter: Option<u8>,
     /// What happens to an image's EXIF metadata on re-encode.
     ///
-    /// Defaults to [`ExifPolicy::Keep`], the codec's own behaviour
-    /// — *not* [`ExifPolicy::default`], which is `StripAll`.
+    /// Defaults to [`ExifPolicy::default`], which the codec also
+    /// registers — [`Strip`](ExifPolicy::Strip) today: metadata
+    /// goes unless a request asks to keep it. Deferring to the
+    /// enum rather than naming a variant keeps this from drifting
+    /// if the codec's own bias changes again.
     ///
     /// This governs the output only when no metadata pipeline ran:
     /// a wired EXIF recognizer and anonymizer strip through the
     /// `#exif` sub-part and always win. It is the knob for
-    /// stripping unconditionally *without* wiring one.
+    /// stripping — or deliberately preserving — *without* wiring
+    /// one.
     pub exif_policy: ExifPolicy,
 }
 
@@ -67,7 +71,7 @@ impl Default for CodecParams {
             raster_mode: RasterMode::default(),
             csv_has_headers: true,
             csv_delimiter: None,
-            exif_policy: ExifPolicy::Keep,
+            exif_policy: ExifPolicy::default(),
         }
     }
 }

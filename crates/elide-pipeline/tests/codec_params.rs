@@ -112,7 +112,7 @@ fn codec_params_survive_the_audit_round_trip() {
     let codec = CodecParams::new()
         .with_csv_has_headers(false)
         .with_csv_delimiter(b';')
-        .with_exif_policy(ExifPolicy::StripAll);
+        .with_exif_policy(ExifPolicy::Strip);
 
     let json = serde_json::to_value(codec).expect("params serialize");
     let back: CodecParams = serde_json::from_value(json).expect("params deserialize");
@@ -122,7 +122,7 @@ fn codec_params_survive_the_audit_round_trip() {
 
 /// An audit that names no codec params reads back as the defaults,
 /// and those defaults are the codec's own behaviour — a header row
-/// for CSV and untouched EXIF — not the field types' own defaults.
+/// for CSV, and whatever EXIF bias the codec registers.
 #[test]
 fn omitted_params_default_to_the_codecs_own_behaviour() {
     let params = CodecParams::default();
@@ -132,8 +132,14 @@ fn omitted_params_default_to_the_codecs_own_behaviour() {
     );
     assert_eq!(
         params.exif_policy,
-        ExifPolicy::Keep,
-        "EXIF is kept unless a request asks for stripping",
+        ExifPolicy::default(),
+        "EXIF follows the codec's own bias unless a request says otherwise",
+    );
+    assert_ne!(
+        params.exif_policy,
+        ExifPolicy::Retain,
+        "and that bias is not to preserve metadata: a request that expressed \
+         no opinion must not carry GPS and device fields through a redaction",
     );
     assert!(params.is_default(), "the defaults must report as default");
 
@@ -147,33 +153,42 @@ fn omitted_params_default_to_the_codecs_own_behaviour() {
 fn a_configured_param_is_not_default() {
     assert!(!CodecParams::new().with_csv_has_headers(false).is_default());
     assert!(!CodecParams::new().with_csv_delimiter(b'\t').is_default());
+    // `Retain`, not `Strip`: stripping *is* the default now, so
+    // asking for it changes nothing and rightly stays on the
+    // shared registry.
     assert!(
         !CodecParams::new()
-            .with_exif_policy(ExifPolicy::StripAll)
+            .with_exif_policy(ExifPolicy::Retain)
             .is_default()
     );
 }
 
-/// `ExifPolicy` is reused from the codec rather than mirrored, and
-/// its own `Default` is `StripAll` while the codec registers
-/// `Keep`. Anything comparing a request against `Default` — rather
-/// than against `Keep` — would treat a strip request as "nothing
-/// to configure" and skip it, which is the silent direction.
+/// The default is deferred to [`ExifPolicy::default`] rather than
+/// naming a variant, so it tracks the codec instead of drifting
+/// from it. What must stay true is the *direction*: the default
+/// strips, and preserving metadata is the opt-in.
+///
+/// This replaces a test that guarded a mismatch elide has since
+/// removed — the enum once defaulted to stripping while the codec
+/// kept, so the two had to be compared carefully. They are now one
+/// source of truth, and this pins the property that made the
+/// mismatch worth guarding.
 #[test]
-fn a_strip_request_is_not_mistaken_for_the_default() {
-    let strip = CodecParams::new().with_exif_policy(ExifPolicy::StripAll);
-    assert!(
-        !strip.is_default(),
-        "StripAll must take the configured path, not be read as the default",
-    );
-    assert_eq!(
+fn the_default_strips_and_preserving_is_the_opt_in() {
+    assert_ne!(
         ExifPolicy::default(),
-        ExifPolicy::StripAll,
-        "guards the premise: if the enum default ever becomes Keep, the \
-         comparison in the decode path can be simplified",
+        ExifPolicy::Retain,
+        "a request naming no policy must not preserve EXIF",
     );
     assert!(
         CodecParams::new().is_default(),
-        "and Keep, the codec's registered default, is the default",
+        "a fresh params object is the default one",
+    );
+    assert!(
+        !CodecParams::new()
+            .with_exif_policy(ExifPolicy::Retain)
+            .is_default(),
+        "preserving metadata is a configured choice, so it takes the \
+         configured path rather than the shared registry",
     );
 }

@@ -578,12 +578,13 @@ impl Engine {
         mut registry: FormatRegistry,
         policy: ExifPolicy,
     ) -> FormatRegistry {
-        // Against the codec's registered default, not
-        // `ExifPolicy::default()` — the enum's own default is
-        // `StripAll` while the codec registers `Keep`, so comparing
-        // against the derive would skip configuring exactly the
-        // requests that asked for stripping.
-        if policy == ExifPolicy::Keep {
+        // The codec registers `ExifPolicy::default()` itself, so a
+        // request at the default needs no replaced format. These
+        // agreed only after elide made the enum the single source
+        // of truth; before that the enum defaulted to stripping
+        // while the codec kept, and comparing against the wrong
+        // one skipped exactly the requests that asked to strip.
+        if policy == ExifPolicy::default() {
             return registry;
         }
         #[cfg(any(feature = "codec-png", feature = "codec-jpeg", feature = "codec-tiff"))]

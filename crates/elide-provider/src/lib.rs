@@ -42,13 +42,13 @@ mod orchestrator;
 mod recognition;
 mod redaction;
 
-pub use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
 /// The vocabulary a request introduces, carried on
 /// [`RequestContext`], with the matcher types it is built from.
 ///
 /// Re-exported together: a `Recognition` is a list of matchers, so
 /// naming one without being able to name the other leaves the type
 /// unusable from this facade alone.
+pub use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
 /// The EXIF policy a request carries on [`CodecParams`].
 ///
 /// Re-exported from `elide-image` so a caller can name the field's

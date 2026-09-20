@@ -1,10 +1,10 @@
 //! Resolving a lineup: what an engine's [`Availability`] permits,
-//! what a request's [`Selection`] narrows to, and which
+//! what a request's [`ComponentSelection`] narrows to, and which
 //! combinations are refused rather than quietly narrowed.
 
 use elide::ErrorKind;
 use elide_provider::{
-    Availability, Component, Enrichers, NerBackend, ProviderConfig, Recognizers, Selection,
+    Availability, Component, ComponentSelection, Enrichers, NerBackend, ProviderConfig, Recognizers,
 };
 
 /// A lineup of three NER components in two families.
@@ -32,7 +32,7 @@ fn ner(name: &str, tags: &[&str]) -> Component<NerBackend> {
 /// would run.
 fn resolved(
     availability: Availability,
-    selection: &Selection,
+    selection: &ComponentSelection,
 ) -> Result<Vec<String>, (ErrorKind, String)> {
     let provider = ProviderConfig {
         recognizers: lineup(),
@@ -50,7 +50,7 @@ fn resolved(
 /// The default: everything registered runs.
 #[test]
 fn unrestricted_and_unselected_runs_everything() {
-    let names = resolved(Availability::All, &Selection::new()).expect("resolves");
+    let names = resolved(Availability::All, &ComponentSelection::new()).expect("resolves");
     assert_eq!(names, ["general-pii", "medical-ner", "finance-ner"]);
 }
 
@@ -61,7 +61,7 @@ fn unrestricted_and_unselected_runs_everything() {
 fn an_empty_selection_means_every_available_component() {
     let names = resolved(
         Availability::Only(vec!["general".into()]),
-        &Selection::new(),
+        &ComponentSelection::new(),
     )
     .expect("resolves");
     assert_eq!(names, ["general-pii"]);
@@ -71,8 +71,11 @@ fn an_empty_selection_means_every_available_component() {
 /// a family is named once rather than enumerated.
 #[test]
 fn a_tag_selects_every_component_carrying_it() {
-    let names =
-        resolved(Availability::All, &Selection::new().with_only(["advanced"])).expect("resolves");
+    let names = resolved(
+        Availability::All,
+        &ComponentSelection::new().with_only(["advanced"]),
+    )
+    .expect("resolves");
     assert_eq!(names, ["medical-ner", "finance-ner"]);
 }
 
@@ -82,7 +85,7 @@ fn a_tag_selects_every_component_carrying_it() {
 fn skip_narrows_what_only_selected() {
     let names = resolved(
         Availability::All,
-        &Selection::new().with_skip(["finance-ner"]),
+        &ComponentSelection::new().with_skip(["finance-ner"]),
     )
     .expect("resolves");
     assert_eq!(names, ["general-pii", "medical-ner"]);
@@ -94,7 +97,7 @@ fn skip_narrows_what_only_selected() {
 fn except_withholds_only_what_it_names() {
     let names = resolved(
         Availability::Except(vec!["medical".into()]),
-        &Selection::new(),
+        &ComponentSelection::new(),
     )
     .expect("resolves");
     assert_eq!(names, ["general-pii", "finance-ner"]);
@@ -108,7 +111,7 @@ fn except_withholds_only_what_it_names() {
 fn selecting_an_unavailable_component_is_refused() {
     let (kind, message) = resolved(
         Availability::Only(vec!["general".into()]),
-        &Selection::new().with_only(["medical-ner"]),
+        &ComponentSelection::new().with_only(["medical-ner"]),
     )
     .expect_err("must refuse");
 
@@ -126,7 +129,7 @@ fn selecting_an_unavailable_component_is_refused() {
 fn selecting_an_unknown_component_is_refused() {
     let (kind, message) = resolved(
         Availability::All,
-        &Selection::new().with_only(["medcial-ner"]),
+        &ComponentSelection::new().with_only(["medcial-ner"]),
     )
     .expect_err("must refuse");
 
@@ -143,7 +146,7 @@ fn selecting_an_unknown_component_is_refused() {
 fn selecting_every_component_away_is_refused() {
     let (kind, _) = resolved(
         Availability::All,
-        &Selection::new().with_skip(["general", "advanced"]),
+        &ComponentSelection::new().with_skip(["general", "advanced"]),
     )
     .expect_err("must refuse");
 
@@ -155,7 +158,8 @@ fn selecting_every_component_away_is_refused() {
 mod enrichers {
     use elide::ErrorKind;
     use elide_provider::{
-        Availability, Component, Enrichers, OcrBackend, ProviderConfig, Recognizers, Selection,
+        Availability, Component, ComponentSelection, Enrichers, OcrBackend, ProviderConfig,
+        Recognizers,
     };
 
     fn ocr(name: &str, tags: &[&str]) -> Component<OcrBackend> {
@@ -187,7 +191,7 @@ mod enrichers {
     #[test]
     fn a_request_selects_one_enricher_from_several() {
         let resolved = provider(Availability::All)
-            .resolved_components(&Selection::new().with_only(["accurate-ocr"]))
+            .resolved_components(&ComponentSelection::new().with_only(["accurate-ocr"]))
             .expect("resolves");
         assert_eq!(resolved.ocr, ["accurate-ocr"]);
     }
@@ -198,7 +202,7 @@ mod enrichers {
     #[test]
     fn several_resolved_enrichers_are_refused_at_compile() {
         let provider = provider(Availability::All);
-        let selection = Selection::new().with_only(["accurate"]);
+        let selection = ComponentSelection::new().with_only(["accurate"]);
 
         // Two carry the "accurate" tag, so inspection reports both…
         let resolved = provider
@@ -241,7 +245,7 @@ mod enrichers {
     #[test]
     fn availability_alone_can_settle_the_choice() {
         let resolved = provider(Availability::Only(vec!["fast".into()]))
-            .resolved_components(&Selection::new())
+            .resolved_components(&ComponentSelection::new())
             .expect("resolves");
         assert_eq!(resolved.ocr, ["fast-ocr"]);
     }
@@ -253,7 +257,7 @@ mod enrichers {
     #[test]
     fn skipping_every_enricher_is_allowed() {
         let resolved = provider(Availability::All)
-            .resolved_components(&Selection::new().with_skip(["fast", "accurate"]))
+            .resolved_components(&ComponentSelection::new().with_skip(["fast", "accurate"]))
             .expect("resolves");
         assert!(resolved.ocr.is_empty());
     }

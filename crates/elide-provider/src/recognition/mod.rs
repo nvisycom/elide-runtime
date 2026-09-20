@@ -52,7 +52,7 @@ mod recognizers;
 /// analyzer is [`analyzers`](super::analyzers), which
 /// needs the elide runtime and stays out of the config vocabulary.
 pub mod config {
-    pub use super::availability::{Availability, ResolvedComponents, Selection};
+    pub use super::availability::{Availability, ComponentSelection, ResolvedComponents};
     pub use super::component::{Backend, Component};
     pub use super::enrichers::{Enrichers, OcrBackend, SttBackend};
     pub use super::recognizers::{
@@ -102,7 +102,7 @@ pub fn analyzers(
     enrichers: &Enrichers,
     recognition: &[Recognition],
     availability: &Availability,
-    selection: &Selection,
+    selection: &ComponentSelection,
 ) -> Result<Orchestrator> {
     // Keys are checked against both lineups before either is
     // filtered: a key naming a NER component is legitimate even

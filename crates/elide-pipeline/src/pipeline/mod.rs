@@ -62,7 +62,8 @@ use elide::{
 use elide_governance::policy::Policy;
 use elide_governance::recognition::Recognition;
 use elide_provider::{
-    CodecParams, DocumentContext, ExifPolicy, KeyConfig, Provider, RequestContext, Selection,
+    CodecParams, ComponentSelection, DocumentContext, ExifPolicy, KeyConfig, Provider,
+    RequestContext,
 };
 use serde::Deserialize;
 
@@ -634,7 +635,7 @@ struct AuditWire {
     // an audit omitting this is the common case rather than a
     // malformed one.
     #[serde(default)]
-    selection: Selection,
+    selection: ComponentSelection,
     // Defaulted: most requests introduce no vocabulary of their
     // own, so an audit omitting it is the common case rather than
     // a malformed one.

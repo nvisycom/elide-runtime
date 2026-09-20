@@ -27,7 +27,7 @@ use elide::modality::text::Text;
 use elide::recognition::UsageReport;
 use elide::{ArtifactSet, PartId, Report};
 use elide_governance::recognition::Recognition;
-use elide_provider::{CodecParams, DocumentContext, Selection};
+use elide_provider::{CodecParams, ComponentSelection, DocumentContext};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
@@ -145,8 +145,8 @@ pub struct Audit {
     /// and then silently not redacted.
     ///
     /// [`codec`]: Audit::codec
-    #[serde(default, skip_serializing_if = "Selection::is_empty")]
-    pub selection: Selection,
+    #[serde(default, skip_serializing_if = "ComponentSelection::is_empty")]
+    pub selection: ComponentSelection,
     /// What the analyze pass cost: one entry per recognizer and
     /// enricher that ran, each self-identifying by the name the
     /// deployment configured it under.

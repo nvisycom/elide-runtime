@@ -59,6 +59,7 @@ pub use self::orchestrator::{
     CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
 };
 pub use self::recognition::{
-    AttachTo, AuthenticatedProvider, Availability, Backend, Component, Enrichers, LlmBackend,
-    LlmSource, NerBackend, OcrBackend, Recognizers, Selection, SttBackend, UnauthenticatedProvider,
+    AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentSelection,
+    Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers, SttBackend,
+    UnauthenticatedProvider,
 };

@@ -42,7 +42,8 @@ pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
 pub use self::request::RequestContext;
 use crate::recognition::{
-    Availability, Enrichers, Recognizers, ResolvedComponents, Resolver, Selection, analyzers,
+    Availability, ComponentSelection, Enrichers, Recognizers, ResolvedComponents, Resolver,
+    analyzers,
 };
 use crate::redaction::{Pickers, anonymizers, pickers};
 
@@ -136,7 +137,10 @@ impl Provider {
     /// Returns the same refusals a request would: naming a
     /// component this provider withholds, naming one that is not
     /// registered at all, or narrowing every component away.
-    pub fn resolved_components(&self, selection: &Selection) -> Result<ResolvedComponents> {
+    pub fn resolved_components(
+        &self,
+        selection: &ComponentSelection,
+    ) -> Result<ResolvedComponents> {
         let availability = &self.inner.availability;
         let recognizers = &self.inner.recognizers;
         let enrichers = &self.inner.enrichers;
@@ -196,7 +200,7 @@ impl Provider {
         recognition: &[Recognition],
         policies: &[Policy],
         correlation_id: Uuid,
-        selection: &Selection,
+        selection: &ComponentSelection,
     ) -> Result<Orchestrator> {
         validate_scope_references(policies)?;
         let catalog = compile_catalog(policies, recognition)?;

@@ -39,7 +39,7 @@
 use elide_governance::recognition::Recognition;
 
 use super::{CodecParams, DocumentContext, KeyConfig};
-use crate::recognition::Selection;
+use crate::recognition::ComponentSelection;
 
 /// What one request supplies beyond its policies.
 ///
@@ -73,7 +73,7 @@ pub struct RequestContext {
     /// found and then silently not redacted.
     ///
     /// [`codec`]: RequestContext::codec
-    pub selection: Selection,
+    pub selection: ComponentSelection,
     /// Vocabularies this request introduces beyond the shipped
     /// set: labels, and how to find them.
     ///
@@ -124,7 +124,7 @@ impl RequestContext {
 
     /// The same context, running only the selected recognizers.
     #[must_use]
-    pub fn with_selection(mut self, selection: Selection) -> Self {
+    pub fn with_selection(mut self, selection: ComponentSelection) -> Self {
         self.selection = selection;
         self
     }

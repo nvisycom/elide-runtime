@@ -9,7 +9,7 @@
 //!   is unavailable; a deployment restricting by plan, by data
 //!   residency, or by what is still in staging writes the same
 //!   thing.
-//! - [`Selection`] is what one request *wants*, within that. It
+//! - [`ComponentSelection`] is what one request *wants*, within that. It
 //!   rides [`RequestContext`], and narrowing is all it can do.
 //!
 //! Asking for something unavailable is refused rather than
@@ -85,7 +85,7 @@ fn matches<B>(component: &Component<B>, key: &str) -> bool {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
-pub struct Selection {
+pub struct ComponentSelection {
     /// Names or tags to run, or [`None`] for all available.
     ///
     /// An empty `Vec` is not the same as [`None`]: it selects
@@ -102,7 +102,7 @@ pub struct Selection {
     pub skip: Vec<String>,
 }
 
-impl Selection {
+impl ComponentSelection {
     /// A selection running every available component.
     #[must_use]
     pub fn new() -> Self {
@@ -160,7 +160,7 @@ pub(crate) struct Resolver<'a> {
     /// What this caller may run at all.
     availability: &'a Availability,
     /// What this request wants of it.
-    selection: &'a Selection,
+    selection: &'a ComponentSelection,
 }
 
 /// One key a selection named, and what the registered lineups make
@@ -198,7 +198,7 @@ impl<B> Lineup for &[Component<B>] {
 
 impl<'a> Resolver<'a> {
     /// A resolver applying `selection` within `availability`.
-    pub(crate) fn new(availability: &'a Availability, selection: &'a Selection) -> Self {
+    pub(crate) fn new(availability: &'a Availability, selection: &'a ComponentSelection) -> Self {
         Self {
             availability,
             selection,
@@ -335,7 +335,7 @@ impl<'a> Resolver<'a> {
     }
 }
 
-/// What a [`Selection`] resolves to, lineup by lineup.
+/// What a [`ComponentSelection`] resolves to, lineup by lineup.
 ///
 /// The same resolution a request performs, so a caller can show
 /// what a selection would run — or discover what it may run at all

@@ -1,15 +1,15 @@
 //! [`GladiaStt`]: an [`SttBackend`] backed by Gladia's hosted
 //! transcription API.
 //!
-//! [`SttBackend`]: elide_stt::SttBackend
+//! [`SttBackend`]: elide_audio::stt::SttBackend
 
 mod request;
 mod response;
 
 use async_trait::async_trait;
+use elide_audio::stt::{SttBackend, SttRequest, SttResponse};
 use elide_core::Result;
 use elide_core::entity::audit::ModelEvent;
-use elide_stt::{SttBackend, SttRequest, SttResponse};
 use gladia::Client;
 use gladia::model::DiarizationConfigDto;
 use hipstr::HipStr;

@@ -6,7 +6,7 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use elide_stt::SttRequest;
+use elide_audio::stt::SttRequest;
 use serde::Serialize;
 
 /// Outgoing per-call request body.

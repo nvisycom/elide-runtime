@@ -27,12 +27,12 @@ default = ["ner", "ocr", "stt"]
 ## Ship the NER backend (implements `elide_ner::backend::NerBackend`
 ## against the `bento-gliner2` BentoML service).
 ner = ["dep:elide-ner"]
-## Ship the OCR backend (implements `elide_ocr::OcrBackend`
+## Ship the OCR backend (implements `elide_image::ocr::OcrBackend`
 ## against the `bento-doctr` BentoML service).
-ocr = ["dep:elide-ocr", "dep:base64", "elide-core/image"]
-## Ship the STT backend (implements `elide_stt::backend::SttBackend`
+ocr = ["dep:elide-image", "elide-image/ocr", "dep:base64"]
+## Ship the STT backend (implements `elide_audio::stt::SttBackend`
 ## against the `bento-whisper` BentoML service).
-stt = ["dep:elide-stt", "dep:base64", "elide-core/audio"]
+stt = ["dep:elide-audio", "elide-audio/stt", "dep:base64"]
 ## Report the encoder tokens a NER call spent on the `NerResponse`, from the
 ## `tokens` the service returns. Off by default, matching elide's own `usage`
 ## gate: a consumer that does not read usage pays nothing.
@@ -42,8 +42,8 @@ usage = ["ner", "elide-ner/usage", "elide-core/usage"]
 # Elide crates
 elide-core = { workspace = true, features = [] }
 elide-ner = { workspace = true, features = [], optional = true }
-elide-ocr = { workspace = true, features = [], optional = true }
-elide-stt = { workspace = true, features = [], optional = true }
+elide-audio = { workspace = true, features = [], optional = true }
+elide-image = { workspace = true, features = [], optional = true }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

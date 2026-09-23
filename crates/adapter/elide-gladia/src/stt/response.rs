@@ -10,9 +10,10 @@
 //!   pyannote and WhisperX emit, so a consumer sees one vocabulary
 //!   regardless of which backend produced the transcript.
 
-use elide_core::modality::audio::{TranscriptSegment, TranscriptWord};
-use elide_core::primitive::{Confidence, LanguageTag, TimeSpan};
-use elide_stt::SttResponse;
+use elide_audio::modality::{TranscriptSegment, TranscriptWord};
+use elide_audio::primitive::TimeSpan;
+use elide_audio::stt::SttResponse;
+use elide_core::primitive::{Confidence, LanguageTag};
 use gladia::model::{PreRecordedResponse, PreRecordedResponseStatus, UtteranceDto, WordDto};
 
 use crate::error::GladiaError;

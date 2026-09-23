@@ -14,7 +14,7 @@ use deepgram::common::options::{Language, Model, Options};
 /// elide needs, since the returned transcript would no longer match the
 /// audio it describes.
 ///
-/// [`TranscriptSegment`]: elide_core::modality::audio::TranscriptSegment
+/// [`TranscriptSegment`]: elide_audio::modality::TranscriptSegment
 pub(super) fn options(model: &Model, diarize: bool, language: Option<&str>) -> Options {
     let mut builder = Options::builder()
         .model(model.clone())

@@ -8,11 +8,12 @@
 //! (response-level `modelId`, per-segment `channel`) are
 //! deserialised-and-discarded.
 //!
-//! [`TranscriptSegment`]: elide_core::modality::audio::TranscriptSegment
+//! [`TranscriptSegment`]: elide_audio::modality::TranscriptSegment
 
-use elide_core::modality::audio::{TranscriptSegment, TranscriptWord};
-use elide_core::primitive::{Confidence, LanguageTag, TimeSpan};
-use elide_stt::SttResponse;
+use elide_audio::modality::{TranscriptSegment, TranscriptWord};
+use elide_audio::primitive::TimeSpan;
+use elide_audio::stt::SttResponse;
+use elide_core::primitive::{Confidence, LanguageTag};
 use serde::Deserialize;
 
 /// Incoming per-call response body.

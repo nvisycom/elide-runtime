@@ -14,17 +14,17 @@
 //! `response` (incoming) submodules; only the public
 //! [`BentoStt`] backend is part of this crate's API.
 //!
-//! [`SttBackend`]: elide_stt::SttBackend
-//! [`TranscriptSegment`]: elide_core::modality::audio::TranscriptSegment
-//! [`TranscriptWord`]: elide_core::modality::audio::TranscriptWord
+//! [`SttBackend`]: elide_audio::stt::SttBackend
+//! [`TranscriptSegment`]: elide_audio::modality::TranscriptSegment
+//! [`TranscriptWord`]: elide_audio::modality::TranscriptWord
 
 mod request;
 mod response;
 
 use bentoml::{Client, Endpoint};
+use elide_audio::stt::{SttBackend, SttRequest, SttResponse};
 use elide_core::Result;
 use elide_core::entity::audit::ModelEvent;
-use elide_stt::{SttBackend, SttRequest, SttResponse};
 use hipstr::HipStr;
 
 use self::request::WireSttRequest;

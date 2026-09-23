@@ -15,9 +15,9 @@
 //! `response` (incoming) submodules; only the public
 //! [`BentoOcr`] backend is part of this crate's API.
 //!
-//! [`OcrBackend`]: elide_ocr::OcrBackend
-//! [`LayoutBlock`]: elide_core::modality::image::LayoutBlock
-//! [`LayoutWord`]: elide_core::modality::image::LayoutWord
+//! [`OcrBackend`]: elide_image::ocr::OcrBackend
+//! [`LayoutBlock`]: elide_image::modality::LayoutBlock
+//! [`LayoutWord`]: elide_image::modality::LayoutWord
 
 mod request;
 mod response;
@@ -25,7 +25,7 @@ mod response;
 use bentoml::{Client, Endpoint};
 use elide_core::Result;
 use elide_core::entity::audit::ModelEvent;
-use elide_ocr::{OcrBackend, OcrRequest, OcrResponse};
+use elide_image::ocr::{OcrBackend, OcrRequest, OcrResponse};
 use hipstr::HipStr;
 
 use self::request::WireOcrRequest;

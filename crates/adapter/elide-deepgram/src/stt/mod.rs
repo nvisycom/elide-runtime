@@ -1,7 +1,7 @@
 //! [`DeepgramStt`]: an [`SttBackend`] backed by Deepgram's hosted
 //! transcription API.
 //!
-//! [`SttBackend`]: elide_stt::SttBackend
+//! [`SttBackend`]: elide_audio::stt::SttBackend
 
 mod request;
 mod response;
@@ -10,9 +10,9 @@ use async_trait::async_trait;
 use deepgram::Deepgram;
 use deepgram::common::audio_source::AudioSource;
 use deepgram::common::options::Model;
+use elide_audio::stt::{SttBackend, SttRequest, SttResponse};
 use elide_core::Result;
 use elide_core::entity::audit::ModelEvent;
-use elide_stt::{SttBackend, SttRequest, SttResponse};
 use hipstr::HipStr;
 
 use crate::error::DeepgramBackendError;

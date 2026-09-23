@@ -9,9 +9,10 @@
 //! vocabulary regardless of which backend produced the transcript.
 
 use deepgram::common::batch_response::{Response, Utterance, Word};
-use elide_core::modality::audio::{TranscriptSegment, TranscriptWord};
-use elide_core::primitive::{Confidence, TimeSpan};
-use elide_stt::SttResponse;
+use elide_audio::modality::{TranscriptSegment, TranscriptWord};
+use elide_audio::primitive::TimeSpan;
+use elide_audio::stt::SttResponse;
+use elide_core::primitive::Confidence;
 
 use crate::error::DeepgramBackendError;
 

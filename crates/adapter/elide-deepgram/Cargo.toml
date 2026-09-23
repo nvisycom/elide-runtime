@@ -24,8 +24,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide-core = { workspace = true, features = ["audio"] }
-elide-stt = { workspace = true, features = [] }
+elide-core = { workspace = true, features = [] }
+elide-audio = { workspace = true, features = ["stt"] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }

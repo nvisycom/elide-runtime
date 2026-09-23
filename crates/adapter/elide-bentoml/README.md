@@ -6,9 +6,10 @@ Shared BentoML HTTP client wrapper for elide backends.
 
 ## Overview
 
-Per-modality backends (NER, OCR, …) live in their consuming crates
-(`elide-ner`, `elide-ocr`) and pull this crate for the common HTTP
-client, params validation, and error translation. The Python services
+Per-modality backends (NER, OCR, STT) implement the traits elide
+defines for each — `elide-ner`, `elide-image::ocr`, `elide-audio::stt` —
+behind a feature apiece, over a common HTTP client, params validation
+and error translation. The Python services
 this client talks to live under [`packages/`](../../packages) in the
 same workspace.
 

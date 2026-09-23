@@ -9,9 +9,10 @@
 //! per-page `width`/`height`, per-block `kind`, and any rotated
 //! polygons are deserialised-and-discarded for now.
 
-use elide_core::modality::image::{ImageLocation, LayoutBlock, LayoutWord};
-use elide_core::primitive::{BoundingBox, Confidence, Point};
-use elide_ocr::OcrResponse;
+use elide_core::primitive::Confidence;
+use elide_image::modality::{ImageLocation, LayoutBlock, LayoutWord};
+use elide_image::ocr::OcrResponse;
+use elide_image::primitive::{BoundingBox, Point};
 use serde::Deserialize;
 
 /// Incoming per-call response body element.

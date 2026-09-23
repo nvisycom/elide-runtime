@@ -405,15 +405,15 @@ nvidia-nvtx==13.0.85 ; (platform_machine == 'aarch64' and sys_platform == 'linux
     --hash=sha256:4936d1d6780fbe68db454f5e72a42ff64d1fd6397df9f363ae786930fd5c1cd4 \
     --hash=sha256:cb7780edb6b14107373c835bf8b72e7a178bac7367e23da7acb108f973f157a6
     # via cuda-toolkit
-onnx==1.22.0 \
-    --hash=sha256:596fbf0490947533c1c1045ba860851dc9fb77471023dac9a71ba5b42ceab103 \
-    --hash=sha256:72ccebab3bac07215c204ce8848d42e78eaaa666badbf72d25cd359b9f269e3a \
-    --hash=sha256:82e9f27fc1223cb06d68a56bed6f9d3caf3d0dad1b61bce45006d529b15bd94c \
-    --hash=sha256:955e02e1f6d385b53d52f9cd7b9cdf5caf417c300bcfe3c64c6d542be763845b \
-    --hash=sha256:ae5a563f281cd9d2845622cecf6c092a57e4ee1b138f66fdbbdd4200567a5e16 \
-    --hash=sha256:cc8b66b312f8f03a53e268afb67180a2d97dd12cc79e2b61361c6c0073448016 \
-    --hash=sha256:ef40c0aaf0b643857ea9306fc7eddce17eaf9fb0407e4801f1fc5758443a38e0 \
-    --hash=sha256:f3c120dcdb70ad738f3c061b32798f408ea299eb69f84dd69ab4a6bf3c2ec01f
+onnx==1.23.0 \
+    --hash=sha256:05ad734997f09fcc9633fc2e3715033239792fc9f12aec6ec0c48e32b214e47e \
+    --hash=sha256:221037cb9ffe67b701fb180ca871f1ee9089f431d944f3d0313ffae68c356a80 \
+    --hash=sha256:3f4b7323ea3397c63aa6ff5d43abe16013ffefc0a96cb8a0be6527ff1e1add40 \
+    --hash=sha256:6cc93aa89502acbf453a16d79b465d47d9c454f3a3cb3fc5507a8cb59ab53208 \
+    --hash=sha256:70a2f930b221f9dbdff62704838ce8bf81442787b25048f8b9cdc9118168799e \
+    --hash=sha256:95b77466b4f6bc7c2c63d6004b8db7d963fb17bf24aff13007752e9d2ebf9390 \
+    --hash=sha256:dcd4d269818a13c48444c96b7f17c7539d8cda7810ef802431393b6cf5df794b \
+    --hash=sha256:f336004196a22fbdc16c62e7f26f20635af1826db6147c80ff3b4b8d428fc7ef
     # via
     #   bento-doctr
     #   python-doctr

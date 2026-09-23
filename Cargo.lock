@@ -1131,9 +1131,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "elide-audio"
+version = "0.1.0"
+source = "git+https://github.com/nvisycom/elide?branch=main#b4e99cdc6bb3765e6eeb2c0fbaa7fd7e410c57f0"
+dependencies = [
+ "bytes",
+ "elide-core",
+ "hound",
+ "mp3lame-encoder",
+ "symphonia",
+]
+
+[[package]]
 name = "elide-bentoml"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide-provider?branch=main#1cc51805baa927d225cce95a6f6c4e58e7a7bd34"
+source = "git+https://github.com/nvisycom/elide-provider?branch=main#95a49f2329b5ed06b624bd8bab25f9bcf08eecd8"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1155,18 +1167,16 @@ dependencies = [
  "async-trait",
  "bytes",
  "csv",
+ "elide-audio",
  "elide-core",
  "elide-image",
  "elide-office",
  "elide-pdf",
  "hex",
- "hound",
  "image",
- "mp3lame-encoder",
  "quick-xml 0.42.0",
  "serde_json",
  "sha2 0.11.0",
- "symphonia",
  "tracing",
 ]
 
@@ -1184,7 +1194,7 @@ dependencies = [
 [[package]]
 name = "elide-core"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#b2580fa15f2552f4bd3e748dc3857f5dcd2123f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#b4e99cdc6bb3765e6eeb2c0fbaa7fd7e410c57f0"
 dependencies = [
  "async-trait",
  "blake3",
@@ -1257,7 +1267,7 @@ dependencies = [
 [[package]]
 name = "elide-gladia"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide-provider?branch=main#1cc51805baa927d225cce95a6f6c4e58e7a7bd34"
+source = "git+https://github.com/nvisycom/elide-provider?branch=main#95a49f2329b5ed06b624bd8bab25f9bcf08eecd8"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1331,7 +1341,7 @@ dependencies = [
 [[package]]
 name = "elide-ner"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#b2580fa15f2552f4bd3e748dc3857f5dcd2123f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#b4e99cdc6bb3765e6eeb2c0fbaa7fd7e410c57f0"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1345,7 +1355,7 @@ dependencies = [
 [[package]]
 name = "elide-ocr"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#b2580fa15f2552f4bd3e748dc3857f5dcd2123f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#b4e99cdc6bb3765e6eeb2c0fbaa7fd7e410c57f0"
 dependencies = [
  "async-trait",
  "derive_builder",
@@ -1491,7 +1501,7 @@ dependencies = [
 [[package]]
 name = "elide-stt"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#b2580fa15f2552f4bd3e748dc3857f5dcd2123f3"
+source = "git+https://github.com/nvisycom/elide?branch=main#b4e99cdc6bb3765e6eeb2c0fbaa7fd7e410c57f0"
 dependencies = [
  "async-trait",
  "derive_builder",

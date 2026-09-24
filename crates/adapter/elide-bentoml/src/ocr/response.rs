@@ -77,7 +77,7 @@ pub(super) struct WireBoundingBox {
     pub height: f64,
 }
 
-impl From<WireBoundingBox> for BoundingBox {
+impl From<WireBoundingBox> for BoundingBox<f64> {
     fn from(b: WireBoundingBox) -> Self {
         BoundingBox::new(
             Point::new(b.x, b.y),

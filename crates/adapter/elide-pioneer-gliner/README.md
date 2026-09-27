@@ -1,8 +1,8 @@
-# elide-pioneer
+# elide-pioneer-gliner
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/elide-provider/rust-build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/elide-provider/actions/workflows/rust-build.yml)
 
-Pioneer (Fastino) GLiNER2-backed NER backend for elide.
+Pioneer GLiNER2-backed NER backend for elide.
 
 ## Overview
 

@@ -1,8 +1,8 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "elide-pioneer"
-description = "Pioneer (Fastino) GLiNER2-backed NER backend for the elide toolkit"
+name = "elide-pioneer-gliner"
+description = "Pioneer GLiNER2-backed NER backend for the elide toolkit"
 keywords = ["elide", "pioneer", "fastino", "gliner", "ner"]
 categories = ["api-bindings"]
 readme = "README.md"

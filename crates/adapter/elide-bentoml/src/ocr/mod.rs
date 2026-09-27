@@ -5,19 +5,19 @@
 //! requests (each carrying base64-encoded image bytes + a
 //! confidence threshold) and returns the matching list of
 //! responses. Each response is a `Page -> Block -> Line -> Word`
-//! tree; this backend flattens it to elide's
-//! [`LayoutBlock`]/[`LayoutWord`] vocabulary: one [`LayoutBlock`]
-//! per inference `Block`, every per-block word lifted into a
-//! [`LayoutWord`] regardless of its parent `Line`. Per-call
-//! correlation IDs propagate as `x-request-id` headers when set.
+//! tree; elide's [`Layout`] is a flat list of [`LayoutRegion`]s, so
+//! this backend emits at the deepest level with content — words where
+//! they exist, and the block or line itself where its children are
+//! empty, which the contract permits. Per-call correlation IDs
+//! propagate as `x-request-id` headers when set.
 //!
 //! Wire types live in the private `request` (outgoing) and
 //! `response` (incoming) submodules; only the public
 //! [`BentoOcr`] backend is part of this crate's API.
 //!
 //! [`OcrBackend`]: elide_image::ocr::OcrBackend
-//! [`LayoutBlock`]: elide_image::modality::LayoutBlock
-//! [`LayoutWord`]: elide_image::modality::LayoutWord
+//! [`Layout`]: elide_image::modality::Layout
+//! [`LayoutRegion`]: elide_image::modality::LayoutRegion
 
 mod request;
 mod response;

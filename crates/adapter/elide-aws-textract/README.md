@@ -6,7 +6,7 @@ AWS Textract-backed OCR backend for elide.
 
 ## Overview
 
-An `OcrBackend` over [Textract](https://aws.amazon.com/textract)'s
+A `Backend` over [Textract](https://aws.amazon.com/textract)'s
 `DetectDocumentText`. A sibling to [`elide-bentoml`](../elide-bentoml),
 not a part of it: both implement the same trait, so a deployment picks
 one without either knowing about the other. The self-hosted alternative
@@ -22,7 +22,7 @@ carries the region, credentials and retry policy.
 `DetectDocumentText` is used rather than `AnalyzeDocument`: this backend
 wants text and geometry, and the analysis features (forms, tables,
 queries) cost more per page for results elide's layout model has nowhere
-to put. The synchronous call is the one that matches the `OcrBackend`
+to put. The synchronous call is the one that matches the `Backend`
 contract's single `await`; the async `StartDocumentTextDetection` path is
 a job queue whose results land in S3.
 

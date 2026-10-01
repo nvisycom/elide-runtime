@@ -5,11 +5,11 @@
 //! `modelId` are deserialised-and-discarded — this backend surfaces
 //! entity-extraction results only.
 //!
-//! The `tokens` the service reports are always parsed, but only carried
-//! onto the response under the `usage` feature.
+//! The `tokens` the service reports are parsed and discarded: elide's
+//! `NerResponse` reports no billing units, so there is nowhere to carry
+//! the count. The fields stay so a response carrying `tokens` still
+//! deserializes.
 
-#[cfg(feature = "usage")]
-use elide_core::primitive::TokenCounts;
 use elide_ner::backend::{NerResponse, NerSpan};
 use serde::Deserialize;
 
@@ -21,13 +21,10 @@ pub(super) struct WireNerResponse {
     #[serde(default)]
     pub entities: Vec<WireEntity>,
     /// Encoder tokens the call spent. Absent from a service that predates
-    /// the field, so always optional. Read only under `usage`, but always
-    /// parsed so the response deserializes either way.
+    /// the field, so always optional. Parsed and discarded: see the module
+    /// docs.
     #[serde(default)]
-    #[cfg_attr(
-        not(feature = "usage"),
-        allow(dead_code, reason = "read only under `usage`")
-    )]
+    #[allow(dead_code, reason = "no billing units on `NerResponse`")]
     pub tokens: Option<WireTokenUsage>,
     // `classifications`, `structures`, `modelId` ignored.
 }
@@ -37,13 +34,9 @@ pub(super) struct WireNerResponse {
 /// GLiNER2 is an encoder: it scores spans over the input and generates
 /// nothing, so there is an input count but no output count. `limit` is the
 /// model's per-input maximum, carried so a consumer can see headroom.
-// Parsed whatever the feature set: the fields are read only under `usage`,
-// but the type must still deserialize so a response carrying `tokens` does
-// not fail to parse in a default build.
-#[cfg_attr(
-    not(feature = "usage"),
-    allow(dead_code, reason = "read only under `usage`")
-)]
+// The fields are discarded, but the type must still deserialize so a
+// response carrying `tokens` does not fail to parse.
+#[allow(dead_code, reason = "no billing units on `NerResponse`")]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct WireTokenUsage {
@@ -76,14 +69,6 @@ impl WireNerResponse {
     /// — the wire validator already rejects them, but the guard
     /// keeps a misbehaving service from poisoning the recognizer.
     pub(super) fn decode(self) -> NerResponse {
-        #[cfg(feature = "usage")]
-        let tokens = self.tokens.as_ref().map(|t| TokenCounts {
-            // Input only: an encoder generates nothing, so `output` stays
-            // `None` and the total is the input count.
-            input: Some(t.input),
-            output: None,
-            total: Some(t.input),
-        });
         let spans = self
             .entities
             .into_iter()
@@ -94,13 +79,7 @@ impl WireNerResponse {
                 Some(NerSpan::new(e.label, e.score, e.start..e.end))
             })
             .collect();
-        let response = NerResponse::new(spans);
-        #[cfg(feature = "usage")]
-        let response = match tokens {
-            Some(t) => response.with_tokens(t),
-            None => response,
-        };
-        response
+        NerResponse::new(spans)
     }
 }
 
@@ -129,18 +108,10 @@ mod tests {
         let decoded = wire.decode();
         // The zero-width span is dropped; the valid one survives.
         assert_eq!(decoded.spans.len(), 1);
-        #[cfg(feature = "usage")]
-        {
-            assert_eq!(decoded.tokens.input, Some(12));
-            // An encoder generates nothing, so output is absent and the
-            // total is the input count.
-            assert_eq!(decoded.tokens.output, None);
-            assert_eq!(decoded.tokens.total, Some(12));
-        }
     }
 
     /// A service that predates the field omits `tokens` entirely; the
-    /// response must still parse, with no usage attached.
+    /// response must still parse.
     #[test]
     fn decodes_response_without_tokens() {
         let json = r#"{"entities": [], "modelId": "m"}"#;
@@ -149,7 +120,5 @@ mod tests {
 
         let decoded = wire.decode();
         assert!(decoded.spans.is_empty());
-        #[cfg(feature = "usage")]
-        assert!(decoded.tokens.is_empty());
     }
 }

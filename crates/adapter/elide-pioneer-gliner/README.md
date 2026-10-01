@@ -6,7 +6,7 @@ Pioneer GLiNER2-backed NER backend for elide.
 
 ## Overview
 
-A `NerBackend` over [Pioneer](https://pioneer.ai)'s hosted GLiNER2 API —
+A `Backend` over [Pioneer](https://pioneer.ai)'s hosted GLiNER2 API —
 the same model family the self-hosted
 [`bento-gliner2`](../../packages/bento-gliner2) service runs locally, so
 the two are directly comparable. A sibling to

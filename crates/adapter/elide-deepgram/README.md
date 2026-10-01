@@ -6,7 +6,7 @@ Deepgram-backed speech-to-text backend for elide.
 
 ## Overview
 
-An `SttBackend` over [Deepgram](https://deepgram.com)'s hosted
+A `Backend` over [Deepgram](https://deepgram.com)'s hosted
 transcription API, with optional speaker diarization. A sibling to
 [`elide-bentoml`](../elide-bentoml), not a part of it: Deepgram has no
 BentoML service in front of it. Both implement the same trait, so a
@@ -15,7 +15,7 @@ deployment picks one without either crate knowing about the other.
 Transport is the official [`deepgram`](https://crates.io/crates/deepgram)
 crate; this one is the adapter between it and elide's audio vocabulary.
 The pre-recorded API is synchronous — one call returns the transcript,
-which matches the `SttBackend` contract's single `await`. Pass a
+which matches the `Backend` contract's single `await`. Pass a
 pre-configured `deepgram::Deepgram` to `from_client` for a regional or
 self-hosted endpoint; the SDK is re-exported as
 `elide_deepgram::deepgram`, so doing that needs no second dependency.

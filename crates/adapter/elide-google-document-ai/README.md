@@ -6,7 +6,7 @@ Google Cloud Document AI-backed OCR backend for elide.
 
 ## Overview
 
-An `OcrBackend` over [Document AI](https://cloud.google.com/document-ai)'s
+A `Backend` over [Document AI](https://cloud.google.com/document-ai)'s
 Enterprise Document OCR processor. A sibling to
 [`elide-bentoml`](../elide-bentoml), not a part of it: both implement the
 same trait, so a deployment picks one without either knowing about the
@@ -21,7 +21,7 @@ takes the client and the full processor resource name,
 `projects/{p}/locations/{l}/processors/{id}`.
 
 `process_document` is synchronous — one call returns the document, which
-matches the `OcrBackend` contract's single `await`. Use it rather than
+matches the `Backend` contract's single `await`. Use it rather than
 `batch_process_documents`: Google documents the online path as processed
 in memory and *"not persisted to disk"*, which the batch path does not
 promise.

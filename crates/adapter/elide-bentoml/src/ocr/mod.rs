@@ -1,4 +1,4 @@
-//! [`BentoOcr`]: an [`OcrBackend`] backed by the
+//! [`BentoOcr`]: a [`Backend`] backed by the
 //! `bento-doctr` BentoML service.
 //!
 //! Wire contract: `POST /recognize` accepts a batched list of
@@ -15,7 +15,7 @@
 //! `response` (incoming) submodules; only the public
 //! [`BentoOcr`] backend is part of this crate's API.
 //!
-//! [`OcrBackend`]: elide_image::ocr::OcrBackend
+//! [`Backend`]: elide_core::backend::Backend
 //! [`Layout`]: elide_image::modality::Layout
 //! [`LayoutRegion`]: elide_image::modality::LayoutRegion
 
@@ -24,8 +24,9 @@ mod response;
 
 use bentoml::{Client, Endpoint};
 use elide_core::Result;
+use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
-use elide_image::ocr::{OcrBackend, OcrRequest, OcrResponse};
+use elide_image::ocr::{OcrRequest, OcrResponse};
 use hipstr::HipStr;
 
 use self::request::WireOcrRequest;
@@ -38,7 +39,7 @@ const ROUTE: &str = "recognize";
 ///
 /// Owns a cached [`Endpoint`] pointing at the `bento-doctr`
 /// `/recognize` route, plus the per-deployment model id (echoed
-/// into [`OcrBackend::provenance`]) and a default per-word
+/// into [`Backend::provenance`]) and a default per-word
 /// confidence threshold (the service drops anything weaker before
 /// returning).
 #[derive(Debug, Clone)]
@@ -107,7 +108,10 @@ impl BentoOcr {
 }
 
 #[async_trait::async_trait]
-impl OcrBackend for BentoOcr {
+impl Backend for BentoOcr {
+    type Request<'a> = OcrRequest<'a>;
+    type Response = OcrResponse;
+
     fn provenance(&self) -> ModelEvent {
         ModelEvent {
             name: self.model_id.clone(),
@@ -116,18 +120,29 @@ impl OcrBackend for BentoOcr {
         }
     }
 
-    async fn recognize(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
-        let mut responses = self.recognize_batch(&[request]).await?;
-        responses
-            .pop()
-            .ok_or_else(|| BentoError::Protocol("bento ocr returned an empty batch".into()).into())
+    async fn call(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
+        // One request in, so exactly one response out. `pop` alone would
+        // take the last of a longer list and hide the contract violation.
+        let responses = self.post_recognize(&[request]).await?;
+        let [response] = <[OcrResponse; 1]>::try_from(responses).map_err(|responses| {
+            BentoError::Protocol(format!(
+                "bento ocr returned {} responses for 1 request",
+                responses.len(),
+            ))
+        })?;
+        Ok(response)
     }
 
-    async fn recognize_batch(&self, requests: &[OcrRequest<'_>]) -> Result<Vec<OcrResponse>> {
+    /// Overridden: the `bento-doctr` service takes a batch in one POST, so the
+    /// whole slice goes in a single round trip rather than the default's
+    /// sequential fan-out over [`call`](Self::call).
+    ///
+    /// Responses come back in request order. An empty batch makes no call.
+    async fn call_batch(&self, requests: Vec<OcrRequest<'_>>) -> Result<Vec<OcrResponse>> {
         if requests.is_empty() {
             return Ok(Vec::new());
         }
-        let responses = self.post_recognize(requests).await?;
+        let responses = self.post_recognize(&requests).await?;
         if responses.len() != requests.len() {
             return Err(BentoError::Protocol(format!(
                 "bento ocr returned {} responses for {} requests",

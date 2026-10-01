@@ -2,10 +2,10 @@
 //!
 //! Mirrors the body the `gliner2` Python client sends. Pioneer's own
 //! enrichment tasks (classification, structured records, relations) are
-//! not modelled: elide's [`NerBackend`] asks for entity spans, and the
+//! not modelled: elide's [`Backend`] asks for entity spans, and the
 //! extra results would be discarded on the way out.
 //!
-//! [`NerBackend`]: elide_ner::backend::NerBackend
+//! [`Backend`]: elide_core::backend::Backend
 
 use serde::Serialize;
 

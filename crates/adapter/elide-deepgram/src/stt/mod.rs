@@ -1,7 +1,7 @@
-//! [`DeepgramStt`]: an [`SttBackend`] backed by Deepgram's hosted
+//! [`DeepgramStt`]: a [`Backend`] backed by Deepgram's hosted
 //! transcription API.
 //!
-//! [`SttBackend`]: elide_audio::stt::SttBackend
+//! [`Backend`]: elide_core::backend::Backend
 
 mod request;
 mod response;
@@ -10,14 +10,15 @@ use async_trait::async_trait;
 use deepgram::Deepgram;
 use deepgram::common::audio_source::AudioSource;
 use deepgram::common::options::Model;
-use elide_audio::stt::{SttBackend, SttRequest, SttResponse};
+use elide_audio::stt::{SttRequest, SttResponse};
 use elide_core::Result;
+use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
 use hipstr::HipStr;
 
 use crate::error::DeepgramBackendError;
 
-/// An [`SttBackend`] backed by Deepgram's hosted transcription API.
+/// A [`Backend`] backed by Deepgram's hosted transcription API.
 ///
 /// # Where the audio goes
 ///
@@ -104,7 +105,10 @@ impl DeepgramStt {
 }
 
 #[async_trait]
-impl SttBackend for DeepgramStt {
+impl Backend for DeepgramStt {
+    type Request<'a> = SttRequest<'a>;
+    type Response = SttResponse;
+
     fn provenance(&self) -> ModelEvent {
         ModelEvent {
             name: HipStr::borrowed("deepgram"),
@@ -115,14 +119,14 @@ impl SttBackend for DeepgramStt {
         }
     }
 
-    async fn transcribe(&self, request: SttRequest<'_>) -> Result<SttResponse> {
+    async fn call(&self, request: SttRequest<'_>) -> Result<SttResponse> {
         let options = self::request::options(
             &self.model,
             self.diarize,
             request.language.map(ToString::to_string).as_deref(),
         );
         // Synchronous REST: one call returns the transcript, which is what
-        // the `SttBackend` contract's single await wants.
+        // the `Backend` contract's single await wants.
         let source = AudioSource::from_buffer(request.audio.to_vec());
         let response = self
             .client

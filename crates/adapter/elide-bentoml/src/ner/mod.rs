@@ -1,4 +1,4 @@
-//! [`BentoNer`]: an [`NerBackend`] backed by the
+//! [`BentoNer`]: a [`Backend`] backed by the
 //! `bento-gliner2` BentoML service.
 //!
 //! Wire contract: `POST /recognize` accepts a batched list of
@@ -12,15 +12,16 @@
 //! `response` (incoming) submodules; only the public
 //! [`BentoNer`] backend is part of this crate's API.
 //!
-//! [`NerBackend`]: elide_ner::backend::NerBackend
+//! [`Backend`]: elide_core::backend::Backend
 
 mod request;
 mod response;
 
 use bentoml::{Client, Endpoint};
 use elide_core::Result;
+use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
-use elide_ner::backend::{NerBackend, NerRequest, NerResponse};
+use elide_ner::backend::{NerRequest, NerResponse};
 use hipstr::HipStr;
 
 use self::request::WireNerRequest;
@@ -33,7 +34,7 @@ const ROUTE: &str = "recognize";
 ///
 /// Owns a cached [`Endpoint`] pointing at the `bento-gliner2`
 /// `/recognize` route, plus the per-deployment model id (echoed
-/// into [`NerBackend::provenance`]) and a default per-label
+/// into [`Backend::provenance`]) and a default per-label
 /// confidence threshold the service applies when a schema entry
 /// does not pin its own.
 #[derive(Debug, Clone)]
@@ -103,7 +104,10 @@ impl BentoNer {
 }
 
 #[async_trait::async_trait]
-impl NerBackend for BentoNer {
+impl Backend for BentoNer {
+    type Request<'a> = NerRequest<'a>;
+    type Response = NerResponse;
+
     fn provenance(&self) -> ModelEvent {
         ModelEvent {
             name: self.model_id.clone(),
@@ -112,18 +116,29 @@ impl NerBackend for BentoNer {
         }
     }
 
-    async fn recognize(&self, request: NerRequest<'_>) -> Result<NerResponse> {
-        let mut responses = self.recognize_batch(&[request]).await?;
-        responses
-            .pop()
-            .ok_or_else(|| BentoError::Protocol("bento ner returned an empty batch".into()).into())
+    async fn call(&self, request: NerRequest<'_>) -> Result<NerResponse> {
+        // One request in, so exactly one response out. `pop` alone would
+        // take the last of a longer list and hide the contract violation.
+        let responses = self.post_recognize(&[request]).await?;
+        let [response] = <[NerResponse; 1]>::try_from(responses).map_err(|responses| {
+            BentoError::Protocol(format!(
+                "bento ner returned {} responses for 1 request",
+                responses.len(),
+            ))
+        })?;
+        Ok(response)
     }
 
-    async fn recognize_batch(&self, requests: &[NerRequest<'_>]) -> Result<Vec<NerResponse>> {
+    /// Overridden: the `bento-gliner2` service takes a batch in one POST, so the
+    /// whole slice goes in a single round trip rather than the default's
+    /// sequential fan-out over [`call`](Self::call).
+    ///
+    /// Responses come back in request order. An empty batch makes no call.
+    async fn call_batch(&self, requests: Vec<NerRequest<'_>>) -> Result<Vec<NerResponse>> {
         if requests.is_empty() {
             return Ok(Vec::new());
         }
-        let responses = self.post_recognize(requests).await?;
+        let responses = self.post_recognize(&requests).await?;
         if responses.len() != requests.len() {
             return Err(BentoError::Protocol(format!(
                 "bento ner returned {} responses for {} requests",

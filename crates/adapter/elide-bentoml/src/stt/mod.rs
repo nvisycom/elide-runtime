@@ -1,4 +1,4 @@
-//! [`BentoStt`]: an [`SttBackend`] backed by the
+//! [`BentoStt`]: a [`Backend`] backed by the
 //! `bento-whisper` BentoML service.
 //!
 //! Wire contract: `POST /transcribe` accepts a single request
@@ -14,7 +14,7 @@
 //! `response` (incoming) submodules; only the public
 //! [`BentoStt`] backend is part of this crate's API.
 //!
-//! [`SttBackend`]: elide_audio::stt::SttBackend
+//! [`Backend`]: elide_core::backend::Backend
 //! [`TranscriptSegment`]: elide_audio::modality::TranscriptSegment
 //! [`TranscriptWord`]: elide_audio::modality::TranscriptWord
 
@@ -22,8 +22,9 @@ mod request;
 mod response;
 
 use bentoml::{Client, Endpoint};
-use elide_audio::stt::{SttBackend, SttRequest, SttResponse};
+use elide_audio::stt::{SttRequest, SttResponse};
 use elide_core::Result;
+use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
 use hipstr::HipStr;
 
@@ -37,7 +38,7 @@ const ROUTE: &str = "transcribe";
 ///
 /// Owns a cached [`Endpoint`] pointing at the `bento-whisper`
 /// `/transcribe` route, plus the per-deployment model id (echoed
-/// into [`SttBackend::provenance`]).
+/// into [`Backend::provenance`]).
 #[derive(Debug, Clone)]
 pub struct BentoStt {
     /// Pre-built endpoint at the `/transcribe` route. Cloned per
@@ -80,7 +81,10 @@ impl BentoStt {
 }
 
 #[async_trait::async_trait]
-impl SttBackend for BentoStt {
+impl Backend for BentoStt {
+    type Request<'a> = SttRequest<'a>;
+    type Response = SttResponse;
+
     fn provenance(&self) -> ModelEvent {
         ModelEvent {
             name: self.model_id.clone(),
@@ -89,7 +93,7 @@ impl SttBackend for BentoStt {
         }
     }
 
-    async fn transcribe(&self, request: SttRequest<'_>) -> Result<SttResponse> {
+    async fn call(&self, request: SttRequest<'_>) -> Result<SttResponse> {
         Ok(self.post_transcribe(request).await?)
     }
 }

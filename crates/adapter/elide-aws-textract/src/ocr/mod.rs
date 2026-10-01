@@ -1,6 +1,6 @@
-//! [`TextractOcr`]: an [`OcrBackend`] backed by AWS Textract.
+//! [`TextractOcr`]: a [`Backend`] backed by AWS Textract.
 //!
-//! [`OcrBackend`]: elide_image::ocr::OcrBackend
+//! [`Backend`]: elide_core::backend::Backend
 
 mod response;
 
@@ -9,13 +9,14 @@ use aws_sdk_textract::Client;
 use aws_sdk_textract::primitives::Blob;
 use aws_sdk_textract::types::Document;
 use elide_core::Result;
+use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
-use elide_image::ocr::{OcrBackend, OcrRequest, OcrResponse};
+use elide_image::ocr::{OcrRequest, OcrResponse};
 use hipstr::HipStr;
 
 use crate::error::TextractError;
 
-/// An [`OcrBackend`] backed by AWS Textract's `DetectDocumentText`.
+/// A [`Backend`] backed by AWS Textract's `DetectDocumentText`.
 ///
 /// # Where the image goes
 ///
@@ -38,10 +39,10 @@ impl TextractOcr {
     /// does not need to depend on it separately.
     ///
     /// Give it a bounded operation timeout: the SDK leaves both the
-    /// operation and per-attempt timeouts unset, and [`recognize`] is a
+    /// operation and per-attempt timeouts unset, and [`call`] is a
     /// single `await` with no deadline of its own.
     ///
-    /// [`recognize`]: OcrBackend::recognize
+    /// [`call`]: Backend::call
     ///
     /// [`textract`]: crate::textract
     #[must_use]
@@ -51,7 +52,10 @@ impl TextractOcr {
 }
 
 #[async_trait]
-impl OcrBackend for TextractOcr {
+impl Backend for TextractOcr {
+    type Request<'a> = OcrRequest<'a>;
+    type Response = OcrResponse;
+
     fn provenance(&self) -> ModelEvent {
         ModelEvent {
             name: HipStr::borrowed("aws/textract"),
@@ -60,7 +64,7 @@ impl OcrBackend for TextractOcr {
         }
     }
 
-    async fn recognize(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
+    async fn call(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
         // `DetectDocumentText` rather than `AnalyzeDocument`: this backend
         // wants text and geometry, and the analysis features (forms,
         // tables, queries) cost more per page for results elide's layout

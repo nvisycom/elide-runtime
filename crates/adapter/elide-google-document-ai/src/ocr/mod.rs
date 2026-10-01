@@ -1,20 +1,21 @@
-//! [`DocumentAiOcr`]: an [`OcrBackend`] backed by Google Cloud Document AI.
+//! [`DocumentAiOcr`]: a [`Backend`] backed by Google Cloud Document AI.
 //!
-//! [`OcrBackend`]: elide_image::ocr::OcrBackend
+//! [`Backend`]: elide_core::backend::Backend
 
 mod response;
 
 use async_trait::async_trait;
 use elide_core::Result;
+use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
-use elide_image::ocr::{OcrBackend, OcrRequest, OcrResponse};
+use elide_image::ocr::{OcrRequest, OcrResponse};
 use google_cloud_documentai_v1::client::DocumentProcessorService;
 use google_cloud_documentai_v1::model::RawDocument;
 use hipstr::HipStr;
 
 use crate::error::DocumentAiBackendError;
 
-/// An [`OcrBackend`] backed by Google Cloud Document AI.
+/// A [`Backend`] backed by Google Cloud Document AI.
 #[derive(Clone)]
 pub struct DocumentAiOcr {
     client: DocumentProcessorService,
@@ -34,7 +35,10 @@ impl DocumentAiOcr {
 }
 
 #[async_trait]
-impl OcrBackend for DocumentAiOcr {
+impl Backend for DocumentAiOcr {
+    type Request<'a> = OcrRequest<'a>;
+    type Response = OcrResponse;
+
     fn provenance(&self) -> ModelEvent {
         ModelEvent {
             name: HipStr::borrowed("google/document-ai"),
@@ -43,7 +47,7 @@ impl OcrBackend for DocumentAiOcr {
         }
     }
 
-    async fn recognize(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
+    async fn call(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
         // Document AI dispatches on the MIME type and answers
         // `INVALID_ARGUMENT` for one outside its supported list, so the
         // format the caller resolved at ingestion is named explicitly

@@ -1,7 +1,7 @@
-//! [`PioneerNer`]: a [`NerBackend`] backed by Pioneer's hosted GLiNER2
+//! [`PioneerNer`]: a [`Backend`] backed by Pioneer's hosted GLiNER2
 //! API.
 //!
-//! [`NerBackend`]: elide_ner::backend::NerBackend
+//! [`Backend`]: elide_core::backend::Backend
 
 mod request;
 mod response;
@@ -10,9 +10,10 @@ use std::fmt;
 
 use async_trait::async_trait;
 use elide_core::Result;
+use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
 use elide_core::primitive::LanguageTag;
-use elide_ner::backend::{NerBackend, NerRequest, NerResponse};
+use elide_ner::backend::{NerRequest, NerResponse};
 use hipstr::HipStr;
 
 use self::request::WireRequest;
@@ -36,7 +37,7 @@ const MODEL_ID: &str = "pioneer/gliner-2";
 /// Default per-label confidence cutoff, matching the Python client's.
 const DEFAULT_THRESHOLD: f32 = 0.5;
 
-/// A [`NerBackend`] backed by Pioneer's hosted GLiNER2 API.
+/// A [`Backend`] backed by Pioneer's hosted GLiNER2 API.
 ///
 /// # Where the text goes
 ///
@@ -51,7 +52,7 @@ const DEFAULT_THRESHOLD: f32 = 0.5;
 /// entirely, and no Data Processing Addendum is offered. See the crate
 /// README before pointing this at production text.
 ///
-/// [`NerBackend`]: elide_ner::backend::NerBackend
+/// [`Backend`]: elide_core::backend::Backend
 #[derive(Clone)]
 pub struct PioneerNer {
     http: reqwest::Client,
@@ -133,7 +134,10 @@ impl PioneerNer {
 }
 
 #[async_trait]
-impl NerBackend for PioneerNer {
+impl Backend for PioneerNer {
+    type Request<'a> = NerRequest<'a>;
+    type Response = NerResponse;
+
     fn provenance(&self) -> ModelEvent {
         ModelEvent {
             name: HipStr::borrowed(MODEL_ID),
@@ -142,7 +146,7 @@ impl NerBackend for PioneerNer {
         }
     }
 
-    async fn recognize(&self, request: NerRequest<'_>) -> Result<NerResponse> {
+    async fn call(&self, request: NerRequest<'_>) -> Result<NerResponse> {
         // Zero-shot: the labels arrive per call. Without them there is no
         // schema to send, and Pioneer's route requires one.
         //

@@ -10,7 +10,7 @@
 //! [`text`]: self::text
 //! [`compile_and_attach`]: self::text::compile_and_attach
 //! [`Target::attach_with`]: super::compile::Target::attach_with
-//! [`TextRedaction`]: elide_governance::redaction::TextRedaction
+//! [`TextRedaction`]: elide_schema::redaction::TextRedaction
 
 pub(super) mod audio;
 pub(super) mod image;

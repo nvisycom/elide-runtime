@@ -27,7 +27,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 elide = { workspace = true, features = ["engine", "tabular", "image", "audio", "serde", "schema"] }
 
 # Internal crates
-elide-governance = { workspace = true, features = [] }
+elide-schema = { workspace = true, features = [] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

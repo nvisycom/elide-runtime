@@ -12,13 +12,13 @@ use elide::entity::LabelRef;
 use elide::modality::image::Image;
 use elide::modality::text::Text;
 use elide::{ErrorKind, PartId, Report};
-use elide_governance::policy::{LabelScope, Policy};
-use elide_governance::redaction::ModalityRedactions;
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{
     CodecParams, Component, DocumentContext, Enrichers, OcrBackend, ProviderConfig, RequestContext,
 };
 use elide_pipeline::{Audit, Engine};
+use elide_schema::policy::{LabelScope, Policy};
+use elide_schema::redaction::ModalityRedactions;
 
 use self::fixtures::write_artefact;
 
@@ -135,7 +135,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
             vec![LabelRef::new("email_address")],
         )],
         fallback: Some(ModalityRedactions {
-            text: Some(elide_governance::redaction::TextRedaction::Erase),
+            text: Some(elide_schema::redaction::TextRedaction::Erase),
             ..Default::default()
         }),
         ..Policy::default()
@@ -263,8 +263,8 @@ async fn audit_rejects_a_missing_round_trip_field_on_deserialize() {
 
 #[tokio::test]
 async fn analyze_rejects_policy_that_references_unknown_group() {
-    use elide_governance::policy::{PolicyRule, Predicate, RuleDispatch};
-    use elide_governance::redaction::TextRedaction;
+    use elide_schema::policy::{PolicyRule, Predicate, RuleDispatch};
+    use elide_schema::redaction::TextRedaction;
 
     let engine = engine();
     let rule = PolicyRule {

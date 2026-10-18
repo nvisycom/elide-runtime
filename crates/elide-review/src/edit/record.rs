@@ -35,7 +35,7 @@
 //! [`Suppress`]: Edit::Suppress
 
 use elide::entity::LabelRef;
-use elide_governance::modality::RedactableModality;
+use elide_schema::modality::RedactableModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

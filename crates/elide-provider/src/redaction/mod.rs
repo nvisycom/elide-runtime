@@ -1,6 +1,6 @@
 //! Redaction: which entities to hide, and how.
 //!
-//! Compiles a [`elide_governance::policy::Policy`] set into an
+//! Compiles a [`elide_schema::policy::Policy`] set into an
 //! [`Anonymizer`] per modality at request time.
 //!
 //! Mirrors [`crate::recognition`], which does the same for the
@@ -60,7 +60,7 @@ use elide::modality::text::Text;
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::KeyProvider;
 use elide::{Orchestrator, Result};
-use elide_governance::policy::Policy;
+use elide_schema::policy::Policy;
 
 use self::audio::attach_policies_audio;
 use self::image::attach_policies_image;

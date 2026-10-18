@@ -30,10 +30,10 @@ use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
 use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, PartId, Report, Result};
-use elide_governance::compile_catalog;
-use elide_governance::modality::RedactableModality;
-use elide_governance::policy::{Policy, PolicyRule, Predicate};
-use elide_governance::recognition::Recognition;
+use elide_schema::compile_catalog;
+use elide_schema::modality::RedactableModality;
+use elide_schema::policy::{Policy, PolicyRule, Predicate};
+use elide_schema::recognition::Recognition;
 use uuid::Uuid;
 
 pub use self::codec::CodecParams;
@@ -193,7 +193,7 @@ impl Provider {
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide::entity::LabelCatalog
-    /// [`Policy::label_scope`]: elide_governance::policy::Policy::label_scope
+    /// [`Policy::label_scope`]: elide_schema::policy::Policy::label_scope
     pub fn analyze_orchestrator(
         &self,
         context: &DocumentContext,
@@ -370,8 +370,8 @@ impl Provider {
 /// [`Configuration`](ErrorKind::Configuration) error at request
 /// validation time, not as a silent underfire at apply time.
 ///
-/// [`LabelScope`]: elide_governance::policy::LabelScope
-/// [`scopes`]: elide_governance::policy::Policy::scopes
+/// [`LabelScope`]: elide_schema::policy::LabelScope
+/// [`scopes`]: elide_schema::policy::Policy::scopes
 fn validate_scope_references(policies: &[Policy]) -> Result<()> {
     for policy in policies {
         let mut known: HashSet<&str> = HashSet::new();

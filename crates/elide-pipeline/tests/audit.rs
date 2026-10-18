@@ -15,11 +15,11 @@ use bytes::Bytes;
 use elide::entity::LabelRef;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
-use elide_governance::policy::{LabelScope, Policy};
 use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{ProviderConfig, RequestContext};
 use elide_pipeline::{Audit, Engine};
+use elide_schema::policy::{LabelScope, Policy};
 
 use self::fixtures::write_artefact;
 

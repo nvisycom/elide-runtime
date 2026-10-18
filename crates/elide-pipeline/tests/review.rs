@@ -15,12 +15,12 @@ use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
-use elide_governance::policy::{LabelScope, Policy};
-use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::entity::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{ProviderConfig, RequestContext};
 use elide_pipeline::{Audit, Engine, ErrorKind};
+use elide_schema::policy::{LabelScope, Policy};
+use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 use uuid::Uuid;
 
 const SAMPLE: &[u8] = b"Email alice@example.com or bob@example.com. Case SECRET-9 open.";

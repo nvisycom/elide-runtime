@@ -28,8 +28,8 @@ use elide::Result;
 use elide::entity::audit::Attribution;
 use elide::modality::Modality;
 use elide::redaction::{Anonymizer, MatchContext, Operator, Rule};
-use elide_governance::policy::{Policy, Predicate};
-use elide_governance::redaction::ModalityRedactions;
+use elide_schema::policy::{Policy, Predicate};
+use elide_schema::redaction::ModalityRedactions;
 use uuid::Uuid;
 
 use super::selector::{PolicyContext, attach, fallback_attribution, rule_attribution};
@@ -92,7 +92,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// whose parts differ in modality, so an absent arm means
     /// "this rule has nothing to say here", not an error.
     ///
-    /// [`ModalityRedactions`]: elide_governance::redaction::ModalityRedactions
+    /// [`ModalityRedactions`]: elide_schema::redaction::ModalityRedactions
     pub(in crate::redaction) fn passthrough(self) -> Anonymizer<M> {
         match self {
             Target::Rule { anonymizer, .. } | Target::Fallback { anonymizer, .. } => anonymizer,

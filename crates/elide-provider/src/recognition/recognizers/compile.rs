@@ -36,7 +36,7 @@ use elide::recognition::pattern::{
 };
 use elide::{Error, ErrorKind, Result};
 use elide_bentoml::ner::BentoNer;
-use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
+use elide_schema::recognition::{CustomMatcher, MatchOn, Recognition};
 
 use super::super::compile::Resolved;
 use super::super::{Component, LlmBackend as LlmBackendConfig, NerBackend as NerBackendConfig};

@@ -1,7 +1,7 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "elide-governance"
+name = "elide-schema"
 description = "Wire schema for redaction governance built on elide: rules, predicates, operators"
 keywords = ["elide", "schema", "policy", "redaction", "governance"]
 categories = ["data-structures", "api-bindings"]

@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use elide::Result;
 use elide::backend::metrics::{Usage, UsageCollector, UsageSink};
-use elide_governance::recognition::Recognition;
+use elide_schema::recognition::Recognition;
 
 use super::availability::{Availability, ComponentSelection, Resolver};
 use super::{Component, Enrichers, LlmBackend, NerBackend, OcrBackend, Recognizers, SttBackend};

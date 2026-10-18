@@ -36,7 +36,7 @@ use elide::redaction::operators::{
 use elide::redaction::vault::InMemoryVault;
 use elide::redaction::{Anonymizer, Operator};
 use elide::{Error, ErrorKind, Result};
-use elide_governance::redaction::{ClampBucket, TerminalFallback, TextRedaction};
+use elide_schema::redaction::{ClampBucket, TerminalFallback, TextRedaction};
 use uuid::Uuid;
 
 use crate::redaction::compile::Target;
@@ -67,10 +67,10 @@ use crate::redaction::compile::Target;
 /// [`Arc`] clones.
 ///
 /// [`InMemoryVault`]: elide::redaction::vault::InMemoryVault
-/// [`Policy::id`]: elide_governance::policy::Policy::id
-/// [`TextRedaction::Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
-/// [`TextRedaction::HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
-/// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
+/// [`Policy::id`]: elide_schema::policy::Policy::id
+/// [`TextRedaction::Encrypt`]: elide_schema::redaction::TextRedaction::Encrypt
+/// [`TextRedaction::HmacHash`]: elide_schema::redaction::TextRedaction::HmacHash
+/// [`TextRedaction::Pseudonymize`]: elide_schema::redaction::TextRedaction::Pseudonymize
 /// [`key_provider`]: Self::key_provider
 pub(crate) struct TextOperatorContext {
     /// Engine-level key provider used by every policy's

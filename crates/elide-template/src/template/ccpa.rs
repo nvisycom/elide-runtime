@@ -18,14 +18,14 @@
 //! for retained analytics that keep coreference without exposing
 //! the underlying identifier.
 //!
-//! [`LabelScope`]: elide_governance::policy::LabelScope
-//! [`Policy`]: elide_governance::policy::Policy
-//! [`Predicated`]: elide_governance::policy::RuleDispatch::Predicated
-//! [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
+//! [`LabelScope`]: elide_schema::policy::LabelScope
+//! [`Policy`]: elide_schema::policy::Policy
+//! [`Predicated`]: elide_schema::policy::RuleDispatch::Predicated
+//! [`Pseudonymize`]: elide_schema::redaction::TextRedaction::Pseudonymize
 
 use elide_core::entity::LabelRef;
-use elide_governance::policy::{LabelScope, Policy};
-use elide_governance::redaction::{ModalityRedactions, TextRedaction};
+use elide_schema::policy::{LabelScope, Policy};
+use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 use jiff::civil::Date;
 use semver::Version;
 use uuid::{Uuid, uuid};

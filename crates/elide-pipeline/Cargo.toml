@@ -103,7 +103,7 @@ elide = { workspace = true, features = ["engine", "codec", "codec-text", "tabula
 
 # Internal crates
 elide-export = { workspace = true, features = [], optional = true }
-elide-governance = { workspace = true, features = [] }
+elide-schema = { workspace = true, features = [] }
 elide-provider = { workspace = true, features = [] }
 elide-review = { workspace = true, features = [] }
 elide-template = { workspace = true }

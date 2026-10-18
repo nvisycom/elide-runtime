@@ -28,7 +28,7 @@ elide-core = { workspace = true, features = ["serde"] }
 elide-operator = { workspace = true, features = ["datetime", "sha2"] }
 
 # Internal crates
-elide-governance = { workspace = true }
+elide-schema = { workspace = true }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

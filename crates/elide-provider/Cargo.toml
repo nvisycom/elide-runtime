@@ -65,7 +65,7 @@ elide-deepgram = { workspace = true, optional = true }
 elide-llm = { workspace = true, features = ["rig", "openai-gpt", "anthropic-claude", "google-gemini"] }
 elide-image = { workspace = true, features = ["schema", "exif"] }
 elide-pdf = { workspace = true, features = ["schema"] }
-elide-governance = { workspace = true, features = [] }
+elide-schema = { workspace = true, features = [] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

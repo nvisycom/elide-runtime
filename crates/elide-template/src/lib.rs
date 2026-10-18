@@ -48,10 +48,10 @@
 //! [`Template::version`], not the crate version.
 //!
 //! [`Date`]: jiff::civil::Date
-//! [`LabelScope`]: elide_governance::policy::LabelScope
-//! [`Policy`]: elide_governance::policy::Policy
-//! [`TextRedaction::Erase`]: elide_governance::redaction::TextRedaction::Erase
-//! [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
+//! [`LabelScope`]: elide_schema::policy::LabelScope
+//! [`Policy`]: elide_schema::policy::Policy
+//! [`TextRedaction::Erase`]: elide_schema::redaction::TextRedaction::Erase
+//! [`TextRedaction::Pseudonymize`]: elide_schema::redaction::TextRedaction::Pseudonymize
 //! [`Version`]: semver::Version
 
 mod template;
@@ -124,10 +124,10 @@ pub enum PolicyTemplate {
     /// operator to [`TextRedaction::Pseudonymize`] where the
     /// retained data drives analytics.
     ///
-    /// [`LabelScope`]: elide_governance::policy::LabelScope
-    /// [`Policy`]: elide_governance::policy::Policy
-    /// [`Predicate::LabelInScope`]: elide_governance::policy::Predicate::LabelInScope
-    /// [`TextRedaction::Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
+    /// [`LabelScope`]: elide_schema::policy::LabelScope
+    /// [`Policy`]: elide_schema::policy::Policy
+    /// [`Predicate::LabelInScope`]: elide_schema::policy::Predicate::LabelInScope
+    /// [`TextRedaction::Pseudonymize`]: elide_schema::redaction::TextRedaction::Pseudonymize
     Ccpa,
 }
 

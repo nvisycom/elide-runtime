@@ -91,8 +91,8 @@ pub struct Policy {
 /// and callers building a policy up field by field:
 ///
 /// ```
-/// # use elide_governance::policy::Policy;
-/// # use elide_governance::redaction::{ModalityRedactions, TextRedaction};
+/// # use elide_schema::policy::Policy;
+/// # use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 /// let sweep = Policy {
 ///     name: "sweep".into(),
 ///     fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),

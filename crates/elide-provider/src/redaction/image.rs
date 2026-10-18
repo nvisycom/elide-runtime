@@ -4,8 +4,8 @@
 use elide::Result;
 use elide::modality::image::Image;
 use elide::redaction::Anonymizer;
-use elide_governance::policy::Policy;
-use elide_governance::redaction::{ImageRedaction, ModalityRedactions};
+use elide_schema::policy::Policy;
+use elide_schema::redaction::{ImageRedaction, ModalityRedactions};
 
 use super::compile::{Target, attach_policies};
 use super::operator::image::ImageOp;
@@ -16,7 +16,7 @@ use super::operator::image::ImageOp;
 /// Takes an iterator so the apply pipeline can pre-filter by
 /// [`Policy::when`] without cloning.
 ///
-/// [`Policy::when`]: elide_governance::policy::Policy::when
+/// [`Policy::when`]: elide_schema::policy::Policy::when
 pub(crate) fn attach_policies_image<'a>(
     anonymizer: Anonymizer<Image>,
     policies: impl Iterator<Item = &'a Policy> + Clone,

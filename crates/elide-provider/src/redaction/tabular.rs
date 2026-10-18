@@ -13,8 +13,8 @@ use elide::Result;
 use elide::modality::tabular::Tabular;
 use elide::redaction::Anonymizer;
 use elide::redaction::operators::{DropColumn, DropRow};
-use elide_governance::policy::Policy;
-use elide_governance::redaction::{ModalityRedactions, TabularRedaction};
+use elide_schema::policy::Policy;
+use elide_schema::redaction::{ModalityRedactions, TabularRedaction};
 
 use super::compile::{Target, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
@@ -24,7 +24,7 @@ use super::operator::text::{TextOperatorContext, compile_and_attach};
 /// apply pipeline can pre-filter by [`Policy::when`]
 /// without cloning.
 ///
-/// [`Policy::when`]: elide_governance::policy::Policy::when
+/// [`Policy::when`]: elide_schema::policy::Policy::when
 pub(crate) fn attach_policies_tabular<'a>(
     anonymizer: Anonymizer<Tabular>,
     policies: impl Iterator<Item = &'a Policy> + Clone,

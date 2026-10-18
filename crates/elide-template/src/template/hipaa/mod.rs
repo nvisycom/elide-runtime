@@ -30,15 +30,15 @@
 //!   still document that re-identification risk is "very small"
 //!   under the applicable methodology.
 //!
-//! [`Clamp`]: elide_governance::redaction::TextRedaction::Clamp
-//! [`Erase`]: elide_governance::redaction::TextRedaction::Erase
-//! [`GeneralizeDate`]: elide_governance::redaction::TextRedaction::GeneralizeDate
-//! [`HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
-//! [`LabelScope`]: elide_governance::policy::LabelScope
-//! [`Policy`]: elide_governance::policy::Policy
-//! [`Predicated`]: elide_governance::policy::RuleDispatch::Predicated
-//! [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
-//! [`RuleDispatch`]: elide_governance::policy::RuleDispatch
+//! [`Clamp`]: elide_schema::redaction::TextRedaction::Clamp
+//! [`Erase`]: elide_schema::redaction::TextRedaction::Erase
+//! [`GeneralizeDate`]: elide_schema::redaction::TextRedaction::GeneralizeDate
+//! [`HmacHash`]: elide_schema::redaction::TextRedaction::HmacHash
+//! [`LabelScope`]: elide_schema::policy::LabelScope
+//! [`Policy`]: elide_schema::policy::Policy
+//! [`Predicated`]: elide_schema::policy::RuleDispatch::Predicated
+//! [`Pseudonymize`]: elide_schema::redaction::TextRedaction::Pseudonymize
+//! [`RuleDispatch`]: elide_schema::policy::RuleDispatch
 
 use jiff::civil::Date;
 use schemars::JsonSchema;
@@ -147,8 +147,8 @@ pub(super) fn template_id(base: &str, accounts: HipaaAccountNumbers) -> String {
 
 #[cfg(test)]
 mod tests {
-    use elide_governance::policy::RuleDispatch;
-    use elide_governance::redaction::TextRedaction;
+    use elide_schema::policy::RuleDispatch;
+    use elide_schema::redaction::TextRedaction;
 
     use super::limited_data_set::LDS_LABELS;
     use super::safe_harbor::{SAFE_HARBOR_LABELS, SAFE_HARBOR_TABLE_LABELS};

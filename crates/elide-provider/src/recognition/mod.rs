@@ -67,7 +67,7 @@ use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{Orchestrator, Result};
-use elide_governance::recognition::Recognition;
+use elide_schema::recognition::Recognition;
 
 pub(crate) use self::availability::Resolver;
 use self::compile::Compile;

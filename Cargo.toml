@@ -5,7 +5,7 @@ resolver = "3"
 members = [
     "./crates/elide-provider",
     "./crates/elide-export",
-    "./crates/elide-governance",
+    "./crates/elide-schema",
     "./crates/elide-pipeline",
     "./crates/elide-review",
     "./crates/elide-template",
@@ -43,7 +43,7 @@ elide-deepgram = { git = "https://github.com/nvisycom/elide-provider", branch = 
 
 # Internal crates
 elide-export = { path = "./crates/elide-export", version = "0.1.0" }
-elide-governance = { path = "./crates/elide-governance", version = "0.1.0" }
+elide-schema = { path = "./crates/elide-schema", version = "0.1.0" }
 elide-provider = { path = "./crates/elide-provider", version = "0.1.0" }
 elide-pipeline = { path = "./crates/elide-pipeline", version = "0.1.0" }
 elide-review = { path = "./crates/elide-review", version = "0.1.0" }

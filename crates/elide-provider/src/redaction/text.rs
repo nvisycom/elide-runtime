@@ -4,8 +4,8 @@
 use elide::Result;
 use elide::modality::text::Text;
 use elide::redaction::Anonymizer;
-use elide_governance::policy::Policy;
-use elide_governance::redaction::{ModalityRedactions, TextRedaction};
+use elide_schema::policy::Policy;
+use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 
 use super::compile::{Target, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
@@ -15,7 +15,7 @@ use super::operator::text::{TextOperatorContext, compile_and_attach};
 /// so callers can pre-filter by [`Policy::when`] without
 /// cloning the policy set.
 ///
-/// [`Policy::when`]: elide_governance::policy::Policy::when
+/// [`Policy::when`]: elide_schema::policy::Policy::when
 pub(crate) fn attach_policies_text<'a>(
     anonymizer: Anonymizer<Text>,
     policies: impl Iterator<Item = &'a Policy> + Clone,

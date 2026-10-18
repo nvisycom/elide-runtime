@@ -5,11 +5,11 @@
 
 use bytes::Bytes;
 use elide::entity::LabelRef;
-use elide_governance::policy::{LabelScope, Policy};
-use elide_governance::redaction::{ModalityRedactions, TabularRedaction};
 use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{CodecParams, ExifPolicy, ProviderConfig, RequestContext};
+use elide_schema::policy::{LabelScope, Policy};
+use elide_schema::redaction::{ModalityRedactions, TabularRedaction};
 
 /// A headerless CSV: every row is data, and the first row carries
 /// an address that must be reachable like any other.

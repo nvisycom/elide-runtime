@@ -9,7 +9,7 @@ use elide::entity::audit::{Attribution, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::Modality;
 use elide::{PartId, Report};
-use elide_governance::modality::RedactableModality;
+use elide_schema::modality::RedactableModality;
 use uuid::Uuid;
 
 use crate::Edit;

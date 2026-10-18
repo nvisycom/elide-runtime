@@ -6,10 +6,10 @@
 //! per-modality analyzers, anonymizers, and orchestrator into a
 //! stateless per-request document pipeline, driven by its own
 //! request schemas ([`RequestContext`](provider::RequestContext), [`file`](mod@file)) and the
-//! governance schema from [elide-governance].
+//! governance schema from [elide-schema].
 //!
 //! [elide]: https://github.com/nvisycom/elide
-//! [elide-governance]: https://docs.rs/elide-governance
+//! [elide-schema]: https://docs.rs/elide-schema
 //!
 //! ## Architecture
 //!
@@ -42,8 +42,8 @@
 //! hands to [`Engine::analyze`] / [`Engine::anonymize`] as a
 //! one-element slice.
 //!
-//! [`LabelScope`]: elide_governance::policy::LabelScope
-//! [`Policy::scopes`]: elide_governance::policy::Policy::scopes
+//! [`LabelScope`]: elide_schema::policy::LabelScope
+//! [`Policy::scopes`]: elide_schema::policy::Policy::scopes
 //!
 //! [`elide`]: elide
 
@@ -213,6 +213,15 @@ pub mod export {
     pub use elide_export::{ExportCsv, Table};
 }
 
+/// Providers: who does the detecting, and what a single request
+/// carries into them.
+///
+/// Re-exported whole rather than name by name. The crate keeps its
+/// internals private and re-exports a flat facade at its own root,
+/// so there is no stutter to work around and no hand-maintained
+/// import list here to drift out of step with it.
+#[doc(inline)]
+pub use elide_provider as provider;
 /// Governance: what happens to sensitive data, and the vocabulary
 /// a request introduces.
 ///
@@ -223,16 +232,7 @@ pub mod export {
 /// stutters (`policy::policy::Policy`) and puts the vocabulary
 /// behind a module that has nothing to do with it.
 #[doc(inline)]
-pub use elide_governance as governance;
-/// Providers: who does the detecting, and what a single request
-/// carries into them.
-///
-/// Re-exported whole rather than name by name. The crate keeps its
-/// internals private and re-exports a flat facade at its own root,
-/// so there is no stutter to work around and no hand-maintained
-/// import list here to drift out of step with it.
-#[doc(inline)]
-pub use elide_provider as provider;
+pub use elide_schema as governance;
 /// Templates: ready-to-run [`Policy`](governance::policy::Policy)
 /// sets for common regulatory postures.
 ///

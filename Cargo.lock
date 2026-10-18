@@ -1342,19 +1342,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "elide-governance"
-version = "0.1.0"
-dependencies = [
- "elide",
- "hipstr",
- "schemars",
- "semver",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
 name = "elide-image"
 version = "0.1.0"
 source = "git+https://github.com/nvisycom/elide?branch=main#18ecc2bb4c41ed98dc56d9230b235d96b46ab5c3"
@@ -1504,10 +1491,10 @@ dependencies = [
  "criterion",
  "elide",
  "elide-export",
- "elide-governance",
  "elide-pipeline",
  "elide-provider",
  "elide-review",
+ "elide-schema",
  "elide-template",
  "hipstr",
  "jiff",
@@ -1543,11 +1530,11 @@ dependencies = [
  "elide",
  "elide-bentoml",
  "elide-deepgram",
- "elide-governance",
  "elide-image",
  "elide-llm",
  "elide-pdf",
  "elide-provider",
+ "elide-schema",
  "elide-template",
  "hipstr",
  "schemars",
@@ -1571,8 +1558,21 @@ name = "elide-review"
 version = "0.1.0"
 dependencies = [
  "elide",
- "elide-governance",
+ "elide-schema",
  "schemars",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "elide-schema"
+version = "0.1.0"
+dependencies = [
+ "elide",
+ "hipstr",
+ "schemars",
+ "semver",
  "serde",
  "serde_json",
  "uuid",
@@ -1583,8 +1583,8 @@ name = "elide-template"
 version = "0.1.0"
 dependencies = [
  "elide-core",
- "elide-governance",
  "elide-operator",
+ "elide-schema",
  "hipstr",
  "jiff",
  "schemars",

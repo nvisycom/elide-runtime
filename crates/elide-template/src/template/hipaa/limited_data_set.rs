@@ -1,6 +1,6 @@
 use elide_core::entity::LabelRef;
-use elide_governance::policy::{LabelScope, Policy};
-use elide_governance::redaction::{ModalityRedactions, TextRedaction};
+use elide_schema::policy::{LabelScope, Policy};
+use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 use semver::Version;
 
 use super::super::{cited, derived_id, origin};

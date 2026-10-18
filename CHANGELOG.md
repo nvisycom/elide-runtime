@@ -18,7 +18,7 @@ does today rather than how it got here.
 - **elide-provider** — deployment-owned configuration: which NER, LLM,
   OCR and STT backends exist, and the per-modality orchestrator built
   from them. A request toggles them; it does not choose them.
-- **elide-governance** — the wire schema for what happens to sensitive
+- **elide-schema** — the wire schema for what happens to sensitive
   data: policies, scopes, rules, predicates, operator specs, and the
   vocabulary a request introduces.
 - **elide-template** — ready-to-run policy postures for HIPAA

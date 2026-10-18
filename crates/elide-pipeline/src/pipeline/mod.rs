@@ -53,12 +53,12 @@ use elide::{
     AnalyzedDocument, ArtifactSet, Directives, Document as EngineDocument, Error, ErrorKind,
     Report, Result,
 };
-use elide_governance::policy::Policy;
-use elide_governance::recognition::Recognition;
 use elide_provider::{
     Analyzers, CodecParams, ComponentSelection, DocumentContext, ExifPolicy, KeyConfig, Provider,
     RasterMode, RequestContext,
 };
+use elide_schema::policy::Policy;
+use elide_schema::recognition::Recognition;
 use serde::Deserialize;
 
 pub use self::audit::{Analyzed, Audit, Unhandled};
@@ -210,8 +210,8 @@ impl Engine {
     /// [`MalformedInput`](ErrorKind::MalformedInput) for a document
     /// the codec cannot decode.
     ///
-    /// [`LabelInScope`]: elide_governance::policy::Predicate::LabelInScope
-    /// [`LabelScope`]: elide_governance::policy::LabelScope
+    /// [`LabelInScope`]: elide_schema::policy::Predicate::LabelInScope
+    /// [`LabelScope`]: elide_schema::policy::LabelScope
     /// [`Orchestrator::analyze`]: elide::Orchestrator::analyze
     pub async fn analyze(
         &self,
@@ -392,9 +392,9 @@ impl Engine {
     /// analyzed, and [`MalformedInput`](ErrorKind::MalformedInput)
     /// for a document the codec cannot decode.
     ///
-    /// [`Encrypt`]: elide_governance::redaction::TextRedaction::Encrypt
-    /// [`HmacHash`]: elide_governance::redaction::TextRedaction::HmacHash
-    /// [`Pseudonymize`]: elide_governance::redaction::TextRedaction::Pseudonymize
+    /// [`Encrypt`]: elide_schema::redaction::TextRedaction::Encrypt
+    /// [`HmacHash`]: elide_schema::redaction::TextRedaction::HmacHash
+    /// [`Pseudonymize`]: elide_schema::redaction::TextRedaction::Pseudonymize
     pub async fn anonymize(
         &self,
         document: Document,

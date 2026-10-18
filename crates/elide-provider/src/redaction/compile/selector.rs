@@ -19,10 +19,10 @@
 //!
 //! [`Anonymizer`]: elide::redaction::Anonymizer
 //! [`MatchContext`]: elide::redaction::MatchContext
-//! [`PolicyRule`]: elide_governance::policy::PolicyRule
-//! [`Predicate`]: elide_governance::policy::Predicate
-//! [`Predicate::LabelInScope`]: elide_governance::policy::Predicate::LabelInScope
-//! [`Predicate::TagOneOf`]: elide_governance::policy::Predicate::TagOneOf
+//! [`PolicyRule`]: elide_schema::policy::PolicyRule
+//! [`Predicate`]: elide_schema::policy::Predicate
+//! [`Predicate::LabelInScope`]: elide_schema::policy::Predicate::LabelInScope
+//! [`Predicate::TagOneOf`]: elide_schema::policy::Predicate::TagOneOf
 //! [`Rule::label`]: elide::redaction::Rule::label
 //! [`Rule::predicate`]: elide::redaction::Rule::predicate
 //! [`Rule::tag`]: elide::redaction::Rule::tag
@@ -40,7 +40,7 @@ use elide::entity::LabelRef;
 use elide::entity::audit::Attribution;
 use elide::modality::Modality;
 use elide::redaction::{Anonymizer, MatchContext, Operator, Rule};
-use elide_governance::policy::{LabelScope, Policy, PolicyRule, Predicate};
+use elide_schema::policy::{LabelScope, Policy, PolicyRule, Predicate};
 use uuid::Uuid;
 
 /// Per-policy scoping context threaded into every predicate the
@@ -57,8 +57,8 @@ use uuid::Uuid;
 ///   name a scope its own policy declared (validated separately
 ///   in `pipeline::orchestrator::validate_scope_references`).
 ///
-/// [`label_scope`]: elide_governance::policy::Policy::label_scope
-/// [`scopes`]: elide_governance::policy::Policy::scopes
+/// [`label_scope`]: elide_schema::policy::Policy::label_scope
+/// [`scopes`]: elide_schema::policy::Policy::scopes
 #[derive(Clone)]
 pub(in crate::redaction) struct PolicyContext {
     /// The enclosing policy's UUID. Threaded into per-policy
@@ -77,7 +77,7 @@ impl PolicyContext {
     /// Materialise a policy's scoping context from its declared
     /// [`scopes`] and inline custom schemas.
     ///
-    /// [`scopes`]: elide_governance::policy::Policy::scopes
+    /// [`scopes`]: elide_schema::policy::Policy::scopes
     pub(in crate::redaction) fn from_policy(policy: &Policy) -> Self {
         /// One scope as a lookup entry, keyed by the name a
         /// `LabelInScope` predicate cites.
@@ -167,7 +167,7 @@ pub(super) fn fallback_attribution(policy: &Policy) -> Attribution {
 /// `context.label_scope` before evaluating the tree; a rule
 /// cannot fire on labels its policy did not declare.
 ///
-/// [`Predicate`]: elide_governance::policy::Predicate
+/// [`Predicate`]: elide_schema::policy::Predicate
 pub(super) fn attach<M, O>(
     anonymizer: Anonymizer<M>,
     predicate: &Predicate,

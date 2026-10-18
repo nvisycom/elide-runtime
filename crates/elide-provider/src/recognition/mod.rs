@@ -37,6 +37,7 @@
 //! [`Orchestrator::with_scope`]: elide::Orchestrator::with_scope
 
 mod availability;
+mod compile;
 mod component;
 mod enrichers;
 mod layer;
@@ -69,6 +70,10 @@ use elide::{Orchestrator, Result};
 use elide_governance::recognition::Recognition;
 
 pub(crate) use self::availability::Resolver;
+use self::compile::Compile;
+/// What compiling a request's analyzers produced: the orchestrator
+/// to analyze with, and the tally its model calls record into.
+pub use self::compile::UsageHandle;
 pub use self::config::*;
 use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};
 
@@ -103,33 +108,35 @@ pub fn analyzers(
     recognition: &[Recognition],
     availability: &Availability,
     selection: &ComponentSelection,
-) -> Result<Orchestrator> {
-    // Keys are checked against both lineups before either is
-    // filtered: a key naming a NER component is legitimate even
-    // though the LLM lineup has never heard of it.
-    let resolver = Resolver::new(availability, selection);
-    resolver.validate_keys(recognizers, enrichers)?;
-    // Resolved once here rather than per modality: every analyzer
-    // draws from the same two lineups, so resolving inside each
-    // would repeat the work and let them disagree.
-    let ner: Vec<_> = resolver
-        .resolve(&recognizers.ner)
-        .into_iter()
-        .cloned()
-        .collect();
-    let llm: Vec<_> = resolver
-        .resolve(&recognizers.llm)
-        .into_iter()
-        .cloned()
-        .collect();
-    resolver.refuse_if_no_recognizer(recognizers, ner.len() + llm.len())?;
-    let (ner, llm) = (ner.as_slice(), llm.as_slice());
-    let ocr = resolver.pick_one(&enrichers.ocr, "OCR")?;
-    let stt = resolver.pick_one(&enrichers.stt, "STT")?;
+) -> Result<Analyzers> {
+    let cx = Compile::new(recognizers, enrichers, recognition, availability, selection);
+    let resolved = cx.resolve()?;
 
-    Ok(Orchestrator::new()
-        .with_analyzer::<Text>(compile_text(ner, llm, recognition)?)
-        .with_analyzer::<Tabular>(compile_tabular(ner, recognition)?)
-        .with_analyzer::<Image>(compile_image(ner, llm, ocr, recognition)?)
-        .with_analyzer::<Audio>(compile_audio(ner, stt, recognition)?))
+    let orchestrator = Orchestrator::new()
+        .with_analyzer::<Text>(compile_text(&resolved)?)
+        .with_analyzer::<Tabular>(compile_tabular(&resolved)?)
+        .with_analyzer::<Image>(compile_image(&resolved)?)
+        .with_analyzer::<Audio>(compile_audio(&resolved)?);
+
+    // The usage sinks are already wired into the backends, so what
+    // the orchestrator records lands in this request's tally. Handing
+    // the tally back beside it keeps the caller from needing to know
+    // that accounting happened at all.
+    Ok(Analyzers {
+        orchestrator,
+        usage: cx.usage_handle(),
+    })
+}
+
+/// A request's analyzers, and where its model calls are recorded.
+///
+/// Returned together because they are made together: the sinks are
+/// wired into the backends the orchestrator owns, so the tally only
+/// means anything beside the orchestrator that fills it.
+pub struct Analyzers {
+    /// The orchestrator to analyze with.
+    pub orchestrator: Orchestrator,
+    /// This request's usage tally, readable once the analysis has
+    /// run.
+    pub usage: UsageHandle,
 }

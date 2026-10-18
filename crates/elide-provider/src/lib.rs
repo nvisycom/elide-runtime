@@ -53,13 +53,19 @@ pub use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
 ///
 /// Re-exported from `elide-image` so a caller can name the field's
 /// type without taking its own dependency on that crate.
-pub use elide_image::ExifPolicy;
+pub use elide_image::exif::ExifPolicy;
+/// The raster mode a request carries on [`CodecParams`].
+///
+/// Re-exported beside [`ExifPolicy`] and for the same reason: a
+/// caller naming the field's type should not need its own
+/// dependency on the PDF codec crate.
+pub use elide_pdf::primitive::RasterMode;
 
 pub use self::orchestrator::{
     CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
 };
 pub use self::recognition::{
-    AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentSelection,
-    Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers, SttBackend,
-    UnauthenticatedProvider,
+    Analyzers, AttachTo, AuthenticatedProvider, Availability, Backend, Component,
+    ComponentSelection, Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers,
+    SttBackend, UnauthenticatedProvider, UsageHandle,
 };

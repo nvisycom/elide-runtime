@@ -7,7 +7,7 @@ mod predicate;
 mod rule;
 mod scope;
 
-use elide_core::entity::LabelRef;
+use elide::entity::LabelRef;
 use hipstr::HipStr;
 pub use predicate::Predicate;
 use schemars::JsonSchema;
@@ -34,8 +34,8 @@ pub struct Policy {
     /// when a rule that fired carried no [`Attribution::Cited`]
     /// attribution to render.
     ///
-    /// [`Attribution`]: elide_core::entity::audit::Attribution
-    /// [`Attribution::Cited`]: elide_core::entity::audit::Attribution::Cited
+    /// [`Attribution`]: elide::entity::audit::Attribution
+    /// [`Attribution::Cited`]: elide::entity::audit::Attribution::Cited
     #[schemars(with = "String")]
     pub name: HipStr<'static>,
     /// Optional description for reviewers.

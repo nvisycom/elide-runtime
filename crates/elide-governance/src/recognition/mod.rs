@@ -16,7 +16,7 @@
 
 mod matcher;
 
-use elide_core::entity::Label;
+use elide::entity::Label;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

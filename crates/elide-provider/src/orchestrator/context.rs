@@ -22,7 +22,7 @@
 //! [`CodecParams`]: super::CodecParams
 //! [`metadata`]: DocumentContext::metadata
 
-use elide::primitive::{CountryCode, Languages};
+use elide::primitive::{CountryCode, LanguageClaim};
 use elide::recognition::ScopeMetadata;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -40,7 +40,15 @@ pub struct DocumentContext {
     /// Recognizers that take a language hint use it; the
     /// language-detection enricher fills the gap when this is
     /// empty.
-    pub languages: Languages,
+    ///
+    /// Each entry is a [`LanguageClaim`], which records *why* a
+    /// language is claimed. A caller builds them with
+    /// [`LanguageClaim::asserted`]: an assertion is authoritative,
+    /// and the enricher skips detection rather than second-guessing
+    /// it. Detected claims — the ones carrying a confidence — are
+    /// the enricher's to write, not a request's to supply.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub languages: Vec<LanguageClaim>,
     /// Jurisdictions the caller asserts apply.
     ///
     /// Read by policy predicates that vary by jurisdiction, so a

@@ -19,8 +19,8 @@
 //! [`Rule::predicate`]: https://docs.rs/elide/latest/elide/redaction/struct.Rule.html#method.predicate
 //! [`MatchContext`]: https://docs.rs/elide/latest/elide/redaction/struct.MatchContext.html
 
-use elide_core::entity::LabelRef;
-use elide_core::primitive::ConfidenceThreshold;
+use elide::entity::LabelRef;
+use elide::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

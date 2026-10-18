@@ -28,29 +28,43 @@ default = []
 ## Turn on the test-only mock backends and the elide mock backends
 ## they compile into. Off in production so deployment config
 ## cannot name a mock recognizer.
-test-utils = ["elide/test-utils"]
+test-utils = ["elide/mocks"]
 
-## Ship the Gladia-backed STT backend, so a deployment can transcribe
-## through Gladia's hosted API instead of a self-hosted service. Off by
+## Ship the Deepgram-backed STT backend, so a deployment can transcribe
+## through Deepgram's hosted API instead of a self-hosted service. Off by
 ## default: it pulls a third-party HTTP client, and it sends audio off
-## your infrastructure. See `SttBackend::Gladia`.
-gladia = ["dep:elide-gladia"]
+## your infrastructure. See `SttBackend::Deepgram`.
+deepgram = ["dep:elide-deepgram"]
+
+[package.metadata.cargo-machete]
+# Depended on for its features, not its API: enabling
+# `openai-gpt`/`anthropic-claude`/`google-gemini` is what makes the
+# matching `Provider` variants exist, and this crate names those
+# through the `elide` facade. Dropping the dependency removes the
+# variants and fails to compile, so it is used — just not imported.
+ignored = ["elide-llm"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "llm-openai", "llm-anthropic", "llm-gemini", "lingua", "fake", "serde", "schema", "sha2", "hmac", "aes", "datetime", "usage"] }
+elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "lingua", "operator-fake", "serde", "schema", "operator-sha2", "operator-hmac", "operator-aes", "operator-datetime", "metrics"] }
 
 # Elide extensions
 elide-bentoml = { workspace = true, features = ["ner", "ocr", "stt"] }
-elide-gladia = { workspace = true, optional = true }
+elide-deepgram = { workspace = true, optional = true }
 
 # Internal crates
-# The `ExifPolicy` config enum a request carries on `CodecParams`.
-# Direct rather than through the `elide` facade: there it rides the
-# image codec features, and this crate owns the format registry but
-# decodes nothing itself, so pulling image codecs in to name one
-# enum would be backwards. `schema` implies `serde`.
-elide-image = { workspace = true, features = ["schema"] }
+# The `ExifPolicy` and `RasterMode` config enums a request carries
+# on `CodecParams`. Direct rather than through the `elide` facade:
+# there they ride the codec features that build the codecs
+# themselves, and this crate owns the format registry but decodes
+# nothing. A wire type must name them whatever codecs are built.
+# The hosted LLM clients a deployment can name. The facade dropped
+# its `llm-openai`/`-anthropic`/`-gemini` wrappers in favour of the
+# real per-client gates here, so the `Provider` variants a config
+# selects are enabled from this crate rather than renamed upstream.
+elide-llm = { workspace = true, features = ["rig", "openai-gpt", "anthropic-claude", "google-gemini"] }
+elide-image = { workspace = true, features = ["schema", "exif"] }
+elide-pdf = { workspace = true, features = ["schema"] }
 elide-governance = { workspace = true, features = [] }
 
 # Serialization

@@ -19,12 +19,12 @@
 //! [`Engine::anonymize`]: super::Engine::anonymize
 //! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
 
+use elide::backend::metrics::Usage;
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
-use elide::recognition::UsageReport;
 use elide::{ArtifactSet, PartId, Report};
 use elide_governance::recognition::Recognition;
 use elide_provider::{CodecParams, ComponentSelection, DocumentContext};
@@ -147,16 +147,21 @@ pub struct Audit {
     /// [`codec`]: Audit::codec
     #[serde(default, skip_serializing_if = "ComponentSelection::is_empty")]
     pub selection: ComponentSelection,
-    /// What the analyze pass cost: one entry per recognizer and
-    /// enricher that ran, each self-identifying by the name the
-    /// deployment configured it under.
+    /// What the analyze pass cost: one entry per *backend call*,
+    /// each carrying its outcome, duration, the model it called and
+    /// the units it spent.
     ///
-    /// Carried here rather than read off the report: elide derives
-    /// usage during analysis and drops it when a report is rebuilt
-    /// from the wire, so a host that bills on model spend would
-    /// lose it on the round trip.
-    #[serde(skip_serializing_if = "UsageReport::is_empty")]
-    pub usage: UsageReport,
+    /// Carried here rather than recomputed: a model call happens
+    /// once, during analysis, and nothing downstream can reconstruct
+    /// what it cost — so a host that bills on model spend would
+    /// lose it when the audit round-trips.
+    ///
+    /// Per call rather than one aggregate: the same model may be
+    /// called several times for one document (a page each, a
+    /// segment each), and a failed call still costs wall-clock time
+    /// a host may want to see. Summing is the reader's to do.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub usage: Vec<Usage>,
 }
 
 impl Audit {

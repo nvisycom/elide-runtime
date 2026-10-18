@@ -15,7 +15,7 @@
 //!   overlays a tone over the interval (the broadcast-bleep
 //!   treatment).
 
-use elide_core::modality::audio::Waveform;
+use elide::modality::audio::Waveform;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

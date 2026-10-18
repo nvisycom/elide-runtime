@@ -14,8 +14,8 @@
 //!   (for the list-enrichers accessor) + backend selection with its
 //!   per-kind fields flattened onto the wire.
 //! - [`SttBackend`] is the discriminated backend enum: a
-//!   self-hosted BentoML service, or Gladia's hosted API under the
-//!   `gladia` feature.
+//!   self-hosted BentoML service, or Deepgram's hosted API under
+//!   the `deepgram` feature.
 //!
 //! [`Enrichers`]: super::Enrichers
 
@@ -27,8 +27,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// How a configured enricher talks to its STT backend.
 ///
-/// Self-hosted BentoML, or Gladia's hosted API when the consuming
-/// crate enables the `gladia` feature. The `Mock` variant exists
+/// Self-hosted BentoML, or Deepgram's hosted API when the consuming
+/// crate enables the `deepgram` feature. The `Mock` variant exists
 /// only under `test-utils`, so the wire rejects `kind = "mock"` in
 /// production builds.
 #[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -43,11 +43,11 @@ pub enum SttBackend {
         /// Model identifier the backend should target.
         model: String,
     },
-    /// Gladia's hosted transcription API.
+    /// Deepgram's hosted transcription API.
     ///
     /// # Audio leaves your infrastructure
     ///
-    /// Gladia is a third-party service, and this enricher runs
+    /// Deepgram is a third-party service, and this enricher runs
     /// *before* redaction: it uploads the audio as received. Voice
     /// is biometric personal data, so for a recording carrying PHI
     /// or PII this is a disclosure to a processor, whatever the
@@ -55,14 +55,14 @@ pub enum SttBackend {
     /// deployment policy question. Prefer [`Bento`] when it is not.
     ///
     /// A run that used this backend says so: its enricher stamps a
-    /// `gladia` model event onto the audit's usage, so a trail
+    /// `deepgram` model event onto the audit's usage, so a trail
     /// shows which transcriber saw the audio.
     ///
     /// [`Bento`]: Self::Bento
-    #[cfg(feature = "gladia")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "gladia")))]
-    Gladia {
-        /// Gladia API key. Held in the deployment's own config,
+    #[cfg(feature = "deepgram")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "deepgram")))]
+    Deepgram {
+        /// Deepgram API key. Held in the deployment's own config,
         /// never on the request wire.
         ///
         /// Read from configuration but never written back: the
@@ -74,14 +74,14 @@ pub enum SttBackend {
         /// intended trade: a secret is supplied, not round-tripped.
         #[serde(skip_serializing)]
         api_key: String,
-        /// Base URL of the Gladia API, overriding the SDK's
-        /// default (`https://api.gladia.io`).
+        /// Base URL of the Deepgram API, overriding the SDK's
+        /// default (`https://api.deepgram.com`).
         ///
         /// For a regional endpoint, or to point a test deployment
         /// at a local stand-in rather than the live service.
         ///
         /// Read from configuration but never written back, like
-        /// [`api_key`](Self::Gladia::api_key) beside it. A URL can
+        /// [`api_key`](Self::Deepgram::api_key) beside it. A URL can
         /// carry its own credential — `https://user:pw@host` — and
         /// this type is `Serialize`, so a host dumping its
         /// effective settings would put that password wherever the
@@ -90,6 +90,14 @@ pub enum SttBackend {
         /// loadable as-is.
         #[serde(default, skip_serializing)]
         base_url: Option<String>,
+        /// Ask Deepgram to label speakers.
+        ///
+        /// Off by default. A segment then carries the speaker
+        /// Deepgram assigned its utterance, which a reviewer can
+        /// use to tell participants apart — at the cost of one
+        /// more inference about the people recorded.
+        #[serde(default)]
+        diarize: bool,
     },
     /// No-op backend; emits no segments. Test-only.
     #[cfg(feature = "test-utils")]
@@ -97,7 +105,7 @@ pub enum SttBackend {
     Mock,
 }
 
-/// Hand-written so [`Gladia`](Self::Gladia)'s API key never reaches
+/// Hand-written so [`Deepgram`](Self::Deepgram)'s API key never reaches
 /// a log. Everything else prints as the derive would.
 impl fmt::Debug for SttBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -107,14 +115,16 @@ impl fmt::Debug for SttBackend {
                 .field("base_url", base_url)
                 .field("model", model)
                 .finish(),
-            #[cfg(feature = "gladia")]
+            #[cfg(feature = "deepgram")]
             // `base_url` is redacted beside the key: a URL can
             // carry its own credential, and this is the rendering
-            // a panic or a tracing line takes.
-            Self::Gladia { .. } => f
-                .debug_struct("Gladia")
+            // a panic or a tracing line takes. `diarize` is not a
+            // secret, so it prints as configured.
+            Self::Deepgram { diarize, .. } => f
+                .debug_struct("Deepgram")
                 .field("api_key", &"***")
                 .field("base_url", &"***")
+                .field("diarize", diarize)
                 .finish(),
             #[cfg(feature = "test-utils")]
             Self::Mock => f.write_str("Mock"),
@@ -127,17 +137,56 @@ impl super::super::Backend for SttBackend {
     fn provider(&self) -> &'static str {
         match self {
             Self::Bento { .. } => "bento",
-            #[cfg(feature = "gladia")]
-            Self::Gladia { .. } => "gladia",
+            #[cfg(feature = "deepgram")]
+            Self::Deepgram { .. } => "deepgram",
             #[cfg(feature = "test-utils")]
             Self::Mock => "mock",
         }
     }
 }
 
-#[cfg(all(test, feature = "gladia"))]
+#[cfg(all(test, feature = "deepgram"))]
 mod tests {
     use super::SttBackend;
+
+    /// A deployment names this backend on the wire as
+    /// `kind = "deepgram"`, and `diarize` is optional there.
+    ///
+    /// The variant rename changed the tag a config must carry, and
+    /// the tag is the only thing that selects a backend — a stale
+    /// `"gladia"` has to be refused rather than silently matching
+    /// something else. `diarize` defaults off because asking
+    /// Deepgram to label speakers infers one more thing about the
+    /// people recorded, so a config that says nothing must not get
+    /// it.
+    #[test]
+    fn the_wire_selects_deepgram_by_tag_and_defaults_diarize_off() {
+        let json = r#"{"kind":"deepgram","api_key":"sk-x"}"#;
+        let backend: SttBackend = serde_json::from_str(json).expect("minimal config loads");
+        let SttBackend::Deepgram {
+            base_url, diarize, ..
+        } = backend
+        else {
+            panic!("`kind = \"deepgram\"` must select the Deepgram backend");
+        };
+        assert!(!diarize, "diarization is opt-in, not the default");
+        assert!(base_url.is_none(), "no base URL means the public endpoint");
+
+        let opted_in = r#"{"kind":"deepgram","api_key":"sk-x","diarize":true}"#;
+        let backend: SttBackend = serde_json::from_str(opted_in).expect("config loads");
+        assert!(
+            matches!(backend, SttBackend::Deepgram { diarize: true, .. }),
+            "an explicit `diarize` must reach the backend",
+        );
+
+        // The tag this crate used to accept is now unknown, so a
+        // config left behind by the old backend fails loudly.
+        let stale = r#"{"kind":"gladia","api_key":"sk-x"}"#;
+        assert!(
+            serde_json::from_str::<SttBackend>(stale).is_err(),
+            "a config naming the removed backend must be refused, not ignored",
+        );
+    }
 
     /// The key must not escape through *either* rendering: the
     /// hand-written `Debug` covers logs and panics, `skip_serializing`
@@ -145,11 +194,12 @@ mod tests {
     /// `#[derive(Debug)]` or dropping the attribute would silently
     /// undo one, so both are pinned here rather than left to review.
     #[test]
-    fn the_gladia_api_key_never_escapes() {
+    fn the_deepgram_api_key_never_escapes() {
         const SECRET: &str = "sk-super-secret-value";
-        let backend = SttBackend::Gladia {
+        let backend = SttBackend::Deepgram {
             api_key: SECRET.to_owned(),
-            base_url: Some("https://eu-west.gladia.io".to_owned()),
+            base_url: Some("https://api.eu.deepgram.com".to_owned()),
+            diarize: false,
         };
 
         let debugged = format!("{backend:?}");
@@ -158,7 +208,7 @@ mod tests {
             "the API key reached a Debug rendering: {debugged}",
         );
         assert!(
-            !debugged.contains("eu-west.gladia.io"),
+            !debugged.contains("api.eu.deepgram.com"),
             "nor did the base URL, which can carry a credential of its own: \
              {debugged}",
         );
@@ -170,7 +220,7 @@ mod tests {
             "the API key reached a serialized config: {json}",
         );
         assert!(
-            !json.contains("eu-west.gladia.io"),
+            !json.contains("api.eu.deepgram.com"),
             "the base URL is not serialized either: a URL can carry its own \
              credential, so it is read from config and never written back: {json}",
         );

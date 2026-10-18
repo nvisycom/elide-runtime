@@ -48,14 +48,14 @@
 //! [`Attribution`] so reviewers can trace any redaction back to
 //! the exact rule that fired.
 //!
-//! [`Attribution`]: elide_core::entity::audit::Attribution
+//! [`Attribution`]: elide::entity::audit::Attribution
 //! [`LabelEntry`]: crate::policy::LabelEntry
 //! [`LabelScope`]: crate::policy::LabelScope
 //! [`Policy`]: crate::policy::Policy
 //! [`Policy::fallback`]: crate::policy::Policy::fallback
 //! [`Policy::rules`]: crate::policy::Policy::rules
 //! [`PolicyRule`]: crate::policy::PolicyRule
-//! [`LabelRef`]: elide_core::entity::LabelRef
+//! [`LabelRef`]: elide::entity::LabelRef
 //! [`ModalityRedactions`]: redaction::ModalityRedactions
 //! [`Predicate`]: crate::policy::Predicate
 //! [`Predicate::LabelInScope`]: crate::policy::Predicate::LabelInScope

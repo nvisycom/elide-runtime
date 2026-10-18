@@ -47,14 +47,8 @@ mod registered;
 use std::mem;
 
 use bytes::Bytes;
-use elide::codec::{FormatRegistry, UntypedDocumentHandle};
-use elide::modality::Modality;
-use elide::modality::audio::Audio;
-use elide::modality::image::Image;
-use elide::modality::tabular::Tabular;
-use elide::modality::text::Text;
-use elide::primitive::RasterMode;
-use elide::recognition::UsageReport;
+use elide::backend::metrics::Usage;
+use elide::codec::{Document as CodecDocument, FormatRegistry};
 use elide::{
     AnalyzedDocument, ArtifactSet, Directives, Document as EngineDocument, Error, ErrorKind,
     Report, Result,
@@ -62,8 +56,8 @@ use elide::{
 use elide_governance::policy::Policy;
 use elide_governance::recognition::Recognition;
 use elide_provider::{
-    CodecParams, ComponentSelection, DocumentContext, ExifPolicy, KeyConfig, Provider,
-    RequestContext,
+    Analyzers, CodecParams, ComponentSelection, DocumentContext, ExifPolicy, KeyConfig, Provider,
+    RasterMode, RequestContext,
 };
 use serde::Deserialize;
 
@@ -274,7 +268,10 @@ impl Engine {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document, request.codec).await?;
-        let orchestrator = self.provider.analyze_orchestrator(
+        let Analyzers {
+            orchestrator,
+            usage,
+        } = self.provider.analyze_orchestrator(
             &request.context,
             &request.recognition,
             policies,
@@ -287,10 +284,11 @@ impl Engine {
         } = orchestrator
             .re_analyze(&mut handle, prior, &Directives::new())
             .await?;
-        // Cloned off the report: elide derives usage during
-        // analysis and drops it when a report is rebuilt from the
-        // wire, so the audit carries its own copy.
-        let usage = report.usage().clone();
+        // Read after the analysis, not off the report: a model call
+        // is recorded where it happens, by the `Metered` decorator
+        // each configured backend is wrapped in, and the report
+        // carries no usage of its own.
+        let usage = usage.entries();
 
         // A document whose codec resolved to a modality with no
         // registered pipeline produces no part at all, and nothing
@@ -458,7 +456,7 @@ impl Engine {
         let report = mem::replace(&mut audit.report, Report::new());
         audit.report = orchestrator.anonymize_with(&mut decoded, report).await?;
 
-        let bytes = encode_redacted(decoded.handle)?;
+        let bytes = encode_redacted(&decoded.document)?;
 
         Ok(Document {
             name,
@@ -527,7 +525,7 @@ impl Engine {
         bytes: bytes::Bytes,
         extension: &str,
         codec: CodecParams,
-    ) -> std::result::Result<UntypedDocumentHandle, elide::Error> {
+    ) -> std::result::Result<CodecDocument, elide::Error> {
         let mut registry = FormatRegistry::with_builtin();
 
         // A raster mode other than `Auto` cannot be honoured without
@@ -537,9 +535,8 @@ impl Engine {
         if codec.raster_mode != RasterMode::default() {
             #[cfg(feature = "codec-pdf-render")]
             {
-                registry = registry.with_replaced_format(elide::codec::handler::pdf_format_with(
-                    codec.raster_mode,
-                ));
+                registry = registry
+                    .with_replaced_format(elide::codec::pdf::pdf_format_with(codec.raster_mode));
             }
             #[cfg(not(feature = "codec-pdf-render"))]
             return Err(elide::Error::new(
@@ -556,7 +553,7 @@ impl Engine {
         if codec.csv_has_headers != CodecParams::default().csv_has_headers
             || codec.csv_delimiter.is_some()
         {
-            registry = registry.with_replaced_format(elide::codec::handler::csv_format_with(
+            registry = registry.with_replaced_format(elide::codec::plain::csv_format_with(
                 codec.csv_has_headers,
                 codec.csv_delimiter,
             ));
@@ -593,17 +590,17 @@ impl Engine {
             #[cfg(feature = "codec-png")]
             {
                 registry =
-                    registry.with_replaced_format(elide::codec::handler::png_format_with(policy));
+                    registry.with_replaced_format(elide::codec::image::png_format_with(policy));
             }
             #[cfg(feature = "codec-jpeg")]
             {
                 registry =
-                    registry.with_replaced_format(elide::codec::handler::jpeg_format_with(policy));
+                    registry.with_replaced_format(elide::codec::image::jpeg_format_with(policy));
             }
             #[cfg(feature = "codec-tiff")]
             {
                 registry =
-                    registry.with_replaced_format(elide::codec::handler::tiff_format_with(policy));
+                    registry.with_replaced_format(elide::codec::image::tiff_format_with(policy));
             }
         }
         registry
@@ -641,8 +638,13 @@ struct AuditWire {
     // a malformed one.
     #[serde(default)]
     recognition: Vec<Recognition>,
+    // Defaulted and gated: accounting is opt-in, so an audit
+    // written by a build without it simply has no entries, which is
+    // the common case rather than a malformed one.
+    // Defaulted: a pass that called no model records nothing,
+    // which is an empty tally rather than a malformed audit.
     #[serde(default)]
-    usage: UsageReport,
+    usage: Vec<Usage>,
 }
 
 /// Whether `report` describes any document at all.
@@ -674,52 +676,22 @@ fn names_a_document(report: &Report, name: &str) -> bool {
     document_names(report).any(|known| known == name)
 }
 
-/// Re-encode the redacted handle back into document bytes.
+/// Re-encode the redacted document back into native bytes.
 ///
-/// [`DocumentHandle::encode`] is per-modality, so the untyped
-/// handle has to be converted to the typed one first. Which
-/// modality that is, is the handle's own answer: it is asked
-/// directly rather than inferred from the report, so a container
-/// whose parts span modalities still re-encodes through its body's.
+/// [`Document::encode`] assembles the parts itself: each stream
+/// part re-encodes its own content, each blob contributes its
+/// staged bytes, and the format's recombiner joins them. Blob
+/// sub-parts are folded in before this runs, so nothing here has
+/// to walk the tree or pick a modality — which is what the engine
+/// previously needed an untyped handle and a per-modality dispatch
+/// for.
 ///
-/// [`DocumentHandle::encode`]: elide::codec::DocumentHandle::encode
-fn encode_redacted(handle: UntypedDocumentHandle) -> Result<Bytes> {
-    /// Take the first modality the handle claims to be, and encode
-    /// through it. Listing them here keeps the modality set in one
-    /// place rather than a nest of fallible conversions.
-    macro_rules! encode_first_match {
-        ($handle:expr, $($modality:ty),+ $(,)?) => {{
-            let handle = $handle;
-            $(
-                if handle.is::<$modality>() {
-                    // The `is` check just passed, so the conversion
-                    // cannot fail.
-                    let Ok(typed) = handle.into::<$modality>() else {
-                        unreachable!("handle reports itself as this modality")
-                    };
-                    return encode_typed(typed);
-                }
-            )+
-            handle
-        }};
-    }
-
-    let _handle = encode_first_match!(handle, Text, Tabular, Image, Audio);
-    Err(Error::new(
-        ErrorKind::Redaction,
-        "post-apply re-encode: the document handle is a modality this \
-         engine has no codec for",
-    ))
-}
-
-/// Encode one typed handle, mapping the codec's error into a
-/// redaction-stage one so a failure here is not mistaken for a
-/// malformed input.
-fn encode_typed<M: Modality>(typed: elide::codec::DocumentHandle<M>) -> Result<Bytes>
-where
-    elide::codec::DocumentHandle<M>: elide::modality::DataWriter<M>,
-{
-    let content = typed.encode().map_err(|err| {
+/// The codec's error is mapped into a redaction-stage one, so a
+/// failure here is not mistaken for malformed input.
+///
+/// [`Document::encode`]: elide::codec::Document::encode
+fn encode_redacted(document: &CodecDocument) -> Result<Bytes> {
+    let content = document.encode().map_err(|err| {
         Error::new(
             ErrorKind::Redaction,
             format!("post-apply encode failed: {err}"),

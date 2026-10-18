@@ -24,8 +24,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide-core = { workspace = true, features = ["serde", "schema", "audio", "image", "tabular"] }
-elide-operator = { workspace = true, features = ["serde", "schema", "datetime", "sha2"] }
+elide = { workspace = true, features = ["serde", "schema", "audio", "image", "tabular", "operator-datetime", "operator-sha2"] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

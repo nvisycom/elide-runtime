@@ -42,8 +42,8 @@ pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
 pub use self::request::RequestContext;
 use crate::recognition::{
-    Availability, ComponentSelection, Enrichers, Recognizers, ResolvedComponents, Resolver,
-    analyzers,
+    Analyzers, Availability, ComponentSelection, Enrichers, Recognizers, ResolvedComponents,
+    Resolver, analyzers,
 };
 use crate::redaction::{Pickers, anonymizers, pickers};
 
@@ -201,21 +201,27 @@ impl Provider {
         policies: &[Policy],
         correlation_id: Uuid,
         selection: &ComponentSelection,
-    ) -> Result<Orchestrator> {
+    ) -> Result<Analyzers> {
         validate_scope_references(policies)?;
         let catalog = compile_catalog(policies, recognition)?;
         let live_scope = build_scope(context, catalog, correlation_id);
 
-        let orchestrator = analyzers(
+        let Analyzers {
+            orchestrator,
+            usage,
+        } = analyzers(
             &self.inner.recognizers,
             &self.inner.enrichers,
             recognition,
             &self.inner.availability,
             selection,
         )?;
-        Ok(orchestrator
-            .with_registry(self.inner.formats.clone())
-            .with_scope(live_scope))
+        Ok(Analyzers {
+            orchestrator: orchestrator
+                .with_registry(self.inner.formats.clone())
+                .with_scope(live_scope),
+            usage,
+        })
     }
 
     /// Build an [`Orchestrator`] for the anonymize path: reuse

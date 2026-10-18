@@ -21,33 +21,28 @@ use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
-use elide_governance::recognition::Recognition;
 
+use super::compile::Resolved;
 use super::enrichers::compile::{attach_language, attach_ocr, attach_stt};
 use super::layer::attach_dedup;
 use super::recognizers::compile::{
     attach_custom, attach_llm_lineup, attach_ner_lineup, attach_pattern,
 };
-use super::{Component, OcrBackend, SttBackend};
-use crate::recognition::{AttachTo, LlmBackend, NerBackend};
+use crate::recognition::AttachTo;
 
 /// Compile a text-modality [`Analyzer`].
 ///
 /// Text supports the full recognizer set: Pattern, NER, and LLM.
 /// Every wired NER and LLM recognizer whose modality list
 /// contains `Text` attaches. Language detection always attaches.
-pub(crate) fn compile_text(
-    ner: &[Component<NerBackend>],
-    llm: &[Component<LlmBackend>],
-    recognition: &[Recognition],
-) -> Result<Analyzer<Text>> {
+pub(crate) fn compile_text(resolved: &Resolved<'_>) -> Result<Analyzer<Text>> {
     let mut analyzer = Analyzer::<Text>::new();
 
     analyzer = attach_language(analyzer);
     analyzer = attach_pattern(analyzer);
-    analyzer = attach_custom(analyzer, recognition)?;
-    analyzer = attach_ner_lineup(analyzer, ner)?;
-    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Text)?;
+    analyzer = attach_custom(analyzer, resolved.recognition())?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
+    analyzer = attach_llm_lineup(analyzer, &resolved.llm, AttachTo::Text, resolved)?;
 
     Ok(attach_dedup(analyzer))
 }
@@ -60,16 +55,13 @@ pub(crate) fn compile_text(
 /// language-scoped, so a cell would otherwise be analyzed with no
 /// language while the same value in a `.txt` had one. LLM has no
 /// `LlmModality` impl for Tabular in elide today.
-pub(crate) fn compile_tabular(
-    ner: &[Component<NerBackend>],
-    recognition: &[Recognition],
-) -> Result<Analyzer<Tabular>> {
+pub(crate) fn compile_tabular(resolved: &Resolved<'_>) -> Result<Analyzer<Tabular>> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
     analyzer = attach_language(analyzer);
     analyzer = attach_pattern(analyzer);
-    analyzer = attach_custom(analyzer, recognition)?;
-    analyzer = attach_ner_lineup(analyzer, ner)?;
+    analyzer = attach_custom(analyzer, resolved.recognition())?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
 
     Ok(attach_dedup(analyzer))
 }
@@ -84,16 +76,11 @@ pub(crate) fn compile_tabular(
 /// attaches when the deployment wired one via
 /// its `ProviderConfig`.
 ///
-pub(crate) fn compile_image(
-    ner: &[Component<NerBackend>],
-    llm: &[Component<LlmBackend>],
-    ocr: Option<&Component<OcrBackend>>,
-    recognition: &[Recognition],
-) -> Result<Analyzer<Image>> {
+pub(crate) fn compile_image(resolved: &Resolved<'_>) -> Result<Analyzer<Image>> {
     let mut analyzer = Analyzer::<Image>::new();
 
-    if let Some(ocr) = ocr {
-        analyzer = attach_ocr(analyzer, ocr)?;
+    if let Some(ocr) = resolved.ocr {
+        analyzer = attach_ocr(analyzer, ocr, resolved)?;
     }
 
     // After OCR: image text lives in the artifacts the OCR
@@ -101,9 +88,9 @@ pub(crate) fn compile_image(
     // has run.
     analyzer = attach_language(analyzer);
     analyzer = attach_pattern(analyzer);
-    analyzer = attach_custom(analyzer, recognition)?;
-    analyzer = attach_ner_lineup(analyzer, ner)?;
-    analyzer = attach_llm_lineup(analyzer, llm, AttachTo::Image)?;
+    analyzer = attach_custom(analyzer, resolved.recognition())?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
+    analyzer = attach_llm_lineup(analyzer, &resolved.llm, AttachTo::Image, resolved)?;
 
     Ok(attach_dedup(analyzer))
 }
@@ -117,23 +104,19 @@ pub(crate) fn compile_image(
 /// without it the transcript is empty so language detection is a
 /// no-op. LLM has no `LlmModality` impl for Audio in elide today.
 ///
-pub(crate) fn compile_audio(
-    ner: &[Component<NerBackend>],
-    stt: Option<&Component<SttBackend>>,
-    recognition: &[Recognition],
-) -> Result<Analyzer<Audio>> {
+pub(crate) fn compile_audio(resolved: &Resolved<'_>) -> Result<Analyzer<Audio>> {
     let mut analyzer = Analyzer::<Audio>::new();
 
-    if let Some(stt) = stt {
-        analyzer = attach_stt(analyzer, stt)?;
+    if let Some(stt) = resolved.stt {
+        analyzer = attach_stt(analyzer, stt, resolved)?;
     }
 
     // After STT, for the same reason as image: the transcript is an
     // artifact, so language detection reads nothing before it lands.
     analyzer = attach_language(analyzer);
     analyzer = attach_pattern(analyzer);
-    analyzer = attach_custom(analyzer, recognition)?;
-    analyzer = attach_ner_lineup(analyzer, ner)?;
+    analyzer = attach_custom(analyzer, resolved.recognition())?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
 
     Ok(attach_dedup(analyzer))
 }

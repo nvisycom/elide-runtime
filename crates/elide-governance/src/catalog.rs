@@ -23,7 +23,7 @@
 //! to the crate that defines them. The engine only consumes the
 //! catalog this produces.
 //!
-//! [`Label`]: elide_core::entity::Label
+//! [`Label`]: elide::entity::Label
 //! [`Policy`]: crate::policy::Policy
 //! [`labels`]: crate::policy::Policy::label_scope
 //! [`Predicate::LabelInScope`]: crate::policy::Predicate::LabelInScope
@@ -31,8 +31,8 @@
 
 use std::sync::OnceLock;
 
-use elide_core::entity::LabelCatalog;
-use elide_core::{Error, ErrorKind, Result};
+use elide::entity::LabelCatalog;
+use elide::{Error, ErrorKind, Result};
 
 use crate::policy::Policy;
 use crate::recognition::Recognition;
@@ -62,7 +62,7 @@ use crate::recognition::Recognition;
 ///   rather than handing back a clean empty answer.
 ///
 /// [`labels`]: crate::policy::Policy::label_scope
-/// [`Label`]: elide_core::entity::Label
+/// [`Label`]: elide::entity::Label
 pub fn compile_catalog(policies: &[Policy], recognition: &[Recognition]) -> Result<LabelCatalog> {
     let mut catalog = LabelCatalog::new();
     // The request's own labels first: a policy scope may name one,
@@ -166,7 +166,7 @@ fn builtin_catalog() -> &'static LabelCatalog {
 
 #[cfg(test)]
 mod tests {
-    use elide_core::entity::{Label, LabelRef};
+    use elide::entity::{Label, LabelRef};
     use hipstr::HipStr;
     use uuid::Uuid;
 

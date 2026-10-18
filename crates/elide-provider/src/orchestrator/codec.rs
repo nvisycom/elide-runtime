@@ -9,8 +9,8 @@
 //!
 //! [`DocumentContext`]: super::DocumentContext
 
-use elide::primitive::RasterMode;
-use elide_image::ExifPolicy;
+use elide_image::exif::ExifPolicy;
+use elide_pdf::primitive::RasterMode;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

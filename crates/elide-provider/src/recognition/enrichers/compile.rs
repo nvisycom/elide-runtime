@@ -9,6 +9,7 @@
 //! Each enricher is at-most-one per analyzer.
 
 use elide::Result;
+use elide::backend::metrics::Metered;
 use elide::detection::Analyzer;
 use elide::enrichment::lingua::LinguaEnricher;
 #[cfg(feature = "test-utils")]
@@ -20,14 +21,15 @@ use elide::enrichment::stt::SttEnricher;
 use elide::modality::TextRecognizable;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
-#[cfg(feature = "gladia")]
+#[cfg(feature = "deepgram")]
 use elide::{Error, ErrorKind};
 use elide_bentoml::ocr::BentoOcr;
 use elide_bentoml::stt::BentoStt;
-#[cfg(feature = "gladia")]
-use elide_gladia::{GladiaStt, gladia};
+#[cfg(feature = "deepgram")]
+use elide_deepgram::{DeepgramStt, deepgram};
 
 use super::super::Component;
+use super::super::compile::Resolved;
 use crate::recognition::{OcrBackend, SttBackend};
 
 /// Attach the lingua language-detection enricher.
@@ -57,74 +59,103 @@ pub(in crate::recognition) fn attach_language<M: TextRecognizable>(
 pub(in crate::recognition) fn attach_ocr(
     analyzer: Analyzer<Image>,
     config: &Component<OcrBackend>,
+    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<Image>> {
     // The deployment's name for the enricher becomes its usage id,
     // so a usage report names the enricher a caller configured
     // rather than a fixed crate string.
-    let builder = OcrEnricher::builder().with_name(config.name.clone());
-    let builder = match &config.backend {
-        OcrBackend::Bento { base_url, model } => {
-            builder.with_backend(BentoOcr::new(base_url.clone(), model.clone())?)
-        }
+    // The enricher is generic over its backend, so each arm builds a
+    // differently-typed value and attaches it directly rather than
+    // folding into one shared builder.
+    Ok(match &config.backend {
+        OcrBackend::Bento { base_url, model } => analyzer.with_enricher(
+            OcrEnricher::new(Metered::new(
+                BentoOcr::new(base_url.clone(), model.clone())?,
+                resolved.sink(),
+            ))
+            .with_name(config.name.clone()),
+        ),
         #[cfg(feature = "test-utils")]
-        OcrBackend::Mock => builder.with_backend(MockOcrBackend::new()),
-    };
-    Ok(analyzer.with_enricher(builder.build()?))
+        OcrBackend::Mock => analyzer.with_enricher(
+            OcrEnricher::new(Metered::new(MockOcrBackend::new(), resolved.sink()))
+                .with_name(config.name.clone()),
+        ),
+    })
 }
 
-/// Build the Gladia backend, going through the SDK client only
+/// Build the Deepgram backend, going through the SDK client only
 /// when the deployment overrode the base URL.
 ///
-/// `GladiaStt::new` builds its own client against Gladia's public
-/// endpoint, which is the common case; a regional endpoint or a
-/// local stand-in needs the client built explicitly.
+/// `DeepgramStt::new` builds its own client against Deepgram's
+/// public endpoint, which is the common case; a regional endpoint
+/// or a local stand-in needs the client built explicitly.
 ///
-/// The `map_err` mirrors what `GladiaStt::new` does internally.
-/// elide-gladia keeps its `GladiaError` conversion crate-private
-/// and the SDK's own error has no `From` into elide's, so there is
-/// nothing to delegate to from here. Naming the rejected URL is
-/// worth the closure regardless: a bare conversion would report
-/// only that a client could not be built.
-#[cfg(feature = "gladia")]
-fn gladia_backend(api_key: &str, base_url: Option<&str>) -> Result<GladiaStt> {
-    let Some(base_url) = base_url else {
-        return GladiaStt::new(api_key);
+/// The `map_err` names the rejected URL: a bare conversion would
+/// report only that a client could not be built, leaving the
+/// operator to guess which setting was at fault.
+#[cfg(feature = "deepgram")]
+fn deepgram_backend(api_key: &str, base_url: Option<&str>, diarize: bool) -> Result<DeepgramStt> {
+    let backend = match base_url {
+        None => DeepgramStt::new(api_key)?,
+        Some(base_url) => {
+            let client = deepgram::Deepgram::with_base_url_and_api_key(base_url, api_key).map_err(
+                |err| {
+                    Error::new(
+                        ErrorKind::Configuration,
+                        format!("deepgram: base_url {base_url:?} did not build a client: {err}"),
+                    )
+                },
+            )?;
+            DeepgramStt::from_client(client)
+        }
     };
-    let client = gladia::Client::builder()
-        .with_api_key(api_key)
-        .with_base_url(base_url)
-        .build()
-        .map_err(|err| {
-            Error::new(
-                ErrorKind::Configuration,
-                format!("gladia: base_url {base_url:?} did not build a client: {err}"),
-            )
-        })?;
-    GladiaStt::from_client(client)
+    // Diarization is opt-in: it infers one more thing about the
+    // people recorded, so a deployment asks for it rather than
+    // getting it by default.
+    Ok(if diarize {
+        backend.with_diarization()
+    } else {
+        backend
+    })
 }
 
 /// Attach an [`SttEnricher`] for the audio modality.
 ///
 /// The deployment's `Bento` backend wraps elide-bentoml's
-/// `BentoStt` client; `Gladia` wraps elide-gladia's hosted one.
+/// `BentoStt` client; `Deepgram` wraps elide-deepgram's hosted one.
 ///
 /// [`SttEnricher`]: elide::enrichment::stt::SttEnricher
 pub(in crate::recognition) fn attach_stt(
     analyzer: Analyzer<Audio>,
     config: &Component<SttBackend>,
+    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<Audio>> {
     // Same as OCR: the configured name is the usage id.
-    let builder = SttEnricher::builder().with_name(config.name.clone());
-    let builder = match &config.backend {
-        SttBackend::Bento { base_url, model } => {
-            builder.with_backend(BentoStt::new(base_url.clone(), model.clone())?)
-        }
-        #[cfg(feature = "gladia")]
-        SttBackend::Gladia { api_key, base_url } => {
-            builder.with_backend(gladia_backend(api_key, base_url.as_deref())?)
-        }
+    // Each arm attaches its own backend type; see `attach_ocr`.
+    Ok(match &config.backend {
+        SttBackend::Bento { base_url, model } => analyzer.with_enricher(
+            SttEnricher::new(Metered::new(
+                BentoStt::new(base_url.clone(), model.clone())?,
+                resolved.sink(),
+            ))
+            .with_name(config.name.clone()),
+        ),
+        #[cfg(feature = "deepgram")]
+        SttBackend::Deepgram {
+            api_key,
+            base_url,
+            diarize,
+        } => analyzer.with_enricher(
+            SttEnricher::new(Metered::new(
+                deepgram_backend(api_key, base_url.as_deref(), *diarize)?,
+                resolved.sink(),
+            ))
+            .with_name(config.name.clone()),
+        ),
         #[cfg(feature = "test-utils")]
-        SttBackend::Mock => builder.with_backend(MockSttBackend::new()),
-    };
-    Ok(analyzer.with_enricher(builder.build()?))
+        SttBackend::Mock => analyzer.with_enricher(
+            SttEnricher::new(Metered::new(MockSttBackend::new(), resolved.sink()))
+                .with_name(config.name.clone()),
+        ),
+    })
 }

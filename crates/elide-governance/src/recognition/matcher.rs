@@ -12,8 +12,8 @@
 //!
 //! [`custom`]: super::Recognition::custom
 
-use elide_core::entity::LabelRef;
-use elide_core::primitive::Confidence;
+use elide::entity::LabelRef;
+use elide::primitive::Confidence;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -26,11 +26,11 @@
 
 use std::fmt::Debug;
 
-pub use elide_core::modality::Modality;
-pub use elide_core::modality::audio::Audio;
-pub use elide_core::modality::image::Image;
-pub use elide_core::modality::tabular::Tabular;
-pub use elide_core::modality::text::Text;
+pub use elide::modality::Modality;
+pub use elide::modality::audio::Audio;
+pub use elide::modality::image::Image;
+pub use elide::modality::tabular::Tabular;
+pub use elide::modality::text::Text;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -17,18 +17,20 @@
 
 use std::sync::{Arc, LazyLock};
 
+use elide::backend::metrics::Metered;
 use elide::detection::Analyzer;
 use elide::entity::LabelCatalog;
 use elide::modality::TextRecognizable;
 use elide::recognition::Recognizer;
 use elide::recognition::context::Enhanced;
+use elide::recognition::llm::LlmRecognizer;
 #[cfg(feature = "test-utils")]
 use elide::recognition::llm::backend::MockBackend as MockLlmBackend;
 use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend};
 use elide::recognition::llm::prompt::{DefaultPrompt, Prompt};
 use elide::recognition::llm::provider::Provider;
-use elide::recognition::llm::{LlmRecognizer, LlmRecognizerBuilder};
 use elide::recognition::ner::NerRecognizer;
+use elide::recognition::ner::backend::MockBackend as MockNerBackend;
 use elide::recognition::pattern::{
     Dictionary, PatternRecognizer, PatternRecognizerBuilder, Regex, Scoring, Term, Variant,
 };
@@ -36,6 +38,7 @@ use elide::{Error, ErrorKind, Result};
 use elide_bentoml::ner::BentoNer;
 use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
 
+use super::super::compile::Resolved;
 use super::super::{Component, LlmBackend as LlmBackendConfig, NerBackend as NerBackendConfig};
 use crate::recognition::{AttachTo, LlmSource, NerBackend};
 
@@ -258,33 +261,49 @@ fn pattern_with_limits(builder: PatternRecognizerBuilder) -> PatternRecognizerBu
 pub(in crate::recognition) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
     ner: &[Component<NerBackendConfig>],
+    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
-    NerRecognizer: Recognizer<M> + 'static,
+    NerRecognizer<Metered<BentoNer>>: Recognizer<M> + 'static,
+    NerRecognizer<Metered<MockNerBackend>>: Recognizer<M> + 'static,
 {
     for recognizer in ner {
-        analyzer = attach_ner_one(analyzer, recognizer)?;
+        analyzer = attach_ner_one(analyzer, recognizer, resolved)?;
     }
     Ok(analyzer)
 }
 
-fn attach_ner_one<M>(analyzer: Analyzer<M>, spec: &Component<NerBackend>) -> Result<Analyzer<M>>
+fn attach_ner_one<M>(
+    analyzer: Analyzer<M>,
+    spec: &Component<NerBackend>,
+    resolved: &Resolved<'_>,
+) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
-    NerRecognizer: Recognizer<M> + 'static,
+    // One bound per backend the config can name: the recognizer
+    // carries its backend as a type parameter, so each is a distinct
+    // type that has to implement `Recognizer<M>` in its own right.
+    NerRecognizer<Metered<BentoNer>>: Recognizer<M> + 'static,
+    NerRecognizer<Metered<MockNerBackend>>: Recognizer<M> + 'static,
 {
-    let mut builder = NerRecognizer::builder().with_name(spec.name.clone());
-    match &spec.backend {
-        NerBackend::Bento { base_url, model } => {
-            builder = builder.with_backend(BentoNer::new(base_url.clone(), model.clone())?);
-        }
+    // The recognizer carries its backend as a type parameter, so each
+    // arm attaches a differently-typed recognizer rather than folding
+    // into one builder.
+    Ok(match &spec.backend {
+        NerBackend::Bento { base_url, model } => analyzer.with_recognizer(
+            NerRecognizer::new(Metered::new(
+                BentoNer::new(base_url.clone(), model.clone())?,
+                resolved.sink(),
+            ))
+            .with_name(spec.name.clone()),
+        ),
         #[cfg(feature = "test-utils")]
-        NerBackend::Mock => {
-            builder = builder.with_mock_backend();
-        }
-    }
-    Ok(analyzer.with_recognizer(builder.build()?))
+        NerBackend::Mock => analyzer.with_recognizer(
+            NerRecognizer::new(Metered::new(MockNerBackend::default(), resolved.sink()))
+                .with_name(spec.name.clone()),
+        ),
+    })
 }
 
 /// Attach every LLM recognizer whose `modalities` list contains
@@ -305,10 +324,12 @@ pub(in crate::recognition) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &[Component<LlmBackendConfig>],
     modality: AttachTo,
+    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<M>>
 where
     M: LlmModality,
-    RigBackend: LlmBackend<M>,
+    Metered<RigBackend<M>>: LlmBackend<Modality = M>,
+    Metered<MockLlmBackend<M>>: LlmBackend<Modality = M>,
     DefaultPrompt: Prompt<M>,
 {
     for recognizer in llm {
@@ -325,7 +346,7 @@ where
         if !recognizer.backend.modalities.contains(&modality) {
             continue;
         }
-        analyzer = attach_llm_one(analyzer, recognizer)?;
+        analyzer = attach_llm_one(analyzer, recognizer, resolved)?;
     }
     Ok(analyzer)
 }
@@ -333,35 +354,50 @@ where
 fn attach_llm_one<M>(
     analyzer: Analyzer<M>,
     spec: &Component<LlmBackendConfig>,
+    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<M>>
 where
     M: LlmModality,
-    RigBackend: LlmBackend<M>,
+    Metered<RigBackend<M>>: LlmBackend<Modality = M>,
+    Metered<MockLlmBackend<M>>: LlmBackend<Modality = M>,
     DefaultPrompt: Prompt<M>,
 {
-    let mut builder = LlmRecognizer::<M>::builder().with_name(spec.name.clone());
-    builder = attach_llm_source(builder, spec)?;
-    builder = builder.with_default_prompt();
-    Ok(analyzer.with_recognizer(builder.build()?))
+    // The recognizer carries its backend as a type parameter, so the
+    // mock and the rig-backed arms are distinct types and each
+    // attaches its own recognizer. `with_default` supplies the
+    // default prompt that a separate builder step used to add.
+    Ok(match &spec.backend.source {
+        #[cfg(feature = "test-utils")]
+        LlmSource::Mock => analyzer.with_recognizer(
+            LlmRecognizer::with_default(Metered::new(MockLlmBackend::default(), resolved.sink()))
+                .with_name(spec.name.clone().to_string()),
+        ),
+        source => {
+            let backend = Metered::new(RigBackend::new(llm_provider(source)?)?, resolved.sink());
+            analyzer.with_recognizer(
+                LlmRecognizer::with_default(backend).with_name(spec.name.clone().to_string()),
+            )
+        }
+    })
 }
 
-fn attach_llm_source<M>(
-    builder: LlmRecognizerBuilder<M>,
-    spec: &Component<LlmBackendConfig>,
-) -> Result<LlmRecognizerBuilder<M>>
-where
-    M: LlmModality,
-    RigBackend: LlmBackend<M>,
-{
-    let provider = match &spec.backend.source {
+/// Resolve a configured source into the rig provider it names.
+///
+/// The per-client `Provider` variants are gated upstream, and this
+/// crate enables them, so a source a config can express always has
+/// a variant to map onto.
+fn llm_provider(source: &LlmSource) -> Result<Provider> {
+    Ok(match source {
         LlmSource::OpenAi(p) => Provider::OpenAi(p.clone()),
         LlmSource::Anthropic(p) => Provider::Anthropic(p.clone()),
         LlmSource::Gemini(p) => Provider::Gemini(p.clone()),
         LlmSource::Ollama(p) => Provider::Ollama(p.clone()),
         #[cfg(feature = "test-utils")]
         LlmSource::Mock => {
-            return Ok(builder.with_backend(MockLlmBackend));
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                "the mock LLM source has no rig provider; it attaches directly",
+            ));
         }
-    };
-    Ok(builder.with_backend(RigBackend::new(provider)?))
+    })
 }

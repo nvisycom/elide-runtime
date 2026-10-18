@@ -27,8 +27,8 @@
 //! [`id`]: crate::policy::PolicyRule::id
 //! [`name`]: crate::policy::PolicyRule::name
 
-use elide_core::entity::LabelRef;
-use elide_core::entity::audit::Attribution;
+use elide::entity::LabelRef;
+use elide::entity::audit::Attribution;
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -72,7 +72,7 @@ pub struct PolicyRule {
     /// Optional so ad-hoc and hand-authored rules stay cheap to
     /// write; the shipped templates set it on every rule.
     ///
-    /// [`Attribution`]: elide_core::entity::audit::Attribution
+    /// [`Attribution`]: elide::entity::audit::Attribution
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribution: Option<Attribution>,
     /// How this rule selects targets and picks operators. See

@@ -208,7 +208,16 @@ async fn export_csv_bundles_every_table_into_one_zip() {
     write_artefact("sample", "audit-tables.zip", &archive);
 
     let mut zip = zip::ZipArchive::new(Cursor::new(archive)).expect("archive opens");
-    let names: Vec<String> = zip.file_names().map(ToOwned::to_owned).collect();
+    // zip 9 yields `Result<Cow<str>>` per entry rather than `&str`:
+    // a name can be invalid UTF-8, which it now reports instead of
+    // hiding.
+    let names: Vec<String> = zip
+        .file_names()
+        .map(|name| {
+            name.expect("fixture entry names are valid UTF-8")
+                .into_owned()
+        })
+        .collect();
     for table in <Audit as ExportCsv>::TABLES {
         assert!(
             names.contains(&format!("{table}.csv")),

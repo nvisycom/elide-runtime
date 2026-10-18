@@ -21,8 +21,8 @@
 //! [`Predicate::LabelInScope`]: crate::policy::Predicate::LabelInScope
 //! [`fallback`]: super::Policy::fallback
 
-use elide_core::entity::LabelRef;
-use elide_core::entity::audit::Attribution;
+use elide::entity::LabelRef;
+use elide::entity::audit::Attribution;
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

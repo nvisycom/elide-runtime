@@ -192,3 +192,52 @@ fn the_default_strips_and_preserving_is_the_opt_in() {
          configured path rather than the shared registry",
     );
 }
+
+/// A pass that called a model records what it cost.
+///
+/// The whole point of wrapping each backend in `Metered` is that the
+/// audit can answer "which model saw this data, and what did the
+/// call cost". A mock backend still makes a call, so it still
+/// records one — proving the sink is wired, not just present.
+#[tokio::test]
+async fn an_analyzed_pass_records_what_its_model_calls_cost() {
+    use elide_pipeline::provider::{Component, Enrichers, NerBackend, Recognizers};
+
+    let engine = Engine::new(
+        ProviderConfig {
+            recognizers: Recognizers {
+                ner: vec![Component {
+                    name: "mock-ner".into(),
+                    tags: Vec::new(),
+                    backend: NerBackend::Mock,
+                }],
+                llm: Vec::new(),
+            },
+            enrichers: Enrichers::default(),
+        }
+        .build(),
+    );
+
+    let audit = engine
+        .analyze(csv(HEADERLESS), &[detect_email()], &RequestContext::new())
+        .await
+        .expect("analyze succeeds")
+        .audit;
+
+    assert!(
+        !audit.usage.is_empty(),
+        "a pass that ran a NER backend must record its call; got no entries",
+    );
+    // Named by the *configured* component name, not a fixed crate
+    // string: an audit has to attribute a call to the component a
+    // deployment wired, since two may share a backend kind.
+    assert!(
+        audit.usage.iter().all(|u| u.model.model == "mock-ner"),
+        "every entry must name the configured component; got: {:?}",
+        audit
+            .usage
+            .iter()
+            .map(|u| &u.model.model)
+            .collect::<Vec<_>>(),
+    );
+}

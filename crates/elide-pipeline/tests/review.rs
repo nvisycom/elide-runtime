@@ -631,7 +631,7 @@ async fn unhandled_reaches_into_container_parts() {
         context: DocumentContext::default(),
         codec: CodecParams::default(),
         selection: Default::default(),
-        usage: elide::recognition::UsageReport::default(),
+        usage: Vec::new(),
     };
 
     let unhandled = audit.unhandled();

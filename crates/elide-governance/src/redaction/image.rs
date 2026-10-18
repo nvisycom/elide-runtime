@@ -12,7 +12,7 @@
 //! - [`ImageRedaction::Blackbox`] →
 //!   `elide::redaction::operators::Blackbox`
 
-use elide_core::primitive::Color;
+use elide::primitive::Color;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

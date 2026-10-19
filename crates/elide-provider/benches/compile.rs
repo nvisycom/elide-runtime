@@ -15,7 +15,7 @@
 use std::hint::black_box;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use elide_provider::{ComponentSelection, DocumentContext, Provider, ProviderConfig};
+use elide_provider::{ComponentSelection, Deployment, DocumentContext, Provider};
 use elide_schema::policy::Policy;
 use elide_schema::recognition::Recognition;
 use elide_template::{
@@ -53,7 +53,7 @@ fn stacked() -> Vec<Policy> {
 }
 
 fn provider() -> Provider {
-    ProviderConfig::default().build()
+    Provider::new(Deployment::default())
 }
 
 fn compile(c: &mut Criterion) {

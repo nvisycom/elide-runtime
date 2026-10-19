@@ -24,6 +24,8 @@ use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::component::Backend;
+
 ///
 /// How a configured enricher talks to its STT backend.
 ///
@@ -31,8 +33,15 @@ use serde::{Deserialize, Serialize};
 /// crate enables the `deepgram` feature. The `Mock` variant exists
 /// only under `mocks`, so the wire rejects `kind = "mock"` in
 /// production builds.
-#[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+// Denies unknown fields even though `Component` flattens this:
+// the attribute is refused on the *outer* struct (the flattened
+// fields reach it first and look unknown), but on the enum itself
+// it catches a misspelled backend key -- `zero_retenton` for
+// `zero_retention` -- which would otherwise be dropped, leaving a
+// deployment believing it asked for something it did not.
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SttBackend {
     /// BentoML-hosted STT service. Engine wires the shared
     /// `elide-bentoml` client; per-enricher URL + model come from
@@ -132,7 +141,7 @@ impl fmt::Debug for SttBackend {
     }
 }
 
-impl super::super::Backend for SttBackend {
+impl Backend for SttBackend {
     /// Provider slug for the list-enrichers accessor.
     fn provider(&self) -> &'static str {
         match self {

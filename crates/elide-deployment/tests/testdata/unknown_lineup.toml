@@ -1,0 +1,8 @@
+# `ocrr` is a typo for `ocr`. Silently ignoring it would leave a
+# deployment believing it has OCR configured when it has none.
+
+[[enrichers.ocrr]]
+name = "x"
+kind = "bento"
+base_url = "https://ocr.internal"
+model = "m"

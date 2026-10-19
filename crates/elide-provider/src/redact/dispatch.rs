@@ -32,7 +32,7 @@ use elide_schema::policy::{Policy, Predicate};
 use elide_schema::redaction::ModalityRedactions;
 use uuid::Uuid;
 
-use super::selector::{PolicyContext, attach, fallback_attribution, rule_attribution};
+use super::selector::{PolicyContext, attach};
 
 /// Where an operator is being attached. The per-modality `Op`
 /// dispatcher takes one of these and feeds the carried
@@ -176,7 +176,7 @@ where
     for policy in policies.clone() {
         let context = PolicyContext::from_policy(policy);
         for rule in &policy.rules {
-            let attribution = rule_attribution(policy, rule);
+            let attribution = policy.rule_attribution(rule);
             for attachment in rule.attachments() {
                 anonymizer = compile_one(
                     Target::Rule {
@@ -197,7 +197,7 @@ where
             anonymizer = compile_one(
                 Target::Fallback {
                     anonymizer,
-                    attribution: fallback_attribution(policy),
+                    attribution: policy.fallback_attribution(),
                     context,
                 },
                 redactions,

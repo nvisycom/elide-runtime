@@ -1,0 +1,14 @@
+# Two components sharing a name: a request's allowlist selects by
+# name, so the second could never be reached.
+
+[[recognizers.ner]]
+name = "ambiguous"
+kind = "bento"
+base_url = "https://a"
+model = "m"
+
+[[recognizers.ner]]
+name = "ambiguous"
+kind = "bento"
+base_url = "https://b"
+model = "m"

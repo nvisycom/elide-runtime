@@ -1,0 +1,12 @@
+# `rate_limit` in snake_case, matching the surrounding file's own
+# convention (base_url, api_key). An alias accepts it; without one
+# the limit was silently dropped.
+
+[[recognizers.ner]]
+name = "limited"
+kind = "bento"
+base_url = "https://ner.internal"
+model = "m"
+
+[recognizers.ner.rate_limit]
+requests = 30

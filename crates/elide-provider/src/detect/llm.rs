@@ -9,8 +9,8 @@ use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend};
 use elide::recognition::llm::prompt::{DefaultPrompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::{Error, ErrorKind, Result};
+use elide_deployment::component::{Component, LlmBackend as LlmBackendConfig};
 
-use crate::component::{Component, LlmBackend as LlmBackendConfig};
 use crate::detect::{AttachTo, LlmSource};
 use crate::request::Resolved;
 
@@ -78,6 +78,14 @@ where
 /// The per-client `Provider` variants are gated upstream, and this
 /// crate enables them, so a source a config can express always has
 /// a variant to map onto.
+///
+/// A free function here rather than a method on [`LlmSource`],
+/// despite being a conversion from it: the variants it maps onto
+/// are behind elide's per-client features (`openai-gpt` and
+/// siblings), which this crate enables and `elide-deployment` does
+/// not. Hosting the method there would mean enabling them there —
+/// pulling the HTTP clients into the config crate, which is the
+/// coupling that crate exists to avoid.
 fn llm_provider(source: &LlmSource) -> Result<Provider> {
     Ok(match source {
         LlmSource::OpenAi(p) => Provider::OpenAi(p.clone()),

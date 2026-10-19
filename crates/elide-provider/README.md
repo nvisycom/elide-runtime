@@ -8,7 +8,7 @@ Elide Runtime.
 ## Overview
 
 A deployment decides some things once: which NER model, which LLM
-provider, and which OCR and STT engines. ProviderConfig is that set as
+provider, and which OCR and STT engines. A Deployment is that set as
 one serializable value, and building it yields a Provider.
 
 A Provider then builds an Orchestrator per request, because an
@@ -21,7 +21,7 @@ This crate depends only on Elide and the governance vocabulary, never
 on the pipeline: it is the half that turns configuration into Elide
 runtime values, and knows nothing about documents, audits, or reviewer
 decisions. A host reads a file, an environment variable, or an
-encrypted row in its own database, fills in a ProviderConfig, and
+encrypted row in its own database, loads a Deployment, and
 builds. Neither crate learns which.
 
 Backend credentials travel inside the backend configs, because that is

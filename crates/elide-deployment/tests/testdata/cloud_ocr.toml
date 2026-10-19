@@ -1,0 +1,7 @@
+# The hosted OCR backend names its cloud, so a deployment file
+# says whose infrastructure a document goes to.
+
+[[enrichers.ocr]]
+name = "gcp-ocr"
+kind = "google_document_ai"
+processor = "projects/p/locations/eu/processors/abc"

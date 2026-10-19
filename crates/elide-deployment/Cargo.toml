@@ -1,0 +1,62 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "elide-deployment"
+description = "Deployment configuration for the Elide Runtime: backends, availability, codec and feature knobs, loadable from TOML"
+keywords = ["elide", "deployment", "config", "toml", "backend"]
+categories = ["config", "api-bindings"]
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+documentation = { workspace = true }
+
+[features]
+default = []
+
+## Name Pioneer's hosted GLiNER service as a NER backend.
+##
+## Config-only here: the client is built from these fields, so this
+## feature adds no dependency to this crate. `elide-provider` wires
+## the backend behind its own `pioneer` feature.
+pioneer = []
+
+## Name Google Cloud Document AI as an OCR backend. Config-only
+## here: the client is built from these fields, so this feature adds
+## no dependency to this crate.
+google-document-ai = []
+
+## Ship the Deepgram-backed STT backend, so a deployment can
+## name it. Off by default: it sends audio off your
+## infrastructure before redaction runs.
+deepgram = []
+
+## Turn on the test-only mock backends and the elide mock backends
+## they compile into. Off in production so deployment config
+## cannot name a mock recognizer.
+mocks = ["elide/mocks"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Elide crates
+elide = { workspace = true, features = ["serde", "schema", "llm", "llm-rig"] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true, features = ["uuid1"] }
+toml = { workspace = true, features = ["std", "serde", "parse"] }
+
+# Primitive datatypes
+hipstr = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+# Wire round-trip assertions for the serde derives above.
+serde_json = { workspace = true }

@@ -1,0 +1,11 @@
+# `requests = 0` describes a limiter that never admits a call. The
+# decorators panic on it, so the load must refuse it first.
+
+[[recognizers.ner]]
+name = "never-runs"
+kind = "bento"
+base_url = "https://ner.internal"
+model = "m"
+
+[recognizers.ner.rateLimit]
+requests = 0

@@ -1,16 +1,18 @@
 //! NER recognizers, one per configured component.
 
-use elide::Result;
-use elide::backend::metrics::Metered;
 use elide::detection::Analyzer;
 use elide::modality::TextRecognizable;
 use elide::recognition::Recognizer;
 use elide::recognition::ner::NerRecognizer;
 #[cfg(feature = "mocks")]
 use elide::recognition::ner::backend::MockBackend as MockNerBackend;
+use elide::{Error, ErrorKind, Result};
 use elide_bentoml::ner::BentoNer;
+use elide_deployment::component::{Backend, Component, NerBackend as NerBackendConfig};
+#[cfg(feature = "pioneer")]
+use elide_pioneer_gliner::PioneerNer;
 
-use crate::component::{Component, NerBackend as NerBackendConfig};
+use super::decorate::{Decorated, decorate};
 use crate::detect::NerBackend;
 use crate::request::Resolved;
 
@@ -21,7 +23,7 @@ pub(super) fn attach_ner_lineup<M>(
 ) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
-    NerRecognizer<Metered<BentoNer>>: Recognizer<M> + 'static,
+    NerRecognizer<Decorated<BentoNer>>: Recognizer<M> + 'static,
 {
     for recognizer in ner {
         analyzer = attach_ner_one(analyzer, recognizer, resolved)?;
@@ -48,23 +50,87 @@ where
     // signatures. Neither is necessary: every caller in `modality`
     // instantiates a concrete `Analyzer<Text>`/`Analyzer<Image>`, so
     // the mock recognizer's own impl is what satisfies it there.
-    NerRecognizer<Metered<BentoNer>>: Recognizer<M> + 'static,
+    NerRecognizer<Decorated<BentoNer>>: Recognizer<M> + 'static,
 {
     // The recognizer carries its backend as a type parameter, so each
     // arm attaches a differently-typed recognizer rather than folding
     // into one builder.
     Ok(match &spec.backend {
         NerBackend::Bento { base_url, model } => analyzer.with_recognizer(
-            NerRecognizer::new(Metered::new(
+            NerRecognizer::new(decorate(
                 BentoNer::new(base_url.clone(), model.clone())?,
+                spec.rate_limit.as_ref(),
                 resolved.sink(),
             ))
             .with_name(spec.name.clone()),
         ),
+        #[cfg(feature = "pioneer")]
+        NerBackend::Pioneer {
+            api_key,
+            base_url,
+            threshold,
+            zero_retention,
+        } => {
+            let mut backend = match base_url {
+                Some(url) => PioneerNer::with_base_url(api_key.clone(), url.clone())?,
+                None => PioneerNer::new(api_key.clone())?,
+            };
+            if let Some(threshold) = threshold {
+                backend = backend.with_threshold(*threshold);
+            }
+            if *zero_retention {
+                backend = backend.with_zero_retention();
+            }
+            analyzer.with_recognizer(
+                NerRecognizer::new(decorate(backend, spec.rate_limit.as_ref(), resolved.sink()))
+                    .with_name(spec.name.clone()),
+            )
+        }
         #[cfg(feature = "mocks")]
         NerBackend::Mock => analyzer.with_recognizer(
-            NerRecognizer::new(Metered::new(MockNerBackend::default(), resolved.sink()))
-                .with_name(spec.name.clone()),
+            NerRecognizer::new(decorate(
+                MockNerBackend::default(),
+                spec.rate_limit.as_ref(),
+                resolved.sink(),
+            ))
+            .with_name(spec.name.clone()),
         ),
+        // A config variant whose factory this build does not ship.
+        //
+        // Reachable because cargo features are additive across a
+        // dependency graph: a host (or one of its dependencies) can
+        // enable `elide-deployment/pioneer` without this crate's
+        // `pioneer`, so the config enum gains a variant whose arm
+        // above was compiled out. Without this arm the `match` is
+        // non-exhaustive and *this crate* fails to build, blaming a
+        // crate the host never touched. With it, the deployment is
+        // refused at compile with the feature to enable.
+        //
+        // Unreachable when every backend feature is on, which is
+        // why the lint is allowed rather than the arm gated: the
+        // set of features that would make it dead is exactly the
+        // set this crate cannot name from inside one `cfg`.
+        //
+        // Not covered by a test: the mismatch needs
+        // `elide-deployment/pioneer` on with this crate's `pioneer`
+        // off, and a test crate cannot `cfg` on a dependency's
+        // feature. What is checked instead is that the combination
+        // *compiles* -- `cargo clippy -p elide-provider --features
+        // elide-deployment/pioneer` is in the feature matrix, and
+        // without this arm it fails with E0004.
+        #[allow(
+            unreachable_patterns,
+            reason = "dead only when every backend feature is on"
+        )]
+        unsupported => {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "recognizers.ner `{}` names a backend this build does not ship ({}). Enable the matching `elide-provider` feature.",
+                    spec.name,
+                    unsupported.provider(),
+                ),
+            ));
+        }
     })
 }

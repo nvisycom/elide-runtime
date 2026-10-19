@@ -1,0 +1,10 @@
+# A doubled dollar escapes the expansion, so the value below is
+# the literal text rather than a lookup. Note that expansion runs
+# before the TOML is parsed, so a bare reference in a comment is
+# still expanded -- which is why this comment writes none.
+
+[[recognizers.ner]]
+name = "literal"
+kind = "bento"
+base_url = "$${NOT_A_VAR}"
+model = "m"

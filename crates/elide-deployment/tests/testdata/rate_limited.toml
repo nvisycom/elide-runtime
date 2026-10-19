@@ -1,0 +1,13 @@
+# A component with both limits set: 60 calls a minute, bursting to
+# 10, with at most 4 calls in flight.
+
+[[recognizers.ner]]
+name = "limited-ner"
+kind = "bento"
+base_url = "https://ner.internal"
+model = "m"
+
+[recognizers.ner.rateLimit]
+requests = 60
+burst = 10
+maxConcurrent = 4

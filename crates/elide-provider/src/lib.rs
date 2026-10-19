@@ -5,11 +5,11 @@
 //! Deployment-configured recognition and redaction providers.
 //!
 //! A deployment decides some things once: which NER model, which
-//! LLM provider, which OCR and STT engines, and the cryptographic
-//! key provider the `HmacHash` and `Encrypt` operators resolve
-//! through. [`ProviderConfig`] is that set as one serializable
-//! value, and [`ProviderConfig::build`] turns it into a
-//! [`Provider`].
+//! LLM provider, which OCR and STT engines, which of them a caller
+//! may select, and how language detection is narrowed. That set is
+//! a [`Deployment`], which lives in its own crate because it is
+//! configuration rather than code, and [`Provider::new`] turns one
+//! into the backends it names.
 //!
 //! A [`Provider`] then builds an [`Orchestrator`] per request,
 //! because an orchestrator carries request data — the policies in
@@ -17,19 +17,20 @@
 //! deployment-wide value could hold. Config is parsed once, an
 //! orchestrator is constructed per request.
 //!
-//! This crate depends only on [`elide`] and the governance
-//! vocabulary, never on the pipeline: it is the half that turns
-//! configuration into elide runtime values, and knows nothing about
-//! documents, audits, or reviewer decisions.
+//! This crate depends on [`elide`], the governance vocabulary and
+//! the deployment config, never on the pipeline: it is the half
+//! that turns configuration into elide runtime values, and knows
+//! nothing about documents, audits, or reviewer decisions.
 //!
 //! # Secrets
 //!
 //! Backend credentials travel inside the backend configs, because
 //! that is where elide's own provider types keep them: an LLM
 //! recognizer names its model and its API key together. A
-//! serialized [`ProviderConfig`] therefore contains credentials,
-//! and belongs wherever the deployment already keeps secrets rather
-//! than in version control.
+//! serialized [`Deployment`] therefore contains credentials, and
+//! belongs wherever the deployment already keeps secrets rather
+//! than in version control — or draws them from the environment
+//! with `${VAR}` interpolation, so the file itself holds none.
 //!
 //! Cryptographic keys are not here at all. A key belongs to the
 //! caller asking for redaction, not to the process serving them, so
@@ -38,12 +39,23 @@
 //!
 //! [`Orchestrator`]: elide::Orchestrator
 
-mod component;
 mod detect;
 mod orchestrator;
 mod redact;
 mod request;
 
+/// Deployment configuration: which backends exist, how to reach
+/// them, and which of them a caller may select.
+///
+/// Re-exported whole: a host loads a [`Deployment`] and hands it to
+/// [`Provider::new`], so the two types meet here even though the
+/// config lives in its own crate.
+///
+/// [`Deployment`]: deployment::Deployment
+#[doc(inline)]
+pub use elide_deployment as deployment;
+#[doc(inline)]
+pub use elide_deployment::Deployment;
 /// The EXIF policy a request carries on [`CodecParams`].
 ///
 /// Re-exported from `elide-image` so a caller can name the field's
@@ -68,6 +80,4 @@ pub use self::detect::{
     ComponentSelection, Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers,
     SttBackend, UnauthenticatedProvider, UsageHandle,
 };
-pub use self::orchestrator::{
-    CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
-};
+pub use self::orchestrator::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};

@@ -9,6 +9,8 @@
 //!   essentials only.
 //! - [`Table::Provenance`]: one row per event on every entity's
 //!   provenance chain.
+//! - [`Table::Reviews`]: one row per reviewer override, with the
+//!   rationale the provenance table has no column for.
 //!
 //! All three join on `entity_id`. The design choice for CSV is
 //! honest scalar columns everywhere: no JSON blobs, no
@@ -18,7 +20,7 @@
 use std::{io, result};
 
 use elide::entity::Entity;
-use elide::entity::audit::{AuditKind, ManualIntent};
+use elide::entity::audit::{Attribution, AuditKind, ManualIntent};
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
@@ -61,9 +63,10 @@ macro_rules! per_modality {
 
 impl ExportCsv for Audit {
     /// Entities first, then their provenance, then reviewer
-    /// decisions: each table joins onto the previous one's
-    /// `entity_id`, so this is the order a reader builds them up in.
-    const TABLES: &'static [Table] = &[Table::Entities, Table::Provenance];
+    /// decisions: each table joins onto the first one's
+    /// `entity_id`, so this is the order a reader builds them up
+    /// in.
+    const TABLES: &'static [Table] = &[Table::Entities, Table::Provenance, Table::Reviews];
 
     /// Write one table of this audit as CSV.
     ///
@@ -71,14 +74,21 @@ impl ExportCsv for Audit {
     /// |---|---|
     /// | [`Entities`] | `part_id, modality, entity_id, label, confidence, coref` |
     /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
+    /// | [`Reviews`] | `entity_id, intent, reviewer, authority, reason, timestamp` |
     ///
-    /// Both tables carry `entity_id` so they join back together.
+    /// All three carry `entity_id` so they join back together.
     ///
-    /// Reviewer edits are not here: they are a separate input the
-    /// caller applies to the report, so what an audit exports is
-    /// the amended detections, not the amendments.
+    /// [`Reviews`] is a projection of the manual events already on
+    /// the report, not of the [`EditSet`] a caller applied: once
+    /// applied, an override *is* part of a detection's provenance.
+    /// It exists beside [`Provenance`] because that table renders
+    /// every kind with one identifier column, which has nowhere to
+    /// put a reviewer's rationale.
+    ///
     /// Rows are sorted for stable diffs: entities by
-    /// `(part_id, entity_id)`, the others by `entity_id`.
+    /// `(part_id, entity_id)`, provenance by
+    /// `(entity_id, event_index)`, reviews by
+    /// `(entity_id, timestamp)`.
     ///
     /// `part_id` is the part's path, segments joined for display,
     /// and `coref` is empty
@@ -88,8 +98,10 @@ impl ExportCsv for Audit {
     /// neither polymorphic locations nor event chains. Callers who
     /// need them use [`ExportJson`](elide_export::ExportJson).
     ///
+    /// [`EditSet`]: elide_review::EditSet
     /// [`Entities`]: Table::Entities
     /// [`Provenance`]: Table::Provenance
+    /// [`Reviews`]: Table::Reviews
     ///
     /// # Errors
     ///
@@ -101,6 +113,7 @@ impl ExportCsv for Audit {
             Table::Provenance => {
                 write_rows(writer, ProvenanceRow::header(), self.provenance_rows())
             }
+            Table::Reviews => write_rows(writer, ReviewRow::header(), self.review_rows()),
             // `Table` is `#[non_exhaustive]`: a table added there
             // that this audit cannot project is a caller error, not
             // a silent empty file.
@@ -152,6 +165,33 @@ impl Audit {
         });
         rows
     }
+
+    /// One row per reviewer override, sorted by `(entity_id,
+    /// timestamp)`.
+    ///
+    /// Empty for an audit no reviewer touched, which is the common
+    /// case: an export runs whether or not a review happened, and
+    /// an empty table says "nothing was overridden" rather than
+    /// failing.
+    fn review_rows(&self) -> Vec<ReviewRow<'_>> {
+        let mut rows = Vec::new();
+        let parts = sorted_part_ids(&self.report);
+        per_modality!(|M| {
+            for id in &parts {
+                if let Some(entities) = self.report.part_entities::<M>(id) {
+                    extend_review_rows(entities, &mut rows);
+                }
+            }
+        });
+        // By timestamp within an entity, so two overrides on one
+        // entity read in the order a reviewer made them.
+        rows.sort_by(|a, b| {
+            a.entity_id
+                .cmp(&b.entity_id)
+                .then_with(|| a.timestamp.cmp(&b.timestamp))
+        });
+        rows
+    }
 }
 
 /// One entity row for CSV export. Every borrowed field points
@@ -180,6 +220,32 @@ struct ProvenanceRow<'a> {
     confidence: f32,
     timestamp: String,
     payload_id: Option<&'a str>,
+}
+
+/// One reviewer override: which decision a human made on an
+/// entity, and why.
+///
+/// Distinct from the [`Provenance`](Table::Provenance) row for the
+/// same event, which renders the intent but drops the rationale:
+/// CSV has no column for an `Attribution`, so provenance keeps the
+/// one identifier every kind carries and this table unpacks the
+/// one kind that carries more.
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+struct ReviewRow<'a> {
+    entity_id: Uuid,
+    /// `flag`, `suppress` or `amend`.
+    intent: &'static str,
+    /// Who made the decision: the event's own source.
+    reviewer: &'a str,
+    /// The cited authority, when the reviewer cited one. Empty for
+    /// a freeform rationale and for an unexplained override.
+    authority: Option<&'a str>,
+    /// The reviewer's rationale: the citation's own rationale when
+    /// cited, the policy label when freeform. Empty when the
+    /// override carried no reason.
+    reason: Option<&'a str>,
+    timestamp: String,
 }
 
 fn extend_entity_rows<'a, M: Modality>(
@@ -217,6 +283,53 @@ fn extend_provenance_rows<'a, M: Modality>(
     }
 }
 
+/// Collect one row per reviewer override on these entities.
+///
+/// Walks the same provenance chains the
+/// [`Provenance`](Table::Provenance) table does and keeps only the
+/// manual events, so an entity no reviewer touched contributes
+/// nothing and an entity overridden twice contributes two rows.
+fn extend_review_rows<'a, M: Modality>(entities: &'a [Entity<M>], out: &mut Vec<ReviewRow<'a>>) {
+    for entity in entities {
+        for event in entity.audit.events() {
+            let AuditKind::Manual(manual) = &event.kind else {
+                continue;
+            };
+            let (authority, reason) = match &manual.attribution {
+                Some(Attribution::Cited(cited)) => {
+                    (Some(cited.authority.as_str()), cited.rationale.as_deref())
+                }
+                // A freeform attribution's `name` is where
+                // `EditSet::apply` puts the reviewer's reason, so it
+                // reads as the rationale rather than an authority.
+                Some(Attribution::Freeform(freeform)) => (None, Some(freeform.name.as_str())),
+                None => (None, None),
+            };
+            out.push(ReviewRow {
+                entity_id: entity.id,
+                intent: intent_name(manual.intent),
+                reviewer: event.source.as_str(),
+                authority,
+                reason,
+                timestamp: event.timestamp.to_string(),
+            });
+        }
+    }
+}
+
+/// The column spelling for one reviewer decision.
+///
+/// Shared with [`EventColumns::of`], so the `payload_id` a
+/// provenance row shows for a manual event and the `intent` this
+/// table shows cannot disagree.
+const fn intent_name(intent: ManualIntent) -> &'static str {
+    match intent {
+        ManualIntent::Flag => "flag",
+        ManualIntent::Suppress => "suppress",
+        ManualIntent::Amend => "amend",
+    }
+}
+
 impl EntityRow<'_> {
     const fn header() -> &'static [&'static str] {
         &[
@@ -240,6 +353,19 @@ impl ProvenanceRow<'_> {
             "confidence",
             "timestamp",
             "payload_id",
+        ]
+    }
+}
+
+impl ReviewRow<'_> {
+    const fn header() -> &'static [&'static str] {
+        &[
+            "entity_id",
+            "intent",
+            "reviewer",
+            "authority",
+            "reason",
+            "timestamp",
         ]
     }
 }
@@ -290,14 +416,7 @@ impl<'a> EventColumns<'a> {
             // The reviewer is the event's own `source`, which the row
             // already carries; what distinguishes one manual event from
             // another is which decision it recorded.
-            AuditKind::Manual(e) => Self::named(
-                "manual",
-                match e.intent {
-                    ManualIntent::Flag => "flag",
-                    ManualIntent::Suppress => "suppress",
-                    ManualIntent::Amend => "amend",
-                },
-            ),
+            AuditKind::Manual(e) => Self::named("manual", intent_name(e.intent)),
             // `AuditKind` is `#[non_exhaustive]`: a kind added upstream
             // lands here rather than breaking the build. Every variant
             // elide ships today is named above, so this arm firing means

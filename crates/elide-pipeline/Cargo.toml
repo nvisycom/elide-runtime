@@ -42,7 +42,7 @@ audio = ["codec-wav"]
 ## image modalities are still needed to handle the parts these
 ## containers embed. `codec-pdf-render` (rasterising pages for
 ## OCR) is opt-in via its own toggle.
-document = ["codec-docx", "codec-pdf"]
+document = ["codec-docx", "codec-pptx", "codec-pdf"]
 
 ## Individual codec toggles. Every modality's analyzer,
 ## anonymizer, and redaction operators are always compiled in, so
@@ -59,12 +59,39 @@ codec-mp3 = ["elide/codec-mp3"]
 ## DOCX documents (a zip archive with an XML body plus embedded
 ## image parts).
 codec-docx = ["elide/codec-docx"]
+## PPTX presentations, which embed image parts the same way DOCX
+## does.
+codec-pptx = ["elide/codec-pptx"]
 ## PDF documents (text extraction).
 codec-pdf = ["elide/codec-pdf"]
+## Per-format text codecs. `codec-text` on the `elide` dependency
+## compiles all four in unconditionally today; these let a build
+## that wants only some of them say so, and name the formats a
+## deployment actually accepts.
+codec-txt = ["elide/codec-txt"]
+codec-json = ["elide/codec-json"]
+codec-html = ["elide/codec-html"]
+codec-xml = ["elide/codec-xml"]
+
+## Detect a document's format from its bytes when the extension
+## does not say, instead of refusing it. Off by default: sniffing
+## a format the caller did not declare is a decision a deployment
+## should make deliberately.
+codec-sniff = ["elide/codec-sniff"]
+
 ## PDF page rasterisation for downstream OCR. Standalone toggle
 ## on top of `codec-pdf`; opt-in because it drags in a native
 ## rendering dep.
 codec-pdf-render = ["codec-pdf", "elide/codec-pdf-render"]
+
+## Emit each backend call's usage as a `tracing` event, so a
+## deployment's existing subscriber records what every model call
+## cost without reading the audit.
+metrics-tracing = ["elide/metrics-tracing"]
+
+## Report each backend call through the `metrics` facade, to
+## whatever recorder the host installed.
+metrics-recorder = ["elide/metrics-recorder"]
 
 ## JSON audit export via `elide_export::ExportJson`.
 audit-json = ["dep:elide-export", "elide-export/json"]

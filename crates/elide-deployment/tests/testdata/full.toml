@@ -1,0 +1,25 @@
+# A deployment naming one of each component kind, with a
+# credential drawn from the environment.
+
+[enrichers.lingua]
+candidates = ["en", "es"]
+
+[[recognizers.ner]]
+name = "medical-ner"
+tags = ["medical"]
+kind = "bento"
+base_url = "https://ner.internal"
+model = "clinical"
+
+[[recognizers.llm]]
+name = "gpt"
+kind = "open-ai"
+api_key = "${OPENAI_KEY}"
+model = "gpt-4"
+modalities = ["text"]
+
+[[enrichers.ocr]]
+name = "fast-ocr"
+kind = "bento"
+base_url = "https://ocr.internal"
+model = "fast"

@@ -40,7 +40,7 @@ use elide::entity::LabelRef;
 use elide::entity::audit::Attribution;
 use elide::modality::Modality;
 use elide::redaction::{Anonymizer, MatchContext, Operator, Rule};
-use elide_schema::policy::{LabelScope, Policy, PolicyRule, Predicate};
+use elide_schema::policy::{LabelScope, Policy, Predicate};
 use uuid::Uuid;
 
 /// Per-policy scoping context threaded into every predicate the
@@ -102,61 +102,6 @@ impl PolicyContext {
     pub(in crate::redact) fn label_scope_contains(&self, label: &LabelRef) -> bool {
         self.label_scope.contains(label)
     }
-}
-
-/// Build an [`Attribution`] for a concrete rule that fired.
-///
-/// A rule carrying an attribution passes it through verbatim, so
-/// an audit records the provision rather than prose a consumer
-/// would have to parse.
-///
-/// Without one the attribution falls back to [`Freeform`] under
-/// the policy's own name and description.
-///
-/// The rule's own id is not stamped: elide's [`Attribution`] names
-/// an authority, not a source record. Two rules citing the same
-/// provision — Safe Harbor's age/date table and its bulk erase
-/// both cite §164.514(b)(2) — therefore read alike in the trail.
-/// Distinguishing them means giving each a distinct attribution.
-///
-/// [`Freeform`]: elide::entity::audit::Attribution::Freeform
-pub(super) fn rule_attribution(policy: &Policy, rule: &PolicyRule) -> Attribution {
-    match &rule.attribution {
-        Some(authored) => authored.clone(),
-        None => {
-            let freeform = Attribution::freeform(policy.name.clone());
-            match &policy.description {
-                Some(description) => freeform.with_description(description.clone()).into(),
-                None => freeform.into(),
-            }
-        }
-    }
-}
-
-/// Build an [`Attribution`] for a policy's `fallback`.
-///
-/// Freeform under the policy's own name: a catch-all fires
-/// because no rule claimed the entity, so there is no provision
-/// to cite.
-pub(super) fn fallback_attribution(policy: &Policy) -> Attribution {
-    // A policy whose scopes all answer to one authority can cite it:
-    // CCPA and GDPR do every redaction through the fallback, so
-    // without this their audit events would lose the citation their
-    // scope carries.
-    //
-    // Compares `Option`s rather than filtering the uncited ones out,
-    // so a cited scope beside an uncited one disagrees. Skipping the
-    // uncited scope would stamp its labels with an authority that
-    // does not cover them, which is worse than no citation at all.
-    let mut declared = policy.scopes.iter().map(|s| s.attribution.as_ref());
-    if let Some(Some(first)) = declared.next()
-        && declared.all(|other| other == Some(first))
-    {
-        return first.clone();
-    }
-    Attribution::freeform(policy.name.clone())
-        .with_description("policy fallback: no rule matched this entity")
-        .into()
 }
 
 /// Attach `operator` to `anonymizer` for the rule's

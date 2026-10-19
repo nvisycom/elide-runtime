@@ -7,7 +7,7 @@ use bytes::Bytes;
 use elide::entity::LabelRef;
 use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{CodecParams, ExifPolicy, ProviderConfig, RequestContext};
+use elide_pipeline::provider::{CodecParams, Deployment, ExifPolicy, Provider, RequestContext};
 use elide_schema::policy::{LabelScope, Policy};
 use elide_schema::redaction::{ModalityRedactions, TabularRedaction};
 
@@ -18,7 +18,7 @@ const HEADERLESS: &[u8] = b"ada@example.com,1\ngrace@example.com,2\n";
 /// An engine with no enrichers: these tests exercise the codec,
 /// not detection backends.
 fn engine() -> Engine {
-    Engine::new(ProviderConfig::default().build())
+    Engine::new(Provider::new(Deployment::default()))
 }
 
 /// A policy finding the fixture's addresses, so there is something
@@ -201,22 +201,14 @@ fn the_default_strips_and_preserving_is_the_opt_in() {
 /// records one — proving the sink is wired, not just present.
 #[tokio::test]
 async fn an_analyzed_pass_records_what_its_model_calls_cost() {
-    use elide_pipeline::provider::{Component, Enrichers, NerBackend, Recognizers};
+    use elide_pipeline::provider::NerBackend;
 
-    let engine = Engine::new(
-        ProviderConfig {
-            recognizers: Recognizers {
-                ner: vec![Component {
-                    name: "mock-ner".into(),
-                    tags: Vec::new(),
-                    backend: NerBackend::Mock,
-                }],
-                llm: Vec::new(),
-            },
-            enrichers: Enrichers::default(),
-        }
-        .build(),
-    );
+    let deployment = Deployment::builder()
+        .ner("mock-ner", NerBackend::Mock)
+        .finish()
+        .build()
+        .expect("one mock recognizer is a valid lineup");
+    let engine = Engine::new(Provider::new(deployment));
 
     let audit = engine
         .analyze(csv(HEADERLESS), &[detect_email()], &RequestContext::new())

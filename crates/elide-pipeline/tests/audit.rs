@@ -17,7 +17,7 @@ use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
 use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{ProviderConfig, RequestContext};
+use elide_pipeline::provider::{Deployment, Provider, RequestContext};
 use elide_pipeline::{Audit, Engine};
 use elide_schema::policy::{LabelScope, Policy};
 
@@ -30,7 +30,7 @@ fn raw_txt() -> Document {
 }
 
 fn engine() -> Engine {
-    Engine::new(ProviderConfig::default().build())
+    Engine::new(Provider::new(Deployment::default()))
 }
 
 fn default_spec() -> RequestContext {
@@ -75,19 +75,27 @@ fn text_entity_ids(audit: &Audit) -> Vec<uuid::Uuid> {
         .collect()
 }
 
-/// Tag the first detected entity with a text `Erase` review so
-/// the review-export path has something to emit.
-fn tag_first_with_review(audit: &mut Audit) -> uuid::Uuid {
+/// Suppress the first detected entity as a reviewer would, so the
+/// review-export path has something to emit.
+///
+/// The edits are *applied*: an `EditSet` on its own leaves no trace
+/// on the report, and it is the `Manual` event `apply` stamps that
+/// the reviews table projects. Before this applied them, the two
+/// tests below asserted over an audit no reviewer had touched.
+fn suppress_first_as_reviewer(audit: &mut Audit, reason: Option<&str>) -> uuid::Uuid {
     let ids = text_entity_ids(audit);
     assert!(!ids.is_empty(), "sample fixture must produce entities");
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: ids[0],
         by: Reviewer {
-            reason: None,
-            actor: None,
+            reason: reason.map(Into::into),
+            actor: Some("reviewer@example.com".into()),
         },
     }));
+    edits
+        .apply(&mut audit.report)
+        .expect("the edit names an entity the report holds");
     ids[0]
 }
 
@@ -182,7 +190,7 @@ async fn export_csv_writes_every_table_by_iterating_tables() {
     // exports the whole audit without naming each table, and gains
     // any table added later for free.
     let mut audit = analyze().await;
-    tag_first_with_review(&mut audit);
+    suppress_first_as_reviewer(&mut audit, None);
 
     for table in <Audit as ExportCsv>::TABLES {
         let mut buf = Vec::new();
@@ -202,7 +210,7 @@ async fn export_csv_writes_every_table_by_iterating_tables() {
 #[tokio::test]
 async fn export_csv_bundles_every_table_into_one_zip() {
     let mut audit = analyze().await;
-    tag_first_with_review(&mut audit);
+    suppress_first_as_reviewer(&mut audit, None);
 
     let archive = audit.to_zip().expect("audit bundles into a zip");
     write_artefact("sample", "audit-tables.zip", &archive);
@@ -236,5 +244,66 @@ async fn export_csv_bundles_every_table_into_one_zip() {
             .next()
             .is_some_and(|h| h.contains(Table::JOIN_KEY)),
         "the archived table keeps its header; got {csv:?}",
+    );
+}
+
+#[tokio::test]
+async fn write_reviews_csv_emits_one_row_per_override_with_its_reason() {
+    let mut audit = analyze().await;
+    let suppressed = suppress_first_as_reviewer(&mut audit, Some("false positive: a sample name"));
+
+    let mut buf = Vec::new();
+    audit
+        .write_csv(Table::Reviews, &mut buf)
+        .expect("reviews table exports");
+    write_artefact("sample", "audit-reviews.csv", &buf);
+    let output = String::from_utf8(buf).expect("csv is utf-8");
+
+    let mut lines = output.lines();
+    assert_eq!(
+        lines.next().expect("header line present"),
+        "entity_id,intent,reviewer,authority,reason,timestamp",
+    );
+
+    let rows: Vec<&str> = lines.collect();
+    assert_eq!(rows.len(), 1, "one override was made; got {rows:?}");
+    let row = rows[0];
+
+    assert!(
+        row.contains(&suppressed.to_string()),
+        "the row must name the entity overridden, so it joins the other tables: {row}",
+    );
+    assert!(
+        row.contains("suppress"),
+        "and which decision was made: {row}",
+    );
+    assert!(
+        row.contains("false positive: a sample name"),
+        "and the reviewer's reason, which is the whole point of this table — \
+         the provenance table renders the intent but has no column for it: {row}",
+    );
+    assert!(
+        row.contains("reviewer@example.com"),
+        "and who made it: {row}",
+    );
+}
+
+#[tokio::test]
+async fn an_unreviewed_audit_exports_an_empty_reviews_table() {
+    // An export runs whether or not a review happened. A header
+    // with no rows says "nothing was overridden"; failing would
+    // make the common case look like an error.
+    let audit = analyze().await;
+
+    let mut buf = Vec::new();
+    audit
+        .write_csv(Table::Reviews, &mut buf)
+        .expect("the table exports even with no overrides");
+    let output = String::from_utf8(buf).expect("csv is utf-8");
+
+    assert_eq!(
+        output.lines().count(),
+        1,
+        "header only, no rows: {output:?}",
     );
 }

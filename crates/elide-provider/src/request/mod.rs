@@ -14,10 +14,12 @@ use std::sync::Arc;
 
 use elide::Result;
 use elide::backend::metrics::{Usage, UsageCollector, UsageSink};
+use elide_deployment::Lingua;
+use elide_deployment::component::{Availability, ComponentSelection, Resolver};
 use elide_schema::recognition::Recognition;
 
 use super::{Component, Enrichers, LlmBackend, NerBackend, OcrBackend, Recognizers, SttBackend};
-use crate::component::{Availability, ComponentSelection, Resolver};
+use crate::orchestrator::Clients;
 
 /// What one request compiles its analyzers from.
 ///
@@ -30,6 +32,18 @@ pub(crate) struct Compile<'a> {
     pub(crate) enrichers: &'a Enrichers,
     /// The vocabularies this request introduces.
     pub(crate) recognition: &'a [Recognition],
+    /// Clients built before any request arrived, for the backends
+    /// that could not be constructed here.
+    ///
+    /// Read only by the factories for those backends, so it is dead
+    /// weight — one reference — in a build with none of them
+    /// compiled in. Kept unconditional so `Compile::new`'s signature
+    /// does not change with the feature set.
+    #[cfg_attr(
+        not(feature = "google-document-ai"),
+        expect(dead_code, reason = "read only by the async-client backends")
+    )]
+    pub(crate) clients: &'a Clients,
     /// Which components this caller may run, and which the request
     /// asked for. Folded in rather than passed beside: it is
     /// consulted at the same sites, over the same lineups, for the
@@ -53,11 +67,13 @@ impl<'a> Compile<'a> {
         recognition: &'a [Recognition],
         availability: &'a Availability,
         selection: &'a ComponentSelection,
+        clients: &'a Clients,
     ) -> Self {
         Self {
             recognizers,
             enrichers,
             recognition,
+            clients,
             resolver: Resolver::new(availability, selection),
             collector: UsageCollector::new(),
         }
@@ -152,6 +168,21 @@ impl<'a> Resolved<'a> {
     /// The vocabularies this request introduces.
     pub(crate) fn recognition(&self) -> &'a [Recognition] {
         self.cx.recognition
+    }
+
+    /// The clients built before this request arrived.
+    #[cfg(feature = "google-document-ai")]
+    pub(crate) fn clients(&self) -> &'a Clients {
+        self.cx.clients
+    }
+
+    /// The language candidates the deployment narrowed detection to.
+    ///
+    /// Deployment-wide rather than resolved per request: there is
+    /// one detector and it is always wired, so there is nothing to
+    /// select between.
+    pub(crate) fn lingua(&self) -> &'a Lingua {
+        &self.cx.enrichers.lingua
     }
 
     /// A usage sink for one backend.

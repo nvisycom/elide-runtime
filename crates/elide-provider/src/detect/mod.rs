@@ -37,6 +37,7 @@
 //! [`Orchestrator::with_scope`]: elide::Orchestrator::with_scope
 
 mod custom;
+mod decorate;
 mod enrich;
 mod layer;
 mod llm;
@@ -53,7 +54,7 @@ mod pattern;
 /// analyzer is [`analyzers`](super::analyzers), which
 /// needs the elide runtime and stays out of the config vocabulary.
 pub mod config {
-    pub use crate::component::{
+    pub use elide_deployment::component::{
         AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentSelection,
         Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers, ResolvedComponents,
         SttBackend, UnauthenticatedProvider,
@@ -65,11 +66,12 @@ use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{Orchestrator, Result};
+pub(crate) use elide_deployment::component::Resolver;
 use elide_schema::recognition::Recognition;
 
 pub use self::config::*;
 use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};
-pub(crate) use crate::component::Resolver;
+use crate::orchestrator::Clients;
 use crate::request::Compile;
 /// What compiling a request's analyzers produced: the orchestrator
 /// to analyze with, and the tally its model calls record into.
@@ -106,8 +108,16 @@ pub fn analyzers(
     recognition: &[Recognition],
     availability: &Availability,
     selection: &ComponentSelection,
+    clients: &Clients,
 ) -> Result<Analyzers> {
-    let cx = Compile::new(recognizers, enrichers, recognition, availability, selection);
+    let cx = Compile::new(
+        recognizers,
+        enrichers,
+        recognition,
+        availability,
+        selection,
+        clients,
+    );
     let resolved = cx.resolve()?;
 
     let orchestrator = Orchestrator::new()

@@ -26,13 +26,27 @@ default = []
 ## Turn on the test-only mock backends and the elide mock backends
 ## they compile into. Off in production so deployment config
 ## cannot name a mock recognizer.
-mocks = ["elide/mocks"]
+mocks = ["elide/mocks", "elide-deployment/mocks"]
 
 ## Ship the Deepgram-backed STT backend, so a deployment can transcribe
 ## through Deepgram's hosted API instead of a self-hosted service. Off by
 ## default: it pulls a third-party HTTP client, and it sends audio off
 ## your infrastructure. See `SttBackend::Deepgram`.
-deepgram = ["dep:elide-deepgram"]
+deepgram = ["elide-deployment/deepgram", "dep:elide-deepgram"]
+
+## Ship Pioneer's hosted GLiNER service as a NER backend. Off by
+## default: it sends document text to a third party, and Pioneer's
+## zero-retention option is a request rather than a guarantee. See
+## `NerBackend::Pioneer`.
+pioneer = ["elide-deployment/pioneer", "dep:elide-pioneer-gliner"]
+
+## Ship Google Cloud Document AI as an OCR backend. Off by default,
+## Building its client is async, so a deployment
+## naming it is built through `Provider::try_new`.
+google-document-ai = [
+    "elide-deployment/google-document-ai",
+    "dep:elide-google-document-ai",
+]
 
 [package.metadata.cargo-machete]
 # Depended on for its features, not its API: enabling
@@ -44,25 +58,20 @@ ignored = ["elide-llm"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "lingua", "operator-fake", "serde", "schema", "operator-sha2", "operator-hmac", "operator-aes", "operator-datetime", "metrics"] }
+elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "lingua", "operator-fake", "serde", "schema", "operator-sha2", "operator-hmac", "operator-aes", "operator-datetime", "metrics", "ratelimit"] }
 
 # Elide extensions
+
 elide-bentoml = { workspace = true, features = ["ner", "ocr", "stt"] }
 elide-deepgram = { workspace = true, optional = true }
+elide-google-document-ai = { workspace = true, features = [], optional = true }
+elide-pioneer-gliner = { workspace = true, features = [], optional = true }
 
 # Internal crates
-# The `ExifPolicy` and `RasterMode` config enums a request carries
-# on `CodecParams`. Direct rather than through the `elide` facade:
-# there they ride the codec features that build the codecs
-# themselves, and this crate owns the format registry but decodes
-# nothing. A wire type must name them whatever codecs are built.
-# The hosted LLM clients a deployment can name. The facade dropped
-# its `llm-openai`/`-anthropic`/`-gemini` wrappers in favour of the
-# real per-client gates here, so the `Provider` variants a config
-# selects are enabled from this crate rather than renamed upstream.
 elide-llm = { workspace = true, features = ["rig", "openai-gpt", "anthropic-claude", "google-gemini"] }
 elide-image = { workspace = true, features = ["schema", "exif"] }
 elide-pdf = { workspace = true, features = ["schema"] }
+elide-deployment = { workspace = true, features = [] }
 elide-schema = { workspace = true, features = [] }
 
 # Serialization
@@ -71,12 +80,14 @@ schemars = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
-hipstr = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 # Benchmarking
 criterion = { workspace = true }
 elide-template = { workspace = true }
+
+# Async runtime, for the tests that exercise `Provider::try_new`.
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 # Self, with the mock backends on
 elide-provider = { path = ".", features = ["mocks"] }

@@ -17,7 +17,7 @@ use std::hint::black_box;
 use bytes::Bytes;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{ProviderConfig, RequestContext};
+use elide_pipeline::provider::{Deployment, Provider, RequestContext};
 use elide_pipeline::{Audit, Engine};
 use elide_schema::policy::Policy;
 use elide_template::PolicyTemplate;
@@ -65,7 +65,7 @@ fn policies() -> Vec<Policy> {
 
 fn engine(c: &mut Criterion) {
     let runtime = runtime();
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let policies = policies();
     let request = RequestContext::new();
     let bytes = corpus();

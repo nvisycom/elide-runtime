@@ -8,6 +8,7 @@ mod rule;
 mod scope;
 
 use elide::entity::LabelRef;
+use elide::entity::audit::Attribution;
 use hipstr::HipStr;
 pub use predicate::Predicate;
 use schemars::JsonSchema;
@@ -114,6 +115,63 @@ impl Default for Policy {
 }
 
 impl Policy {
+    /// Build an [`Attribution`] for a concrete rule that fired.
+    ///
+    /// A rule carrying an attribution passes it through verbatim, so
+    /// an audit records the provision rather than prose a consumer
+    /// would have to parse.
+    ///
+    /// Without one the attribution falls back to [`Freeform`] under
+    /// the policy's own name and description.
+    ///
+    /// The rule's own id is not stamped: elide's [`Attribution`] names
+    /// an authority, not a source record. Two rules citing the same
+    /// provision — Safe Harbor's age/date table and its bulk erase
+    /// both cite §164.514(b)(2) — therefore read alike in the trail.
+    /// Distinguishing them means giving each a distinct attribution.
+    ///
+    /// [`Freeform`]: elide::entity::audit::Attribution::Freeform
+    #[must_use]
+    pub fn rule_attribution(&self, rule: &PolicyRule) -> Attribution {
+        match &rule.attribution {
+            Some(authored) => authored.clone(),
+            None => {
+                let freeform = Attribution::freeform(self.name.clone());
+                match &self.description {
+                    Some(description) => freeform.with_description(description.clone()).into(),
+                    None => freeform.into(),
+                }
+            }
+        }
+    }
+
+    /// Build an [`Attribution`] for a policy's `fallback`.
+    ///
+    /// Freeform under the policy's own name: a catch-all fires
+    /// because no rule claimed the entity, so there is no provision
+    /// to cite.
+    #[must_use]
+    pub fn fallback_attribution(&self) -> Attribution {
+        // A policy whose scopes all answer to one authority can cite it:
+        // CCPA and GDPR do every redaction through the fallback, so
+        // without this their audit events would lose the citation their
+        // scope carries.
+        //
+        // Compares `Option`s rather than filtering the uncited ones out,
+        // so a cited scope beside an uncited one disagrees. Skipping the
+        // uncited scope would stamp its labels with an authority that
+        // does not cover them, which is worse than no citation at all.
+        let mut declared = self.scopes.iter().map(|s| s.attribution.as_ref());
+        if let Some(Some(first)) = declared.next()
+            && declared.all(|other| other == Some(first))
+        {
+            return first.clone();
+        }
+        Attribution::freeform(self.name.clone())
+            .with_description("policy fallback: no rule matched this entity")
+            .into()
+    }
+
     /// Every label this policy detects: the union of its
     /// [`scopes`].
     ///

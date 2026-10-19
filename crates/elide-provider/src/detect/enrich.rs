@@ -8,8 +8,6 @@
 //!
 //! Each enricher is at-most-one per analyzer.
 
-use elide::Result;
-use elide::backend::metrics::Metered;
 use elide::detection::Analyzer;
 use elide::enrichment::lingua::LinguaEnricher;
 #[cfg(feature = "mocks")]
@@ -21,14 +19,16 @@ use elide::enrichment::stt::SttEnricher;
 use elide::modality::TextRecognizable;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
-#[cfg(feature = "deepgram")]
-use elide::{Error, ErrorKind};
+use elide::primitive::LanguageTag;
+use elide::{Error, ErrorKind, Result};
 use elide_bentoml::ocr::BentoOcr;
 use elide_bentoml::stt::BentoStt;
 #[cfg(feature = "deepgram")]
 use elide_deepgram::{DeepgramStt, deepgram};
+use elide_deployment::Lingua;
+use elide_deployment::component::{Backend, Component};
 
-use crate::component::Component;
+use super::decorate::decorate;
 use crate::detect::{OcrBackend, SttBackend};
 use crate::request::Resolved;
 
@@ -46,8 +46,36 @@ use crate::request::Resolved;
 ///
 /// [`TextRecognizable`]: elide::modality::TextRecognizable
 /// [`Text`]: elide::modality::text::Text
-pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Analyzer<M> {
-    analyzer.with_enricher(LinguaEnricher::unrestricted())
+pub(super) fn attach_language<M: TextRecognizable>(
+    analyzer: Analyzer<M>,
+    lingua: &Lingua,
+) -> Result<Analyzer<M>> {
+    // Unrestricted is not the same as "no candidates": it is every
+    // language the build's model knows, which is what a deployment
+    // that has not narrowed detection wants.
+    if lingua.is_unrestricted() {
+        return Ok(analyzer.with_enricher(LinguaEnricher::unrestricted()));
+    }
+
+    // Parsed again here because the enricher wants `LanguageTag`
+    // values, not strings. `Deployment::validate` has already
+    // rejected a malformed tag at load, so this cannot fail for a
+    // deployment built through any of its constructors — but the
+    // error is kept rather than unwrapped, because deserializing
+    // through serde directly skips that validation and this is the
+    // last place the fault can be reported instead of panicking.
+    let mut candidates = Vec::with_capacity(lingua.candidates.len());
+    for tag in &lingua.candidates {
+        candidates.push(LanguageTag::parse(tag.clone()).map_err(|err| {
+            Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "enrichers.lingua.candidates: `{tag}` is not a valid BCP-47 language tag: {err}"
+                ),
+            )
+        })?);
+    }
+    Ok(analyzer.with_enricher(LinguaEnricher::with_candidates(candidates)))
 }
 
 /// Attach an [`OcrEnricher`] for the image modality.
@@ -67,17 +95,71 @@ pub(super) fn attach_ocr(
     // folding into one shared builder.
     Ok(match &config.backend {
         OcrBackend::Bento { base_url, model } => analyzer.with_enricher(
-            OcrEnricher::new(Metered::new(
+            OcrEnricher::new(decorate(
                 BentoOcr::new(base_url.clone(), model.clone())?,
+                config.rate_limit.as_ref(),
                 resolved.sink(),
             ))
             .with_name(config.name.clone()),
         ),
+        #[cfg(feature = "google-document-ai")]
+        OcrBackend::GoogleDocumentAi { .. } => {
+            // Built at startup, not here: the client builder is
+            // async and this compile is not. A provider built
+            // through `Provider::new` has no such client, so refuse
+            // rather than skip the enricher — a document that
+            // silently got no OCR reads exactly like one with no
+            // text in its images.
+            let client = resolved
+                .clients()
+                .document_ai
+                .get(config.name.as_str())
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Configuration,
+                        format!(
+                            "enrichers.ocr `{}` names Document AI, whose client must be \
+built before a request arrives. Build the provider with \
+`Provider::try_new` instead of `Provider::new`.",
+                            config.name,
+                        ),
+                    )
+                })?;
+            analyzer.with_enricher(
+                OcrEnricher::new(decorate(
+                    client.clone(),
+                    config.rate_limit.as_ref(),
+                    resolved.sink(),
+                ))
+                .with_name(config.name.clone()),
+            )
+        }
         #[cfg(feature = "mocks")]
         OcrBackend::Mock => analyzer.with_enricher(
-            OcrEnricher::new(Metered::new(MockOcrBackend::new(), resolved.sink()))
-                .with_name(config.name.clone()),
+            OcrEnricher::new(decorate(
+                MockOcrBackend::new(),
+                config.rate_limit.as_ref(),
+                resolved.sink(),
+            ))
+            .with_name(config.name.clone()),
         ),
+        // A config variant whose factory this build does not ship;
+        // see the matching arm in `detect::ner` for why this is
+        // reachable and what it prevents.
+        #[allow(
+            unreachable_patterns,
+            reason = "dead only when every backend feature is on"
+        )]
+        unsupported => {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "enrichers.ocr `{}` names a backend this build does not ship ({}). Enable the matching `elide-provider` feature.",
+                    config.name,
+                    unsupported.provider(),
+                ),
+            ));
+        }
     })
 }
 
@@ -130,10 +212,18 @@ pub(super) fn attach_stt(
 ) -> Result<Analyzer<Audio>> {
     // Same as OCR: the configured name is the usage id.
     // Each arm attaches its own backend type; see `attach_ocr`.
+    // Every arm goes through `decorate`, never `Metered::new`
+    // directly: the component's rate limit is applied by the
+    // decorator stack, so a bare `Metered` silently ignores it.
+    // Nothing observable distinguishes the two at runtime -- the
+    // enrichers expose no accessor for their backend -- so this is
+    // the only place the invariant is stated. It held for NER and
+    // OCR while STT was missed.
     Ok(match &config.backend {
         SttBackend::Bento { base_url, model } => analyzer.with_enricher(
-            SttEnricher::new(Metered::new(
+            SttEnricher::new(decorate(
                 BentoStt::new(base_url.clone(), model.clone())?,
+                config.rate_limit.as_ref(),
                 resolved.sink(),
             ))
             .with_name(config.name.clone()),
@@ -144,16 +234,38 @@ pub(super) fn attach_stt(
             base_url,
             diarize,
         } => analyzer.with_enricher(
-            SttEnricher::new(Metered::new(
+            SttEnricher::new(decorate(
                 deepgram_backend(api_key, base_url.as_deref(), *diarize)?,
+                config.rate_limit.as_ref(),
                 resolved.sink(),
             ))
             .with_name(config.name.clone()),
         ),
         #[cfg(feature = "mocks")]
         SttBackend::Mock => analyzer.with_enricher(
-            SttEnricher::new(Metered::new(MockSttBackend::new(), resolved.sink()))
-                .with_name(config.name.clone()),
+            SttEnricher::new(decorate(
+                MockSttBackend::new(),
+                config.rate_limit.as_ref(),
+                resolved.sink(),
+            ))
+            .with_name(config.name.clone()),
         ),
+        // A config variant whose factory this build does not ship;
+        // see the matching arm in `detect::ner` for why this is
+        // reachable and what it prevents.
+        #[allow(
+            unreachable_patterns,
+            reason = "dead only when every backend feature is on"
+        )]
+        unsupported => {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "enrichers.stt `{}` names a backend this build does not ship ({}). Enable the matching `elide-provider` feature.",
+                    config.name,
+                    unsupported.provider(),
+                ),
+            ));
+        }
     })
 }

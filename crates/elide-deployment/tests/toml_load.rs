@@ -412,3 +412,31 @@ fn a_misspelled_backend_key_is_refused() {
         "and the key it was meant to be: {err}",
     );
 }
+
+/// A rate-limited STT enricher loads, keeping both the backend's
+/// own fields and the component's.
+///
+/// `Component` consumes `name` and `rate_limit` before the
+/// flattened `SttBackend` deserializes the rest, and the backend
+/// enum now denies unknown fields — so this pins that the two
+/// halves still agree on the enricher side. Every other rate-limit
+/// fixture is a recognizer, and the only STT assertion elsewhere is
+/// that the lineup is *empty*.
+#[test]
+fn a_rate_limited_stt_enricher_loads() {
+    let deployment = Deployment::from_toml_resolved(testdata!("stt_rate_limited.toml"), |_| None)
+        .expect("loads");
+
+    let component = &deployment.enrichers().stt[0];
+    assert_eq!(component.name, "audio");
+
+    let limit = component
+        .rate_limit
+        .expect("the component carries its limit");
+    assert_eq!(limit.requests, 30);
+    assert_eq!(limit.max_concurrent, Some(2));
+    assert_eq!(
+        limit.interval_seconds, 60,
+        "an omitted interval still reads as per-minute",
+    );
+}

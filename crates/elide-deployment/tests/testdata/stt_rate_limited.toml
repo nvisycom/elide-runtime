@@ -1,0 +1,14 @@
+# A rate-limited STT enricher. `Component` consumes `name` and
+# `rate_limit` before the flattened `SttBackend` sees the rest, so
+# this exercises that split on the enricher side -- the recognizer
+# side is covered by snake_rate_limit.toml.
+
+[[enrichers.stt]]
+name = "audio"
+kind = "bento"
+base_url = "https://stt.internal"
+model = "m"
+
+[enrichers.stt.rate_limit]
+requests = 30
+maxConcurrent = 2

@@ -28,6 +28,8 @@ pub use elide::recognition::llm::provider::{AuthenticatedProvider, Unauthenticat
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::component::Backend;
+
 /// Where a configured recognizer gets its LLM completions.
 ///
 /// The four rig variants mirror
@@ -99,7 +101,7 @@ impl LlmSource {
     }
 }
 
-impl crate::component::Backend for LlmBackend {
+impl Backend for LlmBackend {
     fn provider(&self) -> &'static str {
         self.source.provider()
     }

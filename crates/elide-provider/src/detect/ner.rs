@@ -1,14 +1,14 @@
 //! NER recognizers, one per configured component.
 
-use elide::Result;
 use elide::detection::Analyzer;
 use elide::modality::TextRecognizable;
 use elide::recognition::Recognizer;
 use elide::recognition::ner::NerRecognizer;
 #[cfg(feature = "mocks")]
 use elide::recognition::ner::backend::MockBackend as MockNerBackend;
+use elide::{Error, ErrorKind, Result};
 use elide_bentoml::ner::BentoNer;
-use elide_deployment::component::{Component, NerBackend as NerBackendConfig};
+use elide_deployment::component::{Backend, Component, NerBackend as NerBackendConfig};
 #[cfg(feature = "pioneer")]
 use elide_pioneer_gliner::PioneerNer;
 
@@ -95,5 +95,42 @@ where
             ))
             .with_name(spec.name.clone()),
         ),
+        // A config variant whose factory this build does not ship.
+        //
+        // Reachable because cargo features are additive across a
+        // dependency graph: a host (or one of its dependencies) can
+        // enable `elide-deployment/pioneer` without this crate's
+        // `pioneer`, so the config enum gains a variant whose arm
+        // above was compiled out. Without this arm the `match` is
+        // non-exhaustive and *this crate* fails to build, blaming a
+        // crate the host never touched. With it, the deployment is
+        // refused at compile with the feature to enable.
+        //
+        // Unreachable when every backend feature is on, which is
+        // why the lint is allowed rather than the arm gated: the
+        // set of features that would make it dead is exactly the
+        // set this crate cannot name from inside one `cfg`.
+        //
+        // Not covered by a test: the mismatch needs
+        // `elide-deployment/pioneer` on with this crate's `pioneer`
+        // off, and a test crate cannot `cfg` on a dependency's
+        // feature. What is checked instead is that the combination
+        // *compiles* -- `cargo clippy -p elide-provider --features
+        // elide-deployment/pioneer` is in the feature matrix, and
+        // without this arm it fails with E0004.
+        #[allow(
+            unreachable_patterns,
+            reason = "dead only when every backend feature is on"
+        )]
+        unsupported => {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "recognizers.ner `{}` names a backend this build does not ship ({}). Enable the matching `elide-provider` feature.",
+                    spec.name,
+                    unsupported.provider(),
+                ),
+            ));
+        }
     })
 }

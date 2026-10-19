@@ -20,6 +20,17 @@
 
 use std::collections::BTreeMap;
 
+use elide::Result;
+// Used only by the async-client backends below, which are the only
+// code here that can fail.
+#[cfg(feature = "google-document-ai")]
+use elide::{Error, ErrorKind};
+use elide_deployment::component::Enrichers;
+#[cfg(feature = "google-document-ai")]
+use elide_deployment::component::OcrBackend;
+#[cfg(feature = "google-document-ai")]
+use elide_google_document_ai::DocumentAiOcr;
+
 /// The pre-built clients a provider holds, by component name.
 ///
 /// Empty for every deployment that names no such backend, which is
@@ -34,7 +45,7 @@ pub(crate) struct Clients {
     /// Document AI enrichers, by the component name that configured
     /// them.
     #[cfg(feature = "google-document-ai")]
-    pub(crate) document_ai: BTreeMap<String, elide_google_document_ai::DocumentAiOcr>,
+    pub(crate) document_ai: BTreeMap<String, DocumentAiOcr>,
     /// Keeps the struct inhabited when no such backend is compiled
     /// in, so the field list is never empty.
     #[cfg(not(feature = "google-document-ai"))]
@@ -65,12 +76,10 @@ impl Clients {
         expect(
             clippy::unused_async,
             reason = "the signature is the same whether or not an async backend is compiled in, \
-                  so a host's call site does not change with the feature set"
+so a host's call site does not change with the feature set"
         )
     )]
-    pub(crate) async fn build(
-        enrichers: &elide_deployment::component::Enrichers,
-    ) -> elide::Result<Self> {
+    pub(crate) async fn build(enrichers: &Enrichers) -> Result<Self> {
         #[cfg_attr(
             not(feature = "google-document-ai"),
             expect(unused_mut, reason = "only an async backend populates this")
@@ -79,7 +88,7 @@ impl Clients {
 
         #[cfg(feature = "google-document-ai")]
         for component in &enrichers.ocr {
-            if let elide_deployment::component::OcrBackend::GoogleDocumentAi {
+            if let OcrBackend::GoogleDocumentAi {
                 processor,
                 endpoint,
             } = &component.backend
@@ -94,8 +103,8 @@ impl Clients {
                 // version, region, possibly trust boundary — with
                 // no error anywhere.
                 if clients.document_ai.contains_key(&name) {
-                    return Err(elide::Error::new(
-                        elide::ErrorKind::Configuration,
+                    return Err(Error::new(
+                        ErrorKind::Configuration,
                         format!(
                             "enrichers.ocr: two components are both called `{name}`, so one would run against the other's processor. Give each a unique name."
                         ),
@@ -117,11 +126,7 @@ impl Clients {
 
 /// Build one Document AI client against `processor`.
 #[cfg(feature = "google-document-ai")]
-async fn document_ai_client(
-    processor: &str,
-    endpoint: Option<&str>,
-) -> elide::Result<elide_google_document_ai::DocumentAiOcr> {
-    use elide_google_document_ai::DocumentAiOcr;
+async fn document_ai_client(processor: &str, endpoint: Option<&str>) -> Result<DocumentAiOcr> {
     use elide_google_document_ai::document_ai::client::DocumentProcessorService;
 
     let mut builder = DocumentProcessorService::builder();
@@ -129,11 +134,11 @@ async fn document_ai_client(
         builder = builder.with_endpoint(endpoint.to_owned());
     }
     let client = builder.build().await.map_err(|err| {
-        elide::Error::new(
-            elide::ErrorKind::Configuration,
+        Error::new(
+            ErrorKind::Configuration,
             format!(
                 "enrichers.ocr: could not build a Document AI client for processor \
-                 `{processor}`: {err}"
+`{processor}`: {err}"
             ),
         )
     })?;

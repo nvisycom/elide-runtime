@@ -24,6 +24,8 @@ use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::component::Backend;
+
 ///
 /// How a configured enricher talks to its STT backend.
 ///
@@ -133,7 +135,7 @@ impl fmt::Debug for SttBackend {
     }
 }
 
-impl crate::component::Backend for SttBackend {
+impl Backend for SttBackend {
     /// Provider slug for the list-enrichers accessor.
     fn provider(&self) -> &'static str {
         match self {

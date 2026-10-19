@@ -94,3 +94,28 @@ fn a_severe_limit_still_compiles() {
     }))
     .expect("compiles");
 }
+
+/// An unvalidated deployment is refused when the provider is
+/// built, not when a request arrives.
+///
+/// Deserializing a `Deployment` through serde directly skips
+/// validation — that is documented, and the reason `validate` is
+/// public. Regression: `Provider::new` accepted such a value and
+/// built fine, then panicked from inside `RateLimited::new` at
+/// request compile, far from the configuration at fault.
+#[test]
+#[should_panic(expected = "invalid deployment")]
+fn an_unvalidated_deployment_is_refused_at_construction() {
+    let json = r#"{
+        "recognizers": {"ner": [{
+            "name": "n", "kind": "mock", "rateLimit": {"requests": 0}
+        }]},
+        "enrichers": {},
+        "availability": "all"
+    }"#;
+    let deployment: Deployment =
+        serde_json::from_str(json).expect("serde deserializes without validating");
+
+    // Panics: the rate limit would never admit a call.
+    let _ = Provider::new(deployment);
+}

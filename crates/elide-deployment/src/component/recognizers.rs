@@ -24,7 +24,7 @@ use super::backend::{LlmBackend, NerBackend};
 /// configures none of these.
 #[derive(Debug, Clone, Default)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct Recognizers {
     /// The NER lineup.
     #[serde(skip_serializing_if = "Vec::is_empty")]

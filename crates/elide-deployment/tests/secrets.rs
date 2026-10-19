@@ -39,33 +39,6 @@ fn the_pioneer_api_key_never_escapes() {
     );
 }
 
-/// AWS credentials never reach a debug rendering, including
-/// through the enclosing backend's derived `Debug`.
-#[cfg(feature = "aws-textract")]
-#[test]
-fn the_aws_credentials_never_escape() {
-    use elide_deployment::component::{AwsCredentials, OcrBackend};
-
-    let backend = OcrBackend::AwsTextract {
-        region: Some("eu-west-1".to_owned()),
-        credentials: Some(AwsCredentials {
-            access_key_id: format!("AKIA{SECRET}"),
-            secret_access_key: SECRET.to_owned(),
-            session_token: Some(SECRET.to_owned()),
-        }),
-    };
-
-    let rendered = format!("{backend:?}");
-    assert!(
-        !rendered.contains(SECRET),
-        "a credential reached the debug output through the enclosing enum: {rendered}",
-    );
-    assert!(
-        rendered.contains("eu-west-1"),
-        "the region is not a secret and should still print: {rendered}",
-    );
-}
-
 /// An empty deployment serializes with no key-shaped field at all,
 /// so a host that persists one cannot leak a credential it never
 /// configured.
@@ -113,28 +86,5 @@ fn a_serialized_pioneer_config_cannot_be_reloaded_silently() {
     assert!(
         err.to_string().contains("api_key"),
         "and must say which field is missing: {err}",
-    );
-}
-
-/// The same for AWS credentials: skipped on the way out, and a
-/// reload names the field rather than inventing an empty one.
-#[cfg(feature = "aws-textract")]
-#[test]
-fn serialized_aws_credentials_cannot_be_reloaded_silently() {
-    use elide_deployment::component::AwsCredentials;
-
-    let creds = AwsCredentials {
-        access_key_id: format!("AKIA{SECRET}"),
-        secret_access_key: SECRET.to_owned(),
-        session_token: None,
-    };
-
-    let json = serde_json::to_string(&creds).expect("serializes");
-    assert!(!json.contains(SECRET), "no credential is written: {json}");
-
-    let err = serde_json::from_str::<AwsCredentials>(&json).expect_err("must not reload silently");
-    assert!(
-        err.to_string().contains("access_key_id") || err.to_string().contains("secret_access_key"),
-        "the error must name the missing credential: {err}",
     );
 }

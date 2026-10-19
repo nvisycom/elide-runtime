@@ -18,17 +18,34 @@ use crate::component::{Availability, Enrichers, Recognizers};
 ///
 /// ## Validated by construction
 ///
-/// The fields are read-only, and every way of making one runs
-/// [`validate`](Self::validate): deserializing, the
-/// [`builder`](Self::builder), and [`try_from_parts`] alike. So a
-/// `Deployment` that exists is one the runtime can build — there is
-/// no way to assemble a zero rate limit or a duplicated component
-/// name and have it survive as a value.
+/// The fields are read-only, and every *loader* runs
+/// [`validate`](Self::validate): [`from_toml`], [`from_toml_file`],
+/// [`from_toml_resolved`], the [`builder`](Self::builder) and
+/// [`try_from_parts`] alike. So a `Deployment` from any of those is
+/// one the runtime can build — there is no way to assemble a zero
+/// rate limit or a duplicated component name through them and have
+/// it survive as a value.
 ///
 /// That is why the fields are not `pub`. A struct literal would be
-/// a fourth way in, and the only one that skipped the check.
+/// another way in, and the only one that skipped the check.
 ///
+/// ## The one exception
+///
+/// Deserializing with serde *directly* — `toml::from_str`,
+/// `serde_json::from_value` — does **not** validate. Serde's error
+/// type cannot carry this crate's
+/// [`ErrorKind`](crate::ErrorKind), so validating there would
+/// report a semantically impossible configuration as a syntax
+/// error. A host taking that path must call
+/// [`validate`](Self::validate) itself; that is why the method is
+/// public. [`Provider::new`] asserts on it rather than letting an
+/// invalid deployment reach request compile.
+///
+/// [`from_toml`]: Self::from_toml
+/// [`from_toml_file`]: Self::from_toml_file
+/// [`from_toml_resolved`]: Self::from_toml_resolved
 /// [`try_from_parts`]: Self::try_from_parts
+/// [`Provider::new`]: https://docs.rs/elide-provider/latest/elide_provider/struct.Provider.html#method.new
 #[derive(Debug, Clone, Default)]
 #[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -208,8 +225,8 @@ impl Deployment {
         lookup: impl FnMut(&str) -> Option<String>,
     ) -> crate::Result<Self> {
         let expanded = crate::builder::interpolate(source, lookup)?;
-        let deployment: Self = toml::from_str(&expanded)
-            .map_err(|err| crate::Error::new(crate::ErrorKind::Malformed, err.to_string()))?;
+        let deployment: Self =
+            toml::from_str(&expanded).map_err(|err| parse_error(&err, &expanded))?;
         deployment.validate()?;
         Ok(deployment)
     }
@@ -270,17 +287,26 @@ impl Deployment {
             component.validate()?;
         }
 
-        duplicate_names("recognizers.ner", self.recognizers.ner.iter().map(name_of))?;
-        duplicate_names("recognizers.llm", self.recognizers.llm.iter().map(name_of))?;
-        duplicate_names("enrichers.ocr", self.enrichers.ocr.iter().map(name_of))?;
-        duplicate_names("enrichers.stt", self.enrichers.stt.iter().map(name_of))?;
+        self.enrichers.lingua.validate()?;
+
+        duplicate_names(
+            "recognizers.ner",
+            self.recognizers.ner.iter().map(|c| c.name.as_str()),
+        )?;
+        duplicate_names(
+            "recognizers.llm",
+            self.recognizers.llm.iter().map(|c| c.name.as_str()),
+        )?;
+        duplicate_names(
+            "enrichers.ocr",
+            self.enrichers.ocr.iter().map(|c| c.name.as_str()),
+        )?;
+        duplicate_names(
+            "enrichers.stt",
+            self.enrichers.stt.iter().map(|c| c.name.as_str()),
+        )?;
         Ok(())
     }
-}
-
-/// One component's configured name.
-fn name_of<B>(component: &crate::component::Component<B>) -> &str {
-    component.name.as_str()
 }
 
 /// Refuse a lineup with a repeated name.
@@ -295,10 +321,45 @@ fn duplicate_names<'a>(lineup: &str, names: impl Iterator<Item = &'a str>) -> cr
             return Err(crate::Error::new(
                 crate::ErrorKind::Invalid,
                 format!(
-                    "{lineup}: two components are both called `{name}`. A request                      selects components by name, so the duplicate could never be                      reached and its detections would be attributed to the other."
+                    "{lineup}: two components are both called `{name}`. A request selects components by name, so the duplicate could never be reached and its detections would be attributed to the other."
                 ),
             ));
         }
     }
     Ok(())
+}
+
+/// Turn a TOML parse failure into an error that carries no source
+/// text.
+///
+/// `toml`'s own `Display` quotes the offending line to show where
+/// the fault is. That is the right behaviour for a config file in
+/// general and the wrong one here: by the time parsing runs,
+/// `${VAR}` references have been expanded, so the quoted line may
+/// hold a resolved credential in plaintext — and a startup failure
+/// lands in whatever collects logs.
+///
+/// The message is rebuilt from the parts that cannot contain
+/// document text: what went wrong, and which line it is on. An
+/// operator still gets somewhere to look; they read the value from
+/// their own file rather than from a log.
+fn parse_error(err: &toml::de::Error, expanded: &str) -> crate::Error {
+    // The span indexes the expanded text, whose line numbering
+    // matches the source: interpolation substitutes within a line
+    // and never adds or removes one.
+    let location = err.span().map(|span| {
+        let line = 1 + expanded[..span.start]
+            .bytes()
+            .filter(|&b| b == b'\n')
+            .count();
+        format!(" at line {line}")
+    });
+    crate::Error::new(
+        crate::ErrorKind::Malformed,
+        format!(
+            "{}{}",
+            err.message(),
+            location.as_deref().unwrap_or_default()
+        ),
+    )
 }

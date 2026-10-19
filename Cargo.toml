@@ -38,7 +38,6 @@ elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", defaul
 elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Elide extensions
-elide-aws-textract = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
 elide-bentoml = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
 elide-deepgram = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
 elide-google-document-ai = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }

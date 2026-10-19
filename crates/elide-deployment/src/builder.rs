@@ -3,7 +3,9 @@
 
 use hipstr::HipStr;
 
-use crate::component::{Availability, Component, Enrichers, Recognizers};
+use crate::component::{
+    Availability, Component, Enrichers, LlmBackend, NerBackend, OcrBackend, Recognizers, SttBackend,
+};
 use crate::feature::{Lingua, RateLimit};
 use crate::{Deployment, Error, ErrorKind, Result};
 
@@ -89,7 +91,7 @@ pub(crate) fn interpolate(
             return Err(Error::new(
                 ErrorKind::Invalid,
                 "empty interpolation `${}`: name the variable to read, or escape the \
-                 text as `$${}`",
+text as `$${}`",
             ));
         }
 
@@ -98,9 +100,9 @@ pub(crate) fn interpolate(
                 ErrorKind::MissingVariable,
                 format!(
                     "`${{{key}}}` is referenced but `{key}` is not set. Set it, or \
-                     remove the reference — an unset variable is never treated as \
-                     empty, since an empty credential would reach the backend as a \
-                     credential."
+remove the reference — an unset variable is never treated as \
+empty, since an empty credential would reach the backend as a \
+credential."
                 ),
             )
         })?;
@@ -149,8 +151,8 @@ impl DeploymentBuilder {
     pub fn ner(
         self,
         name: impl Into<HipStr<'static>>,
-        backend: crate::component::NerBackend,
-    ) -> ComponentEntry<crate::component::NerBackend> {
+        backend: NerBackend,
+    ) -> ComponentEntry<NerBackend> {
         ComponentEntry::new(self, name, backend)
     }
 
@@ -159,8 +161,8 @@ impl DeploymentBuilder {
     pub fn llm(
         self,
         name: impl Into<HipStr<'static>>,
-        backend: crate::component::LlmBackend,
-    ) -> ComponentEntry<crate::component::LlmBackend> {
+        backend: LlmBackend,
+    ) -> ComponentEntry<LlmBackend> {
         ComponentEntry::new(self, name, backend)
     }
 
@@ -169,8 +171,8 @@ impl DeploymentBuilder {
     pub fn ocr(
         self,
         name: impl Into<HipStr<'static>>,
-        backend: crate::component::OcrBackend,
-    ) -> ComponentEntry<crate::component::OcrBackend> {
+        backend: OcrBackend,
+    ) -> ComponentEntry<OcrBackend> {
         ComponentEntry::new(self, name, backend)
     }
 
@@ -179,8 +181,8 @@ impl DeploymentBuilder {
     pub fn stt(
         self,
         name: impl Into<HipStr<'static>>,
-        backend: crate::component::SttBackend,
-    ) -> ComponentEntry<crate::component::SttBackend> {
+        backend: SttBackend,
+    ) -> ComponentEntry<SttBackend> {
         ComponentEntry::new(self, name, backend)
     }
 
@@ -295,7 +297,7 @@ macro_rules! finish_for {
     };
 }
 
-finish_for!(crate::component::NerBackend, ner, recognizers);
-finish_for!(crate::component::LlmBackend, llm, recognizers);
-finish_for!(crate::component::OcrBackend, ocr, enrichers);
-finish_for!(crate::component::SttBackend, stt, enrichers);
+finish_for!(NerBackend, ner, recognizers);
+finish_for!(LlmBackend, llm, recognizers);
+finish_for!(OcrBackend, ocr, enrichers);
+finish_for!(SttBackend, stt, enrichers);

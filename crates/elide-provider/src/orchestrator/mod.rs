@@ -99,8 +99,27 @@ impl Provider {
     /// declares comes along, so an operator's restriction is stated
     /// where the deployment is described rather than applied as a
     /// separate step afterwards.
+    /// # Panics
+    ///
+    /// Panics if `deployment` is not valid. Every constructor in
+    /// `elide-deployment` validates, so the only way to hold an
+    /// invalid one is to deserialize it through serde directly —
+    /// which that crate documents as requiring a `validate` call.
+    /// Panicking here is the lesser fault: the alternative is a
+    /// provider that builds, serves, and then panics from inside a
+    /// request when a limiter rejects a zero rate, far from the
+    /// configuration that caused it.
+    ///
+    /// Use [`try_new`](Self::try_new) to get the error instead.
     #[must_use]
     pub fn new(deployment: Deployment) -> Self {
+        if let Err(err) = deployment.validate() {
+            panic!(
+                "Provider::new was given an invalid deployment: {err}. Deserializing a \
+Deployment through serde skips validation, so call `validate` first or use \
+`Provider::try_new`."
+            );
+        }
         let (recognizers, enrichers, availability) = deployment.into_parts();
         Self {
             inner: Arc::new(ProviderInner {
@@ -130,6 +149,9 @@ impl Provider {
     /// Returns [`Configuration`](ErrorKind::Configuration) if a
     /// client cannot be built.
     pub async fn try_new(deployment: Deployment) -> Result<Self> {
+        deployment
+            .validate()
+            .map_err(|err| Error::new(ErrorKind::Configuration, err.to_string()))?;
         let (recognizers, enrichers, availability) = deployment.into_parts();
         let clients = clients::Clients::build(&enrichers).await?;
         Ok(Self {

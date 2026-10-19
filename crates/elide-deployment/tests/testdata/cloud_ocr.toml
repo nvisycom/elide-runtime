@@ -1,9 +1,5 @@
-# The two hosted OCR backends, each naming its cloud.
-
-[[enrichers.ocr]]
-name = "aws-ocr"
-kind = "aws_textract"
-region = "eu-west-1"
+# The hosted OCR backend names its cloud, so a deployment file
+# says whose infrastructure a document goes to.
 
 [[enrichers.ocr]]
 name = "gcp-ocr"

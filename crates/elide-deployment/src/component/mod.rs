@@ -25,8 +25,6 @@ pub mod backend {
         AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, UnauthenticatedProvider,
     };
     pub use self::ner::NerBackend;
-    #[cfg(feature = "aws-textract")]
-    pub use self::ocr::AwsCredentials;
     pub use self::ocr::OcrBackend;
     pub use self::stt::SttBackend;
 }
@@ -36,8 +34,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::availability::{Availability, ComponentSelection, ResolvedComponents, Resolver};
-#[cfg(feature = "aws-textract")]
-pub use self::backend::AwsCredentials;
 pub use self::backend::{
     AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, NerBackend, OcrBackend, SttBackend,
     UnauthenticatedProvider,
@@ -49,8 +45,20 @@ use crate::feature::RateLimit;
 /// One configured recognizer or enricher, generic over its backend.
 ///
 /// The wire shape is the backend's own fields plus `name` and
-/// `description`, so a config reads as one flat object rather than
-/// a nested one.
+/// `tags`, so a config reads as one flat object rather than a
+/// nested one.
+///
+/// Deliberately *not* `deny_unknown_fields`, unlike the lineups
+/// that hold these: serde rejects that combination with
+/// `flatten`, because the flattened backend's own fields reach
+/// this struct first and would be refused as unknown. A valid
+/// document would fail to load.
+///
+/// The cost is that a misspelled optional key here — `tagz` for
+/// `tags` — is ignored rather than refused. The lineup around it
+/// still catches a misspelled *lineup*, and the backend enums
+/// catch a misspelled backend field, so what slips through is
+/// narrow: the two optional keys on this struct.
 #[derive(Debug, Clone)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -82,7 +90,15 @@ pub struct Component<B> {
     /// Absent means unlimited: the backend's own quota is the one
     /// that matters, and a second invisible limit would be harder
     /// to diagnose than no limit at all.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ///
+    /// Accepts `rate_limit` as well as the camelCase `rateLimit`:
+    /// the surrounding TOML is snake_case throughout (`base_url`,
+    /// `api_key`, `zero_retention`), because those come from
+    /// backend enums that rename to snake, so an operator writing
+    /// `rate_limit` here is following the file's own convention.
+    /// Without the alias that spelling parsed as an unknown key and
+    /// the limit was silently dropped.
+    #[serde(default, alias = "rate_limit", skip_serializing_if = "Option::is_none")]
     pub rate_limit: Option<RateLimit>,
     /// Backend selection and its per-kind fields, flattened onto
     /// this component's wire shape.
@@ -125,6 +141,24 @@ impl<B> Component<B> {
     pub fn with_rate_limit(mut self, rate_limit: RateLimit) -> Self {
         self.rate_limit = Some(rate_limit);
         self
+    }
+
+    /// Whether this component answers to `key`, by its own name or
+    /// by one of its tags.
+    ///
+    /// The question both [`Availability`] and [`ComponentSelection`]
+    /// ask, which is why it lives here rather than in either: a
+    /// component knows what it answers to, and neither of those
+    /// should reach into its fields to decide.
+    #[must_use]
+    pub fn matches(&self, key: &str) -> bool {
+        self.name == key || self.tags.iter().any(|tag| tag == key)
+    }
+
+    /// Whether this component answers to any of `keys`.
+    #[must_use]
+    pub fn matches_any<K: AsRef<str>>(&self, keys: &[K]) -> bool {
+        keys.iter().any(|key| self.matches(key.as_ref()))
     }
 
     /// Check this component describes something the runtime can

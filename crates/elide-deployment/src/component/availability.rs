@@ -61,20 +61,10 @@ impl Availability {
     fn permits<B>(&self, component: &Component<B>) -> bool {
         match self {
             Self::All => true,
-            Self::Only(keys) => matches_any(component, keys),
-            Self::Except(keys) => !matches_any(component, keys),
+            Self::Only(keys) => component.matches_any(keys),
+            Self::Except(keys) => !component.matches_any(keys),
         }
     }
-}
-
-/// Whether a component's name or any of its tags is in `keys`.
-fn matches_any<B>(component: &Component<B>, keys: &[String]) -> bool {
-    keys.iter().any(|key| matches(component, key))
-}
-
-/// Whether `key` is this component's name or one of its tags.
-fn matches<B>(component: &Component<B>, key: &str) -> bool {
-    component.name == key || component.tags.iter().any(|tag| tag == key)
 }
 
 /// Which of the available components one request wants to run.
@@ -85,7 +75,7 @@ fn matches<B>(component: &Component<B>, key: &str) -> bool {
 /// disable redaction.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct ComponentSelection {
     /// Names or tags to run, or [`None`] for all available.
     ///
@@ -139,9 +129,9 @@ impl ComponentSelection {
     fn selects<B>(&self, component: &Component<B>) -> bool {
         let picked = match &self.only {
             None => true,
-            Some(keys) => matches_any(component, keys),
+            Some(keys) => component.matches_any(keys),
         };
-        picked && !matches_any(component, &self.skip)
+        picked && !component.matches_any(&self.skip)
     }
 }
 
@@ -188,7 +178,7 @@ trait Lineup {
 
 impl<B> Lineup for &[Component<B>] {
     fn observe(&self, status: &mut KeyStatus, key: &str, availability: &Availability) {
-        for component in self.iter().filter(|c| matches(c, key)) {
+        for component in self.iter().filter(|c| c.matches(key)) {
             status.known = true;
             if availability.permits(component) {
                 status.permitted = true;
@@ -339,7 +329,7 @@ impl<'a> Resolver<'a> {
 /// — without analyzing a document.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct ResolvedComponents {
     /// The NER recognizers that would run.
     #[serde(skip_serializing_if = "Vec::is_empty")]

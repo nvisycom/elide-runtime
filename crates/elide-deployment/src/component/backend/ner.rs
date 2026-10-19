@@ -16,6 +16,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::component::Backend;
+
 /// How a configured recognizer talks to its NER backend.
 ///
 /// One rig variant today (BentoML-hosted). Extensible with
@@ -146,7 +148,7 @@ impl NerBackend {
     }
 }
 
-impl crate::component::Backend for NerBackend {
+impl Backend for NerBackend {
     /// Provider slug for the list-recognizers accessor.
     fn provider(&self) -> &'static str {
         match self {

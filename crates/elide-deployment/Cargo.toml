@@ -26,11 +26,9 @@ default = []
 ## the backend behind its own `pioneer` feature.
 pioneer = []
 
-## Name AWS Textract as an OCR backend. Config-only, as `pioneer`.
-aws-textract = []
-
-## Name Google Cloud Document AI as an OCR backend. Config-only,
-## as `pioneer`.
+## Name Google Cloud Document AI as an OCR backend. Config-only
+## here: the client is built from these fields, so this feature adds
+## no dependency to this crate.
 google-document-ai = []
 
 ## Ship the Deepgram-backed STT backend, so a deployment can

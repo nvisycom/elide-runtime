@@ -73,18 +73,36 @@ fn configured_candidates_compile_into_the_enricher() {
     .expect("a two-language deployment compiles");
 }
 
-/// A tag that is not valid BCP-47 fails the compile, naming the
-/// field. Silently dropping it would narrow detection to the tags
-/// that happened to parse — or to none at all — and report success,
-/// which reads exactly like a document in an undetected language.
+/// A tag that is not valid BCP-47 fails when the deployment is
+/// built, naming the field.
+///
+/// At load rather than at request compile: a typo'd tag is a
+/// configuration fault, and a deployment that accepted one would
+/// start, serve requests, and fail each one that reached the text
+/// analyzer — reporting a problem in the document's pipeline for
+/// something wrong in a file read at startup.
+///
+/// Silently dropping it would be worse still: detection would
+/// narrow to the tags that happened to parse, or to none, and
+/// report success — which reads exactly like a document in an
+/// undetected language.
 #[test]
-fn a_malformed_tag_is_refused_rather_than_dropped() {
-    let (kind, message) = compile_with(Lingua {
-        candidates: vec!["en".to_owned(), "not a language".to_owned()],
-    })
-    .expect_err("must not compile");
+fn a_malformed_tag_is_refused_when_the_deployment_is_built() {
+    let result = Deployment::try_from_parts(
+        Recognizers::default(),
+        Enrichers {
+            lingua: Lingua {
+                candidates: vec!["en".to_owned(), "not a language".to_owned()],
+            },
+            ..Enrichers::default()
+        },
+        Availability::All,
+    );
 
-    assert_eq!(kind, ErrorKind::Configuration);
+    let Err(err) = result else {
+        panic!("a malformed language tag must be refused");
+    };
+    let message = err.message();
     assert!(
         message.contains("enrichers.lingua.candidates"),
         "the message must name the deployment field an operator has to fix: {message}",

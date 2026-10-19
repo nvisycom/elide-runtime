@@ -22,16 +22,12 @@ use elide::modality::audio::Audio;
 use elide::modality::image::Image;
 use elide::primitive::LanguageTag;
 use elide::{Error, ErrorKind, Result};
-#[cfg(feature = "aws-textract")]
-use elide_aws_textract::TextractOcr;
 use elide_bentoml::ocr::BentoOcr;
 use elide_bentoml::stt::BentoStt;
 #[cfg(feature = "deepgram")]
 use elide_deepgram::{DeepgramStt, deepgram};
 use elide_deployment::Lingua;
-#[cfg(feature = "aws-textract")]
-use elide_deployment::component::AwsCredentials;
-use elide_deployment::component::Component;
+use elide_deployment::component::{Backend, Component};
 
 use super::decorate::decorate;
 use crate::detect::{OcrBackend, SttBackend};
@@ -62,16 +58,20 @@ pub(super) fn attach_language<M: TextRecognizable>(
         return Ok(analyzer.with_enricher(LinguaEnricher::unrestricted()));
     }
 
-    // Parsed here rather than at load so the failure names the
-    // deployment field, and so `elide-deployment` stays free of a
-    // dependency on elide's language primitives.
+    // Parsed again here because the enricher wants `LanguageTag`
+    // values, not strings. `Deployment::validate` has already
+    // rejected a malformed tag at load, so this cannot fail for a
+    // deployment built through any of its constructors — but the
+    // error is kept rather than unwrapped, because deserializing
+    // through serde directly skips that validation and this is the
+    // last place the fault can be reported instead of panicking.
     let mut candidates = Vec::with_capacity(lingua.candidates.len());
     for tag in &lingua.candidates {
         candidates.push(LanguageTag::parse(tag.clone()).map_err(|err| {
             Error::new(
                 ErrorKind::Configuration,
                 format!(
-                    "enrichers.lingua.candidates: `{tag}` is not a valid BCP-47                      language tag: {err}"
+                    "enrichers.lingua.candidates: `{tag}` is not a valid BCP-47 language tag: {err}"
                 ),
             )
         })?);
@@ -103,18 +103,6 @@ pub(super) fn attach_ocr(
             ))
             .with_name(config.name.clone()),
         ),
-        #[cfg(feature = "aws-textract")]
-        OcrBackend::AwsTextract {
-            region,
-            credentials,
-        } => analyzer.with_enricher(
-            OcrEnricher::new(decorate(
-                textract_backend(region.as_deref(), credentials.as_ref()),
-                config.rate_limit.as_ref(),
-                resolved.sink(),
-            ))
-            .with_name(config.name.clone()),
-        ),
         #[cfg(feature = "google-document-ai")]
         OcrBackend::GoogleDocumentAi { .. } => {
             // Built at startup, not here: the client builder is
@@ -132,8 +120,8 @@ pub(super) fn attach_ocr(
                         ErrorKind::Configuration,
                         format!(
                             "enrichers.ocr `{}` names Document AI, whose client must be \
-                         built before a request arrives. Build the provider with \
-                         `Provider::try_new` instead of `Provider::new`.",
+built before a request arrives. Build the provider with \
+`Provider::try_new` instead of `Provider::new`.",
                             config.name,
                         ),
                     )
@@ -156,42 +144,24 @@ pub(super) fn attach_ocr(
             ))
             .with_name(config.name.clone()),
         ),
+        // A config variant whose factory this build does not ship;
+        // see the matching arm in `detect::ner` for why this is
+        // reachable and what it prevents.
+        #[allow(
+            unreachable_patterns,
+            reason = "dead only when every backend feature is on"
+        )]
+        unsupported => {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "enrichers.ocr `{}` names a backend this build does not ship ({}). Enable the matching `elide-provider` feature.",
+                    config.name,
+                    unsupported.provider(),
+                ),
+            ));
+        }
     })
-}
-
-/// Build the Textract backend from its deployment configuration.
-///
-/// Synchronous, unlike Document AI: `Client::from_conf` takes a
-/// plain `Config`, so a region and optional static credentials are
-/// all this needs. With neither, the SDK resolves both from its own
-/// chain — IAM role, instance metadata, profile, environment —
-/// which is what a deployment on AWS infrastructure wants and why
-/// both config fields are optional.
-///
-/// `behavior_version_latest` is set because the SDK requires a
-/// behaviour version and refuses to build without one.
-#[cfg(feature = "aws-textract")]
-fn textract_backend(region: Option<&str>, credentials: Option<&AwsCredentials>) -> TextractOcr {
-    use elide_aws_textract::textract::config::{Credentials, Region};
-    use elide_aws_textract::textract::{Client, Config};
-
-    let mut config = Config::builder().behavior_version_latest();
-    if let Some(region) = region {
-        config = config.region(Region::new(region.to_owned()));
-    }
-    if let Some(creds) = credentials {
-        config = config.credentials_provider(Credentials::new(
-            creds.access_key_id.clone(),
-            creds.secret_access_key.clone(),
-            creds.session_token.clone(),
-            // No expiry: static credentials from configuration do
-            // not rotate themselves, which is why an IAM role is
-            // preferred and this path is the fallback.
-            None,
-            "elide-deployment",
-        ));
-    }
-    TextractOcr::new(Client::from_conf(config.build()))
 }
 
 /// Build the Deepgram backend, going through the SDK client only

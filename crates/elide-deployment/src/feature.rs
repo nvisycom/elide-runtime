@@ -39,6 +39,32 @@ impl Lingua {
     pub fn is_unrestricted(&self) -> bool {
         self.candidates.is_empty()
     }
+
+    /// Check every candidate is a well-formed BCP-47 tag.
+    ///
+    /// At load rather than at request compile. A typo'd tag is a
+    /// configuration fault, and a deployment that accepted one
+    /// would start, serve requests, and fail each one that reached
+    /// the text analyzer — reporting a problem in the document's
+    /// pipeline for something wrong in a file read at startup.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Invalid`](crate::ErrorKind::Invalid) naming the
+    /// offending tag.
+    pub fn validate(&self) -> crate::Result<()> {
+        for tag in &self.candidates {
+            elide::primitive::LanguageTag::parse(tag.clone()).map_err(|err| {
+                crate::Error::new(
+                    crate::ErrorKind::Invalid,
+                    format!(
+                        "enrichers.lingua.candidates: `{tag}` is not a valid BCP-47 language tag: {err}"
+                    ),
+                )
+            })?;
+        }
+        Ok(())
+    }
 }
 
 /// How often a backend may be called.
@@ -123,7 +149,7 @@ impl RateLimit {
             crate::Error::new(
                 crate::ErrorKind::Invalid,
                 format!(
-                    "component `{component}`: rateLimit.{field} is {value}, which                      describes a limiter that would never admit a call. Remove the                      rate limit instead of setting it to zero."
+                    "component `{component}`: rateLimit.{field} is {value}, which describes a limiter that would never admit a call. Remove the rate limit instead of setting it to zero."
                 ),
             )
         };

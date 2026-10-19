@@ -164,28 +164,21 @@ fn a_duplicated_component_name_is_refused() {
     );
 }
 
-/// The hosted OCR backends name their cloud in the wire `kind`, so
-/// a deployment file says whose infrastructure the document goes
-/// to. `textract` alone would not.
-#[cfg(all(feature = "aws-textract", feature = "google-document-ai"))]
+/// The hosted OCR backend names its cloud in the wire `kind`, so a
+/// deployment file says whose infrastructure the document goes to.
+/// `document_ai` alone would not.
+#[cfg(feature = "google-document-ai")]
 #[test]
-fn the_cloud_ocr_backends_name_their_vendor() {
+fn the_cloud_ocr_backend_names_its_vendor() {
     use elide_deployment::component::OcrBackend;
 
     let deployment =
         Deployment::from_toml_resolved(testdata!("cloud_ocr.toml"), |_| None).expect("loads");
 
-    assert_eq!(deployment.enrichers().ocr.len(), 2);
+    assert_eq!(deployment.enrichers().ocr.len(), 1);
     assert!(
         matches!(
             deployment.enrichers().ocr[0].backend,
-            OcrBackend::AwsTextract { .. }
-        ),
-        "kind = \"aws_textract\" selects the AWS backend",
-    );
-    assert!(
-        matches!(
-            deployment.enrichers().ocr[1].backend,
             OcrBackend::GoogleDocumentAi { .. }
         ),
         "kind = \"google_document_ai\" selects the Google backend",
@@ -307,5 +300,87 @@ fn an_unreadable_path_is_named_in_the_error() {
     assert!(
         err.message().contains("/nonexistent/elide/deployment.toml"),
         "the message must name the path: {err}",
+    );
+}
+
+/// A misspelled lineup key is refused, not ignored.
+///
+/// Regression: `Recognizers` and `Enrichers` lacked
+/// `deny_unknown_fields`, so `[[enrichers.ocrr]]` parsed to an
+/// empty deployment and reported success. A deployment believing
+/// it had OCR configured would have had none, and every image
+/// would come back with no text found — indistinguishable from an
+/// image holding no text.
+#[test]
+fn a_misspelled_lineup_key_is_refused() {
+    let err = Deployment::from_toml_resolved(testdata!("unknown_lineup.toml"), |_| None)
+        .expect_err("must not load");
+
+    assert_eq!(err.kind(), ErrorKind::Malformed);
+    assert!(
+        err.message().contains("ocrr") && err.message().contains("ocr"),
+        "the message must name the typo and the valid keys: {err}",
+    );
+}
+
+/// `rate_limit` is accepted beside `rateLimit`.
+///
+/// Regression: only the camelCase spelling parsed, so the
+/// snake_case one — which matches every other key an operator
+/// writes in this file — was an unknown field on a struct that
+/// could not deny them, and the limit was silently dropped. A
+/// deployment believing it was rate-limited was not.
+#[test]
+fn the_snake_case_rate_limit_key_is_accepted() {
+    let deployment = Deployment::from_toml_resolved(testdata!("snake_rate_limit.toml"), |_| None)
+        .expect("loads");
+
+    let limit = deployment.recognizers().ner[0]
+        .rate_limit
+        .expect("the snake_case spelling must reach the component");
+    assert_eq!(limit.requests, 30);
+}
+
+/// A parse error carries no source text.
+///
+/// Regression: `toml`'s own `Display` quotes the offending line,
+/// and by the time parsing runs `${VAR}` has been expanded — so a
+/// syntax error on the line holding a credential put that
+/// credential in the error, and from there into whatever collects
+/// startup logs.
+#[test]
+fn a_parse_error_does_not_quote_the_expanded_document() {
+    const SECRET: &str = "sk-must-not-appear-in-the-error";
+
+    let err = Deployment::from_toml_resolved(
+        "[[recognizers.llm]]\nname = \"x\"\nkind = \"open-ai\"\napi_key = \"${K}\" oops\n",
+        |_| Some(SECRET.to_owned()),
+    )
+    .expect_err("the document is malformed");
+
+    assert_eq!(err.kind(), ErrorKind::Malformed);
+    assert!(
+        !err.message().contains(SECRET),
+        "the expanded secret reached the error: {err}",
+    );
+    assert!(
+        err.message().contains("line 4"),
+        "but the location must survive, or an operator cannot find it: {err}",
+    );
+}
+
+/// A malformed language tag is refused at load.
+#[test]
+fn a_malformed_language_tag_is_refused_at_load() {
+    let err = Deployment::from_toml_resolved(
+        "[enrichers.lingua]\ncandidates = [\"en\", \"not a language\"]\n",
+        |_| None,
+    )
+    .expect_err("must not load");
+
+    assert_eq!(err.kind(), ErrorKind::Invalid);
+    assert!(
+        err.message().contains("enrichers.lingua.candidates"),
+        "the message must name the field: {err}",
     );
 }

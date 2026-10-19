@@ -40,12 +40,8 @@ deepgram = ["elide-deployment/deepgram", "dep:elide-deepgram"]
 ## `NerBackend::Pioneer`.
 pioneer = ["elide-deployment/pioneer", "dep:elide-pioneer-gliner"]
 
-## Ship AWS Textract as an OCR backend. Off by default: it sends
-## page images to AWS, and it pulls the AWS SDK.
-aws-textract = ["elide-deployment/aws-textract", "dep:elide-aws-textract"]
-
 ## Ship Google Cloud Document AI as an OCR backend. Off by default,
-## as `aws-textract`. Building its client is async, so a deployment
+## Building its client is async, so a deployment
 ## naming it is built through `Provider::try_new`.
 google-document-ai = [
     "elide-deployment/google-document-ai",
@@ -65,7 +61,7 @@ ignored = ["elide-llm"]
 elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "lingua", "operator-fake", "serde", "schema", "operator-sha2", "operator-hmac", "operator-aes", "operator-datetime", "metrics", "ratelimit"] }
 
 # Elide extensions
-elide-aws-textract = { workspace = true, features = [], optional = true }
+
 elide-bentoml = { workspace = true, features = ["ner", "ocr", "stt"] }
 elide-deepgram = { workspace = true, optional = true }
 elide-google-document-ai = { workspace = true, features = [], optional = true }

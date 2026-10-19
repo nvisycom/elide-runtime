@@ -29,7 +29,7 @@ use crate::feature::Lingua;
 /// request compile.
 #[derive(Debug, Clone, Default)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct Enrichers {
     /// The OCR lineup, attaching to the image analyzer.
     #[serde(skip_serializing_if = "Vec::is_empty")]

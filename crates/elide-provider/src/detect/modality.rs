@@ -3,8 +3,9 @@
 //! One function per modality: each picks the recognizers and
 //! enrichers the modality supports and rejects the rest at
 //! compile time (e.g. OCR on text, LLM on tabular). Every
-//! compile fn consults the deployment [`NerConfig`]; [`compile_text`]
-//! and [`compile_image`] also consult [`LlmConfig`]. The
+//! compile fn consults the deployment's NER lineup;
+//! [`compile_text`] and [`compile_image`] also consult the LLM
+//! lineup. The
 //! language-detection enricher always attaches to text; OCR and
 //! STT enrichers attach when their per-modality backend is wired
 //! on the engine.
@@ -12,8 +13,6 @@
 //! Non-text methods are gated on their modality's feature.
 //!
 //! [`Analyzer`]: elide::detection::Analyzer
-//! [`LlmConfig`]: crate::detect::LlmConfig
-//! [`NerConfig`]: crate::detect::NerConfig
 
 use elide::Result;
 use elide::detection::Analyzer;

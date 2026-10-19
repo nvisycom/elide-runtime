@@ -1,0 +1,9 @@
+# Build from the repo root:  bentoml build -f packages/bento-paddleocr/bentofile.yaml .
+# Image config (Python version, system packages, requirements) lives in
+# service.py; this file selects the service and scopes the bundled source.
+service: "bento_paddleocr.service:OcrVlService"
+include:
+  - "packages/bento-paddleocr/**"
+  - "packages/bento-core/**"
+  - "pyproject.toml"
+  - "uv.lock"

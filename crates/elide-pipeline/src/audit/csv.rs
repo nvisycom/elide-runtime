@@ -29,7 +29,7 @@ use elide_export::{ExportCsv, Table, write_rows};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use super::audit::Audit;
+use super::Audit;
 
 /// Run `$body` once per modality, binding `$m` to the modality
 /// type. Its wire name is `$m::NAME`.

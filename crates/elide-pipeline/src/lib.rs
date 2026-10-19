@@ -47,9 +47,10 @@
 //!
 //! [`elide`]: elide
 
+mod audit;
+mod engine;
 pub mod entity;
 pub mod file;
-mod pipeline;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
@@ -245,7 +246,7 @@ pub use elide_schema as governance;
 #[doc(inline)]
 pub use elide_template as template;
 
-pub use self::pipeline::{
-    Analyzed, Audit, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
-    Unhandled,
+pub use self::audit::{
+    Analyzed, Audit, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer, Unhandled,
 };
+pub use self::engine::Engine;

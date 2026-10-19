@@ -15,9 +15,13 @@
 //! and decisions while the content a re-run needs is persisted
 //! (and governed) separately.
 //!
-//! [`Engine::analyze`]: super::Engine::analyze
-//! [`Engine::anonymize`]: super::Engine::anonymize
-//! [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
+//! [`Engine::analyze`]: crate::Engine::analyze
+//! [`Engine::anonymize`]: crate::Engine::anonymize
+//! [`Engine::deserialize_audit`]: crate::Engine::deserialize_audit
+
+#[cfg(feature = "audit-csv")]
+mod csv;
+mod registered;
 
 use elide::backend::metrics::Usage;
 use elide::modality::Modality;
@@ -31,6 +35,8 @@ use elide_schema::recognition::Recognition;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
+
+pub use self::registered::{RegisteredComponents, RegisteredEnricher, RegisteredRecognizer};
 
 /// What [`Engine::analyze`] produced: the [`Audit`] and, beside
 /// it, the enrichment content the pass extracted.
@@ -48,8 +54,8 @@ use uuid::Uuid;
 /// Persist both to re-detect after a review gap without paying for
 /// OCR/STT twice — see [`Engine::re_analyze`].
 ///
-/// [`Engine::analyze`]: super::Engine::analyze
-/// [`Engine::re_analyze`]: super::Engine::re_analyze
+/// [`Engine::analyze`]: crate::Engine::analyze
+/// [`Engine::re_analyze`]: crate::Engine::re_analyze
 pub struct Analyzed {
     /// What detection found, and what the policies would do about
     /// it: the reviewable half.
@@ -91,8 +97,8 @@ pub struct Analyzed {
 /// required, so a generated client would reject responses this
 /// crate really emits.
 ///
-/// [`Engine`]: super::Engine
-/// [`Engine::deserialize_audit`]: super::Engine::deserialize_audit
+/// [`Engine`]: crate::Engine
+/// [`Engine::deserialize_audit`]: crate::Engine::deserialize_audit
 /// [`Report`]: elide::Report
 /// [`SchemaSettings::for_serialize`]: schemars::generate::SchemaSettings::for_serialize
 #[derive(Serialize, JsonSchema)]
@@ -118,7 +124,7 @@ pub struct Audit {
     /// same vocabulary analyze used, and re-decodes under the same
     /// codec configuration, without the caller re-passing it.
     ///
-    /// [`Engine::anonymize`]: super::Engine::anonymize
+    /// [`Engine::anonymize`]: crate::Engine::anonymize
     pub context: DocumentContext,
     /// The vocabularies this request introduced: labels elide does
     /// not ship, and how they were found.

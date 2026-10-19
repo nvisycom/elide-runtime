@@ -30,10 +30,10 @@ use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
 use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, PartId, Report, Result};
-use elide_governance::compile_catalog;
-use elide_governance::modality::RedactableModality;
-use elide_governance::policy::{Policy, PolicyRule, Predicate};
-use elide_governance::recognition::Recognition;
+use elide_schema::compile_catalog;
+use elide_schema::modality::RedactableModality;
+use elide_schema::policy::{Policy, PolicyRule, Predicate};
+use elide_schema::recognition::Recognition;
 use uuid::Uuid;
 
 pub use self::codec::CodecParams;
@@ -41,11 +41,11 @@ pub use self::config::ProviderConfig;
 pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
 pub use self::request::RequestContext;
-use crate::recognition::{
-    Availability, ComponentSelection, Enrichers, Recognizers, ResolvedComponents, Resolver,
-    analyzers,
+use crate::detect::{
+    Analyzers, Availability, ComponentSelection, Enrichers, Recognizers, ResolvedComponents,
+    Resolver, analyzers,
 };
-use crate::redaction::{Pickers, anonymizers, pickers};
+use crate::redact::{Pickers, anonymizers, pickers};
 
 /// A deployment's configuration, ready to build orchestrators from.
 ///
@@ -193,7 +193,7 @@ impl Provider {
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide::entity::LabelCatalog
-    /// [`Policy::label_scope`]: elide_governance::policy::Policy::label_scope
+    /// [`Policy::label_scope`]: elide_schema::policy::Policy::label_scope
     pub fn analyze_orchestrator(
         &self,
         context: &DocumentContext,
@@ -201,21 +201,27 @@ impl Provider {
         policies: &[Policy],
         correlation_id: Uuid,
         selection: &ComponentSelection,
-    ) -> Result<Orchestrator> {
+    ) -> Result<Analyzers> {
         validate_scope_references(policies)?;
         let catalog = compile_catalog(policies, recognition)?;
         let live_scope = build_scope(context, catalog, correlation_id);
 
-        let orchestrator = analyzers(
+        let Analyzers {
+            orchestrator,
+            usage,
+        } = analyzers(
             &self.inner.recognizers,
             &self.inner.enrichers,
             recognition,
             &self.inner.availability,
             selection,
         )?;
-        Ok(orchestrator
-            .with_registry(self.inner.formats.clone())
-            .with_scope(live_scope))
+        Ok(Analyzers {
+            orchestrator: orchestrator
+                .with_registry(self.inner.formats.clone())
+                .with_scope(live_scope),
+            usage,
+        })
     }
 
     /// Build an [`Orchestrator`] for the anonymize path: reuse
@@ -364,8 +370,8 @@ impl Provider {
 /// [`Configuration`](ErrorKind::Configuration) error at request
 /// validation time, not as a silent underfire at apply time.
 ///
-/// [`LabelScope`]: elide_governance::policy::LabelScope
-/// [`scopes`]: elide_governance::policy::Policy::scopes
+/// [`LabelScope`]: elide_schema::policy::LabelScope
+/// [`scopes`]: elide_schema::policy::Policy::scopes
 fn validate_scope_references(policies: &[Policy]) -> Result<()> {
     for policy in policies {
         let mut known: HashSet<&str> = HashSet::new();

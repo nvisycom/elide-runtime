@@ -137,8 +137,11 @@ pub trait ExportCsv {
     #[cfg(feature = "zip")]
     #[cfg_attr(docsrs, doc(cfg(feature = "zip")))]
     fn write_zip<W: io::Write + io::Seek>(&self, writer: W) -> Result<()> {
-        let options: zip::write::FileOptions<'_, ()> =
-            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        // `SimpleFileOptions` over the raw `FileOptions`: it fixes
+        // the extra-data type parameters zip 9 made explicit, and
+        // this writer has no extra field data to carry.
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
         let mut archive = zip::ZipWriter::new(writer);
         for table in Self::TABLES {
             archive

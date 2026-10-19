@@ -36,10 +36,10 @@
 //!
 //! [`Provider`]: crate::Provider
 
-use elide_governance::recognition::Recognition;
+use elide_schema::recognition::Recognition;
 
 use super::{CodecParams, DocumentContext, KeyConfig};
-use crate::recognition::ComponentSelection;
+use crate::detect::ComponentSelection;
 
 /// What one request supplies beyond its policies.
 ///

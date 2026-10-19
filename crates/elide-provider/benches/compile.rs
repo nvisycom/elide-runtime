@@ -15,9 +15,9 @@
 use std::hint::black_box;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use elide_governance::policy::Policy;
-use elide_governance::recognition::Recognition;
 use elide_provider::{ComponentSelection, DocumentContext, Provider, ProviderConfig};
+use elide_schema::policy::Policy;
+use elide_schema::recognition::Recognition;
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PolicyTemplate,

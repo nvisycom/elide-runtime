@@ -31,7 +31,7 @@
 //!   adds Article 10's criminal-justice labels
 //!   (`criminal_record`, `criminal_charge`, `judicial_narrative`).
 //!
-//! [`Predicated`]: elide_governance::policy::RuleDispatch::Predicated
+//! [`Predicated`]: elide_schema::policy::RuleDispatch::Predicated
 
 use elide_core::entity::audit::Attribution;
 use jiff::civil::Date;
@@ -138,7 +138,7 @@ pub(super) fn template_id(base: &str, scope: GdprSensitiveScope) -> String {
 
 #[cfg(test)]
 mod tests {
-    use elide_governance::redaction::TextRedaction;
+    use elide_schema::redaction::TextRedaction;
 
     use super::sensitive_scope::GDPR_LABELS;
     use super::*;

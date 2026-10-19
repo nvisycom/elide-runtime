@@ -18,7 +18,7 @@ does today rather than how it got here.
 - **elide-provider** — deployment-owned configuration: which NER, LLM,
   OCR and STT backends exist, and the per-modality orchestrator built
   from them. A request toggles them; it does not choose them.
-- **elide-governance** — the wire schema for what happens to sensitive
+- **elide-schema** — the wire schema for what happens to sensitive
   data: policies, scopes, rules, predicates, operator specs, and the
   vocabulary a request introduces.
 - **elide-template** — ready-to-run policy postures for HIPAA
@@ -44,7 +44,7 @@ does today rather than how it got here.
   text; blur, pixelate and black out image regions; silence and beep
   audio; drop tabular rows and columns. Encryption and pseudonymization
   round-trip.
-- Codecs read and rewrite TXT, CSV, JSON, XML, HTML, RTF, PDF, DOCX,
+- Codecs read and rewrite TXT, CSV, JSON, XML, HTML, PDF, DOCX,
   PPTX, XLSX, images (PNG, JPEG, TIFF) and audio (WAV, MP3), changing
   only the redacted spans. `codec-mp3` and `codec-pdf-render` stay
   opt-in: MP3 patent licensing may not be satisfiable downstream, and

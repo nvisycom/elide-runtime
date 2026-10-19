@@ -1,7 +1,7 @@
 use elide_core::entity::LabelRef;
-use elide_governance::policy::{LabelEntry, LabelScope, Policy, PolicyRule, RuleDispatch};
-use elide_governance::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
 use elide_operator::operators::{DateGranularity, DateStyle};
+use elide_schema::policy::{LabelEntry, LabelScope, Policy, PolicyRule, RuleDispatch};
+use elide_schema::redaction::{ClampBucket, ModalityRedactions, TextRedaction};
 use semver::Version;
 
 use super::super::{cited, derived_id, origin};

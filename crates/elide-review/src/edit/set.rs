@@ -15,7 +15,7 @@ use elide::modality::image::Image;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{PartId, Report};
-use elide_governance::modality::RedactableModality;
+use elide_schema::modality::RedactableModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

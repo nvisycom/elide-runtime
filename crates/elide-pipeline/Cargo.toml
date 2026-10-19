@@ -5,7 +5,6 @@ name = "elide-pipeline"
 description = "Stateless document pipeline on top of elide: analyzer + anonymizer + orchestrator"
 keywords = ["elide", "pipeline", "engine", "redaction"]
 categories = ["data-structures"]
-readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -15,7 +14,6 @@ publish = { workspace = true }
 
 authors = { workspace = true }
 repository = { workspace = true }
-homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
@@ -40,11 +38,11 @@ image = ["codec-png", "codec-jpeg", "codec-tiff"]
 ## The WAV codec. MP3 is opt-in via `codec-mp3` because of patent
 ## licensing. The audio modality itself is always compiled in.
 audio = ["codec-wav"]
-## Container-document codecs: DOCX, PDF, RTF. Standalone: text and
+## Container-document codecs: DOCX and PDF. Standalone: text and
 ## image modalities are still needed to handle the parts these
 ## containers embed. `codec-pdf-render` (rasterising pages for
 ## OCR) is opt-in via its own toggle.
-document = ["codec-docx", "codec-pdf", "codec-rtf"]
+document = ["codec-docx", "codec-pdf"]
 
 ## Individual codec toggles. Every modality's analyzer,
 ## anonymizer, and redaction operators are always compiled in, so
@@ -67,8 +65,6 @@ codec-pdf = ["elide/codec-pdf"]
 ## on top of `codec-pdf`; opt-in because it drags in a native
 ## rendering dep.
 codec-pdf-render = ["codec-pdf", "elide/codec-pdf-render"]
-## RTF documents.
-codec-rtf = ["elide/codec-rtf"]
 
 ## JSON audit export via `elide_export::ExportJson`.
 audit-json = ["dep:elide-export", "elide-export/json"]
@@ -80,19 +76,19 @@ audit-csv = ["dep:elide-export", "elide-export/csv", "dep:serde_json"]
 ## `elide_export::ExportCsv::write_zip`.
 audit-zip = ["audit-csv", "elide-export/zip"]
 
-## Ship the Gladia-backed STT backend, so a deployment can
-## transcribe through Gladia's hosted API instead of a self-hosted
+## Ship the Deepgram-backed STT backend, so a deployment can
+## transcribe through Deepgram's hosted API instead of a self-hosted
 ## service. Off by default: it pulls a third-party HTTP client, and
 ## it sends audio off your infrastructure before redaction runs.
-gladia = ["elide-provider/gladia"]
+deepgram = ["elide-provider/deepgram"]
 
 ## Turn on the test-only mock variants
 ## (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) and the elide mock
 ## backends they compile into. Off in production so deployment
 ## config cannot ship a mock recognizer.
-test-utils = [
-    "elide/test-utils",
-    "elide-provider/test-utils",
+mocks = [
+    "elide/mocks",
+    "elide-provider/mocks",
 ]
 
 [package.metadata.docs.rs]
@@ -101,11 +97,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["engine", "codec", "codec-text", "tabular", "image", "audio", "serde", "schema", "usage"] }
+elide = { workspace = true, features = ["engine", "codec", "codec-text", "tabular", "image", "audio", "serde", "schema", "metrics"] }
 
 # Internal crates
 elide-export = { workspace = true, features = [], optional = true }
-elide-governance = { workspace = true, features = [] }
+elide-schema = { workspace = true, features = [] }
 elide-provider = { workspace = true, features = [] }
 elide-review = { workspace = true, features = [] }
 elide-template = { workspace = true }
@@ -126,7 +122,7 @@ jiff = { workspace = true, features = ["serde"] }
 # Internal crates
 
 elide-export = { workspace = true, features = ["json", "csv", "zip"] }
-elide-pipeline = { path = ".", features = ["test-utils", "audit-json", "audit-csv", "audit-zip"] }
+elide-pipeline = { path = ".", features = ["mocks", "audit-json", "audit-csv", "audit-zip"] }
 
 # Serialization
 serde_json = { workspace = true, features = [] }

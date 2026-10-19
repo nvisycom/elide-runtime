@@ -213,10 +213,10 @@ mod enrichers {
         // …and compiling the request refuses it, naming the choice.
         // A policy naming something to find: the empty-catalog
         // guard refuses first otherwise, and would mask this.
-        let policy = elide_governance::policy::Policy {
+        let policy = elide_schema::policy::Policy {
             id: uuid::Uuid::now_v7(),
             name: "detect".into(),
-            scopes: vec![elide_governance::policy::LabelScope::new(
+            scopes: vec![elide_schema::policy::LabelScope::new(
                 "contact",
                 vec![elide::entity::LabelRef::new("email_address")],
             )],

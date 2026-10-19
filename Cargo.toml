@@ -5,7 +5,7 @@ resolver = "3"
 members = [
     "./crates/elide-provider",
     "./crates/elide-export",
-    "./crates/elide-governance",
+    "./crates/elide-schema",
     "./crates/elide-pipeline",
     "./crates/elide-review",
     "./crates/elide-template",
@@ -20,7 +20,6 @@ publish = false
 
 authors = ["nvisy <contact@nvisy.com>"]
 repository = "https://github.com/nvisycom/elide-runtime"
-homepage = "https://github.com/nvisycom/elide-runtime"
 documentation = "https://docs.rs/nvisy-runtime"
 
 [workspace.dependencies]
@@ -33,20 +32,18 @@ documentation = "https://docs.rs/nvisy-runtime"
 elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-image = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-ocr = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-pdf = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-stt = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Elide extensions
 elide-bentoml = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
-elide-gladia = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
+elide-deepgram = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
 
 # Internal crates
 elide-export = { path = "./crates/elide-export", version = "0.1.0" }
-elide-governance = { path = "./crates/elide-governance", version = "0.1.0" }
+elide-schema = { path = "./crates/elide-schema", version = "0.1.0" }
 elide-provider = { path = "./crates/elide-provider", version = "0.1.0" }
-elide-pipeline = { path = "./crates/elide-pipeline", version = "0.1.0" }
 elide-review = { path = "./crates/elide-review", version = "0.1.0" }
 elide-template = { path = "./crates/elide-template", version = "0.1.0" }
 
@@ -57,11 +54,6 @@ serde-value = { version = "0.7", features = [] }
 schemars = { version = "1.0", features = ["uuid1", "bytes1"] }
 csv = { version = "1.3", features = [] }
 
-# Derive macros and error handling
-thiserror = { version = "2.0", features = [] }
-derive_more = { version = "2.0", features = ["add_assign", "as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant", "try_into"] }
-derive_builder = { version = "0.20", features = [] }
-
 # Primitive datatypes
 uuid = { version = "1.23", features = ["serde", "v4", "v7"] }
 bytes = { version = "1.0", features = ["serde"] }
@@ -69,23 +61,10 @@ hipstr = { version = "0.8", features = ["serde"] }
 jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
 
-# Encoding and hashing
-base64 = { version = "0.23", features = [] }
-sha2 = { version = "0.11", features = [] }
-
 # Test utilities
 criterion = { version = "0.8", features = [] }
-tempfile = { version = "3.10", features = [] }
-zip = { version = "8.6", default-features = false, features = ["deflate"] }
+zip = { version = "9.0", default-features = false, features = ["deflate"] }
 
 # Async runtime and parallelism
 tokio = { version = "1.50", features = [] }
-tokio-util = { version = "0.7", features = [] }
-futures = { version = "0.3", features = [] }
-async-trait = { version = "0.1", features = [] }
 
-# Observability
-tracing = { version = "0.1", features = ["attributes"] }
-
-# AI / LLM frameworks
-bentoml = { version = "0.5", default-features = false, features = ["rustls-tls", "tracing"] }

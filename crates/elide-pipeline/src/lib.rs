@@ -6,10 +6,10 @@
 //! per-modality analyzers, anonymizers, and orchestrator into a
 //! stateless per-request document pipeline, driven by its own
 //! request schemas ([`RequestContext`](provider::RequestContext), [`file`](mod@file)) and the
-//! governance schema from [elide-governance].
+//! governance schema from [elide-schema].
 //!
 //! [elide]: https://github.com/nvisycom/elide
-//! [elide-governance]: https://docs.rs/elide-governance
+//! [elide-schema]: https://docs.rs/elide-schema
 //!
 //! ## Architecture
 //!
@@ -42,14 +42,15 @@
 //! hands to [`Engine::analyze`] / [`Engine::anonymize`] as a
 //! one-element slice.
 //!
-//! [`LabelScope`]: elide_governance::policy::LabelScope
-//! [`Policy::scopes`]: elide_governance::policy::Policy::scopes
+//! [`LabelScope`]: elide_schema::policy::LabelScope
+//! [`Policy::scopes`]: elide_schema::policy::Policy::scopes
 //!
 //! [`elide`]: elide
 
+mod audit;
+mod engine;
 pub mod entity;
 pub mod file;
-mod pipeline;
 
 #[doc(inline)]
 pub use elide::codec::FormatRegistry;
@@ -93,43 +94,75 @@ pub mod modality {
 /// [`ImageLocation`](modality::image::ImageLocation) needs
 /// [`BoundingBox`](primitive::BoundingBox) to read its geometry,
 /// and one configuring a request needs
-/// [`Languages`](primitive::Languages) — but neither should have
-/// to depend on elide directly to say so.
+/// [`LanguageClaim`](primitive::LanguageClaim) — but neither
+/// should have to depend on elide directly to say so.
 pub mod primitive {
+    /// How a PDF is sampled when its pages are rasterised.
+    ///
+    /// From the PDF codec rather than the shared primitives: it
+    /// configures that codec alone, and only a build carrying it
+    /// can honour a non-default mode.
+    #[cfg(feature = "codec-pdf")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "codec-pdf")))]
+    #[doc(inline)]
+    pub use elide::codec::pdf::RasterMode;
     /// The geometry and time primitives a modality location is
     /// built from: an image bounding box and polygon, a point, an
     /// audio time span.
     #[doc(inline)]
     pub use elide::primitive::{BoundingBox, Point, Polygon, TimeSpan};
-    /// How a request describes its content: the country and
-    /// languages a document is in, and how a raster is sampled.
+    /// How a request describes its content: the country a document
+    /// is from, and each claim about the language it is in.
     #[doc(inline)]
-    pub use elide::primitive::{CountryCode, Languages, RasterMode};
+    pub use elide::primitive::{CountryCode, LanguageClaim};
 }
 
-/// What a pass spent, and which recognizer spent it.
+/// What a pass spent, call by call.
 ///
-/// Grouped for the same reason as [`primitive`]: these hang off
-/// [`UsageReport`] — reached via [`Audit::usage`] — rather than
-/// appearing on a signature of this crate's own, so they belong
-/// behind a name instead of crowding the root.
+/// Grouped for the same reason as [`primitive`]: these hang off the
+/// entries on [`Audit::usage`] rather than appearing on a signature
+/// of this crate's own, so they belong behind a name instead of
+/// crowding the root.
 ///
-/// [`UsageReport`]: UsageReport
+/// Always recorded: every configured backend is wrapped, so an
+/// audit says what each model call cost whether or not a
+/// deployment bills on it. A pass that called no model carries an
+/// empty tally, which is skipped on the wire.
+///
 /// [`Audit::usage`]: Audit::usage
 pub mod usage {
+    /// One backend call's record, and the pieces it is built from:
+    /// the model called, whether the call succeeded, and the units
+    /// it spent — tokens, audio seconds, pages, images, characters.
+    ///
+    /// [`UsageCollector`] is the sink a run collects into, and
+    /// [`Metered`] the decorator that feeds it; a host wiring its
+    /// own accounting needs both.
     #[doc(inline)]
-    pub use elide::recognition::{ModelUsage, RecognizerId, ScopeMetadata, TokenCounts, Usage};
+    pub use elide::backend::metrics::{
+        Metered, ModelUsage, Outcome, Usage, UsageCollector, UsageSink,
+    };
+    /// Which component a usage entry belongs to: its configured
+    /// name and the version that ran.
+    ///
+    /// Covers enrichers as well as recognizers, so one identity
+    /// spans both halves of a lineup.
+    #[doc(inline)]
+    pub use elide::primitive::ComponentId;
+    /// The scope metadata a recognizer ran under.
+    #[doc(inline)]
+    pub use elide::recognition::ScopeMetadata;
 }
 
-/// The report of what a pass spent, carried on [`Audit::usage`].
+/// One backend call's cost, carried on [`Audit::usage`].
 ///
 /// Stays at the root, unlike the types it is built from: it is the
-/// type of a public field, so a signature over an [`Audit`] has to
-/// name it. Its constituents live in [`usage`].
+/// element type of a public field, so a signature over an [`Audit`]
+/// has to name it. Its constituents live in [`usage`].
 ///
 /// [`Audit::usage`]: Audit::usage
 #[doc(inline)]
-pub use elide::recognition::UsageReport;
+pub use elide::backend::metrics::Usage;
 /// The encryption-key source a PCI-DSS posture requires, wired via
 /// `Engine::with_key_provider`.
 ///
@@ -181,6 +214,15 @@ pub mod export {
     pub use elide_export::{ExportCsv, Table};
 }
 
+/// Providers: who does the detecting, and what a single request
+/// carries into them.
+///
+/// Re-exported whole rather than name by name. The crate keeps its
+/// internals private and re-exports a flat facade at its own root,
+/// so there is no stutter to work around and no hand-maintained
+/// import list here to drift out of step with it.
+#[doc(inline)]
+pub use elide_provider as provider;
 /// Governance: what happens to sensitive data, and the vocabulary
 /// a request introduces.
 ///
@@ -191,16 +233,7 @@ pub mod export {
 /// stutters (`policy::policy::Policy`) and puts the vocabulary
 /// behind a module that has nothing to do with it.
 #[doc(inline)]
-pub use elide_governance as governance;
-/// Providers: who does the detecting, and what a single request
-/// carries into them.
-///
-/// Re-exported whole rather than name by name. The crate keeps its
-/// internals private and re-exports a flat facade at its own root,
-/// so there is no stutter to work around and no hand-maintained
-/// import list here to drift out of step with it.
-#[doc(inline)]
-pub use elide_provider as provider;
+pub use elide_schema as governance;
 /// Templates: ready-to-run [`Policy`](governance::policy::Policy)
 /// sets for common regulatory postures.
 ///
@@ -213,7 +246,7 @@ pub use elide_provider as provider;
 #[doc(inline)]
 pub use elide_template as template;
 
-pub use self::pipeline::{
-    Analyzed, Audit, Engine, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer,
-    Unhandled,
+pub use self::audit::{
+    Analyzed, Audit, RegisteredComponents, RegisteredEnricher, RegisteredRecognizer, Unhandled,
 };
+pub use self::engine::Engine;

@@ -1,4 +1,4 @@
-//! End-to-end tests for the wire shapes in [`elide_governance`]:
+//! End-to-end tests for the wire shapes in [`elide_schema`]:
 //! per-label table rules, label-group predicates, and any other
 //! policy-side sugar the engine flattens at compile time.
 //!
@@ -10,14 +10,12 @@ use elide::entity::audit::{Attribution, AuditKind};
 use elide::entity::{Label, LabelRef};
 use elide::modality::text::Text;
 use elide::primitive::Confidence;
-use elide_governance::policy::{
-    LabelEntry, LabelScope, Policy, PolicyRule, Predicate, RuleDispatch,
-};
-use elide_governance::recognition::{CustomMatcher, MatchOn};
-use elide_governance::redaction::{ModalityRedactions, TextRedaction};
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{ProviderConfig, Recognition, RequestContext};
 use elide_pipeline::{Audit, Engine, ErrorKind};
+use elide_schema::policy::{LabelEntry, LabelScope, Policy, PolicyRule, Predicate, RuleDispatch};
+use elide_schema::recognition::{CustomMatcher, MatchOn};
+use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 

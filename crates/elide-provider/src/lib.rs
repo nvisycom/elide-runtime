@@ -38,28 +38,36 @@
 //!
 //! [`Orchestrator`]: elide::Orchestrator
 
+mod component;
+mod detect;
 mod orchestrator;
-mod recognition;
-mod redaction;
+mod redact;
+mod request;
 
+/// The EXIF policy a request carries on [`CodecParams`].
+///
+/// Re-exported from `elide-image` so a caller can name the field's
+/// type without taking its own dependency on that crate.
+pub use elide_image::exif::ExifPolicy;
+/// The raster mode a request carries on [`CodecParams`].
+///
+/// Re-exported beside [`ExifPolicy`] and for the same reason: a
+/// caller naming the field's type should not need its own
+/// dependency on the PDF codec crate.
+pub use elide_pdf::primitive::RasterMode;
 /// The vocabulary a request introduces, carried on
 /// [`RequestContext`], with the matcher types it is built from.
 ///
 /// Re-exported together: a `Recognition` is a list of matchers, so
 /// naming one without being able to name the other leaves the type
 /// unusable from this facade alone.
-pub use elide_governance::recognition::{CustomMatcher, MatchOn, Recognition};
-/// The EXIF policy a request carries on [`CodecParams`].
-///
-/// Re-exported from `elide-image` so a caller can name the field's
-/// type without taking its own dependency on that crate.
-pub use elide_image::ExifPolicy;
+pub use elide_schema::recognition::{CustomMatcher, MatchOn, Recognition};
 
+pub use self::detect::{
+    Analyzers, AttachTo, AuthenticatedProvider, Availability, Backend, Component,
+    ComponentSelection, Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers,
+    SttBackend, UnauthenticatedProvider, UsageHandle,
+};
 pub use self::orchestrator::{
     CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
-};
-pub use self::recognition::{
-    AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentSelection,
-    Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers, SttBackend,
-    UnauthenticatedProvider,
 };

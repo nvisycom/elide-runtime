@@ -15,11 +15,11 @@ use bytes::Bytes;
 use elide::entity::LabelRef;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
-use elide_governance::policy::{LabelScope, Policy};
 use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{ProviderConfig, RequestContext};
 use elide_pipeline::{Audit, Engine};
+use elide_schema::policy::{LabelScope, Policy};
 
 use self::fixtures::write_artefact;
 
@@ -208,7 +208,16 @@ async fn export_csv_bundles_every_table_into_one_zip() {
     write_artefact("sample", "audit-tables.zip", &archive);
 
     let mut zip = zip::ZipArchive::new(Cursor::new(archive)).expect("archive opens");
-    let names: Vec<String> = zip.file_names().map(ToOwned::to_owned).collect();
+    // zip 9 yields `Result<Cow<str>>` per entry rather than `&str`:
+    // a name can be invalid UTF-8, which it now reports instead of
+    // hiding.
+    let names: Vec<String> = zip
+        .file_names()
+        .map(|name| {
+            name.expect("fixture entry names are valid UTF-8")
+                .into_owned()
+        })
+        .collect();
     for table in <Audit as ExportCsv>::TABLES {
         assert!(
             names.contains(&format!("{table}.csv")),

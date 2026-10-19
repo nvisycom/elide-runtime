@@ -78,6 +78,23 @@ exceptions = [
     # end users to relink against a modified libmp3lame.
     { name = "mp3lame-sys", allow = ["LGPL-3.0"] },
     { name = "mp3lame-encoder", allow = ["LGPL-3.0"] },
+
+    # Mozilla's root CA certificate bundle, reached only with the
+    # `deepgram` feature on: deepgram -> tokio-tungstenite ->
+    # webpki-roots, for TLS trust anchors when transcribing
+    # through Deepgram's hosted API.
+    #
+    # CDLA-Permissive-2.0 is the Linux Foundation's *data* licence,
+    # which is what this crate ships: the certificate bundle is
+    # data, not code. It adds no copyleft obligation to software
+    # that uses the data, requires no attribution in binaries, and
+    # disclaims warranty. Both major versions are present because
+    # 0.26 re-exports 1.0.
+    #
+    # Scoped as an exception rather than an allowed licence so the
+    # grant stays limited to this bundle. Nothing else in the graph
+    # may ship under it without another decision here.
+    { name = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
 ]
 
 [bans]

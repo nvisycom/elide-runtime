@@ -9,7 +9,7 @@ pub(crate) mod hipaa;
 pub(crate) mod pci;
 
 use elide_core::entity::audit::Attribution;
-use elide_governance::policy::{Policy, TemplateOrigin};
+use elide_schema::policy::{Policy, TemplateOrigin};
 use hipstr::HipStr;
 use jiff::civil::Date;
 use schemars::JsonSchema;
@@ -59,9 +59,9 @@ pub use self::pci::{PciDssPart, PciPanRender};
 ///   that fired was the one in force at the time.
 ///
 /// [`Label`]: elide_core::entity::Label
-/// [`LabelScope`]: elide_governance::policy::LabelScope
-/// [`Policy`]: elide_governance::policy::Policy
-/// [`Policy::scopes`]: elide_governance::policy::Policy::scopes
+/// [`LabelScope`]: elide_schema::policy::LabelScope
+/// [`Policy`]: elide_schema::policy::Policy
+/// [`Policy::scopes`]: elide_schema::policy::Policy::scopes
 /// [`description`]: Self::description
 /// [`effective_date`]: Self::effective_date
 /// [`id`]: Self::id
@@ -97,8 +97,8 @@ pub struct Template {
     /// multiple templates and unions their policies into the
     /// engine's `&[Policy]` slice.
     ///
-    /// [`LabelScope`]: elide_governance::policy::LabelScope
-    /// [`Policy`]: elide_governance::policy::Policy
+    /// [`LabelScope`]: elide_schema::policy::LabelScope
+    /// [`Policy`]: elide_schema::policy::Policy
     pub policy: Policy,
 }
 

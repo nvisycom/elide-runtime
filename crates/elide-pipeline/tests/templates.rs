@@ -10,7 +10,7 @@
 use bytes::Bytes;
 use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{KeyConfig, ProviderConfig, RequestContext};
+use elide_pipeline::provider::{Deployment, KeyConfig, Provider, RequestContext};
 use elide_template::{
     GdprArticle9Treatment, GdprSensitiveScope, HipaaAccountNumbers, HipaaDeidMethod, PciDssPart,
     PciPanRender, PolicyTemplate, Template,
@@ -19,7 +19,7 @@ use elide_template::{
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
 fn engine() -> Engine {
-    Engine::new(ProviderConfig::default().build())
+    Engine::new(Provider::new(Deployment::default()))
 }
 
 /// The key a keyed-operator template redacts with. Supplied per

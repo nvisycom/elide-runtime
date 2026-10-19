@@ -1,14 +1,13 @@
 //! LLM deployment configuration.
 //!
-//! The wire's `RecognizerParams.llm` selects recognizers by
-//! name (or the whole lineup); every detail about which LLM(s)
-//! actually run lives here, on the deployment's side. Sidecar
-//! users configure their own lineup; SaaS operators configure
-//! the lineup their tenants share.
+//! A request's [`ComponentSelection`] names which recognizers to
+//! run, by name or by tag; every detail of *how* one runs lives
+//! here, on the deployment's side. Sidecar users configure their
+//! own lineup; SaaS operators configure the lineup their tenants
+//! share.
 //!
 //! ## Layout
 //!
-//! - [`LlmConfig`] is the top-level bag: the recognizer lineup.
 //! - [`LlmBackend`] is what one recognizer runs on: a source plus
 //!   the modalities it attaches to. The modalities live here
 //!   rather than on the shared [`Component`] because only an LLM
@@ -16,6 +15,8 @@
 //! - [`LlmSource`] is the discriminated source enum, wrapping
 //!   [`elide::recognition::llm::provider::Provider`]'s variants
 //!   (with model + credentials) plus a test-only `Mock`.
+//!
+//! [`ComponentSelection`]: crate::component::ComponentSelection
 //! - [`AttachTo`] tags one such modality.
 //!
 //! [`Component`]: crate::Component
@@ -34,7 +35,8 @@ use serde::{Deserialize, Serialize};
 /// payloads directly. The `Mock` variant exists only when the
 /// consuming crate enables the `mocks` feature: the wire
 /// rejects `kind = "mock"` in production builds.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum LlmSource {
     /// OpenAI GPT provider.
@@ -60,8 +62,9 @@ pub enum LlmSource {
 /// no choice to express.
 ///
 /// [`modalities`]: Self::modalities
-/// [`Component`]: crate::Component
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+/// [`Component`]: crate::component::Component
+#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmBackend {
     /// Source selection and its per-kind fields, flattened onto the
@@ -96,7 +99,7 @@ impl LlmSource {
     }
 }
 
-impl super::super::Backend for LlmBackend {
+impl crate::component::Backend for LlmBackend {
     fn provider(&self) -> &'static str {
         self.source.provider()
     }

@@ -31,7 +31,8 @@ use serde::{Deserialize, Serialize};
 /// crate enables the `deepgram` feature. The `Mock` variant exists
 /// only under `mocks`, so the wire rejects `kind = "mock"` in
 /// production builds.
-#[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SttBackend {
     /// BentoML-hosted STT service. Engine wires the shared
@@ -132,7 +133,7 @@ impl fmt::Debug for SttBackend {
     }
 }
 
-impl super::super::Backend for SttBackend {
+impl crate::component::Backend for SttBackend {
     /// Provider slug for the list-enrichers accessor.
     fn provider(&self) -> &'static str {
         match self {

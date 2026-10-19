@@ -17,7 +17,7 @@ use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
 use elide_pipeline::entity::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{ProviderConfig, RequestContext};
+use elide_pipeline::provider::{Deployment, Provider, RequestContext};
 use elide_pipeline::{Audit, Engine, ErrorKind};
 use elide_schema::policy::{LabelScope, Policy};
 use elide_schema::redaction::{ModalityRedactions, TextRedaction};
@@ -64,7 +64,7 @@ fn doc() -> Document {
 /// audit through JSON before anonymizing: the path a stateless host
 /// actually takes.
 async fn review_and_apply(review: impl FnOnce(&Audit, &mut EditSet)) -> (String, Audit) {
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let policy = policy();
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
@@ -228,7 +228,7 @@ async fn include_redacts_what_recognition_missed() {
 
 #[tokio::test]
 async fn include_stamps_manual_provenance() {
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let policy = policy();
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
@@ -255,7 +255,7 @@ async fn include_stamps_manual_provenance() {
 
 #[tokio::test]
 async fn include_rejects_a_foreign_modality() {
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let policy = policy();
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
@@ -320,7 +320,7 @@ async fn several_edits_compose_in_one_pass() {
 async fn analyze_records_the_policy_pick_for_review() {
     // The point of the pick pass: a reviewer must be able to see
     // *what would happen and why* before overriding anything.
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let policy = policy();
     let audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
@@ -360,7 +360,7 @@ async fn a_suppression_supersedes_the_pick_before_it() {
     // pick lands after it: the trail reads "we would have erased
     // this, then a human said leave it", which is the history, and
     // the entity is skipped.
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let policy = policy();
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
@@ -421,7 +421,7 @@ async fn a_suppression_supersedes_the_pick_before_it() {
 async fn re_applying_an_audit_does_not_stack_manual_events() {
     // `apply_suppressions` runs on every anonymize, so a host that
     // re-applies the same audit must not grow the trail each time.
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let policy = policy();
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())
@@ -554,7 +554,7 @@ async fn unhandled_names_a_detection_no_policy_acted_on() {
         fallback: None,
         ..policy()
     };
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let audit = engine
         .analyze(
             doc(),
@@ -658,7 +658,7 @@ async fn unhandled_reaches_into_container_parts() {
 /// a different route.
 #[tokio::test]
 async fn anonymize_rejects_a_document_renamed_since_analyze() {
-    let engine = Engine::new(ProviderConfig::default().build());
+    let engine = Engine::new(Provider::new(Deployment::default()));
     let policy = policy();
     let mut audit = engine
         .analyze(doc(), std::slice::from_ref(&policy), &RequestContext::new())

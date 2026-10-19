@@ -1,0 +1,3 @@
+# A deployment that configures nothing is still valid: elide's
+# built-in pattern recognizers and language detection need no
+# configuration.

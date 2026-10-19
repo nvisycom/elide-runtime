@@ -4,7 +4,8 @@
 
 use elide::ErrorKind;
 use elide_provider::{
-    Availability, Component, ComponentSelection, Enrichers, NerBackend, ProviderConfig, Recognizers,
+    Availability, Component, ComponentSelection, Deployment, Enrichers, NerBackend, Provider,
+    Recognizers,
 };
 
 /// A lineup of three NER components in two families.
@@ -20,11 +21,7 @@ fn lineup() -> Recognizers {
 }
 
 fn ner(name: &str, tags: &[&str]) -> Component<NerBackend> {
-    Component {
-        name: name.into(),
-        tags: tags.iter().map(|t| (*t).into()).collect(),
-        backend: NerBackend::Mock,
-    }
+    Component::new(name, NerBackend::Mock).with_tags(tags.iter().copied())
 }
 
 /// Build a provider over `lineup()` restricted to `availability`,
@@ -34,12 +31,9 @@ fn resolved(
     availability: Availability,
     selection: &ComponentSelection,
 ) -> Result<Vec<String>, (ErrorKind, String)> {
-    let provider = ProviderConfig {
-        recognizers: lineup(),
-        enrichers: Enrichers::default(),
-    }
-    .build()
-    .restricted_to(availability);
+    let deployment = Deployment::try_from_parts(lineup(), Enrichers::default(), availability)
+        .expect("the lineup is valid");
+    let provider = Provider::new(deployment);
 
     provider
         .resolved_components(selection)
@@ -158,33 +152,30 @@ fn selecting_every_component_away_is_refused() {
 mod enrichers {
     use elide::ErrorKind;
     use elide_provider::{
-        Availability, Component, ComponentSelection, Enrichers, OcrBackend, ProviderConfig,
+        Availability, Component, ComponentSelection, Deployment, Enrichers, OcrBackend, Provider,
         Recognizers,
     };
 
     fn ocr(name: &str, tags: &[&str]) -> Component<OcrBackend> {
-        Component {
-            name: name.into(),
-            tags: tags.iter().map(|t| (*t).into()).collect(),
-            backend: OcrBackend::Mock,
-        }
+        Component::new(name, OcrBackend::Mock).with_tags(tags.iter().copied())
     }
 
     /// Three OCR engines offered, none selected by default.
     fn provider(availability: Availability) -> elide_provider::Provider {
-        ProviderConfig {
-            recognizers: Recognizers::default(),
-            enrichers: Enrichers {
+        let deployment = Deployment::try_from_parts(
+            Recognizers::default(),
+            Enrichers {
                 ocr: vec![
                     ocr("fast-ocr", &["fast"]),
                     ocr("accurate-ocr", &["accurate"]),
                     ocr("handwriting-ocr", &["accurate", "handwriting"]),
                 ],
-                stt: Vec::new(),
+                ..Enrichers::default()
             },
-        }
-        .build()
-        .restricted_to(availability)
+            availability,
+        )
+        .expect("three distinctly-named components are a valid lineup");
+        Provider::new(deployment)
     }
 
     /// A request picks one of the offered engines by name.

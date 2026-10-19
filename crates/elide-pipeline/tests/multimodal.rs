@@ -14,7 +14,7 @@ use elide::modality::text::Text;
 use elide::{ErrorKind, PartId, Report};
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{
-    CodecParams, Component, DocumentContext, Enrichers, OcrBackend, ProviderConfig, RequestContext,
+    CodecParams, Deployment, DocumentContext, OcrBackend, Provider, RequestContext,
 };
 use elide_pipeline::{Audit, Engine};
 use elide_schema::policy::{LabelScope, Policy};
@@ -33,20 +33,12 @@ fn raw_docx() -> Document {
 }
 
 fn engine() -> Engine {
-    Engine::new(
-        ProviderConfig {
-            enrichers: Enrichers {
-                ocr: vec![Component::<OcrBackend> {
-                    name: "mock".into(),
-                    tags: Vec::new(),
-                    backend: OcrBackend::Mock,
-                }],
-                ..Enrichers::default()
-            },
-            ..ProviderConfig::default()
-        }
-        .build(),
-    )
+    let deployment = Deployment::builder()
+        .ocr("mock", OcrBackend::Mock)
+        .finish()
+        .build()
+        .expect("one mock enricher is a valid lineup");
+    Engine::new(Provider::new(deployment))
 }
 
 fn default_spec() -> RequestContext {

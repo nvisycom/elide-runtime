@@ -9,8 +9,8 @@ use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend};
 use elide::recognition::llm::prompt::{DefaultPrompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::{Error, ErrorKind, Result};
+use elide_deployment::component::{Component, LlmBackend as LlmBackendConfig};
 
-use crate::component::{Component, LlmBackend as LlmBackendConfig};
 use crate::detect::{AttachTo, LlmSource};
 use crate::request::Resolved;
 

@@ -25,6 +25,8 @@ pub mod backend {
         AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, UnauthenticatedProvider,
     };
     pub use self::ner::NerBackend;
+    #[cfg(feature = "aws-textract")]
+    pub use self::ocr::AwsCredentials;
     pub use self::ocr::OcrBackend;
     pub use self::stt::SttBackend;
 }
@@ -34,19 +36,23 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::availability::{Availability, ComponentSelection, ResolvedComponents, Resolver};
+#[cfg(feature = "aws-textract")]
+pub use self::backend::AwsCredentials;
 pub use self::backend::{
     AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, NerBackend, OcrBackend, SttBackend,
     UnauthenticatedProvider,
 };
 pub use self::enrichers::Enrichers;
 pub use self::recognizers::Recognizers;
+use crate::feature::RateLimit;
 
 /// One configured recognizer or enricher, generic over its backend.
 ///
 /// The wire shape is the backend's own fields plus `name` and
 /// `description`, so a config reads as one flat object rather than
 /// a nested one.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[serde(bound = "B: Serialize + for<'a> Deserialize<'a>")]
 #[schemars(bound = "B: JsonSchema")]
@@ -71,10 +77,69 @@ pub struct Component<B> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<String>")]
     pub tags: Vec<HipStr<'static>>,
+    /// How often this component's backend may be called.
+    ///
+    /// Absent means unlimited: the backend's own quota is the one
+    /// that matters, and a second invisible limit would be harder
+    /// to diagnose than no limit at all.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate_limit: Option<RateLimit>,
     /// Backend selection and its per-kind fields, flattened onto
     /// this component's wire shape.
     #[serde(flatten)]
     pub backend: B,
+}
+
+impl<B> Component<B> {
+    /// One component called `name`, running `backend`, in no
+    /// families and with no rate limit.
+    ///
+    /// The optional parts are set with
+    /// [`with_tags`](Self::with_tags) and
+    /// [`with_rate_limit`](Self::with_rate_limit), so adding another
+    /// does not break every call site the way a struct literal
+    /// does.
+    pub fn new(name: impl Into<HipStr<'static>>, backend: B) -> Self {
+        Self {
+            name: name.into(),
+            tags: Vec::new(),
+            rate_limit: None,
+            backend,
+        }
+    }
+
+    /// Place this component in the given deployment-defined
+    /// families.
+    #[must_use]
+    pub fn with_tags<I, S>(mut self, tags: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<HipStr<'static>>,
+    {
+        self.tags = tags.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Limit how often this component's backend may be called.
+    #[must_use]
+    pub fn with_rate_limit(mut self, rate_limit: RateLimit) -> Self {
+        self.rate_limit = Some(rate_limit);
+        self
+    }
+
+    /// Check this component describes something the runtime can
+    /// build.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Invalid`](crate::ErrorKind::Invalid) if the rate
+    /// limit would never admit a call.
+    pub fn validate(&self) -> crate::Result<()> {
+        if let Some(rate_limit) = &self.rate_limit {
+            rate_limit.validate(self.name.as_str())?;
+        }
+        Ok(())
+    }
 }
 
 /// A backend that can name the provider behind it.

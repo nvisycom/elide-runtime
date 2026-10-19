@@ -1,0 +1,11 @@
+# The two hosted OCR backends, each naming its cloud.
+
+[[enrichers.ocr]]
+name = "aws-ocr"
+kind = "aws_textract"
+region = "eu-west-1"
+
+[[enrichers.ocr]]
+name = "gcp-ocr"
+kind = "google_document_ai"
+processor = "projects/p/locations/eu/processors/abc"

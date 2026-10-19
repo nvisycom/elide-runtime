@@ -10,7 +10,8 @@
 //!   residency, or by what is still in staging writes the same
 //!   thing.
 //! - [`ComponentSelection`] is what one request *wants*, within that. It
-//!   rides [`RequestContext`], and narrowing is all it can do.
+//!   rides [`RequestContext`] on a request, and narrowing is all
+//!   it can do.
 //!
 //! Asking for something unavailable is refused rather than
 //! quietly dropped: a caller that silently got weaker detection
@@ -18,7 +19,7 @@
 //! document.
 //!
 //! [`Engine`]: https://docs.rs/elide-pipeline/latest/elide_pipeline/struct.Engine.html
-//! [`RequestContext`]: super::super::RequestContext
+//! [`RequestContext`]: https://docs.rs/elide-provider/latest/elide_provider/struct.RequestContext.html
 
 use elide::{Error, ErrorKind, Result};
 use schemars::JsonSchema;

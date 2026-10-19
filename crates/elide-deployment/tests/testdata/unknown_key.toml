@@ -1,0 +1,5 @@
+# `candidate` is a typo for `candidates`. A deployment must be
+# refused rather than silently ignoring it.
+
+[enrichers.lingua]
+candidate = ["en"]

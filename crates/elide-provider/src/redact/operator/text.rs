@@ -354,7 +354,7 @@ fn missing_infrastructure(
         ErrorKind::Configuration,
         format!(
             "policy `{policy_id}` uses `{operator}` which requires a {infrastructure}; \
-             configure one via `ProviderConfig::key`",
+             supply one with the request, as `anonymize`'s `key` argument",
         ),
     )
 }

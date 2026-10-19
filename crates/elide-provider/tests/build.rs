@@ -6,7 +6,10 @@
 //! assert is that seam: a config round-trips as data and builds a
 //! provider, while a key stays with the request that supplied it.
 
-use elide_provider::{Component, Enrichers, KeyConfig, OcrBackend, ProviderConfig, RequestContext};
+use elide_provider::{
+    Availability, Component, Deployment, Enrichers, KeyConfig, OcrBackend, Provider, Recognizers,
+    RequestContext,
+};
 
 const KEY: &[u8] = b"deployment-wide-key-32-bytes-ok!";
 
@@ -14,7 +17,7 @@ const KEY: &[u8] = b"deployment-wide-key-32-bytes-ok!";
 fn an_empty_config_builds_a_provider_with_no_backends() {
     // The default is not an error: a deployment running only the
     // pattern recognizers elide ships configures nothing.
-    let provider = ProviderConfig::default().build();
+    let provider = Provider::new(Deployment::default());
     assert!(
         provider.recognizers().ner.is_empty(),
         "no backends configured means none registered",
@@ -24,19 +27,17 @@ fn an_empty_config_builds_a_provider_with_no_backends() {
 
 #[test]
 fn configured_backends_reach_the_provider() {
-    let config = ProviderConfig {
-        enrichers: Enrichers {
-            ocr: vec![Component::<OcrBackend> {
-                name: "acme-ocr".into(),
-                tags: Vec::new(),
-                backend: OcrBackend::Mock,
-            }],
+    let config = Deployment::try_from_parts(
+        Recognizers::default(),
+        Enrichers {
+            ocr: vec![Component::<OcrBackend>::new("acme-ocr", OcrBackend::Mock)],
             ..Enrichers::default()
         },
-        ..ProviderConfig::default()
-    };
+        Availability::All,
+    )
+    .expect("one component is a valid lineup");
 
-    let provider = config.build();
+    let provider = Provider::new(config);
     let ocr = &provider.enrichers().ocr;
     assert_eq!(ocr.len(), 1, "the configured enricher is wired");
     assert_eq!(ocr[0].name.as_str(), "acme-ocr");
@@ -46,23 +47,23 @@ fn configured_backends_reach_the_provider() {
 fn a_config_round_trips_as_json() {
     // A host reads this from a file, or an encrypted row in its own
     // database; either way it is plain data.
-    let config = ProviderConfig {
-        enrichers: Enrichers {
-            ocr: vec![Component::<OcrBackend> {
-                name: "acme-ocr".into(),
-                tags: vec!["intake".into()],
-                backend: OcrBackend::Mock,
-            }],
+    let config = Deployment::try_from_parts(
+        Recognizers::default(),
+        Enrichers {
+            ocr: vec![
+                Component::<OcrBackend>::new("acme-ocr", OcrBackend::Mock).with_tags(["intake"]),
+            ],
             ..Enrichers::default()
         },
-        ..ProviderConfig::default()
-    };
+        Availability::All,
+    )
+    .expect("one component is a valid lineup");
 
     let json = serde_json::to_string(&config).expect("config serializes");
-    let back: ProviderConfig = serde_json::from_str(&json).expect("config deserializes");
+    let back: Deployment = serde_json::from_str(&json).expect("config deserializes");
 
-    assert_eq!(back.enrichers.ocr.len(), 1);
-    assert_eq!(back.enrichers.ocr[0].name.as_str(), "acme-ocr");
+    assert_eq!(back.enrichers().ocr.len(), 1);
+    assert_eq!(back.enrichers().ocr[0].name.as_str(), "acme-ocr");
 }
 
 #[test]
@@ -71,7 +72,7 @@ fn a_provider_config_carries_no_key() {
     // the deployment: one provider serves many callers, each with
     // its own. So a serialized provider config cannot leak one,
     // whatever the deployment does with it.
-    let json = serde_json::to_string(&ProviderConfig::default()).expect("serializes");
+    let json = serde_json::to_string(&Deployment::default()).expect("serializes");
     assert!(
         !json.contains("key"),
         "a provider config has no key field at all; got {json}",

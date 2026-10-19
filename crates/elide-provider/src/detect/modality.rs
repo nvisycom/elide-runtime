@@ -39,7 +39,7 @@ use crate::request::Resolved;
 pub(crate) fn compile_text(resolved: &Resolved<'_>) -> Result<Analyzer<Text>> {
     let mut analyzer = Analyzer::<Text>::new();
 
-    analyzer = attach_language(analyzer);
+    analyzer = attach_language(analyzer, resolved.lingua())?;
     analyzer = attach_pattern(analyzer);
     analyzer = attach_custom(analyzer, resolved.recognition())?;
     analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
@@ -59,7 +59,7 @@ pub(crate) fn compile_text(resolved: &Resolved<'_>) -> Result<Analyzer<Text>> {
 pub(crate) fn compile_tabular(resolved: &Resolved<'_>) -> Result<Analyzer<Tabular>> {
     let mut analyzer = Analyzer::<Tabular>::new();
 
-    analyzer = attach_language(analyzer);
+    analyzer = attach_language(analyzer, resolved.lingua())?;
     analyzer = attach_pattern(analyzer);
     analyzer = attach_custom(analyzer, resolved.recognition())?;
     analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
@@ -75,7 +75,7 @@ pub(crate) fn compile_tabular(resolved: &Resolved<'_>) -> Result<Analyzer<Tabula
 /// that same text, and LLM is available
 /// image-natively for vision-language models. The OCR enricher
 /// attaches when the deployment wired one via
-/// its `ProviderConfig`.
+/// its `Deployment`.
 ///
 pub(crate) fn compile_image(resolved: &Resolved<'_>) -> Result<Analyzer<Image>> {
     let mut analyzer = Analyzer::<Image>::new();
@@ -87,7 +87,7 @@ pub(crate) fn compile_image(resolved: &Resolved<'_>) -> Result<Analyzer<Image>> 
     // After OCR: image text lives in the artifacts the OCR
     // enricher stamps, so detection reads an empty string until it
     // has run.
-    analyzer = attach_language(analyzer);
+    analyzer = attach_language(analyzer, resolved.lingua())?;
     analyzer = attach_pattern(analyzer);
     analyzer = attach_custom(analyzer, resolved.recognition())?;
     analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
@@ -114,7 +114,7 @@ pub(crate) fn compile_audio(resolved: &Resolved<'_>) -> Result<Analyzer<Audio>> 
 
     // After STT, for the same reason as image: the transcript is an
     // artifact, so language detection reads nothing before it lands.
-    analyzer = attach_language(analyzer);
+    analyzer = attach_language(analyzer, resolved.lingua())?;
     analyzer = attach_pattern(analyzer);
     analyzer = attach_custom(analyzer, resolved.recognition())?;
     analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;

@@ -1,0 +1,9 @@
+# This comment has an escape that never closes: $${LITERAL
+# Expansion runs before the parse, so the unterminated `$${` must
+# not swallow the real reference below and emit it verbatim.
+
+[[recognizers.ner]]
+name = "n"
+kind = "bento"
+base_url = "${REAL_URL}"
+model = "m"

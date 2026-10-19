@@ -17,7 +17,7 @@ use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
 use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{ProviderConfig, RequestContext};
+use elide_pipeline::provider::{Deployment, Provider, RequestContext};
 use elide_pipeline::{Audit, Engine};
 use elide_schema::policy::{LabelScope, Policy};
 
@@ -30,7 +30,7 @@ fn raw_txt() -> Document {
 }
 
 fn engine() -> Engine {
-    Engine::new(ProviderConfig::default().build())
+    Engine::new(Provider::new(Deployment::default()))
 }
 
 fn default_spec() -> RequestContext {

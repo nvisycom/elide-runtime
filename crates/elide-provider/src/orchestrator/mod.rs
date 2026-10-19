@@ -12,8 +12,10 @@
 //! that made it, so a provider outlives every orchestrator it hands
 //! out. Hold one for the life of the process.
 
+mod clients;
+
+pub(crate) use self::clients::Clients;
 mod codec;
-mod config;
 mod context;
 mod key;
 mod request;
@@ -30,6 +32,7 @@ use elide::modality::text::Text;
 use elide::recognition::Scope;
 use elide::redaction::Anonymizer;
 use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, PartId, Report, Result};
+use elide_deployment::Deployment;
 use elide_schema::compile_catalog;
 use elide_schema::modality::RedactableModality;
 use elide_schema::policy::{Policy, PolicyRule, Predicate};
@@ -37,7 +40,6 @@ use elide_schema::recognition::Recognition;
 use uuid::Uuid;
 
 pub use self::codec::CodecParams;
-pub use self::config::ProviderConfig;
 pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
 pub use self::request::RequestContext;
@@ -76,6 +78,12 @@ pub(crate) struct ProviderInner {
     /// The enricher lineups, shared for the same reason as
     /// [`recognizers`](Self::recognizers).
     pub(crate) enrichers: Arc<Enrichers>,
+    /// Clients that had to be built before any request arrived.
+    ///
+    /// Empty unless the deployment names a backend whose client
+    /// cannot be constructed in a synchronous per-request compile;
+    /// see [`clients`](mod@clients).
+    pub(crate) clients: Arc<clients::Clients>,
     /// Which of those components a caller through this provider
     /// may run. Fixed here rather than per request: it is a
     /// property of who is calling, not of the document.
@@ -83,21 +91,72 @@ pub(crate) struct ProviderInner {
 }
 
 impl Provider {
-    /// Assemble from already-built parts.
+    /// Build the provider a [`Deployment`] describes.
     ///
-    /// Not the usual path: a deployment describes itself with a
-    /// [`ProviderConfig`] and builds through it. This exists for a
-    /// caller holding the pieces already.
+    /// The usual path: a host loads a deployment — from TOML, from
+    /// its own database, or built in code — and this turns it into
+    /// the backends it names. The availability the deployment
+    /// declares comes along, so an operator's restriction is stated
+    /// where the deployment is described rather than applied as a
+    /// separate step afterwards.
     #[must_use]
-    pub fn from_parts(recognizers: Recognizers, enrichers: Enrichers) -> Self {
+    pub fn new(deployment: Deployment) -> Self {
+        let (recognizers, enrichers, availability) = deployment.into_parts();
         Self {
             inner: Arc::new(ProviderInner {
                 formats: FormatRegistry::with_builtin(),
                 recognizers: Arc::new(recognizers),
                 enrichers: Arc::new(enrichers),
-                availability: Availability::All,
+                availability,
+                clients: Arc::new(clients::Clients::default()),
             }),
         }
+    }
+
+    /// Build the provider a [`Deployment`] describes, awaiting any
+    /// backend client that cannot be constructed synchronously.
+    ///
+    /// Use this instead of [`new`](Self::new) when the deployment
+    /// may name Google Cloud Document AI, whose client builder is
+    /// `async`. For every other deployment it does the same thing
+    /// and the `await` returns immediately.
+    ///
+    /// A deployment naming such a backend and built through
+    /// [`new`](Self::new) is refused at request compile rather than
+    /// silently skipping the enricher.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Configuration`](ErrorKind::Configuration) if a
+    /// client cannot be built.
+    pub async fn try_new(deployment: Deployment) -> Result<Self> {
+        let (recognizers, enrichers, availability) = deployment.into_parts();
+        let clients = clients::Clients::build(&enrichers).await?;
+        Ok(Self {
+            inner: Arc::new(ProviderInner {
+                formats: FormatRegistry::with_builtin(),
+                recognizers: Arc::new(recognizers),
+                enrichers: Arc::new(enrichers),
+                availability,
+                clients: Arc::new(clients),
+            }),
+        })
+    }
+
+    /// Assemble from already-built lineups, with everything
+    /// available.
+    ///
+    /// For a caller holding the pieces and no deployment to wrap
+    /// them in; [`new`](Self::new) is the usual path.
+    ///
+    /// # Errors
+    ///
+    /// As [`Deployment::try_from_parts`], which this goes through:
+    /// the lineups are validated before they become a deployment.
+    pub fn try_from_parts(recognizers: Recognizers, enrichers: Enrichers) -> Result<Self> {
+        let deployment = Deployment::try_from_parts(recognizers, enrichers, Availability::All)
+            .map_err(|err| Error::new(ErrorKind::Configuration, err.to_string()))?;
+        Ok(Self::new(deployment))
     }
 
     /// The same provider, restricted to the components
@@ -115,6 +174,7 @@ impl Provider {
                 recognizers: Arc::clone(&self.inner.recognizers),
                 enrichers: Arc::clone(&self.inner.enrichers),
                 availability,
+                clients: Arc::clone(&self.inner.clients),
             }),
         }
     }
@@ -215,6 +275,7 @@ impl Provider {
             recognition,
             &self.inner.availability,
             selection,
+            &self.inner.clients,
         )?;
         Ok(Analyzers {
             orchestrator: orchestrator

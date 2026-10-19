@@ -95,8 +95,9 @@ impl Engine {
 struct AuditWire {
     report: serde_value::Value,
     context: DocumentContext,
-    // No `default`: unlike `reviews`/`usage` this is always
-    // serialized, so a payload omitting it is malformed rather
+    // No `default`: unlike `selection`/`recognition`/`usage` below,
+    // this is always serialized, so a payload omitting it is
+    // malformed rather
     // than empty. Defaulting it to `RasterMode::Auto` would let a
     // document re-decode differently than analyze decoded it, and
     // the entity offsets recorded against the first decode would

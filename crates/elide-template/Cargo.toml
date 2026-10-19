@@ -5,7 +5,6 @@ name = "elide-template"
 description = "Ready-to-run policy templates on top of elide for common regulatory postures (HIPAA, GDPR, PCI DSS, CCPA)"
 keywords = ["elide", "policy", "template", "hipaa", "gdpr"]
 categories = ["data-structures"]
-readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -15,7 +14,6 @@ publish = { workspace = true }
 
 authors = { workspace = true }
 repository = { workspace = true }
-homepage = { workspace = true }
 documentation = { workspace = true }
 
 [package.metadata.docs.rs]

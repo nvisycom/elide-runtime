@@ -5,7 +5,6 @@ name = "elide-review"
 description = "Reviewer edits over an elide report: add, retag, suppress, override"
 keywords = ["elide", "review", "redaction", "audit", "schema"]
 categories = ["data-structures", "api-bindings"]
-readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -15,7 +14,6 @@ publish = { workspace = true }
 
 authors = { workspace = true }
 repository = { workspace = true }
-homepage = { workspace = true }
 documentation = { workspace = true }
 
 [package.metadata.docs.rs]

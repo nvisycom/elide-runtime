@@ -5,7 +5,6 @@ name = "elide-provider"
 description = "Deployment-configured recognition and redaction providers for the Elide Runtime"
 keywords = ["elide", "provider", "config", "deployment"]
 categories = ["config", "text-processing"]
-readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -15,7 +14,6 @@ publish = { workspace = true }
 
 authors = { workspace = true }
 repository = { workspace = true }
-homepage = { workspace = true }
 documentation = { workspace = true }
 
 [package.metadata.docs.rs]

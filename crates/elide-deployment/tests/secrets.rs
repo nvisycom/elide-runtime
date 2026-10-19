@@ -124,3 +124,48 @@ fn a_parse_error_never_quotes_a_resolved_secret() {
         "but the location must survive, or an operator cannot find the fault: {err}",
     );
 }
+
+/// A parse error withholds its detail when the document
+/// interpolates, because even `toml`'s short message quotes the
+/// offending *value*.
+///
+/// `invalid type: string "sk-…", expected f32` names the value, so
+/// a secret interpolated into a field of the wrong type appeared
+/// verbatim. A document that interpolates nothing keeps the full
+/// message, since every byte the parser saw was already in the
+/// operator's file.
+///
+/// Uses Pioneer's `threshold`, the one numeric backend field, so
+/// the test needs that feature to have a type to mismatch.
+#[cfg(feature = "pioneer")]
+#[test]
+fn a_type_error_withholds_an_interpolated_value() {
+    // `threshold` wants a float; the resolved secret is a string.
+    let interpolating = "[[recognizers.ner]]\nname = \"n\"\nkind = \"pioneer\"\n\
+                         api_key = \"k\"\nthreshold = \"${K}\"\n";
+    let err = elide_deployment::Deployment::from_toml_resolved(interpolating, |_| {
+        Some(SECRET.to_owned())
+    })
+    .expect_err("a string is not an f32");
+
+    assert!(
+        !err.message().contains(SECRET),
+        "the interpolated secret reached the error: {err}",
+    );
+    assert!(
+        err.message().contains("line 1"),
+        "the location must survive so an operator can find it: {err}",
+    );
+
+    // Nothing interpolated: the message is worth keeping, because
+    // the value it quotes is one the operator wrote.
+    let literal = "[[recognizers.ner]]\nname = \"n\"\nkind = \"pioneer\"\n\
+                   api_key = \"k\"\nthreshold = \"not-a-float\"\n";
+    let err = elide_deployment::Deployment::from_toml_resolved(literal, |_| None)
+        .expect_err("still not an f32");
+
+    assert!(
+        err.message().contains("f32"),
+        "a non-interpolating document keeps the detail: {err}",
+    );
+}

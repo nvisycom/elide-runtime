@@ -226,7 +226,7 @@ impl Deployment {
     ) -> crate::Result<Self> {
         let expanded = crate::builder::interpolate(source, lookup)?;
         let deployment: Self =
-            toml::from_str(&expanded).map_err(|err| parse_error(&err, &expanded))?;
+            toml::from_str(&expanded).map_err(|err| parse_error(&err, source, &expanded))?;
         deployment.validate()?;
         Ok(deployment)
     }
@@ -329,24 +329,26 @@ fn duplicate_names<'a>(lineup: &str, names: impl Iterator<Item = &'a str>) -> cr
     Ok(())
 }
 
-/// Turn a TOML parse failure into an error that carries no source
-/// text.
+/// Turn a TOML parse failure into an error that carries no
+/// interpolated text.
 ///
-/// `toml`'s own `Display` quotes the offending line to show where
-/// the fault is. That is the right behaviour for a config file in
-/// general and the wrong one here: by the time parsing runs,
-/// `${VAR}` references have been expanded, so the quoted line may
-/// hold a resolved credential in plaintext — and a startup failure
-/// lands in whatever collects logs.
+/// `toml`'s `Display` quotes the offending *line*, and even
+/// `message()` quotes the offending *value* — `invalid type: string
+/// "sk-…", expected f32`. Either leaks a credential once `${VAR}`
+/// has been expanded, and a startup failure lands in whatever
+/// collects logs.
 ///
-/// The message is rebuilt from the parts that cannot contain
-/// document text: what went wrong, and which line it is on. An
-/// operator still gets somewhere to look; they read the value from
-/// their own file rather than from a log.
-fn parse_error(err: &toml::de::Error, expanded: &str) -> crate::Error {
-    // The span indexes the expanded text, whose line numbering
-    // matches the source: interpolation substitutes within a line
-    // and never adds or removes one.
+/// So the message is only passed through when expansion changed
+/// nothing: then every byte the parser saw was already in the
+/// file, and quoting it discloses nothing the operator does not
+/// have. When expansion did change the document, the message is
+/// replaced with a fixed one and only the location survives.
+///
+/// The location is always safe: a line number is derived from the
+/// span, and interpolation substitutes within a line rather than
+/// adding or removing one, so the number refers to the operator's
+/// own file.
+fn parse_error(err: &toml::de::Error, source: &str, expanded: &str) -> crate::Error {
     let location = err.span().map(|span| {
         let line = 1 + expanded[..span.start]
             .bytes()
@@ -354,12 +356,13 @@ fn parse_error(err: &toml::de::Error, expanded: &str) -> crate::Error {
             .count();
         format!(" at line {line}")
     });
+    let what = if source == expanded {
+        err.message()
+    } else {
+        "invalid TOML (details withheld: the document interpolates values)"
+    };
     crate::Error::new(
         crate::ErrorKind::Malformed,
-        format!(
-            "{}{}",
-            err.message(),
-            location.as_deref().unwrap_or_default()
-        ),
+        format!("{what}{}", location.as_deref().unwrap_or_default()),
     )
 }

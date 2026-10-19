@@ -8,7 +8,6 @@
 //!
 //! Each enricher is at-most-one per analyzer.
 
-use elide::backend::metrics::Metered;
 use elide::detection::Analyzer;
 use elide::enrichment::lingua::LinguaEnricher;
 #[cfg(feature = "mocks")]
@@ -213,10 +212,18 @@ pub(super) fn attach_stt(
 ) -> Result<Analyzer<Audio>> {
     // Same as OCR: the configured name is the usage id.
     // Each arm attaches its own backend type; see `attach_ocr`.
+    // Every arm goes through `decorate`, never `Metered::new`
+    // directly: the component's rate limit is applied by the
+    // decorator stack, so a bare `Metered` silently ignores it.
+    // Nothing observable distinguishes the two at runtime -- the
+    // enrichers expose no accessor for their backend -- so this is
+    // the only place the invariant is stated. It held for NER and
+    // OCR while STT was missed.
     Ok(match &config.backend {
         SttBackend::Bento { base_url, model } => analyzer.with_enricher(
-            SttEnricher::new(Metered::new(
+            SttEnricher::new(decorate(
                 BentoStt::new(base_url.clone(), model.clone())?,
+                config.rate_limit.as_ref(),
                 resolved.sink(),
             ))
             .with_name(config.name.clone()),
@@ -227,16 +234,38 @@ pub(super) fn attach_stt(
             base_url,
             diarize,
         } => analyzer.with_enricher(
-            SttEnricher::new(Metered::new(
+            SttEnricher::new(decorate(
                 deepgram_backend(api_key, base_url.as_deref(), *diarize)?,
+                config.rate_limit.as_ref(),
                 resolved.sink(),
             ))
             .with_name(config.name.clone()),
         ),
         #[cfg(feature = "mocks")]
         SttBackend::Mock => analyzer.with_enricher(
-            SttEnricher::new(Metered::new(MockSttBackend::new(), resolved.sink()))
-                .with_name(config.name.clone()),
+            SttEnricher::new(decorate(
+                MockSttBackend::new(),
+                config.rate_limit.as_ref(),
+                resolved.sink(),
+            ))
+            .with_name(config.name.clone()),
         ),
+        // A config variant whose factory this build does not ship;
+        // see the matching arm in `detect::ner` for why this is
+        // reachable and what it prevents.
+        #[allow(
+            unreachable_patterns,
+            reason = "dead only when every backend feature is on"
+        )]
+        unsupported => {
+            return Err(Error::new(
+                ErrorKind::Configuration,
+                format!(
+                    "enrichers.stt `{}` names a backend this build does not ship ({}). Enable the matching `elide-provider` feature.",
+                    config.name,
+                    unsupported.provider(),
+                ),
+            ));
+        }
     })
 }

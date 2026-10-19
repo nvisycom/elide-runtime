@@ -1,0 +1,9 @@
+# `zero_retenton` is a typo for `zero_retention`. Accepting it
+# would leave a deployment believing it asked Pioneer not to retain
+# document text while it silently did not.
+
+[[recognizers.ner]]
+name = "medical"
+kind = "pioneer"
+api_key = "k"
+zero_retenton = true

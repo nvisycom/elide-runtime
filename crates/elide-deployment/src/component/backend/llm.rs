@@ -39,7 +39,13 @@ use crate::component::Backend;
 /// rejects `kind = "mock"` in production builds.
 #[derive(Debug, Clone)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+// Denies unknown fields even though `Component` flattens this:
+// the attribute is refused on the *outer* struct (the flattened
+// fields reach it first and look unknown), but on the enum itself
+// it catches a misspelled backend key -- `zero_retenton` for
+// `zero_retention` -- which would otherwise be dropped, leaving a
+// deployment believing it asked for something it did not.
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum LlmSource {
     /// OpenAI GPT provider.
     OpenAi(AuthenticatedProvider),

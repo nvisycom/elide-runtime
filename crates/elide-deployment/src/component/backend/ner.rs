@@ -27,7 +27,13 @@ use crate::component::Backend;
 /// `kind = "mock"` in production builds.
 #[derive(Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+// Denies unknown fields even though `Component` flattens this:
+// the attribute is refused on the *outer* struct (the flattened
+// fields reach it first and look unknown), but on the enum itself
+// it catches a misspelled backend key -- `zero_retenton` for
+// `zero_retention` -- which would otherwise be dropped, leaving a
+// deployment believing it asked for something it did not.
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NerBackend {
     /// BentoML-hosted NER service. Engine wires the shared
     /// `elide-bentoml` client; per-recognizer URL + model come

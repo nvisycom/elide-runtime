@@ -384,3 +384,31 @@ fn a_malformed_language_tag_is_refused_at_load() {
         "the message must name the field: {err}",
     );
 }
+
+/// A misspelled *backend* key is refused, not ignored.
+///
+/// Regression: `Component` flattens its backend, and
+/// `deny_unknown_fields` is rejected on the outer struct — the
+/// flattened fields reach it first and look unknown. But the
+/// attribute works on the enum itself, which is where a backend's
+/// own keys are declared.
+///
+/// This one has privacy consequences: a deployment writing
+/// `zero_retenton = true` believes it asked Pioneer not to retain
+/// document text, and silently got the default.
+#[cfg(feature = "pioneer")]
+#[test]
+fn a_misspelled_backend_key_is_refused() {
+    let err = Deployment::from_toml_resolved(testdata!("backend_field_typo.toml"), |_| None)
+        .expect_err("must not load");
+
+    assert_eq!(err.kind(), ErrorKind::Malformed);
+    assert!(
+        err.message().contains("zero_retenton"),
+        "the message must name the typo: {err}",
+    );
+    assert!(
+        err.message().contains("zero_retention"),
+        "and the key it was meant to be: {err}",
+    );
+}

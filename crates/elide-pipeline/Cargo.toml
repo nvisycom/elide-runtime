@@ -88,9 +88,9 @@ deepgram = ["elide-provider/deepgram"]
 ## (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) and the elide mock
 ## backends they compile into. Off in production so deployment
 ## config cannot ship a mock recognizer.
-test-utils = [
+mocks = [
     "elide/mocks",
-    "elide-provider/test-utils",
+    "elide-provider/mocks",
 ]
 
 [package.metadata.docs.rs]
@@ -124,7 +124,7 @@ jiff = { workspace = true, features = ["serde"] }
 # Internal crates
 
 elide-export = { workspace = true, features = ["json", "csv", "zip"] }
-elide-pipeline = { path = ".", features = ["test-utils", "audit-json", "audit-csv", "audit-zip"] }
+elide-pipeline = { path = ".", features = ["mocks", "audit-json", "audit-csv", "audit-zip"] }
 
 # Serialization
 serde_json = { workspace = true, features = [] }

@@ -16,8 +16,8 @@ use elide::redaction::operators::{DropColumn, DropRow};
 use elide_schema::policy::Policy;
 use elide_schema::redaction::{ModalityRedactions, TabularRedaction};
 
-use super::compile::{Target, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
+use super::target::{Target, attach_policies};
 
 /// Attach every tabular-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator so the

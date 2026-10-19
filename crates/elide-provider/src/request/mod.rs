@@ -16,8 +16,8 @@ use elide::Result;
 use elide::backend::metrics::{Usage, UsageCollector, UsageSink};
 use elide_schema::recognition::Recognition;
 
-use super::availability::{Availability, ComponentSelection, Resolver};
 use super::{Component, Enrichers, LlmBackend, NerBackend, OcrBackend, Recognizers, SttBackend};
+use crate::component::{Availability, ComponentSelection, Resolver};
 
 /// What one request compiles its analyzers from.
 ///

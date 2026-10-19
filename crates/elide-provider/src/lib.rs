@@ -38,9 +38,11 @@
 //!
 //! [`Orchestrator`]: elide::Orchestrator
 
+mod component;
+mod detect;
 mod orchestrator;
-mod recognition;
-mod redaction;
+mod redact;
+mod request;
 
 /// The EXIF policy a request carries on [`CodecParams`].
 ///
@@ -61,11 +63,11 @@ pub use elide_pdf::primitive::RasterMode;
 /// unusable from this facade alone.
 pub use elide_schema::recognition::{CustomMatcher, MatchOn, Recognition};
 
-pub use self::orchestrator::{
-    CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
-};
-pub use self::recognition::{
+pub use self::detect::{
     Analyzers, AttachTo, AuthenticatedProvider, Availability, Backend, Component,
     ComponentSelection, Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers,
     SttBackend, UnauthenticatedProvider, UsageHandle,
+};
+pub use self::orchestrator::{
+    CodecParams, DocumentContext, KeyConfig, Provider, ProviderConfig, RequestContext,
 };

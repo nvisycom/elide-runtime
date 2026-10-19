@@ -1,19 +1,45 @@
-//! [`Component`]: one configured recognizer or enricher.
+//! What a deployment wires, and which of it a request may run.
 //!
-//! Every entry in a deployment's lineup has the same shape: a name
-//! for provenance, an optional description for operators, and the
-//! backend that does the work, flattened onto the wire so the
-//! backend's own fields sit beside them. Only the backend type
-//! differs, so it is the generic parameter and everything else is
-//! written once.
+//! The vocabulary both sides of a request speak about components: a
+//! [`Component`] names one backend a deployment configured,
+//! [`Recognizers`]/[`Enrichers`] are the lineups it groups them
+//! into, and [`Availability`]/[`ComponentSelection`] say which of
+//! them a caller may reach and which this request asked for.
 //!
-//! Anything only one backend needs belongs on that backend, not
-//! here: an LLM recognizer picks which analyzers it attaches to, so
-//! that choice lives on its own backend type.
+//! Deployment-owned, so it lives beside the factories that build
+//! from it rather than in the request schema: these carry API keys
+//! and base URLs, which a request never sends.
+
+mod availability;
+mod enrichers;
+mod recognizers;
+
+/// The hosted backends a deployment can name, one module per kind.
+pub mod backend {
+    mod llm;
+    mod ner;
+    mod ocr;
+    mod stt;
+
+    pub use self::llm::{
+        AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, UnauthenticatedProvider,
+    };
+    pub use self::ner::NerBackend;
+    pub use self::ocr::OcrBackend;
+    pub use self::stt::SttBackend;
+}
 
 use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub use self::availability::{Availability, ComponentSelection, ResolvedComponents, Resolver};
+pub use self::backend::{
+    AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, NerBackend, OcrBackend, SttBackend,
+    UnauthenticatedProvider,
+};
+pub use self::enrichers::Enrichers;
+pub use self::recognizers::Recognizers;
 
 /// One configured recognizer or enricher, generic over its backend.
 ///

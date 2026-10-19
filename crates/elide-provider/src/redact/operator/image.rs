@@ -10,7 +10,7 @@ use elide::redaction::Anonymizer;
 use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
 use elide_schema::redaction::ImageRedaction;
 
-use crate::redaction::compile::Target;
+use crate::redact::target::Target;
 
 /// Discriminated builder result so [`Target::attach_with`] can
 /// attach the right concrete operator type. Same reason as
@@ -19,7 +19,7 @@ use crate::redaction::compile::Target;
 /// won't do.
 ///
 /// [`Anonymizer::with_label`]: elide::redaction::Anonymizer::with_label
-pub(in crate::redaction) enum ImageOp {
+pub(in crate::redact) enum ImageOp {
     Erase,
     Keep,
     Blur(Blur),
@@ -29,7 +29,7 @@ pub(in crate::redaction) enum ImageOp {
 
 impl ImageOp {
     /// Attach `self` to `target`.
-    pub(in crate::redaction) fn attach_to(self, target: Target<'_, Image>) -> Anonymizer<Image> {
+    pub(in crate::redact) fn attach_to(self, target: Target<'_, Image>) -> Anonymizer<Image> {
         match self {
             ImageOp::Erase => target.attach_with(Erase),
             ImageOp::Keep => target.attach_with(Keep),

@@ -11,11 +11,6 @@
 //! is elide's built-in catalogue) so it appears only in
 //! [`compile`].
 
-mod llm;
-mod ner;
-
-pub(crate) mod compile;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +33,4 @@ pub struct Recognizers {
     pub llm: Vec<Component<LlmBackend>>,
 }
 
-pub use self::llm::{
-    AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, UnauthenticatedProvider,
-};
-pub use self::ner::NerBackend;
+use super::backend::{LlmBackend, NerBackend};

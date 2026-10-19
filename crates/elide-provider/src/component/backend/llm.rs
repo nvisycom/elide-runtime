@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 /// The four rig variants mirror
 /// [`elide::recognition::llm::provider::Provider`] and forward its inner
 /// payloads directly. The `Mock` variant exists only when the
-/// consuming crate enables the `test-utils` feature: the wire
+/// consuming crate enables the `mocks` feature: the wire
 /// rejects `kind = "mock"` in production builds.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
@@ -46,8 +46,8 @@ pub enum LlmSource {
     /// Ollama (local) provider.
     Ollama(UnauthenticatedProvider),
     /// No-op source; emits no entities. Test-only.
-    #[cfg(feature = "test-utils")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+    #[cfg(feature = "mocks")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "mocks")))]
     Mock,
 }
 
@@ -90,13 +90,13 @@ impl LlmSource {
             Self::Anthropic(_) => "anthropic",
             Self::Gemini(_) => "gemini",
             Self::Ollama(_) => "ollama",
-            #[cfg(feature = "test-utils")]
+            #[cfg(feature = "mocks")]
             Self::Mock => "mock",
         }
     }
 }
 
-impl super::super::super::Backend for LlmBackend {
+impl super::super::Backend for LlmBackend {
     fn provider(&self) -> &'static str {
         self.source.provider()
     }

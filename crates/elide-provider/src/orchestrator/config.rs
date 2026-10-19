@@ -11,7 +11,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::Provider;
-use crate::recognition::{Enrichers, Recognizers};
+use crate::detect::{Enrichers, Recognizers};
 
 /// Everything a deployment decides once, at startup.
 ///

@@ -3,7 +3,7 @@
 //! Compiles a [`elide_schema::policy::Policy`] set into an
 //! [`Anonymizer`] per modality at request time.
 //!
-//! Mirrors [`crate::recognition`], which does the same for the
+//! Mirrors [`crate::detect`], which does the same for the
 //! other direction: where recognition finds entities, this hides
 //! them. The asymmetry is where the configuration comes
 //! from — recognition's is deployment-owned and wired once at
@@ -45,10 +45,12 @@
 use std::sync::Arc;
 
 mod audio;
-mod compile;
+mod dispatch;
 mod image;
 mod operator;
+mod selector;
 mod tabular;
+mod target;
 mod text;
 
 use elide::entity::LabelCatalog;
@@ -71,7 +73,7 @@ use self::text::attach_policies_text;
 /// An [`Orchestrator`] that can redact any of the four modalities,
 /// built from the `policies` this request submitted.
 ///
-/// The mirror of [`analyzers`](crate::recognition::analyzers), and
+/// The mirror of [`analyzers`](crate::detect::analyzers), and
 /// the asymmetry is where the configuration comes from:
 /// recognition's lineups are deployment-owned and wired once, while
 /// redaction's arrive per request as policies.

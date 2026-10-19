@@ -7,8 +7,8 @@ use elide::redaction::Anonymizer;
 use elide_schema::policy::Policy;
 use elide_schema::redaction::{ImageRedaction, ModalityRedactions};
 
-use super::compile::{Target, attach_policies};
 use super::operator::image::ImageOp;
+use super::target::{Target, attach_policies};
 
 /// Attach every image-applicable rule from `policies` onto an
 /// already-constructed anonymizer.

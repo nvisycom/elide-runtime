@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Self-hosted BentoML, or Deepgram's hosted API when the consuming
 /// crate enables the `deepgram` feature. The `Mock` variant exists
-/// only under `test-utils`, so the wire rejects `kind = "mock"` in
+/// only under `mocks`, so the wire rejects `kind = "mock"` in
 /// production builds.
 #[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -100,8 +100,8 @@ pub enum SttBackend {
         diarize: bool,
     },
     /// No-op backend; emits no segments. Test-only.
-    #[cfg(feature = "test-utils")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+    #[cfg(feature = "mocks")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "mocks")))]
     Mock,
 }
 
@@ -126,7 +126,7 @@ impl fmt::Debug for SttBackend {
                 .field("base_url", &"***")
                 .field("diarize", diarize)
                 .finish(),
-            #[cfg(feature = "test-utils")]
+            #[cfg(feature = "mocks")]
             Self::Mock => f.write_str("Mock"),
         }
     }
@@ -139,7 +139,7 @@ impl super::super::Backend for SttBackend {
             Self::Bento { .. } => "bento",
             #[cfg(feature = "deepgram")]
             Self::Deepgram { .. } => "deepgram",
-            #[cfg(feature = "test-utils")]
+            #[cfg(feature = "mocks")]
             Self::Mock => "mock",
         }
     }

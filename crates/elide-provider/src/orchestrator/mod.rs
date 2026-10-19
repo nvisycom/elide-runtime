@@ -41,11 +41,11 @@ pub use self::config::ProviderConfig;
 pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
 pub use self::request::RequestContext;
-use crate::recognition::{
+use crate::detect::{
     Analyzers, Availability, ComponentSelection, Enrichers, Recognizers, ResolvedComponents,
     Resolver, analyzers,
 };
-use crate::redaction::{Pickers, anonymizers, pickers};
+use crate::redact::{Pickers, anonymizers, pickers};
 
 /// A deployment's configuration, ready to build orchestrators from.
 ///

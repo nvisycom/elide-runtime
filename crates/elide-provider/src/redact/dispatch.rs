@@ -37,7 +37,7 @@ use super::selector::{PolicyContext, attach, fallback_attribution, rule_attribut
 /// Where an operator is being attached. The per-modality `Op`
 /// dispatcher takes one of these and feeds the carried
 /// `Anonymizer<M>` through the right elide entry point.
-pub(in crate::redaction) enum Target<'a, M: Modality> {
+pub(in crate::redact) enum Target<'a, M: Modality> {
     /// Rule attachment: predicate-guarded redaction with a
     /// name + description attribution. Maps to
     /// [`super::selector::attach`]. `context` carries the
@@ -67,7 +67,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// needs exactly one match on its own variants: no separate
     /// `attach_rule` / `attach_fallback` / `attach_override`
     /// dispatchers per modality.
-    pub(in crate::redaction) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
+    pub(in crate::redact) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
     where
         O: Operator<M> + 'static,
     {
@@ -93,7 +93,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// "this rule has nothing to say here", not an error.
     ///
     /// [`ModalityRedactions`]: elide_schema::redaction::ModalityRedactions
-    pub(in crate::redaction) fn passthrough(self) -> Anonymizer<M> {
+    pub(in crate::redact) fn passthrough(self) -> Anonymizer<M> {
         match self {
             Target::Rule { anonymizer, .. } | Target::Fallback { anonymizer, .. } => anonymizer,
         }
@@ -102,7 +102,7 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     /// The policy authority under which this target attaches its
     /// operator. Per-policy operator infrastructure (pseudonym
     /// vault, `KeyProvider`) is keyed by this UUID.
-    pub(in crate::redaction) fn policy_id(&self) -> Uuid {
+    pub(in crate::redact) fn policy_id(&self) -> Uuid {
         match self {
             Target::Rule { context, .. } => context.policy_id,
             Target::Fallback { context, .. } => context.policy_id,
@@ -163,7 +163,7 @@ where
 /// redaction spec is absent or wrong-modality: those are no-ops
 /// at the per-modality dispatch boundary. Operator build errors
 /// propagate.
-pub(in crate::redaction) fn attach_policies<'a, M, F>(
+pub(in crate::redact) fn attach_policies<'a, M, F>(
     mut anonymizer: Anonymizer<M>,
     policies: impl Iterator<Item = &'a Policy> + Clone,
     mut compile_one: F,

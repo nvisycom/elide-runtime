@@ -7,8 +7,8 @@ use elide::redaction::Anonymizer;
 use elide_schema::policy::Policy;
 use elide_schema::redaction::{AudioRedaction, ModalityRedactions};
 
-use super::compile::{Target, attach_policies};
 use super::operator::audio::AudioOp;
+use super::target::{Target, attach_policies};
 
 /// Attach every audio-applicable rule from `policies` onto an
 /// already-constructed anonymizer.

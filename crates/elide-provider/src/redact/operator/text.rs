@@ -39,7 +39,7 @@ use elide::{Error, ErrorKind, Result};
 use elide_schema::redaction::{ClampBucket, TerminalFallback, TextRedaction};
 use uuid::Uuid;
 
-use crate::redaction::compile::Target;
+use crate::redact::target::Target;
 
 /// Engine-side context the text operator compiler reads at
 /// build time.
@@ -126,7 +126,7 @@ impl TextOperatorContext {
 /// it drops directly into [`Rule::label`] with no unwrap.
 ///
 /// [`Rule::label`]: elide::redaction::Rule::label
-pub(in crate::redaction) type SharedTextOp<M> = Arc<dyn Operator<M> + Send + Sync + 'static>;
+pub(in crate::redact) type SharedTextOp<M> = Arc<dyn Operator<M> + Send + Sync + 'static>;
 
 /// Compile `spec` into a boxed operator and attach it to `target`.
 ///
@@ -134,7 +134,7 @@ pub(in crate::redaction) type SharedTextOp<M> = Arc<dyn Operator<M> + Send + Syn
 /// operator to [`Target::attach_with`]. Split so callers that
 /// want the operator without attaching (future test hooks, etc.)
 /// can reach for `build` directly.
-pub(in crate::redaction) fn compile_and_attach<M>(
+pub(in crate::redact) fn compile_and_attach<M>(
     spec: &TextRedaction,
     ctx: &TextOperatorContext,
     target: Target<'_, M>,
@@ -173,7 +173,7 @@ where
 /// where-clauses to callers (RFC 1733 is unstable), so the list
 /// lives inline on each function that needs it rather than
 /// behind a supertrait. Text and tabular both satisfy it.
-pub(in crate::redaction) fn build<M>(
+pub(in crate::redact) fn build<M>(
     spec: &TextRedaction,
     ctx: &TextOperatorContext,
     policy_id: Uuid,

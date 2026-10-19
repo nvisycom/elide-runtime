@@ -7,8 +7,8 @@ use elide::redaction::Anonymizer;
 use elide_schema::policy::Policy;
 use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 
-use super::compile::{Target, attach_policies};
 use super::operator::text::{TextOperatorContext, compile_and_attach};
+use super::target::{Target, attach_policies};
 
 /// Attach every text-applicable rule from `policies` onto an
 /// already-constructed anonymizer. Takes an iterator (not a slice)

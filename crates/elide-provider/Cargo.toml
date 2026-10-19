@@ -28,7 +28,7 @@ default = []
 ## Turn on the test-only mock backends and the elide mock backends
 ## they compile into. Off in production so deployment config
 ## cannot name a mock recognizer.
-test-utils = ["elide/mocks"]
+mocks = ["elide/mocks"]
 
 ## Ship the Deepgram-backed STT backend, so a deployment can transcribe
 ## through Deepgram's hosted API instead of a self-hosted service. Off by
@@ -81,7 +81,7 @@ criterion = { workspace = true }
 elide-template = { workspace = true }
 
 # Self, with the mock backends on
-elide-provider = { path = ".", features = ["test-utils"] }
+elide-provider = { path = ".", features = ["mocks"] }
 
 # Serialization
 serde_json = { workspace = true, features = [] }

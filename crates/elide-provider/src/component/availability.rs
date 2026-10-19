@@ -24,7 +24,7 @@ use elide::{Error, ErrorKind, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Component, Enrichers, Recognizers};
+use crate::component::{Component, Enrichers, Recognizers};
 
 /// Which registered components a caller may run.
 ///
@@ -156,7 +156,7 @@ impl ComponentSelection {
 /// Borrowed rather than owned: availability lives on the provider
 /// for the life of the engine and selection on the request, so a
 /// resolver is made per request and discarded.
-pub(crate) struct Resolver<'a> {
+pub struct Resolver<'a> {
     /// What this caller may run at all.
     availability: &'a Availability,
     /// What this request wants of it.
@@ -198,7 +198,7 @@ impl<B> Lineup for &[Component<B>] {
 
 impl<'a> Resolver<'a> {
     /// A resolver applying `selection` within `availability`.
-    pub(crate) fn new(availability: &'a Availability, selection: &'a ComponentSelection) -> Self {
+    pub fn new(availability: &'a Availability, selection: &'a ComponentSelection) -> Self {
         Self {
             availability,
             selection,
@@ -219,11 +219,7 @@ impl<'a> Resolver<'a> {
     /// otherwise present as a quietly smaller lineup, which a
     /// caller cannot distinguish from a document that simply had
     /// less in it.
-    pub(crate) fn validate_keys(
-        &self,
-        recognizers: &Recognizers,
-        enrichers: &Enrichers,
-    ) -> Result<()> {
+    pub fn validate_keys(&self, recognizers: &Recognizers, enrichers: &Enrichers) -> Result<()> {
         let lineups: [&dyn Lineup; 4] = [
             &recognizers.ner.as_slice(),
             &recognizers.llm.as_slice(),
@@ -256,7 +252,7 @@ impl<'a> Resolver<'a> {
     /// Assumes [`validate_keys`](Self::validate_keys) has already
     /// passed, so an empty result here means this lineup
     /// contributed nothing — not that the request was malformed.
-    pub(crate) fn resolve<'c, B>(&self, components: &'c [Component<B>]) -> Vec<&'c Component<B>> {
+    pub fn resolve<'c, B>(&self, components: &'c [Component<B>]) -> Vec<&'c Component<B>> {
         components
             .iter()
             .filter(|c| self.availability.permits(c) && self.selection.selects(c))
@@ -274,7 +270,7 @@ impl<'a> Resolver<'a> {
     /// enriched, unlike an empty recognizer set, which means
     /// nothing can be detected at all. Resolving to several is
     /// ambiguous, and `kind` names the lineup in that error.
-    pub(crate) fn pick_one<'c, B>(
+    pub fn pick_one<'c, B>(
         &self,
         lineup: &'c [Component<B>],
         kind: &str,
@@ -299,7 +295,7 @@ impl<'a> Resolver<'a> {
 
     /// The names one lineup resolves to, for a caller inspecting
     /// what would run rather than building an analyzer.
-    pub(crate) fn resolve_names<B>(&self, components: &[Component<B>]) -> Vec<String> {
+    pub fn resolve_names<B>(&self, components: &[Component<B>]) -> Vec<String> {
         self.resolve(components)
             .into_iter()
             .map(|c| c.name.to_string())
@@ -317,7 +313,7 @@ impl<'a> Resolver<'a> {
     /// A deployment that wired no recognizer at all is not
     /// selecting them away, so it is left alone: only a lineup that
     /// had something to lose can lose it.
-    pub(crate) fn refuse_if_no_recognizer(
+    pub fn refuse_if_no_recognizer(
         &self,
         recognizers: &Recognizers,
         resolved: usize,

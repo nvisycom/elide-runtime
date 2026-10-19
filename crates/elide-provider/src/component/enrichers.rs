@@ -10,11 +10,6 @@
 //! what they found. Language detection has no configuration (elide
 //! wires lingua unconditionally) so it appears only in [`compile`].
 
-mod ocr;
-mod stt;
-
-pub(crate) mod compile;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -37,5 +32,4 @@ pub struct Enrichers {
     pub stt: Vec<Component<SttBackend>>,
 }
 
-pub use self::ocr::OcrBackend;
-pub use self::stt::SttBackend;
+use super::backend::{OcrBackend, SttBackend};

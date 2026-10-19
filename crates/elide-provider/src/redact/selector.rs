@@ -60,7 +60,7 @@ use uuid::Uuid;
 /// [`label_scope`]: elide_schema::policy::Policy::label_scope
 /// [`scopes`]: elide_schema::policy::Policy::scopes
 #[derive(Clone)]
-pub(in crate::redaction) struct PolicyContext {
+pub(in crate::redact) struct PolicyContext {
     /// The enclosing policy's UUID. Threaded into per-policy
     /// operator infrastructure lookups: `HmacHash`/`Encrypt`
     /// resolve their [`KeyProvider`] per-policy first, and
@@ -68,7 +68,7 @@ pub(in crate::redaction) struct PolicyContext {
     ///
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     /// [`Pseudonymize`]: elide::redaction::operators::Pseudonymize
-    pub(in crate::redaction) policy_id: Uuid,
+    pub(in crate::redact) policy_id: Uuid,
     label_scope: Arc<HashSet<LabelRef>>,
     scopes: Arc<HashMap<String, HashSet<LabelRef>>>,
 }
@@ -78,7 +78,7 @@ impl PolicyContext {
     /// [`scopes`] and inline custom schemas.
     ///
     /// [`scopes`]: elide_schema::policy::Policy::scopes
-    pub(in crate::redaction) fn from_policy(policy: &Policy) -> Self {
+    pub(in crate::redact) fn from_policy(policy: &Policy) -> Self {
         /// One scope as a lookup entry, keyed by the name a
         /// `LabelInScope` predicate cites.
         fn entry(scope: &LabelScope) -> (String, HashSet<LabelRef>) {
@@ -99,7 +99,7 @@ impl PolicyContext {
     /// `label`. The gate every predicate: including the policy
     /// fallback: passes through before any per-predicate logic
     /// evaluates.
-    pub(in crate::redaction) fn label_scope_contains(&self, label: &LabelRef) -> bool {
+    pub(in crate::redact) fn label_scope_contains(&self, label: &LabelRef) -> bool {
         self.label_scope.contains(label)
     }
 }

@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 /// How a configured enricher talks to its OCR backend.
 ///
 /// One rig variant today (BentoML-hosted). The `Mock` variant
-/// exists only when the consuming crate enables the `test-utils`
+/// exists only when the consuming crate enables the `mocks`
 /// feature, so the wire rejects `kind = "mock"` in production
 /// builds.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -40,8 +40,8 @@ pub enum OcrBackend {
         model: String,
     },
     /// No-op backend; recognises no blocks. Test-only.
-    #[cfg(feature = "test-utils")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+    #[cfg(feature = "mocks")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "mocks")))]
     Mock,
 }
 
@@ -50,7 +50,7 @@ impl super::super::Backend for OcrBackend {
     fn provider(&self) -> &'static str {
         match self {
             Self::Bento { .. } => "bento",
-            #[cfg(feature = "test-utils")]
+            #[cfg(feature = "mocks")]
             Self::Mock => "mock",
         }
     }

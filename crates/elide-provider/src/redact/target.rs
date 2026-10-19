@@ -19,7 +19,4 @@
 //! [`Predicate`]: elide_schema::policy::Predicate
 //! [`operator::Op`]: super::operator
 
-mod dispatch;
-mod selector;
-
-pub(in crate::redaction) use self::dispatch::{Target, attach_policies};
+pub(in crate::redact) use super::dispatch::{Target, attach_policies};

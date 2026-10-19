@@ -36,13 +36,13 @@
 //! [`Orchestrator`]: elide::Orchestrator
 //! [`Orchestrator::with_scope`]: elide::Orchestrator::with_scope
 
-mod availability;
-mod compile;
-mod component;
-mod enrichers;
+mod custom;
+mod enrich;
 mod layer;
+mod llm;
 mod modality;
-mod recognizers;
+mod ner;
+mod pattern;
 
 /// What a deployment declares about recognition, as data.
 ///
@@ -53,12 +53,10 @@ mod recognizers;
 /// analyzer is [`analyzers`](super::analyzers), which
 /// needs the elide runtime and stays out of the config vocabulary.
 pub mod config {
-    pub use super::availability::{Availability, ComponentSelection, ResolvedComponents};
-    pub use super::component::{Backend, Component};
-    pub use super::enrichers::{Enrichers, OcrBackend, SttBackend};
-    pub use super::recognizers::{
-        AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, NerBackend, Recognizers,
-        UnauthenticatedProvider,
+    pub use crate::component::{
+        AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentSelection,
+        Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers, ResolvedComponents,
+        SttBackend, UnauthenticatedProvider,
     };
 }
 
@@ -69,13 +67,13 @@ use elide::modality::text::Text;
 use elide::{Orchestrator, Result};
 use elide_schema::recognition::Recognition;
 
-pub(crate) use self::availability::Resolver;
-use self::compile::Compile;
-/// What compiling a request's analyzers produced: the orchestrator
-/// to analyze with, and the tally its model calls record into.
-pub use self::compile::UsageHandle;
 pub use self::config::*;
 use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};
+pub(crate) use crate::component::Resolver;
+use crate::request::Compile;
+/// What compiling a request's analyzers produced: the orchestrator
+/// to analyze with, and the tally its model calls record into.
+pub use crate::request::UsageHandle;
 
 /// An [`Orchestrator`] that can analyze any of the four modalities,
 /// built from the deployment's `recognizers` and `enrichers`.

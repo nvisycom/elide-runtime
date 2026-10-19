@@ -12,10 +12,10 @@ use elide::Result;
 use elide::backend::metrics::Metered;
 use elide::detection::Analyzer;
 use elide::enrichment::lingua::LinguaEnricher;
-#[cfg(feature = "test-utils")]
+#[cfg(feature = "mocks")]
 use elide::enrichment::ocr::MockBackend as MockOcrBackend;
 use elide::enrichment::ocr::OcrEnricher;
-#[cfg(feature = "test-utils")]
+#[cfg(feature = "mocks")]
 use elide::enrichment::stt::MockBackend as MockSttBackend;
 use elide::enrichment::stt::SttEnricher;
 use elide::modality::TextRecognizable;
@@ -28,9 +28,9 @@ use elide_bentoml::stt::BentoStt;
 #[cfg(feature = "deepgram")]
 use elide_deepgram::{DeepgramStt, deepgram};
 
-use super::super::Component;
-use super::super::compile::Resolved;
-use crate::recognition::{OcrBackend, SttBackend};
+use crate::component::Component;
+use crate::detect::{OcrBackend, SttBackend};
+use crate::request::Resolved;
 
 /// Attach the lingua language-detection enricher.
 ///
@@ -46,9 +46,7 @@ use crate::recognition::{OcrBackend, SttBackend};
 ///
 /// [`TextRecognizable`]: elide::modality::TextRecognizable
 /// [`Text`]: elide::modality::text::Text
-pub(in crate::recognition) fn attach_language<M: TextRecognizable>(
-    analyzer: Analyzer<M>,
-) -> Analyzer<M> {
+pub(super) fn attach_language<M: TextRecognizable>(analyzer: Analyzer<M>) -> Analyzer<M> {
     analyzer.with_enricher(LinguaEnricher::unrestricted())
 }
 
@@ -56,7 +54,7 @@ pub(in crate::recognition) fn attach_language<M: TextRecognizable>(
 ///
 /// The deployment's `Bento` backend wraps elide-bentoml's
 /// `BentoOcr` client.
-pub(in crate::recognition) fn attach_ocr(
+pub(super) fn attach_ocr(
     analyzer: Analyzer<Image>,
     config: &Component<OcrBackend>,
     resolved: &Resolved<'_>,
@@ -75,7 +73,7 @@ pub(in crate::recognition) fn attach_ocr(
             ))
             .with_name(config.name.clone()),
         ),
-        #[cfg(feature = "test-utils")]
+        #[cfg(feature = "mocks")]
         OcrBackend::Mock => analyzer.with_enricher(
             OcrEnricher::new(Metered::new(MockOcrBackend::new(), resolved.sink()))
                 .with_name(config.name.clone()),
@@ -125,7 +123,7 @@ fn deepgram_backend(api_key: &str, base_url: Option<&str>, diarize: bool) -> Res
 /// `BentoStt` client; `Deepgram` wraps elide-deepgram's hosted one.
 ///
 /// [`SttEnricher`]: elide::enrichment::stt::SttEnricher
-pub(in crate::recognition) fn attach_stt(
+pub(super) fn attach_stt(
     analyzer: Analyzer<Audio>,
     config: &Component<SttBackend>,
     resolved: &Resolved<'_>,
@@ -152,7 +150,7 @@ pub(in crate::recognition) fn attach_stt(
             ))
             .with_name(config.name.clone()),
         ),
-        #[cfg(feature = "test-utils")]
+        #[cfg(feature = "mocks")]
         SttBackend::Mock => analyzer.with_enricher(
             SttEnricher::new(Metered::new(MockSttBackend::new(), resolved.sink()))
                 .with_name(config.name.clone()),

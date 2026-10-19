@@ -88,3 +88,39 @@ fn a_serialized_pioneer_config_cannot_be_reloaded_silently() {
         "and must say which field is missing: {err}",
     );
 }
+
+/// A parse error carries no source text, including when the
+/// resolved secret itself breaks the TOML.
+///
+/// Interpolation runs before the parse, so the expanded document
+/// holds the credential — and `toml`'s own `Display` quotes the
+/// offending line to show where the fault is. That is right for a
+/// config file in general and wrong here: a startup failure lands
+/// in whatever collects logs.
+///
+/// A secret containing a quote is the sharper case, and the reason
+/// this lives beside the other credential tests rather than with
+/// the loaders: the quote terminates the TOML string early, so the
+/// parse fails on a different construct than it would for a plain
+/// value, reaching the error path by another route.
+#[test]
+fn a_parse_error_never_quotes_a_resolved_secret() {
+    // Contains a quote, so expanding it breaks the string it sits in.
+    let quoted = format!(r#"{SECRET}"and-more"#);
+
+    let err = elide_deployment::Deployment::from_toml_resolved(
+        "[[recognizers.llm]]\nname = \"x\"\nkind = \"open-ai\"\napi_key = \"${K}\"\nmodel = \"m\"\n",
+        |_| Some(quoted.clone()),
+    )
+    .expect_err("the expanded document is no longer well-formed");
+
+    assert_eq!(err.kind(), elide_deployment::ErrorKind::Malformed);
+    assert!(
+        !err.message().contains(SECRET),
+        "the resolved secret reached the parse error: {err}",
+    );
+    assert!(
+        err.message().contains("line 4"),
+        "but the location must survive, or an operator cannot find the fault: {err}",
+    );
+}

@@ -43,3 +43,29 @@ updates:
       github-actions:
         patterns:
           - "*"
+  # The `dependabot-regen` workflow re-runs `scripts/gen_requirements.py`
+  # on every uv-update PR so per-service `requirements.txt` files stay
+  # in sync automatically.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      timezone: "Europe/Berlin"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "chore"
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    rebase-strategy: "auto"
+    versioning-strategy: "auto"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

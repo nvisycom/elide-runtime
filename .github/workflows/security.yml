@@ -57,3 +57,40 @@ jobs:
         # for those crates were "not encountered", because default features
         # exclude them.
         run: cargo deny --all-features check all
+
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Export locked requirements
+        run: uv export --locked --all-packages --no-emit-workspace --format requirements-txt -o requirements.txt
+
+      - name: Audit dependencies
+        # CVE-2025-3000: torch.jit.script memory-corruption (CVSS 5.3, local; we don't 
+        # call jit.script). No patched torch release exists as of today (13 Jun 26).
+        #
+        # PYSEC-2026-3624 (CVE-2026-58659): RCE in lightning's
+        # `load_from_checkpoint`, which executes a module name read out of a
+        # checkpoint's hyperparameters. Reached via pyannote-audio, which
+        # bento-whisper uses for diarization. Not reachable from request input:
+        # the checkpoint is loaded once at service startup from a fixed, gated
+        # HF repo (`pyannote/speaker-diarization-community-1`), and the
+        # /transcribe handler only ever touches the caller's audio bytes and
+        # language hint - submitted audio never becomes a checkpoint.
+        # Exploiting it means controlling the checkpoint source, which means
+        # already controlling the deployment. Fixed upstream in commit d710d68
+        # but unreleased: 2.6.5 is still the latest. Drop this ignore once a
+        # patched lightning ships.
+        run: |
+          uvx pip-audit -r requirements.txt \
+            --ignore-vuln CVE-2025-3000 \
+            --ignore-vuln PYSEC-2026-3624

@@ -3,6 +3,11 @@
 [workspace]
 resolver = "3"
 members = [
+    "./crates/adapter/elide-aws-textract",
+    "./crates/adapter/elide-bentoml",
+    "./crates/adapter/elide-deepgram",
+    "./crates/adapter/elide-google-document-ai",
+    "./crates/adapter/elide-pioneer-gliner",
     "./crates/elide-deployment",
     "./crates/elide-provider",
     "./crates/elide-export",
@@ -11,6 +16,9 @@ members = [
     "./crates/elide-review",
     "./crates/elide-template",
 ]
+# The Python (uv) workspace lives in `packages/`. Excluded so cargo
+# does not scan it or complain about absent Cargo.toml files.
+exclude = ["packages/"]
 
 [workspace.package]
 version = "0.1.0"
@@ -21,6 +29,7 @@ publish = false
 
 authors = ["nvisy <contact@nvisy.com>"]
 repository = "https://github.com/nvisycom/elide-runtime"
+homepage = "https://github.com/nvisycom/elide-runtime"
 documentation = "https://docs.rs/nvisy-runtime"
 
 [workspace.dependencies]
@@ -34,14 +43,18 @@ elide = { git = "https://github.com/nvisycom/elide", branch = "main", default-fe
 elide-core = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-image = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-pdf = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-audio = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
+elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
-# Elide extensions
-elide-bentoml = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
-elide-deepgram = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
-elide-google-document-ai = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
-elide-pioneer-gliner = { git = "https://github.com/nvisycom/elide-provider", branch = "main", default-features = false }
+# Backend adapters: one per hosted service, each implementing
+# elide's `Backend` trait.
+elide-aws-textract = { path = "./crates/adapter/elide-aws-textract", version = "0.1.0" }
+elide-bentoml = { path = "./crates/adapter/elide-bentoml", version = "0.1.0" }
+elide-deepgram = { path = "./crates/adapter/elide-deepgram", version = "0.1.0" }
+elide-google-document-ai = { path = "./crates/adapter/elide-google-document-ai", version = "0.1.0" }
+elide-pioneer-gliner = { path = "./crates/adapter/elide-pioneer-gliner", version = "0.1.0" }
 
 # Internal crates
 elide-deployment = { path = "./crates/elide-deployment", version = "0.1.0" }
@@ -51,6 +64,13 @@ elide-provider = { path = "./crates/elide-provider", version = "0.1.0" }
 elide-review = { path = "./crates/elide-review", version = "0.1.0" }
 elide-template = { path = "./crates/elide-template", version = "0.1.0" }
 
+# Hosted-service clients, used only by the adapters that wrap them.
+aws-sdk-textract = { version = "1.113", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
+bentoml = { version = "0.5", default-features = false, features = ["rustls-tls", "tracing"] }
+deepgram = { version = "0.11", default-features = false, features = ["listen"] }
+google-cloud-documentai-v1 = { version = "1.16", default-features = false, features = ["default-rustls-provider"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
@@ -58,6 +78,13 @@ serde-value = { version = "0.7", features = [] }
 schemars = { version = "1.0", features = ["uuid1", "bytes1"] }
 csv = { version = "1.3", features = [] }
 toml = { version = "1.0", default-features = false }
+
+# Derive macros and error handling
+async-trait = { version = "0.1", features = [] }
+thiserror = { version = "2.0", features = [] }
+
+# Encoding
+base64 = { version = "0.23", features = [] }
 
 # Primitive datatypes
 uuid = { version = "1.23", features = ["serde", "v4", "v7"] }

@@ -1,0 +1,9 @@
+# Build from the repo root:  bentoml build -f packages/bento-gliner2/bentofile.yaml .
+# Image config (Python version, requirements) lives in service.py; this file
+# selects the service and scopes the bundled source.
+service: "bento_gliner2.service:NerService"
+include:
+  - "packages/bento-gliner2/**"
+  - "packages/bento-core/**"
+  - "pyproject.toml"
+  - "uv.lock"

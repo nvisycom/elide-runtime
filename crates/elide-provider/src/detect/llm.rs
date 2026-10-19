@@ -3,9 +3,9 @@
 use elide::backend::metrics::Metered;
 use elide::detection::Analyzer;
 use elide::recognition::llm::LlmRecognizer;
-use elide::recognition::llm::backend::{
-    LlmBackend, LlmModality, MockBackend as MockLlmBackend, RigBackend,
-};
+#[cfg(feature = "mocks")]
+use elide::recognition::llm::backend::MockBackend as MockLlmBackend;
+use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend};
 use elide::recognition::llm::prompt::{DefaultPrompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::{Error, ErrorKind, Result};
@@ -23,7 +23,6 @@ pub(super) fn attach_llm_lineup<M>(
 where
     M: LlmModality,
     Metered<RigBackend<M>>: LlmBackend<Modality = M>,
-    Metered<MockLlmBackend<M>>: LlmBackend<Modality = M>,
     DefaultPrompt: Prompt<M>,
 {
     for recognizer in llm {
@@ -53,7 +52,6 @@ fn attach_llm_one<M>(
 where
     M: LlmModality,
     Metered<RigBackend<M>>: LlmBackend<Modality = M>,
-    Metered<MockLlmBackend<M>>: LlmBackend<Modality = M>,
     DefaultPrompt: Prompt<M>,
 {
     // The recognizer carries its backend as a type parameter, so the

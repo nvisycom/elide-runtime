@@ -6,6 +6,7 @@ use elide::detection::Analyzer;
 use elide::modality::TextRecognizable;
 use elide::recognition::Recognizer;
 use elide::recognition::ner::NerRecognizer;
+#[cfg(feature = "mocks")]
 use elide::recognition::ner::backend::MockBackend as MockNerBackend;
 use elide_bentoml::ner::BentoNer;
 
@@ -21,7 +22,6 @@ pub(super) fn attach_ner_lineup<M>(
 where
     M: TextRecognizable,
     NerRecognizer<Metered<BentoNer>>: Recognizer<M> + 'static,
-    NerRecognizer<Metered<MockNerBackend>>: Recognizer<M> + 'static,
 {
     for recognizer in ner {
         analyzer = attach_ner_one(analyzer, recognizer, resolved)?;
@@ -39,8 +39,16 @@ where
     // One bound per backend the config can name: the recognizer
     // carries its backend as a type parameter, so each is a distinct
     // type that has to implement `Recognizer<M>` in its own right.
+    //
+    // The `Mock` arm needs no bound of its own. `#[cfg]` on a
+    // where-clause predicate is still unstable (rust#115590), so a
+    // bound naming the mock would have to be either unconditional —
+    // which fails to resolve when `mocks` is off, since the type is
+    // gated upstream — or duplicated across a cfg'd pair of
+    // signatures. Neither is necessary: every caller in `modality`
+    // instantiates a concrete `Analyzer<Text>`/`Analyzer<Image>`, so
+    // the mock recognizer's own impl is what satisfies it there.
     NerRecognizer<Metered<BentoNer>>: Recognizer<M> + 'static,
-    NerRecognizer<Metered<MockNerBackend>>: Recognizer<M> + 'static,
 {
     // The recognizer carries its backend as a type parameter, so each
     // arm attaches a differently-typed recognizer rather than folding

@@ -1287,9 +1287,9 @@ checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "deepgram"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2d5e8b85dc63bb8a23f80ad7ff9a76d362708b60d965e3fdfb975599eb8019b"
+checksum = "207491a0c2592113f14891f9e6fd877856979f387cbd56a609e21c61b4c06f21"
 dependencies = [
  "anyhow",
  "bytes",

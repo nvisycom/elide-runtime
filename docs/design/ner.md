@@ -72,4 +72,4 @@ Self-hosting is the point, so the service is built to keep data on-box:
   barcodes) belong to the OCR/CV path.
 
 A formal SOTA review is tracked at
-[issue #1](https://github.com/nvisycom/elide-provider/issues/1).
+[issue #467](https://github.com/nvisycom/elide-runtime/issues/467).

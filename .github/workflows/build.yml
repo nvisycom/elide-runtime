@@ -210,9 +210,6 @@ jobs:
       - name: Ruff format
         run: uv run ruff format --check .
 
-      - name: Service requirements up to date
-        run: uv run python scripts/gen_requirements.py --check
-
   services:
     name: Services
     runs-on: ubuntu-latest
@@ -229,6 +226,13 @@ jobs:
 
       - name: Sync
         run: uv sync --locked --all-packages
+
+      # The per-service requirements are exported from uv.lock at image
+      # build time rather than committed. Running the export here keeps
+      # the Bento image inputs covered: it fails if a service's subtree
+      # can no longer be resolved from the lock as committed.
+      - name: Export service requirements
+        run: uv run python scripts/gen_requirements.py
 
       - name: Run tests
         run: uv run pytest

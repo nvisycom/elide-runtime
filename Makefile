@@ -69,8 +69,11 @@ services-fmt: ## Auto-format the services with ruff.
 	@$(call log,Formatting...)
 	@uv run ruff format .
 
+# Depends on `requirements`: a service module calls
+# `Image.requirements_file(...)` at import, which resolves the path
+# eagerly, so pytest fails at collection without the exports.
 .PHONY: services-test
-services-test: ## Run the service test suite.
+services-test: requirements ## Run the service test suite.
 	@$(call log,Running tests...)
 	@uv run pytest
 
@@ -93,20 +96,22 @@ services-image: requirements ## Build and containerize every Bento into a local 
 		(cd packages/bento-$$s && uv run bentoml build --containerize); \
 	done
 
+# Each depends on `requirements` for the same reason as
+# `services-test`: `bentoml serve` imports the service module.
 .PHONY: serve-doctr
-serve-doctr: ## Serve the OCR (docTR) service locally with reload.
+serve-doctr: requirements ## Serve the OCR (docTR) service locally with reload.
 	@uv run bentoml serve bento_doctr.service:OcrService --reload
 
 .PHONY: serve-paddleocr
-serve-paddleocr: ## Serve the vision-language OCR service locally with reload.
+serve-paddleocr: requirements ## Serve the vision-language OCR service locally with reload.
 	@uv run bentoml serve bento_paddleocr.service:VlService --reload
 
 .PHONY: serve-gliner2
-serve-gliner2: ## Serve the NER service locally with reload.
+serve-gliner2: requirements ## Serve the NER service locally with reload.
 	@uv run bentoml serve bento_gliner2.service:NerService --reload
 
 .PHONY: serve-whisper
-serve-whisper: ## Serve the speech-to-text service locally with reload.
+serve-whisper: requirements ## Serve the speech-to-text service locally with reload.
 	@uv run bentoml serve bento_whisper.service:SttService --reload
 
 .PHONY: services-ci

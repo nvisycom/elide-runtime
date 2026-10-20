@@ -6,14 +6,17 @@ workspace ``uv.lock`` so the image installs exactly the service's resolved
 dependency subtree (including the editable ``bento-core``), pinned and hashed —
 no resolution at image-build time.
 
-The exports are derived from the lockfile, not tracked: ``make services`` runs
-this before building, so an image is always built from the lock as committed.
-They were tracked once and compared byte-for-byte in CI, which broke whenever
-``uv`` reformatted a marker without changing a version or hash.
+The exports are derived from the lockfile, not tracked. They were tracked once
+and compared byte-for-byte in CI, which broke whenever ``uv`` reformatted a
+marker without changing a version or hash.
 
-Run::
+``Image.requirements_file()`` resolves its path when the service module is
+imported, so every Make target that imports one (``services``,
+``services-image``, ``services-test``, ``serve-*``) depends on this script.
+Run it by hand before invoking ``bentoml`` directly::
 
-    uv run python scripts/gen_requirements.py
+    uv run python scripts/gen_requirements.py   # or: make requirements
+    uv run bentoml build -f packages/bento-gliner2/bentofile.yaml .
 """
 
 from __future__ import annotations

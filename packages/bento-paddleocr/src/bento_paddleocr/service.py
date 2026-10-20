@@ -42,8 +42,9 @@ batch_size_metric = Histogram(
 )
 
 # BentoML builds the image from this config; no hand-written Dockerfile. The
-# requirements file is exported per-service from the workspace lock; bundled
-# source is scoped by bentofile.yaml's `include`. PaddleOCR/OpenCV need libgl1.
+# requirements file is exported per-service from the workspace lock by
+# `make services` (scripts/gen_requirements.py), not committed; bundled source
+# is scoped by bentofile.yaml's `include`. PaddleOCR/OpenCV need libgl1.
 # lock_python_packages=False: the file is already locked + hashed.
 image = (
     bentoml.images.Image(python_version="3.12", lock_python_packages=False)

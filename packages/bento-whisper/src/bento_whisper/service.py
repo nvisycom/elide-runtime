@@ -50,7 +50,8 @@ duration_metric = Histogram(
 
 # BentoML builds the image from this config (`bentoml build` + `containerize`);
 # no hand-written Dockerfile. The requirements file is exported per-service from
-# the workspace lock (scripts/gen_requirements.py); bundled source is scoped by
+# the workspace lock by `make services` (scripts/gen_requirements.py), not
+# committed; bundled source is scoped by
 # bentofile.yaml's `include`. ffmpeg decodes the input containers.
 # lock_python_packages=False: the file is already locked + hashed, so BentoML
 # must not re-resolve it.

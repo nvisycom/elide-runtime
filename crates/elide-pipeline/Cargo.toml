@@ -109,6 +109,17 @@ audit-zip = ["audit-csv", "elide-export/zip"]
 ## it sends audio off your infrastructure before redaction runs.
 deepgram = ["elide-provider/deepgram"]
 
+## Ship Pioneer's hosted GLiNER service as a NER backend. Off by
+## default: it sends document text to a third party, and Pioneer's
+## zero-retention option is a request rather than a guarantee.
+pioneer = ["elide-provider/pioneer"]
+
+## Ship Google Cloud Document AI as an OCR backend. Off by default:
+## it sends document images to a third party. Building its client is
+## async, so a deployment naming it is built through
+## `Provider::try_new` rather than `Provider::new`.
+google-document-ai = ["elide-provider/google-document-ai"]
+
 ## Turn on the test-only mock variants
 ## (`{Ner,Ocr,Stt,Llm}BackendConfig::Mock`) and the elide mock
 ## backends they compile into. Off in production so deployment

@@ -12,7 +12,7 @@ dependencies = [
     "bentoml>=1.4.39,<2",
     "bento-core",
     "onnx>=1.22.0",
-    "pillow>=12.3.0,<13",
+    "pillow>=12.3.0,<14",
     "prometheus-client>=0.26.0",
     # docTR (PyTorch backend); torch/torchvision are core deps in 1.x, no extra.
     "python-doctr>=1.0,<2",

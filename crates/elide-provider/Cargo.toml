@@ -40,9 +40,10 @@ deepgram = ["elide-deployment/deepgram", "dep:elide-deepgram"]
 ## `NerBackend::Pioneer`.
 pioneer = ["elide-deployment/pioneer", "dep:elide-pioneer-gliner"]
 
-## Ship Google Cloud Document AI as an OCR backend. Off by default,
-## Building its client is async, so a deployment
-## naming it is built through `Provider::try_new`.
+## Ship Google Cloud Document AI as an OCR backend. Off by default:
+## it sends document images to a third party. Building its client is
+## async, so a deployment naming it is built through
+## `Provider::try_new` rather than `Provider::new`.
 google-document-ai = [
     "elide-deployment/google-document-ai",
     "dep:elide-google-document-ai",

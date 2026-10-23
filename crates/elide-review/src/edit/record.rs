@@ -86,20 +86,20 @@ pub struct Add<M: RedactableModality> {
     /// `word/document.xml` text belongs to the document part
     /// itself, not to a nested one.
     ///
-    /// Text carries either coordinate kind of [`TextCoord`]: a
-    /// [`Decoded`] span for a caller with an offset into the
-    /// decoded stream, or a [`Source`] one for a caller holding
-    /// only raw file bytes — a reviewer selecting rendered text,
-    /// say — which the engine reverse-resolves. Source-only is its
-    /// own kind rather than a decoded span left empty, so such a
-    /// selection is representable as itself.
+    /// Text splits that into two orthogonal facts: a
+    /// [`span`] over the decoded stream, and zero or more
+    /// [`anchors`] saying where that text physically lives. A
+    /// caller with a decoded offset sets the span; one holding only
+    /// raw file bytes — a reviewer selecting rendered text, say —
+    /// leaves it `None` and anchors the selection instead, which
+    /// the engine reverse-resolves. So such a selection is
+    /// representable as itself rather than as an empty span.
     ///
     /// The other three media have no such alternative: their
     /// coordinates are the only way in.
     ///
-    /// [`TextCoord`]: elide::modality::text::TextCoord
-    /// [`Decoded`]: elide::modality::text::TextCoord::Decoded
-    /// [`Source`]: elide::modality::text::TextCoord::Source
+    /// [`span`]: elide::modality::text::TextLocation::span
+    /// [`anchors`]: elide::modality::text::TextLocation::anchors
     pub location: M::Location,
     /// The part this belongs to, as a path: `["report.docx"]` for
     /// the document itself, `["report.docx", "word/media/image1.png"]`

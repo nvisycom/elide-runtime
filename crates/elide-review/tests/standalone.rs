@@ -15,7 +15,7 @@ use elide_review::{Add, Edit, EditError, EditSet, Retag, Reviewer, Suppress};
 use uuid::Uuid;
 
 fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
-    let location = TextLocation::new(at.0, at.1);
+    let location = TextLocation::inline(at.0..at.1);
     let event = AuditEvent::pattern(
         "probe",
         Confidence::MAX,
@@ -49,9 +49,9 @@ fn edits_deserialize_from_a_request_body() {
              "reason": "false positive", "actor": "alice"},
             {"op": "add", "label": "phone_number",
              "location": {
-                 "anchors": [{"kind": "bytes",
-                              "range": {"start": 200, "end": 215},
-                              "part": "word/document.xml"}]
+                 "kind": "source",
+                 "refs": [{"range": {"start": 200, "end": 215},
+                           "part": "word/document.xml"}]
              }}
         ]
     }"#;
@@ -59,12 +59,12 @@ fn edits_deserialize_from_a_request_body() {
     assert_eq!(edits.len(), 2);
 
     // A reviewer selecting rendered text in a container has raw
-    // file bytes, not a decoded offset, so the location carries no
-    // `span` and anchors the raw bytes instead — absent rather than
-    // a zero-length span, so the selection is representable as
-    // itself. The engine reverse-resolves the anchor, and the part
-    // rides along inside it. The add names no part of its own: a
-    // container's text belongs to the document.
+    // file bytes, not a decoded offset, so the location is a
+    // `Marked` mark over those bytes rather than a detected span —
+    // a span it does not have is unspellable, not left absent. The
+    // engine reverse-resolves the anchor, and the part rides along
+    // inside it. The add names no part of its own: a container's
+    // text belongs to the document.
     let Some(Edit::Add(add)) = edits.text.get(1) else {
         panic!("the second edit is the add");
     };
@@ -74,7 +74,7 @@ fn edits_deserialize_from_a_request_body() {
         None,
         "a reviewer selection has no decoded range to report",
     );
-    let sources = add.location.source();
+    let sources = add.location.source_refs();
     let source = sources.first().expect("the add carries a source reference");
     assert_eq!(
         source.part.as_deref(),
@@ -125,7 +125,7 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
 
     edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
-        location: TextLocation::new(10, 22),
+        location: TextLocation::inline(10..22),
         part: None,
         by: Reviewer::actor("alice"),
     }));
@@ -199,7 +199,9 @@ fn a_third_retag_conflicts_with_the_first() {
 
     let mut edits = EditSet::default();
     edits.text.push(retag(Some("a"), None));
-    edits.text.push(retag(None, Some(TextLocation::new(0, 4))));
+    edits
+        .text
+        .push(retag(None, Some(TextLocation::inline(0..4))));
     edits.text.push(retag(Some("b"), None));
 
     let err = edits
@@ -216,7 +218,7 @@ fn an_added_entity_keeps_its_reason_and_actor() {
     let mut edits = EditSet::default();
     edits.text.push(Edit::Add(Add {
         label: LabelRef::new("phone_number"),
-        location: TextLocation::new(10, 22),
+        location: TextLocation::inline(10..22),
         part: None,
         by: Reviewer::reason("recognizer missed it").with_actor("alice"),
     }));
@@ -421,7 +423,7 @@ fn an_image_add_lands_in_the_part_it_names() {
     //
     // Text does not need this: a DOCX's `word/document.xml` text
     // belongs to the document part itself, and where a span came
-    // from is carried by `TextLocation::source`.
+    // from is carried by `TextLocation::source_refs`.
     let part = document().child("word/media/image1.png");
     let mut report = Report::new()
         .insert_part::<Text>(document(), Vec::new())
@@ -460,7 +462,7 @@ fn an_add_naming_an_absent_part_is_rejected() {
     let mut edits = EditSet::default();
     edits.edit(Edit::Add(Add::<Text> {
         label: LabelRef::new("email_address"),
-        location: TextLocation::new(0, 4),
+        location: TextLocation::inline(0..4),
         part: Some(vec![DOCUMENT.to_owned(), "word/nonexistent.xml".to_owned()]),
         by: Reviewer::default(),
     }));

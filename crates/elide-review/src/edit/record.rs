@@ -91,14 +91,17 @@ pub struct Add<M: RedactableModality> {
     /// carries a span; one holding only raw file bytes or a
     /// rendered region — a reviewer selecting text in a PDF, say —
     /// sends a [`Marked`] one, which carries no span and is
-    /// reverse-resolved by the engine. A location naming neither is
-    /// unrepresentable, so there is no empty-span case to handle.
+    /// reverse-resolved by the engine. A location carrying neither a
+    /// span nor an anchor is unrepresentable, so there is no
+    /// names-nothing case to handle — a zero-length span is still a
+    /// span, and still reports [`is_empty`].
     ///
     /// The other three media have no such choice: their
     /// coordinates are the only way in.
     ///
     /// [`Detected`]: elide::modality::text::Detected
     /// [`Marked`]: elide::modality::text::Marked
+    /// [`is_empty`]: elide::modality::text::TextLocation::is_empty
     pub location: M::Location,
     /// The part this belongs to, as a path: `["report.docx"]` for
     /// the document itself, `["report.docx", "word/media/image1.png"]`

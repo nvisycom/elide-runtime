@@ -39,7 +39,7 @@ reproducing that contract is a drop-in replacement.
 ## Features
 
 **Multimodal codecs**  
-Read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text through a unified span-based content model.
+Read, edit, and write PDF, Office documents (DOCX, XLSX, PPTX), images, audio, CSV, JSON, HTML, XML, and plain text through four typed modalities: text, image, audio, and tabular.
 
 **Layered detection**  
 Regex, dictionary, and checksum patterns run first at low cost; NER, OCR, VLM, and LLM classification handle what deterministic methods cannot.

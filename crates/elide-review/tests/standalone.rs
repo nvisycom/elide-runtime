@@ -49,11 +49,9 @@ fn edits_deserialize_from_a_request_body() {
              "reason": "false positive", "actor": "alice"},
             {"op": "add", "label": "phone_number",
              "location": {
-                 "coord": {
-                     "kind": "source",
-                     "source": [{"range": {"start": 200, "end": 215},
-                                 "part": "word/document.xml"}]
-                 }
+                 "anchors": [{"kind": "bytes",
+                              "range": {"start": 200, "end": 215},
+                              "part": "word/document.xml"}]
              }}
         ]
     }"#;
@@ -61,11 +59,11 @@ fn edits_deserialize_from_a_request_body() {
     assert_eq!(edits.len(), 2);
 
     // A reviewer selecting rendered text in a container has raw
-    // file bytes, not a decoded offset, so the location is
-    // source-only: there is no range to give, and elide models that
-    // as its own coordinate kind rather than a zero-length span.
-    // The engine reverse-resolves `source`, and the part rides
-    // along inside it. The add names no part of its own: a
+    // file bytes, not a decoded offset, so the location carries no
+    // `span` and anchors the raw bytes instead — absent rather than
+    // a zero-length span, so the selection is representable as
+    // itself. The engine reverse-resolves the anchor, and the part
+    // rides along inside it. The add names no part of its own: a
     // container's text belongs to the document.
     let Some(Edit::Add(add)) = edits.text.get(1) else {
         panic!("the second edit is the add");
@@ -76,11 +74,8 @@ fn edits_deserialize_from_a_request_body() {
         None,
         "a reviewer selection has no decoded range to report",
     );
-    let source = add
-        .location
-        .source()
-        .first()
-        .expect("the add carries a source reference");
+    let sources = add.location.source();
+    let source = sources.first().expect("the add carries a source reference");
     assert_eq!(
         source.part.as_deref(),
         Some("word/document.xml"),

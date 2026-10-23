@@ -3,7 +3,7 @@
 //! Textract reports geometry as **ratios of the page**, and carries no
 //! page dimensions anywhere — `DocumentMetadata` holds only a page count.
 //! The caller supplies them on [`OcrRequest::dimensions`], which is what
-//! [`UnitBoundingBox::denormalize`] converts against.
+//! [`UnitBoundingBoxExt::denormalize`] converts against.
 //!
 //! Confidence arrives on a **0–100** scale, so it is divided before
 //! reaching [`Confidence::clamped`], which clamps rather than rescales —
@@ -12,10 +12,10 @@
 //! [`OcrRequest::dimensions`]: elide_image::ocr::OcrRequest::dimensions
 
 use aws_sdk_textract::types::{Block, BlockType};
-use elide_core::primitive::Confidence;
+use elide_core::primitive::{Confidence, UnitBoundingBox};
 use elide_image::modality::{ImageLocation, LayoutRegion};
 use elide_image::ocr::OcrResponse;
-use elide_image::primitive::{Dimensions, UnitBoundingBox};
+use elide_image::primitive::{Dimensions, UnitBoundingBoxExt};
 
 /// Textract's confidence scale.
 const CONFIDENCE_SCALE: f32 = 100.0;

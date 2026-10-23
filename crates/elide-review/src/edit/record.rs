@@ -86,20 +86,22 @@ pub struct Add<M: RedactableModality> {
     /// `word/document.xml` text belongs to the document part
     /// itself, not to a nested one.
     ///
-    /// Text splits that into two orthogonal facts: a
-    /// [`span`] over the decoded stream, and zero or more
-    /// [`anchors`] saying where that text physically lives. A
-    /// caller with a decoded offset sets the span; one holding only
-    /// raw file bytes — a reviewer selecting rendered text, say —
-    /// leaves it `None` and anchors the selection instead, which
-    /// the engine reverse-resolves. So such a selection is
-    /// representable as itself rather than as an empty span.
+    /// Text makes that a choice between two shapes. A caller with a
+    /// decoded offset sends a [`Detected`] location, which always
+    /// carries a span; one holding only raw file bytes or a
+    /// rendered region — a reviewer selecting text in a PDF, say —
+    /// sends a [`Marked`] one, which carries no span and is
+    /// reverse-resolved by the engine. A location carrying neither a
+    /// span nor an anchor is unrepresentable, so there is no
+    /// names-nothing case to handle — a zero-length span is still a
+    /// span, and still reports [`is_empty`].
     ///
-    /// The other three media have no such alternative: their
+    /// The other three media have no such choice: their
     /// coordinates are the only way in.
     ///
-    /// [`span`]: elide::modality::text::TextLocation::span
-    /// [`anchors`]: elide::modality::text::TextLocation::anchors
+    /// [`Detected`]: elide::modality::text::Detected
+    /// [`Marked`]: elide::modality::text::Marked
+    /// [`is_empty`]: elide::modality::text::TextLocation::is_empty
     pub location: M::Location,
     /// The part this belongs to, as a path: `["report.docx"]` for
     /// the document itself, `["report.docx", "word/media/image1.png"]`

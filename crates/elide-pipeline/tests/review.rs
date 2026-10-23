@@ -36,7 +36,7 @@ fn span_of(needle: &[u8]) -> TextLocation {
         .windows(needle.len())
         .position(|w| w == needle)
         .expect("needle present in sample");
-    TextLocation::new(start, start + needle.len())
+    TextLocation::inline(start..start + needle.len())
 }
 
 /// Erase every `email_address` through the policy fallback.
@@ -605,7 +605,7 @@ async fn unhandled_reaches_into_container_parts() {
     use elide_provider::{CodecParams, DocumentContext};
 
     let detection = |label: &str| {
-        let location = TextLocation::new(0, 4);
+        let location = TextLocation::inline(0..4);
         Entity::new(
             LabelRef::new(label),
             location.clone(),

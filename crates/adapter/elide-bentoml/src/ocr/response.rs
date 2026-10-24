@@ -1,6 +1,6 @@
 //! Incoming wire types for the OCR `/recognize` endpoint.
 //!
-//! Mirrors `bento_core.ocr.v1.OcrResponse` from the inference
+//! Mirrors `elide_core.ocr.v1.OcrResponse` from the inference
 //! repository. The wire tree is `Page -> Block -> Line -> Word`;
 //! elide's [`Layout`] is a flat list of regions, so
 //! [`WireOcrResponse::decode`] keeps the words and discards the

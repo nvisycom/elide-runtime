@@ -43,7 +43,7 @@ const DEFAULT_THRESHOLD: f32 = 0.5;
 ///
 /// **This sends the text to be scanned to a third party**, which for a
 /// redaction pipeline is the un-redacted original. The self-hosted
-/// `bento-gliner2` service runs the same open-weight model with no
+/// `elide-ner` service runs the same open-weight model with no
 /// egress.
 ///
 /// Pioneer's published terms make that a live concern rather than a

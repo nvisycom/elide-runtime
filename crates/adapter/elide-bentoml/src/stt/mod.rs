@@ -1,5 +1,5 @@
 //! [`BentoStt`]: a [`Backend`] backed by the
-//! `bento-whisper` BentoML service.
+//! `elide-stt` BentoML service.
 //!
 //! Wire contract: `POST /transcribe` accepts a single request
 //! (base64-encoded audio bytes plus optional filename and
@@ -36,7 +36,7 @@ const ROUTE: &str = "transcribe";
 
 /// BentoML STT backend.
 ///
-/// Owns a cached [`Endpoint`] pointing at the `bento-whisper`
+/// Owns a cached [`Endpoint`] pointing at the `elide-stt`
 /// `/transcribe` route, plus the per-deployment model id (echoed
 /// into [`Backend::provenance`]).
 #[derive(Debug, Clone)]

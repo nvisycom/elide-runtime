@@ -83,7 +83,7 @@ jobs:
         # PYSEC-2026-3624 (CVE-2026-58659): RCE in lightning's
         # `load_from_checkpoint`, which executes a module name read out of a
         # checkpoint's hyperparameters. Reached via pyannote-audio, which
-        # bento-whisper uses for diarization. Not reachable from request input:
+        # elide-stt uses for diarization. Not reachable from request input:
         # the checkpoint is loaded once at service startup from a fixed, gated
         # HF repo (`pyannote/speaker-diarization-community-1`), and the
         # /transcribe handler only ever touches the caller's audio bytes and

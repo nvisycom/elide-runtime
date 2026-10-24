@@ -25,13 +25,13 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["ner", "ocr", "stt"]
 ## Ship the NER backend (implements `Backend` against the
-## `bento-gliner2` BentoML service).
+## `elide-ner` BentoML service).
 ner = ["dep:elide-ner"]
 ## Ship the OCR backend (implements `Backend` against the
-## `bento-doctr` BentoML service).
+## `elide-ocr` BentoML service).
 ocr = ["dep:elide-image", "elide-image/ocr", "dep:base64"]
 ## Ship the STT backend (implements `Backend` against the
-## `bento-whisper` BentoML service).
+## `elide-stt` BentoML service).
 stt = ["dep:elide-audio", "elide-audio/stt", "dep:base64"]
 
 [dependencies]

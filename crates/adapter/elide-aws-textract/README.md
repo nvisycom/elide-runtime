@@ -10,7 +10,7 @@ A `Backend` over [Textract](https://aws.amazon.com/textract)'s
 `DetectDocumentText`. A sibling to [`elide-bentoml`](../elide-bentoml),
 not a part of it: both implement the same trait, so a deployment picks
 one without either knowing about the other. The self-hosted alternative
-is [`bento-doctr`](../../../packages/bento-doctr), and the other hosted one
+is [`elide-ocr`](../../../packages/elide-ocr), and the other hosted one
 is [`elide-google-document-ai`](../elide-google-document-ai).
 
 Transport is the official
@@ -41,7 +41,7 @@ undivided 99.2 would saturate to a flat 1.0.
 ## Before pointing this at production documents
 
 **This sends document images to a third party**, which for a redaction
-pipeline is the un-redacted original. `bento-doctr` runs locally with no
+pipeline is the un-redacted original. `elide-ocr` runs locally with no
 egress.
 
 Textract's default data posture is the weakest of the hosted OCR

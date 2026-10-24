@@ -11,7 +11,7 @@ authors = [{ name = "Nvisy" }]
 members = ["packages/*"]
 
 [tool.uv.sources]
-bento-core = { workspace = true }
+elide-core = { workspace = true }
 
 [tool.uv]
 required-version = ">=0.7"

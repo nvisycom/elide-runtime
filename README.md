@@ -81,17 +81,18 @@ Rendering an audit into JSON or flat CSV tables.
 
 ## Services
 
-**[bento-gliner2](packages/bento-gliner2)**  
-Schema-driven NER and PII detection, so the labels to find are named per call rather than baked into the model.
+**[elide-ner](packages/elide-ner)**  
+Schema-driven NER and PII detection, wrapping GLiNER2, so the labels to find are named per call rather than baked into the model.
 
-**[bento-doctr](packages/bento-doctr)**  
-The default OCR service, wrapping docTR.
+**[elide-ocr](packages/elide-ocr)**  
+Document OCR with word-level geometry, wrapping docTR.
 
-**[bento-paddleocr](packages/bento-paddleocr)**  
-Vision-language OCR verification, for text docTR reads with low confidence.
-
-**[bento-whisper](packages/bento-whisper)**  
+**[elide-stt](packages/elide-stt)**  
 Speech-to-text, so audio reaches the same detection pipeline as text.
+
+Each package is named for the modality it serves, not the model behind it: the
+model is an env-selected backend inside the service, so a successor ships as a
+module rather than a new package.
 
 ## Adapters
 
@@ -108,20 +109,20 @@ self-hosted Whisper.
 
 **[elide-google-document-ai](crates/adapter/elide-google-document-ai)**  
 A Google Cloud Document AI-backed OCR backend, the other hosted alternative to
-`bento-doctr`.
+`elide-ocr`.
 
 **[elide-pioneer-gliner](crates/adapter/elide-pioneer-gliner)**  
 A Pioneer-backed NER backend, running the same GLiNER2 model family as
-`bento-gliner2` without self-hosting it.
+`elide-ner` without self-hosting it.
 
 ## Contract
 
-**[bento-core](packages/bento-core)**  
+**[elide-core](packages/elide-core)**  
 The wire-contract types the services share. Not a service itself: no
 `bentofile.yaml`, no serve target, just the shapes both sides agree on.
 
 Each adapter speaks its service through that contract, not the model behind
-it. Any HTTP service reproducing the `/recognize` (NER, OCR, VL) or
+it. Any HTTP service reproducing the `/recognize` (NER, OCR) or
 `/transcribe` (STT) contract is a drop-in replacement for the shipped
 packages, including self-hosted or custom models and weights. Each package
 README documents its wire shape.
@@ -135,7 +136,7 @@ services as sidecar containers:
 
 ```bash
 make sync             # install the Python workspace dependencies
-make serve-gliner2    # or serve-doctr, serve-paddleocr, serve-whisper
+make serve-ner        # or serve-ocr, serve-stt
 ```
 
 or build the Docker images:

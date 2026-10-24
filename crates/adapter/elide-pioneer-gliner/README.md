@@ -8,7 +8,7 @@ Pioneer GLiNER2-backed NER backend for elide.
 
 A `Backend` over [Pioneer](https://pioneer.ai)'s hosted GLiNER2 API —
 the same model family the self-hosted
-[`bento-gliner2`](../../../packages/bento-gliner2) service runs locally, so
+[`elide-ner`](../../../packages/elide-ner) service runs locally, so
 the two are directly comparable. A sibling to
 [`elide-bentoml`](../elide-bentoml), not a part of it: both implement the
 same trait, so a deployment picks one without either knowing about the
@@ -38,7 +38,7 @@ matched text Pioneer echoes back, is dropped rather than repaired.
 ## Before pointing this at production text
 
 **This sends the text to be scanned to a third party** — for a redaction
-pipeline, the un-redacted original. The self-hosted `bento-gliner2`
+pipeline, the un-redacted original. The self-hosted `elide-ner`
 service runs the same open-weight model
 (`fastino/gliner2-privacy-filter-PII-multi`, Apache-2.0) with no egress,
 so this backend buys convenience rather than capability.

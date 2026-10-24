@@ -35,7 +35,7 @@ pipeline that means un-redacted audio — personal data, and biometric
 data under GDPR Article 4(14) where it is processed to identify or
 authenticate a speaker — leaves your infrastructure before anything is
 redacted;
-the self-hosted `bento-whisper` service exists so that does not have to
+the self-hosted `elide-stt` service exists so that does not have to
 happen. Deepgram offers a BAA on request, an explicit `mip_opt_out`
 parameter to keep submitted audio out of model training, and an EU
 endpoint — but which of those apply is a matter of contract tier, so

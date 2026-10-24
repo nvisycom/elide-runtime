@@ -1,0 +1,9 @@
+# Build from the repo root:  bentoml build -f packages/elide-stt/bentofile.yaml .
+# Image config (Python version, system packages, requirements) lives in
+# service.py; this file selects the service and scopes the bundled source.
+service: "elide_stt.service:SttService"
+include:
+  - "packages/elide-stt/**"
+  - "packages/elide-core/**"
+  - "pyproject.toml"
+  - "uv.lock"

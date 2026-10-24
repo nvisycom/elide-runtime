@@ -11,7 +11,7 @@ Enterprise Document OCR processor. A sibling to
 [`elide-bentoml`](../elide-bentoml), not a part of it: both implement the
 same trait, so a deployment picks one without either knowing about the
 other. The self-hosted alternative is
-[`bento-doctr`](../../../packages/bento-doctr).
+[`elide-ocr`](../../../packages/elide-ocr).
 
 Transport is Google's official
 [`google-cloud-documentai-v1`](https://crates.io/crates/google-cloud-documentai-v1)
@@ -46,7 +46,7 @@ documents.
 ## Before pointing this at production documents
 
 **This sends document images to a third party**, which for a redaction
-pipeline is the un-redacted original. `bento-doctr` runs locally with no
+pipeline is the un-redacted original. `elide-ocr` runs locally with no
 egress.
 
 Google's terms are the best-documented of the hosted OCR providers, and

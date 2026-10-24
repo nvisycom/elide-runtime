@@ -10,8 +10,8 @@
 .SHELLFLAGS := -eu -o pipefail -c
 SHELL       := /bin/bash
 
-# The BentoML services, by their package suffix.
-SERVICES := doctr paddleocr gliner2 whisper
+# The BentoML services, by modality.
+SERVICES := ner ocr stt
 
 # Timestamped log line, tagged with the running target. Use as `$(call log,msg)`.
 define log
@@ -85,34 +85,30 @@ requirements: ## Export each service's locked dependencies from uv.lock.
 .PHONY: services
 services: requirements ## Build every Bento from its bentofile.
 	@for s in $(SERVICES); do \
-		$(call log,Building bento-$$s...); \
-		(cd packages/bento-$$s && uv run bentoml build); \
+		$(call log,Building elide-$$s...); \
+		(cd packages/elide-$$s && uv run bentoml build); \
 	done
 
 .PHONY: services-image
 services-image: requirements ## Build and containerize every Bento into a local Docker image.
 	@for s in $(SERVICES); do \
-		$(call log,Containerizing bento-$$s...); \
-		(cd packages/bento-$$s && uv run bentoml build --containerize); \
+		$(call log,Containerizing elide-$$s...); \
+		(cd packages/elide-$$s && uv run bentoml build --containerize); \
 	done
 
 # Each depends on `requirements` for the same reason as
 # `services-test`: `bentoml serve` imports the service module.
-.PHONY: serve-doctr
-serve-doctr: requirements ## Serve the OCR (docTR) service locally with reload.
-	@uv run bentoml serve bento_doctr.service:OcrService --reload
+.PHONY: serve-ner
+serve-ner: requirements ## Serve the NER service locally with reload.
+	@uv run bentoml serve elide_ner.service:NerService --reload
 
-.PHONY: serve-paddleocr
-serve-paddleocr: requirements ## Serve the vision-language OCR service locally with reload.
-	@uv run bentoml serve bento_paddleocr.service:VlService --reload
+.PHONY: serve-ocr
+serve-ocr: requirements ## Serve the OCR service locally with reload.
+	@uv run bentoml serve elide_ocr.service:OcrService --reload
 
-.PHONY: serve-gliner2
-serve-gliner2: requirements ## Serve the NER service locally with reload.
-	@uv run bentoml serve bento_gliner2.service:NerService --reload
-
-.PHONY: serve-whisper
-serve-whisper: requirements ## Serve the speech-to-text service locally with reload.
-	@uv run bentoml serve bento_whisper.service:SttService --reload
+.PHONY: serve-stt
+serve-stt: requirements ## Serve the speech-to-text service locally with reload.
+	@uv run bentoml serve elide_stt.service:SttService --reload
 
 .PHONY: services-ci
 services-ci: services-lint services-test ## Run the service CI matrix.

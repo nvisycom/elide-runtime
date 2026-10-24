@@ -1,5 +1,5 @@
 //! [`BentoNer`]: a [`Backend`] backed by the
-//! `bento-gliner2` BentoML service.
+//! `elide-ner` BentoML service.
 //!
 //! Wire contract: `POST /recognize` accepts a batched list of
 //! requests (one schema-driven entity-extraction call per item)
@@ -32,7 +32,7 @@ const ROUTE: &str = "recognize";
 
 /// BentoML NER backend.
 ///
-/// Owns a cached [`Endpoint`] pointing at the `bento-gliner2`
+/// Owns a cached [`Endpoint`] pointing at the `elide-ner`
 /// `/recognize` route, plus the per-deployment model id (echoed
 /// into [`Backend::provenance`]) and a default per-label
 /// confidence threshold the service applies when a schema entry
@@ -129,7 +129,7 @@ impl Backend for BentoNer {
         Ok(response)
     }
 
-    /// Overridden: the `bento-gliner2` service takes a batch in one POST, so the
+    /// Overridden: the `elide-ner` service takes a batch in one POST, so the
     /// whole slice goes in a single round trip rather than the default's
     /// sequential fan-out over [`call`](Self::call).
     ///

@@ -30,6 +30,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_TOOLCHAIN: "1.95.0"
+  UV_VERSION: "0.13.5"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -199,6 +200,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Sync
@@ -222,6 +224,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Sync
@@ -253,6 +256,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Sync

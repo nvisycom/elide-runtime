@@ -85,10 +85,9 @@ does today rather than how it got here.
 
 ### Inference
 
-- Model services live in
-  [nvisycom/elide-provider](https://github.com/nvisycom/elide-provider)
-  and are reached over HTTP. The engine ships clients for them, and
-  any service reproducing the wire contract is a drop-in replacement,
-  including self-hosted models and weights.
+- Model services live in [`packages/`](packages) and are reached over
+  HTTP. The engine ships clients for them, and any service
+  reproducing the wire contract is a drop-in replacement, including
+  self-hosted models and weights.
 
 [Unreleased]: https://github.com/nvisycom/elide-runtime/commits/main

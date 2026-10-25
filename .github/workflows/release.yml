@@ -17,9 +17,53 @@ permissions:
   contents: write
 
 jobs:
+  # Runs before the release is created, so a workspace that has become
+  # publishable stops the tag rather than leaving a public release behind.
+  #
+  # Nothing is published to crates.io today: the workspace sets
+  # `publish = false`, inherited by every crate, because these crates depend on
+  # `elide` as a git dependency and crates.io rejects a package whose
+  # dependencies are not themselves published. Pinning a commit is how a
+  # consumer depends on this, which is what the README says.
+  #
+  # This asserts that state rather than publishing. If a crate is ever opened
+  # up, it fails naming the crate, which is the moment to add the real
+  # `cargo publish` calls in dependency order. A deleted job would have left a
+  # tag silently publishing nothing.
+  check-publishable:
+    name: Check crates.io scope
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Assert nothing is publishable yet
+        # pipefail: without it a failing `cargo metadata` leaves jq with no
+        # input, jq exits 0, and the empty result reads as "nothing
+        # publishable" — the assertion would pass on a broken manifest.
+        run: |
+          set -o pipefail
+          publishable=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.publish != []) | .name')
+          if [ -n "$publishable" ]; then
+            echo "These crates are now publishable, but nothing here" >&2
+            echo "publishes them. Add cargo publish calls in dependency" >&2
+            echo "order before tagging:" >&2
+            echo "$publishable" >&2
+            exit 1
+          fi
+          echo "No crate is publishable (workspace sets publish = false)."
+
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
+    needs: check-publishable
 
     steps:
       - name: Checkout
@@ -37,23 +81,3 @@ jobs:
           prerelease: false
           generate_release_notes: true
           token: ${{ secrets.GITHUB_TOKEN }}
-
-  publish:
-    name: Publish to crates.io
-    runs-on: ubuntu-latest
-    needs: create-release
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-
-      - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
-
-      - name: Publish nvisy-ontology
-        run: cargo publish -p nvisy-ontology --token ${{ secrets.CARGO_TOKEN }}

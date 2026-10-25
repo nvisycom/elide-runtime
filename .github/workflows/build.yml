@@ -10,6 +10,12 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rustfmt.toml"
+      # See the pull_request filter below: these jobs cover the Python
+      # packages too, so main must run them after a packages-only merge.
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
       - ".github/workflows/build.yml"
   pull_request:
     branches:
@@ -20,6 +26,13 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rustfmt.toml"
+      # The Ruff and Services jobs below lint and test the Python packages, so
+      # a change confined to them has to trigger this workflow. Without these
+      # the Python suite silently did not run on such a pull request.
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
       - ".github/workflows/build.yml"
   workflow_dispatch:
   schedule:

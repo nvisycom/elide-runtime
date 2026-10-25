@@ -10,6 +10,11 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "deny.toml"
+      # The Audit job audits the Python dependency set from uv.lock, so a
+      # change to it or to a package's own dependencies has to trigger this.
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/security.yml"
   pull_request:
     branches:
@@ -20,6 +25,11 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "deny.toml"
+      # The Audit job audits the Python dependency set from uv.lock, so a
+      # change to it or to a package's own dependencies has to trigger this.
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/security.yml"
   schedule:
     - cron: "0 6 * * 1"

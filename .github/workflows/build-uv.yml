@@ -1,0 +1,123 @@
+name: Build (uv)
+
+# The Python side: the inference service packages in `packages/`, built and
+# tested with uv. Separate from build.yml so each workflow's path filter can
+# state what its jobs actually cover — a single filter spanning both languages
+# is how the Python suite came to be skipped on a packages-only change, and it
+# would also run every Rust job for a change to a service's README.
+
+on:
+  push:
+    branches:
+      - "main"
+      - "release"
+    paths:
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      # Owns the per-service requirements export the `services` job depends on.
+      - "scripts/**"
+      - ".github/workflows/build-uv.yml"
+  pull_request:
+    branches:
+      - "main"
+      - "release"
+    paths:
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
+      - ".github/workflows/build-uv.yml"
+  workflow_dispatch:
+  schedule:
+    # Weekly, for `real-models`: it downloads weights and runs real
+    # inference, so it never runs on a push or a pull request.
+    - cron: "0 4 * * 1"
+
+env:
+  UV_VERSION: "0.13.5"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Sync
+        run: uv sync --locked --all-packages
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+  services:
+    name: Services
+    runs-on: ubuntu-latest
+    needs: ruff
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Sync
+        run: uv sync --locked --all-packages
+
+      # The per-service requirements are exported from uv.lock at image
+      # build time rather than committed. Running the export here keeps
+      # the Bento image inputs covered: it fails if a service's subtree
+      # can no longer be resolved from the lock as committed.
+      - name: Export service requirements
+        run: uv run python scripts/gen_requirements.py
+
+      - name: Run tests
+        run: uv run pytest
+
+  real-models:
+    name: Real models
+    runs-on: ubuntu-latest
+    needs: ruff
+    # Opt-in only: the scheduled weekly run or a manual dispatch, never
+    # on pushes or pull requests, since it downloads weights and runs
+    # real inference.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Sync
+        run: uv sync --locked --all-packages
+
+      - name: Run real-model tests
+        # `-m real`, the marker pyproject.toml registers. This said
+        # `real_models` — the job's own name — which matches no marker, so
+        # pytest collected nothing and the job reported success without
+        # running an inference test.
+        run: uv run pytest -m real

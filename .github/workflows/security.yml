@@ -1,5 +1,8 @@
 name: Security
 
+# The Rust side: cargo-deny over the crate graph. The Python dependency set is
+# audited by security-uv.yml, which carries its own path filter.
+
 on:
   push:
     branches:
@@ -27,7 +30,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  UV_VERSION: "0.13.5"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -58,40 +60,3 @@ jobs:
         # for those crates were "not encountered", because default features
         # exclude them.
         run: cargo deny --all-features check all
-
-  audit:
-    name: Audit
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      # `uv audit` reads uv.lock directly — no requirements export, no pip, no
-      # dependency resolution. That matters beyond tidiness: the torch pins are
-      # `+cpu` local versions from the PyTorch CPU index, and pip-audit (which
-      # resolves the exported file with plain pip) cannot see that index, so it
-      # failed with "No matching distribution found for torch==2.14.1+cpu".
-      # Auditing the lock also audits exactly what we ship, rather than
-      # whatever a fresh resolution picks.
-      #
-      # No `--ignore` flags: the two advisories this job used to carry
-      # (CVE-2025-3000 in torch, PYSEC-2026-3624 in lightning) are both fixed
-      # in versions the lock now pins — torch 2.14.1 and pytorch-lightning
-      # 2.6.6 — confirmed against OSV, which reports no vulnerabilities for
-      # either. Prefer `--ignore-until-fixed <ID>` over `--ignore` if one is
-      # ever needed again: it expires the exemption as soon as a fix exists,
-      # instead of outliving the problem the way those two did.
-      #
-      # `--python-platform linux`: the images are linux, and an audit of the
-      # developer's own platform would miss a linux-only advisory.
-      - name: Audit dependencies
-        run: |
-          set -o pipefail
-          uv audit --locked --python-platform linux --preview-features audit

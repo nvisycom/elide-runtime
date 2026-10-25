@@ -11,7 +11,9 @@ on:
     paths:
       - "packages/**"
       - "docker/**"
-      - "scripts/gen_requirements.py"
+      # Both the requirements export and the manifest publisher live here,
+      # and this workflow runs each of them.
+      - "scripts/**"
       - "pyproject.toml"
       - "uv.lock"
       - "Makefile"
@@ -32,6 +34,21 @@ permissions:
   contents: read
 
 jobs:
+  # Guards the prerelease rule in scripts/publish_manifest.sh: that a release
+  # moves `latest` and a release candidate does not. The script stubs `docker`,
+  # so this needs no daemon and no registry — and it runs on a pull request,
+  # where the publish path itself cannot.
+  script:
+    name: Script
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Test the manifest publisher
+        run: sh scripts/tests/test_publish_manifest.sh
+
   # One job per service: a failure in one does not mask the others, and the
   # three build in parallel. The matrix mirrors `SERVICES` in the Makefile.
   #
@@ -157,7 +174,7 @@ jobs:
   manifest:
     name: Manifest ${{ matrix.service }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, script]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: read
@@ -168,6 +185,11 @@ jobs:
         service: [ner, ocr, stt]
 
     steps:
+      # Checked out only for scripts/publish_manifest.sh — this job builds
+      # nothing, so it does not need uv or the workspace.
+      - name: Checkout
+        uses: actions/checkout@v7
+
       - name: Log in to the registry
         uses: docker/login-action@v3
         with:
@@ -178,28 +200,7 @@ jobs:
       - name: Merge the per-architecture images
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/elide-${{ matrix.service }}
-        run: |
-          set -o pipefail
-          version="${GITHUB_REF_NAME#v}"
-
-          # The version tag always; `latest` only for a real release. A
-          # prerelease must not become the image someone gets by default,
-          # least of all after that version ships. Keyed on the `-` SemVer
-          # uses to introduce a prerelease, matching how release.yml decides
-          # whether to mark the GitHub Release itself a prerelease.
-          tags="$version"
-          case "$version" in
-            *-*) echo "$version is a prerelease; leaving :latest alone." ;;
-            *)   tags="$tags latest" ;;
-          esac
-
-          for tag in $tags; do
-            echo "Creating $IMAGE:$tag"
-            docker buildx imagetools create \
-              --tag "$IMAGE:$tag" \
-              "$IMAGE:$version-amd64" \
-              "$IMAGE:$version-arm64"
-          done
+        run: scripts/publish_manifest.sh "$IMAGE" "${GITHUB_REF_NAME#v}"
 
       - name: Show the published manifest
         env:

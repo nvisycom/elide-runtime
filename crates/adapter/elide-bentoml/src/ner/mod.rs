@@ -24,7 +24,7 @@ use elide_core::entity::audit::ModelEvent;
 use elide_ner::backend::{NerRequest, NerResponse};
 use hipstr::HipStr;
 
-use self::request::WireNerRequest;
+use self::request::{Recognize, WireNerRequest};
 use self::response::WireNerResponse;
 use crate::error::BentoError;
 
@@ -96,7 +96,7 @@ impl BentoNer {
             endpoint = endpoint.with_request_id(id.to_string());
         }
         let wire: Vec<WireNerResponse> = endpoint
-            .invoke(&body)
+            .invoke(&Recognize { requests: &body })
             .await
             .map_err(BentoError::Transport)?;
         Ok(wire.into_iter().map(WireNerResponse::decode).collect())

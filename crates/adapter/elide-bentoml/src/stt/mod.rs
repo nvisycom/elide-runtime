@@ -28,7 +28,7 @@ use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
 use hipstr::HipStr;
 
-use self::request::WireSttRequest;
+use self::request::{Transcribe, WireSttRequest};
 use self::response::WireSttResponse;
 use crate::error::BentoError;
 
@@ -73,7 +73,7 @@ impl BentoStt {
             endpoint = endpoint.with_request_id(id.to_string());
         }
         let wire: WireSttResponse = endpoint
-            .invoke(&body)
+            .invoke(&Transcribe { request: &body })
             .await
             .map_err(BentoError::Transport)?;
         Ok(wire.decode())

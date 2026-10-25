@@ -9,6 +9,19 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use elide_audio::stt::SttRequest;
 use serde::Serialize;
 
+/// The `/transcribe` input model.
+///
+/// BentoML keys an endpoint's input on its handler's parameter names, so
+/// `transcribe(self, request: SttRequest, ctx)` takes `{"request": {...}}`
+/// and rejects a bare object with `400 1 validation error for Input`. The
+/// field is `request` rather than `requests` because this endpoint is not
+/// batching: the name mirrors the handler, not the payload's shape.
+#[derive(Debug, Serialize)]
+pub(super) struct Transcribe<'a> {
+    /// Named for the handler parameter that receives it.
+    pub request: &'a WireSttRequest,
+}
+
 /// Outgoing per-call request body.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

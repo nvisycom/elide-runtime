@@ -582,11 +582,13 @@ dependencies = [
 
 [[package]]
 name = "bentoml"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c65f4e07f4eac57a9e81aa97cf1c9d297cc01aad185767b613c1bcf112c469d8"
+checksum = "088d618c291427e7e498ff7aa19fc1cac42a935b3ffd010a529d58477885426b"
 dependencies = [
+ "async-trait",
  "bytes",
+ "http",
  "jiff",
  "reqwest",
  "reqwest-middleware",
@@ -594,6 +596,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
  "tracing",
  "url",
 ]

@@ -29,7 +29,7 @@ use elide_core::entity::audit::ModelEvent;
 use elide_image::ocr::{OcrRequest, OcrResponse};
 use hipstr::HipStr;
 
-use self::request::WireOcrRequest;
+use self::request::{Recognize, WireOcrRequest};
 use self::response::WireOcrResponse;
 use crate::error::BentoError;
 
@@ -100,7 +100,7 @@ impl BentoOcr {
             endpoint = endpoint.with_request_id(id.to_string());
         }
         let wire: Vec<WireOcrResponse> = endpoint
-            .invoke(&body)
+            .invoke(&Recognize { requests: &body })
             .await
             .map_err(BentoError::Transport)?;
         Ok(wire.into_iter().map(WireOcrResponse::decode).collect())

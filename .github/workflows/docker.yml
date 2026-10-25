@@ -181,21 +181,25 @@ jobs:
         run: |
           set -o pipefail
           version="${GITHUB_REF_NAME#v}"
-          docker buildx imagetools create \
-            --tag "$IMAGE:$version" \
-            "$IMAGE:$version-amd64" \
-            "$IMAGE:$version-arm64"
+
+          # The version tag always; `latest` only for a real release. A
+          # prerelease must not become the image someone gets by default,
+          # least of all after that version ships. Keyed on the `-` SemVer
+          # uses to introduce a prerelease, matching how release.yml decides
+          # whether to mark the GitHub Release itself a prerelease.
+          tags="$version"
           case "$version" in
-            *-*)
-              echo "$version is a prerelease; leaving :latest alone."
-              ;;
-            *)
-              docker buildx imagetools create \
-                --tag "$IMAGE:latest" \
-                "$IMAGE:$version-amd64" \
-                "$IMAGE:$version-arm64"
-              ;;
+            *-*) echo "$version is a prerelease; leaving :latest alone." ;;
+            *)   tags="$tags latest" ;;
           esac
+
+          for tag in $tags; do
+            echo "Creating $IMAGE:$tag"
+            docker buildx imagetools create \
+              --tag "$IMAGE:$tag" \
+              "$IMAGE:$version-amd64" \
+              "$IMAGE:$version-arm64"
+          done
 
       - name: Show the published manifest
         env:

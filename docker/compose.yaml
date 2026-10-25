@@ -18,20 +18,32 @@ name: elide
 # same library version wrote it.
 
 x-readyz: &readyz
-  # Probed with Python, not curl: the BentoML images are built on
-  # python:3.12-slim, which ships neither curl nor wget. urlopen exits non-zero
-  # on any status other than 2xx, which is what the probe needs.
+  # `python -m elide_core.readyz`, not curl: the BentoML images are built on
+  # python:3.12-slim, which ships neither curl nor wget (nor nc). The probe
+  # lives in elide-core (shipped into every image by build_include) rather
+  # than inline here, because it has branches worth testing — see its
+  # docstring for what each exit reason means.
   test:
     - CMD
     - python
-    - -c
-    - "import urllib.request; urllib.request.urlopen('http://localhost:3000/readyz', timeout=5)"
+    - -m
+    - elide_core.readyz
   interval: 10s
   timeout: 5s
   retries: 5
-  # The services load their model in __init__, so readiness lags liveness by
-  # however long that takes. This covers a slow cold load without flapping.
-  start_period: 120s
+  # /readyz gates on the model: the HTTP server binds first and answers only
+  # once __init__ has finished loading, so a 200 means the service can serve.
+  # Measured from container start to the first 200, weights already cached:
+  #
+  #     ner 10.3s  (model load 9.7s)
+  #     ocr  8.2s  (model load 2.2s)
+  #     stt  5.2s  (model load 2.4s)
+  #
+  # 60s is a deliberately wide margin over the slowest. These come from one
+  # idle host with a warm cache; a loaded or throttled one is slower, and the
+  # cost of being generous here is only how long a genuinely broken service
+  # takes to be reported. The previous 120s predated any measurement.
+  start_period: 60s
 
 x-service: &service
   restart: unless-stopped

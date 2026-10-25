@@ -113,14 +113,27 @@ jobs:
       # The tag drives the version: v1.2.3 publishes :1.2.3 and moves :latest.
       # `latest` is a convenience for a quick start; a deployment pins the
       # version, which is what docker/.env.example says to do.
+      #
+      # A prerelease publishes its own version tag but does not move :latest —
+      # v0.1.0-rc.1 must not become the image someone gets by default, least of
+      # all after 0.1.0 exists. Detected by the `-` SemVer uses to introduce a
+      # prerelease, so v0.1.0-rc.1, -beta and -alpha.2 all qualify.
       - name: Tag and push
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/elide-${{ matrix.service }}
           BUILT: elide-${{ matrix.service }}:${{ github.sha }}
         run: |
+          set -o pipefail
           version="${GITHUB_REF_NAME#v}"
           docker tag "$BUILT" "$IMAGE:$version"
-          docker tag "$BUILT" "$IMAGE:latest"
           docker push "$IMAGE:$version"
-          docker push "$IMAGE:latest"
+          case "$version" in
+            *-*)
+              echo "$version is a prerelease; leaving :latest alone."
+              ;;
+            *)
+              docker tag "$BUILT" "$IMAGE:latest"
+              docker push "$IMAGE:latest"
+              ;;
+          esac

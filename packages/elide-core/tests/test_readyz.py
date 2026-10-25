@@ -73,3 +73,18 @@ def test_the_probe_timeout_stays_under_the_healthcheck_timeout():
     """Compose allows the probe 5s. Answering just inside that is what keeps
     the reason visible: Docker records no output for a probe it killed."""
     assert readyz.TIMEOUT < 5.0
+
+
+def test_a_non_transient_status_is_not_reported_as_loading(monkeypatch):
+    """A 404 or a proxy's 502 will not resolve by waiting, so filing it under
+    `loading` would have an operator wait out something permanent. Only 503,
+    which is the one status BentoML's /readyz raises, means not-ready-yet."""
+    error = urllib.error.HTTPError(readyz.URL, 404, "not found", {}, None)
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_raising(error))
+
+    with pytest.raises(SystemExit) as excinfo:
+        readyz.main()
+
+    message = str(excinfo.value)
+    assert "loading" not in message, f"404 is not transient: {message}"
+    assert "404" in message

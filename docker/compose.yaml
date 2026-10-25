@@ -18,6 +18,11 @@ name: elide
 # same library version wrote it.
 
 x-readyz: &readyz
+  # Requires an image containing `elide_core.readyz`, i.e. 0.1.0-rc.4 or
+  # later, which is what the services below default to. Against rc.3 or
+  # earlier the probe exits "No module named elide_core.readyz" and every
+  # service goes unhealthy, so the tag and this file move together.
+  #
   # `python -m elide_core.readyz`, not curl: the BentoML images are built on
   # python:3.12-slim, which ships neither curl nor wget (nor nc). The probe
   # lives in elide-core (shipped into every image by build_include) rather
@@ -60,7 +65,7 @@ services:
   # --- NER ------------------------------------------------------------------
 
   ner-init:
-    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-ner-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -84,7 +89,7 @@ services:
 
   ner:
     <<: *service
-    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-ner
     ports:
       - "${ELIDE_NER_PORT:-3100}:3000"
@@ -108,7 +113,7 @@ services:
   # --- OCR ------------------------------------------------------------------
 
   ocr-init:
-    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-ocr-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -125,7 +130,7 @@ services:
 
   ocr:
     <<: *service
-    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-ocr
     ports:
       - "${ELIDE_OCR_PORT:-3101}:3000"
@@ -146,7 +151,7 @@ services:
   # --- STT ------------------------------------------------------------------
 
   stt-init:
-    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-stt-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -168,7 +173,7 @@ services:
 
   stt:
     <<: *service
-    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-stt
     ports:
       - "${ELIDE_STT_PORT:-3102}:3000"

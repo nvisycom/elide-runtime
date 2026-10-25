@@ -25,6 +25,10 @@ identical from ``docker ps``:
     Nothing is listening: the process died, or is crash-looping. Read the
     logs.
 
+``failed``
+    The path answered with a status that waiting will not fix — a 404, or a
+    proxy's 502. Check what is actually serving :3000.
+
 Lives here rather than inline in the healthcheck because a probe is code: it
 has branches that each needed checking against a real container, and the
 timeout case was missed on the first attempt precisely because it was a YAML
@@ -49,8 +53,14 @@ def main() -> None:
     try:
         urllib.request.urlopen(URL, timeout=TIMEOUT)
     except urllib.error.HTTPError as error:
-        # A status means the server answered, so it is up but not ready.
-        sys.exit(f"loading: /readyz returned HTTP {error.code}")
+        # 503 is the only status BentoML's own /readyz raises, and it means
+        # not-ready-yet. Anything else answered on this path is not transient
+        # — a 404 or a proxy's 502 will not resolve by waiting — so it is
+        # reported as a failure rather than filed under `loading`, where an
+        # operator would wait out something permanent.
+        if error.code == 503:
+            sys.exit("loading: /readyz returned HTTP 503")
+        sys.exit(f"failed: /readyz returned HTTP {error.code}")
     except TimeoutError:
         # Checked before URLError: the connection was accepted and then left
         # unanswered, which is the normal state while the model loads. Without

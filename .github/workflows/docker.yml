@@ -54,21 +54,22 @@ jobs:
       - name: Sync
         run: uv sync --locked --all-packages
 
-      # The per-service requirements are exported from uv.lock rather than
-      # committed, and `Image.requirements_file()` resolves its path when the
-      # service module is imported — which `bentoml build` does. Without this
-      # the build fails on a missing file.
-      - name: Export service requirements
-        run: uv run python scripts/gen_requirements.py
-
       # BentoML builds the image from service.py and bentofile.yaml, so there
-      # is no Dockerfile and no docker/build-push-action here. The image config
-      # lives with the service, which keeps one source of truth.
+      # is no Dockerfile and no docker/build-push-action here.
+      #
+      # Driven through `make` rather than a copy of the commands: the build has
+      # several non-obvious requirements (run from the repo root so the
+      # requirements export resolves, two steps because `--containerize` takes
+      # no tag, the bento's content-hash tag captured for `containerize -t`),
+      # and a second copy here drifts from the one developers run. `make`
+      # exports the requirements as a prerequisite, so that step is implicit.
       - name: Build image
-        working-directory: packages/elide-${{ matrix.service }}
+        run: make services-image SERVICES=${{ matrix.service }}
+
+      - name: Tag for this commit
         run: |
-          uv run bentoml build --containerize \
-            -t "elide-${{ matrix.service }}:${{ github.sha }}"
+          docker tag "elide-${{ matrix.service }}:latest" \
+            "elide-${{ matrix.service }}:${{ github.sha }}"
 
       # Publishing an unscanned image would be a gap next to the repo's
       # existing advisory gates. Scanned before any push, and on pull requests

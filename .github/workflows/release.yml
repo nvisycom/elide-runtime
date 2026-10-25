@@ -69,15 +69,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # `prerelease` is derived rather than hardcoded: a tag like v0.1.0-rc.1
+      # published as a stable release is what GitHub shows as "Latest", and
+      # what a consumer reads as ready. Keyed on the `-` SemVer uses to
+      # introduce a prerelease, matching how docker.yml decides whether to move
+      # the `:latest` image tag.
       - name: Get the version
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          set -o pipefail
+          version="${GITHUB_REF#refs/tags/}"
+          echo "VERSION=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in
+            *-*) echo "PRERELEASE=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "PRERELEASE=false" >> "$GITHUB_OUTPUT" ;;
+          esac
 
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
           name: Release ${{ steps.get_version.outputs.VERSION }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.get_version.outputs.PRERELEASE }}
           generate_release_notes: true
           token: ${{ secrets.GITHUB_TOKEN }}

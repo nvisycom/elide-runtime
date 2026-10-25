@@ -25,6 +25,17 @@ The wire is camelCase, mirroring the Rust side's serde
 for the wire contract; the Rust [`elide-bentoml`](../../crates/adapter/elide-bentoml)
 client mirrors them by hand.
 
+## Versioning
+
+Versioned per contract module (`ner.v1`, `ocr.v1`, `stt.v1`) rather than per
+release: a breaking wire change lands as `v2` alongside `v1`, so a service and
+its client can migrate independently.
+
+These models mirror the Rust client,
+[`elide-bentoml`](../../crates/adapter/elide-bentoml), which is the source of
+truth for the format — a change here that is not made there produces a
+contract nothing speaks.
+
 ## License
 
 Apache 2.0 License, see [LICENSE](../../LICENSE)

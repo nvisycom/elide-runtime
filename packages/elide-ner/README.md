@@ -51,7 +51,7 @@ request ids and counts only — never input text or extracted spans. Inputs over
 the model's token limit are **rejected** (not silently truncated), so PII past
 the limit is never missed.
 
-### Configuration
+## Configuration
 
 - `ELIDE_BENTO_NER_MODEL` — the GLiNER2 model id (or local path). Defaults to
   `fastino/gliner2-privacy-filter-PII-multi` (Apache-2.0, SOTA PII span-F1).
@@ -82,6 +82,23 @@ CI job):
 ```bash
 uv run pytest -m real          # downloads the GLiNER2 model
 ```
+
+## Run locally
+
+```bash
+make serve-ner
+```
+
+The model is downloaded on first start. To run the published image instead,
+with its cache warmed by a one-shot init container, see
+[`docker/`](../../docker/README.md).
+
+## Versioning
+
+Lockstep with the workspace. The wire contract lives in
+[`elide-core`](../elide-core), and the Rust client that consumes it,
+[`elide-bentoml`](../../crates/adapter/elide-bentoml), is the source of truth
+for the format.
 
 ## License
 

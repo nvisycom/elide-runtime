@@ -148,6 +148,15 @@ three on every pull request that touches the services, scans each with Trivy,
 and publishes to `ghcr.io/nvisycom/elide-{ner,ocr,stt}` on a `v*` tag — `:1.2.3`
 plus a moving `:latest`. Pin the version in production.
 
-Published images are **`linux/amd64` only**. An arm64 host can run them under
-emulation but should build natively instead (`make services-image`), which is
-also what a developer on an arm64 machine gets from `compose.dev.yaml`.
+Published images are **`linux/amd64` only**, so on an arm64 machine build
+locally instead:
+
+```bash
+make services-image
+docker compose -f compose.yaml -f compose.dev.yaml up -d
+```
+
+Emulation is not a usable fallback here, despite Docker accepting the image:
+importing PyTorch under QEMU is slow enough that the service does not finish
+loading its model before the healthcheck gives up. Tracked at
+[issue #506](https://github.com/nvisycom/elide-runtime/issues/506).

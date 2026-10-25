@@ -12,7 +12,8 @@ use elide::entity::LabelCatalog;
 use elide::modality::TextRecognizable;
 use elide::recognition::Recognizer;
 use elide::recognition::pattern::{
-    Dictionary, PatternRecognizer, PatternRecognizerBuilder, Regex, Scoring, Term, Variant,
+    Dictionary, PatternRecognizer, PatternRecognizerBuilder, Regex, RegexBudget, Scoring, Term,
+    Variant,
 };
 use elide::{Error, ErrorKind, Result};
 use elide_schema::recognition::{CustomMatcher, MatchOn, Recognition};
@@ -44,9 +45,19 @@ where
         ));
     }
 
+    // Per-variant, not the union: this recognizer holds only
+    // caller-supplied patterns, so the budget that matters is what
+    // one of them may compile to. The union budget stays at the
+    // crate default — a request's own patterns do not union into
+    // anything like the shipped set, and capping it here would
+    // bound a total nobody set out to bound.
+    //
+    // NFA only. The cap exists to reject a pathological source at
+    // build; the lazy-DFA cache is a match-time working set, and
+    // throttling it would slow matching rather than refuse
+    // anything. The two shared a value before elide split them.
     let mut builder = pattern_with_limits(PatternRecognizer::builder())
-        .with_size_limit(MAX_CUSTOM_REGEX_BYTES)
-        .with_dfa_size_limit(MAX_CUSTOM_REGEX_BYTES);
+        .with_variant_budget(RegexBudget::nfa(MAX_CUSTOM_REGEX_BYTES));
     for vocabulary in recognition {
         for matcher in &vocabulary.matchers {
             builder = extend(builder, recognition, matcher)?;

@@ -12,7 +12,8 @@ use elide::entity::LabelCatalog;
 use elide::modality::TextRecognizable;
 use elide::recognition::Recognizer;
 use elide::recognition::pattern::{
-    Dictionary, PatternRecognizer, PatternRecognizerBuilder, Regex, Scoring, Term, Variant,
+    Dictionary, PatternRecognizer, PatternRecognizerBuilder, Regex, RegexBudget, Scoring, Term,
+    Variant,
 };
 use elide::{Error, ErrorKind, Result};
 use elide_schema::recognition::{CustomMatcher, MatchOn, Recognition};
@@ -44,9 +45,19 @@ where
         ));
     }
 
+    // Per-variant, not the union: this recognizer holds only
+    // caller-supplied patterns, so the budget that matters is what
+    // one of them may compile to. The union budget stays at the
+    // crate default — a request's own patterns do not union into
+    // anything like the shipped set, and capping it here would
+    // bound a total nobody set out to bound.
+    //
+    // NFA only. The cap exists to reject a pathological source at
+    // build; the lazy-DFA cache is a match-time working set, and
+    // throttling it would slow matching rather than refuse
+    // anything. The two shared a value before elide split them.
     let mut builder = pattern_with_limits(PatternRecognizer::builder())
-        .with_size_limit(MAX_CUSTOM_REGEX_BYTES)
-        .with_dfa_size_limit(MAX_CUSTOM_REGEX_BYTES);
+        .with_variant_budget(RegexBudget::nfa(MAX_CUSTOM_REGEX_BYTES));
     for vocabulary in recognition {
         for matcher in &vocabulary.matchers {
             builder = extend(builder, recognition, matcher)?;
@@ -148,4 +159,66 @@ fn invalid(matcher: &CustomMatcher, why: String) -> Error {
         ErrorKind::Configuration,
         format!("custom matcher `{}` is rejected: {why}", matcher.name),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use elide::entity::{Label, LabelRef};
+    use elide::modality::text::Text;
+    use elide::primitive::Confidence;
+    use elide_schema::recognition::MatchOn;
+
+    use super::*;
+
+    /// A request declaring one custom label matched by `pattern`.
+    fn request(pattern: &str) -> Vec<Recognition> {
+        vec![Recognition {
+            custom: vec![Label::new("probe_label", "Probe Label")],
+            matchers: vec![CustomMatcher {
+                label: LabelRef::new("probe_label"),
+                name: "probe".to_owned(),
+                confidence: Confidence::clamped(0.6),
+                match_on: MatchOn::Pattern {
+                    pattern: pattern.to_owned(),
+                },
+            }],
+        }]
+    }
+
+    /// A caller-supplied regex that compiles past the budget is refused
+    /// before detection starts.
+    ///
+    /// This covers *our* wiring rather than elide's budget: elide tests that
+    /// `with_variant_budget` bounds a compile, but nothing upstream notices if
+    /// this caller stops passing the budget, passes it to the union instead of
+    /// per-variant, or drops the call in a refactor. Each of those compiles
+    /// cleanly and silently removes the only bound between a request and an
+    /// arbitrarily expensive compile on the request path.
+    #[test]
+    fn an_oversized_caller_pattern_is_refused() {
+        // Bounded repetition over a wide class: the `regex` crate expands it
+        // rather than backtracking, so the cost lands on compile size.
+        // 128 classes, well past the ~48 where this budget starts refusing,
+        // so the test does not turn flaky if elide's compiler shifts a little.
+        let oversized = format!("(?:{}){{1,64}}", "[a-zA-Z0-9]".repeat(128));
+        let recognition = request(&oversized);
+
+        let result = attach_custom::<Text>(Analyzer::<Text>::new(), &recognition);
+        let Err(err) = result else {
+            panic!("a pattern over the compile budget must not attach");
+        };
+
+        assert_eq!(err.kind(), ErrorKind::Configuration);
+    }
+
+    /// An ordinary pattern attaches, so the budget is not refusing everything.
+    #[test]
+    fn an_ordinary_caller_pattern_attaches() {
+        let recognition = request(r"\d{3}-\d{4}");
+
+        assert!(
+            attach_custom::<Text>(Analyzer::<Text>::new(), &recognition).is_ok(),
+            "a trivial pattern attaches under the budget",
+        );
+    }
 }

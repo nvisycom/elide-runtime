@@ -26,8 +26,18 @@ pub(super) const MAX_CUSTOM_TERMS: usize = 4096;
 /// Compiled-size budget for one caller-supplied regex.
 ///
 /// The `regex` crate does not backtrack, so a pathological pattern
-/// costs compile time and memory rather than match time. This
-/// bounds both.
+/// costs compile time and memory rather than match time. This bounds
+/// the compile.
+///
+/// Applied as elide's per-variant NFA budget, not to the shared
+/// union: this is a bound on what one caller-supplied pattern may
+/// compile to.
+///
+/// 256 KiB is not as generous as it reads. A compiled automaton has
+/// a fixed floor — `\d{3}-\d{4}`, about as simple as a useful
+/// pattern gets, needs roughly 64 KiB — so this allows perhaps 4x
+/// the simplest case rather than orders of magnitude. Lowering it
+/// much would start refusing ordinary patterns.
 pub(super) const MAX_CUSTOM_REGEX_BYTES: usize = 256 * 1024;
 
 /// The built-in pattern recognizer, compiled once for the process.

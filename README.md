@@ -124,8 +124,36 @@ The wire-contract types the services share. Not a service itself: no
 Each adapter speaks its service through that contract, not the model behind
 it. Any HTTP service reproducing the `/recognize` (NER, OCR) or
 `/transcribe` (STT) contract is a drop-in replacement for the shipped
-packages, including self-hosted or custom models and weights. Each package
-README documents its wire shape.
+packages, including self-hosted or custom models and weights.
+
+### Bringing your own inference
+
+A replacement needs no BentoML and no Python — only the wire shape. The
+pydantic models in [`elide-core`](packages/elide-core) are the reference, and
+each service README documents its endpoint with a worked example:
+
+| Replace | Endpoint | Request | Contract |
+| :-- | :-- | :-- | :-- |
+| [NER](packages/elide-ner) | `POST /recognize` | `{"requests": [...]}` | [`elide_core.ner.v1`](packages/elide-core/src/elide_core/ner/v1) |
+| [OCR](packages/elide-ocr) | `POST /recognize` | `{"requests": [...]}` | [`elide_core.ocr.v1`](packages/elide-core/src/elide_core/ocr/v1.py) |
+| [STT](packages/elide-stt) | `POST /transcribe` | `{"request": {...}}` | [`elide_core.stt.v1`](packages/elide-core/src/elide_core/stt/v1.py) |
+
+NER and OCR batch concurrent calls, so their bodies wrap a **list**; STT does
+not, and takes a single object. Each also serves `/healthz` and `/readyz` —
+the latter only once the model is loaded, which is what a deployment should
+gate traffic on.
+
+The Rust adapters are the source of truth for the format: these models mirror
+[`elide-bentoml`](crates/adapter/elide-bentoml), whose serde definitions decide
+what goes over the wire. Field names are camelCase on the wire.
+
+Point a deployment at a replacement by URL — no code change:
+
+```toml
+[[recognizers.ner]]
+kind = "bento"
+base_url = "http://my-own-ner:8080"
+```
 
 ## Quick Start
 

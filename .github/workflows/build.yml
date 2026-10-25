@@ -1,5 +1,8 @@
 name: Build
 
+# The Rust side: the crates in `crates/`. The Python packages are built and
+# tested by build-uv.yml, which carries its own path filter.
+
 on:
   push:
     branches:
@@ -10,12 +13,6 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rustfmt.toml"
-      # See the pull_request filter below: these jobs cover the Python
-      # packages too, so main must run them after a packages-only merge.
-      - "packages/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "scripts/**"
       - ".github/workflows/build.yml"
   pull_request:
     branches:
@@ -26,24 +23,12 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rustfmt.toml"
-      # The Ruff and Services jobs below lint and test the Python packages, so
-      # a change confined to them has to trigger this workflow. Without these
-      # the Python suite silently did not run on such a pull request.
-      - "packages/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "scripts/**"
       - ".github/workflows/build.yml"
   workflow_dispatch:
-  schedule:
-    # Weekly, for `real-models`: it downloads weights and runs real
-    # inference, so it never runs on a push or a pull request.
-    - cron: "0 4 * * 1"
 
 env:
   CARGO_TERM_COLOR: always
   RUST_TOOLCHAIN: "1.95.0"
-  UV_VERSION: "0.13.5"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -196,84 +181,3 @@ jobs:
 
       - name: Run machete
         run: cargo machete
-
-  # ─── Services ──────────────────────────────────────────────────
-  #
-  # The Python model services in `packages/`, named for the artefact
-  # rather than the toolchain so `test` stays the crates'.
-
-  ruff:
-    name: Ruff
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: Sync
-        run: uv sync --locked --all-packages
-
-      - name: Ruff check
-        run: uv run ruff check .
-
-      - name: Ruff format
-        run: uv run ruff format --check .
-
-  services:
-    name: Services
-    runs-on: ubuntu-latest
-    needs: ruff
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: Sync
-        run: uv sync --locked --all-packages
-
-      # The per-service requirements are exported from uv.lock at image
-      # build time rather than committed. Running the export here keeps
-      # the Bento image inputs covered: it fails if a service's subtree
-      # can no longer be resolved from the lock as committed.
-      - name: Export service requirements
-        run: uv run python scripts/gen_requirements.py
-
-      - name: Run tests
-        run: uv run pytest
-
-  real-models:
-    name: Real models
-    runs-on: ubuntu-latest
-    needs: ruff
-    # Opt-in only: the scheduled weekly run or a manual dispatch, never
-    # on pushes or pull requests, since it downloads weights and runs
-    # real inference.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: Sync
-        run: uv sync --locked --all-packages
-
-      - name: Run real-model tests
-        run: uv run pytest -m real_models

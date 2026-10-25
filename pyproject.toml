@@ -12,9 +12,43 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 elide-core = { workspace = true }
+# CPU-only torch. All three services run on CPU, but the default PyPI wheels
+# bundle CUDA: 16 nvidia-* packages, which is the difference between a ~0.9 GB
+# image and a ~7 GB one. The CPU index ships the same torch without them.
+# Resolved per-platform because the CPU wheels are published for linux and
+# windows only; macOS keeps PyPI's wheels, which are already CPU-only there.
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchaudio = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchcodec = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+# Not a general-purpose index: only the torch packages above resolve from it,
+# so an unrelated dependency cannot be shadowed by a same-named wheel here.
+explicit = true
 
 [tool.uv]
 required-version = ">=0.7"
+# The service images are linux/amd64 and linux/arm64. Without this, resolving
+# on a developer's macOS records only the wheels that platform needs, and the
+# in-image install fails with a hash mismatch: the linux wheel it downloads is
+# not among the hashes the lockfile captured. Forcing both targets makes the
+# lock (and so each exported requirements.txt) carry every hash the images
+# install, whichever machine ran `uv lock`.
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
 # Transitive-only pins (not direct deps): security floors for packages that
 # arrive via bentoml's server stack, where the bentoml floor alone does not
 # exclude a CVE. Constrained workspace-wide so every service image picks up the

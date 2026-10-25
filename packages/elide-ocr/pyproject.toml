@@ -16,6 +16,12 @@ dependencies = [
     "prometheus-client>=0.26.0",
     # docTR (PyTorch backend); torch/torchvision are core deps in 1.x, no extra.
     "python-doctr>=1.0,<2",
+    # Declared directly, though docTR already requires them, so the CPU-only
+    # index in the root pyproject.toml applies: uv honours [tool.uv.sources]
+    # for direct dependencies only, and a transitive torch resolves from PyPI
+    # with its CUDA payload (16 nvidia-* packages, ~6 GB in the image).
+    "torch>=2.8",
+    "torchvision>=0.23",
 ]
 
 [build-system]

@@ -49,3 +49,36 @@ impl WireSttRequest {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The body must be the object the service's OpenAPI declares.
+    ///
+    /// Posting `WireSttRequest` directly compiles — both it and [`Transcribe`]
+    /// are `Serialize`, so `invoke` accepts either — and is the production bug
+    /// this wrapper exists to fix. Without this assertion the whole suite
+    /// passes with the envelope dropped, which is how it shipped.
+    ///
+    /// The assertion is on the key's presence rather than the exact field
+    /// name: renaming `request` is a change the compiler demands in both this
+    /// module and the call site, so pinning the spelling would only restate
+    /// the struct.
+    #[test]
+    fn the_body_is_an_object_rather_than_the_bare_request() {
+        let request = WireSttRequest {
+            audio: "AAAA".to_owned(),
+            filename: None,
+            language: None,
+        };
+
+        let json =
+            serde_json::to_value(Transcribe { request: &request }).expect("the request serializes");
+
+        assert!(
+            json.get("request").is_some_and(|r| r.is_object()),
+            "`/transcribe` declares `required: [\"request\"]`, got {json}"
+        );
+    }
+}

@@ -261,4 +261,8 @@ volumes:
 
 networks:
   elide:
+    # Named explicitly: without this Compose scopes it to the project and
+    # creates `elide_elide`, so a server in another Compose project cannot
+    # join `elide` by name and resolve ner/ocr/stt through it.
+    name: elide
     driver: bridge

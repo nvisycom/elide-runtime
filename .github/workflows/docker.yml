@@ -14,6 +14,7 @@ on:
       - "scripts/gen_requirements.py"
       - "pyproject.toml"
       - "uv.lock"
+      - "Makefile"
       - ".github/workflows/docker.yml"
   workflow_dispatch:
 
@@ -33,6 +34,13 @@ permissions:
 jobs:
   # One job per service: a failure in one does not mask the others, and the
   # three build in parallel. The matrix mirrors `SERVICES` in the Makefile.
+  #
+  # linux/amd64 only. `required-environments` in pyproject.toml also lists
+  # aarch64, but that is about lockfile completeness — a lock resolved on an
+  # arm64 machine must still carry the wheel hashes the amd64 image installs —
+  # not a promise of an arm64 image. Developers on arm64 build locally through
+  # `make services-image`, which targets their own machine. Add an arm64
+  # variant when something actually deploys on one.
   build:
     name: Build ${{ matrix.service }}
     runs-on: ubuntu-latest

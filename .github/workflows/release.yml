@@ -38,6 +38,16 @@ jobs:
           generate_release_notes: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Nothing is published to crates.io today: the workspace sets
+  # `publish = false`, inherited by every crate, because these crates depend on
+  # `elide` as a git dependency and crates.io rejects a package whose
+  # dependencies are not themselves published. Pinning a commit is how a
+  # consumer depends on this, which is what the README says.
+  #
+  # The job is kept wired, and asserts that state rather than publishing: if a
+  # crate is ever opened up for release, this fails and the step below has to
+  # be replaced with the real `cargo publish` calls in dependency order. A
+  # deleted job would have left a tag silently publishing nothing.
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
@@ -52,8 +62,15 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
-      - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
-
-      - name: Publish nvisy-ontology
-        run: cargo publish -p nvisy-ontology --token ${{ secrets.CARGO_TOKEN }}
+      - name: Assert nothing is publishable yet
+        run: |
+          publishable=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.publish != []) | .name')
+          if [ -n "$publishable" ]; then
+            echo "These crates are now publishable, but this job does not" >&2
+            echo "publish them. Replace this step with cargo publish calls" >&2
+            echo "in dependency order:" >&2
+            echo "$publishable" >&2
+            exit 1
+          fi
+          echo "No crate is publishable (workspace sets publish = false)."

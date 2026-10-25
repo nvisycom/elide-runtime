@@ -30,9 +30,11 @@ vocabulary. A host depends on this crate alone.
 
 See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
 
-## License
+## Project
 
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

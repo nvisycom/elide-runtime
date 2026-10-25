@@ -135,9 +135,11 @@ Lockstep with the workspace: the wire contract lives in
 [`elide-bentoml`](../../crates/adapter/elide-bentoml), which is the source of
 truth for the format.
 
-## License
+## Project
 
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

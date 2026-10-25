@@ -67,9 +67,11 @@ Neither is on by default.
 Confirm the terms directly rather than from this README, which was written
 in September 2026 and will age.
 
-## License
+## Project
 
-Apache 2.0 License, see [LICENSE](../../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../../LICENSE)
 
 ## Support
 

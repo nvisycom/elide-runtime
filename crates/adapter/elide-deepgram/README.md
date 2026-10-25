@@ -41,9 +41,11 @@ parameter to keep submitted audio out of model training, and an EU
 endpoint — but which of those apply is a matter of contract tier, so
 settle them in writing before this backend carries production audio.
 
-## License
+## Project
 
-Apache 2.0 License, see [LICENSE](../../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../../LICENSE)
 
 ## Support
 

@@ -119,9 +119,12 @@ make sync          # once, to install the workspace into .venv
 make serve-stt
 ```
 
-or without make:
+or without make — the sync is not optional, since the workspace root
+declares no dependencies of its own, so a plain `uv run` installs nothing
+this service needs:
 
 ```bash
+uv sync --all-packages
 uv run bentoml serve elide_stt.service:SttService --reload
 ```
 

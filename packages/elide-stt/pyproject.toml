@@ -23,8 +23,13 @@ dependencies = [
     # Forced alignment (wav2vec2) for the per-word timings the contract
     # carries; faster-whisper reports segment timings only.
     "transformers>=5.15.0",
+    # Declared directly, torchcodec included though torchaudio already pulls
+    # it, so the CPU-only index in the root pyproject.toml applies: uv honours
+    # [tool.uv.sources] for direct dependencies only, and a transitive torch
+    # package resolves from PyPI with its CUDA payload.
     "torch>=2.8",
     "torchaudio>=2.8",
+    "torchcodec>=0.7",
     # Speaker diarization.
     "pyannote-audio>=4.0,<5",
 ]

@@ -1,0 +1,268 @@
+name: elide
+
+# The three inference services, reachable at ner/ocr/stt on port 3000 — the
+# hostnames and port the server's engine configuration expects, so pointing a
+# server at this stack needs no translation.
+#
+# Images carry no model weights. Each service has a one-shot `*-init` partner
+# that warms its cache and exits; the service gates on that completing, so it
+# never starts against an empty cache. With the cache warm, the NER service's
+# HF_HUB_OFFLINE is true rather than aspirational: nothing reaches the Hub at
+# request time.
+#
+# One init container per service, each running that service's own image. The
+# three libraries are not interchangeable and no single image carries all of
+# them — elide-stt has no `doctr`, elide-ocr has no `faster_whisper` — so a
+# shared warmer would fail on whichever model its image cannot resolve. Running
+# each warm in the image that will later read the cache also guarantees the
+# same library version wrote it.
+
+x-readyz: &readyz
+  # Probed with Python, not curl: the BentoML images are built on
+  # python:3.12-slim, which ships neither curl nor wget. urlopen exits non-zero
+  # on any status other than 2xx, which is what the probe needs.
+  test:
+    - CMD
+    - python
+    - -c
+    - "import urllib.request; urllib.request.urlopen('http://localhost:3000/readyz', timeout=5)"
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  # The services load their model in __init__, so readiness lags liveness by
+  # however long that takes. This covers a slow cold load without flapping.
+  start_period: 120s
+
+x-service: &service
+  restart: unless-stopped
+  networks:
+    - elide
+
+# Each model id reaches both a service and its warmer from one variable, so the
+# warm cannot drift from what the service loads.
+x-ner-model: &ner-model ${ELIDE_NER_MODEL:-fastino/gliner2-privacy-filter-PII-multi}
+x-ocr-model: &ocr-model ${ELIDE_OCR_MODEL:-db_resnet50+crnn_vgg16_bn}
+x-stt-model: &stt-model ${ELIDE_STT_MODEL:-large-v3-turbo}
+
+services:
+  # --- NER ------------------------------------------------------------------
+
+  ner-init:
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-latest}
+    container_name: elide-ner-init
+    # Root so it can populate a freshly created named volume, whose
+    # mountpoint Docker owns as root; the final chown hands the cache to
+    # the uid the service runs as. The service itself never runs as root.
+    user: root
+    # The id arrives through the environment rather than the command text, so a
+    # value containing shell metacharacters cannot alter what runs.
+    environment:
+      HF_HOME: /cache/huggingface
+      # The image bakes HF_HUB_OFFLINE=1 (the service declares it, so it lands
+      # in the image env). The warmer is the one process that must reach the
+      # Hub, so it turns both off for itself only.
+      HF_HUB_OFFLINE: "0"
+      TRANSFORMERS_OFFLINE: "0"
+      ELIDE_BENTO_NER_MODEL: *ner-model
+    entrypoint:
+      - python
+      - -c
+      - |
+        import os
+        from huggingface_hub import snapshot_download
+        CACHE = os.environ["HF_HOME"]
+        model = os.environ["ELIDE_BENTO_NER_MODEL"]
+        print(f"warming {model}", flush=True)
+        snapshot_download(model)
+        # Hand the cache to the uid the service runs as (bentoml, 1034): root
+        # created these files, and the service mounts the volume read-only.
+        import os
+        for root, dirs, files in os.walk(CACHE):
+            for name in dirs + files:
+                os.chown(os.path.join(root, name), 1034, 1034)
+        os.chown(CACHE, 1034, 1034)
+        print("warm", flush=True)
+    volumes:
+      - hf_cache:/cache/huggingface
+    networks:
+      - elide
+
+  ner:
+    <<: *service
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-latest}
+    container_name: elide-ner
+    ports:
+      - "${ELIDE_NER_PORT:-3100}:3000"
+    environment:
+      HF_HOME: /cache/huggingface
+      # True once ner-init has run: the model resolves from the cache and the
+      # Hub is never reached, so request text cannot leave the network.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      ELIDE_BENTO_NER_MODEL: *ner-model
+      ELIDE_BENTO_NER_QUANTIZE: ${ELIDE_NER_QUANTIZE:-}
+      ELIDE_BENTO_NER_MAX_TOKENS: ${ELIDE_NER_MAX_TOKENS:-512}
+      LOG_LEVEL: ${ELIDE_LOG_LEVEL:-INFO}
+    volumes:
+      - hf_cache:/cache/huggingface:ro
+    healthcheck: *readyz
+    depends_on:
+      ner-init:
+        condition: service_completed_successfully
+
+  # --- OCR ------------------------------------------------------------------
+
+  ocr-init:
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-latest}
+    container_name: elide-ocr-init
+    # Root so it can populate a freshly created named volume, whose
+    # mountpoint Docker owns as root; the final chown hands the cache to
+    # the uid the service runs as. The service itself never runs as root.
+    user: root
+    environment:
+      DOCTR_CACHE_DIR: /cache/doctr
+      ELIDE_BENTO_MODEL_NAME: *ocr-model
+    # docTR fetches from doctr-static.mindee.com, not the Hub, and the only
+    # public path that populates its cache is instantiating the predictor.
+    entrypoint:
+      - python
+      - -c
+      - |
+        import os, sys
+        from doctr.models import ocr_predictor
+        pair = os.environ["ELIDE_BENTO_MODEL_NAME"]
+        det, _, rec = pair.partition("+")
+        if not rec:
+            sys.exit(f"ELIDE_BENTO_MODEL_NAME must be 'det+rec', got {pair!r}")
+        CACHE = os.environ["DOCTR_CACHE_DIR"]
+        print(f"warming {pair}", flush=True)
+        ocr_predictor(det, rec, pretrained=True)
+        # Hand the cache to the uid the service runs as (bentoml, 1034): root
+        # created these files, and the service mounts the volume read-only.
+        import os
+        for root, dirs, files in os.walk(CACHE):
+            for name in dirs + files:
+                os.chown(os.path.join(root, name), 1034, 1034)
+        os.chown(CACHE, 1034, 1034)
+        print("warm", flush=True)
+    volumes:
+      - doctr_cache:/cache/doctr
+    networks:
+      - elide
+
+  ocr:
+    <<: *service
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-latest}
+    container_name: elide-ocr
+    ports:
+      - "${ELIDE_OCR_PORT:-3101}:3000"
+    environment:
+      DOCTR_CACHE_DIR: /cache/doctr
+      # Empty unless an operator mounts weights over it, which is what
+      # ELIDE_BENTO_MODEL_PATH means: present and non-empty wins over the id.
+      ELIDE_BENTO_MODEL_PATH: /models
+      ELIDE_BENTO_MODEL_NAME: *ocr-model
+      LOG_LEVEL: ${ELIDE_LOG_LEVEL:-INFO}
+    volumes:
+      - doctr_cache:/cache/doctr:ro
+    healthcheck: *readyz
+    depends_on:
+      ocr-init:
+        condition: service_completed_successfully
+
+  # --- STT ------------------------------------------------------------------
+
+  stt-init:
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-latest}
+    container_name: elide-stt-init
+    # Root so it can populate a freshly created named volume, whose
+    # mountpoint Docker owns as root; the final chown hands the cache to
+    # the uid the service runs as. The service itself never runs as root.
+    user: root
+    environment:
+      HF_HOME: /cache/huggingface
+      ELIDE_BENTO_MODEL_NAME: *stt-model
+      # Diarization is off by default: its model is gated on the Hub, so it
+      # cannot be redistributed in an image and needs accepted terms to fetch.
+      ELIDE_BENTO_STT_DIARIZE: ${ELIDE_STT_DIARIZE:-false}
+      ELIDE_BENTO_STT_DIARIZE_MODEL: ${ELIDE_STT_DIARIZE_MODEL:-pyannote/speaker-diarization-community-1}
+      ELIDE_BENTO_STT_HF_TOKEN: ${ELIDE_STT_HF_TOKEN:-}
+    entrypoint:
+      - python
+      - -c
+      - |
+        import os, sys
+        from faster_whisper.utils import download_model
+        model = os.environ["ELIDE_BENTO_MODEL_NAME"]
+        print(f"warming {model}", flush=True)
+        download_model(model)
+        if os.environ.get("ELIDE_BENTO_STT_DIARIZE") == "true":
+            diarize = os.environ["ELIDE_BENTO_STT_DIARIZE_MODEL"]
+            token = os.environ.get("ELIDE_BENTO_STT_HF_TOKEN") or ""
+            # Fail here, naming the reason, rather than letting the service
+            # fail its healthcheck later with a 401 buried in a traceback.
+            if not token:
+                sys.exit(
+                    "ELIDE_BENTO_STT_DIARIZE=true needs ELIDE_BENTO_STT_HF_TOKEN.\n"
+                    "The model is gated: accept its terms at\n"
+                    f"https://huggingface.co/{diarize}\n"
+                    "then set the token to one belonging to that account."
+                )
+            from huggingface_hub import snapshot_download
+            print(f"warming {diarize} (gated)", flush=True)
+            snapshot_download(diarize, token=token)
+        CACHE = os.environ["HF_HOME"]
+        # Hand the cache to the uid the service runs as (bentoml, 1034): root
+        # created these files, and the service mounts the volume read-only.
+        import os
+        for root, dirs, files in os.walk(CACHE):
+            for name in dirs + files:
+                os.chown(os.path.join(root, name), 1034, 1034)
+        os.chown(CACHE, 1034, 1034)
+        print("warm", flush=True)
+    volumes:
+      - hf_cache:/cache/huggingface
+    networks:
+      - elide
+
+  stt:
+    <<: *service
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-latest}
+    container_name: elide-stt
+    ports:
+      - "${ELIDE_STT_PORT:-3102}:3000"
+    environment:
+      HF_HOME: /cache/huggingface
+      ELIDE_BENTO_MODEL_PATH: /models
+      ELIDE_BENTO_MODEL_NAME: *stt-model
+      ELIDE_BENTO_STT_DEVICE: ${ELIDE_STT_DEVICE:-cpu}
+      ELIDE_BENTO_STT_COMPUTE_TYPE: ${ELIDE_STT_COMPUTE_TYPE:-}
+      ELIDE_BENTO_STT_DIARIZE: ${ELIDE_STT_DIARIZE:-false}
+      ELIDE_BENTO_STT_DIARIZE_MODEL: ${ELIDE_STT_DIARIZE_MODEL:-pyannote/speaker-diarization-community-1}
+      ELIDE_BENTO_STT_HF_TOKEN: ${ELIDE_STT_HF_TOKEN:-}
+      LOG_LEVEL: ${ELIDE_LOG_LEVEL:-INFO}
+    volumes:
+      - hf_cache:/cache/huggingface:ro
+    # Transcription is long-running (the service allows a 900s request), so the
+    # probe gets a longer timeout than the other two.
+    healthcheck:
+      <<: *readyz
+      timeout: 10s
+    depends_on:
+      stt-init:
+        condition: service_completed_successfully
+
+volumes:
+  # Two caches, because the libraries do not share one: huggingface_hub for NER
+  # and STT, docTR's own path for OCR. The services mount them read-only — only
+  # the init containers write.
+  hf_cache:
+  doctr_cache:
+
+networks:
+  elide:
+    # Named explicitly: without this Compose scopes it to the project and
+    # creates `elide_elide`, so a server in another Compose project cannot
+    # join `elide` by name and resolve ner/ocr/stt through it.
+    name: elide
+    driver: bridge

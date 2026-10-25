@@ -1,0 +1,46 @@
+# Development override: build the images from this working tree instead of
+# pulling published ones. Everything else — ports, caches, the init gates,
+# healthchecks — comes from compose.yaml, so a fix there applies to both.
+#
+#   docker compose -f compose.yaml -f compose.dev.yaml up --build
+#
+# BentoML builds each image from its service.py and bentofile.yaml rather than
+# a Dockerfile, so these images cannot be produced by `docker build` and there
+# is no `build:` stanza here. Build them first, then run with this override:
+#
+#   make services-image      # bentoml build --containerize, all three
+#
+# `make services-image` tags each image as its bento name, which is what the
+# overrides below point at.
+
+services:
+  # Each service and its warmer share an image, so both are overridden.
+  ner-init:
+    image: elide-ner:latest
+    pull_policy: never
+
+  ocr-init:
+    image: elide-ocr:latest
+    pull_policy: never
+
+  stt-init:
+    image: elide-stt:latest
+    pull_policy: never
+
+  ner:
+    image: elide-ner:latest
+    pull_policy: never
+    environment:
+      LOG_LEVEL: ${ELIDE_LOG_LEVEL:-DEBUG}
+
+  ocr:
+    image: elide-ocr:latest
+    pull_policy: never
+    environment:
+      LOG_LEVEL: ${ELIDE_LOG_LEVEL:-DEBUG}
+
+  stt:
+    image: elide-stt:latest
+    pull_policy: never
+    environment:
+      LOG_LEVEL: ${ELIDE_LOG_LEVEL:-DEBUG}

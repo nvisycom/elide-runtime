@@ -1,6 +1,12 @@
 # Build from the repo root:  bentoml build -f packages/elide-stt/bentofile.yaml .
 # Image config (Python version, system packages, requirements) lives in
 # service.py; this file selects the service and scopes the bundled source.
+#
+# Kept as bentofile.yaml rather than moved into this package's pyproject.toml,
+# which BentoML also accepts: that form appends `project.dependencies` to
+# `python.packages`, so the unpinned ranges declared there would be installed
+# on top of the locked, hashed requirements.txt. Two resolutions of the same
+# dependency set, one of them unpinned, is a supply-chain regression.
 service: "elide_stt.service:SttService"
 include:
   - "packages/elide-stt/**"

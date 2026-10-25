@@ -1,0 +1,149 @@
+name: Docker
+
+on:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - "main"
+      - "release"
+    paths:
+      - "packages/**"
+      - "docker/**"
+      - "scripts/gen_requirements.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Makefile"
+      - ".github/workflows/docker.yml"
+  workflow_dispatch:
+
+env:
+  UV_VERSION: "0.13.5"
+  REGISTRY: ghcr.io
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only by default. The publish job raises `packages: write` for itself,
+# so a pull-request build cannot push an image.
+permissions:
+  contents: read
+
+jobs:
+  # One job per service: a failure in one does not mask the others, and the
+  # three build in parallel. The matrix mirrors `SERVICES` in the Makefile.
+  #
+  # linux/amd64 only. `required-environments` in pyproject.toml also lists
+  # aarch64, but that is about lockfile completeness — a lock resolved on an
+  # arm64 machine must still carry the wheel hashes the amd64 image installs —
+  # not a promise of an arm64 image. Developers on arm64 build locally through
+  # `make services-image`, which targets their own machine. Add an arm64
+  # variant when something actually deploys on one.
+  build:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ner, ocr, stt]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Sync
+        run: uv sync --locked --all-packages
+
+      # BentoML builds the image from service.py and bentofile.yaml, so there
+      # is no Dockerfile and no docker/build-push-action here.
+      #
+      # Driven through `make` rather than a copy of the commands: the build has
+      # several non-obvious requirements (run from the repo root so the
+      # requirements export resolves, two steps because `--containerize` takes
+      # no tag, the bento's content-hash tag captured for `containerize -t`),
+      # and a second copy here drifts from the one developers run. `make`
+      # exports the requirements as a prerequisite, so that step is implicit.
+      - name: Build image
+        run: make services-image SERVICES=${{ matrix.service }}
+
+      - name: Tag for this commit
+        run: |
+          docker tag "elide-${{ matrix.service }}:latest" \
+            "elide-${{ matrix.service }}:${{ github.sha }}"
+
+      # Publishing an unscanned image would be a gap next to the repo's
+      # existing advisory gates. Scanned before any push, and on pull requests
+      # too, so a vulnerable dependency surfaces on the PR that introduces it.
+      - name: Scan image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: elide-${{ matrix.service }}:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Save image
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: docker save "elide-${{ matrix.service }}:${{ github.sha }}" | zstd -o image.zst
+
+      - name: Upload image
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v5
+        with:
+          name: image-${{ matrix.service }}
+          path: image.zst
+          retention-days: 1
+
+  # Separate from `build` so the write permission is scoped to the push, and so
+  # a tag publishes only once every service has built and scanned clean.
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ner, ocr, stt]
+
+    steps:
+      - name: Download image
+        uses: actions/download-artifact@v6
+        with:
+          name: image-${{ matrix.service }}
+
+      - name: Load image
+        run: zstd -d --stdout image.zst | docker load
+
+      - name: Log in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The tag drives the version: v1.2.3 publishes :1.2.3 and moves :latest.
+      # `latest` is a convenience for a quick start; a deployment pins the
+      # version, which is what docker/.env.example says to do.
+      - name: Tag and push
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/elide-${{ matrix.service }}
+          BUILT: elide-${{ matrix.service }}:${{ github.sha }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          docker tag "$BUILT" "$IMAGE:$version"
+          docker tag "$BUILT" "$IMAGE:latest"
+          docker push "$IMAGE:$version"
+          docker push "$IMAGE:latest"

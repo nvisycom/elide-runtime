@@ -40,9 +40,13 @@ an identical schema run as one batched extraction.
 
 ### Self-hosted and offline by design
 
-A single GLiNER2 model serves the deployment. Weights are baked into the image
-and the service runs with the Hugging Face Hub **offline** (`HF_HUB_OFFLINE=1`),
-so text never leaves the operator's network at request time. The service logs
+A single GLiNER2 model serves the deployment. The image carries no weights: a
+cache is warmed before the service starts (see
+[`docker/`](../../docker/README.md)), and the service then runs with the Hugging
+Face Hub **offline** (`HF_HUB_OFFLINE=1`), resolving the model from that cache
+so text never leaves the operator's network at request time. Starting with an
+empty cache and the Hub offline is a configuration error, and the service fails
+its startup rather than serving. The service logs
 request ids and counts only — never input text or extracted spans. Inputs over
 the model's token limit are **rejected** (not silently truncated), so PII past
 the limit is never missed.

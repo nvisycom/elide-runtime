@@ -89,11 +89,25 @@ services: requirements ## Build every Bento from its bentofile.
 		(cd packages/elide-$$s && uv run bentoml build); \
 	done
 
+# Built from the repo root with `-f`, never from the package directory:
+# `Image.requirements_file()` resolves its path against the working directory,
+# so a build started elsewhere cannot find the exported requirements.
+#
+# Two steps rather than `build --containerize`, which accepts no tag. `build`
+# tags the bento with its content hash, so `-o tag` captures that (it prints
+# the tag prefixed with `__tag__:`, hence the sed) to hand to
+# `containerize -t`, which gives the predictable name
+# docker/compose.dev.yaml refers to.
+#
+# `set -e` so a failed build fails the target instead of being swallowed by
+# the loop.
 .PHONY: services-image
 services-image: requirements ## Build and containerize every Bento into a local Docker image.
-	@for s in $(SERVICES); do \
+	@set -e; for s in $(SERVICES); do \
 		$(call log,Containerizing elide-$$s...); \
-		(cd packages/elide-$$s && uv run bentoml build --containerize); \
+		bento=$$(uv run bentoml build -f packages/elide-$$s/bentofile.yaml -o tag . \
+		          | sed 's/^__tag__://'); \
+		uv run bentoml containerize "$$bento" -t "elide-$$s:latest"; \
 	done
 
 # Each depends on `requirements` for the same reason as

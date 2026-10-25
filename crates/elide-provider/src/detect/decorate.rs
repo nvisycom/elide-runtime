@@ -23,12 +23,20 @@
 //! requests outstanding, which is why capping one does not cap the
 //! other.
 //!
-//! `BatchChunked` is innermost, so one oversized `call_batch` is one
-//! admission rather than several. Outside the limiters each window
-//! would take its own permit and its own token, turning a caller's
-//! single batch into a burst against limits it never asked to spend —
-//! and the windows run sequentially anyway, so there is nothing for a
-//! concurrency limit to bound.
+//! `BatchChunked` bounds how much work one request carries. A hosted
+//! service splits an oversized batch itself, so this is not what keeps
+//! a large batch from being refused; what it keeps is the request from
+//! having to *finish* inside one HTTP timeout. A whole document
+//! coalesced into a single `call_batch` is one request that must
+//! complete before the provider's deadline, and chunking makes it
+//! several, each with its own.
+//!
+//! Innermost, so one oversized `call_batch` is one admission rather
+//! than several. Outside the limiters each window would take its own
+//! permit and its own token, turning a caller's single batch into a
+//! burst against limits it never asked to spend — and the windows run
+//! sequentially anyway, so there is nothing for a concurrency limit to
+//! bound.
 
 use std::sync::Arc;
 use std::time::Duration;

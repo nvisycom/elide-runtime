@@ -146,30 +146,25 @@ class NerService:
     # in one call, AND BentoML's dispatcher merges concurrent requests across
     # callers into a single batched extraction.
     #
-    # max_batch_size is a hard ceiling, not a hint: the dispatcher rejects a
-    # single call larger than it with `503 process is overloaded` instead of
-    # splitting it, measured at 0.1s for n=33 against 6.3s for n=32. Callers
-    # chunk to this number (elide-bentoml reads it from BATCH_LIMIT), so the
-    # ceiling exists for a caller that does not.
+    # max_batch_size is the dispatcher's window: a longer call is split into
+    # windows of this size and the results rejoined, so it bounds how much
+    # work one extraction does, not how much a caller may send.
     #
-    # 32 rather than 16: sentences are cheap, and doubling cost ~7 MiB of the
-    # 2Gi request (1.86 -> 1.867 GiB resident, nearly all of it model weights).
-    # It is bounded by traffic.timeout instead — 32 takes ~6.3s, so 64 would
-    # sit near 13s and leave little margin under the 60s limit.
+    # max_latency_ms is a deadline, and the one that matters here. The
+    # dispatcher cancels queued work whose projected latency exceeds it, and a
+    # cancelled request surfaces as `503 process is overloaded`. Set shorter
+    # than a call takes, it throws work away rather than waiting for it —
+    # which loses a detection over a few seconds of queueing, the worst
+    # trade available. The old 100ms was far shorter than one extraction.
     #
-    # max_latency_ms is a queue deadline, not a coalescing window: the
-    # dispatcher cancels a request whose projected latency exceeds it, and a
-    # cancelled request surfaces as `503 process is overloaded`. At the old
-    # 100ms a single call takes ~300ms, so the 4th concurrent request was
-    # certain to miss the deadline and be dropped before running — measured as
-    # 503 for n=4 and for 6 of 8 at n=8, with nothing overloaded.
+    # 15s is not tuned to any measurement, and should not be: load, hardware
+    # and model all move it. It is simply long enough that queueing is never
+    # what fails, and short enough to stay under traffic.timeout below, so a
+    # genuinely stuck queue is cut off by the request timeout instead — one
+    # deadline doing the work, not two disagreeing.
     #
-    # 15s lets them queue instead: n=8 all succeed, and single-request latency
-    # is unchanged (p50 0.31s, p95 0.50s at both 100ms and 15s over 20 calls),
-    # because a request with nothing to coalesce dispatches immediately either
-    # way. Load now shows up as waiting rather than errors, which is what a
-    # caller can actually respond to. Under traffic.timeout so a genuinely
-    # stuck queue still fails before the HTTP deadline.
+    # A caller with nothing to coalesce still dispatches immediately, so
+    # raising this costs idle latency nothing.
     @bentoml.api(batchable=True, max_batch_size=32, max_latency_ms=15000)
     def recognize(self, requests: list[NerRequest], ctx: bentoml.Context) -> list[NerResponse]:
         batch_size_metric.observe(len(requests))

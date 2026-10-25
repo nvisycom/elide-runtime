@@ -105,14 +105,15 @@ pub struct RateLimit {
     pub max_concurrent: Option<usize>,
     /// How many requests a single batched call may carry.
     ///
-    /// A provider that accepts batches usually caps the size and
-    /// rejects an oversized call rather than splitting it, while the
-    /// layer above — a recognizer coalescing a whole document's
-    /// segments — does not know that cap. Set this and oversized
-    /// batches are split into consecutive calls instead of failing.
+    /// A recognizer coalescing a whole document's segments produces one
+    /// call, which must then finish inside the provider's request
+    /// timeout however large it is. Set this and the batch is split
+    /// into consecutive calls, each with its own timeout, so a long
+    /// document does not depend on one request completing.
     ///
     /// Unset means the backend is called with whatever batch it is
-    /// given, which is correct for a provider with no such limit.
+    /// given, which is correct for a provider that imposes no such
+    /// bound of its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_batch_size: Option<usize>,
 }

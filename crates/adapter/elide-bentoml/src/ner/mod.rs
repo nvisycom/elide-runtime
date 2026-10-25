@@ -135,10 +135,11 @@ impl Backend for BentoNer {
     ///
     /// Responses come back in request order. An empty batch makes no call.
     ///
-    /// The slice is sent as one POST: the service refuses a batch over its
-    /// `max_batch_size` rather than splitting it, so a caller handing down an
-    /// oversized batch wraps this in `elide::backend::ratelimit::BatchChunked`,
-    /// which is where that limit is configured.
+    /// The slice is sent as one POST, however long it is: the service splits
+    /// it into its own batch windows server-side. One POST must still finish
+    /// inside the service's request timeout, so a caller coalescing a whole
+    /// document wraps this in `elide::backend::ratelimit::BatchChunked` to
+    /// spread it over several requests.
     async fn call_batch(&self, requests: Vec<NerRequest<'_>>) -> Result<Vec<NerResponse>> {
         if requests.is_empty() {
             return Ok(Vec::new());

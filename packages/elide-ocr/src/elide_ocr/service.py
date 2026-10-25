@@ -133,20 +133,17 @@ class OcrService:
     # Sync (not async): inference is CPU/GPU-bound and blocking. BentoML runs
     # sync endpoints in a managed thread pool, so this never blocks the event
     # loop (an async def here would, and could starve /readyz).
-    # max_batch_size is a hard ceiling: the dispatcher rejects a single call
-    # larger than it with `503 process is overloaded` rather than splitting it.
-    # Callers chunk to this number (elide-bentoml reads it from BATCH_LIMIT),
-    # so the ceiling exists for a caller that does not.
+    # max_batch_size is the dispatcher's window: a longer call is split into
+    # windows of this size and the results rejoined. 16, half of elide-ner's,
+    # because `recognize` runs `_recognize_one` sequentially and a page is far
+    # more work than a sentence, so a window here is a much longer extraction.
     #
-    # 16, half of elide-ner's 32, because a page is far more work than a
-    # sentence and the limit that binds is traffic.timeout rather than memory.
-    #
-    # max_latency_ms is a queue deadline, not a coalescing window: a request
-    # whose projected latency exceeds it is cancelled and surfaces as `503
-    # process is overloaded`. The old 120ms was shorter than a single call, so
-    # concurrent callers were dropped rather than queued. 15s lets them wait,
-    # and stays under traffic.timeout so a stuck queue still fails first. See
-    # elide-ner's note for the measurements.
+    # max_latency_ms is a deadline on queued work, and the old 120ms was far
+    # shorter than one page, so concurrent callers were cancelled with `503
+    # process is overloaded` rather than waited for — losing a detection over
+    # a few seconds of queueing. 15s is not tuned to a measurement: it is long
+    # enough that queueing never fails, and under traffic.timeout so a stuck
+    # queue is cut off by the request timeout instead. See elide-ner's note.
     @bentoml.api(batchable=True, max_batch_size=16, max_latency_ms=15000)
     def recognize(
         self,

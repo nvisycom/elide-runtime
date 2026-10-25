@@ -86,12 +86,17 @@ uv run pytest -m real          # downloads the GLiNER2 model
 ## Run locally
 
 ```bash
+make sync          # once, to install the workspace into .venv
 make serve-ner
 ```
 
-The model is downloaded on first start. To run the published image instead,
-with its cache warmed by a one-shot init container, see
-[`docker/`](../../docker/README.md).
+The model is downloaded on first start, into the local Hugging Face cache.
+The `HF_HUB_OFFLINE=1` described above is declared on the *service* — it
+applies to the built image, not to `bentoml serve` on a developer machine,
+which is why this works with an empty cache and the container does not.
+
+To run the published image instead, with its cache warmed by a one-shot init
+container, see [`docker/`](../../docker/README.md).
 
 ## Versioning
 

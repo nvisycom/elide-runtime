@@ -35,6 +35,7 @@ uv run bentoml serve elide_ocr.service:OcrService --reload
 ## Run locally
 
 ```bash
+make sync          # once, to install the workspace into .venv
 make serve-ocr
 ```
 

@@ -20,10 +20,8 @@ Import a specific version explicitly:
   contract (base64 audio in; segments with millisecond timings, optional
   speaker label, language, confidence, and per-word breakdown out).
 
-The wire is camelCase, mirroring the Rust side's serde
-`rename_all = "camelCase"`. These pydantic models are the source of truth
-for the wire contract; the Rust [`elide-bentoml`](../../crates/adapter/elide-bentoml)
-client mirrors them by hand.
+The wire is camelCase, matching the Rust side's serde
+`rename_all = "camelCase"`.
 
 ## Versioning
 

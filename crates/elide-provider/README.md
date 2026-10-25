@@ -33,10 +33,6 @@ belongs to the caller asking for redaction, not to the process serving
 them, so it travels on a RequestContext with the request that needs it.
 One provider then serves many callers, each with its own key.
 
-## Changelog
-
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
 ## Project
 
 - **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history

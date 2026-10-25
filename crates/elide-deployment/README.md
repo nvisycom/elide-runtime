@@ -67,10 +67,6 @@ own infrastructure. A build that does not enable one cannot name it,
 so deployment configuration alone cannot route documents to a service
 the build was never meant to reach.
 
-## Changelog
-
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
 ## Project
 
 - **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history

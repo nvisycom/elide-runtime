@@ -29,10 +29,6 @@ Each format is self-contained behind its own feature, and neither
 pulls the engine in: this crate depends on elide-core for the shared
 error type and nothing else.
 
-## Changelog
-
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
 ## Project
 
 - **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history

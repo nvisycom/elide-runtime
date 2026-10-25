@@ -115,6 +115,7 @@ path, so treat it as you would any other "run this binary" setting.
 ## Run locally
 
 ```bash
+make sync          # once, to install the workspace into .venv
 make serve-stt
 ```
 

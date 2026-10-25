@@ -26,10 +26,6 @@ surfaced here, including the provider vocabulary, the request schemas
 (plan and file), the underlying Elide toolkit, and the governance
 vocabulary. A host depends on this crate alone.
 
-## Changelog
-
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
 ## Project
 
 - **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history

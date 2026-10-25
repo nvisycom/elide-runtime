@@ -28,10 +28,6 @@ Consumed by elide-pipeline, which carries the request schemas and the
 engine. Consumers may also depend on this crate directly to author
 policies without pulling the engine in.
 
-## Changelog
-
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
 ## Project
 
 - **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history

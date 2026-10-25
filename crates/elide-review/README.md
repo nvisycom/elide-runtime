@@ -28,10 +28,6 @@ four operations land on the report, while the operator override goes
 onto the anonymizer instead, because elide re-resolves operators from
 live policy at apply time and has no per-entity override of its own.
 
-## Changelog
-
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
 ## Project
 
 - **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history

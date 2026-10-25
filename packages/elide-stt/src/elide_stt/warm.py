@@ -25,14 +25,16 @@ def main() -> None:
 
     cache = require_env("HF_HOME")
     model = require_env("ELIDE_BENTO_MODEL_NAME")
-    log(f"warming {model}")
-    download_model(model)
 
+    # Validate the whole configuration before downloading anything. The
+    # transcription model alone is over a gigabyte, and failing after it on a
+    # token that was readable from the start wastes the download and the
+    # operator's time.
+    diarize = ""
+    token = ""
     if config.diarize():
         diarize = require_env("ELIDE_BENTO_STT_DIARIZE_MODEL")
         token = os.environ.get("ELIDE_BENTO_STT_HF_TOKEN") or ""
-        # Fail here, naming the reason, rather than letting the service fail
-        # its healthcheck later with a 401 buried in a traceback.
         if not token:
             sys.exit(
                 "ELIDE_BENTO_STT_DIARIZE=true needs ELIDE_BENTO_STT_HF_TOKEN.\n"
@@ -40,6 +42,11 @@ def main() -> None:
                 f"https://huggingface.co/{diarize}\n"
                 "then set the token to one belonging to that account."
             )
+
+    log(f"warming {model}")
+    download_model(model)
+
+    if diarize:
         from huggingface_hub import snapshot_download
 
         log(f"warming {diarize} (gated)")

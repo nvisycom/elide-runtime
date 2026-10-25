@@ -49,6 +49,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Nothing here talks to git after the checkout, so the token does
+          # not need to stay in .git/config where a later step could read it.
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7

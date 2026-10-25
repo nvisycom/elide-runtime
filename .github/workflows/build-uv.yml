@@ -116,4 +116,8 @@ jobs:
         run: uv sync --locked --all-packages
 
       - name: Run real-model tests
-        run: uv run pytest -m real_models
+        # `-m real`, the marker pyproject.toml registers. This said
+        # `real_models` — the job's own name — which matches no marker, so
+        # pytest collected nothing and the job reported success without
+        # running an inference test.
+        run: uv run pytest -m real

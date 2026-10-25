@@ -45,3 +45,27 @@ def test_diarization_off_never_requests_the_gated_model(monkeypatch, tmp_path):
     warm.main()
 
     assert downloaded == ["large-v3-turbo"]
+
+
+def test_a_missing_token_is_caught_before_any_download(monkeypatch, tmp_path):
+    """Validate the configuration before spending a gigabyte on it.
+
+    The transcription model downloads first and is over a gigabyte, so a
+    deployment that enabled diarization without a token used to pay for that
+    download before being told about a variable readable from the start.
+    """
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    monkeypatch.setenv("ELIDE_BENTO_MODEL_NAME", "large-v3-turbo")
+    monkeypatch.setenv("ELIDE_BENTO_STT_DIARIZE", "true")
+    monkeypatch.setenv("ELIDE_BENTO_STT_DIARIZE_MODEL", "pyannote/some-model")
+    monkeypatch.setenv("ELIDE_BENTO_STT_HF_TOKEN", "")
+
+    fw = pytest.importorskip("faster_whisper.utils")
+    monkeypatch.setattr(
+        fw,
+        "download_model",
+        lambda model: pytest.fail("the token must be checked before downloading"),
+    )
+
+    with pytest.raises(SystemExit):
+        warm.main()

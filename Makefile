@@ -89,6 +89,18 @@ services: requirements ## Build every Bento from its bentofile.
 		(cd packages/elide-$$s && uv run bentoml build); \
 	done
 
+# Where the image came from. `source` is what makes a registry's "view source"
+# link work from the package page.
+REPO_URL := https://github.com/nvisycom/elide-runtime
+
+# One-line purpose per service, surfaced as the image's OCI description.
+# Without it a registry has nothing to show and falls back to whatever it can
+# reach — on GHCR, the linked repository's root README, which describes the
+# whole project rather than the service someone is looking at.
+DESC_ner := Schema-driven NER and PII detection over HTTP, wrapping GLiNER2.
+DESC_ocr := Document OCR with word-level geometry over HTTP, wrapping docTR.
+DESC_stt := Speech-to-text over HTTP with word timings, wrapping faster-whisper.
+
 # Built from the repo root with `-f`, never from the package directory:
 # `Image.requirements_file()` resolves its path against the working directory,
 # so a build started elsewhere cannot find the exported requirements.
@@ -113,7 +125,17 @@ services-image: requirements ## Build and containerize every Bento into a local 
 		$(call log,Containerizing elide-$$s...); \
 		bento=$$(uv run bentoml build -f packages/elide-$$s/bentofile.yaml -o tag . \
 		          | sed 's/^__tag__://'); \
-		uv run bentoml containerize "$$bento" -t "elide-$$s:latest"; \
+		case "$$s" in \
+		  ner) desc="$(DESC_ner)" ;; \
+		  ocr) desc="$(DESC_ocr)" ;; \
+		  stt) desc="$(DESC_stt)" ;; \
+		  *) desc="" ;; \
+		esac; \
+		uv run bentoml containerize "$$bento" -t "elide-$$s:latest" \
+		  --opt label="org.opencontainers.image.title=elide-$$s" \
+		  --opt label="org.opencontainers.image.description=$$desc" \
+		  --opt label="org.opencontainers.image.source=$(REPO_URL)" \
+		  --opt label="org.opencontainers.image.licenses=Apache-2.0"; \
 	done
 
 # Each depends on `requirements` for the same reason as

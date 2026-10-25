@@ -48,7 +48,7 @@ services:
   # --- NER ------------------------------------------------------------------
 
   ner-init:
-    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-latest}
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.3}
     container_name: elide-ner-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -64,24 +64,7 @@ services:
       HF_HUB_OFFLINE: "0"
       TRANSFORMERS_OFFLINE: "0"
       ELIDE_BENTO_NER_MODEL: *ner-model
-    entrypoint:
-      - python
-      - -c
-      - |
-        import os
-        from huggingface_hub import snapshot_download
-        CACHE = os.environ["HF_HOME"]
-        model = os.environ["ELIDE_BENTO_NER_MODEL"]
-        print(f"warming {model}", flush=True)
-        snapshot_download(model)
-        # Hand the cache to the uid the service runs as (bentoml, 1034): root
-        # created these files, and the service mounts the volume read-only.
-        import os
-        for root, dirs, files in os.walk(CACHE):
-            for name in dirs + files:
-                os.chown(os.path.join(root, name), 1034, 1034)
-        os.chown(CACHE, 1034, 1034)
-        print("warm", flush=True)
+    entrypoint: ["python", "-m", "elide_ner.warm"]
     volumes:
       - hf_cache:/cache/huggingface
     networks:
@@ -89,7 +72,7 @@ services:
 
   ner:
     <<: *service
-    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-latest}
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.3}
     container_name: elide-ner
     ports:
       - "${ELIDE_NER_PORT:-3100}:3000"
@@ -113,7 +96,7 @@ services:
   # --- OCR ------------------------------------------------------------------
 
   ocr-init:
-    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-latest}
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.3}
     container_name: elide-ocr-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -122,29 +105,7 @@ services:
     environment:
       DOCTR_CACHE_DIR: /cache/doctr
       ELIDE_BENTO_MODEL_NAME: *ocr-model
-    # docTR fetches from doctr-static.mindee.com, not the Hub, and the only
-    # public path that populates its cache is instantiating the predictor.
-    entrypoint:
-      - python
-      - -c
-      - |
-        import os, sys
-        from doctr.models import ocr_predictor
-        pair = os.environ["ELIDE_BENTO_MODEL_NAME"]
-        det, _, rec = pair.partition("+")
-        if not rec:
-            sys.exit(f"ELIDE_BENTO_MODEL_NAME must be 'det+rec', got {pair!r}")
-        CACHE = os.environ["DOCTR_CACHE_DIR"]
-        print(f"warming {pair}", flush=True)
-        ocr_predictor(det, rec, pretrained=True)
-        # Hand the cache to the uid the service runs as (bentoml, 1034): root
-        # created these files, and the service mounts the volume read-only.
-        import os
-        for root, dirs, files in os.walk(CACHE):
-            for name in dirs + files:
-                os.chown(os.path.join(root, name), 1034, 1034)
-        os.chown(CACHE, 1034, 1034)
-        print("warm", flush=True)
+    entrypoint: ["python", "-m", "elide_ocr.warm"]
     volumes:
       - doctr_cache:/cache/doctr
     networks:
@@ -152,7 +113,7 @@ services:
 
   ocr:
     <<: *service
-    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-latest}
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.3}
     container_name: elide-ocr
     ports:
       - "${ELIDE_OCR_PORT:-3101}:3000"
@@ -173,7 +134,7 @@ services:
   # --- STT ------------------------------------------------------------------
 
   stt-init:
-    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-latest}
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.3}
     container_name: elide-stt-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -187,39 +148,7 @@ services:
       ELIDE_BENTO_STT_DIARIZE: ${ELIDE_STT_DIARIZE:-false}
       ELIDE_BENTO_STT_DIARIZE_MODEL: ${ELIDE_STT_DIARIZE_MODEL:-pyannote/speaker-diarization-community-1}
       ELIDE_BENTO_STT_HF_TOKEN: ${ELIDE_STT_HF_TOKEN:-}
-    entrypoint:
-      - python
-      - -c
-      - |
-        import os, sys
-        from faster_whisper.utils import download_model
-        model = os.environ["ELIDE_BENTO_MODEL_NAME"]
-        print(f"warming {model}", flush=True)
-        download_model(model)
-        if os.environ.get("ELIDE_BENTO_STT_DIARIZE") == "true":
-            diarize = os.environ["ELIDE_BENTO_STT_DIARIZE_MODEL"]
-            token = os.environ.get("ELIDE_BENTO_STT_HF_TOKEN") or ""
-            # Fail here, naming the reason, rather than letting the service
-            # fail its healthcheck later with a 401 buried in a traceback.
-            if not token:
-                sys.exit(
-                    "ELIDE_BENTO_STT_DIARIZE=true needs ELIDE_BENTO_STT_HF_TOKEN.\n"
-                    "The model is gated: accept its terms at\n"
-                    f"https://huggingface.co/{diarize}\n"
-                    "then set the token to one belonging to that account."
-                )
-            from huggingface_hub import snapshot_download
-            print(f"warming {diarize} (gated)", flush=True)
-            snapshot_download(diarize, token=token)
-        CACHE = os.environ["HF_HOME"]
-        # Hand the cache to the uid the service runs as (bentoml, 1034): root
-        # created these files, and the service mounts the volume read-only.
-        import os
-        for root, dirs, files in os.walk(CACHE):
-            for name in dirs + files:
-                os.chown(os.path.join(root, name), 1034, 1034)
-        os.chown(CACHE, 1034, 1034)
-        print("warm", flush=True)
+    entrypoint: ["python", "-m", "elide_stt.warm"]
     volumes:
       - hf_cache:/cache/huggingface
     networks:
@@ -227,7 +156,7 @@ services:
 
   stt:
     <<: *service
-    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-latest}
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.3}
     container_name: elide-stt
     ports:
       - "${ELIDE_STT_PORT:-3102}:3000"

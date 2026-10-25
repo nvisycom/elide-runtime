@@ -66,6 +66,26 @@ configuration expects.
 Each also serves `/healthz` (liveness) and `/readyz` (readiness, which waits for
 the model to load). Compose gates on `/readyz`.
 
+### When a container is unhealthy
+
+The healthcheck runs `python -m elide_core.readyz` and, when it fails, exits
+with a one-line reason that Docker keeps:
+
+```console
+$ docker inspect --format '{{json .State.Health}}' elide-ner | jq -r '.Log[-1].Output'
+loading: accepted the connection but did not answer in 4s
+```
+
+Two reasons, needing opposite responses:
+
+- **`loading: ...`** — the service is up but not serving yet. BentoML binds the
+  port before the model finishes loading, so this is the normal state during
+  startup. Wait; `start_period` allows 60s, against a measured 5–11s.
+- **`down: ...`** — nothing is listening. The process died or is crash-looping,
+  so read `docker logs <container>`.
+
+Both look identical in `docker ps`, which shows only `unhealthy`.
+
 The request shapes differ: NER and OCR are batching endpoints and take a list,
 while STT is not and takes a single object.
 

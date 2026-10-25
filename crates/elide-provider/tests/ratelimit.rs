@@ -77,6 +77,7 @@ fn a_configured_limit_compiles_into_the_stack() {
         interval_seconds: 60,
         burst: Some(10),
         max_concurrent: Some(4),
+        max_batch_size: Some(32),
     }))
     .expect("compiles");
 }
@@ -91,6 +92,9 @@ fn a_severe_limit_still_compiles() {
         interval_seconds: 3600,
         burst: None,
         max_concurrent: Some(1),
+        // One request per window, so every batch is split to single calls:
+        // the narrowest chunking the stack can be asked for.
+        max_batch_size: Some(1),
     }))
     .expect("compiles");
 }

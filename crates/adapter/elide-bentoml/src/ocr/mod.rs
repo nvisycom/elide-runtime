@@ -29,7 +29,7 @@ use elide_core::entity::audit::ModelEvent;
 use elide_image::ocr::{OcrRequest, OcrResponse};
 use hipstr::HipStr;
 
-use self::request::WireOcrRequest;
+use self::request::{Recognize, WireOcrRequest};
 use self::response::WireOcrResponse;
 use crate::error::BentoError;
 
@@ -100,7 +100,7 @@ impl BentoOcr {
             endpoint = endpoint.with_request_id(id.to_string());
         }
         let wire: Vec<WireOcrResponse> = endpoint
-            .invoke(&body)
+            .invoke(&Recognize { requests: &body })
             .await
             .map_err(BentoError::Transport)?;
         Ok(wire.into_iter().map(WireOcrResponse::decode).collect())
@@ -138,6 +138,12 @@ impl Backend for BentoOcr {
     /// sequential fan-out over [`call`](Self::call).
     ///
     /// Responses come back in request order. An empty batch makes no call.
+    ///
+    /// The slice is sent as one POST, however long it is: the service splits
+    /// it into its own batch windows server-side. One POST must still finish
+    /// inside the service's request timeout, so a caller coalescing a whole
+    /// document wraps this in `elide::backend::ratelimit::BatchChunked` to
+    /// spread it over several requests.
     async fn call_batch(&self, requests: Vec<OcrRequest<'_>>) -> Result<Vec<OcrResponse>> {
         if requests.is_empty() {
             return Ok(Vec::new());

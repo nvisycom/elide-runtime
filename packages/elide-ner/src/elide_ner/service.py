@@ -145,7 +145,27 @@ class NerService:
     # batchable=True: a caller submits a list (e.g. a whole document's segments)
     # in one call, AND BentoML's dispatcher merges concurrent requests across
     # callers into a single batched extraction.
-    @bentoml.api(batchable=True, max_batch_size=16, max_latency_ms=100)
+    #
+    # max_batch_size is the dispatcher's window: a longer call is split into
+    # windows of this size and the results rejoined, so it bounds how much
+    # work one extraction does, not how much a caller may send.
+    #
+    # max_latency_ms is a deadline, and the one that matters here. The
+    # dispatcher cancels queued work whose projected latency exceeds it, and a
+    # cancelled request surfaces as `503 process is overloaded`. Set shorter
+    # than a call takes, it throws work away rather than waiting for it —
+    # which loses a detection over a few seconds of queueing, the worst
+    # trade available. The old 100ms was far shorter than one extraction.
+    #
+    # 15s is not tuned to any measurement, and should not be: load, hardware
+    # and model all move it. It is simply long enough that queueing is never
+    # what fails, and short enough to stay under traffic.timeout below, so a
+    # genuinely stuck queue is cut off by the request timeout instead — one
+    # deadline doing the work, not two disagreeing.
+    #
+    # A caller with nothing to coalesce still dispatches immediately, so
+    # raising this costs idle latency nothing.
+    @bentoml.api(batchable=True, max_batch_size=32, max_latency_ms=15000)
     def recognize(self, requests: list[NerRequest], ctx: bentoml.Context) -> list[NerResponse]:
         batch_size_metric.observe(len(requests))
         rid = request_id(ctx)

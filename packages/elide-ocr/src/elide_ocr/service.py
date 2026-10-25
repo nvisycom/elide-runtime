@@ -133,7 +133,18 @@ class OcrService:
     # Sync (not async): inference is CPU/GPU-bound and blocking. BentoML runs
     # sync endpoints in a managed thread pool, so this never blocks the event
     # loop (an async def here would, and could starve /readyz).
-    @bentoml.api(batchable=True, max_batch_size=8, max_latency_ms=120)
+    # max_batch_size is the dispatcher's window: a longer call is split into
+    # windows of this size and the results rejoined. 16, half of elide-ner's,
+    # because `recognize` runs `_recognize_one` sequentially and a page is far
+    # more work than a sentence, so a window here is a much longer extraction.
+    #
+    # max_latency_ms is a deadline on queued work, and the old 120ms was far
+    # shorter than one page, so concurrent callers were cancelled with `503
+    # process is overloaded` rather than waited for — losing a detection over
+    # a few seconds of queueing. 15s is not tuned to a measurement: it is long
+    # enough that queueing never fails, and under traffic.timeout so a stuck
+    # queue is cut off by the request timeout instead. See elide-ner's note.
+    @bentoml.api(batchable=True, max_batch_size=16, max_latency_ms=15000)
     def recognize(
         self,
         requests: list[OcrRequest],

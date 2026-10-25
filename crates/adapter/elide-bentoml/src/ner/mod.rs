@@ -24,7 +24,7 @@ use elide_core::entity::audit::ModelEvent;
 use elide_ner::backend::{NerRequest, NerResponse};
 use hipstr::HipStr;
 
-use self::request::WireNerRequest;
+use self::request::{Recognize, WireNerRequest};
 use self::response::WireNerResponse;
 use crate::error::BentoError;
 
@@ -96,7 +96,7 @@ impl BentoNer {
             endpoint = endpoint.with_request_id(id.to_string());
         }
         let wire: Vec<WireNerResponse> = endpoint
-            .invoke(&body)
+            .invoke(&Recognize { requests: &body })
             .await
             .map_err(BentoError::Transport)?;
         Ok(wire.into_iter().map(WireNerResponse::decode).collect())
@@ -134,6 +134,12 @@ impl Backend for BentoNer {
     /// sequential fan-out over [`call`](Self::call).
     ///
     /// Responses come back in request order. An empty batch makes no call.
+    ///
+    /// The slice is sent as one POST, however long it is: the service splits
+    /// it into its own batch windows server-side. One POST must still finish
+    /// inside the service's request timeout, so a caller coalescing a whole
+    /// document wraps this in `elide::backend::ratelimit::BatchChunked` to
+    /// spread it over several requests.
     async fn call_batch(&self, requests: Vec<NerRequest<'_>>) -> Result<Vec<NerResponse>> {
         if requests.is_empty() {
             return Ok(Vec::new());

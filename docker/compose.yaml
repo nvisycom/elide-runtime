@@ -18,20 +18,37 @@ name: elide
 # same library version wrote it.
 
 x-readyz: &readyz
-  # Probed with Python, not curl: the BentoML images are built on
-  # python:3.12-slim, which ships neither curl nor wget. urlopen exits non-zero
-  # on any status other than 2xx, which is what the probe needs.
+  # Requires an image containing `elide_core.readyz`, i.e. 0.1.0-rc.4 or
+  # later, which is what the services below default to. Against rc.3 or
+  # earlier the probe exits "No module named elide_core.readyz" and every
+  # service goes unhealthy, so the tag and this file move together.
+  #
+  # `python -m elide_core.readyz`, not curl: the BentoML images are built on
+  # python:3.12-slim, which ships neither curl nor wget (nor nc). The probe
+  # lives in elide-core (shipped into every image by build_include) rather
+  # than inline here, because it has branches worth testing — see its
+  # docstring for what each exit reason means.
   test:
     - CMD
     - python
-    - -c
-    - "import urllib.request; urllib.request.urlopen('http://localhost:3000/readyz', timeout=5)"
+    - -m
+    - elide_core.readyz
   interval: 10s
   timeout: 5s
   retries: 5
-  # The services load their model in __init__, so readiness lags liveness by
-  # however long that takes. This covers a slow cold load without flapping.
-  start_period: 120s
+  # /readyz gates on the model: the HTTP server binds first and answers only
+  # once __init__ has finished loading, so a 200 means the service can serve.
+  # Measured from container start to the first 200, weights already cached:
+  #
+  #     ner 10.3s  (model load 9.7s)
+  #     ocr  8.2s  (model load 2.2s)
+  #     stt  5.2s  (model load 2.4s)
+  #
+  # 60s is a deliberately wide margin over the slowest. These come from one
+  # idle host with a warm cache; a loaded or throttled one is slower, and the
+  # cost of being generous here is only how long a genuinely broken service
+  # takes to be reported. The previous 120s predated any measurement.
+  start_period: 60s
 
 x-service: &service
   restart: unless-stopped
@@ -48,7 +65,7 @@ services:
   # --- NER ------------------------------------------------------------------
 
   ner-init:
-    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-ner-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -72,7 +89,7 @@ services:
 
   ner:
     <<: *service
-    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-ner
     ports:
       - "${ELIDE_NER_PORT:-3100}:3000"
@@ -96,7 +113,7 @@ services:
   # --- OCR ------------------------------------------------------------------
 
   ocr-init:
-    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-ocr-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -113,7 +130,7 @@ services:
 
   ocr:
     <<: *service
-    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-ocr
     ports:
       - "${ELIDE_OCR_PORT:-3101}:3000"
@@ -134,7 +151,7 @@ services:
   # --- STT ------------------------------------------------------------------
 
   stt-init:
-    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-stt-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -156,7 +173,7 @@ services:
 
   stt:
     <<: *service
-    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.3}
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.4}
     container_name: elide-stt
     ports:
       - "${ELIDE_STT_PORT:-3102}:3000"

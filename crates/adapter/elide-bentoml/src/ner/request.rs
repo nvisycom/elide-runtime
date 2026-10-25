@@ -10,6 +10,19 @@ use elide_core::primitive::LanguageTag;
 use elide_ner::backend::NerRequest;
 use serde::Serialize;
 
+/// The `/recognize` input model.
+///
+/// BentoML keys an endpoint's input on its handler's parameter names, so
+/// `recognize(self, requests: list[NerRequest], ctx)` takes
+/// `{"requests": [...]}` and rejects a bare array with
+/// `400 1 validation error for Input`. The service publishes the same shape
+/// in its OpenAPI document, where `/recognize` reports `required: ["requests"]`.
+#[derive(Debug, Serialize)]
+pub(super) struct Recognize<'a> {
+    /// Named for the handler parameter that receives it.
+    pub requests: &'a [WireNerRequest],
+}
+
 /// Outgoing per-call request body element.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -76,4 +89,35 @@ pub(super) struct WireEntitySpec {
     /// request-level [`WireNerRequest::threshold`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub threshold: Option<f32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The body must be the object the service's OpenAPI declares, not the
+    /// bare array this client posted until `bentoml` 0.6. Nothing else checks
+    /// this: the adapter's own transport is mocked, so a wrong shape reaches
+    /// only a real service — which answered `400 1 validation error for
+    /// Input` for every call.
+    #[test]
+    fn the_body_is_an_object_keyed_on_the_handler_parameter() {
+        let requests = vec![WireNerRequest {
+            text: "Ana".to_owned(),
+            schema: WireSchema {
+                entities: Vec::new(),
+            },
+            threshold: 0.3,
+        }];
+
+        let json = serde_json::to_value(Recognize {
+            requests: &requests,
+        })
+        .expect("the request serializes");
+
+        assert!(
+            json.get("requests").is_some_and(|r| r.is_array()),
+            "`/recognize` declares `required: [\"requests\"]`, got {json}"
+        );
+    }
 }

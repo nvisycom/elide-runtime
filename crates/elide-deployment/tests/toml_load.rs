@@ -132,6 +132,22 @@ fn a_rate_limit_reaches_the_component() {
     assert_eq!(limit.interval_seconds, 60, "defaults to per-minute");
     assert_eq!(limit.burst, Some(10));
     assert_eq!(limit.max_concurrent, Some(4));
+    assert_eq!(limit.max_batch_size, Some(32));
+}
+
+/// A zero batch size is refused for the same reason as a zero rate:
+/// `BatchChunked::new` panics on it, so a typo would surface as a
+/// panic from inside a request rather than a load error.
+#[test]
+fn a_zero_batch_size_is_refused_at_load() {
+    let err = Deployment::from_toml_resolved(testdata!("zero_batch_size.toml"), |_| None)
+        .expect_err("must not load");
+
+    assert_eq!(err.kind(), ErrorKind::Invalid);
+    assert!(
+        err.message().contains("maxBatchSize"),
+        "the message must name the field: {err}",
+    );
 }
 
 /// A zero rate is refused at load. The decorators it configures

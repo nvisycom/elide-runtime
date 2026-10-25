@@ -138,6 +138,11 @@ impl Backend for BentoOcr {
     /// sequential fan-out over [`call`](Self::call).
     ///
     /// Responses come back in request order. An empty batch makes no call.
+    ///
+    /// The slice is sent as one POST: the service refuses a batch over its
+    /// `max_batch_size` rather than splitting it, so a caller handing down an
+    /// oversized batch wraps this in `elide::backend::ratelimit::BatchChunked`,
+    /// which is where that limit is configured.
     async fn call_batch(&self, requests: Vec<OcrRequest<'_>>) -> Result<Vec<OcrResponse>> {
         if requests.is_empty() {
             return Ok(Vec::new());

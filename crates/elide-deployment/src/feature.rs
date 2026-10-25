@@ -103,6 +103,18 @@ pub struct RateLimit {
     /// rate limit and still have a hundred requests outstanding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_concurrent: Option<usize>,
+    /// How many requests a single batched call may carry.
+    ///
+    /// A provider that accepts batches usually caps the size and
+    /// rejects an oversized call rather than splitting it, while the
+    /// layer above — a recognizer coalescing a whole document's
+    /// segments — does not know that cap. Set this and oversized
+    /// batches are split into consecutive calls instead of failing.
+    ///
+    /// Unset means the backend is called with whatever batch it is
+    /// given, which is correct for a provider with no such limit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_batch_size: Option<usize>,
 }
 
 /// Sixty seconds: `requests` alone means requests per minute.
@@ -119,6 +131,7 @@ impl RateLimit {
             interval_seconds: 60,
             burst: None,
             max_concurrent: None,
+            max_batch_size: None,
         }
     }
 
@@ -165,6 +178,11 @@ impl RateLimit {
         }
         if self.max_concurrent == Some(0) {
             return Err(bad("maxConcurrent", "0".to_owned()));
+        }
+        // Zero is rejected rather than read as unlimited: a zero-size window
+        // could never carry a request, and `BatchChunked::new` panics on it.
+        if self.max_batch_size == Some(0) {
+            return Err(bad("maxBatchSize", "0".to_owned()));
         }
         Ok(())
     }

@@ -1,5 +1,5 @@
-# A component with both limits set: 60 calls a minute, bursting to
-# 10, with at most 4 calls in flight.
+# A component with every limit set: 60 calls a minute, bursting to
+# 10, at most 4 calls in flight, and batches split at 32.
 
 [[recognizers.ner]]
 name = "limited-ner"
@@ -11,3 +11,4 @@ model = "m"
 requests = 60
 burst = 10
 maxConcurrent = 4
+maxBatchSize = 32

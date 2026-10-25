@@ -1,0 +1,13 @@
+# `maxBatchSize = 0` describes a window that could never carry a
+# request. `BatchChunked::new` panics on it, so the load must refuse
+# it first.
+
+[[recognizers.ner]]
+name = "empty-batches"
+kind = "bento"
+base_url = "https://ner.internal"
+model = "m"
+
+[recognizers.ner.rateLimit]
+requests = 60
+maxBatchSize = 0

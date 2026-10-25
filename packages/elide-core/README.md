@@ -20,14 +20,25 @@ Import a specific version explicitly:
   contract (base64 audio in; segments with millisecond timings, optional
   speaker label, language, confidence, and per-word breakdown out).
 
-The wire is camelCase, mirroring the Rust side's serde
-`rename_all = "camelCase"`. These pydantic models are the source of truth
-for the wire contract; the Rust [`elide-bentoml`](../../crates/adapter/elide-bentoml)
-client mirrors them by hand.
+The wire is camelCase, matching the Rust side's serde
+`rename_all = "camelCase"`.
 
-## License
+## Versioning
 
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+Versioned per contract module (`ner.v1`, `ocr.v1`, `stt.v1`) rather than per
+release: a breaking wire change lands as `v2` alongside `v1`, so a service and
+its client can migrate independently.
+
+These models mirror the Rust client,
+[`elide-bentoml`](../../crates/adapter/elide-bentoml), which is the source of
+truth for the format — a change here that is not made there produces a
+contract nothing speaks.
+
+## Project
+
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

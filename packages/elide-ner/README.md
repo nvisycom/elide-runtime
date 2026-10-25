@@ -51,7 +51,7 @@ request ids and counts only — never input text or extracted spans. Inputs over
 the model's token limit are **rejected** (not silently truncated), so PII past
 the limit is never missed.
 
-### Configuration
+## Configuration
 
 - `ELIDE_BENTO_NER_MODEL` — the GLiNER2 model id (or local path). Defaults to
   `fastino/gliner2-privacy-filter-PII-multi` (Apache-2.0, SOTA PII span-F1).
@@ -83,9 +83,33 @@ CI job):
 uv run pytest -m real          # downloads the GLiNER2 model
 ```
 
-## License
+## Run locally
 
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+```bash
+make sync          # once, to install the workspace into .venv
+make serve-ner
+```
+
+The model is downloaded on first start, into the local Hugging Face cache.
+The `HF_HUB_OFFLINE=1` described above is declared on the *service* — it
+applies to the built image, not to `bentoml serve` on a developer machine,
+which is why this works with an empty cache and the container does not.
+
+To run the published image instead, with its cache warmed by a one-shot init
+container, see [`docker/`](../../docker/README.md).
+
+## Versioning
+
+Lockstep with the workspace. The wire contract lives in
+[`elide-core`](../elide-core), and the Rust client that consumes it,
+[`elide-bentoml`](../../crates/adapter/elide-bentoml), is the source of truth
+for the format.
+
+## Project
+
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

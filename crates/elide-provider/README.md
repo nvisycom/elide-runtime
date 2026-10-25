@@ -33,13 +33,11 @@ belongs to the caller asking for redaction, not to the process serving
 them, so it travels on a RequestContext with the request that needs it.
 One provider then serves many callers, each with its own key.
 
-## Changelog
+## Project
 
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
-## License
-
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

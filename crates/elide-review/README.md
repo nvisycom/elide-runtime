@@ -28,13 +28,11 @@ four operations land on the report, while the operator override goes
 onto the anonymizer instead, because elide re-resolves operators from
 live policy at apply time and has no per-entity override of its own.
 
-## Changelog
+## Project
 
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
-## License
-
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

@@ -101,6 +101,12 @@ services: requirements ## Build every Bento from its bentofile.
 #
 # `set -e` so a failed build fails the target instead of being swallowed by
 # the loop.
+#
+# Builds for the host architecture only, which is what a developer wants: the
+# image runs natively, and cross-building under emulation is slow enough to be
+# useless for these (an emulated PyTorch import does not finish loading). The
+# published multi-architecture manifests are assembled in CI from native
+# runners per architecture, not here.
 .PHONY: services-image
 services-image: requirements ## Build and containerize every Bento into a local Docker image.
 	@set -e; for s in $(SERVICES); do \

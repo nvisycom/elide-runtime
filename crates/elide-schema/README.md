@@ -28,13 +28,11 @@ Consumed by elide-pipeline, which carries the request schemas and the
 engine. Consumers may also depend on this crate directly to author
 policies without pulling the engine in.
 
-## Changelog
+## Project
 
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
-## License
-
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

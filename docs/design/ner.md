@@ -24,7 +24,7 @@ The service returns each span's **raw model label** (`person`, `email`, `iban`,
 …) together with the `modelId` that produced it. It does not map labels onto a
 shared taxonomy — that is the **consumer's** job (the runtime's `nvisy-schema`
 owns the map, keyed by `modelId`). The contract lives in
-[`elide_core.ner.v1`](../../packages/elide-core/src/elide_core/ner/v1.py).
+[`elide_core.ner.v1`](../../packages/elide-core/src/elide_core/ner/v1).
 
 ## The schema
 
@@ -38,7 +38,7 @@ A request's schema composes three optional groups, mirroring GLiNER2's own
 - **structures** — named records of fields; a field can carry an enum of choices
   and a regex pattern (compiled to a GLiNER2 `RegexValidator`).
 
-The engine ([`engine.py`](../../packages/elide-ner/src/elide_ner/engine.py))
+The engine ([`backend/gliner2.py`](../../packages/elide-ner/src/elide_ner/backend/gliner2.py))
 translates the wire schema into a `gliner2.Schema`, calls `batch_extract`, and
 projects the result back into the typed response (GLiNER2's `confidence` becomes
 `score`).

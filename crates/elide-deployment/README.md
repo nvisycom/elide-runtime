@@ -67,13 +67,11 @@ own infrastructure. A build that does not enable one cannot name it,
 so deployment configuration alone cannot route documents to a service
 the build was never meant to reach.
 
-## Changelog
+## Project
 
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
-## License
-
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

@@ -19,7 +19,7 @@ BentoML batches concurrent calls, so the HTTP body wraps the list:
 `{"requests": [ { "image": "<base64>", "confidenceThreshold": 0.5 } ]}`; the
 response is a JSON array of `OcrResponse`.
 
-### Configuration
+## Configuration
 
 - `ELIDE_BENTO_MODEL_PATH` — filesystem path to docTR weights. Takes precedence; also
   satisfied by mounting weights at `/models`.
@@ -32,9 +32,29 @@ uv sync
 uv run bentoml serve elide_ocr.service:OcrService --reload
 ```
 
-## License
+## Run locally
 
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+```bash
+make sync          # once, to install the workspace into .venv
+make serve-ocr
+```
+
+The model is downloaded on first start. To run the published image instead,
+with its cache warmed by a one-shot init container, see
+[`docker/`](../../docker/README.md).
+
+## Versioning
+
+Lockstep with the workspace. The wire contract lives in
+[`elide-core`](../elide-core), and the Rust client that consumes it,
+[`elide-bentoml`](../../crates/adapter/elide-bentoml), is the source of truth
+for the format.
+
+## Project
+
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

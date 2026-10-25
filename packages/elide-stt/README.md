@@ -23,9 +23,12 @@ not needed.
 
 `POST /transcribe` — base64 audio in, segments out:
 
+Unlike the NER and OCR services this endpoint is **not** batching, so the body
+wraps a single object under `request` rather than a list under `requests`:
+
 ```jsonc
 // request
-{ "audio": "<base64>", "filename": "call.wav", "language": "en" }
+{ "request": { "audio": "<base64>", "filename": "call.wav", "language": "en" } }
 
 // response
 {
@@ -112,6 +115,38 @@ path, so treat it as you would any other "run this binary" setting.
 ## Run locally
 
 ```bash
-make serve-whisper
-# or: uv run bentoml serve elide_stt.service:SttService --reload
+make sync          # once, to install the workspace into .venv
+make serve-stt
 ```
+
+or without make — the sync is not optional, since the workspace root
+declares no dependencies of its own, so a plain `uv run` installs nothing
+this service needs:
+
+```bash
+uv sync --all-packages
+uv run bentoml serve elide_stt.service:SttService --reload
+```
+
+Either way the model is downloaded on first start. To run the published
+image instead, with its cache warmed by a one-shot init container, see
+[`docker/`](../../docker/README.md).
+
+## Versioning
+
+Lockstep with the workspace: the wire contract lives in
+[`elide-core`](../elide-core) and the Rust client that consumes it is
+[`elide-bentoml`](../../crates/adapter/elide-bentoml), which is the source of
+truth for the format.
+
+## Project
+
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
+
+## Support
+
+- **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/elide-runtime/issues)
+- **Email**: [support@nvisy.com](mailto:support@nvisy.com)

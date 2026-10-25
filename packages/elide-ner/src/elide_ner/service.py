@@ -14,6 +14,7 @@ Run locally::
 from __future__ import annotations
 
 import os
+import time
 from collections import defaultdict
 
 import bentoml
@@ -108,18 +109,34 @@ class NerService:
     def __init__(self) -> None:
         name = backend.backend_name()
         logger.info("loading NER backend %s (model=%s)", name, config.model_id())
+        started = time.monotonic()
         try:
             module = backend.load()
             self.engine = module.Engine()
             self._too_long = module.TextTooLongError
         except Exception as exc:
+            # Log before raising: the RuntimeError below is what a reader sees
+            # first, and its cause is only in the chained traceback — which a
+            # container log truncated to the last lines drops. `exception`
+            # emits the full chain at the point of failure, so the reason is
+            # in the log whether or not the chain survives.
+            logger.exception(
+                "failed to load NER backend %s (model=%s): %s", name, config.model_id(), exc
+            )
             # Fail startup loudly rather than half-loading and 500-ing later. The
             # service fails liveness, as intended — a model that won't load (e.g.
             # not cached, with the Hub offline) should not serve traffic.
             raise RuntimeError(
-                f"failed to load NER backend {name!r} model {config.model_id()!r}"
+                f"failed to load NER backend {name!r} model {config.model_id()!r}: {exc}"
             ) from exc
-        logger.info("%s ready (max_tokens=%d)", name, self.engine.max_tokens)
+        # Elapsed, because a cold start fetches weights and the difference
+        # between "slow" and "wedged" is otherwise unknowable from the log.
+        logger.info(
+            "%s ready in %.1fs (max_tokens=%d)",
+            name,
+            time.monotonic() - started,
+            self.engine.max_tokens,
+        )
 
     # Sync (not async): inference is CPU/GPU-bound and blocking. BentoML runs
     # sync endpoints in a managed thread pool, so this never blocks the event

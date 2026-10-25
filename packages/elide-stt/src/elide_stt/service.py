@@ -20,6 +20,7 @@ import base64
 import binascii
 import io
 import os
+import time
 
 import bentoml
 from bentoml.exceptions import BentoMLException, InternalServerError, InvalidArgument
@@ -108,10 +109,21 @@ image = (
 )
 class SttService:
     def __init__(self) -> None:
-        logger.info("loading faster-whisper")
-        self.engine = Engine()
+        # Model name up front, read straight from the environment: on a cold
+        # cache this call downloads gigabytes, and which model is being
+        # fetched is the first thing anyone reading a slow startup wants. The
+        # engine resolves the same variable (a mounted path wins over the
+        # name), and logs what it actually loaded once ready.
+        logger.info("loading faster-whisper (model=%s)", os.getenv("ELIDE_BENTO_MODEL_NAME", "?"))
+        started = time.monotonic()
+        try:
+            self.engine = Engine()
+        except Exception as exc:
+            logger.exception("failed to load faster-whisper: %s", exc)
+            raise RuntimeError(f"failed to load faster-whisper: {exc}") from exc
         logger.info(
-            "engine ready (model=%s device=%s diarize=%s)",
+            "engine ready in %.1fs (model=%s device=%s diarize=%s)",
+            time.monotonic() - started,
             self.engine.model_id,
             self.engine.device,
             self.engine.diarizes,

@@ -148,6 +148,15 @@ three on every pull request that touches the services, scans each with Trivy,
 and publishes to `ghcr.io/nvisycom/elide-{ner,ocr,stt}` on a `v*` tag — `:1.2.3`
 plus a moving `:latest`. Pin the version in production.
 
-Published images are **`linux/amd64` only**. An arm64 host can run them under
-emulation but should build natively instead (`make services-image`), which is
-also what a developer on an arm64 machine gets from `compose.dev.yaml`.
+Each tag is a multi-architecture manifest covering **`linux/amd64`** and
+**`linux/arm64`**, so `docker pull` resolves to the host's architecture with no
+platform flag.
+
+Both are built on native runners rather than under emulation. That is not a
+preference: an emulated PyTorch import is slow enough that the service never
+finishes loading its model, so an emulated image would be unusable even where
+Docker accepts it.
+
+The per-architecture images are also published, suffixed `-amd64` and
+`-arm64`, which is what the manifest points at. Pull one directly only to
+reproduce a specific architecture — a deployment should use the plain tag.

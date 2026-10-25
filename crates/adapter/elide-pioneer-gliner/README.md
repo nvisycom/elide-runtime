@@ -89,9 +89,11 @@ but that model does not appear in a live `GET /v1/models` listing. This
 crate uses the dedicated `/gliner-2` route, which is what their own
 Python client calls and what their OpenAPI spec types.
 
-## License
+## Project
 
-Apache 2.0 License, see [LICENSE](../../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../../LICENSE)
 
 ## Support
 

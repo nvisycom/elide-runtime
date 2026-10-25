@@ -15,6 +15,7 @@ import base64
 import binascii
 import io
 import os
+import time
 from typing import TYPE_CHECKING
 
 import bentoml
@@ -115,8 +116,19 @@ class OcrService:
         if not rec:
             raise RuntimeError(f"ELIDE_BENTO_MODEL_NAME must be 'det+rec', got {self.model_id!r}")
         logger.info("loading docTR (det=%s, rec=%s)", det, rec)
-        self.ocr = ocr_predictor(det, rec, pretrained=True)
-        logger.info("docTR ready")
+        started = time.monotonic()
+        try:
+            self.ocr = ocr_predictor(det, rec, pretrained=True)
+        except Exception as exc:
+            # Log the cause here: the traceback a container log keeps is often
+            # only its last lines, and docTR downloads weights during this
+            # call, so the useful detail (a network or cache failure) is where
+            # it is raised rather than where it surfaces.
+            logger.exception("failed to load docTR (det=%s, rec=%s): %s", det, rec, exc)
+            raise RuntimeError(f"failed to load docTR {self.model_id!r}: {exc}") from exc
+        # Elapsed, because a cold start fetches weights and the difference
+        # between "slow" and "wedged" is otherwise unknowable from the log.
+        logger.info("docTR ready in %.1fs", time.monotonic() - started)
 
     # Sync (not async): inference is CPU/GPU-bound and blocking. BentoML runs
     # sync endpoints in a managed thread pool, so this never blocks the event

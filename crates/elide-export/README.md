@@ -29,13 +29,11 @@ Each format is self-contained behind its own feature, and neither
 pulls the engine in: this crate depends on elide-core for the shared
 error type and nothing else.
 
-## Changelog
+## Project
 
-See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
-
-## License
-
-Apache 2.0 License, see [LICENSE](../../LICENSE)
+- **Changelog**: [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history
+- **Contributing**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup, local CI targets, and the pull-request process
+- **License**: Apache 2.0, see [LICENSE](../../LICENSE)
 
 ## Support
 

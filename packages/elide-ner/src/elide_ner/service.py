@@ -21,7 +21,7 @@ import bentoml
 from bentoml.exceptions import InternalServerError, InvalidArgument
 from elide_core.ner.v1 import NerRequest, NerResponse
 from elide_core.runtime import get_logger, request_id
-from prometheus_client import Histogram
+from prometheus_client import Counter, Histogram
 
 from elide_ner import backend, config
 
@@ -33,6 +33,42 @@ batch_size_metric = Histogram(
     "elide_ner_batch_size",
     "Number of texts merged into one recognize() call.",
     buckets=(1, 2, 4, 8, 16, 32),
+)
+
+# Each of the three bounds a request can breach, counted separately. A caller
+# chunks to fit this service's limits, so a rejection means the caller's own
+# budget disagrees with the service's — which is a bug in the chunker, not
+# traffic to be tolerated, and it is invisible if all refusals look alike.
+rejected_metric = Counter(
+    "elide_ner_rejected_total",
+    "Requests refused before inference, by which bound they breached.",
+    labelnames=("reason",),
+)
+
+# Tokens per text, against the model's own limit. The useful shape is how
+# close traffic runs to the cap: a pile-up just under it means the caller is
+# chunking to this service's ceiling and any drift in either budget starts
+# rejecting real work.
+tokens_metric = Histogram(
+    "elide_ner_input_tokens",
+    "Encoder tokens per text, as counted when enforcing the token limit.",
+    buckets=(16, 32, 64, 128, 256, 384, 448, 512),
+)
+
+# Labels per request: the other half of an extraction's cost, and the
+# dimension that went unbounded long enough to OOM a worker.
+labels_metric = Histogram(
+    "elide_ner_schema_labels",
+    "Entity labels requested per text.",
+    buckets=(1, 2, 4, 8, 16, 32, 64),
+)
+
+# Entities returned, which is what a caller ultimately consumes. Zero for a
+# whole batch is the signature of a schema whose labels do not match the text.
+entities_metric = Histogram(
+    "elide_ner_entities_found",
+    "Entities returned per text.",
+    buckets=(0, 1, 2, 4, 8, 16, 32, 64),
 )
 
 # BentoML builds the image from this config (`bentoml build` + `containerize`);
@@ -88,9 +124,17 @@ image = (
 @bentoml.service(
     name="elide-ner",
     image=image,
-    # F32 weights are ~1.2 GB resident; give headroom for the runtime. Drop the
-    # memory request when running with ELIDE_BENTO_NER_QUANTIZE.
-    resources={"cpu": "2", "memory": "2Gi"},
+    # Sized to the batch this service accepts, which is what 2Gi did not do:
+    # the weights alone are ~1.92 GiB resident, and an extraction adds a few
+    # hundred MiB of activations on top, so a batch past about four exhausted
+    # the limit and the worker was killed mid-request. Measured peak at a batch
+    # of 16 with a twelve-label schema is ~2.35 GiB; 4Gi is a deliberate margin
+    # over that for longer segments and larger schemas.
+    #
+    # max_batch_size below and this figure are one decision, not two: raising
+    # either without the other is what broke. Drop this when running with
+    # ELIDE_BENTO_NER_QUANTIZE, whose weights are far smaller.
+    resources={"cpu": "2", "memory": "4Gi"},
     traffic={"timeout": 60},
     # Declared with defaults so they're optional + documented in the bento
     # manifest. The model is the single GLiNER2 id; HF_HUB_OFFLINE keeps the
@@ -114,6 +158,7 @@ class NerService:
             module = backend.load()
             self.engine = module.Engine()
             self._too_long = module.TextTooLongError
+            self._too_many_labels = module.TooManyLabelsError
         except Exception as exc:
             # Log before raising: the RuntimeError below is what a reader sees
             # first, and its cause is only in the chained traceback — which a
@@ -167,6 +212,7 @@ class NerService:
     # raising this costs idle latency nothing.
     @bentoml.api(batchable=True, max_batch_size=32, max_latency_ms=15000)
     def recognize(self, requests: list[NerRequest], ctx: bentoml.Context) -> list[NerResponse]:
+        call_started = time.monotonic()
         batch_size_metric.observe(len(requests))
         rid = request_id(ctx)
         logger.info("recognize batch=%d req_id=%s", len(requests), rid)
@@ -177,10 +223,21 @@ class NerService:
         # reuses this encode rather than tokenizing a second time.
         token_counts: list[int] = []
         for req in requests:
+            labels = len(req.schema_.entities)
+            labels_metric.observe(labels)
             try:
-                token_counts.append(self.engine.check_length(req.text))
-            except self._too_long as exc:
+                self.engine.check_labels(labels)
+                tokens = self.engine.check_length(req.text)
+            except self._too_many_labels as exc:
+                rejected_metric.labels(reason="labels").inc()
+                logger.warning("rejected: %s (req_id=%s)", exc, rid)
                 raise InvalidArgument(str(exc)) from exc
+            except self._too_long as exc:
+                rejected_metric.labels(reason="tokens").inc()
+                logger.warning("rejected: %s (req_id=%s)", exc, rid)
+                raise InvalidArgument(str(exc)) from exc
+            tokens_metric.observe(tokens)
+            token_counts.append(tokens)
 
         # Group requests that share an identical schema + threshold so each group
         # is one batched extraction call. Distinct schemas run separately.
@@ -200,11 +257,28 @@ class NerService:
                 )
                 for i, resp in zip(idxs, responses, strict=True):
                     by_index[i] = resp
+                    entities_metric.observe(len(resp.entities))
         except Exception as exc:
             # Surface inference failures as a clean 500 rather than a raw stack
             # trace; the error is visible, not silently swallowed.
             logger.exception("inference failed (req_id=%s)", rid)
             raise InternalServerError("NER inference failed") from exc
+
+        # One line per call carrying what the metrics summarize, so a single
+        # request can be explained from the log alone without a scrape: how
+        # many extractions the batch became (distinct schemas do not share a
+        # call), how long they took, and whether anything was found. A batch
+        # that returns nothing is the symptom of a schema that does not match
+        # the text, and it is otherwise indistinguishable from a quiet success.
+        found = sum(len(r.entities) for r in by_index.values())
+        logger.info(
+            "recognized batch=%d groups=%d entities=%d elapsed=%.3fs req_id=%s",
+            len(requests),
+            len(groups),
+            found,
+            time.monotonic() - call_started,
+            rid,
+        )
 
         # Every index was covered (the groups partition range(len(requests))).
         return [by_index[i] for i in range(len(requests))]

@@ -202,3 +202,61 @@ def test_check_length_returns_the_count_it_measured():
 
     with pytest.raises(TextTooLongError):
         engine.check_length("a b c d e f g")
+
+
+def test_a_schema_with_too_many_labels_is_refused(monkeypatch):
+    """Labels were the one cost dimension nothing bounded.
+
+    Tokens are capped per request and requests per batch, so a caller could
+    only overrun the service's memory by asking for labels — and an overrun
+    worker is killed mid-request, dropping the connection with no response.
+    A limit makes that a 400 instead.
+    """
+    from elide_ner.backend import gliner2
+
+    engine = gliner2.Engine.__new__(gliner2.Engine)
+    engine.max_labels = 64
+
+    engine.check_labels(64)  # at the limit, accepted
+
+    with pytest.raises(gliner2.TooManyLabelsError) as excinfo:
+        engine.check_labels(65)
+
+    assert "65" in str(excinfo.value) and "64" in str(excinfo.value)
+
+
+def test_an_absurdly_long_input_is_refused_without_tokenizing(monkeypatch):
+    """The pre-check exists so rejection cost does not scale with input size.
+
+    Tokenizing an 8 MB body to learn it is seventeen times over the limit took
+    4.2s, and the handler is sync, so that time comes out of every other
+    caller's latency. A character bound is O(1).
+    """
+    from elide_ner.backend import gliner2
+
+    engine = gliner2.Engine.__new__(gliner2.Engine)
+    engine.max_tokens = 512
+
+    def fail(_text: str) -> int:
+        raise AssertionError("the tokenizer must not run on an over-long input")
+
+    engine.count_tokens = fail
+
+    with pytest.raises(gliner2.TextTooLongError) as excinfo:
+        engine.check_length("x" * (512 * gliner2.MAX_CHARS_PER_TOKEN + 1))
+
+    assert "characters" in str(excinfo.value)
+
+
+def test_text_that_could_still_fit_reaches_the_tokenizer():
+    """The bound must not refuse text that would have fit: a token is at least
+    ~2 characters, so up to the ratio the real count decides. Whitespace-heavy
+    text is the case that makes a character bound look wrong — 3002 characters
+    there is 5 tokens."""
+    from elide_ner.backend import gliner2
+
+    engine = gliner2.Engine.__new__(gliner2.Engine)
+    engine.max_tokens = 512
+    engine.count_tokens = lambda text: 5
+
+    assert engine.check_length("a" + " " * 3000 + "b") == 5

@@ -69,8 +69,18 @@ _G2Result = dict[str, _G2Group]
 _EntityValue = str | dict[str, str | float]
 
 
+# An upper bound on how many characters one token can represent. Used only to
+# reject early: too high merely costs a wasted encode, too low would refuse
+# text that would have fit, so it is set above every ratio measured.
+MAX_CHARS_PER_TOKEN = 6
+
+
 class TextTooLongError(ValueError):
     """Input exceeds the model's token limit (would be silently truncated)."""
+
+
+class TooManyLabelsError(ValueError):
+    """Schema asks for more labels than one extraction may carry."""
 
 
 class Engine:
@@ -79,6 +89,7 @@ class Engine:
     def __init__(self) -> None:
         self.model_id = config.model_id()
         self.max_tokens = config.max_tokens()
+        self.max_labels = config.max_labels()
         self._model = _load(self.model_id)
         # The encoder tokenizer, used to enforce the token limit precisely (the
         # model silently truncates above it, so we must reject, not truncate).
@@ -94,6 +105,19 @@ class Engine:
         as usage without a second tokenizer pass — this check already pays for
         the encode.
         """
+        # Reject on characters before paying for an encode. A token is never
+        # fewer than ~2 characters for any script this model handles (measured
+        # 2.07 for URL/UUID text, 2.61 for CJK, 4.67 for German), so text past
+        # the limit times this ratio cannot fit however it tokenizes. Without
+        # the pre-check, rejecting an 8 MB input costs 4.2s of tokenizing to
+        # learn it is seventeen times too long — and the handler is sync, so
+        # that time is taken from every other caller.
+        if len(text) > self.max_tokens * MAX_CHARS_PER_TOKEN:
+            raise TextTooLongError(
+                f"input is {len(text)} characters; more than "
+                f"{self.max_tokens * MAX_CHARS_PER_TOKEN} cannot fit in "
+                f"{self.max_tokens} tokens"
+            )
         n = self.count_tokens(text)
         if n > self.max_tokens:
             raise TextTooLongError(
@@ -101,6 +125,21 @@ class Engine:
                 "(the model truncates above this, so it is rejected)"
             )
         return n
+
+    def check_labels(self, count: int) -> None:
+        """Reject a schema asking for more labels than one call may carry.
+
+        An extraction's cost is roughly tokens x labels, and tokens are already
+        bounded by :meth:`check_length`. Labels were the one dimension nothing
+        capped, so a single request could ask for enough of them to exhaust the
+        memory the service declares — and an exhausted worker is killed
+        mid-request, which drops the connection with no response and costs a
+        model reload. A limit here turns that into a 400 naming the problem.
+        """
+        if count > self.max_labels:
+            raise TooManyLabelsError(
+                f"schema asks for {count} labels; the limit is {self.max_labels}"
+            )
 
     def recognize(
         self,

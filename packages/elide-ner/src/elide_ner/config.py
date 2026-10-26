@@ -19,10 +19,17 @@ COMPILE_ENV = "ELIDE_BENTO_NER_COMPILE"
 # and silently truncates above it, so over-length input is rejected rather than
 # letting the tail (and any PII in it) be dropped unseen.
 MAX_TOKENS_ENV = "ELIDE_BENTO_NER_MAX_TOKENS"
+MAX_LABELS_ENV = "ELIDE_BENTO_NER_MAX_LABELS"
 
 # SOTA PII GLiNER2 model (arxiv 2605.09973), Apache-2.0, CPU-viable, multilingual.
 DEFAULT_MODEL = "fastino/gliner2-privacy-filter-PII-multi"
 DEFAULT_MAX_TOKENS = 512
+# Labels are the second dimension of an extraction's cost, and the only one a
+# caller could leave unbounded: tokens are capped per request and requests per
+# batch, but nothing limited how many labels one request asks for. 64 is well
+# above any schema in use (the PII set is ~12) and far below what would
+# exhaust the memory the service declares.
+DEFAULT_MAX_LABELS = 64
 
 
 def model_id() -> str:
@@ -40,6 +47,11 @@ def compile_model() -> bool:
 def max_tokens() -> int:
     raw = os.getenv(MAX_TOKENS_ENV, "").strip()
     return int(raw) if raw else DEFAULT_MAX_TOKENS
+
+
+def max_labels() -> int:
+    raw = os.getenv(MAX_LABELS_ENV, "").strip()
+    return int(raw) if raw else DEFAULT_MAX_LABELS
 
 
 def _flag(env: str) -> bool:

@@ -67,7 +67,7 @@ elide-template = { path = "./crates/elide-template", version = "0.1.0" }
 # Hosted-service clients, used only by the adapters that wrap them.
 aws-sdk-textract = { version = "1.113", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
 bentoml = { version = "0.6", default-features = false, features = ["rustls-tls", "tracing"] }
-deepgram = { version = "0.13", default-features = false, features = ["listen"] }
+deepgram = { version = "0.14", default-features = false, features = ["listen"] }
 google-cloud-documentai-v1 = { version = "1.16", default-features = false, features = ["default-rustls-provider"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 

@@ -17,12 +17,15 @@
 mod request;
 mod response;
 
+use std::time::Duration;
+
 use bentoml::{Client, Endpoint};
 use elide_core::Result;
 use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelEvent;
 use elide_ner::backend::{NerRequest, NerResponse};
 use hipstr::HipStr;
+use uuid::Uuid;
 
 use self::request::{Recognize, WireNerRequest};
 use self::response::WireNerResponse;
@@ -42,6 +45,10 @@ pub struct BentoNer {
     /// Pre-built endpoint at the `/recognize` route. Cloned per
     /// call so per-request headers (`x-request-id`) layer onto a
     /// fresh instance without rebuilding the route.
+    /// Kept past construction so readiness can be probed: `/readyz` is a
+    /// service-level endpoint, not a route, and `Endpoint` does not expose the
+    /// client it was built from.
+    client: Client,
     endpoint: Endpoint,
     /// Service-side model identifier echoed in provenance.
     model_id: HipStr<'static>,
@@ -64,9 +71,31 @@ impl BentoNer {
             .map_err(BentoError::Transport)?;
         Ok(Self {
             endpoint: client.endpoint(ROUTE),
+            client,
             model_id: model_id.into(),
             default_threshold: 0.5,
         })
+    }
+
+    /// Wait for the service to report itself ready, or give up after
+    /// `timeout`.
+    ///
+    /// Construction does not connect, so the first call to a service that is
+    /// still loading its model fails as a transport error — and the window is
+    /// not small: these services bind the port before the model is loaded, and
+    /// a restarted container spends ~9s reloading it. A caller that starts
+    /// alongside the service should wait here rather than discover this one
+    /// failed request at a time.
+    ///
+    /// Not called from [`new`](Self::new): construction stays non-async and
+    /// free, so a caller that already knows the service is up pays nothing,
+    /// and one that does not chooses its own deadline.
+    pub async fn wait_until_ready(&self, timeout: Duration, interval: Duration) -> Result<()> {
+        self.client
+            .wait_until_ready(timeout, interval)
+            .await
+            .map_err(BentoError::Transport)?;
+        Ok(())
     }
 
     /// Override the per-request default confidence threshold (the
@@ -91,10 +120,20 @@ impl BentoNer {
             .iter()
             .map(|r| WireNerRequest::from_request(r, self.default_threshold))
             .collect();
-        let mut endpoint = self.endpoint.clone();
-        if let Some(id) = requests.iter().find_map(|r| r.correlation_id) {
-            endpoint = endpoint.with_request_id(id.to_string());
-        }
+        // Always sent, generated when the caller has none: the id is what ties
+        // a service-side log line or rejection to the job that caused it, and
+        // without one the service logs `req_id=None` for every call — which is
+        // exactly when that correlation is wanted. A generated id does not
+        // reach back to a caller's own job, but it still groups the service's
+        // own records for one call.
+        let request_id = requests
+            .iter()
+            .find_map(|r| r.correlation_id)
+            .unwrap_or_else(Uuid::new_v4);
+        let endpoint = self
+            .endpoint
+            .clone()
+            .with_request_id(request_id.to_string());
         let wire: Vec<WireNerResponse> = endpoint
             .invoke(&Recognize { requests: &body })
             .await

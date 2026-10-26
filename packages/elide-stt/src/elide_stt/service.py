@@ -26,7 +26,7 @@ import bentoml
 from bentoml.exceptions import BentoMLException, InternalServerError, InvalidArgument
 from elide_core.runtime import get_logger, request_id
 from elide_core.stt.v1 import SttRequest, SttResponse
-from prometheus_client import Histogram
+from prometheus_client import Counter, Histogram
 
 from elide_stt import config
 from elide_stt.engine import SAMPLE_RATE, AudioTooLongError, Engine
@@ -43,6 +43,15 @@ logger = get_logger("nvisy.stt")
 # vLLM, are GPU-bound, and several are English-only. This picks ecosystem fit
 # and CPU viability over raw accuracy; see the README.
 DEFAULT_MODEL = "large-v3-turbo"
+
+# Which bound a refused request breached. BentoML counts 400s; it cannot say
+# whether the payload was oversized, malformed, empty, or simply too long to
+# transcribe — and those point at different faults upstream.
+rejected_metric = Counter(
+    "elide_stt_rejected_total",
+    "Requests refused before inference, by which bound they breached.",
+    labelnames=("reason",),
+)
 
 duration_metric = Histogram(
     "elide_stt_audio_seconds",
@@ -149,6 +158,8 @@ class SttService:
         try:
             seconds = self.engine.check_duration(audio)
         except AudioTooLongError as exc:
+            rejected_metric.labels(reason="too_long").inc()
+            logger.warning("rejected: %s (req_id=%s)", exc, rid)
             raise InvalidArgument(str(exc)) from exc
 
         duration_metric.observe(seconds)
@@ -195,6 +206,7 @@ def _decode_audio(
         # refuses an oversized body before allocating the decoded form.
         encoded_limit = (max_bytes + 2) // 3 * 4
         if len(audio_b64) > encoded_limit:
+            rejected_metric.labels(reason="oversized").inc()
             raise InvalidArgument(
                 f"audio payload is {len(audio_b64)} base64 characters; "
                 f"the limit is {encoded_limit} ({max_bytes} bytes)"
@@ -202,8 +214,10 @@ def _decode_audio(
     try:
         raw = base64.b64decode(audio_b64, validate=True)
     except (binascii.Error, ValueError) as exc:
+        rejected_metric.labels(reason="base64").inc()
         raise InvalidArgument("audio is not valid base64") from exc
     if not raw:
+        rejected_metric.labels(reason="empty").inc()
         raise InvalidArgument("audio is empty")
 
     import librosa

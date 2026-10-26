@@ -32,7 +32,7 @@ from elide_core.ocr.v1 import (
     Word,
 )
 from elide_core.runtime import get_logger, request_id, resolve_model
-from prometheus_client import Histogram
+from prometheus_client import Counter, Histogram
 
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
@@ -47,6 +47,23 @@ batch_size_metric = Histogram(
     "elide_ocr_batch_size",
     "Number of images merged into one recognize() call.",
     buckets=(1, 2, 4, 8, 16),
+)
+
+# Which bound a refused request breached. BentoML already counts 400s; what it
+# cannot say is whether the caller sent corrupt base64 or bytes that are not an
+# image, and those point at different faults upstream.
+rejected_metric = Counter(
+    "elide_ocr_rejected_total",
+    "Requests refused before inference, by which bound they breached.",
+    labelnames=("reason",),
+)
+
+# Words returned per image. Zero across a batch is the signature of a blank or
+# unreadable scan rather than a quiet success.
+words_metric = Histogram(
+    "elide_ocr_words_found",
+    "Words returned per image.",
+    buckets=(0, 1, 8, 32, 128, 512, 2048),
 )
 
 # Build-time image spec, skipped inside the container. `requirements_file`
@@ -153,8 +170,9 @@ class OcrService:
         batch_size_metric.observe(len(requests))
         rid = request_id(ctx)
         logger.info("recognize batch=%d req_id=%s", len(requests), rid)
+        started = time.monotonic()
         try:
-            return [self._recognize_one(req) for req in requests]
+            responses = [self._recognize_one(req) for req in requests]
         except BentoMLException:
             # Typed request errors (e.g. InvalidArgument for bad image bytes)
             # carry their own status; let them through unchanged.
@@ -162,6 +180,29 @@ class OcrService:
         except Exception as exc:
             logger.exception("inference failed (req_id=%s)", rid)
             raise InternalServerError("OCR inference failed") from exc
+
+        # One line per call carrying what the metrics summarize, so a request
+        # can be explained from the log alone. Zero words across a batch means
+        # a blank or unreadable scan, which is otherwise indistinguishable
+        # from a quiet success.
+        words = 0
+        for resp in responses:
+            found = sum(
+                len(line.words)
+                for page in resp.pages
+                for block in page.blocks
+                for line in block.lines
+            )
+            words_metric.observe(found)
+            words += found
+        logger.info(
+            "recognized batch=%d words=%d elapsed=%.3fs req_id=%s",
+            len(requests),
+            words,
+            time.monotonic() - started,
+            rid,
+        )
+        return responses
 
     def _recognize_one(self, req: OcrRequest) -> OcrResponse:
         image = _decode_image(req.image)
@@ -180,10 +221,14 @@ def _decode_image(image_b64: str) -> PILImage:
     try:
         raw = base64.b64decode(image_b64, validate=True)
     except (binascii.Error, ValueError) as exc:
+        rejected_metric.labels(reason="base64").inc()
+        logger.warning("rejected: image is not valid base64")
         raise InvalidArgument("image is not valid base64") from exc
     try:
         return Image.open(io.BytesIO(raw)).convert("RGB")
     except UnidentifiedImageError as exc:
+        rejected_metric.labels(reason="not_an_image").inc()
+        logger.warning("rejected: image bytes are not a recognizable image")
         raise InvalidArgument("image bytes are not a recognizable image") from exc
 
 

@@ -228,9 +228,7 @@ def _decode_image(image_b64: str, rid: str | None = None) -> PILImage:
         return Image.open(io.BytesIO(raw)).convert("RGB")
     except UnidentifiedImageError as exc:
         rejected_metric.labels(reason="not_an_image").inc()
-        logger.warning(
-            "rejected: image bytes are not a recognizable image (req_id=%s)", rid
-        )
+        logger.warning("rejected: image bytes are not a recognizable image (req_id=%s)", rid)
         raise InvalidArgument("image bytes are not a recognizable image") from exc
 
 

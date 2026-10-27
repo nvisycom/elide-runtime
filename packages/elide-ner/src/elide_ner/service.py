@@ -26,11 +26,11 @@ from elide_ner.image import image
 from elide_ner.metrics import (
     batch_size_metric,
     entities_metric,
-    labels_metric,
     rejected_metric,
+    schema_metric,
     tokens_metric,
 )
-from elide_ner.schema import label_count, schema_key
+from elide_ner.schema import schema_key, schema_size
 
 logger = get_logger("nvisy.ner")
 
@@ -72,7 +72,7 @@ class NerService:
             module = backend.load()
             self.engine = module.Engine()
             self._too_long = module.TextTooLongError
-            self._too_many_labels = module.TooManyLabelsError
+            self._schema_too_large = module.SchemaTooLargeError
         except Exception as exc:
             # Log before raising: the RuntimeError below is what a reader sees
             # first, and its cause is only in the chained traceback — which a
@@ -137,13 +137,13 @@ class NerService:
         # reuses this encode rather than tokenizing a second time.
         token_counts: list[int] = []
         for req in requests:
-            labels = label_count(req.schema_)
-            labels_metric.observe(labels)
+            size = schema_size(req.schema_)
+            schema_metric.observe(size)
             try:
-                self.engine.check_labels(labels)
+                self.engine.check_schema(size)
                 tokens = self.engine.check_length(req.text)
-            except self._too_many_labels as exc:
-                rejected_metric.labels(reason="labels").inc()
+            except self._schema_too_large as exc:
+                rejected_metric.labels(reason="schema").inc()
                 logger.warning("rejected: %s (req_id=%s)", exc, rid)
                 raise InvalidArgument(str(exc)) from exc
             except self._too_long as exc:

@@ -75,8 +75,8 @@ class TextTooLongError(ValueError):
     """Input exceeds the model's token limit (would be silently truncated)."""
 
 
-class TooManyLabelsError(ValueError):
-    """Schema asks for more labels than one extraction may carry."""
+class SchemaTooLargeError(ValueError):
+    """Schema is larger than one extraction may carry."""
 
 
 class Engine:
@@ -85,7 +85,7 @@ class Engine:
     def __init__(self) -> None:
         self.model_id = config.model_id()
         self.max_tokens = config.max_tokens()
-        self.max_labels = config.max_labels()
+        self.max_schema_bytes = config.max_schema_bytes()
         self._model = _load(self.model_id)
         # The encoder tokenizer, used to enforce the token limit precisely (the
         # model silently truncates above it, so we must reject, not truncate).
@@ -113,13 +113,17 @@ class Engine:
         # at least one token's worth of a character — a token never spans more
         # than MAX_CHARS_PER_TOKEN of them for any script this model handles
         # (measured 2.07 on URL/UUID text, 2.61 CJK, 4.67 German).
-        dense = sum(1 for ch in text if not ch.isspace())
-        if dense > self.max_tokens * MAX_CHARS_PER_TOKEN:
-            raise TextTooLongError(
-                f"input is {dense} non-whitespace characters; more than "
-                f"{self.max_tokens * MAX_CHARS_PER_TOKEN} cannot fit in "
-                f"{self.max_tokens} tokens"
-            )
+        limit = self.max_tokens * MAX_CHARS_PER_TOKEN
+        # Total length is an upper bound on the non-whitespace count, so text
+        # shorter than the limit cannot breach it however it is composed and
+        # needs no scan. Ordinary traffic takes this branch and pays a `len`.
+        if len(text) > limit:
+            dense = len("".join(text.split()))
+            if dense > limit:
+                raise TextTooLongError(
+                    f"input is {dense} non-whitespace characters; more than "
+                    f"{limit} cannot fit in {self.max_tokens} tokens"
+                )
         n = self.count_tokens(text)
         if n > self.max_tokens:
             raise TextTooLongError(
@@ -128,19 +132,20 @@ class Engine:
             )
         return n
 
-    def check_labels(self, count: int) -> None:
-        """Reject a schema asking for more labels than one call may carry.
+    def check_schema(self, size: int) -> None:
+        """Reject a schema larger than one call may carry.
 
-        An extraction's cost is roughly tokens x labels, and tokens are already
-        bounded by :meth:`check_length`. Labels were the one dimension nothing
-        capped, so a single request could ask for enough of them to exhaust the
-        memory the service declares — and an exhausted worker is killed
-        mid-request, which drops the connection with no response and costs a
-        model reload. A limit here turns that into a 400 naming the problem.
+        An extraction's cost is roughly tokens x schema, and tokens are
+        already bounded by :meth:`check_length`. The schema was the other
+        dimension, and bounding it by counting labels did not work: labels and
+        descriptions alike reach the model, so one entity with a 205 KB
+        description counted as a single label and exhausted the memory the
+        service declares — a killed worker drops the connection with no
+        response and costs a model reload. Size has no such blind spot.
         """
-        if count > self.max_labels:
-            raise TooManyLabelsError(
-                f"schema asks for {count} labels; the limit is {self.max_labels}"
+        if size > self.max_schema_bytes:
+            raise SchemaTooLargeError(
+                f"schema is {size} bytes; the limit is {self.max_schema_bytes}"
             )
 
     def recognize(

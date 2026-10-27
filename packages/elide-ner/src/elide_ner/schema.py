@@ -10,16 +10,23 @@ from __future__ import annotations
 from elide_core.ner.v1 import NerRequest, Schema
 
 
-def label_count(schema: Schema) -> int:
-    """Every label the schema puts in front of the model.
+def schema_size(schema: Schema) -> int:
+    """Bytes the schema serializes to — what the service bounds it by.
 
-    Entities are the only group the schema carries: classifications and
-    structures were removed because their contents reach the model and so
-    were a way past this very bound — a field's `choices` are embedded, so one
-    field with five thousand of them counted as a single label and killed the
-    worker.
+    Size rather than a count of labels, because counting bounds the wrong
+    thing: every label, description and threshold reaches the model, and a
+    count cannot see the text inside what it counts. Four attempts to bound
+    this by counting were each bypassed by moving bytes somewhere the count
+    did not look — a classification's labels, a structure field's `choices`,
+    then a single entity's `description`, where 205 KB counted as one label
+    and killed the worker.
+
+    Serialized size has no such blind spot: anything a caller can put in the
+    schema is in the JSON, so one number covers the labels, the descriptions
+    and whatever a future field adds. It is also what `schema_key` already
+    computes for batching, so the bound costs nothing a call did not pay.
     """
-    return len(schema.entities)
+    return len(schema.model_dump_json().encode())
 
 
 def schema_key(req: NerRequest) -> tuple[float, str]:

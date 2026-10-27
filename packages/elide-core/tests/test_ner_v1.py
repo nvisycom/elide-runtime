@@ -42,6 +42,19 @@ def test_empty_text_rejected():
         NerRequest.model_validate({"text": "", "schema": {"entities": [{"label": "a"}]}})
 
 
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [(5, 5), (5, 4)],
+    ids=["empty span", "inverted span"],
+)
+def test_entity_rejects_a_non_positive_span(start, end):
+    """`end <= start` has two cases, and an empty span is the easier to write
+    by accident: a zero-width match is not a match, and an inverted one is a
+    coordinate bug that would silently index backwards downstream."""
+    with pytest.raises(ValueError, match="end must be greater than start"):
+        Entity(text="x", label="person", score=0.9, start=start, end=end)
+
+
 def test_response_serializes_entities_in_camelcase():
     """The wire form is camelCase; entity spans and scores must survive it."""
     resp = NerResponse(

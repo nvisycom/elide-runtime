@@ -38,12 +38,13 @@ tokens_metric = Histogram(
     buckets=(16, 32, 64, 128, 256, 384, 448, 512),
 )
 
-# Labels per request: the other half of an extraction's cost, and the
-# dimension that went unbounded long enough to OOM a worker.
-labels_metric = Histogram(
-    "elide_ner_schema_labels",
-    "Entity labels requested per text.",
-    buckets=(1, 2, 4, 8, 16, 32, 64),
+# Bytes the schema serializes to, against the limit the service enforces. The
+# useful shape is how close traffic runs to the cap: a caller drifting toward
+# it is about to start seeing refusals.
+schema_metric = Histogram(
+    "elide_ner_schema_bytes",
+    "Bytes the request schema serializes to.",
+    buckets=(256, 512, 1024, 4096, 8192, 16384, 32768),
 )
 
 # Entities returned, which is what a caller ultimately consumes. Zero for a

@@ -163,25 +163,37 @@ def test_check_length_returns_the_count_it_measured():
         engine.check_length("a b c d e f g")
 
 
-def test_a_schema_with_too_many_labels_is_refused(monkeypatch):
-    """Labels were the one cost dimension nothing bounded.
+def test_a_schema_larger_than_the_limit_is_refused():
+    """The schema is bounded by size, not by counting its labels.
 
-    Tokens are capped per request and requests per batch, so a caller could
-    only overrun the service's memory by asking for labels — and an overrun
-    worker is killed mid-request, dropping the connection with no response.
-    A limit makes that a 400 instead.
+    Counting was bypassed four times by moving bytes where the count did not
+    look — a classification's labels, a structure field's `choices`, then one
+    entity's `description`, where 205 KB counted as a single label and killed
+    the worker. Serialized size has no such blind spot.
     """
     from elide_ner.backend import gliner2
 
     engine = gliner2.Engine.__new__(gliner2.Engine)
-    engine.max_labels = 64
+    engine.max_schema_bytes = 32 * 1024
 
-    engine.check_labels(64)  # at the limit, accepted
+    engine.check_schema(32 * 1024)  # at the limit, accepted
 
-    with pytest.raises(gliner2.TooManyLabelsError) as excinfo:
-        engine.check_labels(65)
+    with pytest.raises(gliner2.SchemaTooLargeError) as excinfo:
+        engine.check_schema(32 * 1024 + 1)
 
-    assert "65" in str(excinfo.value) and "64" in str(excinfo.value)
+    assert "32768" in str(excinfo.value)
+
+
+def test_a_long_description_counts_toward_the_schema_size():
+    """One entity with a huge description is what a label count cannot see."""
+    from elide_core.ner.v1 import EntitySpec, Schema
+    from elide_ner.schema import schema_size
+
+    small = Schema(entities=[EntitySpec(label="person")])
+    padded = Schema(entities=[EntitySpec(label="person", description="x" * 200_000)])
+
+    assert schema_size(small) < 1024
+    assert schema_size(padded) > 200_000, "a description must count toward the size"
 
 
 def test_an_absurdly_long_input_is_refused_without_tokenizing(monkeypatch):
@@ -236,19 +248,3 @@ def test_whitespace_heavy_input_is_not_refused_on_length(monkeypatch):
     engine.count_tokens = lambda text: 5
 
     assert engine.check_length("a" + " " * 20000 + "b") == 5
-
-
-def test_the_label_count_is_what_the_model_scores():
-    """Entities are the only group now, so the count is their number.
-
-    Classifications and structures were counted here too, and were removed
-    from the schema because their contents reach the model and so bypassed
-    this bound: a field's `choices` are embedded, so one field with five
-    thousand of them counted as a single label and killed the worker.
-    """
-    from elide_core.ner.v1 import EntitySpec, Schema
-    from elide_ner.schema import label_count
-
-    schema = Schema(entities=[EntitySpec(label=f"l{i}") for i in range(7)])
-
-    assert label_count(schema) == 7

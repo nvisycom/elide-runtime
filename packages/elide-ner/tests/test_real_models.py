@@ -10,11 +10,8 @@ from __future__ import annotations
 
 import pytest
 from elide_core.ner.v1 import (
-    ClassificationSpec,
     EntitySpec,
-    FieldSpec,
     Schema,
-    StructureSpec,
 )
 
 pytestmark = pytest.mark.real
@@ -27,14 +24,8 @@ def engine():
     return Engine()
 
 
-def test_entities_classification_and_structure(engine):
-    schema = Schema(
-        entities=[EntitySpec(label="person"), EntitySpec(label="email")],
-        classifications=[ClassificationSpec(task="language", labels=["en", "fr", "de"])],
-        structures=[
-            StructureSpec(name="contact", fields=[FieldSpec(name="name"), FieldSpec(name="email")])
-        ],
-    )
+def test_entity_extraction_against_the_real_model(engine):
+    schema = Schema(entities=[EntitySpec(label="person"), EntitySpec(label="email")])
     [resp] = engine.recognize(
         ["Ada Lovelace, ada@example.com, writes in English."], schema, threshold=0.3
     )
@@ -43,11 +34,8 @@ def test_entities_classification_and_structure(engine):
     assert "person" in labels
     assert labels["person"].text == "Ada Lovelace"
     assert (labels["person"].start, labels["person"].end) == (0, 12)
-
-    assert resp.classifications["language"].label == "en"
-
-    record = resp.structures["contact"][0]
-    assert record["name"][0].text == "Ada Lovelace"
+    assert "email" in labels
+    assert labels["email"].text == "ada@example.com"
 
 
 def test_offline_load_and_infer(monkeypatch):

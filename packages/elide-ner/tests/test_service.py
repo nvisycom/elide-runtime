@@ -3,11 +3,8 @@
 import bentoml
 import pytest
 from elide_core.ner.v1 import (
-    ClassificationSpec,
     EntitySpec,
-    FieldSpec,
     Schema,
-    StructureSpec,
 )
 from elide_ner import config
 
@@ -39,7 +36,7 @@ def test_config_reads_env(monkeypatch):
     assert config.max_tokens() == 256
 
 
-def test_build_schema_translates_all_groups():
+def test_build_schema_translates_entities():
     # build_schema only needs gliner2.Schema/RegexValidator; fake them.
     import sys
     import types
@@ -80,60 +77,22 @@ def test_build_schema_translates_all_groups():
             EntitySpec(label="person", description="a name"),
             EntitySpec(label="email", threshold=0.9),  # threshold -> dict form
         ],
-        classifications=[
-            ClassificationSpec(task="lang", labels=["en", "fr"], multi_label=True, threshold=0.7),
-        ],
-        structures=[StructureSpec(name="c", fields=[FieldSpec(name="email", pattern="x")])],
     )
     g = build_schema(schema)
     # bare label keeps its description string; a thresholded label uses the dict form
     assert ("entities", {"person": "a name", "email": {"threshold": 0.9}}) in g.calls
-    # per-task threshold flows through as cls_threshold
-    assert ("cls", "lang", ("en", "fr"), True, 0.7) in g.calls
-    assert ("struct", "c") in g.calls
-    # the field carries a regex validator (pattern set)
-    assert ("field", "email", "list", True) in g.calls
 
 
 def test_project_maps_confidence_to_score():
     from elide_ner.backend.gliner2 import project
 
-    schema = Schema(
-        entities=[EntitySpec(label="person")],
-        classifications=[
-            ClassificationSpec(task="sentiment", labels=["pos"]),
-            ClassificationSpec(task="topics", labels=["a"], multi_label=True),
-        ],
-        structures=[StructureSpec(name="contact", fields=[FieldSpec(name="name")])],
-    )
+    schema = Schema(entities=[EntitySpec(label="person")])
     result = {
         "entities": {"person": [{"text": "Ada", "confidence": 0.9, "start": 0, "end": 3}]},
-        "sentiment": {"label": "pos", "confidence": 0.7},
-        "topics": [{"label": "a", "confidence": 0.6}],
-        "contact": [{"name": [{"text": "Ada", "confidence": 0.8, "start": 0, "end": 3}]}],
     }
     resp = project(result, schema, "fastino/x")
     assert resp.entities[0].score == 0.9 and resp.entities[0].label == "person"
-    assert resp.classifications["sentiment"].label == "pos"
-    assert resp.classifications["topics"][0].score == 0.6
-    assert resp.structures["contact"][0]["name"][0].text == "Ada"
     assert resp.model_id == "fastino/x"
-
-
-def test_project_routes_empty_groups_by_schema():
-    # An empty classification and an empty structure both come back as []; route
-    # them by the schema's declared types, not by sniffing the value shape.
-    from elide_ner.backend.gliner2 import project
-
-    schema = Schema(
-        classifications=[ClassificationSpec(task="topic", labels=["a", "b"])],
-        structures=[StructureSpec(name="rec", fields=[FieldSpec(name="f")])],
-    )
-    result = {"topic": [], "rec": []}
-    resp = project(result, schema, "fastino/x")
-    # "rec" is a structure (empty list of records), not a classification.
-    assert resp.structures == {"rec": []}
-    assert resp.classifications == {"topic": []}
 
 
 def test_no_backend_uses_a_hosted_api():
@@ -279,21 +238,17 @@ def test_whitespace_heavy_input_is_not_refused_on_length(monkeypatch):
     assert engine.check_length("a" + " " * 20000 + "b") == 5
 
 
-def test_a_schema_is_bounded_across_all_its_groups():
-    """Entities are not the only labels the model is given.
+def test_the_label_count_is_what_the_model_scores():
+    """Entities are the only group now, so the count is their number.
 
-    `build_schema` passes classifications and structures too, so counting only
-    entities bounds nothing: one entity plus two hundred classification tasks
-    passed an entity-only check and OOM-killed the worker, which is the exact
-    failure the limit exists to prevent.
+    Classifications and structures were counted here too, and were removed
+    from the schema because their contents reach the model and so bypassed
+    this bound: a field's `choices` are embedded, so one field with five
+    thousand of them counted as a single label and killed the worker.
     """
-    from elide_core.ner.v1 import ClassificationSpec, EntitySpec, Schema
+    from elide_core.ner.v1 import EntitySpec, Schema
     from elide_ner.schema import label_count
 
-    schema = Schema(
-        entities=[EntitySpec(label="person")],
-        classifications=[ClassificationSpec(task=f"t{i}", labels=["a", "b"]) for i in range(100)],
-    )
+    schema = Schema(entities=[EntitySpec(label=f"l{i}") for i in range(7)])
 
-    # 1 entity + 100 tasks x 2 labels: what the model actually scores.
-    assert label_count(schema) == 201
+    assert label_count(schema) == 7

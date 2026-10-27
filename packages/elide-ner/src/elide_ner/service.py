@@ -2,7 +2,7 @@
 
 The default implementation of the NER wire contract (``elide_core.ner.v1``). A
 single GLiNER2 model serves the deployment (``ELIDE_BENTO_NER_MODEL``); each request
-carries a schema (entities / classifications / structures) and the service runs
+carries a schema of entity labels and the service runs
 one batched extraction.
 
 Run locally::

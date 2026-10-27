@@ -1,6 +1,6 @@
-"""NER v1 response: extracted spans, classifications, and structured records.
+"""NER v1 response: the extracted entity spans.
 
-The response returns each schema group's results. Extracted labels are the
+Extracted labels are the
 model's own (``"person"``, ``"email"``, …), not a shared taxonomy — mapping them
 onto a canonical vocabulary is the consumer's job. Scores are confidences in
 ``[0, 1]``.
@@ -48,18 +48,6 @@ class Entity(_Model):
         return self
 
 
-class ClassLabel(_Model):
-    label: str
-    score: Probability
-
-
-# A classification result: one best label, or a list when multiLabel was set.
-Classification = ClassLabel | list[ClassLabel]
-
-# A structured record: each field name maps to its matched spans.
-Record = dict[str, list[Span]]
-
-
 class TokenUsage(_Model):
     """Encoder tokens the call spent, as the model's own tokenizer counts them.
 
@@ -78,12 +66,6 @@ class TokenUsage(_Model):
 
 class NerResponse(_Model):
     entities: list[Entity] = Field(default_factory=list)
-    classifications: dict[str, Classification] = Field(
-        default_factory=dict, description="Keyed by classification task name."
-    )
-    structures: dict[str, list[Record]] = Field(
-        default_factory=dict, description="Keyed by structure name; a list of records each."
-    )
     model_id: str = Field(description="Hugging Face id of the GLiNER2 model that produced this.")
     tokens: TokenUsage | None = Field(
         default=None,

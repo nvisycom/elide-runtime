@@ -22,30 +22,9 @@ class _FakeSchema:
 
     def __init__(self):
         self.entities_arg = None
-        self.classifications = []
-        self.structures = []
 
     def entities(self, mapping):
         self.entities_arg = mapping
-        return self
-
-    def classification(self, task, labels, multi_label=False, cls_threshold=None):
-        self.classifications.append((task, tuple(labels), multi_label))
-        return self
-
-    def structure(self, name):
-        builder = _FakeStructureBuilder(name)
-        self.structures.append(builder)
-        return builder
-
-
-class _FakeStructureBuilder:
-    def __init__(self, name):
-        self.name = name
-        self.fields = []
-
-    def field(self, name, **kwargs):
-        self.fields.append((name, kwargs))
         return self
 
 
@@ -68,22 +47,13 @@ class _FakeGLiNER2:
         out = []
         for _ in texts:
             result = {}
-            if schema.entities_arg and "person" in schema.entities_arg:
+            # One span per requested label, so a test can tell which schema
+            # produced a response — a hardcoded label cannot distinguish them.
+            if schema.entities_arg:
                 result["entities"] = {
-                    "person": [{"text": "Ada", "confidence": 0.95, "start": 0, "end": 3}]
+                    label: [{"text": "Ada", "confidence": 0.95, "start": 0, "end": 3}]
+                    for label in schema.entities_arg
                 }
-            for task, labels, multi in schema.classifications:
-                if multi:
-                    result[task] = [{"label": labels[0], "confidence": 0.8}]
-                else:
-                    result[task] = {"label": labels[0], "confidence": 0.8}
-            for sb in schema.structures:
-                result[sb.name] = [
-                    {
-                        f: [{"text": "Ada", "confidence": 0.9, "start": 0, "end": 3}]
-                        for f, _ in sb.fields
-                    }
-                ]
             out.append(result)
         return out
 
@@ -132,38 +102,6 @@ def test_entities_extracted(client):
     }
 
 
-def test_token_usage_reported(client):
-    # The fake tokenizer counts one token per word and the fixture caps at 5,
-    # so a three-word input reports 3 of 5 over the wire.
-    resp = _post(client, text="Ada met Bob", schema={"entities": [{"label": "person"}]})
-    assert resp.status_code == 200
-    assert resp.json()[0]["tokens"] == {"input": 3, "limit": 5}
-
-
-def test_classification_single_and_multi(client):
-    single = _post(
-        client, text="Ada", schema={"classifications": [{"task": "s", "labels": ["pos"]}]}
-    )
-    assert single.json()[0]["classifications"]["s"] == {"label": "pos", "score": 0.8}
-    multi = _post(
-        client,
-        text="Ada",
-        schema={"classifications": [{"task": "t", "labels": ["a"], "multiLabel": True}]},
-    )
-    assert multi.json()[0]["classifications"]["t"] == [{"label": "a", "score": 0.8}]
-
-
-def test_structured_record(client):
-    resp = _post(
-        client,
-        text="Ada",
-        schema={"structures": [{"name": "contact", "fields": [{"name": "name"}]}]},
-    )
-    assert resp.status_code == 200
-    rec = resp.json()[0]["structures"]["contact"][0]
-    assert rec["name"][0]["text"] == "Ada"
-
-
 def test_over_length_rejected(client):
     # max tokens is 5; 6 words → 400.
     resp = _post(client, text="a b c d e f", schema={"entities": [{"label": "person"}]})
@@ -176,17 +114,19 @@ def test_empty_schema_rejected(client):
 
 
 def test_mixed_schemas_dispatched(client):
-    # Two different schemas in one batch each get their own result.
+    # Distinct schemas run as separate extractions, and each response must come
+    # back against its own request: the handler groups by schema and reassembles
+    # by index, so a grouping bug shows up as answers swapped between requests.
     resp = client.post(
         "/recognize",
         json={
             "requests": [
                 {"text": "Ada", "schema": {"entities": [{"label": "person"}]}},
-                {"text": "Ada", "schema": {"classifications": [{"task": "s", "labels": ["pos"]}]}},
+                {"text": "Ada", "schema": {"entities": [{"label": "location"}]}},
             ]
         },
     )
     assert resp.status_code == 200
     bodies = resp.json()
-    assert bodies[0]["entities"] and not bodies[0]["classifications"]
-    assert bodies[1]["classifications"] and not bodies[1]["entities"]
+    assert [e["label"] for e in bodies[0]["entities"]] == ["person"]
+    assert [e["label"] for e in bodies[1]["entities"]] == ["location"]

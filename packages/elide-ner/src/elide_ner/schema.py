@@ -13,21 +13,13 @@ from elide_core.ner.v1 import NerRequest, Schema
 def label_count(schema: Schema) -> int:
     """Every label the schema puts in front of the model.
 
-    All three groups reach it (`build_schema` passes entities, classifications
-    and structures alike), and each costs the same kind of work, so counting
-    only `entities` bounds nothing: one entity plus two hundred classification
-    tasks passes an entity-only check and still exhausts the service's memory —
-    measured as an OOM-killed worker, which is the failure the limit exists to
-    prevent.
-
-    A classification contributes its own labels, not one per task, because that
-    is what the model scores.
+    Entities are the only group the schema carries: classifications and
+    structures were removed because their contents reach the model and so
+    were a way past this very bound — a field's `choices` are embedded, so one
+    field with five thousand of them counted as a single label and killed the
+    worker.
     """
-    return (
-        len(schema.entities)
-        + sum(len(c.labels) for c in schema.classifications)
-        + sum(len(st.fields) for st in schema.structures)
-    )
+    return len(schema.entities)
 
 
 def schema_key(req: NerRequest) -> tuple[float, str]:

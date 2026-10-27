@@ -6,7 +6,7 @@ stays cheap.
 Translation happens at two boundaries:
 
 - **schema in:** the wire :class:`~elide_core.ner.v1.Schema` →
-  ``gliner2.Schema`` (entities / classifications / structures, with per-field
+  ``gliner2.Schema`` (entity labels, with per-label
   regex validators).
 - **result out:** gliner2's ``batch_extract`` result dict → the typed
   :class:`~elide_core.ner.v1.NerResponse` groups (gliner2's ``confidence`` is
@@ -18,21 +18,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from elide_core.ner.v1 import (
-    Classification,
-    ClassLabel,
     Entity,
     EntitySpec,
     NerResponse,
-    Record,
     Schema,
-    Span,
     TokenUsage,
 )
 
 from elide_ner import config
 
 if TYPE_CHECKING:
-    from gliner2 import GLiNER2, RegexValidator
+    from gliner2 import GLiNER2
     from gliner2 import Schema as G2Schema
 
 
@@ -194,7 +190,6 @@ def _load(model_id: str) -> GLiNER2:
 
 def build_schema(schema: Schema) -> G2Schema:
     """Translate the wire schema into a ``gliner2.Schema``."""
-    from gliner2 import RegexValidator
     from gliner2 import Schema as G2Schema
 
     g = G2Schema()
@@ -204,27 +199,6 @@ def build_schema(schema: Schema) -> G2Schema:
         # Use the dict form per label only when a threshold is set, so a bare
         # label stays a bare label.
         g.entities({e.label: _entity_value(e) for e in schema.entities})
-
-    for c in schema.classifications:
-        if c.threshold is None:
-            g.classification(c.task, c.labels, multi_label=c.multi_label)
-        else:
-            g.classification(c.task, c.labels, multi_label=c.multi_label, cls_threshold=c.threshold)
-
-    for s in schema.structures:
-        builder = g.structure(s.name)
-        for f in s.fields:
-            validators: list[RegexValidator] | None = (
-                [RegexValidator(f.pattern)] if f.pattern else None
-            )
-            builder.field(
-                f.name,
-                dtype=f.dtype,
-                choices=f.choices,
-                description=f.description,
-                threshold=f.threshold,
-                validators=validators,
-            )
 
     return g
 
@@ -273,45 +247,8 @@ def project(
         for s in spans
     ]
 
-    classifications: dict[str, Classification] = {
-        c.task: _project_classification(cast("_G2ClassLabel | list[_G2ClassLabel]", result[c.task]))
-        for c in schema.classifications
-        if c.task in result
-    }
-    structures: dict[str, list[Record]] = {
-        s.name: [
-            _project_record(rec) for rec in cast("list[dict[str, list[_G2Span]]]", result[s.name])
-        ]
-        for s in schema.structures
-        if s.name in result
-    }
-
     return NerResponse(
         entities=entities,
-        classifications=classifications,
-        structures=structures,
         model_id=model_id,
         tokens=tokens,
     )
-
-
-def _project_classification(value: _G2ClassLabel | list[_G2ClassLabel]) -> Classification:
-    # Single-label is a {label, confidence} dict; multi-label is a list of them.
-    if isinstance(value, list):
-        return [ClassLabel(label=v["label"], score=float(v["confidence"])) for v in value]
-    return ClassLabel(label=value["label"], score=float(value["confidence"]))
-
-
-def _project_record(record: dict[str, list[_G2Span]]) -> Record:
-    return {
-        field: [
-            Span(
-                text=s["text"],
-                score=float(s["confidence"]),
-                start=int(s["start"]),
-                end=int(s["end"]),
-            )
-            for s in spans
-        ]
-        for field, spans in record.items()
-    }

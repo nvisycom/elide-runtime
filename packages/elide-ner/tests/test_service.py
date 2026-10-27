@@ -260,3 +260,40 @@ def test_text_that_could_still_fit_reaches_the_tokenizer():
     engine.count_tokens = lambda text: 5
 
     assert engine.check_length("a" + " " * 3000 + "b") == 5
+
+
+def test_whitespace_heavy_input_is_not_refused_on_length(monkeypatch):
+    """The character bound must be a bound, not an estimate.
+
+    Whitespace collapses in the tokenizer: 20,002 characters of spaces is five
+    tokens. Counting every character refuses text that fits comfortably — the
+    opposite of the pre-check's purpose, and the kind of refusal a caller
+    cannot act on because the text really is short.
+    """
+    from elide_ner.backend import gliner2
+
+    engine = gliner2.Engine.__new__(gliner2.Engine)
+    engine.max_tokens = 512
+    engine.count_tokens = lambda text: 5
+
+    assert engine.check_length("a" + " " * 20000 + "b") == 5
+
+
+def test_a_schema_is_bounded_across_all_its_groups():
+    """Entities are not the only labels the model is given.
+
+    `build_schema` passes classifications and structures too, so counting only
+    entities bounds nothing: one entity plus two hundred classification tasks
+    passed an entity-only check and OOM-killed the worker, which is the exact
+    failure the limit exists to prevent.
+    """
+    from elide_core.ner.v1 import ClassificationSpec, EntitySpec, Schema
+    from elide_ner.schema import label_count
+
+    schema = Schema(
+        entities=[EntitySpec(label="person")],
+        classifications=[ClassificationSpec(task=f"t{i}", labels=["a", "b"]) for i in range(100)],
+    )
+
+    # 1 entity + 100 tasks x 2 labels: what the model actually scores.
+    assert label_count(schema) == 201

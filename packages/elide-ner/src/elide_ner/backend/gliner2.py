@@ -105,16 +105,22 @@ class Engine:
         as usage without a second tokenizer pass — this check already pays for
         the encode.
         """
-        # Reject on characters before paying for an encode. A token is never
-        # fewer than ~2 characters for any script this model handles (measured
-        # 2.07 for URL/UUID text, 2.61 for CJK, 4.67 for German), so text past
-        # the limit times this ratio cannot fit however it tokenizes. Without
-        # the pre-check, rejecting an 8 MB input costs 4.2s of tokenizing to
-        # learn it is seventeen times too long — and the handler is sync, so
-        # that time is taken from every other caller.
-        if len(text) > self.max_tokens * MAX_CHARS_PER_TOKEN:
+        # Reject on characters before paying for an encode, but only where no
+        # tokenizer could disagree. Rejecting an 8 MB input costs 4.2s of
+        # tokenizing to learn it is seventeen times too long, and the handler
+        # is sync, so that time comes out of every other caller.
+        #
+        # The bound has to be a bound, not an estimate: characters per token
+        # has no useful floor, because whitespace collapses. 20,002 characters
+        # of spaces is five tokens, so a ratio-based cut refuses text that
+        # fits. Only non-whitespace characters are counted, and each is worth
+        # at least one token's worth of a character — a token never spans more
+        # than MAX_CHARS_PER_TOKEN of them for any script this model handles
+        # (measured 2.07 on URL/UUID text, 2.61 CJK, 4.67 German).
+        dense = sum(1 for ch in text if not ch.isspace())
+        if dense > self.max_tokens * MAX_CHARS_PER_TOKEN:
             raise TextTooLongError(
-                f"input is {len(text)} characters; more than "
+                f"input is {dense} non-whitespace characters; more than "
                 f"{self.max_tokens * MAX_CHARS_PER_TOKEN} cannot fit in "
                 f"{self.max_tokens} tokens"
             )

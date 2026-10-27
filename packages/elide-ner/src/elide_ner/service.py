@@ -13,7 +13,6 @@ Run locally::
 
 from __future__ import annotations
 
-import os
 import time
 from collections import defaultdict
 
@@ -21,104 +20,19 @@ import bentoml
 from bentoml.exceptions import InternalServerError, InvalidArgument
 from elide_core.ner.v1 import NerRequest, NerResponse
 from elide_core.runtime import get_logger, request_id
-from prometheus_client import Counter, Histogram
 
 from elide_ner import backend, config
+from elide_ner.image import image
+from elide_ner.metrics import (
+    batch_size_metric,
+    entities_metric,
+    labels_metric,
+    rejected_metric,
+    tokens_metric,
+)
+from elide_ner.schema import label_count, schema_key
 
 logger = get_logger("nvisy.ner")
-
-# prometheus_client directly (bentoml.metrics is deprecated in 1.4); BentoML
-# sets PROMETHEUS_MULTIPROC_DIR so this is multiprocess-safe across workers.
-batch_size_metric = Histogram(
-    "elide_ner_batch_size",
-    "Number of texts merged into one recognize() call.",
-    buckets=(1, 2, 4, 8, 16, 32),
-)
-
-# Each of the three bounds a request can breach, counted separately. A caller
-# chunks to fit this service's limits, so a rejection means the caller's own
-# budget disagrees with the service's — which is a bug in the chunker, not
-# traffic to be tolerated, and it is invisible if all refusals look alike.
-rejected_metric = Counter(
-    "elide_ner_rejected_total",
-    "Requests refused before inference, by which bound they breached.",
-    labelnames=("reason",),
-)
-
-# Tokens per text, against the model's own limit. The useful shape is how
-# close traffic runs to the cap: a pile-up just under it means the caller is
-# chunking to this service's ceiling and any drift in either budget starts
-# rejecting real work.
-tokens_metric = Histogram(
-    "elide_ner_input_tokens",
-    "Encoder tokens per text, as counted when enforcing the token limit.",
-    buckets=(16, 32, 64, 128, 256, 384, 448, 512),
-)
-
-# Labels per request: the other half of an extraction's cost, and the
-# dimension that went unbounded long enough to OOM a worker.
-labels_metric = Histogram(
-    "elide_ner_schema_labels",
-    "Entity labels requested per text.",
-    buckets=(1, 2, 4, 8, 16, 32, 64),
-)
-
-# Entities returned, which is what a caller ultimately consumes. Zero for a
-# whole batch is the signature of a schema whose labels do not match the text.
-entities_metric = Histogram(
-    "elide_ner_entities_found",
-    "Entities returned per text.",
-    buckets=(0, 1, 2, 4, 8, 16, 32, 64),
-)
-
-# BentoML builds the image from this config (`bentoml build` + `containerize`);
-# no hand-written Dockerfile. The requirements file is exported per-service from
-# the workspace lock by `make services` (scripts/gen_requirements.py), not
-# committed; bundled source is scoped by
-# bentofile.yaml's `include`. lock_python_packages=False: the file is already
-# locked + hashed, so BentoML must not re-resolve it.
-# Build-time image spec, skipped inside the container. `requirements_file`
-# reads the file when this module is imported, and the path it needs differs
-# between the two contexts (`packages/...` at build time, `src/packages/...`
-# under the bento root), so evaluating it at runtime raises FileNotFoundError
-# and the service never starts. BENTOML_CONTAINERIZED is set in the image and
-# unset during a build, which is the distinction.
-#
-# build_include copies the bundled workspace source to ./src *before* the
-# image's `uv pip install`, which is what makes the editable path dependencies
-# in requirements.txt resolvable: the install then runs with
-# INSTALL_ROOT=./src, where `./packages/elide-*` are real directories.
-#
-# lock_python_packages=False: the file is already locked and hashed by
-# scripts/gen_requirements.py, so BentoML must not re-resolve it.
-image = (
-    None
-    if os.getenv("BENTOML_CONTAINERIZED")
-    else (
-        bentoml.images.Image(python_version="3.12", lock_python_packages=False)
-        # The torch pins are `+cpu` builds from the PyTorch CPU index, which
-        # requirements.txt carries as an --extra-index-url. That index also mirrors
-        # unrelated packages (certifi, filelock, ...) at versions that may not match
-        # ours, and uv defaults to `first-index`: it refuses to look past the first
-        # index that carries a name at all, so the install fails on those.
-        #
-        # `--index-strategy` is not a directive a requirements file accepts, and a
-        # RUN cannot export an env var to the next layer, so the setting goes in
-        # uv's system config, which uv reads with no further configuration. This
-        # runs before the install step.
-        #
-        # "unsafe" describes resolution, not installation: every pin in
-        # requirements.txt is hash-locked, so an artifact from any index is
-        # rejected unless its SHA-256 matches the lockfile. The hashes, not the
-        # index order, are what make this safe.
-        .run(
-            "mkdir -p /etc/uv && printf 'index-strategy = \"unsafe-best-match\"\\n'"
-            " > /etc/uv/uv.toml"
-        )
-        .build_include("packages", "pyproject.toml", "uv.lock")
-        .requirements_file("packages/elide-ner/requirements.txt")
-    )
-)
 
 
 @bentoml.service(
@@ -223,7 +137,7 @@ class NerService:
         # reuses this encode rather than tokenizing a second time.
         token_counts: list[int] = []
         for req in requests:
-            labels = len(req.schema_.entities)
+            labels = label_count(req.schema_)
             labels_metric.observe(labels)
             try:
                 self.engine.check_labels(labels)
@@ -243,7 +157,7 @@ class NerService:
         # is one batched extraction call. Distinct schemas run separately.
         groups: dict[tuple[float, str], list[int]] = defaultdict(list)
         for i, req in enumerate(requests):
-            groups[_schema_key(req)].append(i)
+            groups[schema_key(req)].append(i)
 
         by_index: dict[int, NerResponse] = {}
         try:
@@ -282,13 +196,3 @@ class NerService:
 
         # Every index was covered (the groups partition range(len(requests))).
         return [by_index[i] for i in range(len(requests))]
-
-
-def _schema_key(req: NerRequest) -> tuple[float, str]:
-    """A hashable key identifying requests that can share one batched call.
-
-    Two requests batch together iff they have the same schema and threshold. The
-    schema is serialized canonically (field order is stable) so equal schemas
-    produce equal JSON, hence equal keys.
-    """
-    return (req.threshold, req.schema_.model_dump_json())

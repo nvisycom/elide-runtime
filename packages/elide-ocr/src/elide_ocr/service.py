@@ -54,7 +54,7 @@ batch_size_metric = Histogram(
 # image, and those point at different faults upstream.
 rejected_metric = Counter(
     "elide_ocr_rejected_total",
-    "Requests refused before inference, by which bound they breached.",
+    "Image payloads refused before inference, by which bound they breached.",
     labelnames=("reason",),
 )
 
@@ -172,7 +172,7 @@ class OcrService:
         logger.info("recognize batch=%d req_id=%s", len(requests), rid)
         started = time.monotonic()
         try:
-            responses = [self._recognize_one(req) for req in requests]
+            responses = [self._recognize_one(req, rid) for req in requests]
         except BentoMLException:
             # Typed request errors (e.g. InvalidArgument for bad image bytes)
             # carry their own status; let them through unchanged.
@@ -204,8 +204,8 @@ class OcrService:
         )
         return responses
 
-    def _recognize_one(self, req: OcrRequest) -> OcrResponse:
-        image = _decode_image(req.image)
+    def _recognize_one(self, req: OcrRequest, rid: str | None = None) -> OcrResponse:
+        image = _decode_image(req.image, rid)
         result = self.ocr([_to_ndarray(image)])
         # We pass one image, so expect one page; guard an empty result instead
         # of indexing into nothing.
@@ -215,20 +215,22 @@ class OcrService:
         return OcrResponse(pages=pages, model_id=self.model_id)
 
 
-def _decode_image(image_b64: str) -> PILImage:
+def _decode_image(image_b64: str, rid: str | None = None) -> PILImage:
     from PIL import Image, UnidentifiedImageError
 
     try:
         raw = base64.b64decode(image_b64, validate=True)
     except (binascii.Error, ValueError) as exc:
         rejected_metric.labels(reason="base64").inc()
-        logger.warning("rejected: image is not valid base64")
+        logger.warning("rejected: image is not valid base64 (req_id=%s)", rid)
         raise InvalidArgument("image is not valid base64") from exc
     try:
         return Image.open(io.BytesIO(raw)).convert("RGB")
     except UnidentifiedImageError as exc:
         rejected_metric.labels(reason="not_an_image").inc()
-        logger.warning("rejected: image bytes are not a recognizable image")
+        logger.warning(
+            "rejected: image bytes are not a recognizable image (req_id=%s)", rid
+        )
         raise InvalidArgument("image bytes are not a recognizable image") from exc
 
 

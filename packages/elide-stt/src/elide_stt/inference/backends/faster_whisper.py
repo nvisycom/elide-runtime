@@ -29,17 +29,11 @@ from typing import TYPE_CHECKING, Any
 
 from elide_core.stt.v1 import Segment, SttResponse, Word
 
-from elide_stt import config
+from elide_stt.inference.validation import SAMPLE_RATE, AudioTooLongError
+from elide_stt.runtime import config
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-# faster-whisper resamples everything to 16 kHz mono on load.
-SAMPLE_RATE = 16_000
-
-
-class AudioTooLongError(ValueError):
-    """Audio exceeds the configured duration limit."""
 
 
 def _to_ms(seconds: float | None) -> int | None:
@@ -57,16 +51,17 @@ def _to_ms(seconds: float | None) -> int | None:
 class Engine:
     """Owns the loaded models and the result translation."""
 
-    def __init__(self) -> None:
-        from elide_core.runtime import resolve_model
+    def __init__(self, settings: config.SttSettings | None = None) -> None:
+        self.settings = settings if settings is not None else config.SttSettings()
+        self.model_id = self.settings.resolve_model()
+        self.device = self.settings.device
+        self.max_duration_seconds = self.settings.max_duration_seconds
+        self._word_timestamps = self.settings.word_timestamps
 
-        self.model_id = resolve_model()
-        self.device = config.device()
-        self.max_duration_seconds = config.max_duration_seconds()
-        self._word_timestamps = config.align()
-
-        self._model = _load(self.model_id, self.device, config.compute_type())
-        self._diarizer = _load_diarizer(self.device) if config.diarize() else None
+        self._model = _load(self.model_id, self.device, self.settings.resolved_compute_type)
+        self._diarizer = (
+            _load_diarizer(self.device, self.settings) if self.settings.diarize else None
+        )
 
     @property
     def diarizes(self) -> bool:
@@ -109,8 +104,8 @@ class Engine:
         waveform = torch.as_tensor(audio).reshape(1, -1)
         annotation = self._diarizer(
             {"waveform": waveform, "sample_rate": SAMPLE_RATE},
-            min_speakers=config.min_speakers(),
-            max_speakers=config.max_speakers(),
+            min_speakers=self.settings.min_speakers,
+            max_speakers=self.settings.max_speakers,
         )
         return [
             (turn.start, turn.end, str(speaker))
@@ -141,7 +136,7 @@ def _load(model_id: str, device: str, compute_type: str):
     return WhisperModel(model_id, device=device, compute_type=compute_type)
 
 
-def _load_diarizer(device: str):
+def _load_diarizer(device: str, settings: config.SttSettings):
     """The pyannote diarization pipeline.
 
     The model is gated on Hugging Face: without an accepted licence and a
@@ -151,17 +146,17 @@ def _load_diarizer(device: str):
     import torch
     from pyannote.audio import Pipeline
 
-    token = config.hf_token()
+    token = settings.hf_token.get_secret_value() if settings.hf_token else None
     if not token:
         raise RuntimeError(
             f"{config.DIARIZE_ENV} is set but {config.HF_TOKEN_ENV} is not. "
-            f"{config.diarize_model()} is gated: accept its terms on Hugging Face "
+            f"{settings.diarize_model} is gated: accept its terms on Hugging Face "
             "and supply a token."
         )
-    pipeline = Pipeline.from_pretrained(config.diarize_model(), token=token)
+    pipeline = Pipeline.from_pretrained(settings.diarize_model, token=token)
     if pipeline is None:
         raise RuntimeError(
-            f"could not load {config.diarize_model()}: the token may lack access, "
+            f"could not load {settings.diarize_model}: the token may lack access, "
             "or its terms may not have been accepted on Hugging Face."
         )
     return pipeline.to(torch.device(device))

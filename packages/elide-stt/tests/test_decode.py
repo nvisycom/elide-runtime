@@ -10,8 +10,8 @@ import struct
 import wave
 
 import pytest
-from bentoml.exceptions import InvalidArgument
-from elide_stt.service import SAMPLE_RATE, _decode_audio
+from elide_stt.inference.backends.faster_whisper import SAMPLE_RATE
+from elide_stt.inference.validation import InvalidInputError, _decode_audio
 
 
 def _wav_b64(seconds: float, rate: int = SAMPLE_RATE, channels: int = 1) -> str:
@@ -33,23 +33,23 @@ def test_decodes_wav_to_waveform():
 
 
 def test_rejects_non_base64():
-    with pytest.raises(InvalidArgument, match="valid base64"):
+    with pytest.raises(InvalidInputError, match="valid base64"):
         _decode_audio("not base64!!")
 
 
 def test_rejects_empty_payload():
-    with pytest.raises(InvalidArgument, match="empty"):
+    with pytest.raises(InvalidInputError, match="empty"):
         _decode_audio("")
 
 
 def test_rejects_undecodable_bytes():
-    with pytest.raises(InvalidArgument, match="not decodable"):
+    with pytest.raises(InvalidInputError, match="not decodable"):
         _decode_audio(base64.b64encode(b"this is not audio").decode())
 
 
 def test_oversized_payload_rejected_before_decode():
     """The size cap refuses an oversized body without decoding it."""
-    with pytest.raises(InvalidArgument, match="base64 characters"):
+    with pytest.raises(InvalidInputError, match="base64 characters"):
         _decode_audio(_wav_b64(1.0), max_bytes=1024)
 
 

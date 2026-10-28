@@ -1,5 +1,5 @@
 # Build from the repo root:  bentoml build -f packages/elide-ner/bentofile.yaml .
-# Image config (Python version, requirements) lives in service.py; this file
+# Image config (Python version, requirements) lives in runtime/image.py; this file
 # selects the service and scopes the bundled source.
 #
 # Kept as bentofile.yaml rather than moved into this package's pyproject.toml,

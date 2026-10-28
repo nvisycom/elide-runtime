@@ -32,6 +32,7 @@ dependencies = [
     "torchcodec>=0.7",
     # Speaker diarization.
     "pyannote-audio>=4.0,<5",
+    "pydantic-settings>=2.12,<3",
 ]
 
 [build-system]

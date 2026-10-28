@@ -16,92 +16,20 @@ Run locally::
 
 from __future__ import annotations
 
-import base64
-import binascii
-import io
-import os
 import time
 
 import bentoml
 from bentoml.exceptions import BentoMLException, InternalServerError, InvalidArgument
 from elide_core.runtime import get_logger, request_id
 from elide_core.stt.v1 import SttRequest, SttResponse
-from prometheus_client import Counter, Histogram
 
-from elide_stt import config
-from elide_stt.engine import SAMPLE_RATE, AudioTooLongError, Engine
+from elide_stt.inference import backends as backend
+from elide_stt.inference.pipeline import SttPipeline
+from elide_stt.inference.validation import InvalidInputError
+from elide_stt.runtime import config
+from elide_stt.runtime.image import image
 
 logger = get_logger("nvisy.stt")
-
-# faster-whisper large-v3-turbo: MIT, 99 languages, native word timestamps,
-# 2-5x faster than large-v3 for a small accuracy cost (a pruned 4-layer
-# decoder). Declared as the ELIDE_BENTO_MODEL_NAME default below (single
-# source of truth).
-#
-# Not the WER leader on the Open ASR Leaderboard - roughly ten open models
-# score better - but the leaders (Parakeet, Canary, Voxtral) each need NeMo or
-# vLLM, are GPU-bound, and several are English-only. This picks ecosystem fit
-# and CPU viability over raw accuracy; see the README.
-DEFAULT_MODEL = "large-v3-turbo"
-
-# Which bound a refused request breached. BentoML counts 400s; it cannot say
-# whether the payload was oversized, malformed, empty, or simply too long to
-# transcribe — and those point at different faults upstream.
-rejected_metric = Counter(
-    "elide_stt_rejected_total",
-    "Requests refused before inference, by which bound they breached.",
-    labelnames=("reason",),
-)
-
-duration_metric = Histogram(
-    "elide_stt_audio_seconds",
-    "Duration of audio submitted to one transcribe() call.",
-    buckets=(5, 15, 30, 60, 300, 900, 3600),
-)
-
-# Build-time image spec, skipped inside the container. `requirements_file`
-# reads the file when this module is imported, and the path it needs differs
-# between the two contexts (`packages/...` at build time, `src/packages/...`
-# under the bento root), so evaluating it at runtime raises FileNotFoundError
-# and the service never starts. BENTOML_CONTAINERIZED is set in the image and
-# unset during a build, which is the distinction.
-#
-# build_include copies the bundled workspace source to ./src *before* the
-# image's `uv pip install`, which is what makes the editable path dependencies
-# in requirements.txt resolvable: the install then runs with
-# INSTALL_ROOT=./src, where `./packages/elide-*` are real directories.
-#
-# lock_python_packages=False: the file is already locked and hashed by
-# scripts/gen_requirements.py, so BentoML must not re-resolve it.
-image = (
-    None
-    if os.getenv("BENTOML_CONTAINERIZED")
-    else (
-        bentoml.images.Image(python_version="3.12", lock_python_packages=False)
-        .system_packages("ffmpeg")
-        # The torch pins are `+cpu` builds from the PyTorch CPU index, which
-        # requirements.txt carries as an --extra-index-url. That index also mirrors
-        # unrelated packages (certifi, filelock, ...) at versions that may not match
-        # ours, and uv defaults to `first-index`: it refuses to look past the first
-        # index that carries a name at all, so the install fails on those.
-        #
-        # `--index-strategy` is not a directive a requirements file accepts, and a
-        # RUN cannot export an env var to the next layer, so the setting goes in
-        # uv's system config, which uv reads with no further configuration. This
-        # runs before the install step.
-        #
-        # "unsafe" describes resolution, not installation: every pin in
-        # requirements.txt is hash-locked, so an artifact from any index is
-        # rejected unless its SHA-256 matches the lockfile. The hashes, not the
-        # index order, are what make this safe.
-        .run(
-            "mkdir -p /etc/uv && printf 'index-strategy = \"unsafe-best-match\"\\n'"
-            " > /etc/uv/uv.toml"
-        )
-        .build_include("packages", "pyproject.toml", "uv.lock")
-        .requirements_file("packages/elide-stt/requirements.txt")
-    )
-)
 
 
 @bentoml.service(
@@ -112,30 +40,27 @@ image = (
     # minutes, so the ceiling is well above the other services'.
     traffic={"timeout": 900},
     envs=[
+        {"name": config.BACKEND_ENV, "value": config.DEFAULT_BACKEND},
         {"name": "ELIDE_BENTO_MODEL_PATH", "value": "/models"},
-        {"name": "ELIDE_BENTO_MODEL_NAME", "value": DEFAULT_MODEL},
+        {"name": "ELIDE_BENTO_MODEL_NAME", "value": config.DEFAULT_MODEL},
     ],
 )
 class SttService:
     def __init__(self) -> None:
-        # Model name up front, read straight from the environment: on a cold
-        # cache this call downloads gigabytes, and which model is being
-        # fetched is the first thing anyone reading a slow startup wants. The
-        # engine resolves the same variable (a mounted path wins over the
-        # name), and logs what it actually loaded once ready.
-        logger.info("loading faster-whisper (model=%s)", os.getenv("ELIDE_BENTO_MODEL_NAME", "?"))
+        self.settings = config.get_settings()
+        logger.info("loading %s (model=%s)", self.settings.backend, self.settings.model_name)
         started = time.monotonic()
         try:
-            self.engine = Engine()
+            self.pipeline = SttPipeline(backend.create(self.settings), self.settings)
         except Exception as exc:
             logger.exception("failed to load faster-whisper: %s", exc)
             raise RuntimeError(f"failed to load faster-whisper: {exc}") from exc
         logger.info(
             "engine ready in %.1fs (model=%s device=%s diarize=%s)",
             time.monotonic() - started,
-            self.engine.model_id,
-            self.engine.device,
-            self.engine.diarizes,
+            self.pipeline.backend.model_id,
+            self.pipeline.backend.device,
+            self.pipeline.backend.diarizes,
         )
 
     # Not batchable: clips vary from seconds to an hour, so batching would let
@@ -145,87 +70,18 @@ class SttService:
     @bentoml.api
     def transcribe(self, request: SttRequest, ctx: bentoml.Context) -> SttResponse:
         rid = request_id(ctx)
-        # Decode is bounded by the duration limit rather than checked after
-        # it: a long input would otherwise be fully decoded and resampled into
-        # memory before being rejected. One extra second is decoded so an
-        # over-length clip is still detectable as over-length.
-        audio = _decode_audio(
-            request.audio,
-            max_seconds=self.engine.max_duration_seconds + 1,
-            max_bytes=config.max_bytes(),
-        )
-
+        started = time.monotonic()
+        logger.info("transcribe req_id=%s", rid)
         try:
-            seconds = self.engine.check_duration(audio)
-        except AudioTooLongError as exc:
-            rejected_metric.labels(reason="too_long").inc()
+            response = self.pipeline.transcribe(request)
+        except InvalidInputError as exc:
             logger.warning("rejected: %s (req_id=%s)", exc, rid)
             raise InvalidArgument(str(exc)) from exc
-
-        duration_metric.observe(seconds)
-        logger.info("transcribe seconds=%.1f req_id=%s", seconds, rid)
-
-        try:
-            return self.engine.transcribe(audio, language=request.language)
         except BentoMLException:
             # Typed request errors carry their own status; let them through.
             raise
         except Exception as exc:
             logger.exception("inference failed (req_id=%s)", rid)
             raise InternalServerError("STT inference failed") from exc
-
-
-def _decode_audio(
-    audio_b64: str,
-    max_seconds: float | None = None,
-    max_bytes: int | None = None,
-):
-    """Base64 audio bytes to a mono 16 kHz float32 waveform.
-
-    Decoding goes through ffmpeg (via ``soundfile``/``librosa``) so any
-    container the deployment's ffmpeg understands is accepted. A payload that
-    is not decodable audio is a 400, not a 500 — it is the caller's input.
-
-    Two independent bounds, because neither implies the other:
-
-    - ``max_bytes`` caps the request payload, applied to the base64 text
-      before decoding it, so an oversized body is refused without allocating
-      the decoded bytes.
-    - ``max_seconds`` caps the decode itself, so a long input costs one
-      bounded read rather than a full decode and resample of however much
-      audio the caller sent.
-
-    A duration limit cannot be turned into a byte limit: how many bytes a
-    given duration occupies depends on the source's sample rate, channel
-    count and codec, none of which are known until the container is opened.
-    Deriving one from the other would reject valid audio - a 48 kHz stereo
-    WAV is six times the size of the 16 kHz mono waveform it decodes to.
-    """
-    if max_bytes is not None:
-        # Applied to the base64 text: 4 characters encode 3 bytes, so this
-        # refuses an oversized body before allocating the decoded form.
-        encoded_limit = (max_bytes + 2) // 3 * 4
-        if len(audio_b64) > encoded_limit:
-            rejected_metric.labels(reason="oversized").inc()
-            raise InvalidArgument(
-                f"audio payload is {len(audio_b64)} base64 characters; "
-                f"the limit is {encoded_limit} ({max_bytes} bytes)"
-            )
-    try:
-        raw = base64.b64decode(audio_b64, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        rejected_metric.labels(reason="base64").inc()
-        raise InvalidArgument("audio is not valid base64") from exc
-    if not raw:
-        rejected_metric.labels(reason="empty").inc()
-        raise InvalidArgument("audio is empty")
-
-    import librosa
-
-    try:
-        waveform, _ = librosa.load(io.BytesIO(raw), sr=SAMPLE_RATE, mono=True, duration=max_seconds)
-    except Exception as exc:
-        raise InvalidArgument("audio bytes are not decodable audio") from exc
-    if waveform.size == 0:
-        raise InvalidArgument("audio decodes to an empty waveform")
-    return waveform
+        logger.info("transcribed elapsed=%.3fs req_id=%s", time.monotonic() - started, rid)
+        return response

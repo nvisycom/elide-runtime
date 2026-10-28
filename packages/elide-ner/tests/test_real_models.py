@@ -19,7 +19,7 @@ pytestmark = pytest.mark.real
 
 @pytest.fixture(scope="module")
 def engine():
-    from elide_ner.backend.gliner2 import Engine
+    from elide_ner.inference.backends.gliner2 import Engine
 
     return Engine()
 
@@ -43,7 +43,7 @@ def test_offline_load_and_infer(monkeypatch):
     # against the baked/cached weights with no network.
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")
-    from elide_ner.backend.gliner2 import Engine
+    from elide_ner.inference.backends.gliner2 import Engine
 
     engine = Engine()
     [resp] = engine.recognize(["Ada in London"], Schema(entities=[EntitySpec(label="person")]), 0.3)
@@ -51,7 +51,7 @@ def test_offline_load_and_infer(monkeypatch):
 
 
 def test_over_length_rejected(engine):
-    from elide_ner.backend.gliner2 import TextTooLongError
+    from elide_ner.inference.backends.gliner2 import TextTooLongError
 
     with pytest.raises(TextTooLongError):
         engine.check_length("word " * (engine.max_tokens + 50))

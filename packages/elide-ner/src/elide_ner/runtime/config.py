@@ -7,7 +7,10 @@ deployment without a code change.
 
 from __future__ import annotations
 
-import os
+from functools import lru_cache
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The single GLiNER2 model id (a Hugging Face repo id or a local path).
 MODEL_ENV = "ELIDE_BENTO_NER_MODEL"
@@ -36,27 +39,26 @@ DEFAULT_MAX_TOKENS = 512
 DEFAULT_MAX_SCHEMA_BYTES = 32 * 1024
 
 
-def model_id() -> str:
-    return os.getenv(MODEL_ENV) or DEFAULT_MODEL
+BACKEND_ENV = "ELIDE_BENTO_NER_BACKEND"
+DEFAULT_BACKEND = "gliner2"
 
 
-def quantize() -> bool:
-    return _flag(QUANTIZE_ENV)
+class NerSettings(BaseSettings):
+    """Validated configuration shared by request parsing and model startup."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="ELIDE_BENTO_NER_", env_ignore_empty=True, frozen=True, populate_by_name=True
+    )
+
+    model_id: str = Field(DEFAULT_MODEL, validation_alias=MODEL_ENV, min_length=1)
+    backend: str = Field(DEFAULT_BACKEND, min_length=1)
+    quantize: bool = False
+    compile_model: bool = Field(False, validation_alias=COMPILE_ENV)
+    max_tokens: int = Field(DEFAULT_MAX_TOKENS, gt=0)
+    max_schema_bytes: int = Field(DEFAULT_MAX_SCHEMA_BYTES, gt=0)
 
 
-def compile_model() -> bool:
-    return _flag(COMPILE_ENV)
-
-
-def max_tokens() -> int:
-    raw = os.getenv(MAX_TOKENS_ENV, "").strip()
-    return int(raw) if raw else DEFAULT_MAX_TOKENS
-
-
-def max_schema_bytes() -> int:
-    raw = os.getenv(MAX_SCHEMA_BYTES_ENV, "").strip()
-    return int(raw) if raw else DEFAULT_MAX_SCHEMA_BYTES
-
-
-def _flag(env: str) -> bool:
-    return os.getenv(env, "").strip().lower() in {"1", "true", "yes", "on"}
+@lru_cache(maxsize=1)
+def get_settings() -> NerSettings:
+    """Read the process configuration once; avoid import-time environment reads."""
+    return NerSettings()

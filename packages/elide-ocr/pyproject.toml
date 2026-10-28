@@ -15,6 +15,7 @@ dependencies = [
     "pillow>=12.3.0,<14",
     "prometheus-client>=0.26.0",
     # docTR (PyTorch backend); torch/torchvision are core deps in 1.x, no extra.
+    "pydantic-settings>=2.12,<3",
     "python-doctr>=1.0,<2",
     # Declared directly, though docTR already requires them, so the CPU-only
     # index in the root pyproject.toml applies: uv honours [tool.uv.sources]

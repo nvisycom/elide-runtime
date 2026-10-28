@@ -12,19 +12,27 @@ terms. Shared pieces come from ``elide_core.warm``.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
-from elide_core.warm import hand_over, log, require_env
+from elide_core.warm import hand_over, require_env
 
-from elide_stt import config
+from elide_stt.runtime import config
+
+logger = logging.getLogger("nvisy.stt.warm")
 
 
 def main() -> None:
     from faster_whisper.utils import download_model
 
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     cache = require_env("HF_HOME")
-    model = require_env("ELIDE_BENTO_MODEL_NAME")
+    settings = config.SttSettings()
+    model = settings.model_name
 
     # Validate the whole configuration before downloading anything. The
     # transcription model alone is over a gigabyte, and failing after it on a
@@ -32,9 +40,9 @@ def main() -> None:
     # operator's time.
     diarize = ""
     token = ""
-    if config.diarize():
-        diarize = require_env("ELIDE_BENTO_STT_DIARIZE_MODEL")
-        token = os.environ.get("ELIDE_BENTO_STT_HF_TOKEN") or ""
+    if settings.diarize:
+        diarize = settings.diarize_model
+        token = settings.hf_token.get_secret_value() if settings.hf_token else ""
         if not token:
             sys.exit(
                 "ELIDE_BENTO_STT_DIARIZE=true needs ELIDE_BENTO_STT_HF_TOKEN.\n"
@@ -43,17 +51,17 @@ def main() -> None:
                 "then set the token to one belonging to that account."
             )
 
-    log(f"warming {model}")
+    logger.info("warming %s", model)
     download_model(model)
 
     if diarize:
         from huggingface_hub import snapshot_download
 
-        log(f"warming {diarize} (gated)")
+        logger.info("warming %s (gated)", diarize)
         snapshot_download(diarize, token=token)
 
     hand_over(cache)
-    log("warm")
+    logger.info("warm")
 
 
 if __name__ == "__main__":

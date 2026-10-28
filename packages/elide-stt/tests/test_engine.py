@@ -5,8 +5,8 @@ plain dicts, so they need no model weights.
 """
 
 import pytest
-from elide_stt.engine import _speaker_for, _to_ms, project
-from elide_stt.service import DEFAULT_MODEL
+from elide_stt.inference.backends.faster_whisper import _speaker_for, _to_ms, project
+from elide_stt.runtime.config import DEFAULT_MODEL
 
 
 def test_to_ms_rounds_not_truncates():

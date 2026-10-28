@@ -11,7 +11,8 @@ import pytest
 from elide_ner import warm
 
 
-def test_the_warm_uses_the_model_the_service_loads(monkeypatch, tmp_path):
+def test_the_warm_uses_the_model_the_service_loads(monkeypatch, tmp_path, caplog):
+    caplog.set_level("INFO", logger="nvisy.ner.warm")
     monkeypatch.setenv("HF_HOME", str(tmp_path))
     monkeypatch.setenv("ELIDE_BENTO_NER_MODEL", "org/some-ner-model")
     monkeypatch.setattr(warm, "hand_over", lambda cache: None)
@@ -23,6 +24,8 @@ def test_the_warm_uses_the_model_the_service_loads(monkeypatch, tmp_path):
     warm.main()
 
     assert calls == ["org/some-ner-model"]
+    assert "warming org/some-ner-model" in caplog.text
+    assert caplog.records[-1].message == "warm"
 
 
 def test_a_missing_cache_dir_is_rejected(monkeypatch):

@@ -113,6 +113,38 @@ def test_empty_schema_rejected(client):
     assert resp.status_code == 400
 
 
+def test_oversized_schema_is_rejected_before_batching(client, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from elide_ner.inference.backends.gliner2 import Engine
+
+    checked_sizes = []
+    original = Engine.check_schema
+
+    def check_schema(self, size):
+        checked_sizes.append(size)
+        return original(self, size)
+
+    monkeypatch.setattr(Engine, "check_schema", check_schema)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        invalid = pool.submit(
+            _post,
+            client,
+            text="Ada",
+            schema={"entities": [{"label": "person", "description": "x" * 200_000}]},
+        )
+        valid = pool.submit(_post, client, text="Ada", schema={"entities": [{"label": "person"}]})
+        assert invalid.result().status_code == 400
+        response = valid.result()
+
+    assert response.status_code == 200
+    assert response.json()[0]["entities"][0]["label"] == "person"
+    # Only the valid request reaches the handler's backend guard. Rejection
+    # inside that handler would also fail unrelated callers in a shared batch.
+    assert len(checked_sizes) == 1
+    assert checked_sizes[0] < 1024
+
+
 def test_mixed_schemas_dispatched(client):
     # Distinct schemas run as separate extractions, and each response must come
     # back against its own request: the handler groups by schema and reassembles

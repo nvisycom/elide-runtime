@@ -14,25 +14,43 @@ Run locally::
 from __future__ import annotations
 
 import time
-from collections import defaultdict
 
 import bentoml
 from bentoml.exceptions import InternalServerError, InvalidArgument
-from elide_core.ner.v1 import NerRequest, NerResponse
+from elide_core.ner.v1 import NerRequest, NerResponse, Schema
 from elide_core.runtime import get_logger, request_id
+from pydantic import field_validator
 
-from elide_ner import backend, config
-from elide_ner.image import image
-from elide_ner.metrics import (
-    batch_size_metric,
-    entities_metric,
-    rejected_metric,
-    schema_metric,
-    tokens_metric,
+from elide_ner.inference import backends as backend
+from elide_ner.inference.pipeline import NerPipeline
+from elide_ner.inference.validation import (
+    SchemaTooLargeError,
+    TextTooLongError,
+    check_schema_size,
+    schema_size,
 )
-from elide_ner.schema import schema_key, schema_size
+from elide_ner.runtime import config
+from elide_ner.runtime.image import image
+from elide_ner.runtime.metrics import batch_size_metric, rejected_metric
 
 logger = get_logger("nvisy.ner")
+
+
+class ValidatedNerRequest(NerRequest):
+    """Enforce the schema budget before the adaptive dispatcher sees a caller."""
+
+    @field_validator("schema_")
+    @classmethod
+    def check_schema_budget(cls, schema: Schema) -> Schema:
+        size = schema_size(schema)
+        limit = config.get_settings().max_schema_bytes
+        try:
+            check_schema_size(size, limit)
+        except SchemaTooLargeError as exc:
+            rejected_metric.labels(reason="schema").inc()
+            logger.warning("rejected: %s", exc)
+            raise
+        return schema
 
 
 @bentoml.service(
@@ -55,24 +73,23 @@ logger = get_logger("nvisy.ner")
     # service from reaching the Hub at runtime (weights are baked into the image).
     envs=[
         {"name": config.MODEL_ENV, "value": config.DEFAULT_MODEL},
-        {"name": backend.BACKEND_ENV, "value": backend.DEFAULT_BACKEND},
+        {"name": config.BACKEND_ENV, "value": config.DEFAULT_BACKEND},
         {"name": config.QUANTIZE_ENV, "value": ""},
         {"name": config.COMPILE_ENV, "value": ""},
         {"name": config.MAX_TOKENS_ENV, "value": str(config.DEFAULT_MAX_TOKENS)},
+        {"name": config.MAX_SCHEMA_BYTES_ENV, "value": str(config.DEFAULT_MAX_SCHEMA_BYTES)},
         {"name": "HF_HUB_OFFLINE", "value": "1"},
         {"name": "TRANSFORMERS_OFFLINE", "value": "1"},
     ],
 )
 class NerService:
     def __init__(self) -> None:
-        name = backend.backend_name()
-        logger.info("loading NER backend %s (model=%s)", name, config.model_id())
+        settings = config.get_settings()
+        name = settings.backend
+        logger.info("loading NER backend %s (model=%s)", name, settings.model_id)
         started = time.monotonic()
         try:
-            module = backend.load()
-            self.engine = module.Engine()
-            self._too_long = module.TextTooLongError
-            self._schema_too_large = module.SchemaTooLargeError
+            self.pipeline = NerPipeline(backend.create(settings))
         except Exception as exc:
             # Log before raising: the RuntimeError below is what a reader sees
             # first, and its cause is only in the chained traceback — which a
@@ -80,13 +97,13 @@ class NerService:
             # emits the full chain at the point of failure, so the reason is
             # in the log whether or not the chain survives.
             logger.exception(
-                "failed to load NER backend %s (model=%s): %s", name, config.model_id(), exc
+                "failed to load NER backend %s (model=%s): %s", name, settings.model_id, exc
             )
             # Fail startup loudly rather than half-loading and 500-ing later. The
             # service fails liveness, as intended — a model that won't load (e.g.
             # not cached, with the Hub offline) should not serve traffic.
             raise RuntimeError(
-                f"failed to load NER backend {name!r} model {config.model_id()!r}: {exc}"
+                f"failed to load NER backend {name!r} model {settings.model_id!r}: {exc}"
             ) from exc
         # Elapsed, because a cold start fetches weights and the difference
         # between "slow" and "wedged" is otherwise unknowable from the log.
@@ -94,7 +111,7 @@ class NerService:
             "%s ready in %.1fs (max_tokens=%d)",
             name,
             time.monotonic() - started,
-            self.engine.max_tokens,
+            self.pipeline.backend.max_tokens,
         )
 
     # Sync (not async): inference is CPU/GPU-bound and blocking. BentoML runs
@@ -125,56 +142,20 @@ class NerService:
     # A caller with nothing to coalesce still dispatches immediately, so
     # raising this costs idle latency nothing.
     @bentoml.api(batchable=True, max_batch_size=32, max_latency_ms=15000)
-    def recognize(self, requests: list[NerRequest], ctx: bentoml.Context) -> list[NerResponse]:
+    def recognize(
+        self, requests: list[ValidatedNerRequest], ctx: bentoml.Context
+    ) -> list[NerResponse]:
         call_started = time.monotonic()
         batch_size_metric.observe(len(requests))
         rid = request_id(ctx)
         logger.info("recognize batch=%d req_id=%s", len(requests), rid)
 
-        # Reject over-length inputs up front (the model silently truncates above
-        # its token limit) — a clean 400 for the whole batch, before inference.
-        # The check returns the count it measured, so usage reporting below
-        # reuses this encode rather than tokenizing a second time.
-        token_counts: list[int] = []
-        for req in requests:
-            size = schema_size(req.schema_)
-            schema_metric.observe(size)
-            try:
-                self.engine.check_schema(size)
-                tokens = self.engine.check_length(req.text)
-            except self._schema_too_large as exc:
-                rejected_metric.labels(reason="schema").inc()
-                logger.warning("rejected: %s (req_id=%s)", exc, rid)
-                raise InvalidArgument(str(exc)) from exc
-            except self._too_long as exc:
-                rejected_metric.labels(reason="tokens").inc()
-                logger.warning("rejected: %s (req_id=%s)", exc, rid)
-                raise InvalidArgument(str(exc)) from exc
-            tokens_metric.observe(tokens)
-            token_counts.append(tokens)
-
-        # Group requests that share an identical schema + threshold so each group
-        # is one batched extraction call. Distinct schemas run separately.
-        groups: dict[tuple[float, str], list[int]] = defaultdict(list)
-        for i, req in enumerate(requests):
-            groups[schema_key(req)].append(i)
-
-        by_index: dict[int, NerResponse] = {}
         try:
-            for idxs in groups.values():
-                head = requests[idxs[0]]
-                responses = self.engine.recognize(
-                    [requests[i].text for i in idxs],
-                    head.schema_,
-                    threshold=head.threshold,
-                    token_counts=[token_counts[i] for i in idxs],
-                )
-                for i, resp in zip(idxs, responses, strict=True):
-                    by_index[i] = resp
-                    entities_metric.observe(len(resp.entities))
+            responses, groups = self.pipeline.recognize(requests)
+        except (SchemaTooLargeError, TextTooLongError) as exc:
+            logger.warning("rejected: %s (req_id=%s)", exc, rid)
+            raise InvalidArgument(str(exc)) from exc
         except Exception as exc:
-            # Surface inference failures as a clean 500 rather than a raw stack
-            # trace; the error is visible, not silently swallowed.
             logger.exception("inference failed (req_id=%s)", rid)
             raise InternalServerError("NER inference failed") from exc
 
@@ -184,15 +165,14 @@ class NerService:
         # call), how long they took, and whether anything was found. A batch
         # that returns nothing is the symptom of a schema that does not match
         # the text, and it is otherwise indistinguishable from a quiet success.
-        found = sum(len(r.entities) for r in by_index.values())
+        found = sum(len(r.entities) for r in responses)
         logger.info(
             "recognized batch=%d groups=%d entities=%d elapsed=%.3fs req_id=%s",
             len(requests),
-            len(groups),
+            groups,
             found,
             time.monotonic() - call_started,
             rid,
         )
 
-        # Every index was covered (the groups partition range(len(requests))).
-        return [by_index[i] for i in range(len(requests))]
+        return responses

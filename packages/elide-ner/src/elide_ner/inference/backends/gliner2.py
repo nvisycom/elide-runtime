@@ -25,7 +25,8 @@ from elide_core.ner.v1 import (
     TokenUsage,
 )
 
-from elide_ner import config
+from elide_ner.inference.validation import TextTooLongError, check_schema_size
+from elide_ner.runtime import config
 
 if TYPE_CHECKING:
     from gliner2 import GLiNER2
@@ -71,22 +72,15 @@ _EntityValue = str | dict[str, str | float]
 MAX_CHARS_PER_TOKEN = 6
 
 
-class TextTooLongError(ValueError):
-    """Input exceeds the model's token limit (would be silently truncated)."""
-
-
-class SchemaTooLargeError(ValueError):
-    """Schema is larger than one extraction may carry."""
-
-
 class Engine:
     """Owns the loaded GLiNER2 model and the schema/result translation."""
 
-    def __init__(self) -> None:
-        self.model_id = config.model_id()
-        self.max_tokens = config.max_tokens()
-        self.max_schema_bytes = config.max_schema_bytes()
-        self._model = _load(self.model_id)
+    def __init__(self, settings: config.NerSettings | None = None) -> None:
+        settings = settings if settings is not None else config.NerSettings()
+        self.model_id = settings.model_id
+        self.max_tokens = settings.max_tokens
+        self.max_schema_bytes = settings.max_schema_bytes
+        self._model = _load(self.model_id, settings)
         # The encoder tokenizer, used to enforce the token limit precisely (the
         # model silently truncates above it, so we must reject, not truncate).
         self._tokenizer = self._model.processor.tokenizer
@@ -118,12 +112,15 @@ class Engine:
         # shorter than the limit cannot breach it however it is composed and
         # needs no scan. Ordinary traffic takes this branch and pays a `len`.
         if len(text) > limit:
-            dense = len("".join(text.split()))
-            if dense > limit:
-                raise TextTooLongError(
-                    f"input is {dense} non-whitespace characters; more than "
-                    f"{limit} cannot fit in {self.max_tokens} tokens"
-                )
+            dense = 0
+            for char in text:
+                if not char.isspace():
+                    dense += 1
+                    if dense > limit:
+                        raise TextTooLongError(
+                            f"input is {dense} non-whitespace characters; more than "
+                            f"{limit} cannot fit in {self.max_tokens} tokens"
+                        )
         n = self.count_tokens(text)
         if n > self.max_tokens:
             raise TextTooLongError(
@@ -143,10 +140,7 @@ class Engine:
         service declares — a killed worker drops the connection with no
         response and costs a model reload. Size has no such blind spot.
         """
-        if size > self.max_schema_bytes:
-            raise SchemaTooLargeError(
-                f"schema is {size} bytes; the limit is {self.max_schema_bytes}"
-            )
+        check_schema_size(size, self.max_schema_bytes)
 
     def recognize(
         self,
@@ -182,13 +176,13 @@ class Engine:
         ]
 
 
-def _load(model_id: str) -> GLiNER2:
+def _load(model_id: str, settings: config.NerSettings) -> GLiNER2:
     from gliner2 import GLiNER2
 
     kwargs: dict[str, bool] = {}
-    if config.quantize():
+    if settings.quantize:
         kwargs["quantize"] = True
-    if config.compile_model():
+    if settings.compile_model:
         kwargs["compile"] = True
     return GLiNER2.from_pretrained(model_id, **kwargs)
 

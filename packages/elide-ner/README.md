@@ -63,9 +63,13 @@ the limit is never missed.
 > **Model licenses are the operator's responsibility.** The default is
 > Apache-2.0; an operator-supplied `ELIDE_BENTO_NER_MODEL` is on the operator.
 
-> **Resources.** F32 weights are ~1.2 GB resident; the service defaults to
-> `cpu: 2`, `memory: 2Gi`, `max_batch_size: 16`. Set `ELIDE_BENTO_NER_QUANTIZE` to halve
-> memory; tune batch/latency from production metrics.
+> **Resources.** The service defaults to `cpu: 2`, `memory: 4Gi`, and
+> `max_batch_size: 32`. F32 weights alone were measured at ~1.92 GiB resident;
+> peak memory reached ~2.35 GiB for a batch of 16 with a twelve-label schema.
+> The 4 GiB allocation leaves headroom for extraction activations, larger
+> batches, and longer inputs. Quantization can reduce weight memory; validate
+> peak memory with the target batch size, text lengths, and schemas before
+> reducing the allocation.
 
 ```bash
 uv sync

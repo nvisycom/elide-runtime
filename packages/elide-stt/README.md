@@ -134,10 +134,13 @@ image instead, with its cache warmed by a one-shot init container, see
 
 ## Versioning
 
-Lockstep with the workspace: the wire contract lives in
-[`elide-core`](../elide-core) and the Rust client that consumes it is
-[`elide-bentoml`](../../crates/adapter/elide-bentoml), which is the source of
-truth for the format.
+The Python models in [`elide-core`](../elide-core) own the versioned HTTP
+contract. The [contract generator](../../scripts/gen_contracts.py) exports
+schemas and shared fixtures and uses Typify to generate the Rust wire types for
+[`elide-bentoml`](../../crates/adapter/elide-bentoml). CI checks for drift and
+tests both languages against the shared fixtures. Change the Python models and
+regenerate the artifacts rather than editing generated Rust types; see the
+[STT v1 contract](../../contracts/stt/v1).
 
 ## Project
 

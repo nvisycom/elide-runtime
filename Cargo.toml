@@ -94,6 +94,7 @@ jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
 
 # Test utilities
+testcontainers = { version = "0.28", default-features = false, features = [] }
 criterion = { version = "0.8", features = [] }
 zip = { version = "9.0", default-features = false, features = ["deflate"] }
 

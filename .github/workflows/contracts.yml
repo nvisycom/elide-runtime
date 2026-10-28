@@ -1,10 +1,13 @@
 name: Wire contracts
 
-permissions:
-  contents: read
+# Cross-language checks for the Python-owned HTTP contracts and Rust adapters.
+# The E2E job runs real BentoML applications in Testcontainers with fake models.
 
 on:
-  pull_request:
+  push:
+    branches:
+      - "main"
+      - "release"
     paths:
       - "packages/elide-core/**"
       - "packages/elide-ner/**"
@@ -20,8 +23,10 @@ on:
       - "uv.lock"
       - "rust-toolchain.toml"
       - ".github/workflows/contracts.yml"
-  push:
-    branches: [main, release]
+  pull_request:
+    branches:
+      - "main"
+      - "release"
     paths:
       - "packages/elide-core/**"
       - "packages/elide-ner/**"
@@ -39,31 +44,59 @@ on:
       - ".github/workflows/contracts.yml"
   workflow_dispatch:
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: "1.95.0"
+  UV_VERSION: "0.13.5"
+  TYPIFY_VERSION: "0.5.0"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   contract:
+    name: Contract generation and fixtures
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          version: "0.13.5"
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
-      - uses: dtolnay/rust-toolchain@master
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.95.0"
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt
-      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install nightly formatter
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
-      - uses: Swatinem/rust-cache@v2
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+
       - name: Install pinned Rust type generator
-        run: cargo install cargo-typify --version 0.5.0 --locked
-      - name: Install contract dependencies
+        run: cargo install cargo-typify --version "$TYPIFY_VERSION" --locked
+
+      - name: Sync contract dependencies
         run: uv sync --locked --package elide-core --group dev
+
       - name: Check generated schemas, fixtures, and Rust types
         run: uv run --no-sync python scripts/gen_contracts.py --check
+
       - name: Validate Python contract and fixtures
         run: >-
           uv run --no-sync pytest
@@ -72,5 +105,27 @@ jobs:
           packages/elide-core/tests/test_ner_v1.py
           packages/elide-core/tests/test_ocr_v1.py
           packages/elide-core/tests/test_stt_v1.py
+
       - name: Test Rust contract and adapter
         run: cargo test --locked -p elide-bentoml --lib
+
+  e2e:
+    name: Rust adapters against BentoML containers
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run end-to-end tests
+        run: cargo test --locked -p elide-bentoml --test ner --test ocr --test stt -- --ignored

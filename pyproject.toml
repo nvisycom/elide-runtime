@@ -70,6 +70,15 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.3",
 ]
+e2e = [
+    "bentoml>=1.4.39,<2",
+    "librosa>=0.11,<2",
+    "numpy>=2,<3",
+    "pillow>=12.3,<14",
+    "prometheus-client>=0.26.0",
+    "pydantic-settings>=2.12,<3",
+    "uvicorn>=0.35,<1",
+]
 
 [tool.ruff]
 target-version = "py312"

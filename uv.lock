@@ -580,6 +580,15 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+e2e = [
+    { name = "bentoml" },
+    { name = "librosa" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "prometheus-client" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn" },
+]
 
 [package.metadata]
 
@@ -588,6 +597,15 @@ dev = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.16.3" },
+]
+e2e = [
+    { name = "bentoml", specifier = ">=1.4.39,<2" },
+    { name = "librosa", specifier = ">=0.11,<2" },
+    { name = "numpy", specifier = ">=2,<3" },
+    { name = "pillow", specifier = ">=12.3,<14" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "pydantic-settings", specifier = ">=2.12,<3" },
+    { name = "uvicorn", specifier = ">=0.35,<1" },
 ]
 
 [[package]]

@@ -13,6 +13,32 @@ and error translation. The Python services
 this client talks to live under [`packages/`](../../../packages) in the
 same workspace.
 
+## End-to-end tests
+
+The Rust adapters can be tested over real HTTP against the production Python
+BentoML applications. Only the model libraries are replaced by deterministic
+fakes; request validation, adaptive dispatch, image/audio decoding, backend
+projection, and Rust domain conversion all run normally. No model weights or
+GPU are needed.
+
+```sh
+cargo test --locked -p elide-bentoml --test ner --test ocr --test stt -- --ignored
+```
+
+A running Docker daemon is required. Testcontainers builds a shared test image
+from the locked Python E2E dependency group, then starts one isolated container
+per service. It manages ports, readiness, logs, and cleanup. A local Python
+environment is not needed. Docker caches dependency layers across runs; the
+image is rebuilt from the current checkout for each test run.
+
+These tests are explicitly enabled because ordinary Rust tests do not require
+Docker. The wire-contract workflow runs them in CI.
+
+Coverage includes canonical/localized NER labels and Unicode offsets, batch
+ordering, OCR confidence filtering and pixel geometry, STT millisecond timings
+and word data, and service validation errors. Existing real-model Python tests
+remain separate; these E2E tests verify integration rather than model accuracy.
+
 ## Project
 
 - **Changelog**: [CHANGELOG.md](../../../CHANGELOG.md) for release notes and version history

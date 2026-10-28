@@ -161,7 +161,7 @@ impl BentoNer {
             )));
         }
         for (index, response) in active.into_iter().zip(wire.0) {
-            responses[index] = Some(response.decode(requests[index].text)?);
+            responses[index] = Some(response.decode_request(&requests[index])?);
         }
         Ok(responses.into_iter().flatten().collect())
     }
@@ -296,7 +296,7 @@ mod tests {
             write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", response.len(), response).unwrap();
         });
         let backend = BentoNer::new(format!("http://{address}"), "test").unwrap();
-        let labels = [Label::new("person", "person")];
+        let labels = [Label::new("person_name", "person")];
         let empty = NerRequest {
             text: "ignored",
             labels: Some(&[]),
@@ -317,6 +317,7 @@ mod tests {
         assert_eq!(responses.len(), 3);
         assert!(responses[0].spans.is_empty());
         assert_eq!(responses[1].spans[0].offset, 8..11);
+        assert_eq!(responses[1].spans[0].label, labels[0].to_ref());
         assert!(responses[2].spans.is_empty());
     }
 }

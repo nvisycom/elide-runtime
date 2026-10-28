@@ -1,11 +1,38 @@
 //! Adapt Python Unicode code-point offsets to Rust UTF-8 byte ranges.
 
-use elide_ner::backend::{NerResponse, NerSpan};
+use elide_core::primitive::LanguageTag;
+use elide_ner::backend::{NerRequest, NerResponse, NerSpan};
 
 use super::wire::NerResponse as WireNerResponse;
 use crate::error::BentoError;
 
 impl WireNerResponse {
+    /// Resolve the localized wire names against this request's canonical labels.
+    pub(super) fn decode_request(
+        self,
+        request: &NerRequest<'_>,
+    ) -> Result<NerResponse, BentoError> {
+        let english = LanguageTag::english();
+        let language = request.language.unwrap_or(&english);
+        let labels = request.labels.ok_or_else(|| {
+            BentoError::Protocol("NER response requires the request's label schema".into())
+        })?;
+        let mut response = self.decode(request.text)?;
+        for span in &mut response.spans {
+            let label = labels
+                .iter()
+                .find(|label| label.name(language) == span.label.as_str())
+                .ok_or_else(|| {
+                    BentoError::Protocol(format!(
+                        "NER returned an unrequested label: {}",
+                        span.label.as_str()
+                    ))
+                })?;
+            span.label = label.to_ref();
+        }
+        Ok(response)
+    }
+
     pub(super) fn decode(self, source: &str) -> Result<NerResponse, BentoError> {
         // Build one table per source, including the valid exclusive end.
         let boundaries: Vec<usize> = source
@@ -75,6 +102,47 @@ mod tests {
                 expected[0].as_u64().unwrap() as usize..expected[1].as_u64().unwrap() as usize
             );
         }
+    }
+
+    #[test]
+    fn response_names_resolve_to_canonical_ids_in_the_request_language() {
+        use elide_core::entity::{Label, LabelLocale};
+
+        for language in [None, Some(LanguageTag::english())] {
+            let labels = [Label::new("person_name", "person name")];
+            let request = NerRequest {
+                text: "Ada",
+                labels: Some(&labels),
+                language: language.as_ref(),
+                correlation_id: None,
+            };
+            let wire: WireNerResponse = serde_json::from_str(
+                r#"{"model_id":"m","entities":[{"text":"Ada","label":"person name","score":0.9,"start":0,"end":3}]}"#,
+            ).unwrap();
+            let response = wire.decode_request(&request).unwrap();
+            assert_eq!(response.spans[0].label, labels[0].to_ref());
+            assert_eq!(response.spans[0].offset, 0..3);
+        }
+        let language: LanguageTag = "pl".parse().unwrap();
+        let labels = [Label::new("person_name", "person name")
+            .with_localization(language.clone(), LabelLocale::new("osoba"))];
+        let request = NerRequest {
+            text: "Ada",
+            labels: Some(&labels),
+            language: Some(&language),
+            correlation_id: None,
+        };
+        let wire: WireNerResponse = serde_json::from_str(
+            r#"{"model_id":"m","entities":[{"text":"Ada","label":"osoba","score":0.9,"start":0,"end":3}]}"#,
+        ).unwrap();
+        assert_eq!(
+            wire.decode_request(&request).unwrap().spans[0].label,
+            labels[0].to_ref()
+        );
+        let wire: WireNerResponse = serde_json::from_str(
+            r#"{"model_id":"m","entities":[{"text":"Ada","label":"unknown","score":0.9,"start":0,"end":3}]}"#,
+        ).unwrap();
+        assert!(wire.decode_request(&request).is_err());
     }
 
     #[test]

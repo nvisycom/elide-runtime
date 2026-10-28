@@ -61,8 +61,14 @@ async-trait = { workspace = true, features = [] }
 bentoml = { workspace = true, default-features = false, features = ["rustls-tls", "tracing"] }
 
 [dev-dependencies]
+# Shared encoded-audio fixtures
+elide-audio = { workspace = true, features = ["fixtures"] }
+
 # Serialization
 serde_json = { workspace = true, features = ["std"] }
 
 # Async runtime and parallelism
-tokio = { workspace = true, features = ["rt", "macros"] }
+tokio = { workspace = true, features = ["rt", "macros", "sync"] }
+
+# Container lifecycle for cross-language E2E tests
+testcontainers = { workspace = true, features = ["http_wait_plain"] }

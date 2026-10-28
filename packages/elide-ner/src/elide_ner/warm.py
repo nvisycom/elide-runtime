@@ -13,9 +13,8 @@ Shared pieces — the env helper and ownership handover — come from
 from __future__ import annotations
 
 import logging
-import os
 
-from elide_core.warm import hand_over, require_env
+from elide_core.warm import configure_logging, hand_over, require_env
 
 from elide_ner.runtime import config
 
@@ -25,10 +24,7 @@ logger = logging.getLogger("nvisy.ner.warm")
 def main() -> None:
     from huggingface_hub import snapshot_download
 
-    logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", "INFO").upper(),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    configure_logging()
     cache = require_env("HF_HOME")
     model = config.NerSettings().model_id
     logger.info("warming %s", model)

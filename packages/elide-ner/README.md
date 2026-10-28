@@ -9,15 +9,14 @@ published as `ghcr.io/nvisycom/elide-ner`.
 ## Overview
 
 `NerService` exposes a single `POST /recognize` endpoint. Each request carries a
-**schema** describing what to extract from the text — any combination of:
+**schema** describing the entity types to extract from the text:
 
 - **entities** — zero-shot spans for the labels you ask for (`person`, `email`,
   `iban`, …), optionally steered with a description;
-- **classifications** — single- or multi-label text classification tasks;
-- **structures** — named records of fields (each field can carry a regex).
 
-The response returns each group's results, with character offsets and confidence
-scores. Request/response types come from [`elide_core.ner.v1`](../elide-core);
+The response returns entity spans with Unicode character offsets and confidence
+scores. Python owns the [versioned wire contract](../../contracts/ner/v1); the Rust
+adapter converts character offsets to UTF-8 byte ranges. Request/response types come from [`elide_core.ner.v1`](../elide-core);
 the generated contract lives at
 [`elide_core.ner.v1`](../elide-core/src/elide_core/ner/v1).
 
@@ -100,10 +99,10 @@ container, see [`docker/`](../../docker/README.md).
 
 ## Versioning
 
-Lockstep with the workspace. The wire contract lives in
-[`elide-core`](../elide-core), and the Rust client that consumes it,
-[`elide-bentoml`](../../crates/adapter/elide-bentoml), is the source of truth
-for the format.
+The Python models in [`elide-core`](../elide-core) own the versioned HTTP
+contract. JSON Schema, shared fixtures, and Rust wire types are generated
+together; see [NER v1](../../contracts/ner/v1). The Rust adapter owns conversion
+into its domain types, including Unicode character offsets to UTF-8 byte ranges.
 
 ## Project
 

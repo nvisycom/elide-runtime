@@ -1,0 +1,108 @@
+{
+  "$defs": {
+    "Entity": {
+      "description": "A matched entity span, carrying its model-native label.",
+      "properties": {
+        "text": {
+          "description": "The matched substring, text[start:end].",
+          "title": "Text",
+          "type": "string"
+        },
+        "label": {
+          "description": "The model-native entity label (e.g. 'person', 'email').",
+          "title": "Label",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Score",
+          "type": "number"
+        },
+        "start": {
+          "description": "Character offset, inclusive.",
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "description": "Character offset, exclusive.",
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "label",
+        "score",
+        "start",
+        "end"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
+    "NerResponse": {
+      "properties": {
+        "entities": {
+          "items": {
+            "$ref": "#/$defs/Entity"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "model_id": {
+          "description": "Hugging Face id of the GLiNER2 model that produced this.",
+          "title": "Model Id",
+          "type": "string"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Encoder tokens the call spent; omitted when the service does not report them."
+        }
+      },
+      "required": [
+        "model_id"
+      ],
+      "title": "NerResponse",
+      "type": "object"
+    },
+    "TokenUsage": {
+      "description": "Encoder tokens the call spent, as the model's own tokenizer counts them.\n\n``input`` only: GLiNER2 is an encoder — it scores spans over the input and\ngenerates nothing, so there is no completion count. The service already\ntokenizes every input to enforce its limit, so reporting this costs no\nextra work.\n\n``limit`` is the model's maximum, carried alongside so a consumer can see\nheadroom (``input`` of ``limit``) without knowing the deployment's config.",
+      "properties": {
+        "input": {
+          "description": "Encoder tokens in the request text.",
+          "minimum": 0,
+          "title": "Input",
+          "type": "integer"
+        },
+        "limit": {
+          "description": "The model's token limit for one input.",
+          "minimum": 0,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "input",
+        "limit"
+      ],
+      "title": "TokenUsage",
+      "type": "object"
+    }
+  },
+  "items": {
+    "$ref": "#/$defs/NerResponse"
+  },
+  "title": "NerOutput",
+  "type": "array",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

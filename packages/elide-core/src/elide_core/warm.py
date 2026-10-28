@@ -15,6 +15,7 @@ on none of them.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -27,6 +28,14 @@ from pathlib import Path
 #: and never runs as root itself.
 SERVICE_UID = 1034
 SERVICE_GID = 1034
+
+
+def configure_logging() -> None:
+    """Configure standalone warmer logging without replacing existing handlers."""
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 
 def require_env(name: str) -> str:

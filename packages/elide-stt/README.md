@@ -33,11 +33,11 @@ wraps a single object under `request` rather than a list under `requests`:
 // response
 {
   "segments": [
-    { "startMs": 0, "endMs": 2400, "text": "Hello there.",
-      "speakerId": "SPEAKER_00", "language": "en", "confidence": 0.94,
-      "words": [{ "startMs": 0, "endMs": 480, "text": "Hello", "confidence": 0.97 }] }
+    { "start_ms": 0, "end_ms": 2400, "text": "Hello there.",
+      "speaker_id": "SPEAKER_00", "language": "en", "confidence": 0.94,
+      "words": [{ "start_ms": 0, "end_ms": 480, "text": "Hello", "confidence": 0.97 }] }
   ],
-  "modelId": "large-v3-turbo", "language": "en", "durationMs": 2400
+  "model_id": "large-v3-turbo", "language": "en", "duration_ms": 2400
 }
 ```
 
@@ -94,7 +94,7 @@ The default pipeline `pyannote/speaker-diarization-community-1` is CC-BY-4.0.
 Note this differs from the Apache-2.0 weights the other services default to —
 if your deployment has a licence policy, check it before enabling.
 
-`speakerId` is the engine's own label (`SPEAKER_00`, …). It groups segments
+`speaker_id` is the engine's own label (`SPEAKER_00`, …). It groups segments
 *within one transcript*; it is not a stable identity across calls.
 
 ### Only point `ELIDE_BENTO_STT_DIARIZE_MODEL` at a repo you trust

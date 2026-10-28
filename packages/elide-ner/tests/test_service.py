@@ -281,3 +281,16 @@ def test_whitespace_heavy_input_is_not_refused_on_length(monkeypatch):
     engine.count_tokens = lambda text: 5
 
     assert engine.check_length("a" + " " * 20000 + "b") == 5
+
+
+def test_short_input_skips_character_scan():
+    from elide_ner.inference.backends.gliner2 import Engine
+
+    class ShortText(str):
+        def __iter__(self):
+            raise AssertionError("short text must not be scanned")
+
+    engine = Engine.__new__(Engine)
+    engine.max_tokens = 512
+    engine.count_tokens = lambda text: 1
+    assert engine.check_length(ShortText("Ada")) == 1

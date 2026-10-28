@@ -13,10 +13,9 @@ terms. Shared pieces come from ``elide_core.warm``.
 from __future__ import annotations
 
 import logging
-import os
 import sys
 
-from elide_core.warm import hand_over, require_env
+from elide_core.warm import configure_logging, hand_over, require_env
 
 from elide_stt.runtime import config
 
@@ -26,10 +25,7 @@ logger = logging.getLogger("nvisy.stt.warm")
 def main() -> None:
     from faster_whisper.utils import download_model
 
-    logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", "INFO").upper(),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    configure_logging()
     cache = require_env("HF_HOME")
     settings = config.SttSettings()
     model = settings.model_name

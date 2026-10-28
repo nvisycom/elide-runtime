@@ -92,7 +92,7 @@ def test_entities_extracted(client):
     resp = _post(client, text="Ada", schema={"entities": [{"label": "person"}]})
     assert resp.status_code == 200
     body = resp.json()[0]
-    assert body["modelId"] == _MODEL_ID
+    assert body["model_id"] == _MODEL_ID
     assert body["entities"][0] == {
         "text": "Ada",
         "label": "person",

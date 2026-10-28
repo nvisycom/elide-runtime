@@ -21,6 +21,12 @@
 
 mod request;
 mod response;
+#[allow(dead_code, reason = "Typify emits helpers not used by every schema")]
+#[allow(
+    clippy::type_complexity,
+    reason = "Typify preserves fixed-size geometry tuples"
+)]
+mod wire;
 
 use std::time::Duration;
 
@@ -32,8 +38,9 @@ use elide_image::ocr::{OcrRequest, OcrResponse};
 use hipstr::HipStr;
 use uuid::Uuid;
 
-use self::request::{Recognize, WireOcrRequest};
-use self::response::WireOcrResponse;
+use self::wire::{
+    OcrInput, OcrOutput, OcrRequest as WireOcrRequest, OcrResponse as WireOcrResponse,
+};
 use crate::error::BentoError;
 
 const ROUTE: &str = "recognize";
@@ -123,7 +130,7 @@ impl BentoOcr {
         let body: Vec<WireOcrRequest> = requests
             .iter()
             .map(|r| WireOcrRequest::from_request(r, self.default_threshold))
-            .collect();
+            .collect::<Result<_, _>>()?;
         // Always sent, generated when the caller has none: the id is what ties
         // a service-side log line or rejection to the job that caused it, and
         // without one the service logs `req_id=None` for every call — which is
@@ -138,11 +145,11 @@ impl BentoOcr {
             .endpoint
             .clone()
             .with_request_id(request_id.to_string());
-        let wire: Vec<WireOcrResponse> = endpoint
-            .invoke(&Recognize { requests: &body })
+        let wire: OcrOutput = endpoint
+            .invoke(&OcrInput { requests: body })
             .await
             .map_err(BentoError::Transport)?;
-        Ok(wire.into_iter().map(WireOcrResponse::decode).collect())
+        wire.0.into_iter().map(WireOcrResponse::decode).collect()
     }
 }
 

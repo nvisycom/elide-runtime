@@ -16,7 +16,7 @@ generated contract lives at [`elide_core.ocr.v1`](../elide-core/src/elide_core/o
 Any service that speaks the contract can replace it (bring-your-own-inference).
 
 BentoML batches concurrent calls, so the HTTP body wraps the list:
-`{"requests": [ { "image": "<base64>", "confidenceThreshold": 0.5 } ]}`; the
+`{"requests": [ { "image": "<base64>", "confidence_threshold": 0.5 } ]}`; the
 response is a JSON array of `OcrResponse`.
 
 ## Configuration

@@ -1,75 +1,89 @@
-# NER — schema-driven extraction with GLiNER2
+# NER: schema-driven text spans
 
-`elide-ner` extracts PII and named entities from text and is the source of the
-spans the runtime redacts. It is a **schema-driven** service backed by a single
-[GLiNER2](https://github.com/fastino-ai/GLiNER2) model: each request carries a
-schema (entities, classification tasks, structured records) and the service runs
-one batched extraction.
+`elide-ner` extracts entity spans from text. The Rust runtime uses those spans
+for recognition and redaction. The service returns model-native labels and
+confidence; the consumer owns taxonomy mapping and policy decisions. See the
+[shared service architecture](README.md) for contract ownership and lifecycle.
 
-## Why GLiNER2
+## Model and extraction boundary
 
-GLiNER2 is the state of the art for self-hosted PII extraction — it tops
-span-level F1 on the SPY benchmark over OpenAI's Privacy Filter and the earlier
-GLiNER PII models ([arxiv 2605.09973](https://arxiv.org/abs/2605.09973)) — while
-running on CPU at ~0.3B parameters. Its schema interface covers three tasks in
-one model (entity extraction, text classification, structured parsing), so one
-engine serves the whole contract.
+The backend uses [GLiNER2](https://github.com/fastino-ai/GLiNER2), whose extraction
+schema lets the caller name entity types and supply descriptions. This fits the
+runtime's per-request label selection: one deployed model can answer different
+entity schemas without a separate service for each label set.
 
-The default model is `fastino/gliner2-privacy-filter-PII-multi`: Apache-2.0,
-multilingual (7 languages), 42 PII labels, `microsoft/mdeberta-v3-base` encoder.
+The configured default is `fastino/gliner2-privacy-filter-PII-multi`, selected by
+`ELIDE_BENTO_NER_MODEL`. It is loaded once at startup. Requests select labels,
+not model weights. The adapter exposes entity extraction only; GLiNER2's
+classification and structured-record capabilities are outside this contract.
 
-## Model-native labels
+The [backend](../../packages/elide-ner/src/elide_ner/inference/backends/gliner2.py)
+translates entity descriptions and optional thresholds into the library's
+schema, calls `batch_extract`, and projects confidence and offsets into the
+[Python wire models](../../packages/elide-core/src/elide_core/ner/v1).
 
-The service returns each span's **raw model label** (`person`, `email`, `iban`,
-…) together with the `modelId` that produced it. It does not map labels onto a
-shared taxonomy — that is the **consumer's** job (the runtime's `nvisy-schema`
-owns the map, keyed by `modelId`). The contract lives in
-[`elide_core.ner.v1`](../../packages/elide-core/src/elide_core/ner/v1).
+## Request and batch flow
 
-## The schema
+`POST /recognize` takes a list under `requests`. Each item contains nonempty
+`text`, a `schema` with at least one unique entity label, and an optional default
+`threshold`. An entity's own threshold overrides the request threshold.
 
-A request's schema composes three optional groups, mirroring GLiNER2's own
-`Schema`:
+BentoML can combine concurrent callers into a dispatch window of up to 32
+items. The [pipeline](../../packages/elide-ner/src/elide_ner/inference/pipeline.py)
+then groups items by serialized schema and request threshold. Each group becomes
+one model extraction, and responses are restored to original request order.
+Different schemas therefore share dispatch capacity without being mixed in one
+model call.
 
-- **entities** — zero-shot spans for the requested labels; a per-label
-  description steers the model. Returns character offsets (`start`/`end`) and a
-  confidence score — exactly what the redaction pipeline needs to mask a span.
-- **classifications** — single- or multi-label text classification tasks.
-- **structures** — named records of fields; a field can carry an enum of choices
-  and a regex pattern (compiled to a GLiNER2 `RegexValidator`).
+The dispatcher allows 15 seconds of queue latency; the service request timeout
+is 60 seconds. Increasing batch size changes peak model memory as well as
+throughput. The service declares 4 GiB of memory to leave room beyond the model
+weights for extraction activations; that budget and the dispatch window should
+be evaluated together.
 
-The engine ([`backend/gliner2.py`](../../packages/elide-ner/src/elide_ner/backend/gliner2.py))
-translates the wire schema into a `gliner2.Schema`, calls `batch_extract`, and
-projects the result back into the typed response (GLiNER2's `confidence` becomes
-`score`).
+## Input budgets and rejection
 
-## Single model, self-hosted
+Extraction cost grows with both text length and schema content. The service
+bounds both dimensions:
 
-One GLiNER2 model serves the deployment, named by `ELIDE_BENTO_NER_MODEL`. There is no
-whitelist and no per-request model selection — a self-hosted appliance serves one
-taxonomy per deployment; an operator who needs a different model sets the env var
-and redeploys.
+- The default text budget is 512 encoder tokens. Short strings skip the
+  character scan. Longer strings are scanned incrementally for a dense-character
+  rejection bound; candidates that pass are tokenized for the precise check.
+  The measured count is reused in response token usage.
+- The default schema budget is 32 KiB of serialized UTF-8 JSON. Descriptions
+  and labels both count. Counting entity labels alone would leave a single
+  large description unbounded.
 
-Self-hosting is the point, so the service is built to keep data on-box:
+Schema size is checked while parsing each caller, before adaptive batching,
+and checked again at the inference boundary. Token validation currently runs
+inside the dispatched pipeline: an overlong text can reject the shared batch.
+Per-caller token preparation before dispatch remains an isolation improvement.
+An inference failure also fails that dispatched call rather than returning
+partial results.
 
-- **Offline.** Weights are baked into the image; the service runs with
-  `HF_HUB_OFFLINE=1` / `TRANSFORMERS_OFFLINE=1`, so it never reaches the Hub at
-  request time and never uses GLiNER2's hosted API path.
-- **No payload logging.** Logs carry request ids and counts, never input text or
-  spans.
-- **Reject, don't truncate.** The encoder caps at 512 tokens and silently
-  truncates above it — which would drop PII in the tail unseen. The service
-  rejects over-length input (`ELIDE_BENTO_NER_MAX_TOKENS`) instead.
+## Offsets and the Rust boundary
 
-## What it is *not*
+Wire `start` and `end` count Unicode code points in the original text, with an
+inclusive start and exclusive end. Text is not normalized. For `Łódź Ada`, the
+span for `Ada` is `5..8` on the wire and `8..11` in UTF-8 bytes.
 
-- **Not a pattern matcher.** Structured PII with strong syntactic signals
-  (credit-card Luhn, key formats) is also caught by deterministic patterns in the
-  runtime; a field regex narrows extraction but the model is not a validator.
-- **Not coreference / linking.** Spans are independent — no entity IDs, no
-  cross-span clustering.
-- **Not for non-text modalities.** Visual/biometric entities (faces, signatures,
-  barcodes) belong to the OCR/CV path.
+The [Rust adapter](../../crates/adapter/elide-bentoml/src/ner/response.rs) builds
+an index-to-byte mapping, checks bounds and matched text, and constructs domain
+spans. The adapter requires explicit labels. Missing labels fail locally;
+an explicitly empty label list returns no work without an HTTP request.
 
-A formal SOTA review is tracked at
-[issue #467](https://github.com/nvisycom/elide-runtime/issues/467).
+Responses carry `model_id` and optional encoder `tokens`. The current Rust
+domain conversion retains the spans and leaves this metadata in the wire layer.
+[Shared fixtures](../../contracts/ner/v1) cover ASCII, accents, CJK, emoji, and
+combining characters, alongside tests for request ordering and invalid spans.
+
+## Scope and tradeoffs
+
+Results depend on the selected labels, descriptions, and model. The service
+provides independent spans; it does not establish entity identity across spans
+or requests. Deterministic format validation and policy remain runtime concerns.
+
+The character shortcut relies on the configured backend's character-to-token
+bound. A new model or tokenizer needs that assumption checked alongside the
+precise token budget. Raising token limits alone does not increase a model's
+encoder capacity.

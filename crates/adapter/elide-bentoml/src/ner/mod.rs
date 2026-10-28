@@ -4,8 +4,7 @@
 //! Wire contract: `POST /recognize` accepts a batched list of
 //! requests (one schema-driven entity-extraction call per item)
 //! and returns the matching list of responses. Each request carries
-//! a schema (entities + optional classifications + structures); this
-//! backend uses entities only and ignores the rest. Per-call
+//! an entity schema. The Python models own the wire contract. Per-call
 //! correlation IDs propagate as `x-request-id` headers when set.
 //!
 //! Wire types live in the private `request` (outgoing) and
@@ -16,6 +15,8 @@
 
 mod request;
 mod response;
+#[allow(dead_code, reason = "Typify emits helpers not used by every schema")]
+mod wire;
 
 use std::time::Duration;
 
@@ -27,8 +28,7 @@ use elide_ner::backend::{NerRequest, NerResponse};
 use hipstr::HipStr;
 use uuid::Uuid;
 
-use self::request::{Recognize, WireNerRequest};
-use self::response::WireNerResponse;
+use self::wire::{NerInput, NerOutput, NerRequest as WireNerRequest};
 use crate::error::BentoError;
 
 const ROUTE: &str = "recognize";
@@ -116,10 +116,25 @@ impl BentoNer {
         &self,
         requests: &[NerRequest<'_>],
     ) -> Result<Vec<NerResponse>, BentoError> {
-        let body: Vec<WireNerRequest> = requests
-            .iter()
-            .map(|r| WireNerRequest::from_request(r, self.default_threshold))
-            .collect();
+        // Explicitly empty labels mean no work. Missing labels are an error:
+        // this model has no implicit fixed label set.
+        let mut responses: Vec<Option<NerResponse>> = requests.iter().map(|_| None).collect();
+        let mut active = Vec::new();
+        let mut body = Vec::new();
+        for (index, request) in requests.iter().enumerate() {
+            if request.labels.is_some_and(|labels| labels.is_empty()) {
+                responses[index] = Some(NerResponse::new(Vec::new()));
+            } else {
+                body.push(WireNerRequest::from_request(
+                    request,
+                    self.default_threshold,
+                )?);
+                active.push(index);
+            }
+        }
+        if body.is_empty() {
+            return Ok(responses.into_iter().flatten().collect());
+        }
         // Always sent, generated when the caller has none: the id is what ties
         // a service-side log line or rejection to the job that caused it, and
         // without one the service logs `req_id=None` for every call — which is
@@ -134,11 +149,21 @@ impl BentoNer {
             .endpoint
             .clone()
             .with_request_id(request_id.to_string());
-        let wire: Vec<WireNerResponse> = endpoint
-            .invoke(&Recognize { requests: &body })
+        let wire: NerOutput = endpoint
+            .invoke(&NerInput { requests: body })
             .await
             .map_err(BentoError::Transport)?;
-        Ok(wire.into_iter().map(WireNerResponse::decode).collect())
+        if wire.len() != active.len() {
+            return Err(BentoError::Protocol(format!(
+                "bento ner returned {} responses for {} requests",
+                wire.len(),
+                active.len()
+            )));
+        }
+        for (index, response) in active.into_iter().zip(wire.0) {
+            responses[index] = Some(response.decode(requests[index].text)?);
+        }
+        Ok(responses.into_iter().flatten().collect())
     }
 }
 
@@ -193,5 +218,105 @@ impl Backend for BentoNer {
             .into());
         }
         Ok(responses)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn empty_labels_return_no_work_without_transport() {
+        let backend = BentoNer::new("http://127.0.0.1:9", "test").unwrap();
+        let request = NerRequest {
+            text: "Ada",
+            labels: Some(&[]),
+            language: None,
+            correlation_id: None,
+        };
+        let response = backend.call(request).await.unwrap();
+        assert!(response.spans.is_empty());
+    }
+
+    #[tokio::test]
+    async fn missing_labels_fail_locally() {
+        let backend = BentoNer::new("http://127.0.0.1:9", "test").unwrap();
+        let request = NerRequest {
+            text: "Ada",
+            labels: None,
+            language: None,
+            correlation_id: None,
+        };
+        let error = backend.call(request).await.unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("requires explicit entity labels")
+        );
+    }
+
+    #[tokio::test]
+    async fn mixed_batch_skips_empty_schemas_and_preserves_response_order() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+
+        use elide_core::entity::Label;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut bytes = Vec::new();
+            loop {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                bytes.push(byte[0]);
+                if bytes.ends_with(b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let headers = String::from_utf8_lossy(&bytes);
+            let length: usize = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse().unwrap())
+                })
+                .unwrap();
+            let mut body = vec![0; length];
+            stream.read_exact(&mut body).unwrap();
+            let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(payload["requests"].as_array().unwrap().len(), 1);
+            assert_eq!(payload["requests"][0]["text"], "Łódź Ada");
+            let response = r#"[{"entities":[{"text":"Ada","label":"person","score":0.9,"start":5,"end":8}],"model_id":"m"}]"#;
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", response.len(), response).unwrap();
+        });
+        let backend = BentoNer::new(format!("http://{address}"), "test").unwrap();
+        let labels = [Label::new("person", "person")];
+        let empty = NerRequest {
+            text: "ignored",
+            labels: Some(&[]),
+            language: None,
+            correlation_id: None,
+        };
+        let active = NerRequest {
+            text: "Łódź Ada",
+            labels: Some(&labels),
+            language: None,
+            correlation_id: None,
+        };
+        let responses = backend
+            .call_batch(vec![empty.clone(), active, empty])
+            .await
+            .unwrap();
+        server.join().unwrap();
+        assert_eq!(responses.len(), 3);
+        assert!(responses[0].spans.is_empty());
+        assert_eq!(responses[1].spans[0].offset, 8..11);
+        assert!(responses[2].spans.is_empty());
     }
 }

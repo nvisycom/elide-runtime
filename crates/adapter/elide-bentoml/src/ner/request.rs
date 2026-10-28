@@ -1,123 +1,151 @@
-//! Outgoing wire types for the NER `/recognize` endpoint.
-//!
-//! Mirrors `elide_core.ner.v1.NerRequest` from the inference
-//! repository: a `(text, schema, threshold)` triple where the
-//! schema lists the entities to extract. Classifications and
-//! structured records (also part of the upstream schema) are
-//! omitted — this backend surfaces entity extraction only.
+//! Convert Rust domain requests into the Python-owned wire contract.
+
+use std::collections::HashSet;
 
 use elide_core::primitive::LanguageTag;
 use elide_ner::backend::NerRequest;
-use serde::Serialize;
 
-/// The `/recognize` input model.
-///
-/// BentoML keys an endpoint's input on its handler's parameter names, so
-/// `recognize(self, requests: list[NerRequest], ctx)` takes
-/// `{"requests": [...]}` and rejects a bare array with
-/// `400 1 validation error for Input`. The service publishes the same shape
-/// in its OpenAPI document, where `/recognize` reports `required: ["requests"]`.
-#[derive(Debug, Serialize)]
-pub(super) struct Recognize<'a> {
-    /// Named for the handler parameter that receives it.
-    pub requests: &'a [WireNerRequest],
-}
-
-/// Outgoing per-call request body element.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WireNerRequest {
-    /// Source text to scan.
-    pub text: String,
-    /// Schema describing what to extract.
-    pub schema: WireSchema,
-    /// Default per-label confidence cutoff. Per-entity `threshold`
-    /// overrides this when present.
-    pub threshold: f32,
-}
+use super::wire::{EntitySpec, NerRequest as WireNerRequest, Schema};
+use crate::error::BentoError;
 
 impl WireNerRequest {
-    /// Translate an elide [`NerRequest`] into the wire shape,
-    /// pinning the service-default threshold when the request has
-    /// no per-label thresholds of its own.
-    ///
-    /// Label name/description are localized in the request's
-    /// asserted language when set; otherwise English is used as
-    /// the fallback locale (matching elide's own default).
-    pub(super) fn from_request(request: &NerRequest<'_>, default_threshold: f32) -> Self {
+    /// This schema-driven backend requires explicit, nonempty entity labels.
+    pub(super) fn from_request(
+        request: &NerRequest<'_>,
+        default_threshold: f32,
+    ) -> Result<Self, BentoError> {
+        if request.text.is_empty() {
+            return Err(BentoError::Protocol("NER text must not be empty".into()));
+        }
+        if !(0.0..=1.0).contains(&default_threshold) {
+            return Err(BentoError::Protocol(
+                "NER threshold must be in [0, 1]".into(),
+            ));
+        }
+        let labels = request.labels.ok_or_else(|| {
+            BentoError::Protocol("schema-driven NER requires explicit entity labels".into())
+        })?;
+        if labels.is_empty() {
+            return Err(BentoError::Protocol(
+                "NER schema must contain entity labels".into(),
+            ));
+        }
         let english = LanguageTag::english();
         let language = request.language.unwrap_or(&english);
-        let entities = request
-            .labels
-            .map(|labels| {
-                labels
-                    .iter()
-                    .map(|label| WireEntitySpec {
-                        label: label.name(language).to_owned(),
-                        description: label.description(language).map(str::to_owned),
-                        threshold: None,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        Self {
-            text: request.text.to_owned(),
-            schema: WireSchema { entities },
-            threshold: default_threshold,
+        let mut seen = HashSet::new();
+        let mut entities = Vec::with_capacity(labels.len());
+        for label in labels {
+            let name = label.name(language);
+            if name.is_empty() || !seen.insert(name) {
+                return Err(BentoError::Protocol(
+                    "NER entity labels must be nonempty and unique".into(),
+                ));
+            }
+            entities.push(EntitySpec {
+                label: super::wire::Label::try_from(name)
+                    .map_err(|error| BentoError::Protocol(error.to_string()))?,
+                description: label.description(language).map(str::to_owned),
+                threshold: None,
+            });
         }
+        Ok(Self {
+            text: super::wire::Text::try_from(request.text)
+                .map_err(|error| BentoError::Protocol(error.to_string()))?,
+            schema: Schema { entities },
+            threshold: Some(f64::from(default_threshold)),
+        })
     }
-}
-
-/// `Schema` group: the entities the call extracts.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WireSchema {
-    pub entities: Vec<WireEntitySpec>,
-}
-
-/// One entity to extract.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WireEntitySpec {
-    /// Stable label identifier (e.g. `"email_address"`).
-    pub label: String,
-    /// Optional natural-language description that steers zero-shot
-    /// extraction.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Per-label confidence cutoff. `None` falls through to the
-    /// request-level [`WireNerRequest::threshold`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub threshold: Option<f32>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// The body must be the object the service's OpenAPI declares, not the
-    /// bare array this client posted until `bentoml` 0.6. Nothing else checks
-    /// this: the adapter's own transport is mocked, so a wrong shape reaches
-    /// only a real service — which answered `400 1 validation error for
-    /// Input` for every call.
     #[test]
-    fn the_body_is_an_object_keyed_on_the_handler_parameter() {
-        let requests = vec![WireNerRequest {
-            text: "Ana".to_owned(),
-            schema: WireSchema {
-                entities: Vec::new(),
-            },
-            threshold: 0.3,
-        }];
+    fn missing_labels_are_rejected_locally() {
+        let request = NerRequest {
+            text: "Ada",
+            labels: None,
+            language: None,
+            correlation_id: None,
+        };
+        assert!(WireNerRequest::from_request(&request, 0.5).is_err());
+    }
+}
 
-        let json = serde_json::to_value(Recognize {
-            requests: &requests,
-        })
-        .expect("the request serializes");
+#[cfg(test)]
+mod contract_tests {
+    use elide_core::entity::{Label, LabelLocale};
 
-        assert!(
-            json.get("requests").is_some_and(|r| r.is_array()),
-            "`/recognize` declares `required: [\"requests\"]`, got {json}"
-        );
+    use super::*;
+    use crate::ner::wire::NerInput;
+
+    #[test]
+    fn domain_requests_serialize_to_python_fixtures() {
+        let fixtures: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../contracts/ner/v1/fixtures.json"
+        ))
+        .unwrap();
+        for case in fixtures.as_array().unwrap() {
+            let mut expected = case["request"].clone();
+            let request = &expected["requests"][0];
+            let text = request["text"].as_str().unwrap().to_owned();
+            let labels: Vec<Label> = request["schema"]["entities"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|spec| {
+                    let name = spec["label"].as_str().unwrap().to_owned();
+                    let mut label = Label::new(name.clone(), name.clone());
+                    if let Some(description) = spec["description"].as_str() {
+                        label = label.with_localization(
+                            LanguageTag::english(),
+                            LabelLocale::described(name, description.to_owned()),
+                        );
+                    }
+                    label
+                })
+                .collect();
+            let domain = NerRequest {
+                text: &text,
+                labels: Some(&labels),
+                language: None,
+                correlation_id: None,
+            };
+            let wire = NerInput {
+                requests: vec![WireNerRequest::from_request(&domain, 0.5).unwrap()],
+            };
+            for spec in expected["requests"][0]["schema"]["entities"]
+                .as_array_mut()
+                .unwrap()
+            {
+                spec.as_object_mut()
+                    .unwrap()
+                    .retain(|_, value| !value.is_null());
+            }
+            assert_eq!(serde_json::to_value(wire).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn invalid_requests_are_rejected_before_transport() {
+        let duplicate_labels = vec![Label::new("a", "person"), Label::new("b", "person")];
+        let labels = vec![Label::new("a", "person")];
+        let empty_label = vec![Label::new("a", "")];
+        for (text, labels, threshold) in [
+            ("Ada", &duplicate_labels, 0.5),
+            ("Ada", &empty_label, 0.5),
+            ("", &labels, 0.5),
+            ("Ada", &labels, f32::NAN),
+            ("Ada", &labels, 1.1),
+        ] {
+            let request = NerRequest {
+                text,
+                labels: Some(labels),
+                language: None,
+                correlation_id: None,
+            };
+            assert!(WireNerRequest::from_request(&request, threshold).is_err());
+        }
     }
 }

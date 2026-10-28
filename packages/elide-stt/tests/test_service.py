@@ -65,8 +65,8 @@ def test_transcribes_valid_audio(client):
         "/transcribe", json={"request": {"audio": wav_payload(0.5), "language": "en"}}
     )
     assert response.status_code == 200
-    assert response.json()["modelId"] == "fake"
-    assert response.json()["durationMs"] == 500
+    assert response.json()["model_id"] == "fake"
+    assert response.json()["duration_ms"] == 500
     assert response.json()["language"] == "en"
 
 

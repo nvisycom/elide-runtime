@@ -7,9 +7,8 @@ requires-python = "==3.12.*"
 license = "Apache-2.0"
 authors = [{ name = "Nvisy" }]
 dependencies = [
-    # 2.11 introduced `serialize_by_alias`, which every wire model relies on
-    # for camelCase output. On 2.7-2.10 the setting is silently ignored and
-    # snake_case field names reach the wire, which the Rust client rejects.
+    # NER uses serialize_by_alias for the reserved schema_ → schema wire field.
+    # The setting was introduced in 2.11; other wire names are snake_case directly.
     "pydantic>=2.11,<3",
 ]
 

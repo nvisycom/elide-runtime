@@ -27,7 +27,7 @@ def test_block_defaults_to_text_kind():
     assert block.kind == BlockKind.TEXT
 
 
-def test_response_serializes_camel_case_with_model_id():
+def test_response_serializes_snake_case_with_model_id():
     word = Word(text="Ada", confidence=0.9, bbox=_bbox())
     line = Line(text="Ada", bbox=_bbox(), words=[word])
     block = Block(text="Ada", kind=BlockKind.TEXT, bbox=_bbox(), lines=[line])
@@ -35,8 +35,8 @@ def test_response_serializes_camel_case_with_model_id():
     resp = OcrResponse(pages=[page], model_id="doctr/db_resnet50+crnn")
 
     dumped = resp.model_dump(by_alias=True, mode="json")
-    assert dumped["modelId"] == "doctr/db_resnet50+crnn"
-    assert dumped["pages"][0]["pageNumber"] == 1
+    assert dumped["model_id"] == "doctr/db_resnet50+crnn"
+    assert dumped["pages"][0]["page_number"] == 1
     assert dumped["pages"][0]["blocks"][0]["kind"] == "text"
 
 

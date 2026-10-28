@@ -1,10 +1,9 @@
 //! Incoming wire types for the OCR `/recognize` endpoint.
 //!
-//! Mirrors `elide_core.ocr.v1.OcrResponse` from the inference
-//! repository. The wire tree is `Page -> Block -> Line -> Word`;
+//! The wire types are generated from `elide_core.ocr.v1.OcrResponse`. The wire tree is `Page -> Block -> Line -> Word`;
 //! elide's [`Layout`] is a flat list of regions, so
 //! [`WireOcrResponse::decode`] keeps the words and discards the
-//! groupings above them. The response-level `modelId`, per-page
+//! groupings above them. The response-level `model_id`, per-page
 //! `width`/`height`, per-block `kind`, and any rotated polygons are
 //! deserialised-and-discarded for now.
 //!
@@ -14,68 +13,9 @@ use elide_core::primitive::Confidence;
 use elide_image::modality::{ImageLocation, LayoutRegion};
 use elide_image::ocr::OcrResponse;
 use elide_image::primitive::{BoundingBox, Point};
-use serde::Deserialize;
 
-/// Incoming per-call response body element.
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WireOcrResponse {
-    #[serde(default)]
-    pub pages: Vec<WirePage>,
-    // `modelId` ignored: provenance comes from `BentoOcr::model_id`
-    // (the deployment-level id the operator wired at construction).
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WirePage {
-    /// 1-based page index; flows straight onto [`ImageLocation::page`].
-    pub page_number: Option<u32>,
-    #[serde(default)]
-    pub blocks: Vec<WireBlock>,
-    // `width`, `height` ignored: elide's layout does not carry page
-    // dimensions today.
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WireBlock {
-    pub text: String,
-    pub bbox: WireBoundingBox,
-    #[serde(default)]
-    pub lines: Vec<WireLine>,
-    // `kind` (text / table / figure / other) ignored: `LayoutRegion` does
-    // not model a layout kind.
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WireLine {
-    pub text: String,
-    pub bbox: WireBoundingBox,
-    #[serde(default)]
-    pub words: Vec<WireWord>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WireWord {
-    pub text: String,
-    pub confidence: Option<f32>,
-    pub bbox: WireBoundingBox,
-    // `polygon` ignored: `ImageLocation` has a `polygon` field, but the
-    // service reports one only for rotated regions, and nothing here
-    // requests that mode yet.
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct WireBoundingBox {
-    pub x: f64,
-    pub y: f64,
-    pub width: f64,
-    pub height: f64,
-}
+use super::wire::{BoundingBox as WireBoundingBox, OcrResponse as WireOcrResponse};
+use crate::error::BentoError;
 
 impl From<WireBoundingBox> for BoundingBox<f64> {
     fn from(b: WireBoundingBox) -> Self {
@@ -102,10 +42,12 @@ impl WireOcrResponse {
     /// it would lose recognised content.
     ///
     /// [`Layout`]: elide_image::modality::Layout
-    pub(super) fn decode(self) -> OcrResponse {
+    pub(super) fn decode(self) -> Result<OcrResponse, BentoError> {
         let mut regions = Vec::new();
         for page in self.pages {
-            let page_number = page.page_number;
+            let page_number = Some(u32::try_from(page.page_number.get()).map_err(|_| {
+                BentoError::Protocol("OCR page number exceeds the Rust domain range".into())
+            })?);
             for block in page.blocks {
                 // Descend as far as the response actually goes, and emit at
                 // the deepest level that has content. A block or line may
@@ -127,7 +69,7 @@ impl WireOcrResponse {
                 }
             }
         }
-        OcrResponse::new(regions)
+        Ok(OcrResponse::new(regions))
     }
 }
 
@@ -135,7 +77,7 @@ impl WireOcrResponse {
 fn region(
     bbox: WireBoundingBox,
     text: String,
-    confidence: Option<f32>,
+    confidence: Option<f64>,
     page_number: Option<u32>,
 ) -> LayoutRegion {
     let location = ImageLocation {
@@ -145,7 +87,7 @@ fn region(
     };
     let layout = LayoutRegion::new(location, text);
     match confidence {
-        Some(c) => layout.with_confidence(Confidence::clamped(c)),
+        Some(c) => layout.with_confidence(Confidence::clamped(c as f32)),
         None => layout,
     }
 }
@@ -153,109 +95,75 @@ fn region(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ocr::wire::{BlockKind, OcrOutput};
 
-    fn bbox() -> WireBoundingBox {
-        WireBoundingBox {
-            x: 0.0,
-            y: 0.0,
-            width: 10.0,
-            height: 4.0,
+    #[test]
+    fn python_fixtures_preserve_hierarchy_geometry_and_fallbacks() {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../contracts/ocr/v1/fixtures.json"
+        ))
+        .unwrap();
+        for case in cases.as_array().unwrap() {
+            let mut wire: OcrOutput = serde_json::from_value(case["response"].clone()).unwrap();
+            if case["name"] == "word-polygon" {
+                let block = &wire[0].pages[0].blocks[0];
+                assert!(matches!(block.kind, BlockKind::Table));
+                assert_eq!(block.lines[0].words[0].polygon.unwrap().2, (40.0, 24.0));
+            }
+            let regions = wire.0.remove(0).decode().unwrap().regions;
+            let expected = case["expected_regions"].as_array().unwrap();
+            assert_eq!(regions.len(), expected.len());
+            for (region, expected) in regions.iter().zip(expected) {
+                assert_eq!(region.text, expected["text"].as_str().unwrap());
+                assert_eq!(
+                    region.region.page.unwrap(),
+                    expected["page"].as_u64().unwrap() as u32
+                );
+                let bbox = region.region.bounding_box;
+                let expected_box = expected["bbox"].as_array().unwrap();
+                assert_eq!(
+                    [bbox.min.x, bbox.min.y, bbox.width(), bbox.height()],
+                    std::array::from_fn(|i| expected_box[i].as_f64().unwrap())
+                );
+                assert_eq!(
+                    region.confidence,
+                    expected["confidence"]
+                        .as_f64()
+                        .map(|c| Confidence::clamped(c as f32))
+                );
+            }
         }
     }
 
-    fn word(text: &str, confidence: Option<f32>) -> WireWord {
-        WireWord {
-            text: text.to_owned(),
-            confidence,
-            bbox: bbox(),
-        }
-    }
-
-    fn response(blocks: Vec<WireBlock>, page_number: Option<u32>) -> OcrResponse {
-        WireOcrResponse {
-            pages: vec![WirePage {
-                page_number,
-                blocks,
-            }],
-        }
-        .decode()
-    }
-
-    /// Words are what a populated response emits, and they carry the
-    /// confidence the coarser levels have none of.
     #[test]
-    fn emits_words_when_present() {
-        let regions = response(
-            vec![WireBlock {
-                text: "hello world".to_owned(),
-                bbox: bbox(),
-                lines: vec![WireLine {
-                    text: "hello world".to_owned(),
-                    bbox: bbox(),
-                    words: vec![word("hello", Some(0.9)), word("world", Some(0.8))],
-                }],
-            }],
-            Some(1),
+    fn defaults_and_optional_metadata_match_python() {
+        let response: WireOcrResponse = serde_json::from_str(
+            r#"{
+            "model_id":"m", "pages":[{"page_number":1,"blocks":[{
+                "text":"block", "bbox":{"x":0,"y":0,"width":10,"height":4}
+            }]}]}"#,
         )
-        .regions;
-
-        assert_eq!(regions.len(), 2);
-        assert_eq!(regions[0].text, "hello");
-        assert!(regions[0].confidence.is_some());
+        .unwrap();
+        assert!(matches!(response.pages[0].blocks[0].kind, BlockKind::Text));
+        assert_eq!(response.decode().unwrap().regions.len(), 1);
+        let empty: WireOcrResponse = serde_json::from_str(r#"{"model_id":"m"}"#).unwrap();
+        assert!(empty.decode().unwrap().regions.is_empty());
     }
 
-    /// A line with text but no words is emitted itself: the contract
-    /// requires `text` while defaulting `words` to empty, so discarding it
-    /// would lose recognised content.
     #[test]
-    fn falls_back_to_the_line_when_it_has_no_words() {
-        let regions = response(
-            vec![WireBlock {
-                text: "a line".to_owned(),
-                bbox: bbox(),
-                lines: vec![WireLine {
-                    text: "a line".to_owned(),
-                    bbox: bbox(),
-                    words: Vec::new(),
-                }],
-            }],
-            Some(1),
-        )
-        .regions;
-
-        assert_eq!(regions.len(), 1);
-        assert_eq!(regions[0].text, "a line");
-        // Only words carry a confidence, so a fallback region has none
-        // rather than inheriting a number nobody reported.
-        assert!(regions[0].confidence.is_none());
+    fn page_number_must_fit_the_domain() {
+        let zero = serde_json::json!({"model_id":"m", "pages":[{"page_number":0}]});
+        assert!(serde_json::from_value::<WireOcrResponse>(zero).is_err());
+        let response: WireOcrResponse = serde_json::from_value(serde_json::json!({
+            "model_id":"m", "pages":[{"page_number":u64::from(u32::MAX) + 1}]
+        }))
+        .unwrap();
+        assert!(response.decode().is_err());
     }
 
-    /// Same for a block whose `lines` is empty.
     #[test]
-    fn falls_back_to_the_block_when_it_has_no_lines() {
-        let regions = response(
-            vec![WireBlock {
-                text: "a block".to_owned(),
-                bbox: bbox(),
-                lines: Vec::new(),
-            }],
-            Some(2),
-        )
-        .regions;
-
-        assert_eq!(regions.len(), 1);
-        assert_eq!(regions[0].text, "a block");
-        assert_eq!(regions[0].region.page, Some(2));
-    }
-
-    /// No pages decodes to no regions rather than failing.
-    #[test]
-    fn empty_response_decodes_to_no_regions() {
-        assert!(
-            WireOcrResponse { pages: Vec::new() }
-                .decode()
-                .regions
-                .is_empty()
-        );
+    fn polygon_shape_is_enforced_by_generated_types() {
+        let json = r#"{"text":"a","bbox":{"x":0,"y":0,"width":1,"height":1},"polygon":[[0,0],[1,0],[1,1]]}"#;
+        assert!(serde_json::from_str::<crate::ocr::wire::Word>(json).is_err());
     }
 }

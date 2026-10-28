@@ -20,6 +20,8 @@
 
 mod request;
 mod response;
+#[allow(dead_code, reason = "Typify emits helpers not used by every schema")]
+mod wire;
 
 use std::time::Duration;
 
@@ -31,8 +33,7 @@ use elide_core::entity::audit::ModelEvent;
 use hipstr::HipStr;
 use uuid::Uuid;
 
-use self::request::{Transcribe, WireSttRequest};
-use self::response::WireSttResponse;
+use self::wire::{SttInput, SttOutput as WireSttResponse, SttRequest as WireSttRequest};
 use crate::error::BentoError;
 
 const ROUTE: &str = "transcribe";
@@ -105,10 +106,10 @@ impl BentoStt {
             .clone()
             .with_request_id(request_id.to_string());
         let wire: WireSttResponse = endpoint
-            .invoke(&Transcribe { request: &body })
+            .invoke(&SttInput { request: body })
             .await
             .map_err(BentoError::Transport)?;
-        Ok(wire.decode())
+        wire.0.decode()
     }
 }
 

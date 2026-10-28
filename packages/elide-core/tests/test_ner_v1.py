@@ -9,7 +9,7 @@ from elide_core.ner.v1 import (
 )
 
 
-def test_request_parses_camelcase_schema():
+def test_request_parses_snake_case_schema():
     req = NerRequest.model_validate(
         {
             "text": "Ada in London",
@@ -55,8 +55,8 @@ def test_entity_rejects_a_non_positive_span(start, end):
         Entity(text="x", label="person", score=0.9, start=start, end=end)
 
 
-def test_response_serializes_entities_in_camelcase():
-    """The wire form is camelCase; entity spans and scores must survive it."""
+def test_response_serializes_entities_in_snake_case():
+    """The wire form is snake_case; entity spans and scores must survive it."""
     resp = NerResponse(
         entities=[Entity(text="Ada", label="person", score=0.9, start=0, end=3)],
         model_id="m",
@@ -71,7 +71,7 @@ def test_response_serializes_entities_in_camelcase():
         "start": 0,
         "end": 3,
     }
-    assert dumped["modelId"] == "m"
+    assert dumped["model_id"] == "m"
 
 
 def test_response_omits_tokens_when_absent():
@@ -82,7 +82,7 @@ def test_response_omits_tokens_when_absent():
 
 
 def test_response_serializes_token_usage():
-    """Reported tokens round-trip, with the camelCase wire shape."""
+    """Reported tokens round-trip, with the snake_case wire shape."""
     resp = NerResponse(model_id="fastino/x", tokens=TokenUsage(input=12, limit=512))
     dumped = resp.model_dump(by_alias=True, mode="json")
     assert dumped["tokens"] == {"input": 12, "limit": 512}

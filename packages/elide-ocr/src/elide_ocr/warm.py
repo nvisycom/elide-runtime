@@ -13,10 +13,9 @@ Shared pieces come from ``elide_core.warm``.
 from __future__ import annotations
 
 import logging
-import os
 import sys
 
-from elide_core.warm import hand_over, require_env
+from elide_core.warm import configure_logging, hand_over, require_env
 
 from elide_ocr.runtime import config
 
@@ -26,10 +25,7 @@ logger = logging.getLogger("nvisy.ocr.warm")
 def main() -> None:
     from doctr.models import ocr_predictor
 
-    logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", "INFO").upper(),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    configure_logging()
     cache = require_env("DOCTR_CACHE_DIR")
     pair = config.OcrSettings().model_name
     det, _, rec = pair.partition("+")

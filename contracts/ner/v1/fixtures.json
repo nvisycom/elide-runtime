@@ -1,0 +1,166 @@
+[
+  {
+    "request": {
+      "requests": [
+        {
+          "text": "Ada",
+          "schema": {
+            "entities": [
+              {
+                "label": "person",
+                "description": null,
+                "threshold": null
+              }
+            ]
+          },
+          "threshold": 0.5
+        }
+      ]
+    },
+    "response": [
+      {
+        "entities": [
+          {
+            "text": "Ada",
+            "label": "person",
+            "score": 0.9,
+            "start": 0,
+            "end": 3
+          }
+        ],
+        "model_id": "contract/model",
+        "tokens": {
+          "input": 3,
+          "limit": 512
+        }
+      }
+    ],
+    "expected_byte_range": [
+      0,
+      3
+    ]
+  },
+  {
+    "request": {
+      "requests": [
+        {
+          "text": "Łódź Ada",
+          "schema": {
+            "entities": [
+              {
+                "label": "person",
+                "description": null,
+                "threshold": null
+              }
+            ]
+          },
+          "threshold": 0.5
+        }
+      ]
+    },
+    "response": [
+      {
+        "entities": [
+          {
+            "text": "Ada",
+            "label": "person",
+            "score": 0.9,
+            "start": 5,
+            "end": 8
+          }
+        ],
+        "model_id": "contract/model",
+        "tokens": {
+          "input": 3,
+          "limit": 512
+        }
+      }
+    ],
+    "expected_byte_range": [
+      8,
+      11
+    ]
+  },
+  {
+    "request": {
+      "requests": [
+        {
+          "text": "🔒 李雷 é",
+          "schema": {
+            "entities": [
+              {
+                "label": "person",
+                "description": null,
+                "threshold": null
+              }
+            ]
+          },
+          "threshold": 0.5
+        }
+      ]
+    },
+    "response": [
+      {
+        "entities": [
+          {
+            "text": "李雷",
+            "label": "person",
+            "score": 0.9,
+            "start": 2,
+            "end": 4
+          }
+        ],
+        "model_id": "contract/model",
+        "tokens": {
+          "input": 3,
+          "limit": 512
+        }
+      }
+    ],
+    "expected_byte_range": [
+      5,
+      11
+    ]
+  },
+  {
+    "request": {
+      "requests": [
+        {
+          "text": "é Ada",
+          "schema": {
+            "entities": [
+              {
+                "label": "person",
+                "description": "a person",
+                "threshold": null
+              }
+            ]
+          },
+          "threshold": 0.5
+        }
+      ]
+    },
+    "response": [
+      {
+        "entities": [
+          {
+            "text": "é",
+            "label": "person",
+            "score": 0.9,
+            "start": 0,
+            "end": 2
+          }
+        ],
+        "model_id": "contract/model",
+        "tokens": {
+          "input": 3,
+          "limit": 512
+        }
+      }
+    ],
+    "expected_byte_range": [
+      0,
+      3
+    ]
+  }
+]

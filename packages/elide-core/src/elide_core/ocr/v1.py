@@ -5,17 +5,15 @@ Word`` hierarchy. Geometry is an axis-aligned bounding box (pixels, origin
 top-left) plus an optional 4-point polygon for engines that report rotated
 regions. Blocks carry a :class:`BlockKind` from layout analysis.
 
-The Rust runtime (``elide-bentoml``) is the source of truth; these
-models mirror it. The wire is camelCase to match the runtime's serde
-``rename_all = "camelCase"``.
+These Python models own the HTTP contract and generate the Rust wire types.
+Field names use snake_case on the wire and in both language implementations.
 """
 
 from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.alias_generators import to_camel
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from elide_core.types import Probability
 
@@ -35,15 +33,9 @@ class BlockKind(StrEnum):
 
 
 class _Model(BaseModel):
-    # camelCase on the wire: aliases on input (populate_by_name accepts either)
-    # AND on output (serialize_by_alias) so responses match the OpenAPI schema.
-    # protected_namespaces=(): allow fields like `model_id`.
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        serialize_by_alias=True,
-        protected_namespaces=(),
-    )
+    """Snake_case wire models, with model metadata field names allowed."""
+
+    model_config = ConfigDict(protected_namespaces=())
 
 
 class BoundingBox(_Model):
@@ -104,3 +96,13 @@ class OcrResponse(_Model):
         "provenance (e.g. the engine's model name/pair). Does not encode the "
         "engine library version.",
     )
+
+
+class OcrInput(_Model):
+    """BentoML's named request envelope for batched OCR."""
+
+    requests: list[OcrRequest]
+
+
+class OcrOutput(RootModel[list[OcrResponse]]):
+    """One response per input image, in request order."""

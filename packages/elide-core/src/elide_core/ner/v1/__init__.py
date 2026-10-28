@@ -15,9 +15,9 @@ not a shared taxonomy. Mapping those onto a canonical vocabulary is the
 *consumer's* job — the runtime owns that map. Scores are confidences in
 ``[0, 1]``.
 
-The Rust runtime (``elide-bentoml``) is the source of truth; these
-models mirror it. The wire is camelCase to match the runtime's serde
-``rename_all = "camelCase"``. Split across :mod:`~elide_core.ner.v1.request` and
+These Python models are the source of truth for the NER HTTP contract.
+JSON Schema, shared fixtures, and Rust wire types are generated from them.
+The wire uses snake_case in Python and Rust. Split across :mod:`~elide_core.ner.v1.request` and
 :mod:`~elide_core.ner.v1.response`; this package re-exports the public surface.
 """
 

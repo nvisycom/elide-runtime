@@ -5,9 +5,8 @@ hint; the response is a flat list of :class:`Segment`, each with millisecond
 timings, text, and optional diarization speaker label, language, confidence,
 and per-word breakdown.
 
-The Rust client (``elide-bento``'s ``BentoStt``) is the source of truth; these
-models mirror it. The wire is camelCase to match the client's serde
-``rename_all = "camelCase"``.
+These Python models own the HTTP contract and generate the Rust wire types.
+Field names use snake_case on the wire and in both language implementations.
 
 **Timings are integer milliseconds**, not float seconds. Most engines (Whisper,
 WhisperX, and every hosted API surveyed bar one) emit float seconds, so the
@@ -17,26 +16,15 @@ wire.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-from pydantic.alias_generators import to_camel
+from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 
 from elide_core.types import Probability
 
 
 class _Model(BaseModel):
-    """Base for every wire model: camelCase on the wire, both ways.
+    """Snake_case wire models, with model metadata field names allowed."""
 
-    Aliases apply on input (``populate_by_name`` also accepts the snake_case
-    field name) AND on output (``serialize_by_alias``) so responses match the
-    OpenAPI schema. ``protected_namespaces=()`` allows fields like ``model_id``.
-    """
-
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        serialize_by_alias=True,
-        protected_namespaces=(),
-    )
+    model_config = ConfigDict(protected_namespaces=())
 
 
 class SttRequest(_Model):
@@ -67,7 +55,7 @@ class Word(_Model):
     @model_validator(mode="after")
     def _check_span(self) -> Word:
         if self.end_ms < self.start_ms:
-            raise ValueError("endMs must be greater than or equal to startMs")
+            raise ValueError("end_ms must be greater than or equal to start_ms")
         return self
 
 
@@ -98,7 +86,7 @@ class Segment(_Model):
     @model_validator(mode="after")
     def _check_span(self) -> Segment:
         if self.end_ms < self.start_ms:
-            raise ValueError("endMs must be greater than or equal to startMs")
+            raise ValueError("end_ms must be greater than or equal to start_ms")
         return self
 
 
@@ -114,3 +102,13 @@ class SttResponse(_Model):
     duration_ms: int | None = Field(
         default=None, ge=0, description="Audio duration in milliseconds, when known."
     )
+
+
+class SttInput(_Model):
+    """BentoML's named request envelope for one transcription."""
+
+    request: SttRequest
+
+
+class SttOutput(RootModel[SttResponse]):
+    """The transcription response object, without an additional JSON wrapper."""

@@ -1,8 +1,6 @@
 """NER v1 request: the extraction schema and the request envelope.
 
-A request carries a :class:`Schema` describing what to extract from ``text``:
-zero or more **entity** types, **classification** tasks, and **structured**
-records. All three are optional and compose in a single request.
+A request carries a :class:`Schema` naming the entity types to extract.
 """
 
 from __future__ import annotations

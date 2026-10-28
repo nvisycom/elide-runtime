@@ -1,59 +1,84 @@
-# Traditional OCR (docTR) — why we use it
+# OCR: text with image geometry
 
-`elide-ocr` (docTR) is the default OCR engine. It turns an image into a
-`Page → Block → Line → Word` hierarchy with geometry, and is the source of the
-text regions the runtime masks.
+`elide-ocr` turns an image into text and spatial regions. Redaction needs to
+locate a sensitive substring on the source image, so the central design
+requirement is word geometry that remains associated with recognized text.
+See the [shared service architecture](README.md) for package and contract
+boundaries.
 
-## Why a traditional (detection + recognition) OCR
+## Model and output structure
 
-Redaction has one hard requirement a pure end-to-end model struggles with:
-**precise, word-level geometry**. To mask a *sub-line* span — e.g. just an SSN
-inside a longer line — we need a tight box around that word, not the whole line.
-NER gives character offsets; turning "this entity" into a pixel mask needs
-per-word boxes. A detection+recognition pipeline is built to produce exactly
-that.
+The backend uses [docTR](https://github.com/mindee/doctr), a text detection and
+recognition pipeline with a page/block/line/word hierarchy. That hierarchy maps
+to the [OCR wire models](../../packages/elide-core/src/elide_core/ocr/v1.py) and
+lets the runtime descend to the smallest available text region.
 
-## Why docTR specifically
+The default pair is `db_resnet50+crnn_vgg16_bn`, configured through
+`ELIDE_BENTO_MODEL_NAME`. The engine constructs one predictor at startup and
+reuses it. This separates the detection/recognition implementation from the
+HTTP contract while retaining its useful geometry.
 
-- **Native word/line/block boxes.** docTR's two-stage (detection → recognition)
-  design yields a real `Document → Page → Block → Line → Word` hierarchy with
-  per-word geometry — which maps directly onto our contract. This is the precise
-  geometry redaction depends on.
-- **CPU-viable.** Runs without a GPU, keeping the OCR service within the
-  self-hosted footprint.
-- **Rotation support.** With `assume_straight_pages=False`, docTR returns 4-point
-  polygons for skewed/rotated text; our mapping populates the contract's
-  `polygon` field for that case.
-- **Versus PaddleOCR.** The other obvious detection+recognition candidate is
-  PaddleOCR (PP-OCRv5), but its detection is *line-level* — word boxes are
-  derived post-rectification and degrade on rotation. docTR is strong exactly
-  where PaddleOCR is weak for our use case.
+## Request and execution flow
 
-## What it gives us
+`POST /recognize` takes a list under `requests`. Each item contains a base64
+`image` and an optional `confidence_threshold`, defaulting to zero. The
+[pipeline](../../packages/elide-ocr/src/elide_ocr/inference/pipeline.py) decodes
+each image into RGB before passing it to the backend.
 
-Per word: text, confidence, an axis-aligned pixel `BoundingBox`, and a `polygon`
-when the region is rotated. Confidence is word-level only (docTR does not
-aggregate to the line). Base docTR has no layout classification, so blocks
-default to `BlockKind.TEXT`. Contract:
-[`elide_core.ocr.v1`](../../packages/elide-core/src/elide_core/ocr/v1.py).
+BentoML dispatches up to 16 images in a window, with a 15-second queue-latency
+budget and 60-second request timeout. Within that window, the current pipeline
+runs one image at a time. Dispatch batching therefore does not imply a docTR
+model batch containing all images. A failure aborts the dispatched call; results
+are not returned independently for each failed or successful item.
 
-## What it is *not*
+Malformed base64, unidentified images, known corrupt/truncated decoder errors,
+and Pillow decompression-limit errors are input rejections. They increment
+rejection metrics and become HTTP 400 responses. Operational failures such as
+memory exhaustion and unavailable decoders propagate as server failures.
 
-- **Not layout-aware (yet).** Base docTR detects text regions but does not
-  classify blocks (title/table/figure) or reconstruct reading order. Richer
-  structure would need a layout model (e.g. PP-StructureV3) — a future option.
-- **Not a content corrector.** Classic OCR can misread messy/handwritten text.
-  A VLM refinement layer was specified and removed unbuilt (nothing on the Rust
-  side ever called it); whether a word-boundary VLM should own both geometry and
-  text instead is tracked at
-  [issue #501](https://github.com/nvisycom/elide-runtime/issues/501).
+## Geometry and confidence
 
-## Swappability
+The [docTR projection](../../packages/elide-ocr/src/elide_ocr/inference/backends/doctr.py)
+converts normalized coordinates to image pixels using the page's width and
+height. Origin is top-left. A wire bounding box contains `x`, `y`, `width`, and
+`height`; a polygon contains four two-dimensional points.
 
-Geometry is always produced by this service; the wire contract is ours, so any
-detection+recognition engine that fills `Page → Block → Line → Word` can replace
-docTR without touching the runtime. Model selection is the `det+rec` pair via
-`ELIDE_BENTO_MODEL_NAME`, with BYO weights via `ELIDE_BENTO_MODEL_PATH`.
+Confidence filtering is applied to words. Lines with no surviving words and
+blocks with no surviving lines are removed. The surviving line and block boxes
+are recomputed from their children so filtered text and geometry agree. Word
+confidence is preserved; the current backend leaves line confidence unset and
+assigns block kind `text`.
 
-A formal SOTA review is tracked at
-[issue #469](https://github.com/nvisycom/elide-runtime/issues/469).
+The projection accepts both two-corner boxes and four-point rotated geometry.
+The shipped predictor uses docTR's default construction; it does not explicitly
+enable rotated-page mode. Supporting polygons in the contract and projection
+is separate from selecting a predictor configuration that emits them.
+
+## Rust domain conversion
+
+The [Rust adapter](../../crates/adapter/elide-bentoml/src/ocr/response.rs)
+flattens the hierarchy into layout regions. It emits words when present, falls
+back to a line when it has no words, and falls back to a block when it has no
+lines. This preserves text from other conforming backends that report only
+coarser regions.
+
+Bounding boxes become minimum/maximum corners without renormalization. Positive,
+one-based `page_number` values are preserved; values exceeding the domain's
+`u32` range are rejected. The wire layer retains polygons, block kinds, page
+dimensions, and model metadata. The current domain conversion uses axis-aligned
+boxes and does not propagate those additional fields.
+
+[Contract fixtures](../../contracts/ocr/v1) exercise pixel geometry, rotated
+polygons, confidence, empty results, and both hierarchy fallback levels.
+
+## Scope and extension points
+
+The current backend recognizes text and provides geometry. It does not perform
+semantic block classification, table reconstruction, or a second text-correction
+pass. OCR errors therefore remain possible and can affect downstream detection.
+
+A replacement backend must preserve the association between text and geometry.
+It also needs compatible model loading and cache warming. Although settings
+expose `ELIDE_BENTO_MODEL_PATH`, the current docTR loader passes the resolved
+value through its `det+rec` constructor; arbitrary mounted weight directories
+are not a complete custom-weight loading implementation.

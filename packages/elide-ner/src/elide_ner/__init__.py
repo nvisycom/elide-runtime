@@ -1,5 +1,1 @@
-"""Schema-driven NER inference service for nvisy (GLiNER2)."""
-
-from elide_ner.service import NerService
-
-__all__ = ["NerService"]
+"""Schema-driven NER inference service for nvisy."""

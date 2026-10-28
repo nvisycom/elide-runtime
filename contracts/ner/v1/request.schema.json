@@ -1,0 +1,107 @@
+{
+  "$defs": {
+    "EntitySpec": {
+      "description": "An entity type to extract. Zero-shot: a bare label works; a description\nsteers the model toward the intended sense.",
+      "properties": {
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional natural-language description to steer extraction.",
+          "title": "Description"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Per-label confidence cutoff (overrides the request default).",
+          "title": "Threshold"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "EntitySpec",
+      "type": "object"
+    },
+    "NerRequest": {
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/Schema",
+          "description": "What to extract from the text."
+        },
+        "threshold": {
+          "default": 0.5,
+          "description": "Default minimum confidence; per-spec thresholds override it.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "text",
+        "schema"
+      ],
+      "title": "NerRequest",
+      "type": "object"
+    },
+    "Schema": {
+      "description": "What to extract: entity labels, at least one.\n\nGLiNER2 also classifies whole texts and extracts typed records, and this\nschema carried both for a while. Neither was ever sent — the Rust client\nserializes entities only and its decoder discards the other two groups —\nand carrying them cost more than the capability was worth: their contents\nreach the model (a field's `choices` and `description` are embedded), so\nthey were a way past the schema's own size bound. One structure with one\nfield and five thousand choices is a 170 KB request that counts as a\nsingle label and kills the worker.\n\nAn unbounded input nothing consumes is not a feature, so they are gone.\nAdding them back means bounding the schema by serialized size rather than\nby counting its groups, which is the bound that does not depend on\nremembering every place text can hide.",
+      "properties": {
+        "entities": {
+          "items": {
+            "$ref": "#/$defs/EntitySpec"
+          },
+          "minItems": 1,
+          "title": "Entities",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entities"
+      ],
+      "title": "Schema",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "requests": {
+      "items": {
+        "$ref": "#/$defs/NerRequest"
+      },
+      "title": "Requests",
+      "type": "array"
+    }
+  },
+  "required": [
+    "requests"
+  ],
+  "title": "NerInput",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

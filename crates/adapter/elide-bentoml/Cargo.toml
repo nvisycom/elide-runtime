@@ -49,6 +49,7 @@ thiserror = { workspace = true, features = [] }
 
 # Primitive datatypes
 hipstr = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v4"] }
 
 # Encoding and hashing
 base64 = { workspace = true, features = [], optional = true }

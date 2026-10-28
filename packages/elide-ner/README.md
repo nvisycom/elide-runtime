@@ -9,15 +9,14 @@ published as `ghcr.io/nvisycom/elide-ner`.
 ## Overview
 
 `NerService` exposes a single `POST /recognize` endpoint. Each request carries a
-**schema** describing what to extract from the text — any combination of:
+**schema** describing the entity types to extract from the text:
 
 - **entities** — zero-shot spans for the labels you ask for (`person`, `email`,
   `iban`, …), optionally steered with a description;
-- **classifications** — single- or multi-label text classification tasks;
-- **structures** — named records of fields (each field can carry a regex).
 
-The response returns each group's results, with character offsets and confidence
-scores. Request/response types come from [`elide_core.ner.v1`](../elide-core);
+The response returns entity spans with Unicode character offsets and confidence
+scores. Python owns the [versioned wire contract](../../contracts/ner/v1); the Rust
+adapter converts character offsets to UTF-8 byte ranges. Request/response types come from [`elide_core.ner.v1`](../elide-core);
 the generated contract lives at
 [`elide_core.ner.v1`](../elide-core/src/elide_core/ner/v1).
 
@@ -64,9 +63,13 @@ the limit is never missed.
 > **Model licenses are the operator's responsibility.** The default is
 > Apache-2.0; an operator-supplied `ELIDE_BENTO_NER_MODEL` is on the operator.
 
-> **Resources.** F32 weights are ~1.2 GB resident; the service defaults to
-> `cpu: 2`, `memory: 2Gi`, `max_batch_size: 16`. Set `ELIDE_BENTO_NER_QUANTIZE` to halve
-> memory; tune batch/latency from production metrics.
+> **Resources.** The service defaults to `cpu: 2`, `memory: 4Gi`, and
+> `max_batch_size: 32`. F32 weights alone were measured at ~1.92 GiB resident;
+> peak memory reached ~2.35 GiB for a batch of 16 with a twelve-label schema.
+> The 4 GiB allocation leaves headroom for extraction activations, larger
+> batches, and longer inputs. Quantization can reduce weight memory; validate
+> peak memory with the target batch size, text lengths, and schemas before
+> reducing the allocation.
 
 ```bash
 uv sync
@@ -100,10 +103,10 @@ container, see [`docker/`](../../docker/README.md).
 
 ## Versioning
 
-Lockstep with the workspace. The wire contract lives in
-[`elide-core`](../elide-core), and the Rust client that consumes it,
-[`elide-bentoml`](../../crates/adapter/elide-bentoml), is the source of truth
-for the format.
+The Python models in [`elide-core`](../elide-core) own the versioned HTTP
+contract. JSON Schema, shared fixtures, and Rust wire types are generated
+together; see [NER v1](../../contracts/ner/v1). The Rust adapter owns conversion
+into its domain types, including Unicode character offsets to UTF-8 byte ranges.
 
 ## Project
 

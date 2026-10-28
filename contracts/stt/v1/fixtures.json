@@ -1,0 +1,156 @@
+[
+  {
+    "name": "timed-words",
+    "request": {
+      "request": {
+        "audio": "UklGRkQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        "filename": null,
+        "language": "en"
+      }
+    },
+    "response": {
+      "segments": [
+        {
+          "start_ms": 125,
+          "end_ms": 1375,
+          "text": "Hello world",
+          "speaker_id": "SPEAKER_00",
+          "language": "en",
+          "confidence": 0.9,
+          "words": [
+            {
+              "start_ms": 125,
+              "end_ms": 625,
+              "text": "Hello",
+              "confidence": 0.8
+            },
+            {
+              "start_ms": 750,
+              "end_ms": 1375,
+              "text": "world",
+              "confidence": null
+            }
+          ]
+        }
+      ],
+      "model_id": "contract/stt",
+      "language": "en",
+      "duration_ms": 2000
+    },
+    "expected_segments": [
+      {
+        "start_ms": 125,
+        "end_ms": 1375,
+        "text": "Hello world",
+        "speaker_id": "SPEAKER_00",
+        "language": "en",
+        "confidence": 0.9,
+        "words": [
+          {
+            "start_ms": 125,
+            "end_ms": 625,
+            "text": "Hello",
+            "confidence": 0.8
+          },
+          {
+            "start_ms": 750,
+            "end_ms": 1375,
+            "text": "world",
+            "confidence": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "optional-fields",
+    "request": {
+      "request": {
+        "audio": "UklGRkQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        "filename": null,
+        "language": null
+      }
+    },
+    "response": {
+      "segments": [
+        {
+          "start_ms": 0,
+          "end_ms": 500,
+          "text": "你好",
+          "speaker_id": null,
+          "language": null,
+          "confidence": null,
+          "words": []
+        }
+      ],
+      "model_id": "contract/stt",
+      "language": null,
+      "duration_ms": 2000
+    },
+    "expected_segments": [
+      {
+        "start_ms": 0,
+        "end_ms": 500,
+        "text": "你好",
+        "speaker_id": null,
+        "language": null,
+        "confidence": null,
+        "words": []
+      }
+    ]
+  },
+  {
+    "name": "zero-duration",
+    "request": {
+      "request": {
+        "audio": "UklGRkQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        "filename": null,
+        "language": null
+      }
+    },
+    "response": {
+      "segments": [
+        {
+          "start_ms": 500,
+          "end_ms": 500,
+          "text": "",
+          "speaker_id": null,
+          "language": null,
+          "confidence": null,
+          "words": []
+        }
+      ],
+      "model_id": "contract/stt",
+      "language": null,
+      "duration_ms": 2000
+    },
+    "expected_segments": [
+      {
+        "start_ms": 500,
+        "end_ms": 500,
+        "text": "",
+        "speaker_id": null,
+        "language": null,
+        "confidence": null,
+        "words": []
+      }
+    ]
+  },
+  {
+    "name": "empty",
+    "request": {
+      "request": {
+        "audio": "UklGRkQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        "filename": null,
+        "language": null
+      }
+    },
+    "response": {
+      "segments": [],
+      "model_id": "contract/stt",
+      "language": null,
+      "duration_ms": 2000
+    },
+    "expected_segments": []
+  }
+]

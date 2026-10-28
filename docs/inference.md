@@ -26,15 +26,15 @@ minutes, and batching would let one long clip hold short ones behind it — so i
 takes a single object under `request`. Sending the wrong envelope returns a
 `400` naming the missing field.
 
-**Field names are camelCase on the wire**, not the `snake_case` the Python
-models use internally. Pydantic's `alias_generator=to_camel` and serde's
-`rename_all = "camelCase"` agree on this; a hand-rolled server must match it.
+**Field names use snake_case on the wire and in both languages.** For example,
+responses contain `model_id`, OCR pages contain `page_number`, and STT spans
+contain `start_ms` and `end_ms`.
 
-**The Rust adapters are the source of truth, not the Python models.**
-[`elide-bentoml`](../crates/adapter/elide-bentoml)'s serde definitions decide
-what goes over the wire; the pydantic models in
-[`elide-core`](../packages/elide-core) mirror them. A change made only on the
-Python side produces a contract nothing speaks.
+**The Python models own the contracts.** The Pydantic models in
+[`elide-core`](../packages/elide-core) export versioned JSON Schemas and shared
+fixtures. [Typify](https://github.com/oxidecomputer/typify) generates Rust wire
+types for [`elide-bentoml`](../crates/adapter/elide-bentoml); handwritten adapters
+convert those into Rust domain types. See [wire contracts](../contracts).
 
 ## Health
 

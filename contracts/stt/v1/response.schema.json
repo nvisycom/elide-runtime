@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "Segment": {
+      "description": "A contiguous stretch of speech, optionally attributed to a speaker.\n\n``speaker_id`` is populated only by a diarizing deployment; it is the\nengine's own label (``\"SPEAKER_00\"``, ...), not a stable identity across\ncalls. Consumers treat it as an opaque grouping key within one transcript.",
+      "properties": {
+        "start_ms": {
+          "description": "Segment start, milliseconds from clip start.",
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "description": "Segment end, milliseconds from clip start.",
+          "minimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        },
+        "text": {
+          "description": "The segment transcript.",
+          "title": "Text",
+          "type": "string"
+        },
+        "speaker_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Diarization speaker label, when the deployment diarizes.",
+          "title": "Speaker Id"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Detected language for this segment, as a BCP-47 tag.",
+          "title": "Language"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "words": {
+          "description": "Per-word breakdown, when the engine reports word timings.",
+          "items": {
+            "$ref": "#/$defs/Word"
+          },
+          "title": "Words",
+          "type": "array"
+        }
+      },
+      "required": [
+        "start_ms",
+        "end_ms",
+        "text"
+      ],
+      "title": "Segment",
+      "type": "object"
+    },
+    "SttResponse": {
+      "description": "One per-call transcription response.",
+      "properties": {
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/Segment"
+          },
+          "title": "Segments",
+          "type": "array"
+        },
+        "model_id": {
+          "description": "Identifier of the model that produced this.",
+          "title": "Model Id",
+          "type": "string"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Overall detected language for the clip, as a BCP-47 tag.",
+          "title": "Language"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Audio duration in milliseconds, when known.",
+          "title": "Duration Ms"
+        }
+      },
+      "required": [
+        "model_id"
+      ],
+      "title": "SttResponse",
+      "type": "object"
+    },
+    "Word": {
+      "description": "One recognized word with its own timing.",
+      "properties": {
+        "start_ms": {
+          "description": "Word start, milliseconds from clip start.",
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "description": "Word end, milliseconds from clip start.",
+          "minimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        },
+        "text": {
+          "description": "The word as recognized.",
+          "title": "Text",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "start_ms",
+        "end_ms",
+        "text"
+      ],
+      "title": "Word",
+      "type": "object"
+    }
+  },
+  "$ref": "#/$defs/SttResponse",
+  "description": "The transcription response object, without an additional JSON wrapper.",
+  "title": "SttOutput",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

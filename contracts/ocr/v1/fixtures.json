@@ -1,0 +1,246 @@
+[
+  {
+    "name": "word-polygon",
+    "request": {
+      "requests": [
+        {
+          "image": "iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAAgklEQVR4nO3SsREAIAwDMWD/ncMK+V6qXf35zsxh5y13iNV4ViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViDW2fto2wNhH84DkgAAAABJRU5ErkJggg==",
+          "confidence_threshold": 0.0
+        }
+      ]
+    },
+    "response": [
+      {
+        "pages": [
+          {
+            "page_number": 2,
+            "width": 100.0,
+            "height": 50.0,
+            "blocks": [
+              {
+                "text": "Hello",
+                "kind": "table",
+                "bbox": {
+                  "x": 10.0,
+                  "y": 20.0,
+                  "width": 30.0,
+                  "height": 4.0
+                },
+                "lines": [
+                  {
+                    "text": "Hello",
+                    "confidence": null,
+                    "bbox": {
+                      "x": 10.0,
+                      "y": 20.0,
+                      "width": 30.0,
+                      "height": 4.0
+                    },
+                    "polygon": [
+                      [
+                        10.0,
+                        20.0
+                      ],
+                      [
+                        40.0,
+                        20.0
+                      ],
+                      [
+                        40.0,
+                        24.0
+                      ],
+                      [
+                        10.0,
+                        24.0
+                      ]
+                    ],
+                    "words": [
+                      {
+                        "text": "Hello",
+                        "confidence": 0.9,
+                        "bbox": {
+                          "x": 10.0,
+                          "y": 20.0,
+                          "width": 30.0,
+                          "height": 4.0
+                        },
+                        "polygon": [
+                          [
+                            10.0,
+                            20.0
+                          ],
+                          [
+                            40.0,
+                            20.0
+                          ],
+                          [
+                            40.0,
+                            24.0
+                          ],
+                          [
+                            10.0,
+                            24.0
+                          ]
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "model_id": "contract/ocr"
+      }
+    ],
+    "expected_regions": [
+      {
+        "text": "Hello",
+        "page": 2,
+        "bbox": [
+          10,
+          20,
+          30,
+          4
+        ],
+        "confidence": 0.9
+      }
+    ]
+  },
+  {
+    "name": "line-fallback",
+    "request": {
+      "requests": [
+        {
+          "image": "iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAAgklEQVR4nO3SsREAIAwDMWD/ncMK+V6qXf35zsxh5y13iNV4ViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViDW2fto2wNhH84DkgAAAABJRU5ErkJggg==",
+          "confidence_threshold": 0.0
+        }
+      ]
+    },
+    "response": [
+      {
+        "pages": [
+          {
+            "page_number": 2,
+            "width": 100.0,
+            "height": 50.0,
+            "blocks": [
+              {
+                "text": "line",
+                "kind": "text",
+                "bbox": {
+                  "x": 10.0,
+                  "y": 20.0,
+                  "width": 30.0,
+                  "height": 4.0
+                },
+                "lines": [
+                  {
+                    "text": "line",
+                    "confidence": null,
+                    "bbox": {
+                      "x": 10.0,
+                      "y": 20.0,
+                      "width": 30.0,
+                      "height": 4.0
+                    },
+                    "polygon": null,
+                    "words": []
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "model_id": "contract/ocr"
+      }
+    ],
+    "expected_regions": [
+      {
+        "text": "line",
+        "page": 2,
+        "bbox": [
+          10,
+          20,
+          30,
+          4
+        ],
+        "confidence": null
+      }
+    ]
+  },
+  {
+    "name": "block-fallback",
+    "request": {
+      "requests": [
+        {
+          "image": "iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAAgklEQVR4nO3SsREAIAwDMWD/ncMK+V6qXf35zsxh5y13iNV4ViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViDW2fto2wNhH84DkgAAAABJRU5ErkJggg==",
+          "confidence_threshold": 0.0
+        }
+      ]
+    },
+    "response": [
+      {
+        "pages": [
+          {
+            "page_number": 2,
+            "width": 100.0,
+            "height": 50.0,
+            "blocks": [
+              {
+                "text": "block",
+                "kind": "text",
+                "bbox": {
+                  "x": 10.0,
+                  "y": 20.0,
+                  "width": 30.0,
+                  "height": 4.0
+                },
+                "lines": []
+              }
+            ]
+          }
+        ],
+        "model_id": "contract/ocr"
+      }
+    ],
+    "expected_regions": [
+      {
+        "text": "block",
+        "page": 2,
+        "bbox": [
+          10,
+          20,
+          30,
+          4
+        ],
+        "confidence": null
+      }
+    ]
+  },
+  {
+    "name": "empty",
+    "request": {
+      "requests": [
+        {
+          "image": "iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAAgklEQVR4nO3SsREAIAwDMWD/ncMK+V6qXf35zsxh5y13iNV4ViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViBWIFYgViDW2fto2wNhH84DkgAAAABJRU5ErkJggg==",
+          "confidence_threshold": 0.0
+        }
+      ]
+    },
+    "response": [
+      {
+        "pages": [
+          {
+            "page_number": 2,
+            "width": 100.0,
+            "height": 50.0,
+            "blocks": []
+          }
+        ],
+        "model_id": "contract/ocr"
+      }
+    ],
+    "expected_regions": []
+  }
+]

@@ -1,0 +1,57 @@
+{
+  "$defs": {
+    "SttRequest": {
+      "description": "One transcription request: audio bytes plus advisory hints.",
+      "properties": {
+        "audio": {
+          "description": "Base64-encoded audio bytes (WAV, MP3, FLAC, ...).",
+          "title": "Audio",
+          "type": "string"
+        },
+        "filename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Original filename, when known. Used for container/codec detection.",
+          "title": "Filename"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Caller-asserted language as a BCP-47 tag. Omitted means auto-detect. An asserted language is a hint the engine may use to pick a variant.",
+          "title": "Language"
+        }
+      },
+      "required": [
+        "audio"
+      ],
+      "title": "SttRequest",
+      "type": "object"
+    }
+  },
+  "description": "BentoML's named request envelope for one transcription.",
+  "properties": {
+    "request": {
+      "$ref": "#/$defs/SttRequest"
+    }
+  },
+  "required": [
+    "request"
+  ],
+  "title": "SttInput",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

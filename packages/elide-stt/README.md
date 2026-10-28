@@ -33,11 +33,11 @@ wraps a single object under `request` rather than a list under `requests`:
 // response
 {
   "segments": [
-    { "startMs": 0, "endMs": 2400, "text": "Hello there.",
-      "speakerId": "SPEAKER_00", "language": "en", "confidence": 0.94,
-      "words": [{ "startMs": 0, "endMs": 480, "text": "Hello", "confidence": 0.97 }] }
+    { "start_ms": 0, "end_ms": 2400, "text": "Hello there.",
+      "speaker_id": "SPEAKER_00", "language": "en", "confidence": 0.94,
+      "words": [{ "start_ms": 0, "end_ms": 480, "text": "Hello", "confidence": 0.97 }] }
   ],
-  "modelId": "large-v3-turbo", "language": "en", "durationMs": 2400
+  "model_id": "large-v3-turbo", "language": "en", "duration_ms": 2400
 }
 ```
 
@@ -94,7 +94,7 @@ The default pipeline `pyannote/speaker-diarization-community-1` is CC-BY-4.0.
 Note this differs from the Apache-2.0 weights the other services default to —
 if your deployment has a licence policy, check it before enabling.
 
-`speakerId` is the engine's own label (`SPEAKER_00`, …). It groups segments
+`speaker_id` is the engine's own label (`SPEAKER_00`, …). It groups segments
 *within one transcript*; it is not a stable identity across calls.
 
 ### Only point `ELIDE_BENTO_STT_DIARIZE_MODEL` at a repo you trust
@@ -134,10 +134,13 @@ image instead, with its cache warmed by a one-shot init container, see
 
 ## Versioning
 
-Lockstep with the workspace: the wire contract lives in
-[`elide-core`](../elide-core) and the Rust client that consumes it is
-[`elide-bentoml`](../../crates/adapter/elide-bentoml), which is the source of
-truth for the format.
+The Python models in [`elide-core`](../elide-core) own the versioned HTTP
+contract. The [contract generator](../../scripts/gen_contracts.py) exports
+schemas and shared fixtures and uses Typify to generate the Rust wire types for
+[`elide-bentoml`](../../crates/adapter/elide-bentoml). CI checks for drift and
+tests both languages against the shared fixtures. Change the Python models and
+regenerate the artifacts rather than editing generated Rust types; see the
+[STT v1 contract](../../contracts/stt/v1).
 
 ## Project
 

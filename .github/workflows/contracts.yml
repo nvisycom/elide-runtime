@@ -1,0 +1,76 @@
+name: Wire contracts
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - "packages/elide-core/**"
+      - "packages/elide-ner/**"
+      - "packages/elide-ocr/**"
+      - "packages/elide-stt/**"
+      - "crates/adapter/elide-bentoml/**"
+      - "contracts/**"
+      - "scripts/gen_contracts.py"
+      - "scripts/contract_fixtures.py"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/contracts.yml"
+  push:
+    branches: [main, release]
+    paths:
+      - "packages/elide-core/**"
+      - "packages/elide-ner/**"
+      - "packages/elide-ocr/**"
+      - "packages/elide-stt/**"
+      - "crates/adapter/elide-bentoml/**"
+      - "contracts/**"
+      - "scripts/gen_contracts.py"
+      - "scripts/contract_fixtures.py"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/contracts.yml"
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.5"
+          enable-cache: true
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+          components: rustfmt
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Install pinned Rust type generator
+        run: cargo install cargo-typify --version 0.5.0 --locked
+      - name: Install contract dependencies
+        run: uv sync --locked --package elide-core --group dev
+      - name: Check generated schemas, fixtures, and Rust types
+        run: uv run --no-sync python scripts/gen_contracts.py --check
+      - name: Validate Python contract and fixtures
+        run: >-
+          uv run --no-sync pytest
+          packages/elide-core/tests/test_contracts.py
+          packages/elide-core/tests/test_ner_contract.py
+          packages/elide-core/tests/test_ner_v1.py
+          packages/elide-core/tests/test_ocr_v1.py
+          packages/elide-core/tests/test_stt_v1.py
+      - name: Test Rust contract and adapter
+        run: cargo test --locked -p elide-bentoml --lib

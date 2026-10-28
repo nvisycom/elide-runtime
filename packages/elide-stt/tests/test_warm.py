@@ -31,12 +31,13 @@ def test_diarization_without_a_token_is_refused(monkeypatch, tmp_path):
     assert "pyannote/some-model" in message, "the message should link the gate"
 
 
-def test_diarization_off_never_requests_the_gated_model(monkeypatch, tmp_path):
+def test_diarization_off_never_requests_the_gated_model(monkeypatch, tmp_path, caplog):
     """Off by default, and off means the gated model is never fetched."""
     monkeypatch.setenv("HF_HOME", str(tmp_path))
     monkeypatch.setenv("ELIDE_BENTO_MODEL_NAME", "large-v3-turbo")
     monkeypatch.delenv("ELIDE_BENTO_STT_DIARIZE", raising=False)
     monkeypatch.setattr(warm, "hand_over", lambda cache: None)
+    caplog.set_level("INFO", logger="nvisy.stt.warm")
 
     fw = pytest.importorskip("faster_whisper.utils")
     downloaded: list[str] = []
@@ -45,6 +46,8 @@ def test_diarization_off_never_requests_the_gated_model(monkeypatch, tmp_path):
     warm.main()
 
     assert downloaded == ["large-v3-turbo"]
+    assert "warming large-v3-turbo" in caplog.text
+    assert caplog.records[-1].message == "warm"
 
 
 def test_a_missing_token_is_caught_before_any_download(monkeypatch, tmp_path):

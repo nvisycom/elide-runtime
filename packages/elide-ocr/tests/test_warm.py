@@ -33,3 +33,18 @@ def test_a_missing_cache_dir_is_rejected(monkeypatch):
         warm.main()
 
     assert "DOCTR_CACHE_DIR" in str(excinfo.value)
+
+
+def test_warmer_logs_progress(monkeypatch, tmp_path, caplog):
+    import doctr.models
+
+    monkeypatch.setenv("DOCTR_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("ELIDE_BENTO_MODEL_NAME", "det+rec")
+    monkeypatch.setattr(warm, "hand_over", lambda cache: None)
+    calls = []
+    monkeypatch.setattr(doctr.models, "ocr_predictor", lambda *args, **kw: calls.append(args))
+    caplog.set_level("INFO", logger="nvisy.ocr.warm")
+    warm.main()
+    assert calls == [("det", "rec")]
+    assert "warming det+rec" in caplog.text
+    assert caplog.records[-1].message == "warm"

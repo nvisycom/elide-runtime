@@ -27,6 +27,7 @@ dependencies = [
     "torch>=2.8",
     "elide-core",
     "prometheus-client>=0.26.0",
+    "pydantic-settings>=2.12,<3",
 ]
 
 [build-system]

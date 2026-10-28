@@ -6,7 +6,7 @@ stays cheap.
 Translation happens at two boundaries:
 
 - **schema in:** the wire :class:`~elide_core.ner.v1.Schema` →
-  ``gliner2.Schema`` (entities / classifications / structures, with per-field
+  ``gliner2.Schema`` (entity labels, with per-label
   regex validators).
 - **result out:** gliner2's ``batch_extract`` result dict → the typed
   :class:`~elide_core.ner.v1.NerResponse` groups (gliner2's ``confidence`` is
@@ -18,21 +18,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from elide_core.ner.v1 import (
-    Classification,
-    ClassLabel,
     Entity,
     EntitySpec,
     NerResponse,
-    Record,
     Schema,
-    Span,
     TokenUsage,
 )
 
-from elide_ner import config
+from elide_ner.inference.validation import TextTooLongError, check_schema_size
+from elide_ner.runtime import config
 
 if TYPE_CHECKING:
-    from gliner2 import GLiNER2, RegexValidator
+    from gliner2 import GLiNER2
     from gliner2 import Schema as G2Schema
 
 
@@ -69,17 +66,21 @@ _G2Result = dict[str, _G2Group]
 _EntityValue = str | dict[str, str | float]
 
 
-class TextTooLongError(ValueError):
-    """Input exceeds the model's token limit (would be silently truncated)."""
+# An upper bound on how many characters one token can represent. Used only to
+# reject early: too high merely costs a wasted encode, too low would refuse
+# text that would have fit, so it is set above every ratio measured.
+MAX_CHARS_PER_TOKEN = 6
 
 
 class Engine:
     """Owns the loaded GLiNER2 model and the schema/result translation."""
 
-    def __init__(self) -> None:
-        self.model_id = config.model_id()
-        self.max_tokens = config.max_tokens()
-        self._model = _load(self.model_id)
+    def __init__(self, settings: config.NerSettings | None = None) -> None:
+        settings = settings if settings is not None else config.NerSettings()
+        self.model_id = settings.model_id
+        self.max_tokens = settings.max_tokens
+        self.max_schema_bytes = settings.max_schema_bytes
+        self._model = _load(self.model_id, settings)
         # The encoder tokenizer, used to enforce the token limit precisely (the
         # model silently truncates above it, so we must reject, not truncate).
         self._tokenizer = self._model.processor.tokenizer
@@ -94,6 +95,32 @@ class Engine:
         as usage without a second tokenizer pass — this check already pays for
         the encode.
         """
+        # Reject on characters before paying for an encode, but only where no
+        # tokenizer could disagree. Rejecting an 8 MB input costs 4.2s of
+        # tokenizing to learn it is seventeen times too long, and the handler
+        # is sync, so that time comes out of every other caller.
+        #
+        # The bound has to be a bound, not an estimate: characters per token
+        # has no useful floor, because whitespace collapses. 20,002 characters
+        # of spaces is five tokens, so a ratio-based cut refuses text that
+        # fits. Only non-whitespace characters are counted, and each is worth
+        # at least one token's worth of a character — a token never spans more
+        # than MAX_CHARS_PER_TOKEN of them for any script this model handles
+        # (measured 2.07 on URL/UUID text, 2.61 CJK, 4.67 German).
+        limit = self.max_tokens * MAX_CHARS_PER_TOKEN
+        # Total length is an upper bound on the non-whitespace count, so text
+        # shorter than the limit cannot breach it however it is composed and
+        # needs no scan. Ordinary traffic takes this branch and pays a `len`.
+        if len(text) > limit:
+            dense = 0
+            for char in text:
+                if not char.isspace():
+                    dense += 1
+                    if dense > limit:
+                        raise TextTooLongError(
+                            f"input is {dense} non-whitespace characters; more than "
+                            f"{limit} cannot fit in {self.max_tokens} tokens"
+                        )
         n = self.count_tokens(text)
         if n > self.max_tokens:
             raise TextTooLongError(
@@ -101,6 +128,19 @@ class Engine:
                 "(the model truncates above this, so it is rejected)"
             )
         return n
+
+    def check_schema(self, size: int) -> None:
+        """Reject a schema larger than one call may carry.
+
+        An extraction's cost is roughly tokens x schema, and tokens are
+        already bounded by :meth:`check_length`. The schema was the other
+        dimension, and bounding it by counting labels did not work: labels and
+        descriptions alike reach the model, so one entity with a 205 KB
+        description counted as a single label and exhausted the memory the
+        service declares — a killed worker drops the connection with no
+        response and costs a model reload. Size has no such blind spot.
+        """
+        check_schema_size(size, self.max_schema_bytes)
 
     def recognize(
         self,
@@ -136,20 +176,19 @@ class Engine:
         ]
 
 
-def _load(model_id: str) -> GLiNER2:
+def _load(model_id: str, settings: config.NerSettings) -> GLiNER2:
     from gliner2 import GLiNER2
 
     kwargs: dict[str, bool] = {}
-    if config.quantize():
+    if settings.quantize:
         kwargs["quantize"] = True
-    if config.compile_model():
+    if settings.compile_model:
         kwargs["compile"] = True
     return GLiNER2.from_pretrained(model_id, **kwargs)
 
 
 def build_schema(schema: Schema) -> G2Schema:
     """Translate the wire schema into a ``gliner2.Schema``."""
-    from gliner2 import RegexValidator
     from gliner2 import Schema as G2Schema
 
     g = G2Schema()
@@ -159,27 +198,6 @@ def build_schema(schema: Schema) -> G2Schema:
         # Use the dict form per label only when a threshold is set, so a bare
         # label stays a bare label.
         g.entities({e.label: _entity_value(e) for e in schema.entities})
-
-    for c in schema.classifications:
-        if c.threshold is None:
-            g.classification(c.task, c.labels, multi_label=c.multi_label)
-        else:
-            g.classification(c.task, c.labels, multi_label=c.multi_label, cls_threshold=c.threshold)
-
-    for s in schema.structures:
-        builder = g.structure(s.name)
-        for f in s.fields:
-            validators: list[RegexValidator] | None = (
-                [RegexValidator(f.pattern)] if f.pattern else None
-            )
-            builder.field(
-                f.name,
-                dtype=f.dtype,
-                choices=f.choices,
-                description=f.description,
-                threshold=f.threshold,
-                validators=validators,
-            )
 
     return g
 
@@ -228,45 +246,8 @@ def project(
         for s in spans
     ]
 
-    classifications: dict[str, Classification] = {
-        c.task: _project_classification(cast("_G2ClassLabel | list[_G2ClassLabel]", result[c.task]))
-        for c in schema.classifications
-        if c.task in result
-    }
-    structures: dict[str, list[Record]] = {
-        s.name: [
-            _project_record(rec) for rec in cast("list[dict[str, list[_G2Span]]]", result[s.name])
-        ]
-        for s in schema.structures
-        if s.name in result
-    }
-
     return NerResponse(
         entities=entities,
-        classifications=classifications,
-        structures=structures,
         model_id=model_id,
         tokens=tokens,
     )
-
-
-def _project_classification(value: _G2ClassLabel | list[_G2ClassLabel]) -> Classification:
-    # Single-label is a {label, confidence} dict; multi-label is a list of them.
-    if isinstance(value, list):
-        return [ClassLabel(label=v["label"], score=float(v["confidence"])) for v in value]
-    return ClassLabel(label=value["label"], score=float(value["confidence"]))
-
-
-def _project_record(record: dict[str, list[_G2Span]]) -> Record:
-    return {
-        field: [
-            Span(
-                text=s["text"],
-                score=float(s["confidence"]),
-                start=int(s["start"]),
-                end=int(s["end"]),
-            )
-            for s in spans
-        ]
-        for field, spans in record.items()
-    }

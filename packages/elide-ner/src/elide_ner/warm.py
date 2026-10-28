@@ -6,26 +6,31 @@ Run by this service's one-shot init container before the service starts::
 
 Lives with the service rather than in ``elide-core`` because it imports
 ``huggingface_hub``, which only this service and ``elide-stt`` depend on.
-Shared pieces — the env helper, logging, the ownership handover — come from
+Shared pieces — the env helper and ownership handover — come from
 ``elide_core.warm``.
 """
 
 from __future__ import annotations
 
-from elide_core.warm import hand_over, log, require_env
+import logging
 
-from elide_ner import config
+from elide_core.warm import configure_logging, hand_over, require_env
+
+from elide_ner.runtime import config
+
+logger = logging.getLogger("nvisy.ner.warm")
 
 
 def main() -> None:
     from huggingface_hub import snapshot_download
 
+    configure_logging()
     cache = require_env("HF_HOME")
-    model = config.model_id()
-    log(f"warming {model}")
+    model = config.NerSettings().model_id
+    logger.info("warming %s", model)
     snapshot_download(model)
     hand_over(cache)
-    log("warm")
+    logger.info("warm")
 
 
 if __name__ == "__main__":

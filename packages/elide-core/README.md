@@ -20,8 +20,7 @@ Import a specific version explicitly:
   contract (base64 audio in; segments with millisecond timings, optional
   speaker label, language, confidence, and per-word breakdown out).
 
-The wire is camelCase, matching the Rust side's serde
-`rename_all = "camelCase"`.
+Wire field names use snake_case in Python, JSON, and the generated Rust types.
 
 ## Versioning
 
@@ -29,10 +28,10 @@ Versioned per contract module (`ner.v1`, `ocr.v1`, `stt.v1`) rather than per
 release: a breaking wire change lands as `v2` alongside `v1`, so a service and
 its client can migrate independently.
 
-These models mirror the Rust client,
-[`elide-bentoml`](../../crates/adapter/elide-bentoml), which is the source of
-truth for the format — a change here that is not made there produces a
-contract nothing speaks.
+Python models are authoritative for NER, OCR, and STT. JSON Schema, shared
+fixtures, and Rust wire types are generated together; see [wire contracts](../../contracts).
+Rust domain types and their conversions remain handwritten. Regenerate all
+services with `uv run python scripts/gen_contracts.py`; CI checks for drift.
 
 ## Project
 

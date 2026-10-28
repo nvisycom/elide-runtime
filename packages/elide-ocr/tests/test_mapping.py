@@ -22,7 +22,7 @@ def _line(words, geom):
 
 
 def test_two_point_geometry_no_polygon():
-    from elide_ocr.service import _geom_to_geometry
+    from elide_ocr.inference.backends.doctr import _geom_to_geometry
 
     bbox, poly = _geom_to_geometry(((0.0, 0.0), (0.3, 0.1)), 100, 50)
     assert (bbox.x, bbox.y, bbox.width, bbox.height) == (0.0, 0.0, 30.0, 5.0)
@@ -30,7 +30,7 @@ def test_two_point_geometry_no_polygon():
 
 
 def test_four_point_geometry_populates_polygon():
-    from elide_ocr.service import _geom_to_geometry
+    from elide_ocr.inference.backends.doctr import _geom_to_geometry
 
     # rotated quad (assume_straight_pages=False): 4 normalized points.
     quad = ((0.0, 0.1), (0.4, 0.0), (0.4, 0.2), (0.0, 0.3))
@@ -42,7 +42,7 @@ def test_four_point_geometry_populates_polygon():
 
 
 def test_multi_block_hierarchy_preserved():
-    from elide_ocr.service import _page_from_doctr
+    from elide_ocr.inference.backends.doctr import _page_from_doctr
 
     b1 = _block(
         [_line([_word("A", 0.9, ((0, 0), (0.1, 0.1)))], ((0, 0), (0.1, 0.1)))], ((0, 0), (0.1, 0.1))
@@ -56,7 +56,7 @@ def test_multi_block_hierarchy_preserved():
 
 
 def test_confidence_filter_recomputes_line_bbox():
-    from elide_ocr.service import _page_from_doctr
+    from elide_ocr.inference.backends.doctr import _page_from_doctr
 
     keep = _word("keep", 0.9, ((0.0, 0.0), (0.2, 0.1)))
     drop = _word("drop", 0.1, ((0.0, 0.0), (0.9, 0.9)))  # would dominate the bbox
@@ -69,7 +69,7 @@ def test_confidence_filter_recomputes_line_bbox():
 
 
 def test_empty_page_yields_no_blocks():
-    from elide_ocr.service import _page_from_doctr
+    from elide_ocr.inference.backends.doctr import _page_from_doctr
 
     page = _page_from_doctr(_page([]), threshold=0.0)
     assert page.blocks == []

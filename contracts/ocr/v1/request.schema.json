@@ -1,0 +1,42 @@
+{
+  "$defs": {
+    "OcrRequest": {
+      "properties": {
+        "image": {
+          "description": "Base64-encoded image bytes (PNG/JPEG/TIFF/WebP).",
+          "title": "Image",
+          "type": "string"
+        },
+        "confidence_threshold": {
+          "default": 0.0,
+          "description": "Drop words below this recognition confidence.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "title": "OcrRequest",
+      "type": "object"
+    }
+  },
+  "description": "BentoML's named request envelope for batched OCR.",
+  "properties": {
+    "requests": {
+      "items": {
+        "$ref": "#/$defs/OcrRequest"
+      },
+      "title": "Requests",
+      "type": "array"
+    }
+  },
+  "required": [
+    "requests"
+  ],
+  "title": "OcrInput",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

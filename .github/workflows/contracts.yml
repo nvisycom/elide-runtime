@@ -1,4 +1,4 @@
-name: Wire contracts
+name: BentoML
 
 # Cross-language checks for the Python-owned HTTP contracts and Rust adapters.
 # The E2E job runs real BentoML applications in Testcontainers with fake models.
@@ -59,7 +59,7 @@ permissions:
 
 jobs:
   contract:
-    name: Contract generation and fixtures
+    name: Contract
     runs-on: ubuntu-latest
 
     steps:
@@ -110,7 +110,7 @@ jobs:
         run: cargo test --locked -p elide-bentoml --lib
 
   e2e:
-    name: Rust adapters against BentoML containers
+    name: E2E
     runs-on: ubuntu-latest
 
     steps:

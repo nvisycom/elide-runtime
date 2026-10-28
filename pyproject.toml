@@ -60,7 +60,7 @@ constraint-dependencies = [
     "setuptools>=83.0.0",      # PYSEC-2026-3447
     "soupsieve>=2.9.0",        # CVE-2026-85999, CVE-2026-86000
     "starlette>=1.3.1",        # CVE-2026-54282, CVE-2026-54283
-    "tornado>=6.5.8",          # GHSA-pw6j-qg29-8w7f, -wwv5-g3v4-889x, -8423-8fgw-73vq
+    "tornado>=6.6",            # GHSA-pw9p-v7r6-gx4p, -r4j5-9xpp-3985, -pcg2-g6cj-q92c
     "ujson>=5.13.0",           # CVE-2026-54911
 ]
 

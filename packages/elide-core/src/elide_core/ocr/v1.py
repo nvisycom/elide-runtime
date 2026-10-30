@@ -60,7 +60,7 @@ class Word(_Model):
 class Line(_Model):
     text: str
     # Confidence is reported at word level; engines that don't aggregate to the
-    # line (e.g. docTR) leave this null.
+    # line (e.g. OnnxTR) leave this null.
     confidence: Probability | None = None
     bbox: BoundingBox
     polygon: Polygon | None = None

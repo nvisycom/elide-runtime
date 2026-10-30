@@ -41,8 +41,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use elide::backend::limit::{BatchChunked, ConcurrencyLimited, Rate, RateLimited};
 use elide::backend::metrics::{Metered, UsageSink};
-use elide::backend::ratelimit::{BatchChunked, ConcurrencyLimited, RateLimited};
 use elide_deployment::RateLimit;
 
 /// The decorator stack a component's configuration asks for.
@@ -90,7 +90,7 @@ pub(crate) fn decorate<B>(
     };
 
     let chunked = BatchChunked::new(backend, batch);
-    let limited = RateLimited::new(chunked, refill, interval, burst);
+    let limited = RateLimited::new(chunked, Rate::new(refill, interval).with_burst(burst));
     let bounded = ConcurrencyLimited::new(limited, permits);
     Metered::new(bounded, sink)
 }

@@ -15,7 +15,7 @@ def test_diarization_without_a_token_is_refused(monkeypatch, tmp_path):
     work. Failing here names the reason; failing later surfaces as a 401 from
     inside the service's startup."""
     monkeypatch.setenv("HF_HOME", str(tmp_path))
-    monkeypatch.setenv("ELIDE_BENTO_MODEL_NAME", "large-v3-turbo")
+    monkeypatch.setenv("ELIDE_BENTO_STT_MODEL", "large-v3-turbo")
     monkeypatch.setenv("ELIDE_BENTO_STT_DIARIZE", "true")
     monkeypatch.setenv("ELIDE_BENTO_STT_DIARIZE_MODEL", "pyannote/some-model")
     monkeypatch.setenv("ELIDE_BENTO_STT_HF_TOKEN", "")
@@ -34,7 +34,7 @@ def test_diarization_without_a_token_is_refused(monkeypatch, tmp_path):
 def test_diarization_off_never_requests_the_gated_model(monkeypatch, tmp_path, caplog):
     """Off by default, and off means the gated model is never fetched."""
     monkeypatch.setenv("HF_HOME", str(tmp_path))
-    monkeypatch.setenv("ELIDE_BENTO_MODEL_NAME", "large-v3-turbo")
+    monkeypatch.setenv("ELIDE_BENTO_STT_MODEL", "large-v3-turbo")
     monkeypatch.delenv("ELIDE_BENTO_STT_DIARIZE", raising=False)
     monkeypatch.setattr(warm, "hand_over", lambda cache: None)
     caplog.set_level("INFO", logger="nvisy.stt.warm")
@@ -58,7 +58,7 @@ def test_a_missing_token_is_caught_before_any_download(monkeypatch, tmp_path):
     download before being told about a variable readable from the start.
     """
     monkeypatch.setenv("HF_HOME", str(tmp_path))
-    monkeypatch.setenv("ELIDE_BENTO_MODEL_NAME", "large-v3-turbo")
+    monkeypatch.setenv("ELIDE_BENTO_STT_MODEL", "large-v3-turbo")
     monkeypatch.setenv("ELIDE_BENTO_STT_DIARIZE", "true")
     monkeypatch.setenv("ELIDE_BENTO_STT_DIARIZE_MODEL", "pyannote/some-model")
     monkeypatch.setenv("ELIDE_BENTO_STT_HF_TOKEN", "")
@@ -72,3 +72,24 @@ def test_a_missing_token_is_caught_before_any_download(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit):
         warm.main()
+
+
+def test_a_local_directory_is_not_downloaded(monkeypatch, tmp_path, caplog):
+    """A directory of converted weights loads where it lies: no Hub request."""
+    weights = tmp_path / "weights"
+    weights.mkdir()
+    (weights / "model.bin").touch()
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    monkeypatch.setenv("ELIDE_BENTO_STT_MODEL", str(weights))
+    monkeypatch.delenv("ELIDE_BENTO_STT_DIARIZE", raising=False)
+    monkeypatch.setattr(warm, "hand_over", lambda cache: None)
+    caplog.set_level("INFO", logger="nvisy.stt.warm")
+
+    fw = pytest.importorskip("faster_whisper.utils")
+    monkeypatch.setattr(
+        fw, "download_model", lambda model: pytest.fail("a local directory must not be fetched")
+    )
+
+    warm.main()
+
+    assert "nothing to warm" in caplog.text

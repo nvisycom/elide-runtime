@@ -1,6 +1,6 @@
 name: Security (uv)
 
-# The Python side: audits the dependency set uv.lock resolves. Separate from
+# The Python side: audits the dependency set each uv.lock resolves. Separate from
 # security.yml so each path filter states what its job actually audits — a
 # shared filter meant a uv.lock change did not trigger this, and a crates-only
 # change ran it for nothing.
@@ -43,8 +43,13 @@ permissions:
 
 jobs:
   audit:
-    name: Audit
+    name: Audit ${{ matrix.project }}
     runs-on: ubuntu-latest
+    # One lock per project: the root tooling project and each service.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [".", packages/elide-ner, packages/elide-ocr, packages/elide-stt]
 
     steps:
       - name: Checkout
@@ -81,4 +86,5 @@ jobs:
       - name: Audit dependencies
         run: |
           set -o pipefail
-          uv audit --locked --python-platform linux --preview-features audit
+          uv audit --locked --project "${{ matrix.project }}" \
+            --python-platform linux --preview-features audit

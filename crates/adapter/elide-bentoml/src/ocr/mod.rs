@@ -188,7 +188,7 @@ impl Backend for BentoOcr {
     /// The slice is sent as one POST, however long it is: the service splits
     /// it into its own batch windows server-side. One POST must still finish
     /// inside the service's request timeout, so a caller coalescing a whole
-    /// document wraps this in `elide::backend::ratelimit::BatchChunked` to
+    /// document wraps this in `elide::backend::limit::BatchChunked` to
     /// spread it over several requests.
     async fn call_batch(&self, requests: Vec<OcrRequest<'_>>) -> Result<Vec<OcrResponse>> {
         if requests.is_empty() {

@@ -9,7 +9,7 @@ What lives here is only what every warmer needs and what this package can
 honestly depend on: reading a required variable, unbuffered logging, and
 handing the populated cache to the uid the services run as. The download
 itself lives with the service, because each needs a different library
-(``huggingface_hub``, ``doctr``, ``faster_whisper``) and this package depends
+(``huggingface_hub``, ``onnxtr``, ``faster_whisper``) and this package depends
 on none of them.
 """
 

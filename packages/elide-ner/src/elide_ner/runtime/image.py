@@ -14,12 +14,6 @@ import os
 
 import bentoml
 
-# BentoML builds the image from this config (`bentoml build` + `containerize`);
-# no hand-written Dockerfile. The requirements file is exported per-service from
-# the workspace lock by `make services` (scripts/gen_requirements.py), not
-# committed; bundled source is scoped by
-# bentofile.yaml's `include`. lock_python_packages=False: the file is already
-# locked + hashed, so BentoML must not re-resolve it.
 # Build-time image spec, skipped inside the container. `requirements_file`
 # reads the file when this module is imported, and the path it needs differs
 # between the two contexts (`packages/...` at build time, `src/packages/...`
@@ -27,10 +21,10 @@ import bentoml
 # and the service never starts. BENTOML_CONTAINERIZED is set in the image and
 # unset during a build, which is the distinction.
 #
-# build_include copies the bundled workspace source to ./src *before* the
-# image's `uv pip install`, which is what makes the editable path dependencies
-# in requirements.txt resolvable: the install then runs with
-# INSTALL_ROOT=./src, where `./packages/elide-*` are real directories.
+# build_include copies the bundled source to ./src *before* the image's
+# `uv pip install`, which is what makes the editable path dependencies in
+# requirements.txt resolvable: the install then runs with INSTALL_ROOT=./src,
+# where `./packages/elide-core` and `./packages/elide-ner` are real directories.
 #
 # lock_python_packages=False: the file is already locked and hashed by
 # scripts/gen_requirements.py, so BentoML must not re-resolve it.
@@ -58,7 +52,7 @@ image = (
             "mkdir -p /etc/uv && printf 'index-strategy = \"unsafe-best-match\"\\n'"
             " > /etc/uv/uv.toml"
         )
-        .build_include("packages", "pyproject.toml", "uv.lock")
+        .build_include("packages/elide-core", "packages/elide-ner")
         .requirements_file("packages/elide-ner/requirements.txt")
     )
 )

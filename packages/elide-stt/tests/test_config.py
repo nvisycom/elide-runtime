@@ -8,8 +8,7 @@ from pydantic import ValidationError
 @pytest.fixture(autouse=True)
 def clean_settings(monkeypatch):
     for name in (
-        "ELIDE_BENTO_MODEL_NAME",
-        "ELIDE_BENTO_MODEL_PATH",
+        config.MODEL_ENV,
         config.BACKEND_ENV,
         config.COMPUTE_TYPE_ENV,
         config.DEVICE_ENV,
@@ -78,8 +77,22 @@ def test_speaker_bounds_must_be_ordered():
         config.SttSettings(min_speakers=3, max_speakers=2)
 
 
-def test_mounted_weights_override_model_name(tmp_path):
-    settings = config.SttSettings(model_name="custom", model_path=str(tmp_path))
-    assert settings.resolve_model() == "custom"
-    (tmp_path / "model.bin").write_bytes(b"weights")
-    assert settings.resolve_model() == str(tmp_path)
+def test_model_reads_the_stt_prefixed_variable(monkeypatch):
+    assert config.SttSettings().model_id == config.DEFAULT_MODEL
+    monkeypatch.setenv(config.MODEL_ENV, "distil-large-v3")
+    assert config.SttSettings().model_id == "distil-large-v3"
+
+
+def test_a_directory_without_weights_is_refused(monkeypatch, tmp_path):
+    monkeypatch.setenv(config.MODEL_ENV, str(tmp_path))
+    with pytest.raises(ValidationError, match=r"without model\.bin"):
+        config.SttSettings()
+
+    (tmp_path / "model.bin").touch()
+    assert config.SttSettings().model_id == str(tmp_path)
+
+
+def test_unknown_device_rejected(monkeypatch):
+    monkeypatch.setenv(config.DEVICE_ENV, "tpu")
+    with pytest.raises(ValidationError):
+        config.SttSettings()

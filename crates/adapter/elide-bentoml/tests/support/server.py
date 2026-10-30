@@ -43,7 +43,7 @@ class Gliner:
         return results
 
 
-class Doctr:
+class Onnxtr:
     def __call__(self, images):
         height, width = images[0].shape[:2]
         words = [
@@ -59,6 +59,8 @@ class Doctr:
 
 
 class Whisper:
+    supported_languages = ("en", "pl")
+
     def __init__(self, *args, **kwargs):
         pass
 
@@ -86,18 +88,22 @@ def application(task):
 
         return NerService.to_asgi()
     if task == "ocr":
-        os.environ["ELIDE_BENTO_MODEL_NAME"] = "e2e-det+e2e-rec"
-        package = types.ModuleType("doctr")
-        models = types.ModuleType("doctr.models")
-        models.ocr_predictor = lambda *args, **kwargs: Doctr()
+        os.environ.update(
+            ELIDE_BENTO_OCR_DETECTION="e2e_det",
+            ELIDE_BENTO_OCR_RECOGNITION="e2e_rec",
+        )
+        package = types.ModuleType("onnxtr")
+        models = types.ModuleType("onnxtr.models")
+        models.EngineConfig = lambda *args, **kwargs: None
+        models.ocr_predictor = lambda *args, **kwargs: Onnxtr()
         package.models = models
-        sys.modules.update({"doctr": package, "doctr.models": models})
+        sys.modules.update({"onnxtr": package, "onnxtr.models": models})
         from elide_ocr.service import OcrService
 
         return OcrService.to_asgi()
     if task == "stt":
         os.environ.update(
-            ELIDE_BENTO_MODEL_NAME="e2e/stt",
+            ELIDE_BENTO_STT_MODEL="e2e/stt",
             ELIDE_BENTO_STT_DIARIZE="false",
             ELIDE_BENTO_STT_WORD_TIMESTAMPS="true",
             ELIDE_BENTO_STT_DEVICE="cpu",

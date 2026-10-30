@@ -38,6 +38,10 @@ jobs:
   # moves `latest` and a release candidate does not. The script stubs `docker`,
   # so this needs no daemon and no registry — and it runs on a pull request,
   # where the publish path itself cannot.
+  #
+  # On a tag it also checks that docker/compose.yaml defaults to the version
+  # being published. `manifest` needs this job, so a forgotten bump stops the
+  # tag an operator pulls from appearing at all.
   script:
     name: Script
     runs-on: ubuntu-latest
@@ -48,6 +52,13 @@ jobs:
 
       - name: Test the manifest publisher
         run: sh scripts/tests/test_publish_manifest.sh
+
+      - name: Test the compose version check
+        run: sh scripts/tests/test_check_compose_version.sh
+
+      - name: Check the compose defaults name this release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: sh scripts/check_compose_version.sh "${GITHUB_REF_NAME#v}"
 
   # One job per service: a failure in one does not mask the others, and the
   # three build in parallel. The matrix mirrors `SERVICES` in the Makefile.
@@ -89,7 +100,7 @@ jobs:
           enable-cache: true
 
       - name: Sync
-        run: uv sync --locked --all-packages
+        run: uv sync --locked --project packages/elide-${{ matrix.service }}
 
       # BentoML builds the image from service.py and bentofile.yaml, so there
       # is no Dockerfile and no docker/build-push-action here.

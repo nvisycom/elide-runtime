@@ -3,12 +3,10 @@
 The heavy imports live inside the loaders so importing this module stays
 cheap.
 
-WhisperX is deliberately not used. It bundles the same pieces, but pins
-``huggingface-hub<1.0.0``, which cannot coexist with the NER service's
-``transformers>=5.15.0`` in this workspace's single lock. Assembling the
-stages directly avoids that ceiling — and costs less than it sounds, since
-faster-whisper reports word timings natively and needs no separate forced
-alignment pass.
+WhisperX is deliberately not used. It bundles the same pieces plus a
+forced-alignment pass, which this service does not need: faster-whisper
+reports word timings natively. It also pins ``huggingface-hub<1.0.0``, which
+would hold this service's whole Hub stack back for nothing it uses.
 
 Two stages:
 
@@ -48,17 +46,42 @@ def _to_ms(seconds: float | None) -> int | None:
     return max(0, round(float(seconds) * 1000))
 
 
+# BCP-47 primary subtags Whisper spells differently: it codes Javanese `jw`.
+# Mapped both ways, since it also reports the language it detected that way.
+_WHISPER_CODES = {"jv": "jw"}
+_BCP47_CODES = {whisper: bcp47 for bcp47, whisper in _WHISPER_CODES.items()}
+
+
+def _whisper_language(tag: str | None, supported: frozenset[str]) -> str | None:
+    """The Whisper code for a BCP-47 hint, or ``None`` to auto-detect.
+
+    The wire carries BCP-47 (``en-US``, ``zh-Hant``) and faster-whisper
+    raises on anything but its own bare codes (``en``, ``zh``), so the
+    hint is cut to its primary subtag. A language the model does not
+    support is dropped rather than refused: the contract makes the hint
+    optional, and detection still transcribes the clip.
+    """
+    if tag is None:
+        return None
+    code = tag.split("-", 1)[0].lower()
+    code = _WHISPER_CODES.get(code, code)
+    return code if code in supported else None
+
+
 class Engine:
     """Owns the loaded models and the result translation."""
 
     def __init__(self, settings: config.SttSettings | None = None) -> None:
         self.settings = settings if settings is not None else config.SttSettings()
-        self.model_id = self.settings.resolve_model()
+        self.model_id = self.settings.model_id
         self.device = self.settings.device
         self.max_duration_seconds = self.settings.max_duration_seconds
         self._word_timestamps = self.settings.word_timestamps
 
         self._model = _load(self.model_id, self.device, self.settings.resolved_compute_type)
+        # The model's own list: every Whisper language, or only `en` for an
+        # English-only checkpoint.
+        self._languages = frozenset(self._model.supported_languages)
         self._diarizer = (
             _load_diarizer(self.device, self.settings) if self.settings.diarize else None
         )
@@ -85,13 +108,14 @@ class Engine:
         """Run the pipeline over one clip and map it onto the contract."""
         segments, info = self._model.transcribe(
             audio,
-            language=language,
+            language=_whisper_language(language, self._languages),
             word_timestamps=self._word_timestamps,
         )
         # faster-whisper returns a generator; diarization needs the whole
         # clip anyway, so materialise once here rather than iterating twice.
         raw = [_segment_dict(s) for s in segments]
-        detected = getattr(info, "language", None) or language
+        detected = getattr(info, "language", None)
+        detected = _BCP47_CODES.get(detected, detected) if detected else language
 
         turns = self._diarize(audio) if self._diarizer is not None else []
         return project(raw, self.model_id, detected, _to_ms(len(audio) / SAMPLE_RATE), turns)

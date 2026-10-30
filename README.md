@@ -85,7 +85,7 @@ Rendering an audit into JSON or flat CSV tables.
 Schema-driven NER and PII detection, wrapping GLiNER2, so the labels to find are named per call rather than baked into the model.
 
 **[elide-ocr](packages/elide-ocr)**  
-Document OCR with word-level geometry, wrapping docTR.
+Document OCR with word-level geometry for twelve European Latin-script languages, wrapping OnnxTR (docTR's models on ONNX Runtime).
 
 **[elide-stt](packages/elide-stt)**  
 Speech-to-text, so audio reaches the same detection pipeline as text.
@@ -101,7 +101,7 @@ The client for the services above, feature-gated per backend (`ner`, `ocr`, `stt
 
 **[elide-aws-textract](crates/adapter/elide-aws-textract)**  
 An AWS Textract-backed OCR backend, for hosted document text detection instead
-of self-hosted docTR.
+of self-hosted OnnxTR.
 
 **[elide-deepgram](crates/adapter/elide-deepgram)**  
 A Deepgram-backed speech-to-text backend, for hosted transcription instead of
@@ -134,7 +134,7 @@ For self-hosted use, embed the engine crates directly and run the inference
 services as sidecar containers:
 
 ```bash
-make sync             # install the Python workspace dependencies
+make sync             # install the tooling and each service's environment
 make serve-ner        # or serve-ocr, serve-stt
 ```
 

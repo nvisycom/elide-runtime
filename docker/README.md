@@ -11,7 +11,7 @@ so it never starts against an empty cache.
 
 One warmer per service, each running that service's own image, because the
 three libraries are not interchangeable and no single image carries all of
-them — `elide-stt` has no `doctr`, `elide-ocr` has no `faster_whisper`. A
+them — `elide-stt` has no `onnxtr`, `elide-ocr` has no `faster_whisper`. A
 shared warmer would fail on whichever model its image could not resolve.
 Warming in the image that later reads the cache also guarantees the same
 library version wrote it.
@@ -28,14 +28,15 @@ set deliberately, whatever its CC-BY-4.0 licence otherwise permits.
 its model id from the environment, so an operator pointing at different weights
 would have paid for ~3 GB of images they never load.
 
-**Offline becomes true rather than aspirational.** With the cache warm, the NER
+**Offline becomes true rather than aspirational.** With the cache warm, every
 service runs with `HF_HUB_OFFLINE=1` and resolves from disk, so no request-time
 traffic reaches the Hub. On a cold cache that flag cannot work at all — the
 service has nothing to load and no way to fetch it.
 
-Two cache volumes, because the libraries do not share one: `hf_cache` for NER
-and STT (`huggingface_hub`), `doctr_cache` for OCR (which fetches from
-`doctr-static.mindee.com`, not the Hub). The services mount them read-only —
+Two cache volumes: `hf_cache` for NER and STT, and `ocr_cache` for OCR, which
+holds both OnnxTR's own cache (built-in architectures, hash-checked release
+assets) and a Hugging Face cache (Hub models at a pinned commit), so the OCR
+service also runs with `HF_HUB_OFFLINE=1`. The services mount them read-only —
 only the init containers write.
 
 ## Quick start

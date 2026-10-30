@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 
 from elide_core.warm import configure_logging, hand_over, require_env
 
@@ -28,7 +29,7 @@ def main() -> None:
     configure_logging()
     cache = require_env("HF_HOME")
     settings = config.SttSettings()
-    model = settings.model_name
+    model = settings.model_id
 
     # Validate the whole configuration before downloading anything. The
     # transcription model alone is over a gigabyte, and failing after it on a
@@ -47,8 +48,12 @@ def main() -> None:
                 "then set the token to one belonging to that account."
             )
 
-    logger.info("warming %s", model)
-    download_model(model)
+    # A local directory is loaded where it lies; there is nothing to fetch.
+    if Path(model).is_dir():
+        logger.info("%s is a local directory; nothing to warm", model)
+    else:
+        logger.info("warming %s", model)
+        download_model(model)
 
     if diarize:
         from huggingface_hub import snapshot_download

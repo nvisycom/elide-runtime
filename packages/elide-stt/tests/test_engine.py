@@ -5,7 +5,12 @@ plain dicts, so they need no model weights.
 """
 
 import pytest
-from elide_stt.inference.backends.faster_whisper import _speaker_for, _to_ms, project
+from elide_stt.inference.backends.faster_whisper import (
+    _speaker_for,
+    _to_ms,
+    _whisper_language,
+    project,
+)
 from elide_stt.runtime.config import DEFAULT_MODEL
 
 
@@ -113,6 +118,44 @@ def test_default_model_is_turbo():
 
     Pinned deliberately: turbo is 2-5x faster for a small accuracy cost, and
     the choice is documented in the README. A silent revert to large-v3 would
-    slow every deployment that does not set ELIDE_BENTO_MODEL_NAME.
+    slow every deployment that does not set ELIDE_BENTO_STT_MODEL.
     """
     assert DEFAULT_MODEL == "large-v3-turbo"
+
+
+@pytest.mark.parametrize(
+    ("tag", "code"),
+    [
+        (None, None),
+        ("en", "en"),
+        ("en-US", "en"),
+        ("zh-Hant-TW", "zh"),
+        ("UK", "uk"),
+        ("jv-ID", "jw"),
+        ("tlh", None),
+    ],
+)
+def test_bcp47_hint_becomes_a_whisper_code(tag, code):
+    assert _whisper_language(tag, frozenset({"en", "zh", "uk", "jw"})) == code
+
+
+def test_hint_outside_an_english_only_model_is_dropped():
+    assert _whisper_language("de", frozenset({"en"})) is None
+
+
+def test_detected_javanese_is_reported_as_bcp47():
+    from types import SimpleNamespace
+
+    from elide_stt.inference.backends.faster_whisper import Engine
+
+    class Model:
+        def transcribe(self, audio, language=None, word_timestamps=True):
+            assert language == "jw"
+            return iter([]), SimpleNamespace(language="jw")
+
+    # Built without __init__, which would load real weights.
+    engine = object.__new__(Engine)
+    engine._model, engine._languages, engine._diarizer = Model(), frozenset({"jw"}), None
+    engine._word_timestamps, engine.model_id = True, "fake"
+
+    assert engine.transcribe([0.0] * 16000, language="jv").language == "jv"

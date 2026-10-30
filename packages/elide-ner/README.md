@@ -71,26 +71,27 @@ the limit is never missed.
 > peak memory with the target batch size, text lengths, and schemas before
 > reducing the allocation.
 
-```bash
-uv sync
-ELIDE_BENTO_NER_MODEL=fastino/gliner2-privacy-filter-PII-multi \
-    uv run bentoml serve elide_ner.service:NerService --reload
-```
-
 The default test suite fakes the model (no weight downloads in CI). A separate
 set of `real`-marked tests exercises the engine against the real GLiNER2 model
-end to end — excluded by default, run on demand (and by the opt-in `real-models`
-CI job):
+end to end. They are excluded by default; CI's `real-models` job runs them when
+this service or `elide-core` changes:
 
 ```bash
-uv run pytest -m real          # downloads the GLiNER2 model
+uv run --project packages/elide-ner pytest packages/elide-ner -m real   # downloads the GLiNER2 model
 ```
 
 ## Run locally
 
 ```bash
-make sync          # once, to install the workspace into .venv
+make sync          # once: the tooling, plus each service's own .venv
 make serve-ner
+```
+
+or without make, from the repository root (the service resolves its exported
+requirements against the working directory, so `make requirements` first):
+
+```bash
+uv run --project packages/elide-ner bentoml serve elide_ner.service:NerService --reload
 ```
 
 The model is downloaded on first start, into the local Hugging Face cache.

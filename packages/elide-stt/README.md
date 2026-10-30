@@ -11,13 +11,10 @@ for transcription — including native word-level timings — with optional
 [pyannote](https://github.com/pyannote/pyannote-audio) diarization for speaker
 labels.
 
-WhisperX bundles the same pieces and is the obvious choice, but it pins
-`huggingface-hub<1.0.0`. `elide-ner` requires `transformers>=5.15.0`,
-whose own resolved version requires `huggingface-hub>=1.5.0` — so the two
-ceilings cannot coexist in this workspace's single lock. Assembling the stages
-directly avoids that ceiling, and costs little: faster-whisper reports word
-timings natively, so the separate forced-alignment pass WhisperX exists for is
-not needed.
+WhisperX bundles the same pieces and is the obvious choice, but what it adds
+is a forced-alignment pass, and faster-whisper already reports word timings
+natively. It also pins `huggingface-hub<1.0.0`, which would hold this service's
+whole Hub stack back for nothing it uses.
 
 ## Endpoint
 
@@ -48,8 +45,7 @@ the conversion happens once, at the engine boundary.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ELIDE_BENTO_MODEL_NAME` | `large-v3-turbo` | faster-whisper model id |
-| `ELIDE_BENTO_MODEL_PATH` | `/models` | BYO weights mount, when present |
+| `ELIDE_BENTO_STT_MODEL` | `large-v3-turbo` | faster-whisper size, Hub repo id, or local weights directory |
 | `ELIDE_BENTO_STT_DEVICE` | `cpu` | `cpu` or `cuda` |
 | `ELIDE_BENTO_STT_COMPUTE_TYPE` | `int8` (cpu) / `float16` (cuda) | faster-whisper precision |
 | `ELIDE_BENTO_STT_WORD_TIMESTAMPS` | on | per-word timings (native to faster-whisper) |
@@ -62,26 +58,10 @@ the conversion happens once, at the engine boundary.
 
 ## Why `large-v3-turbo`
 
-MIT-licensed, 99 languages, native word timestamps, and 2-5x faster than
-`large-v3` (its decoder is pruned from 32 layers to 4) for a small accuracy
-cost.
-
-It is **not** the WER leader. On the
-[Open ASR Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard)
-roughly ten open models score better — but each fails a bar that matters more
-here:
-
-| Model | Why not |
-|---|---|
-| NVIDIA Parakeet-TDT-0.6B-v3 | ~50x faster, but needs the NeMo runtime, is GPU-oriented, and covers 25 European languages rather than 99 |
-| NVIDIA Canary-Qwen-2.5B | English-only |
-| Mistral Voxtral Small | vLLM, ~55GB VRAM |
-| ARK-ASR-3B, MOSS-Transcribe | Preview models from newer labs; licences not independently confirmed |
-
-So this is a deliberate trade of raw accuracy for ecosystem fit, CPU viability
-and language coverage — the same bar the NER service sets for its default
-("Apache-2.0, CPU-viable, multilingual"). Parakeet is the one worth revisiting
-if this service ever moves to GPU.
+MIT-licensed, 99 languages, native word timestamps, and CPU-viable, for a small
+accuracy cost against `large-v3` and against the leaderboard's leaders. The
+options considered, and what would reopen the choice, are in the
+[STT design](../../docs/design/stt.md#choosing-the-model).
 
 ## Diarization
 
@@ -115,22 +95,29 @@ path, so treat it as you would any other "run this binary" setting.
 ## Run locally
 
 ```bash
-make sync          # once, to install the workspace into .venv
+make sync          # once: the tooling, plus each service's own .venv
 make serve-stt
 ```
 
-or without make — the sync is not optional, since the workspace root
-declares no dependencies of its own, so a plain `uv run` installs nothing
-this service needs:
+or without make, from the repository root (the service resolves its exported
+requirements against the working directory, so `make requirements` first):
 
 ```bash
-uv sync --all-packages
-uv run bentoml serve elide_stt.service:SttService --reload
+uv run --project packages/elide-stt bentoml serve elide_stt.service:SttService --reload
 ```
 
 Either way the model is downloaded on first start. To run the published
 image instead, with its cache warmed by a one-shot init container, see
 [`docker/`](../../docker/README.md).
+
+The default test suite fakes the model. The `real`-marked tests transcribe a
+pinned LibriSpeech clip with `tiny`, with a regional language hint, and load
+again with the Hub offline. They are excluded by default; CI's `real-models`
+job runs them when this service or `elide-core` changes:
+
+```bash
+uv run --project packages/elide-stt pytest packages/elide-stt -m real   # downloads tiny and the clip
+```
 
 ## Versioning
 

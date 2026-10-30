@@ -8,7 +8,7 @@ one batched extraction.
 Run locally::
 
     ELIDE_BENTO_NER_MODEL=fastino/gliner2-privacy-filter-PII-multi \\
-        uv run bentoml serve elide_ner.service:NerService --reload
+        uv run --project packages/elide-ner bentoml serve elide_ner.service:NerService --reload
 """
 
 from __future__ import annotations

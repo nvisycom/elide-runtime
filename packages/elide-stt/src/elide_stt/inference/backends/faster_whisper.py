@@ -47,7 +47,9 @@ def _to_ms(seconds: float | None) -> int | None:
 
 
 # BCP-47 primary subtags Whisper spells differently: it codes Javanese `jw`.
+# Mapped both ways, since it also reports the language it detected that way.
 _WHISPER_CODES = {"jv": "jw"}
+_BCP47_CODES = {whisper: bcp47 for bcp47, whisper in _WHISPER_CODES.items()}
 
 
 def _whisper_language(tag: str | None, supported: frozenset[str]) -> str | None:
@@ -112,7 +114,8 @@ class Engine:
         # faster-whisper returns a generator; diarization needs the whole
         # clip anyway, so materialise once here rather than iterating twice.
         raw = [_segment_dict(s) for s in segments]
-        detected = getattr(info, "language", None) or language
+        detected = getattr(info, "language", None)
+        detected = _BCP47_CODES.get(detected, detected) if detected else language
 
         turns = self._diarize(audio) if self._diarizer is not None else []
         return project(raw, self.model_id, detected, _to_ms(len(audio) / SAMPLE_RATE), turns)

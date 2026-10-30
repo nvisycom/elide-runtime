@@ -141,3 +141,21 @@ def test_bcp47_hint_becomes_a_whisper_code(tag, code):
 
 def test_hint_outside_an_english_only_model_is_dropped():
     assert _whisper_language("de", frozenset({"en"})) is None
+
+
+def test_detected_javanese_is_reported_as_bcp47():
+    from types import SimpleNamespace
+
+    from elide_stt.inference.backends.faster_whisper import Engine
+
+    class Model:
+        def transcribe(self, audio, language=None, word_timestamps=True):
+            assert language == "jw"
+            return iter([]), SimpleNamespace(language="jw")
+
+    # Built without __init__, which would load real weights.
+    engine = object.__new__(Engine)
+    engine._model, engine._languages, engine._diarizer = Model(), frozenset({"jw"}), None
+    engine._word_timestamps, engine.model_id = True, "fake"
+
+    assert engine.transcribe([0.0] * 16000, language="jv").language == "jv"

@@ -9,9 +9,10 @@ deployment without a code change.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, computed_field, model_validator
+from pydantic import Field, SecretStr, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The transcription model: a faster-whisper size ("large-v3-turbo"), a
@@ -87,6 +88,23 @@ class SttSettings(BaseSettings):
     max_bytes: int = Field(DEFAULT_MAX_BYTES, gt=0)
     min_speakers: int | None = Field(None, gt=0)
     max_speakers: int | None = Field(None, gt=0)
+
+    @field_validator("model_id")
+    @classmethod
+    def check_local_model(cls, value: str) -> str:
+        # A directory is loaded where it lies, so the warmer fetches nothing
+        # for it; without CTranslate2's weights the service would then fail
+        # at load, after the warmer reported success. Refused here instead,
+        # where both read it. Not a fallback to the default model: a named
+        # directory is the operator's choice, and silently serving other
+        # weights would hide the mistake.
+        path = Path(value)
+        if path.is_dir() and not (path / "model.bin").is_file():
+            raise ValueError(
+                f"{value} is a directory without model.bin; it must hold a "
+                "CTranslate2 conversion of a Whisper model"
+            )
+        return value
 
     @computed_field
     @property

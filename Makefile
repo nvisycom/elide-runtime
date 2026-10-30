@@ -7,6 +7,8 @@
 
 # Default to a single recipe shell so a failure inside a piped
 # command (e.g. server panics under `tee`) is reported by make.
+# GNU make before 3.82, which macOS still ships, ignores .SHELLFLAGS, so the
+# loops below also `set -e` themselves.
 .SHELLFLAGS := -eu -o pipefail -c
 SHELL       := /bin/bash
 
@@ -61,7 +63,7 @@ ci: lint test doc machete deny ## Run the crate CI matrix.
 sync: ## Install the tooling and every service's dependencies into their venvs.
 	@$(call log,Syncing tooling...)
 	@uv sync
-	@for s in $(SERVICES); do \
+	@set -e; for s in $(SERVICES); do \
 		$(call log,Syncing elide-$$s...); \
 		uv sync --project packages/elide-$$s; \
 	done
@@ -69,7 +71,7 @@ sync: ## Install the tooling and every service's dependencies into their venvs.
 .PHONY: lock
 lock: ## Relock the tooling and every service after a manifest change.
 	@uv lock
-	@for s in $(SERVICES); do uv lock --project packages/elide-$$s; done
+	@set -e; for s in $(SERVICES); do uv lock --project packages/elide-$$s; done
 
 .PHONY: services-lint
 services-lint: ## ruff check + format check over the services.
@@ -90,7 +92,7 @@ services-fmt: ## Auto-format the services with ruff.
 services-test: requirements ## Run elide-core's tests, then each service's.
 	@$(call log,Testing elide-core...)
 	@uv run pytest
-	@for s in $(SERVICES); do \
+	@set -e; for s in $(SERVICES); do \
 		$(call log,Testing elide-$$s...); \
 		uv run --project packages/elide-$$s pytest packages/elide-$$s; \
 	done
@@ -102,9 +104,11 @@ requirements: ## Export each service's locked dependencies from its uv.lock.
 
 # Two steps rather than `build --containerize`, which accepts no tag. `build`
 # tags the bento with its content hash, so `-o tag` captures that (it prints
-# the tag prefixed with `__tag__:`, hence the sed) to hand to
+# the tag prefixed with `__tag__:`, which is stripped) to hand to
 # `containerize -t`, which gives the predictable name
-# docker/compose.dev.yaml refers to.
+# docker/compose.dev.yaml refers to. The tag is captured without a pipe, so a
+# failed build fails the assignment rather than hiding behind the pipe's last
+# command.
 #
 # Builds for the host architecture only, which is what a developer wants: the
 # image runs natively, and cross-building under emulation is slow enough to be
@@ -113,7 +117,7 @@ requirements: ## Export each service's locked dependencies from its uv.lock.
 # runners per architecture, not here.
 .PHONY: services
 services: requirements ## Build every Bento from its bentofile.
-	@for s in $(SERVICES); do \
+	@set -e; for s in $(SERVICES); do \
 		$(call log,Building elide-$$s...); \
 		uv run --project packages/elide-$$s \
 			bentoml build -f packages/elide-$$s/bentofile.yaml .; \
@@ -121,11 +125,11 @@ services: requirements ## Build every Bento from its bentofile.
 
 .PHONY: services-image
 services-image: requirements ## Build and containerize every Bento into a local Docker image.
-	@for s in $(SERVICES); do \
+	@set -e; for s in $(SERVICES); do \
 		$(call log,Containerizing elide-$$s...); \
 		bento=$$(uv run --project packages/elide-$$s \
-			bentoml build -f packages/elide-$$s/bentofile.yaml -o tag . \
-			| sed 's/^__tag__://'); \
+			bentoml build -f packages/elide-$$s/bentofile.yaml -o tag .); \
+		bento=$${bento#__tag__:}; \
 		uv run --project packages/elide-$$s \
 			bentoml containerize "$$bento" -t "elide-$$s:latest"; \
 	done

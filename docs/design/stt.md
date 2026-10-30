@@ -84,9 +84,12 @@ configuration and loading boundary.
 
 The default transcription model is loaded once at startup.
 `ELIDE_BENTO_STT_MODEL` selects it: a faster-whisper size, a CTranslate2 repo
-id on the Hub, or a local directory of converted weights. Device defaults to CPU,
-with `int8` compute; CUDA defaults to `float16`. An explicit compute type
-can override that choice. Word timestamps default to enabled.
+id on the Hub, or a local directory of converted weights. A directory is loaded
+where it lies and the warmer fetches nothing for it, so one without a
+CTranslate2 `model.bin` is refused when settings load, by the warmer and the
+service alike. Device defaults to CPU, with `int8` compute; CUDA defaults to
+`float16`. An explicit compute type can override that choice. Word timestamps
+default to enabled.
 
 ### Request and bounded decoding
 

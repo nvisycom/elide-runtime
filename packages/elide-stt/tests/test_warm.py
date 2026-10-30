@@ -78,6 +78,7 @@ def test_a_local_directory_is_not_downloaded(monkeypatch, tmp_path, caplog):
     """A directory of converted weights loads where it lies: no Hub request."""
     weights = tmp_path / "weights"
     weights.mkdir()
+    (weights / "model.bin").touch()
     monkeypatch.setenv("HF_HOME", str(tmp_path))
     monkeypatch.setenv("ELIDE_BENTO_STT_MODEL", str(weights))
     monkeypatch.delenv("ELIDE_BENTO_STT_DIARIZE", raising=False)

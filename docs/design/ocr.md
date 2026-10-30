@@ -135,7 +135,7 @@ fall back to CPU unannounced.
 [pipeline](../../packages/elide-ocr/src/elide_ocr/inference/pipeline.py) decodes
 each image into RGB before passing it to the backend.
 
-BentoML dispatches up to 16 images in a window, with a 15-second queue-latency
+BentoML dispatches up to 3 images in a window, with a 15-second queue-latency
 budget and 60-second request timeout. Within that window, the current pipeline
 runs one image at a time. Dispatch batching therefore does not imply an OnnxTR
 model batch containing all images, and deliberately so: on CPU, one predictor
@@ -144,8 +144,15 @@ call over a window is slower than a call per image. Measured over 16 A4 pages at
 1.9–2.4× as long and peaked 0.7–1.7 GiB higher, whatever the detection or
 recognition batch size. ONNX Runtime already spreads a single page across every
 core, so a larger batch adds tensor size, not parallelism. A GPU image would need
-measuring again. A failure aborts the dispatched call; results
-are not returned independently for each failed or successful item.
+measuring again. A failure aborts the dispatched call; results are not returned
+independently for each failed or successful item.
+
+Because the images in a window run one after another, a larger window adds
+waiting, not throughput, and the window is sized to the timeout instead: 15
+seconds queued plus three dense pages at about 12 seconds each is 51 seconds. A
+slower host or denser pages need a smaller window or a longer timeout. A caller
+sending more pages than fit in one request splits them across several, as the
+[Rust adapter](../../crates/adapter/elide-bentoml/src/ocr/mod.rs) documents.
 
 Malformed base64, unidentified images, known corrupt/truncated decoder errors,
 and Pillow decompression-limit errors are input rejections. They increment

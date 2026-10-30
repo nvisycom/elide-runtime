@@ -33,7 +33,10 @@ requirements on top of these.
   not need a GPU to run the defaults. GPU support is an option, not a premise.
 - **Pinned weights.** A deployment must load the same weights tomorrow as today:
   a hash-checked asset, a full commit, or a library version that pins both. A
-  branch or a moving tag does not qualify.
+  branch or a moving tag does not qualify. Only OCR meets this today. The NER and
+  STT defaults are Hub repositories resolved at their latest commit when the
+  warmer runs, so two warmers can fetch different weights; each task document
+  lists this under its known gaps.
 - **A runtime the image can carry.** One Python process alongside BentoML. A
   model that needs its own serving stack, such as vLLM or NeMo, has to justify
   that stack's size and operations as well as its accuracy.

@@ -131,8 +131,13 @@ def test_default_model_is_turbo():
         ("en-US", "en"),
         ("zh-Hant-TW", "zh"),
         ("UK", "uk"),
+        ("jv-ID", "jw"),
         ("tlh", None),
     ],
 )
 def test_bcp47_hint_becomes_a_whisper_code(tag, code):
-    assert _whisper_language(tag) == code
+    assert _whisper_language(tag, frozenset({"en", "zh", "uk", "jw"})) == code
+
+
+def test_hint_outside_an_english_only_model_is_dropped():
+    assert _whisper_language("de", frozenset({"en"})) is None

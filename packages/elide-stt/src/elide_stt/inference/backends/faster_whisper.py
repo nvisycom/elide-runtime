@@ -46,22 +46,24 @@ def _to_ms(seconds: float | None) -> int | None:
     return max(0, round(float(seconds) * 1000))
 
 
-def _whisper_language(tag: str | None) -> str | None:
+# BCP-47 primary subtags Whisper spells differently: it codes Javanese `jw`.
+_WHISPER_CODES = {"jv": "jw"}
+
+
+def _whisper_language(tag: str | None, supported: frozenset[str]) -> str | None:
     """The Whisper code for a BCP-47 hint, or ``None`` to auto-detect.
 
     The wire carries BCP-47 (``en-US``, ``zh-Hant``) and faster-whisper
     raises on anything but its own bare codes (``en``, ``zh``), so the
-    hint is cut to its primary subtag. A language Whisper does not know
-    is dropped rather than refused: the contract makes the hint optional,
-    and detection still transcribes the clip.
+    hint is cut to its primary subtag. A language the model does not
+    support is dropped rather than refused: the contract makes the hint
+    optional, and detection still transcribes the clip.
     """
     if tag is None:
         return None
-    # Imported here like the model, so importing this module stays cheap.
-    from faster_whisper.tokenizer import _LANGUAGE_CODES
-
     code = tag.split("-", 1)[0].lower()
-    return code if code in _LANGUAGE_CODES else None
+    code = _WHISPER_CODES.get(code, code)
+    return code if code in supported else None
 
 
 class Engine:
@@ -75,6 +77,9 @@ class Engine:
         self._word_timestamps = self.settings.word_timestamps
 
         self._model = _load(self.model_id, self.device, self.settings.resolved_compute_type)
+        # The model's own list: every Whisper language, or only `en` for an
+        # English-only checkpoint.
+        self._languages = frozenset(self._model.supported_languages)
         self._diarizer = (
             _load_diarizer(self.device, self.settings) if self.settings.diarize else None
         )
@@ -101,7 +106,7 @@ class Engine:
         """Run the pipeline over one clip and map it onto the contract."""
         segments, info = self._model.transcribe(
             audio,
-            language=_whisper_language(language),
+            language=_whisper_language(language, self._languages),
             word_timestamps=self._word_timestamps,
         )
         # faster-whisper returns a generator; diarization needs the whole

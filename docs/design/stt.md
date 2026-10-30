@@ -67,6 +67,10 @@ configuration and loading boundary.
   its terms and a Hugging Face token, so it cannot be warmed anonymously.
 - **No accuracy or speed measured on this project's audio.** Fixtures check the
   contract, not recognition quality or real-time factor.
+- **Weights not pinned.** faster-whisper resolves `large-v3-turbo`, and the
+  diarization model, to the latest commit of their Hub repositories when the
+  warmer runs. A warmer run after the publisher pushes new weights serves those
+  weights. OCR's `owner/repo@<sha>` form is the model to follow.
 
 ### When to revisit
 

@@ -74,6 +74,10 @@ That comparison is the model authors' own and has not been reproduced here.
 - **Synthetic training data.** It was trained on 4,910 generated texts, and an
   F1 of 0.477 leaves many spans missed or wrong. The runtime's deterministic
   patterns run first for anything with a checkable format.
+- **Weights not pinned.** `ELIDE_BENTO_NER_MODEL` names a Hub repository, and
+  both the warmer and the engine load its latest commit. A warmer run after the
+  publisher pushes new weights serves those weights. OCR's `owner/repo@<sha>`
+  form is the model to follow.
 - **512 encoder tokens per input.** Longer text is rejected rather than
   truncated, so callers must split documents.
 - **No accuracy measured on this project's data.** Unlike OCR, there is no

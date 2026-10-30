@@ -59,6 +59,8 @@ class Onnxtr:
 
 
 class Whisper:
+    supported_languages = ("en", "pl")
+
     def __init__(self, *args, **kwargs):
         pass
 

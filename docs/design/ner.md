@@ -5,24 +5,101 @@ for recognition and redaction. The service returns model-native labels and
 confidence; the consumer owns taxonomy mapping and policy decisions. See the
 [shared service architecture](README.md) for contract ownership and lifecycle.
 
-## Model and extraction boundary
+## Choosing the model
 
-The backend uses [GLiNER2](https://github.com/fastino-ai/GLiNER2), whose extraction
-schema lets the caller name entity types and supply descriptions. This fits the
-runtime's per-request label selection: one deployed model can answer different
-entity schemas without a separate service for each label set.
+### What the service needs
 
-The configured default is `fastino/gliner2-privacy-filter-PII-multi`, selected by
-`ELIDE_BENTO_NER_MODEL`. It is loaded once at startup. Requests select labels,
-not model weights. The adapter exposes entity extraction only; GLiNER2's
-classification and structured-record capabilities are outside this contract.
+Beyond [the bar every model meets](README.md#what-every-model-must-meet):
+
+- **Labels chosen per request.** The runtime decides which entity types a
+  request looks for, and each label can carry a description that steers it
+  toward the intended sense. A model with a fixed label set would need one
+  deployment, or one retraining, per set.
+- **Exact spans in the original text.** Start and end offsets that point at
+  the characters the model matched, unnormalized, so the runtime can redact
+  exactly those characters. Generated or paraphrased text has no location.
+- **Personal data in particular.** Names, addresses, identifiers, and contact
+  details are what the runtime redacts, so a model tuned for them is worth more
+  than a general entity model with better scores on news text.
+- **Short inputs on CPU, in batches.** Calls carry sentences and paragraphs,
+  not documents, and concurrent callers are batched; the model has to handle
+  that within the service's 4 GiB on CPU.
+
+### Options considered
+
+| Option | Licence | Languages | Verdict |
+|---|---|---|---|
+| **`fastino/gliner2-privacy-filter-PII-multi`** (GLiNER2, 205M) | Apache-2.0 | en, fr, es, de, it, pt, nl | **Chosen.** Labels and descriptions per request, tuned on 42 personal-data types |
+| `urchade/gliner_multi_pii-v1` (GLiNER v1) | Apache-2.0 | en, fr, de, es, pt, it | Same zero-shot idea, older architecture without GLiNER2's schema; lower in the comparison below |
+| `openai/privacy-filter` (1.4B) | Apache-2.0 | not stated | About seven times the size for CPU inference, and lower in the comparison below |
+| `nvidia/gliner-PII` | NVIDIA Open Model Licence | en | English only, and a bespoke licence to review |
+| Fixed-label token classifiers (BERT NER, spaCy) | Various | Various | A fixed label set: every new entity type is a training job |
+| [Presidio](https://github.com/microsoft/presidio) | MIT | Various | A framework of patterns plus a fixed-label NER model; the runtime already runs its own patterns before NER |
+| General-purpose LLM extraction | Various | Many | Offsets are unreliable and text can be invented; too slow on CPU. The runtime has a separate LLM classification stage for what it is good at |
+| Hosted GLiNER2 ([Pioneer](../../crates/adapter/elide-pioneer-gliner)) | Service terms | Same family | Request text leaves the deployment; available as an adapter for operators who accept that |
+
+### Why GLiNER2's privacy model
+
+[GLiNER2](https://github.com/fastino-ai/GLiNER2) takes the extraction schema
+with each call, so one deployed model answers whatever labels and descriptions
+the runtime sends, and it returns character spans into the input. The
+privacy fine-tune adds what a general GLiNER2 lacks: training on personal-data
+types across seven languages. Its
+[technical report](https://arxiv.org/abs/2605.09973) gives it the best
+span-level F1 (0.477) on the SPY benchmark of the four systems compared,
+including the GLiNER v1, OpenAI, and NVIDIA models above. At 205M parameters it
+fits the CPU budget with room for batching.
+
+That comparison is the model authors' own and has not been reproduced here.
+
+### Known gaps
+
+- **Seven languages, fewer than OCR reads.** The OCR recognizer also covers
+  Polish, Czech, Danish, Norwegian, and Finnish. Text from those documents
+  reaches a model that was not trained on them; zero-shot extraction may still
+  find some entities, but that is untested.
+- **Other languages fail silently.** The encoder (`mdeberta-v3-base`) was
+  pretrained on about 100 languages, but the fine-tune was not, and a language
+  outside the seven returns a successful response with nothing in it. Measured
+  on one Chinese sentence holding a name, phone number, email, address,
+  organization, and date: the English translation yields all six at 0.92–1.0
+  confidence, and the Chinese yields nothing at 0.5, and at 0.02 only one wrong
+  span, a name with the following words attached, whether the labels are in
+  English or Chinese. Part of the cause is word splitting: GLiNER2 treats each
+  character outside ASCII runs as a word, and spans cover at most eight words,
+  so a Chinese address cannot be one span. An empty result is indistinguishable
+  from text with no personal data; the runtime's deterministic patterns still
+  catch formatted values such as phone numbers and emails, but not names or
+  addresses.
+- **Synthetic training data.** It was trained on 4,910 generated texts, and an
+  F1 of 0.477 leaves many spans missed or wrong. The runtime's deterministic
+  patterns run first for anything with a checkable format.
+- **512 encoder tokens per input.** Longer text is rejected rather than
+  truncated, so callers must split documents.
+- **No accuracy measured on this project's data.** Unlike OCR, there is no
+  local evaluation yet.
+
+### When to revisit
+
+- A GLiNER2 privacy model covering the Slavic and Nordic languages OCR now
+  reads, or any deployment that needs those languages.
+- A local evaluation, on the deployment's own documents, showing a candidate
+  ahead on the sensitive entity types.
+- A GPU deployment, which makes larger encoders affordable.
+
+## How the service runs it
+
+The configured default is selected by `ELIDE_BENTO_NER_MODEL` and loaded once at
+startup. Requests select labels, not model weights. The adapter exposes entity
+extraction only; GLiNER2's classification and structured-record capabilities
+are outside this contract.
 
 The [backend](../../packages/elide-ner/src/elide_ner/inference/backends/gliner2.py)
 translates entity descriptions and optional thresholds into the library's
 schema, calls `batch_extract`, and projects confidence and offsets into the
 [Python wire models](../../packages/elide-core/src/elide_core/ner/v1).
 
-## Request and batch flow
+### Request and batch flow
 
 `POST /recognize` takes a list under `requests`. Each item contains nonempty
 `text`, a `schema` with at least one unique entity label, and an optional default
@@ -41,7 +118,7 @@ throughput. The service declares 4 GiB of memory to leave room beyond the model
 weights for extraction activations; that budget and the dispatch window should
 be evaluated together.
 
-## Input budgets and rejection
+### Input budgets and rejection
 
 Extraction cost grows with both text length and schema content. The service
 bounds both dimensions:
@@ -61,7 +138,7 @@ Per-caller token preparation before dispatch remains an isolation improvement.
 An inference failure also fails that dispatched call rather than returning
 partial results.
 
-## Offsets and the Rust boundary
+### Offsets and the Rust boundary
 
 Wire `start` and `end` count Unicode code points in the original text, with an
 inclusive start and exclusive end. Text is not normalized. For `Łódź Ada`, the
@@ -77,7 +154,7 @@ domain conversion retains the spans and leaves this metadata in the wire layer.
 [Shared fixtures](../../contracts/ner/v1) cover ASCII, accents, CJK, emoji, and
 combining characters, alongside tests for request ordering and invalid spans.
 
-## Scope and tradeoffs
+### Scope and tradeoffs
 
 Results depend on the selected labels, descriptions, and model. The service
 provides independent spans; it does not establish entity identity across spans

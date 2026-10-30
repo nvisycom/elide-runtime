@@ -32,10 +32,10 @@ def test_response_serializes_snake_case_with_model_id():
     line = Line(text="Ada", bbox=_bbox(), words=[word])
     block = Block(text="Ada", kind=BlockKind.TEXT, bbox=_bbox(), lines=[line])
     page = Page(page_number=1, width=100.0, height=50.0, blocks=[block])
-    resp = OcrResponse(pages=[page], model_id="doctr/db_resnet50+crnn")
+    resp = OcrResponse(pages=[page], model_id="db_resnet50+crnn_vgg16_bn")
 
     dumped = resp.model_dump(by_alias=True, mode="json")
-    assert dumped["model_id"] == "doctr/db_resnet50+crnn"
+    assert dumped["model_id"] == "db_resnet50+crnn_vgg16_bn"
     assert dumped["pages"][0]["page_number"] == 1
     assert dumped["pages"][0]["blocks"][0]["kind"] == "text"
 

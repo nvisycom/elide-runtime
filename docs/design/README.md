@@ -6,9 +6,49 @@ regions, and [STT](stt.md) produces timed speech segments. The runtime owns poli
 entity interpretation, and redaction; each service owns model execution and
 conversion into a versioned HTTP contract.
 
-These documents describe implemented behavior and the decisions behind it.
-Endpoint examples live in the package READMEs; deployment instructions live in
-[the Docker documentation](../../docker/README.md).
+Each task document is first a guide to choosing its model: what the task needs
+from one, the options considered, why the current default was picked, where it
+falls short, and what would reopen the choice. The second half describes how
+the service runs the model. Endpoint examples live in the package READMEs;
+deployment instructions live in [the Docker documentation](../../docker/README.md).
+
+## What every model must meet
+
+These requirements apply to every default model, and a replacement has to meet
+them before its accuracy is worth comparing. Each task document adds its own
+requirements on top of these.
+
+- **Self-hosted, and offline once warmed.** Request content is the sensitive
+  data being redacted, so the default never sends it to a third party. A warmed
+  cache must serve the model with the network unavailable. Hosted engines exist
+  for operators who accept that trade, as separate Rust adapters
+  ([Textract](../../crates/adapter/elide-aws-textract),
+  [Document AI](../../crates/adapter/elide-google-document-ai),
+  [Deepgram](../../crates/adapter/elide-deepgram),
+  [Pioneer](../../crates/adapter/elide-pioneer-gliner)), never as these services.
+- **Licensed for commercial use.** Apache-2.0, MIT, or CC-BY with attribution. A
+  licence that limits commercial use, by revenue or otherwise, is disqualifying
+  however good the model is.
+- **Viable on CPU.** The published images are CPU-only, and a deployment must
+  not need a GPU to run the defaults. GPU support is an option, not a premise.
+- **Pinned weights.** A deployment must load the same weights tomorrow as today:
+  a hash-checked asset, a full commit, or a library version that pins both. A
+  branch or a moving tag does not qualify.
+- **A runtime the image can carry.** One Python process alongside BentoML. A
+  model that needs its own serving stack, such as vLLM or NeMo, has to justify
+  that stack's size and operations as well as its accuracy.
+- **Output the runtime can locate.** The runtime redacts where the model says
+  the data is: character offsets, pixel boxes, or millisecond timings. A model
+  that returns plausible text without a faithful location, or text that is not
+  in the source, is unusable regardless of its accuracy.
+- **The deployment's languages, across all three services.** The default
+  coverage is European Latin-script languages. A document passes through OCR
+  and then NER, so a language one service reads and the next was not trained on
+  is a gap even when each model is fine on its own.
+
+Accuracy is then measured on what redaction needs. A model that reads 95% of
+words but misses the names is worse here than one that reads 93% and gets them
+all, so each evaluation scores the sensitive tokens separately.
 
 ## Contract ownership
 
@@ -67,9 +107,9 @@ resulting latency and failure boundaries.
 The supplied Compose deployment runs a one-shot warmer before each service. It
 downloads model weights into a writable cache and hands ownership to the service
 user. Services mount those caches read-only. Weights are prepared during
-initialization rather than baked into the published images. NER enables Hub
-offline settings while serving. Other backends retain their library-specific
-loading behavior; a warmed cache alone is not a network-isolation guarantee.
+initialization rather than baked into the published images. Every service then
+serves with `HF_HUB_OFFLINE=1`, which only its warmer turns off, so once warm a
+service loads its models from disk and makes no request to the Hub.
 
 `/readyz` gates traffic after model initialization; `/healthz` reports process
 liveness. Standalone warmers configure logging through `elide_core.warm`;

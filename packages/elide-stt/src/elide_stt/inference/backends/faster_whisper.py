@@ -3,12 +3,10 @@
 The heavy imports live inside the loaders so importing this module stays
 cheap.
 
-WhisperX is deliberately not used. It bundles the same pieces, but pins
-``huggingface-hub<1.0.0``, which cannot coexist with the NER service's
-``transformers>=5.15.0`` in this workspace's single lock. Assembling the
-stages directly avoids that ceiling — and costs less than it sounds, since
-faster-whisper reports word timings natively and needs no separate forced
-alignment pass.
+WhisperX is deliberately not used. It bundles the same pieces plus a
+forced-alignment pass, which this service does not need: faster-whisper
+reports word timings natively. It also pins ``huggingface-hub<1.0.0``, which
+would hold this service's whole Hub stack back for nothing it uses.
 
 Two stages:
 
@@ -48,12 +46,30 @@ def _to_ms(seconds: float | None) -> int | None:
     return max(0, round(float(seconds) * 1000))
 
 
+def _whisper_language(tag: str | None) -> str | None:
+    """The Whisper code for a BCP-47 hint, or ``None`` to auto-detect.
+
+    The wire carries BCP-47 (``en-US``, ``zh-Hant``) and faster-whisper
+    raises on anything but its own bare codes (``en``, ``zh``), so the
+    hint is cut to its primary subtag. A language Whisper does not know
+    is dropped rather than refused: the contract makes the hint optional,
+    and detection still transcribes the clip.
+    """
+    if tag is None:
+        return None
+    # Imported here like the model, so importing this module stays cheap.
+    from faster_whisper.tokenizer import _LANGUAGE_CODES
+
+    code = tag.split("-", 1)[0].lower()
+    return code if code in _LANGUAGE_CODES else None
+
+
 class Engine:
     """Owns the loaded models and the result translation."""
 
     def __init__(self, settings: config.SttSettings | None = None) -> None:
         self.settings = settings if settings is not None else config.SttSettings()
-        self.model_id = self.settings.resolve_model()
+        self.model_id = self.settings.model_id
         self.device = self.settings.device
         self.max_duration_seconds = self.settings.max_duration_seconds
         self._word_timestamps = self.settings.word_timestamps
@@ -85,7 +101,7 @@ class Engine:
         """Run the pipeline over one clip and map it onto the contract."""
         segments, info = self._model.transcribe(
             audio,
-            language=language,
+            language=_whisper_language(language),
             word_timestamps=self._word_timestamps,
         )
         # faster-whisper returns a generator; diarization needs the whole

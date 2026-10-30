@@ -1,12 +1,13 @@
-"""OCR inference service (docTR) exposed over HTTP via BentoML.
+"""OCR inference service (OnnxTR) exposed over HTTP via BentoML.
 
 The default implementation of the OCR wire contract (``elide_core.ocr.v1``).
-docTR natively produces a ``Document -> Page -> Block -> Line -> Word`` hierarchy
-with word-level geometry, which maps directly onto our contract.
+OnnxTR (docTR's models on ONNX Runtime) natively produces a ``Document -> Page
+-> Block -> Line -> Word`` hierarchy with word-level geometry, which maps
+directly onto our contract.
 
 Run locally::
 
-    uv run bentoml serve elide_ocr.service:OcrService --reload
+    uv run --project packages/elide-ocr bentoml serve elide_ocr.service:OcrService --reload
 """
 
 from __future__ import annotations
@@ -34,12 +35,16 @@ logger = get_logger("nvisy.ocr")
     resources={"cpu": "2"},
     traffic={"timeout": 60},
     # Declared with defaults so they're optional + documented in the bento
-    # manifest. ELIDE_BENTO_MODEL_PATH defaults to the /models mount (empty unless BYO
-    # weights are mounted); ELIDE_BENTO_MODEL_NAME is the "det+rec" pair otherwise.
+    # manifest. Once the init container has warmed both caches, a built-in
+    # architecture resolves from ONNXTR_CACHE_DIR and a Hub model from its
+    # pinned commit in the Hugging Face cache; HF_HUB_OFFLINE makes the second
+    # true rather than aspirational, so request images cannot cause a request.
     envs=[
         {"name": config.BACKEND_ENV, "value": config.DEFAULT_BACKEND},
-        {"name": "ELIDE_BENTO_MODEL_PATH", "value": "/models"},
-        {"name": "ELIDE_BENTO_MODEL_NAME", "value": config.DEFAULT_MODEL},
+        {"name": config.DETECTION_ENV, "value": config.DEFAULT_DETECTION},
+        {"name": config.RECOGNITION_ENV, "value": config.DEFAULT_RECOGNITION},
+        {"name": config.DEVICE_ENV, "value": config.DEFAULT_DEVICE},
+        {"name": "HF_HUB_OFFLINE", "value": "1"},
     ],
 )
 class OcrService:

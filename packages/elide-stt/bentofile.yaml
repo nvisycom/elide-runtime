@@ -11,5 +11,3 @@ service: "elide_stt.service:SttService"
 include:
   - "packages/elide-stt/**"
   - "packages/elide-core/**"
-  - "pyproject.toml"
-  - "uv.lock"

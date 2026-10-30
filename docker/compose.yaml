@@ -6,13 +6,13 @@ name: elide
 #
 # Images carry no model weights. Each service has a one-shot `*-init` partner
 # that warms its cache and exits; the service gates on that completing, so it
-# never starts against an empty cache. With the cache warm, the NER service's
+# never starts against an empty cache. With the cache warm, each service's
 # HF_HUB_OFFLINE is true rather than aspirational: nothing reaches the Hub at
 # request time.
 #
 # One init container per service, each running that service's own image. The
 # three libraries are not interchangeable and no single image carries all of
-# them — elide-stt has no `doctr`, elide-ocr has no `faster_whisper` — so a
+# them — elide-stt has no `onnxtr`, elide-ocr has no `faster_whisper` — so a
 # shared warmer would fail on whichever model its image cannot resolve. Running
 # each warm in the image that will later read the cache also guarantees the
 # same library version wrote it.
@@ -58,14 +58,15 @@ x-service: &service
 # Each model id reaches both a service and its warmer from one variable, so the
 # warm cannot drift from what the service loads.
 x-ner-model: &ner-model ${ELIDE_NER_MODEL:-fastino/gliner2-privacy-filter-PII-multi}
-x-ocr-model: &ocr-model ${ELIDE_OCR_MODEL:-db_resnet50+crnn_vgg16_bn}
+x-ocr-detection: &ocr-detection ${ELIDE_OCR_DETECTION:-db_resnet50}
+x-ocr-recognition: &ocr-recognition ${ELIDE_OCR_RECOGNITION:-Felix92/onnxtr-parseq-multilingual-v1@7d7329948dbcff02637a3eb9c14ae0c4440c5ed0}
 x-stt-model: &stt-model ${ELIDE_STT_MODEL:-large-v3-turbo}
 
 services:
   # --- NER ------------------------------------------------------------------
 
   ner-init:
-    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.4}
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.7}
     container_name: elide-ner-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -89,7 +90,7 @@ services:
 
   ner:
     <<: *service
-    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.4}
+    image: ${ELIDE_NER_IMAGE:-ghcr.io/nvisycom/elide-ner}:${ELIDE_VERSION:-0.1.0-rc.7}
     container_name: elide-ner
     ports:
       - "${ELIDE_NER_PORT:-3100}:3000"
@@ -113,36 +114,47 @@ services:
   # --- OCR ------------------------------------------------------------------
 
   ocr-init:
-    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.4}
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.7}
     container_name: elide-ocr-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
     # the uid the service runs as. The service itself never runs as root.
     user: root
+    # No ELIDE_BENTO_OCR_DEVICE: the warmer needs only the weights, which are
+    # the same files for either device, so it builds on CPU and needs no GPU.
     environment:
-      DOCTR_CACHE_DIR: /cache/doctr
-      ELIDE_BENTO_MODEL_NAME: *ocr-model
+      ONNXTR_CACHE_DIR: /cache/onnxtr
+      HF_HOME: /cache/huggingface
+      # The image bakes HF_HUB_OFFLINE=1 for the service; the warmer is the
+      # one process that must reach the Hub, so it turns that off for itself.
+      HF_HUB_OFFLINE: "0"
+      ELIDE_BENTO_OCR_DETECTION: *ocr-detection
+      ELIDE_BENTO_OCR_RECOGNITION: *ocr-recognition
     entrypoint: ["python", "-m", "elide_ocr.warm"]
     volumes:
-      - doctr_cache:/cache/doctr
+      - ocr_cache:/cache
     networks:
       - elide
 
   ocr:
     <<: *service
-    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.4}
+    image: ${ELIDE_OCR_IMAGE:-ghcr.io/nvisycom/elide-ocr}:${ELIDE_VERSION:-0.1.0-rc.7}
     container_name: elide-ocr
     ports:
       - "${ELIDE_OCR_PORT:-3101}:3000"
     environment:
-      DOCTR_CACHE_DIR: /cache/doctr
-      # Empty unless an operator mounts weights over it, which is what
-      # ELIDE_BENTO_MODEL_PATH means: present and non-empty wins over the id.
-      ELIDE_BENTO_MODEL_PATH: /models
-      ELIDE_BENTO_MODEL_NAME: *ocr-model
+      # Once ocr-init has run, a built-in checkpoint is found in the OnnxTR
+      # cache with a matching hash, and a Hub model at its pinned commit in
+      # the Hugging Face cache, so the service makes no request.
+      ONNXTR_CACHE_DIR: /cache/onnxtr
+      HF_HOME: /cache/huggingface
+      HF_HUB_OFFLINE: "1"
+      ELIDE_BENTO_OCR_DETECTION: *ocr-detection
+      ELIDE_BENTO_OCR_RECOGNITION: *ocr-recognition
+      ELIDE_BENTO_OCR_DEVICE: ${ELIDE_OCR_DEVICE:-cpu}
       LOG_LEVEL: ${ELIDE_LOG_LEVEL:-INFO}
     volumes:
-      - doctr_cache:/cache/doctr:ro
+      - ocr_cache:/cache:ro
     healthcheck: *readyz
     depends_on:
       ocr-init:
@@ -151,7 +163,7 @@ services:
   # --- STT ------------------------------------------------------------------
 
   stt-init:
-    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.4}
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.7}
     container_name: elide-stt-init
     # Root so it can populate a freshly created named volume, whose
     # mountpoint Docker owns as root; the final chown hands the cache to
@@ -159,7 +171,10 @@ services:
     user: root
     environment:
       HF_HOME: /cache/huggingface
-      ELIDE_BENTO_MODEL_NAME: *stt-model
+      # The image bakes HF_HUB_OFFLINE=1 for the service; the warmer is the
+      # one process that must reach the Hub, so it turns that off for itself.
+      HF_HUB_OFFLINE: "0"
+      ELIDE_BENTO_STT_MODEL: *stt-model
       # Diarization is off by default: its model is gated on the Hub, so it
       # cannot be redistributed in an image and needs accepted terms to fetch.
       ELIDE_BENTO_STT_DIARIZE: ${ELIDE_STT_DIARIZE:-false}
@@ -173,14 +188,16 @@ services:
 
   stt:
     <<: *service
-    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.4}
+    image: ${ELIDE_STT_IMAGE:-ghcr.io/nvisycom/elide-stt}:${ELIDE_VERSION:-0.1.0-rc.7}
     container_name: elide-stt
     ports:
       - "${ELIDE_STT_PORT:-3102}:3000"
     environment:
       HF_HOME: /cache/huggingface
-      ELIDE_BENTO_MODEL_PATH: /models
-      ELIDE_BENTO_MODEL_NAME: *stt-model
+      # True once stt-init has run: the models resolve from the cache, so
+      # request audio cannot cause a request to the Hub.
+      HF_HUB_OFFLINE: "1"
+      ELIDE_BENTO_STT_MODEL: *stt-model
       ELIDE_BENTO_STT_DEVICE: ${ELIDE_STT_DEVICE:-cpu}
       ELIDE_BENTO_STT_COMPUTE_TYPE: ${ELIDE_STT_COMPUTE_TYPE:-}
       ELIDE_BENTO_STT_DIARIZE: ${ELIDE_STT_DIARIZE:-false}
@@ -199,11 +216,12 @@ services:
         condition: service_completed_successfully
 
 volumes:
-  # Two caches, because the libraries do not share one: huggingface_hub for NER
-  # and STT, docTR's own path for OCR. The services mount them read-only — only
-  # the init containers write.
+  # hf_cache for NER and STT. OCR has its own, holding both OnnxTR's cache
+  # (built-in architectures) and a Hugging Face cache (Hub models), so its
+  # warmer never writes where another service reads. The services mount them
+  # read-only; only the init containers write.
   hf_cache:
-  doctr_cache:
+  ocr_cache:
 
 networks:
   elide:

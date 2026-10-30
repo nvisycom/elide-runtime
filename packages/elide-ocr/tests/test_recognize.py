@@ -1,9 +1,9 @@
-"""Integration test for the OCR recognize endpoint, with docTR faked.
+"""Integration test for the OCR recognize endpoint, with OnnxTR faked.
 
 Drives the real BentoML service via ``to_asgi()`` + Starlette's TestClient so we
-exercise request validation, the batchable list contract, and the docTR-output
+exercise request validation, the batchable list contract, and the OnnxTR-output
 -> Page/Block/Line/Word mapping (normalized geometry -> pixel boxes, confidence
-filtering) — without downloading torch or any weights.
+filtering) — without downloading any weights.
 """
 
 from __future__ import annotations
@@ -22,8 +22,8 @@ def _word(value, conf, geom):
     return SimpleNamespace(value=value, confidence=conf, geometry=geom)
 
 
-class _FakeDoctr:
-    """Returns one page with one block/line and two words in docTR's shape."""
+class _FakeOnnxtr:
+    """Returns one page with one block/line and two words in OnnxTR's shape."""
 
     def __call__(self, images):
         # geometry is normalized ((xmin,ymin),(xmax,ymax)); dimensions=(h, w).
@@ -38,14 +38,16 @@ class _FakeDoctr:
 @pytest.fixture(scope="module")
 def client():
     _reset_prometheus_registry()
-    os.environ["ELIDE_BENTO_MODEL_NAME"] = "fakedet+fakerec"
+    os.environ["ELIDE_BENTO_OCR_DETECTION"] = "fakedet"
+    os.environ["ELIDE_BENTO_OCR_RECOGNITION"] = "fakerec"
 
-    doctr_models = types.ModuleType("doctr.models")
-    doctr_models.ocr_predictor = lambda *a, **k: _FakeDoctr()
-    doctr_pkg = types.ModuleType("doctr")
-    doctr_pkg.models = doctr_models
-    sys.modules["doctr"] = doctr_pkg
-    sys.modules["doctr.models"] = doctr_models
+    onnxtr_models = types.ModuleType("onnxtr.models")
+    onnxtr_models.EngineConfig = lambda *a, **k: None
+    onnxtr_models.ocr_predictor = lambda *a, **k: _FakeOnnxtr()
+    onnxtr_pkg = types.ModuleType("onnxtr")
+    onnxtr_pkg.models = onnxtr_models
+    sys.modules["onnxtr"] = onnxtr_pkg
+    sys.modules["onnxtr.models"] = onnxtr_models
 
     from elide_ocr.service import OcrService
     from starlette.testclient import TestClient

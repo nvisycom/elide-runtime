@@ -43,8 +43,14 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  # Python: the root tooling project and each service, one uv.lock apiece
   - package-ecosystem: "uv"
-    directory: "/"
+    directories:
+      - "/"
+      - "/packages/elide-ner"
+      - "/packages/elide-ocr"
+      - "/packages/elide-stt"
     schedule:
       interval: "weekly"
       timezone: "Europe/Berlin"

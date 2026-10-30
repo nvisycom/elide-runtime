@@ -34,11 +34,9 @@ htmlcov/
 # Models / weights (mounted at runtime, never committed)
 models/
 
-# Exported from uv.lock by `uv export`: at the repo root by the security
-# workflow, per service by scripts/gen_requirements.py (run by `make
-# services`). Both are derived from the committed lockfile, so neither is
-# tracked.
-/requirements.txt
+# Exported from each service's uv.lock by scripts/gen_requirements.py (run by
+# `make requirements` and the targets that need it). Derived from the
+# committed lockfile, so not tracked.
 packages/*/requirements.txt
 
 # Generated files

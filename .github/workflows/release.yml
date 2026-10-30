@@ -60,10 +60,27 @@ jobs:
           fi
           echo "No crate is publishable (workspace sets publish = false)."
 
+  # docker/compose.yaml and the images are one versioned unit: the file sets
+  # settings, caches and warmers that only images from the same commit
+  # understand. A release whose compose file still pulls an older version's
+  # images is broken for everyone who runs `docker compose up`, and rc.5 and
+  # rc.6 both shipped that way. Checked before the release exists, so a
+  # forgotten bump stops the tag rather than leaving a public release behind.
+  check-compose-version:
+    name: Check compose version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check the compose defaults name this release
+        run: sh scripts/check_compose_version.sh "${GITHUB_REF_NAME#v}"
+
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: check-publishable
+    needs: [check-publishable, check-compose-version]
 
     steps:
       - name: Checkout

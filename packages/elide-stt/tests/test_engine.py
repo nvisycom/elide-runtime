@@ -5,7 +5,12 @@ plain dicts, so they need no model weights.
 """
 
 import pytest
-from elide_stt.inference.backends.faster_whisper import _speaker_for, _to_ms, project
+from elide_stt.inference.backends.faster_whisper import (
+    _speaker_for,
+    _to_ms,
+    _whisper_language,
+    project,
+)
 from elide_stt.runtime.config import DEFAULT_MODEL
 
 
@@ -113,6 +118,21 @@ def test_default_model_is_turbo():
 
     Pinned deliberately: turbo is 2-5x faster for a small accuracy cost, and
     the choice is documented in the README. A silent revert to large-v3 would
-    slow every deployment that does not set ELIDE_BENTO_MODEL_NAME.
+    slow every deployment that does not set ELIDE_BENTO_STT_MODEL.
     """
     assert DEFAULT_MODEL == "large-v3-turbo"
+
+
+@pytest.mark.parametrize(
+    ("tag", "code"),
+    [
+        (None, None),
+        ("en", "en"),
+        ("en-US", "en"),
+        ("zh-Hant-TW", "zh"),
+        ("UK", "uk"),
+        ("tlh", None),
+    ],
+)
+def test_bcp47_hint_becomes_a_whisper_code(tag, code):
+    assert _whisper_language(tag) == code

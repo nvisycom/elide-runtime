@@ -28,13 +28,24 @@ impl Server {
                     .nth(3)
                     .unwrap()
                     .to_owned();
-                GenericBuildableImage::new("elide-bento-e2e", "local")
+                // Sources and manifests only, never a whole package directory:
+                // each package keeps its own .venv, which a build context has
+                // no use for and would upload in full.
+                let mut image = GenericBuildableImage::new("elide-bento-e2e", "local")
                     .with_dockerfile(
                         root.join("crates/adapter/elide-bentoml/tests/support/Dockerfile"),
                     )
                     .with_file(root.join("pyproject.toml"), "pyproject.toml")
                     .with_file(root.join("uv.lock"), "uv.lock")
-                    .with_file(root.join("packages"), "packages")
+                    .with_file(
+                        root.join("packages/elide-core/pyproject.toml"),
+                        "packages/elide-core/pyproject.toml",
+                    );
+                for package in ["elide-core", "elide-ner", "elide-ocr", "elide-stt"] {
+                    let src = format!("packages/{package}/src");
+                    image = image.with_file(root.join(&src), src);
+                }
+                image
                     .with_file(
                         root.join("crates/adapter/elide-bentoml/tests/support/server.py"),
                         "server.py",

@@ -10,8 +10,8 @@ labels should not pay for them.
 
 Run locally::
 
-    ELIDE_BENTO_MODEL_NAME=large-v3-turbo \\
-        uv run bentoml serve elide_stt.service:SttService --reload
+    ELIDE_BENTO_STT_MODEL=large-v3-turbo \\
+        uv run --project packages/elide-stt bentoml serve elide_stt.service:SttService --reload
 """
 
 from __future__ import annotations
@@ -39,16 +39,19 @@ logger = get_logger("nvisy.stt")
     # Transcription is O(audio duration); a long clip legitimately takes
     # minutes, so the ceiling is well above the other services'.
     traffic={"timeout": 900},
+    # HF_HUB_OFFLINE: once stt-init has warmed the cache, the models resolve
+    # from disk; without it, loading a model by name still asks the Hub for
+    # its latest revision on every start.
     envs=[
         {"name": config.BACKEND_ENV, "value": config.DEFAULT_BACKEND},
-        {"name": "ELIDE_BENTO_MODEL_PATH", "value": "/models"},
-        {"name": "ELIDE_BENTO_MODEL_NAME", "value": config.DEFAULT_MODEL},
+        {"name": config.MODEL_ENV, "value": config.DEFAULT_MODEL},
+        {"name": "HF_HUB_OFFLINE", "value": "1"},
     ],
 )
 class SttService:
     def __init__(self) -> None:
         self.settings = config.get_settings()
-        logger.info("loading %s (model=%s)", self.settings.backend, self.settings.model_name)
+        logger.info("loading %s (model=%s)", self.settings.backend, self.settings.model_id)
         started = time.monotonic()
         try:
             self.pipeline = SttPipeline(backend.create(self.settings), self.settings)

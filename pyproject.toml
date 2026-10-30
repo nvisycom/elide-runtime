@@ -1,58 +1,29 @@
+# Repository tooling, not a service. Each service in packages/ is its own uv
+# project with its own uv.lock, because each ships as its own image and their
+# model stacks need not agree: one shared lock forced torch, transformers and
+# huggingface-hub to a single version across all three. This project holds what
+# spans them: ruff, the contract generator (which needs elide-core), the
+# elide-core tests, and the Rust E2E harness's dependencies.
 [project]
-name = "elide-provider"
+name = "elide-runtime-tools"
 version = "0.1.0"
-description = "Externalized model inference for elide (BentoML HTTP services)"
-readme = "README.md"
 requires-python = "==3.12.*"
-license = "Apache-2.0"
-authors = [{ name = "Nvisy" }]
-
-[tool.uv.workspace]
-members = ["packages/*"]
-
-[tool.uv.sources]
-elide-core = { workspace = true }
-# CPU-only torch. All three services run on CPU, but the default PyPI wheels
-# bundle CUDA: 16 nvidia-* packages, which is the difference between a ~0.9 GB
-# image and a ~7 GB one. The CPU index ships the same torch without them.
-# Resolved per-platform because the CPU wheels are published for linux and
-# windows only; macOS keeps PyPI's wheels, which are already CPU-only there.
-torch = [
-    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-torchaudio = [
-    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-torchvision = [
-    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-torchcodec = [
-    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-# Not a general-purpose index: only the torch packages above resolve from it,
-# so an unrelated dependency cannot be shadowed by a same-named wheel here.
-explicit = true
+dependencies = ["elide-core"]
 
 [tool.uv]
 required-version = ">=0.7"
-# The service images are linux/amd64 and linux/arm64. Without this, resolving
-# on a developer's macOS records only the wheels that platform needs, and the
-# in-image install fails with a hash mismatch: the linux wheel it downloads is
-# not among the hashes the lockfile captured. Forcing both targets makes the
-# lock (and so each exported requirements.txt) carry every hash the images
-# install, whichever machine ran `uv lock`.
+# Never built or installed, only synced: there is no package here.
+package = false
+# The E2E harness image (crates/adapter/elide-bentoml/tests/support) installs
+# the `e2e` group on linux/amd64 and linux/arm64. Without this, a lock written
+# on macOS records only macOS wheels and that install fails its hash check.
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
-# Transitive-only pins (not direct deps): security floors for packages that
-# arrive via bentoml's server stack, where the bentoml floor alone does not
-# exclude a CVE. Constrained workspace-wide so every service image picks up the
-# fix without declaring the package directly.
+# Security floors for packages that arrive only through bentoml's server stack
+# (the `e2e` group), where the bentoml floor alone does not exclude a CVE.
+# Each service lock carries the same list.
 constraint-dependencies = [
     "aiohttp>=3.14.0",         # CVE-2026-34993, CVE-2026-47265
     "anyio>=4.14.2",           # CVE-2026-63374, CVE-2026-64847
@@ -64,12 +35,16 @@ constraint-dependencies = [
     "ujson>=5.13.0",           # CVE-2026-54911
 ]
 
+[tool.uv.sources]
+elide-core = { path = "packages/elide-core", editable = true }
+
 [dependency-groups]
 dev = [
-    "httpx>=0.27",
     "pytest>=9.1.1",
     "ruff>=0.16.3",
 ]
+# What the Rust E2E harness needs to run the real services with fake model
+# libraries: the HTTP stack and the input decoders, no model runtimes.
 e2e = [
     "bentoml>=1.4.39,<2",
     "librosa>=0.11,<2",
@@ -80,6 +55,8 @@ e2e = [
     "uvicorn>=0.35,<1",
 ]
 
+# Shared by every package: ruff reads the nearest pyproject.toml that has a
+# [tool.ruff] table, and the packages declare none.
 [tool.ruff]
 target-version = "py312"
 line-length = 100
@@ -90,14 +67,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.ruff.format]
 docstring-code-format = true
 
+# elide-core's tests only: each service runs its own suite in its own
+# environment, configured in its own pyproject.toml.
 [tool.pytest.ini_options]
-testpaths = ["packages"]
-# importlib mode lets same-named test modules (test_service.py) coexist across
-# packages without __init__.py files — see the src layout in packages/*.
-# -m "not real": the default run excludes real-model tests (they download
-# weights + run inference); the opt-in `real-models` CI job runs `-m real`.
-# List form so the marker expression isn't mangled by string-splitting.
-addopts = ["--import-mode=importlib", "-m", "not real"]
-markers = [
-    "real: exercises real model weights (downloads + inference); excluded by default, run with -m real",
-]
+testpaths = ["packages/elide-core/tests"]

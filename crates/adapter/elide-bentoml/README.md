@@ -11,7 +11,7 @@ defines for each — `elide-ner`, `elide-image::ocr`, `elide-audio::stt` —
 behind a feature apiece, over a common HTTP client, params validation
 and error translation. The Python services
 this client talks to live under [`packages/`](../../../packages) in the
-same workspace.
+same repository.
 
 ## End-to-end tests
 
@@ -26,7 +26,7 @@ cargo test --locked -p elide-bentoml --test ner --test ocr --test stt -- --ignor
 ```
 
 A running Docker daemon is required. Testcontainers builds a shared test image
-from the locked Python E2E dependency group, then starts one isolated container
+from the `e2e` dependency group of the root tooling project's lock, then starts one isolated container
 per service. It manages ports, readiness, logs, and cleanup. A local Python
 environment is not needed. Docker caches dependency layers across runs; the
 image is rebuilt from the current checkout for each test run.

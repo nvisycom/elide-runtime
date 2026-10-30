@@ -92,7 +92,7 @@ jobs:
         run: cargo install cargo-typify --version "$TYPIFY_VERSION" --locked
 
       - name: Sync contract dependencies
-        run: uv sync --locked --package elide-core --group dev
+        run: uv sync --locked
 
       - name: Check generated schemas, fixtures, and Rust types
         run: uv run --no-sync python scripts/gen_contracts.py --check

@@ -1,4 +1,4 @@
-"""Smoke tests for the docTR OCR service."""
+"""Smoke tests for the OnnxTR OCR service."""
 
 import bentoml
 from elide_ocr.service import OcrService

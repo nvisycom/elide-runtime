@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 # Backend name -> module implementing it, relative to this package.
 BACKENDS = {
-    "doctr": "doctr",
+    "onnxtr": "onnxtr",
 }
 
 

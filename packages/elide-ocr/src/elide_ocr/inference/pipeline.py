@@ -11,6 +11,9 @@ class OcrPipeline:
         self.backend = backend
 
     def recognize(self, requests: list[OcrRequest], rid: str | None = None) -> list[OcrResponse]:
+        # One predictor call per image, not one per window: on CPU a batched
+        # call measured about twice as slow, with a higher memory peak. See
+        # docs/design/ocr.md, "Request and execution flow".
         return [
             self.backend.recognize(_decode_image(req.image, rid), req.confidence_threshold)
             for req in requests

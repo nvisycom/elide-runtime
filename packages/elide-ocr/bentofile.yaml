@@ -11,5 +11,3 @@ service: "elide_ocr.service:OcrService"
 include:
   - "packages/elide-ocr/**"
   - "packages/elide-core/**"
-  - "pyproject.toml"
-  - "uv.lock"

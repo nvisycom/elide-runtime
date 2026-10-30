@@ -11,5 +11,3 @@ service: "elide_ner.service:NerService"
 include:
   - "packages/elide-ner/**"
   - "packages/elide-core/**"
-  - "pyproject.toml"
-  - "uv.lock"

@@ -50,12 +50,15 @@ does today rather than how it got here.
   opt-in: MP3 patent licensing may not be satisfiable downstream, and
   PDF rasterisation pulls in a native dependency.
 - Per-format codec settings on `CodecParams`: how a PDF rasterises,
-  whether a CSV has a header row and what separates its fields, and
-  what happens to an image's EXIF metadata when no metadata pipeline
-  strips it. Each defaults to the codec's own behaviour, and a request
-  that sets none shares the prebuilt format registry. EXIF is stripped
-  by default — GPS, device and timestamp fields do not survive a
-  re-encode unless a request asks to retain them.
+  and whether a CSV has a header row and what separates its fields.
+  Each defaults to the codec's own behaviour, and a request that sets
+  none shares the prebuilt format registry.
+- Hidden content is removed at decode, before detection, in every
+  format: scripts, macros, thumbnails, external references and editor
+  fingerprints always go, and the report lists what was removed.
+  Metadata and collaboration content (comments, tracked changes,
+  annotations) go too unless `CodecParams::hidden_content` asks to
+  redact them instead. There is no way to keep either unexamined.
 
 ### What a request supplies
 

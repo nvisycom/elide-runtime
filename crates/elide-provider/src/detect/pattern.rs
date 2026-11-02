@@ -5,7 +5,6 @@ use std::sync::{Arc, LazyLock};
 use elide::detection::Analyzer;
 use elide::modality::TextRecognizable;
 use elide::recognition::Recognizer;
-use elide::recognition::context::Enhanced;
 use elide::recognition::pattern::{PatternRecognizer, PatternRecognizerBuilder};
 
 const MAX_DICTIONARY_TERM_COUNT: usize = 100_000;
@@ -58,24 +57,23 @@ pub(super) const MAX_CUSTOM_REGEX_BYTES: usize = 256 * 1024;
 /// the shipped set is broken, which no deployment can act on and
 /// every request would hit. It panics rather than threading an
 /// error no caller can handle.
-static BUILTIN_PATTERNS: LazyLock<Arc<Enhanced<PatternRecognizer>>> = LazyLock::new(|| {
+static BUILTIN_PATTERNS: LazyLock<Arc<PatternRecognizer>> = LazyLock::new(|| {
     let builder = pattern_with_limits(PatternRecognizer::builder())
         .with_builtin_patterns()
         .with_builtin_dictionaries();
     Arc::new(
         builder
-            .build_context_enhanced()
+            .build()
             .expect("the shipped builtin patterns compile"),
     )
 });
 
-/// Attach the built-in [`PatternRecognizer`] wrapped in the
-/// `Enhanced` context layer.
+/// Attach the built-in [`PatternRecognizer`], which raises a match's
+/// confidence when one of its rule's context keywords is nearby.
 pub(super) fn attach_pattern<M>(analyzer: Analyzer<M>) -> Analyzer<M>
 where
     M: TextRecognizable,
     PatternRecognizer: Recognizer<M> + 'static,
-    Enhanced<PatternRecognizer>: Recognizer<M> + 'static,
 {
     analyzer.with_recognizer(Arc::clone(&BUILTIN_PATTERNS))
 }

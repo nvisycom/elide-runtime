@@ -12,7 +12,7 @@ use elide::entity::LabelCatalog;
 use elide::modality::TextRecognizable;
 use elide::recognition::Recognizer;
 use elide::recognition::pattern::{
-    Dictionary, PatternRecognizer, PatternRecognizerBuilder, Regex, RegexBudget, Scoring, Term,
+    Dictionary, Pattern, PatternRecognizer, PatternRecognizerBuilder, RegexBudget, Scoring, Term,
     Variant,
 };
 use elide::{Error, ErrorKind, Result};
@@ -63,8 +63,6 @@ where
             builder = extend(builder, recognition, matcher)?;
         }
     }
-    // Not context-enhanced: boosting reads keyword lists a matcher
-    // does not carry, so there is nothing for it to work from.
     Ok(analyzer.with_recognizer(builder.build()?))
 }
 
@@ -81,13 +79,13 @@ fn extend(
             let variant = Variant::new(pattern.clone())
                 .map_err(|err| invalid(matcher, format!("its regex is invalid: {err}")))?
                 .with_score(matcher.confidence);
-            let regex = Regex::builder()
+            let pattern = Pattern::builder()
                 .with_name(matcher.name.clone())
                 .with_labels(vec![matcher.label.clone()])
                 .with_variants(vec![variant])
                 .build()
                 .map_err(|err| invalid(matcher, format!("it does not build: {err}")))?;
-            Ok(builder.with_pattern(regex))
+            Ok(builder.with_pattern(pattern))
         }
         MatchOn::Terms { terms } => {
             if terms.is_empty() {

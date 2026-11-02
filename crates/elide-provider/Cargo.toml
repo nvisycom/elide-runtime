@@ -70,7 +70,6 @@ elide-pioneer-gliner = { workspace = true, features = [], optional = true }
 
 # Internal crates
 elide-llm = { workspace = true, features = ["rig", "openai-gpt", "anthropic-claude", "google-gemini"] }
-elide-image = { workspace = true, features = ["schema", "exif"] }
 elide-pdf = { workspace = true, features = ["schema"] }
 elide-deployment = { workspace = true, features = [] }
 elide-schema = { workspace = true, features = [] }

@@ -44,6 +44,9 @@ mod orchestrator;
 mod redact;
 mod request;
 
+/// The hidden-content policy a request carries on [`CodecParams`],
+/// with the disposition it is built from.
+pub use elide::redaction::{Disposition, HiddenContentPolicy};
 /// Deployment configuration: which backends exist, how to reach
 /// them, and which of them a caller may select.
 ///
@@ -56,16 +59,10 @@ mod request;
 pub use elide_deployment as deployment;
 #[doc(inline)]
 pub use elide_deployment::Deployment;
-/// The EXIF policy a request carries on [`CodecParams`].
-///
-/// Re-exported from `elide-image` so a caller can name the field's
-/// type without taking its own dependency on that crate.
-pub use elide_image::exif::ExifPolicy;
 /// The raster mode a request carries on [`CodecParams`].
 ///
-/// Re-exported beside [`ExifPolicy`] and for the same reason: a
-/// caller naming the field's type should not need its own
-/// dependency on the PDF codec crate.
+/// Re-exported so a caller naming the field's type does not need
+/// its own dependency on the PDF codec crate.
 pub use elide_pdf::primitive::RasterMode;
 /// The vocabulary a request introduces, carried on
 /// [`RequestContext`], with the matcher types it is built from.

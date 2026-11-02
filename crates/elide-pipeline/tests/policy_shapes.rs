@@ -786,6 +786,18 @@ async fn a_custom_matcher_detects_and_redacts_its_label() {
         "a regex matcher redacts its label: {by_pattern}",
     );
 
+    let by_group = redact(
+        MatchOn::Pattern {
+            pattern: r"badge:\s*(?P<entity>\d{5})".to_owned(),
+        },
+        "Her badge: 12345 expired.",
+    )
+    .await;
+    assert_eq!(
+        by_group, "Her badge:  expired.",
+        "an `entity` group narrows the span to itself",
+    );
+
     let by_terms = redact(
         MatchOn::Terms {
             terms: vec!["Initech".to_owned(), "Acme".to_owned()],

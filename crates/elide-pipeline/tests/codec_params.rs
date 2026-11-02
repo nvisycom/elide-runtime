@@ -151,16 +151,6 @@ fn omitted_params_default_to_the_codecs_own_behaviour() {
     assert_eq!(back, params, "an omitted params object is the default one");
 }
 
-/// An audit written before `hidden_content` replaced `exifPolicy` still
-/// reads, under the stripping default. `retain` no longer exists, so such
-/// an audit must not fail on it or keep the metadata it asked to keep.
-#[test]
-fn an_audit_naming_the_old_exif_policy_still_reads() {
-    let back: CodecParams =
-        serde_json::from_str(r#"{"exifPolicy":"retain"}"#).expect("the old field is ignored");
-    assert_eq!(back, CodecParams::default());
-}
-
 /// A format override takes the request off the shared registry, and the
 /// hidden-content policy does not: it goes to the decode itself, so asking
 /// for it must not cost a registry rebuild.

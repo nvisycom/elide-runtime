@@ -1,7 +1,7 @@
 //! §164.514(b)(2)(i)(J) account-identifier scope for the HIPAA
 //! templates.
 
-use elide_core::entity::LabelRef;
+use elide::entity::LabelRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

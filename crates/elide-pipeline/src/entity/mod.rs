@@ -13,10 +13,8 @@
 //! [`Report`]: elide::Report
 
 pub use elide::entity::audit::{
-    Attribution, AuditEvent, AuditKind, AuditLog, ModelEvent, PatternEvent, RuleMatch,
+    Attribution, AuditEvent, AuditKind, AuditLog, ModelId, PatternRule, RuleMatch,
 };
-pub use elide::entity::{
-    Entity, EntityCoRef, EntityRef, Label, LabelCatalog, LabelLocale, LabelRef,
-};
+pub use elide::entity::{Entity, EntityCoRef, Label, LabelCatalog, LabelLocale, LabelRef};
 #[doc(inline)]
 pub use elide_review::{Add, Edit, EditBucket, EditError, EditSet, Retag, Reviewer, Suppress};

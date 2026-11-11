@@ -10,11 +10,10 @@
 
 use bytes::Bytes;
 use elide::PartId;
-use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, PatternEvent};
+use elide::entity::audit::{Attribution, AuditKind};
 use elide::entity::{Entity, LabelRef};
-use elide::modality::image::{Image, ImageLocation};
+use elide::modality::image::Image;
 use elide::modality::text::{Text, TextLocation};
-use elide::primitive::{BoundingBox, Confidence, Point};
 use elide_pipeline::entity::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{Deployment, Provider, RequestContext};
@@ -104,31 +103,15 @@ fn round_trip(engine: &Engine, json: &str) -> Audit {
         .expect("audit deserializes")
 }
 
-/// A detection a reviewer supplies by hand, on `location`.
-///
-/// `Report::include` stamps the `Manual` provenance as it lands, so
-/// the trail this carries is only the seed every entity needs.
-fn manual_entity(location: TextLocation) -> Entity<Text> {
-    let event: AuditEvent<Text> = AuditEvent::pattern(
-        "manual",
-        Confidence::MAX,
-        location.clone(),
-        PatternEvent::default(),
-    );
-    Entity::new(
-        LabelRef::new("email_address"),
-        location,
-        AuditLog::new(event),
-    )
-}
-
 /// Body entity ids in document order, so index 0 is the first
 /// entity in the text rather than whatever order the recognizer
 /// emitted. Decisions key by id, so this is what a caller indexes.
 fn ordered(audit: &Audit) -> Vec<Uuid> {
     let mut entities: Vec<&Entity<Text>> = audit
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("a text body")
         .iter()
         .collect();
@@ -140,7 +123,9 @@ fn ordered(audit: &Audit) -> Vec<Uuid> {
 fn entity(audit: &Audit, id: Uuid) -> &Entity<Text> {
     audit
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("a text body")
         .iter()
         .find(|e| e.id == id)
@@ -179,7 +164,9 @@ async fn suppress_leaves_the_entity_alone() {
     // The decision is auditable, not merely effective.
     let suppressed = audit
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("a text body")
         .iter()
         .find(|e| e.is_suppressed())
@@ -236,11 +223,11 @@ async fn include_stamps_manual_provenance() {
         .expect("analyze")
         .audit;
 
-    let added = manual_entity(span_of(b"SECRET-9"));
-    let id = added.id;
-    audit
+    let id = audit
         .report
-        .include_part::<Text>(&PartId::new(DOCUMENT), added);
+        .part_mut::<Text>(&PartId::new(DOCUMENT))
+        .expect("text document")
+        .include(LabelRef::new("email_address"), span_of(b"SECRET-9"));
 
     assert!(
         entity(&audit, id)
@@ -263,24 +250,11 @@ async fn include_rejects_a_foreign_modality() {
         .expect("analyze")
         .audit;
 
-    let bounds = BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0));
-    let location = ImageLocation::new(bounds);
-    let event: AuditEvent<Image> = AuditEvent::pattern(
-        "manual",
-        Confidence::MAX,
-        location.clone(),
-        PatternEvent::default(),
-    );
-    let foreign = Entity::new(
-        LabelRef::new("email_address"),
-        location,
-        AuditLog::new(event),
-    );
-
     assert!(
-        !audit
+        audit
             .report
-            .include_part::<Image>(&PartId::new(DOCUMENT), foreign),
+            .part_mut::<Image>(&PartId::new(DOCUMENT))
+            .is_err(),
         "an image entity cannot join a text document",
     );
 }
@@ -331,7 +305,13 @@ async fn analyze_records_the_policy_pick_for_review() {
     let json = serde_json::to_string(&audit).expect("serializes");
     let posted_back = round_trip(&engine, &json);
 
-    for entity in posted_back.report.entities::<Text>().expect("a text body") {
+    for entity in posted_back
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+        .expect("a text body")
+    {
         let selection = entity
             .audit
             .selection()
@@ -490,7 +470,9 @@ async fn an_add_edit_redacts_what_recognition_missed() {
 
     let added = audit
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("text body")
         .iter()
         .find(|e| e.location == span_of(b"SECRET-9"))
@@ -597,7 +579,7 @@ async fn unhandled_reaches_into_container_parts() {
     // A DOCX's embedded image is exactly where a text-only policy
     // leaves something behind, so reading the body alone would miss
     // the case this method exists for.
-    use elide::entity::audit::{AuditEvent, AuditLog, PatternEvent};
+    use elide::entity::audit::{AuditEvent, PatternRule};
     use elide::entity::{Entity, LabelRef};
     use elide::modality::text::{Text, TextLocation};
     use elide::primitive::Confidence;
@@ -606,16 +588,12 @@ async fn unhandled_reaches_into_container_parts() {
 
     let detection = |label: &str| {
         let location = TextLocation::inline(0..4);
-        Entity::new(
-            LabelRef::new(label),
-            location.clone(),
-            AuditLog::new(AuditEvent::pattern(
-                "probe",
-                Confidence::MAX,
-                location,
-                PatternEvent::default(),
-            )),
-        )
+        Entity::new(LabelRef::new(label), location.clone()).with_event(AuditEvent::pattern(
+            "probe",
+            Confidence::MAX,
+            location,
+            PatternRule::default(),
+        ))
     };
 
     // A document detection and a nested-part detection, neither

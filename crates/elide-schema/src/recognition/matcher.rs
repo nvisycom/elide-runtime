@@ -77,6 +77,13 @@ pub enum MatchOn {
     /// Compiled per request against a size limit. The `regex`
     /// crate does not backtrack, so a pathological pattern costs
     /// compile time rather than match time.
+    ///
+    /// The whole match is the entity, unless the expression has a
+    /// capture group named `entity`: then only that group is, and the
+    /// rest must be present but stays visible, as in
+    /// `badge:\s*(?P<entity>\d{5})`. A match where that group is
+    /// absent or empty reports nothing, so `(?P<entity>...)?` can miss
+    /// what the rest of the expression matched.
     Pattern {
         /// The expression, in `regex` crate syntax.
         pattern: String,

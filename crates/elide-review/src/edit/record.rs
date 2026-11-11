@@ -12,8 +12,8 @@
 //! span, or a false positive.
 //!
 //! Which operator runs is not among them. elide re-resolves
-//! operators from live policy at apply time, and an `OperatorId`
-//! carries a name and version but no configuration — so a reviewer's
+//! operators from live policy at apply time, and the `ComponentId`
+//! a pick records carries a name and version but no configuration — so a reviewer's
 //! operator choice has nowhere to live on a report. Changing what
 //! redacts an entity means changing the policy.
 //!

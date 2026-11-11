@@ -5,11 +5,14 @@
 
 use bytes::Bytes;
 use elide::entity::LabelRef;
+use elide::redaction::HiddenContent;
 use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{CodecParams, Deployment, ExifPolicy, Provider, RequestContext};
+use elide_pipeline::provider::{
+    CodecParams, Deployment, Disposition, HiddenContentPolicy, Provider, RequestContext,
+};
 use elide_schema::policy::{LabelScope, Policy};
-use elide_schema::redaction::{ModalityRedactions, TabularRedaction};
+use elide_schema::redaction::{ModalityRedactions, TabularRedaction, TextRedaction};
 
 /// A headerless CSV: every row is data, and the first row carries
 /// an address that must be reachable like any other.
@@ -112,7 +115,9 @@ fn codec_params_survive_the_audit_round_trip() {
     let codec = CodecParams::new()
         .with_csv_has_headers(false)
         .with_csv_delimiter(b';')
-        .with_exif_policy(ExifPolicy::Strip);
+        .with_hidden_content(
+            HiddenContentPolicy::default().with_collaboration(Disposition::ScanAsContent),
+        );
 
     let json = serde_json::to_value(codec).expect("params serialize");
     let back: CodecParams = serde_json::from_value(json).expect("params deserialize");
@@ -121,8 +126,8 @@ fn codec_params_survive_the_audit_round_trip() {
 }
 
 /// An audit that names no codec params reads back as the defaults,
-/// and those defaults are the codec's own behaviour — a header row
-/// for CSV, and whatever EXIF bias the codec registers.
+/// and those defaults are the codec's own behaviour: a header row for
+/// CSV, and hidden content stripped.
 #[test]
 fn omitted_params_default_to_the_codecs_own_behaviour() {
     let params = CodecParams::default();
@@ -131,66 +136,185 @@ fn omitted_params_default_to_the_codecs_own_behaviour() {
         "a CSV's first row is its header unless a request says otherwise",
     );
     assert_eq!(
-        params.exif_policy,
-        ExifPolicy::default(),
-        "EXIF follows the codec's own bias unless a request says otherwise",
+        params.hidden_content.metadata,
+        Disposition::KeepOnlyEssential,
+        "a request that expressed no opinion must not carry metadata through a redaction",
     );
-    assert_ne!(
-        params.exif_policy,
-        ExifPolicy::Retain,
-        "and that bias is not to preserve metadata: a request that expressed \
-         no opinion must not carry GPS and device fields through a redaction",
+    assert_eq!(
+        params.hidden_content.collaboration,
+        Disposition::KeepOnlyEssential,
+        "a request that expressed no opinion must not carry comments through a redaction",
     );
-    assert!(params.is_default(), "the defaults must report as default");
+    assert!(params.uses_default_formats());
 
     let back: CodecParams = serde_json::from_str("{}").expect("empty object deserializes");
     assert_eq!(back, params, "an omitted params object is the default one");
 }
 
-/// Setting any knob takes the request off the shared registry, so
-/// the decode path knows to rebuild one.
+/// A format override takes the request off the shared registry, and the
+/// hidden-content policy does not: it goes to the decode itself, so asking
+/// for it must not cost a registry rebuild.
 #[test]
-fn a_configured_param_is_not_default() {
-    assert!(!CodecParams::new().with_csv_has_headers(false).is_default());
-    assert!(!CodecParams::new().with_csv_delimiter(b'\t').is_default());
-    // `Retain`, not `Strip`: stripping *is* the default now, so
-    // asking for it changes nothing and rightly stays on the
-    // shared registry.
+fn only_a_format_override_rebuilds_the_registry() {
     assert!(
         !CodecParams::new()
-            .with_exif_policy(ExifPolicy::Retain)
-            .is_default()
+            .with_csv_has_headers(false)
+            .uses_default_formats()
+    );
+    assert!(
+        !CodecParams::new()
+            .with_csv_delimiter(b'\t')
+            .uses_default_formats()
+    );
+    assert!(
+        CodecParams::new()
+            .with_hidden_content(
+                HiddenContentPolicy::default()
+                    .with_metadata(Disposition::ScanAsContent)
+                    .with_collaboration(Disposition::ScanAsContent),
+            )
+            .uses_default_formats()
     );
 }
 
-/// The default is deferred to [`ExifPolicy::default`] rather than
-/// naming a variant, so it tracks the codec instead of drifting
-/// from it. What must stay true is the *direction*: the default
-/// strips, and preserving metadata is the opt-in.
-///
-/// This replaces a test that guarded a mismatch elide has since
-/// removed — the enum once defaulted to stripping while the codec
-/// kept, so the two had to be compared carefully. They are now one
-/// source of truth, and this pins the property that made the
-/// mismatch worth guarding.
-#[test]
-fn the_default_strips_and_preserving_is_the_opt_in() {
-    assert_ne!(
-        ExifPolicy::default(),
-        ExifPolicy::Retain,
-        "a request naming no policy must not preserve EXIF",
-    );
+/// A page whose `<meta>` fields hold a name and an address, redacted under
+/// `codec`: the items analyze reports stripped, and the page anonymize returns.
+async fn redact_page_under(codec: CodecParams) -> (Vec<HiddenContent>, String) {
+    const PAGE: &[u8] = b"<html><head>\
+        <meta name=\"author\" content=\"Ada Lovelace\">\
+        <meta name=\"contact\" content=\"ada@example.com\">\
+        </head><body><p>Hello</p></body></html>";
+    let page = || Document::new("page.html", Bytes::from_static(PAGE));
+    let policy = Policy {
+        fallback: Some(ModalityRedactions {
+            text: Some(TextRedaction::Erase),
+            ..Default::default()
+        }),
+        ..detect_email()
+    };
+    let policies = std::slice::from_ref(&policy);
+
+    let engine = engine();
+    let spec = RequestContext::new().with_codec(codec);
+    let mut audit = engine
+        .analyze(page(), policies, &spec)
+        .await
+        .expect("analyze succeeds")
+        .audit;
+    let stripped = audit.report.stripped().map(|item| item.content).collect();
+    let outcome = engine
+        .anonymize(page(), policies, &mut audit, None)
+        .await
+        .expect("anonymize succeeds");
+    let html = String::from_utf8(outcome.bytes.to_vec()).expect("html output is utf-8");
+    (stripped, html)
+}
+
+/// By default, metadata is stripped before detection sees it.
+#[tokio::test]
+async fn metadata_is_stripped_by_default() {
+    let (stripped, html) = redact_page_under(CodecParams::new()).await;
+
     assert!(
-        CodecParams::new().is_default(),
-        "a fresh params object is the default one",
+        stripped.contains(&HiddenContent::Properties),
+        "the strip is reported; got: {stripped:?}",
     );
-    assert!(
-        !CodecParams::new()
-            .with_exif_policy(ExifPolicy::Retain)
-            .is_default(),
-        "preserving metadata is a configured choice, so it takes the \
-         configured path rather than the shared registry",
-    );
+    assert!(!html.contains("<meta"), "the fields are gone; got: {html}");
+}
+
+/// `ScanAsContent` reaches the codec on both decode paths, and anonymize decodes
+/// under the policy the audit recorded: the fields survive to the output, and
+/// detection has been through them. HTML carries metadata as text, so the
+/// address is erased, and the author stays because this policy does not look
+/// for names.
+#[tokio::test]
+async fn scanned_metadata_is_kept_and_goes_through_detection() {
+    let scan = HiddenContentPolicy::default().with_metadata(Disposition::ScanAsContent);
+
+    for codec in [
+        CodecParams::new().with_hidden_content(scan),
+        // A format override, so this one decodes through a rebuilt registry.
+        CodecParams::new()
+            .with_csv_has_headers(false)
+            .with_hidden_content(scan),
+    ] {
+        let (stripped, html) = redact_page_under(codec).await;
+
+        assert!(
+            !stripped.contains(&HiddenContent::Properties),
+            "the policy asked to scan, not strip; got: {stripped:?}",
+        );
+        assert!(html.contains("Ada Lovelace"), "kept; got: {html}");
+        assert!(!html.contains("ada@example.com"), "detected; got: {html}");
+    }
+}
+
+/// A DOCX whose core properties name its last editor, and whose
+/// body holds no name, so the property is the only place one is.
+const PROPERTIES_DOCX: &[u8] = include_bytes!("testdata/properties.docx");
+
+/// The last editor `PROPERTIES_DOCX` names in `docProps/core.xml`.
+const EDITOR: &str = "Ada Lovelace";
+
+/// Run `PROPERTIES_DOCX` through analyze, an audit serialized and
+/// read back as a host stores it, and anonymize, with metadata
+/// scanned and `labels` as the request's catalog. Returns the
+/// output's core properties.
+async fn scan_properties_with(labels: &[&str]) -> String {
+    let docx = || Document::new("plan.docx", Bytes::from_static(PROPERTIES_DOCX));
+    let policy = Policy {
+        id: uuid::Uuid::now_v7(),
+        name: "properties".into(),
+        scopes: vec![LabelScope::new(
+            "scanned",
+            labels.iter().map(|label| LabelRef::new(*label)),
+        )],
+        ..Policy::default()
+    };
+    let policies = std::slice::from_ref(&policy);
+    let scan = HiddenContentPolicy::default().with_metadata(Disposition::ScanAsContent);
+    let spec = RequestContext::new().with_codec(CodecParams::new().with_hidden_content(scan));
+
+    let engine = engine();
+    let audit = engine
+        .analyze(docx(), policies, &spec)
+        .await
+        .expect("analyze succeeds")
+        .audit;
+    let json = serde_json::to_string(&audit).expect("audit serializes");
+    let mut de = serde_json::Deserializer::from_str(&json);
+    let mut audit = engine
+        .deserialize_audit(&mut de)
+        .expect("audit deserializes");
+    let outcome = engine
+        .anonymize(docx(), policies, &mut audit, None)
+        .await
+        .expect("anonymize succeeds");
+
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(outcome.bytes.to_vec()))
+        .expect("output is a zip package");
+    let mut core = String::new();
+    std::io::Read::read_to_string(
+        &mut archive
+            .by_name("docProps/core.xml")
+            .expect("core properties survive"),
+        &mut core,
+    )
+    .expect("core properties are utf-8");
+    core
+}
+
+/// Scanned office properties go through elide's built-in metadata
+/// pipeline, across the audit round trip: a field whose label the
+/// catalog declares is erased, and with the label left out the same
+/// field is kept rather than stripped.
+#[tokio::test]
+async fn scanned_office_properties_are_redacted_by_catalog_label() {
+    let core = scan_properties_with(&["person_name"]).await;
+    assert!(!core.contains(EDITOR), "the editor is erased; got: {core}");
+
+    let core = scan_properties_with(&["email_address"]).await;
+    assert!(core.contains(EDITOR), "the editor is kept; got: {core}");
 }
 
 /// A pass that called a model records what it cost.

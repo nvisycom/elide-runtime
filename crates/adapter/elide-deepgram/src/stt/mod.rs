@@ -13,7 +13,7 @@ use deepgram::common::options::Model;
 use elide_audio::stt::{SttRequest, SttResponse};
 use elide_core::Result;
 use elide_core::backend::Backend;
-use elide_core::entity::audit::ModelEvent;
+use elide_core::entity::audit::ModelId;
 use hipstr::HipStr;
 
 use crate::error::DeepgramBackendError;
@@ -109,13 +109,12 @@ impl Backend for DeepgramStt {
     type Request<'a> = SttRequest<'a>;
     type Response = SttResponse;
 
-    fn provenance(&self) -> ModelEvent {
-        ModelEvent {
+    fn provenance(&self) -> ModelId {
+        ModelId {
             name: HipStr::borrowed("deepgram"),
             // The model is the deployment's choice and is worth recording:
             // Nova-3 and Whisper-via-Deepgram are different transcribers.
             version: Some(HipStr::from(self.model.as_ref().to_owned())),
-            contextual: false,
         }
     }
 

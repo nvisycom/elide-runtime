@@ -33,7 +33,7 @@
 //!
 //! [`Predicated`]: elide_schema::policy::RuleDispatch::Predicated
 
-use elide_core::entity::audit::Attribution;
+use elide::entity::audit::Attribution;
 use jiff::civil::Date;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

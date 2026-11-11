@@ -24,6 +24,7 @@ use elide::entity::audit::{Attribution, AuditKind, ManualIntent};
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
+use elide::modality::metadata::Metadata;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{Error, ErrorKind, PartId, Report, Result};
@@ -38,8 +39,8 @@ use super::Audit;
 ///
 /// A report stores entities per modality and hands them back only
 /// through a typed accessor, so every walk over "all entities" is
-/// four probes. The modality list lives here so adding a fifth
-/// means touching one macro rather than every row builder.
+/// one probe per modality. The modality list lives here so adding
+/// one means touching one macro rather than every row builder.
 macro_rules! per_modality {
     (|$m:ident| $body:expr) => {{
         {
@@ -56,6 +57,10 @@ macro_rules! per_modality {
         }
         {
             type $m = Audio;
+            $body
+        }
+        {
+            type $m = Metadata;
             $body
         }
     }};
@@ -133,7 +138,7 @@ impl Audit {
         let parts = sorted_part_ids(&self.report);
         per_modality!(|M| {
             for id in &parts {
-                if let Some(entities) = self.report.part_entities::<M>(id) {
+                if let Ok(entities) = self.report.part::<M>(id).map(|part| part.entities()) {
                     extend_entity_rows::<M>(entities, &encode_part_path(id), &mut rows);
                 }
             }
@@ -153,7 +158,7 @@ impl Audit {
         let parts = sorted_part_ids(&self.report);
         per_modality!(|M| {
             for id in &parts {
-                if let Some(entities) = self.report.part_entities::<M>(id) {
+                if let Ok(entities) = self.report.part::<M>(id).map(|part| part.entities()) {
                     extend_provenance_rows(entities, &mut rows);
                 }
             }
@@ -178,7 +183,7 @@ impl Audit {
         let parts = sorted_part_ids(&self.report);
         per_modality!(|M| {
             for id in &parts {
-                if let Some(entities) = self.report.part_entities::<M>(id) {
+                if let Ok(entities) = self.report.part::<M>(id).map(|part| part.entities()) {
                     extend_review_rows(entities, &mut rows);
                 }
             }
@@ -404,7 +409,7 @@ impl<'a> EventColumns<'a> {
     /// Read the columns off one provenance event kind.
     fn of<M: Modality>(kind: &'a AuditKind<M>) -> Self {
         match kind {
-            AuditKind::Pattern(e) => Self::named("pattern", e.pattern.name.as_str()),
+            AuditKind::Pattern(e) => Self::named("pattern", e.rule.name.as_str()),
             AuditKind::Model(e) => Self::named("model", e.model.name.as_str()),
             AuditKind::Deduplication(e) => Self::named("deduplication", e.strategy.as_str()),
             AuditKind::Conflict(e) => Self::named("conflict", e.resolved_by.as_str()),

@@ -36,7 +36,12 @@ fn default_spec() -> RequestContext {
 /// stamped once per operator run, so this is the number of
 /// operator hits on the labeled entities.
 fn redaction_hits(audit: &Audit, label: &str) -> usize {
-    let Some(entities) = audit.report.entities::<Text>() else {
+    let Some(entities) = audit
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+    else {
         return 0;
     };
     entities
@@ -135,7 +140,12 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
 
     // Both labels dispatch through the one rule, so both redaction
     // events answer to the same authority.
-    let Some(entities) = analyzed.report.entities::<Text>() else {
+    let Some(entities) = analyzed
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+    else {
         panic!("expected text body");
     };
     let authority_of = |label: &str| {
@@ -145,12 +155,8 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
             .and_then(|entity| {
                 entity
                     .audit
-                    .events()
-                    .iter()
-                    .find_map(|event| match &event.kind {
-                        AuditKind::Redaction(r) => r.attribution.as_ref(),
-                        _ => None,
-                    })
+                    .applied_selection()
+                    .and_then(|selection| selection.attribution.as_ref())
             })
             .and_then(|attribution| match attribution {
                 Attribution::Freeform(freeform) => Some(freeform.name.to_string()),
@@ -537,7 +543,12 @@ async fn fallback_carries_the_scope_attribution() {
         .await
         .expect("anonymize succeeds");
 
-    let Some(entities) = analyzed.report.entities::<Text>() else {
+    let Some(entities) = analyzed
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+    else {
         panic!("expected text body");
     };
     let attribution = entities
@@ -546,12 +557,8 @@ async fn fallback_carries_the_scope_attribution() {
         .and_then(|entity| {
             entity
                 .audit
-                .events()
-                .iter()
-                .find_map(|event| match &event.kind {
-                    AuditKind::Redaction(r) => r.attribution.as_ref(),
-                    _ => None,
-                })
+                .applied_selection()
+                .and_then(|selection| selection.attribution.as_ref())
         })
         .expect("the fallback must stamp an attribution");
     assert_eq!(
@@ -603,7 +610,12 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
         .await
         .expect("anonymize succeeds");
 
-    let Some(entities) = analyzed.report.entities::<Text>() else {
+    let Some(entities) = analyzed
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+    else {
         panic!("expected text body");
     };
     let attribution = entities
@@ -612,12 +624,8 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
         .and_then(|entity| {
             entity
                 .audit
-                .events()
-                .iter()
-                .find_map(|event| match &event.kind {
-                    AuditKind::Redaction(r) => r.attribution.as_ref(),
-                    _ => None,
-                })
+                .applied_selection()
+                .and_then(|selection| selection.attribution.as_ref())
         })
         .expect("the fallback must stamp an attribution");
     assert!(
@@ -784,6 +792,18 @@ async fn a_custom_matcher_detects_and_redacts_its_label() {
     assert!(
         !by_pattern.contains("EMP-4471"),
         "a regex matcher redacts its label: {by_pattern}",
+    );
+
+    let by_group = redact(
+        MatchOn::Pattern {
+            pattern: r"badge:\s*(?P<entity>\d{5})".to_owned(),
+        },
+        "Her badge: 12345 expired.",
+    )
+    .await;
+    assert_eq!(
+        by_group, "Her badge:  expired.",
+        "an `entity` group narrows the span to itself",
     );
 
     let by_terms = redact(

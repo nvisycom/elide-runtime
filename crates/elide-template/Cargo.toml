@@ -22,8 +22,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide-core = { workspace = true, features = ["serde"] }
-elide-operator = { workspace = true, features = ["datetime", "sha2"] }
+elide = { workspace = true, features = ["serde", "operator-datetime", "operator-sha2"] }
 
 # Internal crates
 elide-schema = { workspace = true }

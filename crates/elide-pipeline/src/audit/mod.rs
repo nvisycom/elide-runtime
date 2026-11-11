@@ -27,6 +27,7 @@ use elide::backend::metrics::Usage;
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
+use elide::modality::metadata::Metadata;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{ArtifactSet, PartId, Report};
@@ -108,14 +109,13 @@ pub struct Audit {
     /// parts nested in one, each entity carrying its provenance
     /// chain.
     ///
-    /// Edit it through [`Report`]'s own API — [`include_part`],
-    /// [`suppress_part`], [`part_entities`] — for the decisions
-    /// elide models.
+    /// Read it through [`Report::part`] and edit it through
+    /// [`Report::part_mut`], which records each reviewer decision on
+    /// the entity's trail.
     ///
     /// [`Report`]: elide::Report
-    /// [`include_part`]: elide::Report::include_part
-    /// [`suppress_part`]: elide::Report::suppress_part
-    /// [`part_entities`]: elide::Report::part_entities
+    /// [`Report::part`]: elide::Report::part
+    /// [`Report::part_mut`]: elide::Report::part_mut
     pub report: Report,
     /// What the caller asserted when this document was analyzed:
     /// languages, jurisdictions, document tags.
@@ -196,6 +196,7 @@ impl Audit {
             .chain(self.unhandled_in::<Tabular>())
             .chain(self.unhandled_in::<Image>())
             .chain(self.unhandled_in::<Audio>())
+            .chain(self.unhandled_in::<Metadata>())
             .collect()
     }
 
@@ -207,16 +208,16 @@ impl Audit {
     /// something behind, so reading the document alone would miss
     /// the case the method exists for.
     fn unhandled_in<M: Modality>(&self) -> impl Iterator<Item = Unhandled> + '_ {
-        // The part tree alone. `entities::<M>()` is shorthand for
-        // the sole document, which is itself a depth-1 part, so
-        // reading both would report every entity of a
-        // single-document report twice.
+        // The part tree alone: the sole document is itself a
+        // depth-1 part, so reading it as well would report every
+        // entity of a single-document report twice.
         let parts: Vec<PartId> = self.report.part_ids().map(|(id, _)| id.clone()).collect();
         parts
             .into_iter()
             .flat_map(move |id| {
                 self.report
-                    .part_entities::<M>(&id)
+                    .part::<M>(&id)
+                    .map(|part| part.entities())
                     .unwrap_or_default()
                     .iter()
             })

@@ -50,8 +50,8 @@
 //! [`LabelScope`]: elide_schema::policy::LabelScope
 //! [`Policy`]: elide_schema::policy::Policy
 
-use elide_core::entity::LabelRef;
-use elide_operator::operators::Sha2Algorithm;
+use elide::entity::LabelRef;
+use elide::redaction::operators::Sha2Algorithm;
 use elide_schema::policy::{LabelScope, Policy};
 use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 use jiff::civil::Date;
@@ -377,7 +377,7 @@ fn sav_template() -> Template {
 
 #[cfg(test)]
 mod tests {
-    use elide_core::entity::audit::Attribution;
+    use elide::entity::audit::Attribution;
 
     use super::*;
 

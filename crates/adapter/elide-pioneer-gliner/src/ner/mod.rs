@@ -11,7 +11,7 @@ use std::fmt;
 use async_trait::async_trait;
 use elide_core::Result;
 use elide_core::backend::Backend;
-use elide_core::entity::audit::ModelEvent;
+use elide_core::entity::audit::ModelId;
 use elide_core::primitive::LanguageTag;
 use elide_ner::backend::{NerRequest, NerResponse};
 use hipstr::HipStr;
@@ -138,11 +138,10 @@ impl Backend for PioneerNer {
     type Request<'a> = NerRequest<'a>;
     type Response = NerResponse;
 
-    fn provenance(&self) -> ModelEvent {
-        ModelEvent {
+    fn provenance(&self) -> ModelId {
+        ModelId {
             name: HipStr::borrowed(MODEL_ID),
             version: None,
-            contextual: false,
         }
     }
 

@@ -144,21 +144,20 @@ fn validate_modality<M: RedactableModality>(
 
     for edit in edits {
         // An add names no entity — the engine mints the id when it
-        // lands — but it addresses a part, and `include_part` is
-        // silent about one the report does not carry. A named part
+        // lands — but it addresses a part, and landing drops an add
+        // whose part does not resolve. A named part
         // must exist; an unnamed one means the sole document, which
         // only resolves when there is exactly one.
         if let Edit::Add(add) = edit {
             match add.part.as_deref() {
                 Some(part) => {
-                    // Checked through `part_entities::<M>`, not by
-                    // path alone: `include_part` returns `false` for
-                    // a modality mismatch just as silently as for a
-                    // missing part, and landing ignores that bool.
-                    // A text add naming an image part would
-                    // otherwise validate and then vanish.
+                    // Checked through `part::<M>`, not by path
+                    // alone: a part held as another modality fails
+                    // the same lookup landing makes, so a text add
+                    // naming an image part would otherwise validate
+                    // and then vanish.
                     let id = PartId::from_segments(part.to_vec());
-                    if report.part_entities::<M>(&id).is_none() {
+                    if report.part::<M>(&id).is_err() {
                         return Err(EditError::UnknownPart {
                             part: part.to_vec(),
                             modality: M::NAME,

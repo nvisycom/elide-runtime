@@ -46,7 +46,6 @@ elide-pdf = { git = "https://github.com/nvisycom/elide", branch = "main", defaul
 elide-audio = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-llm = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 elide-ner = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
-elide-operator = { git = "https://github.com/nvisycom/elide", branch = "main", default-features = false }
 
 # Backend adapters: one per hosted service, each implementing
 # elide's `Backend` trait.

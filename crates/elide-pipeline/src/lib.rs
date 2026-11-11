@@ -94,7 +94,7 @@ pub mod modality {
 /// [`ImageLocation`](modality::image::ImageLocation) needs
 /// [`BoundingBox`](primitive::BoundingBox) to read its geometry,
 /// and one configuring a request needs
-/// [`LanguageClaim`](primitive::LanguageClaim) — but neither
+/// [`LanguageTag`](primitive::LanguageTag) — but neither
 /// should have to depend on elide directly to say so.
 pub mod primitive {
     /// How a PDF is sampled when its pages are rasterised.
@@ -112,9 +112,9 @@ pub mod primitive {
     #[doc(inline)]
     pub use elide::primitive::{BoundingBox, Point, Polygon, TimeSpan};
     /// How a request describes its content: the country a document
-    /// is from, and each claim about the language it is in.
+    /// is from, and the languages it is in.
     #[doc(inline)]
-    pub use elide::primitive::{CountryCode, LanguageClaim};
+    pub use elide::primitive::{CountryCode, LanguageTag};
 }
 
 /// What a pass spent, call by call.

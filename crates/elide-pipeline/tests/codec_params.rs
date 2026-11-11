@@ -116,7 +116,7 @@ fn codec_params_survive_the_audit_round_trip() {
         .with_csv_has_headers(false)
         .with_csv_delimiter(b';')
         .with_hidden_content(
-            HiddenContentPolicy::default().with_collaboration(Disposition::Redact),
+            HiddenContentPolicy::default().with_collaboration(Disposition::ScanAsContent),
         );
 
     let json = serde_json::to_value(codec).expect("params serialize");
@@ -137,12 +137,12 @@ fn omitted_params_default_to_the_codecs_own_behaviour() {
     );
     assert_eq!(
         params.hidden_content.metadata,
-        Disposition::Strip,
+        Disposition::KeepOnlyEssential,
         "a request that expressed no opinion must not carry metadata through a redaction",
     );
     assert_eq!(
         params.hidden_content.collaboration,
-        Disposition::Strip,
+        Disposition::KeepOnlyEssential,
         "a request that expressed no opinion must not carry comments through a redaction",
     );
     assert!(params.uses_default_formats());
@@ -170,8 +170,8 @@ fn only_a_format_override_rebuilds_the_registry() {
         CodecParams::new()
             .with_hidden_content(
                 HiddenContentPolicy::default()
-                    .with_metadata(Disposition::Redact)
-                    .with_collaboration(Disposition::Redact),
+                    .with_metadata(Disposition::ScanAsContent)
+                    .with_collaboration(Disposition::ScanAsContent),
             )
             .uses_default_formats()
     );
@@ -222,31 +222,99 @@ async fn metadata_is_stripped_by_default() {
     assert!(!html.contains("<meta"), "the fields are gone; got: {html}");
 }
 
-/// `Redact` reaches the codec on both decode paths, and anonymize decodes
+/// `ScanAsContent` reaches the codec on both decode paths, and anonymize decodes
 /// under the policy the audit recorded: the fields survive to the output, and
 /// detection has been through them. HTML carries metadata as text, so the
 /// address is erased, and the author stays because this policy does not look
 /// for names.
 #[tokio::test]
-async fn redacted_metadata_is_kept_and_goes_through_detection() {
-    let redact = HiddenContentPolicy::default().with_metadata(Disposition::Redact);
+async fn scanned_metadata_is_kept_and_goes_through_detection() {
+    let scan = HiddenContentPolicy::default().with_metadata(Disposition::ScanAsContent);
 
     for codec in [
-        CodecParams::new().with_hidden_content(redact),
+        CodecParams::new().with_hidden_content(scan),
         // A format override, so this one decodes through a rebuilt registry.
         CodecParams::new()
             .with_csv_has_headers(false)
-            .with_hidden_content(redact),
+            .with_hidden_content(scan),
     ] {
         let (stripped, html) = redact_page_under(codec).await;
 
         assert!(
             !stripped.contains(&HiddenContent::Properties),
-            "the policy asked to redact, not strip; got: {stripped:?}",
+            "the policy asked to scan, not strip; got: {stripped:?}",
         );
         assert!(html.contains("Ada Lovelace"), "kept; got: {html}");
         assert!(!html.contains("ada@example.com"), "detected; got: {html}");
     }
+}
+
+/// A DOCX whose core properties name its last editor, and whose
+/// body holds no name, so the property is the only place one is.
+const PROPERTIES_DOCX: &[u8] = include_bytes!("testdata/properties.docx");
+
+/// The last editor `PROPERTIES_DOCX` names in `docProps/core.xml`.
+const EDITOR: &str = "Ada Lovelace";
+
+/// Run `PROPERTIES_DOCX` through analyze, an audit serialized and
+/// read back as a host stores it, and anonymize, with metadata
+/// scanned and `labels` as the request's catalog. Returns the
+/// output's core properties.
+async fn scan_properties_with(labels: &[&str]) -> String {
+    let docx = || Document::new("plan.docx", Bytes::from_static(PROPERTIES_DOCX));
+    let policy = Policy {
+        id: uuid::Uuid::now_v7(),
+        name: "properties".into(),
+        scopes: vec![LabelScope::new(
+            "scanned",
+            labels.iter().map(|label| LabelRef::new(*label)),
+        )],
+        ..Policy::default()
+    };
+    let policies = std::slice::from_ref(&policy);
+    let scan = HiddenContentPolicy::default().with_metadata(Disposition::ScanAsContent);
+    let spec = RequestContext::new().with_codec(CodecParams::new().with_hidden_content(scan));
+
+    let engine = engine();
+    let audit = engine
+        .analyze(docx(), policies, &spec)
+        .await
+        .expect("analyze succeeds")
+        .audit;
+    let json = serde_json::to_string(&audit).expect("audit serializes");
+    let mut de = serde_json::Deserializer::from_str(&json);
+    let mut audit = engine
+        .deserialize_audit(&mut de)
+        .expect("audit deserializes");
+    let outcome = engine
+        .anonymize(docx(), policies, &mut audit, None)
+        .await
+        .expect("anonymize succeeds");
+
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(outcome.bytes.to_vec()))
+        .expect("output is a zip package");
+    let mut core = String::new();
+    std::io::Read::read_to_string(
+        &mut archive
+            .by_name("docProps/core.xml")
+            .expect("core properties survive"),
+        &mut core,
+    )
+    .expect("core properties are utf-8");
+    core
+}
+
+/// Scanned office properties go through elide's built-in metadata
+/// pipeline, across the audit round trip: a field whose label the
+/// catalog declares is erased, and with the label left out the same
+/// field is kept rather than stripped.
+#[tokio::test]
+async fn scanned_office_properties_are_redacted_by_catalog_label() {
+    let core = scan_properties_with(&["person_name"]).await;
+    assert!(!core.contains(EDITOR), "the editor is erased; got: {core}");
+
+    let core = scan_properties_with(&["email_address"]).await;
+    assert!(core.contains(EDITOR), "the editor is kept; got: {core}");
 }
 
 /// A pass that called a model records what it cost.

@@ -39,8 +39,8 @@ pub enum EditError {
     /// medium.
     ///
     /// Rejected rather than skipped for the same reason as an
-    /// unknown target: elide's `include_part` returns `false` for
-    /// both, equally silently, so the addition would vanish and the
+    /// unknown target: landing drops an add whose part does not
+    /// resolve, as another modality or not at all, so the addition would vanish and the
     /// reviewer would be told it landed.
     UnknownPart {
         /// The part path the edit names, top-level document first.

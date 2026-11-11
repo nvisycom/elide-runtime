@@ -45,15 +45,23 @@ pub struct CodecParams {
     /// What decode does with the document's metadata and its
     /// collaboration content (comments, tracked changes, annotations).
     ///
-    /// Defaults to stripping both, which is what the report's `stripped`
-    /// list records. `Redact` keeps the content and sends it through
-    /// detection, so whatever detection does not flag stays in the output.
+    /// Defaults to [`KeepOnlyEssential`] for both: stripped unexamined,
+    /// which is what the report's `stripped` list records.
+    /// [`ScanAsContent`] keeps the content and sends it through
+    /// detection, so whatever detection does not find stays in the
+    /// output. [`FlagEverything`] keeps it too, and redacts every item
+    /// the format labels whatever the catalog declares.
     ///
-    /// Metadata a format holds as text, such as HTML's `<meta>` fields, goes
-    /// through text detection. Metadata it surfaces field by field, such as
-    /// EXIF or office document properties, needs a metadata pipeline. This
-    /// runtime registers none, so those fields are removed under `Redact`
-    /// too, and the report records them as unscanned.
+    /// Metadata a format holds as text, such as HTML's `<meta>` fields,
+    /// goes through text detection. Metadata it surfaces field by field,
+    /// such as EXIF or office document properties, goes through elide's
+    /// built-in metadata pipeline: a field is selected by the label its
+    /// format gives it, and erased when the request's catalog declares
+    /// that label. The policy set's rules do not reach those fields.
+    ///
+    /// [`KeepOnlyEssential`]: elide::redaction::Disposition::KeepOnlyEssential
+    /// [`ScanAsContent`]: elide::redaction::Disposition::ScanAsContent
+    /// [`FlagEverything`]: elide::redaction::Disposition::FlagEverything
     pub hidden_content: HiddenContentPolicy,
 }
 

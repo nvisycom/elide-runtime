@@ -1,4 +1,4 @@
-use elide_core::entity::LabelRef;
+use elide::entity::LabelRef;
 use elide_schema::policy::{LabelScope, Policy};
 use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 use semver::Version;

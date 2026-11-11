@@ -82,7 +82,9 @@ async fn analyze_captures_text_body_and_image_part() {
 
     let text_entities = analyzed
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("expected a Text body");
     assert!(
         !text_entities.is_empty(),
@@ -91,7 +93,7 @@ async fn analyze_captures_text_body_and_image_part() {
 
     let part_id = PartId::new(DOCUMENT).child(IMAGE_PART_ID);
     assert!(
-        analyzed.report.part_entities::<Image>(&part_id).is_some(),
+        analyzed.report.part::<Image>(&part_id).is_ok(),
         "expected part `{IMAGE_PART_ID}` to carry Image entities; got parts: {:?}",
         analyzed
             .report
@@ -111,7 +113,9 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
         .audit;
     let entities = analyzed
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("expected a Text body");
     assert!(
         !entities.is_empty(),
@@ -362,13 +366,17 @@ async fn artifacts_round_trip_beside_the_audit_and_seed_a_re_run() {
     let first = analyzed
         .audit
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("expected a Text body")
         .len();
     let second = again
         .audit
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("expected a Text body")
         .len();
     assert_eq!(

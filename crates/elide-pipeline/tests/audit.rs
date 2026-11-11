@@ -68,7 +68,9 @@ async fn analyze() -> Audit {
 fn text_entity_ids(audit: &Audit) -> Vec<uuid::Uuid> {
     audit
         .report
-        .entities::<Text>()
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
         .expect("body present")
         .iter()
         .map(|entity| entity.id)
@@ -114,8 +116,18 @@ async fn write_json_round_trips_via_serde_and_drops_artefact() {
     let round = engine()
         .deserialize_audit(&mut de)
         .expect("round-trip deserialize");
-    let original = audit.report.entities::<Text>().expect("body is text");
-    let round = round.report.entities::<Text>().expect("body is text");
+    let original = audit
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+        .expect("body is text");
+    let round = round
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+        .expect("body is text");
     assert_eq!(
         original.len(),
         round.len(),
@@ -145,7 +157,12 @@ async fn write_entities_csv_has_header_and_one_row_per_entity() {
     );
 
     let row_count = lines.count();
-    let entities = audit.report.entities::<Text>().expect("body is text");
+    let entities = audit
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+        .expect("body is text");
     assert_eq!(
         row_count,
         entities.len(),
@@ -173,7 +190,12 @@ async fn write_provenance_csv_emits_one_row_per_event() {
     );
 
     let row_count = lines.count();
-    let entities = audit.report.entities::<Text>().expect("body is text");
+    let entities = audit
+        .report
+        .document::<Text>()
+        .ok()
+        .map(|part| part.entities())
+        .expect("body is text");
     let expected_events: usize = entities
         .iter()
         .map(|entity| entity.audit.events().len())

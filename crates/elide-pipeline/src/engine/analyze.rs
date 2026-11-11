@@ -6,7 +6,7 @@
 //! re-run — so they share one driver rather than two that can
 //! drift.
 
-use elide::{AnalyzedDocument, ArtifactSet, Directives, Error, ErrorKind, Result};
+use elide::{AnalyzedDocument, ArtifactSet, Error, ErrorKind, Result};
 use elide_provider::{Analyzers, RequestContext};
 use elide_schema::policy::Policy;
 
@@ -125,9 +125,7 @@ impl Engine {
         let AnalyzedDocument {
             mut report,
             artifacts,
-        } = orchestrator
-            .re_analyze(&mut handle, prior, &Directives::new())
-            .await?;
+        } = orchestrator.re_analyze(&mut handle, prior).await?;
         // Read after the analysis, not off the report: a model call
         // is recorded where it happens, by the `Metered` decorator
         // each configured backend is wrapped in, and the report

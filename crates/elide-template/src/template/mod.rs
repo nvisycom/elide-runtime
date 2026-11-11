@@ -8,7 +8,7 @@ pub(crate) mod gdpr;
 pub(crate) mod hipaa;
 pub(crate) mod pci;
 
-use elide_core::entity::audit::Attribution;
+use elide::entity::audit::Attribution;
 use elide_schema::policy::{Policy, TemplateOrigin};
 use hipstr::HipStr;
 use jiff::civil::Date;
@@ -58,7 +58,7 @@ pub use self::pci::{PciDssPart, PciPanRender};
 ///   check this against the run date to confirm the template
 ///   that fired was the one in force at the time.
 ///
-/// [`Label`]: elide_core::entity::Label
+/// [`Label`]: elide::entity::Label
 /// [`LabelScope`]: elide_schema::policy::LabelScope
 /// [`Policy`]: elide_schema::policy::Policy
 /// [`Policy::scopes`]: elide_schema::policy::Policy::scopes

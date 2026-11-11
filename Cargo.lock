@@ -242,15 +242,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
-name = "autotools"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef941527c41b0fc0dd48511a8154cd5fc7e29200a0ff8b7203c5d777dbc795cf"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "av-scenechange"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1590,7 +1581,7 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 [[package]]
 name = "elide"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "elide-audio",
@@ -1606,7 +1597,6 @@ dependencies = [
  "elide-markup",
  "elide-ner",
  "elide-office",
- "elide-operator",
  "elide-pattern",
  "elide-pdf",
  "elide-plain",
@@ -1616,7 +1606,7 @@ dependencies = [
 [[package]]
 name = "elide-audio"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1646,7 +1636,7 @@ dependencies = [
 [[package]]
 name = "elide-backend"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1681,7 +1671,7 @@ dependencies = [
 [[package]]
 name = "elide-codec"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1693,7 +1683,7 @@ dependencies = [
 [[package]]
 name = "elide-core"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "blake3",
@@ -1735,7 +1725,7 @@ dependencies = [
 [[package]]
 name = "elide-detection"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1748,7 +1738,7 @@ dependencies = [
 [[package]]
 name = "elide-engine"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "bytes",
  "elide-audio",
@@ -1781,7 +1771,7 @@ dependencies = [
 [[package]]
 name = "elide-fake"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1793,7 +1783,7 @@ dependencies = [
 [[package]]
 name = "elide-format"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "elide-audio",
  "elide-codec",
@@ -1821,7 +1811,7 @@ dependencies = [
 [[package]]
 name = "elide-image"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1839,7 +1829,7 @@ dependencies = [
 [[package]]
 name = "elide-lingua"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1850,7 +1840,7 @@ dependencies = [
 [[package]]
 name = "elide-llm"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1872,7 +1862,7 @@ dependencies = [
 [[package]]
 name = "elide-markup"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "elide-codec",
@@ -1883,7 +1873,7 @@ dependencies = [
 [[package]]
 name = "elide-ner"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "elide-core",
@@ -1896,7 +1886,7 @@ dependencies = [
 [[package]]
 name = "elide-office"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1910,33 +1900,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "elide-operator"
-version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
-dependencies = [
- "aes-gcm",
- "async-trait",
- "base64 0.23.1",
- "bytes",
- "elide-audio",
- "elide-core",
- "elide-fake",
- "elide-image",
- "hex",
- "hipstr",
- "hmac",
- "jiff",
- "schemars 1.2.3",
- "serde",
- "sha2 0.11.1",
- "uuid",
- "zeroize",
-]
-
-[[package]]
 name = "elide-pattern"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "aho-corasick",
  "async-trait",
@@ -1957,7 +1923,7 @@ dependencies = [
 [[package]]
 name = "elide-pdf"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2014,7 +1980,7 @@ dependencies = [
 [[package]]
 name = "elide-plain"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2051,11 +2017,26 @@ dependencies = [
 [[package]]
 name = "elide-redaction"
 version = "0.1.0"
-source = "git+https://github.com/nvisycom/elide?branch=main#5dc9f39818ea2e24ed61cba49773ed91247ead77"
+source = "git+https://github.com/nvisycom/elide?branch=main#ddb3ab9db754c99992d002cdbe06d7e970d233f8"
 dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "base64 0.23.1",
+ "bytes",
+ "elide-audio",
  "elide-core",
+ "elide-fake",
+ "elide-image",
+ "hex",
  "hipstr",
+ "hmac",
+ "jiff",
+ "schemars 1.2.3",
+ "serde",
+ "sha2 0.11.1",
  "tracing",
+ "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -2087,8 +2068,7 @@ dependencies = [
 name = "elide-template"
 version = "0.1.0"
 dependencies = [
- "elide-core",
- "elide-operator",
+ "elide",
  "elide-schema",
  "hipstr",
  "jiff",
@@ -3589,9 +3569,9 @@ dependencies = [
 
 [[package]]
 name = "lopdf"
-version = "0.46.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d43f64cb8c0d673ff84245a6de9e0172c0cc05dc5dd9d263660b5b4a02b6c4ae"
+checksum = "c6ad532ff9262dd4bfd6e085400cbb39959d48cb8d08518b01b68f77bdf6feca"
 dependencies = [
  "aes",
  "bitflags 2.13.2",
@@ -3768,22 +3748,20 @@ dependencies = [
 
 [[package]]
 name = "mp3lame-encoder"
-version = "0.2.5"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60cb9bdd89806317373e36ff745f264b7ed7ffc5bc5aab02dc7d1b837c16a8d4"
+checksum = "a768064bbfe7e0853bda4d0fd9c2ee65e4642f9a4d085265a2a12702a8d30f78"
 dependencies = [
  "mp3lame-sys",
 ]
 
 [[package]]
 name = "mp3lame-sys"
-version = "0.1.11"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54e3b1772db47828840702e5a2e05694527f731abadf9b931355d54035f019d8"
+checksum = "a01c8bcc75d256a40b8e3c8dfefbbebe704eef1615cab5025bf362ba2a55f0c0"
 dependencies = [
- "autotools",
  "cc",
- "libc",
 ]
 
 [[package]]
@@ -4139,7 +4117,7 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "image",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "js-sys",
  "libloading",
  "log",
@@ -4423,7 +4401,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b570b25f7617e43d59005d0990ccb79e950a423952cea19671b7a876da390adf"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.119",

@@ -27,14 +27,13 @@ use elide::codec::FormatRegistry;
 use elide::entity::LabelCatalog;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
+use elide::modality::metadata::Metadata;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::recognition::Scope;
-use elide::redaction::Anonymizer;
-use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, PartId, Report, Result};
+use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, Report, Result};
 use elide_deployment::Deployment;
 use elide_schema::compile_catalog;
-use elide_schema::modality::RedactableModality;
 use elide_schema::policy::{Policy, PolicyRule, Predicate};
 use elide_schema::recognition::Recognition;
 use uuid::Uuid;
@@ -311,7 +310,7 @@ impl Provider {
     /// the persisted [`DocumentContext`] from analyze, re-derive the
     /// label catalog from `policies`, wire them onto every
     /// modality's anonymizer, and skip the analyzer compile
-    /// (analysis already happened; only [`Anonymizer`] state
+    /// (analysis already happened; only [`Anonymizer`](elide::redaction::Anonymizer) state
     /// matters here).
     ///
     /// Only the anonymizer half of each pipeline is built:
@@ -365,6 +364,7 @@ impl Provider {
             .with_modality::<Tabular>()
             .with_modality::<Image>()
             .with_modality::<Audio>()
+            .with_modality::<Metadata>()
             .deserialize(deserializer)
     }
 
@@ -385,6 +385,7 @@ impl Provider {
             .with_modality::<Tabular>()
             .with_modality::<Image>()
             .with_modality::<Audio>()
+            .with_modality::<Metadata>()
             .deserialize_artifacts(deserializer)
     }
 
@@ -436,8 +437,7 @@ impl Provider {
         let catalog = compile_catalog(policies, recognition)?;
         let scope = build_scope(context, catalog.clone(), correlation_id);
         let picker = pickers(&catalog, policies)?;
-        record_into(&picker, report, &scope);
-        Ok(())
+        record_into(picker, report, scope)
     }
 }
 
@@ -539,56 +539,26 @@ fn check_predicate_scopes(
 /// anonymize traces under the document it was handed, without
 /// rewriting what analyze wrote.
 fn build_scope(context: &DocumentContext, catalog: LabelCatalog, run_id: Uuid) -> Scope {
-    Scope {
-        languages: context.languages.clone(),
-        countries: context.countries.clone(),
-        metadata: context.metadata.clone(),
-        catalog,
-        correlation_id: Some(run_id),
-    }
+    Scope::new()
+        .with_languages(context.languages.iter().cloned())
+        .with_countries(context.countries.iter().copied())
+        .with_metadata(context.metadata.clone())
+        .with_catalog(catalog)
+        .with_correlation_id(run_id)
 }
 
 /// Record every entity's operator pick onto its own trail, across
 /// the body and every container part.
 ///
-/// Each modality's anonymizer sees only its own entities, so a
-/// container whose parts span modalities is picked correctly without
-/// the caller sorting them first.
-fn record_into(pickers: &Pickers, report: &mut Report, scope: &Scope) {
-    pick_body(&pickers.text, report, scope);
-    pick_body(&pickers.tabular, report, scope);
-    pick_body(&pickers.image, report, scope);
-    pick_body(&pickers.audio, report, scope);
-
-    let part_ids: Vec<PartId> = report.part_ids().map(|(id, _)| id.clone()).collect();
-    for id in part_ids {
-        pick_part(&pickers.text, report, &id, scope);
-        pick_part(&pickers.tabular, report, &id, scope);
-        pick_part(&pickers.image, report, &id, scope);
-        pick_part(&pickers.audio, report, &id, scope);
-    }
-}
-
-/// Run `anonymizer`'s pick pass over the report body, when the body
-/// is this anonymizer's modality. A no-op otherwise.
-fn pick_body<M: RedactableModality + 'static>(
-    anonymizer: &Anonymizer<M>,
-    report: &mut Report,
-    scope: &Scope,
-) {
-    if let Some(entities) = report.entities_mut::<M>() {
-        anonymizer.pick(entities, scope);
-    }
-}
-
-/// The part counterpart to [`pick_body`].
-fn pick_part<M: RedactableModality + 'static>(
-    anonymizer: &Anonymizer<M>,
-    report: &mut Report,
-    id: &PartId,
-    scope: &Scope,
-) {
-    if let Some(entities) = report.part_entities_mut::<M>(id) {
-        anonymizer.pick(entities, scope);
-    }
+/// Through elide's own [`Orchestrator::pick`], so each part is
+/// picked by its modality's anonymizer exactly as apply will run it,
+/// the flagged-content erasure elide appends included.
+fn record_into(pickers: Pickers, report: &mut Report, scope: Scope) -> Result<()> {
+    Orchestrator::new()
+        .with_scope(scope)
+        .with_anonymizer(pickers.text)
+        .with_anonymizer(pickers.tabular)
+        .with_anonymizer(pickers.image)
+        .with_anonymizer(pickers.audio)
+        .pick(report)
 }

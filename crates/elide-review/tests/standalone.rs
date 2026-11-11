@@ -5,7 +5,7 @@
 //! No engine, no provider, no pipeline — if this file compiles, the
 //! crate stands on its own.
 
-use elide::entity::audit::{Attribution, AuditEvent, AuditKind, AuditLog, ManualIntent};
+use elide::entity::audit::{Attribution, AuditEvent, AuditKind, ManualIntent};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
@@ -20,9 +20,9 @@ fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
         "probe",
         Confidence::MAX,
         location.clone(),
-        elide::entity::audit::PatternEvent::default(),
+        elide::entity::audit::PatternRule::default(),
     );
-    Entity::new(LabelRef::new(label), location, AuditLog::new(event))
+    Entity::new(LabelRef::new(label), location).with_event(event)
 }
 
 /// The one document these reports hold. Since elide unified the
@@ -138,7 +138,10 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
 
     edits.apply(&mut report).expect("composable");
 
-    let entities = report.entities::<Text>().expect("text body");
+    let entities = report
+        .document::<Text>()
+        .map(|part| part.entities())
+        .expect("text body");
     assert_eq!(entities.len(), 2, "the added entity is on the report");
 
     let retagged = entities.iter().find(|e| e.id == id).expect("original");
@@ -173,7 +176,8 @@ fn suppress_stamps_the_entity() {
         .expect("the edits apply to this report");
 
     let e = report
-        .entities::<Text>()
+        .document::<Text>()
+        .map(|part| part.entities())
         .unwrap()
         .iter()
         .find(|e| e.id == id)
@@ -226,7 +230,10 @@ fn an_added_entity_keeps_its_reason_and_actor() {
         .apply(&mut report)
         .expect("the edits apply to this report");
 
-    let added = &report.entities::<Text>().expect("text body")[0];
+    let added = &report
+        .document::<Text>()
+        .map(|part| part.entities())
+        .expect("text body")[0];
     let event = added
         .audit
         .events()
@@ -275,7 +282,8 @@ fn retagging_does_not_unsuppress() {
         .expect("the edits apply to this report");
 
     let e = report
-        .entities::<Text>()
+        .document::<Text>()
+        .map(|part| part.entities())
         .unwrap()
         .iter()
         .find(|e| e.id == id)
@@ -315,7 +323,8 @@ fn applying_leaves_the_caller_s_edits_alone() {
 
     assert_eq!(edits.text.len(), 2, "both edits survive the apply");
     let stamped = report
-        .entities::<Text>()
+        .document::<Text>()
+        .map(|part| part.entities())
         .expect("text body")
         .iter()
         .find(|e| e.id == id)
@@ -343,7 +352,10 @@ fn a_retag_records_who_corrected_it() {
         .apply(&mut report)
         .expect("the edits apply to this report");
 
-    let entity = &report.entities::<Text>().expect("text body")[0];
+    let entity = &report
+        .document::<Text>()
+        .map(|part| part.entities())
+        .expect("text body")[0];
     let event = entity
         .audit
         .events()
@@ -444,7 +456,8 @@ fn an_image_add_lands_in_the_part_it_names() {
 
     assert_eq!(
         report
-            .part_entities::<Image>(&part)
+            .part::<Image>(&part)
+            .map(|part| part.entities())
             .expect("the part carries entities")
             .len(),
         1,
@@ -454,8 +467,7 @@ fn an_image_add_lands_in_the_part_it_names() {
 
 #[test]
 fn an_add_naming_an_absent_part_is_rejected() {
-    // `include_part` returns `false` for a part the report does not
-    // carry, so without this the addition would vanish and the
+    // Landing drops an add whose part the report does not carry, so without this the addition would vanish and the
     // reviewer would be told it landed.
     let report = Report::new().insert_part::<Text>(document(), Vec::new());
 

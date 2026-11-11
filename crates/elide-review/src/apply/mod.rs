@@ -14,9 +14,9 @@
 //!   to decide what to skip.
 //!
 //! Which operator runs is not a reviewer's to choose: elide
-//! re-resolves operators from live policy at apply time, and an
-//! `OperatorId` carries a name and version but no configuration —
-//! so there is nowhere on a report to record one.
+//! re-resolves operators from live policy at apply time, and the
+//! `ComponentId` a pick records carries a name and version but no
+//! configuration — so there is nowhere on a report to record one.
 //!
 //! [`EditSet`]: super::EditSet
 
@@ -44,9 +44,8 @@ impl EditSet {
     ///
     /// [`validate`](Self::validate) runs first and its error is
     /// returned unapplied, so a set that cannot land in full lands
-    /// not at all. Landing is silent by nature — elide's
-    /// `include_part` returns `false` for an unknown part and a
-    /// missing entity is simply not found — so validating here is
+    /// not at all. Landing is silent by nature — an add whose part does not
+    /// resolve is dropped and a missing entity is simply not found — so validating here is
     /// what keeps a reviewer from being told a decision took effect
     /// when the document says otherwise. It is not a second set of
     /// rules; it is the same one, made impossible to skip.

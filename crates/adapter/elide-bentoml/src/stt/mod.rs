@@ -29,7 +29,7 @@ use bentoml::{Client, Endpoint};
 use elide_audio::stt::{SttRequest, SttResponse};
 use elide_core::Result;
 use elide_core::backend::Backend;
-use elide_core::entity::audit::ModelEvent;
+use elide_core::entity::audit::ModelId;
 use hipstr::HipStr;
 use uuid::Uuid;
 
@@ -118,11 +118,10 @@ impl Backend for BentoStt {
     type Request<'a> = SttRequest<'a>;
     type Response = SttResponse;
 
-    fn provenance(&self) -> ModelEvent {
-        ModelEvent {
+    fn provenance(&self) -> ModelId {
+        ModelId {
             name: self.model_id.clone(),
             version: None,
-            contextual: false,
         }
     }
 

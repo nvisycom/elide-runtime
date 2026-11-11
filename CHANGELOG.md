@@ -58,7 +58,8 @@ does today rather than how it got here.
   fingerprints always go, and the report lists what was removed.
   Metadata and collaboration content (comments, tracked changes,
   annotations) go too unless `CodecParams::hidden_content` asks to
-  redact them instead. There is no way to keep either unexamined.
+  scan them as content, or to redact every item the format labels.
+  There is no way to keep either unexamined.
 
 ### What a request supplies
 

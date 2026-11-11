@@ -1,7 +1,7 @@
 //! [`GdprSensitiveScope`]: the widening label axis for the GDPR
 //! Article 9 template.
 
-use elide_core::entity::LabelRef;
+use elide::entity::LabelRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

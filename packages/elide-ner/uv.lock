@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'linux' or sys_platform == 'win32'",
@@ -258,7 +258,7 @@ name = "cffi"
 version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
+    { name = "pycparser" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz", hash = "sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be", size = 530807, upload-time = "2026-08-03T21:21:18.939Z" }
 wheels = [
@@ -1357,13 +1357,13 @@ resolution-markers = [
     "sys_platform != 'linux' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "filelock", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
-    { name = "fsspec", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
-    { name = "jinja2", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
-    { name = "networkx", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
-    { name = "setuptools", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
-    { name = "sympy", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
-    { name = "typing-extensions", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
+    { name = "filelock" },
+    { name = "fsspec" },
+    { name = "jinja2" },
+    { name = "networkx" },
+    { name = "setuptools" },
+    { name = "sympy" },
+    { name = "typing-extensions" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/17/24/7b9b755e8c4dd2395c6a94bab6a4ed8aded1735ff2538bc63cbba8abeddd/torch-2.15.0-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:593e5fd0c204284890d1c3dff643be34e549e1d24523e13402510f960d4da438", size = 138558517, upload-time = "2026-10-28T15:16:35.918Z" },
@@ -1377,13 +1377,13 @@ resolution-markers = [
     "sys_platform == 'linux' or sys_platform == 'win32'",
 ]
 dependencies = [
-    { name = "filelock", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "fsspec", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "jinja2", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "networkx", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "setuptools", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "sympy", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "typing-extensions", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "filelock" },
+    { name = "fsspec" },
+    { name = "jinja2" },
+    { name = "networkx" },
+    { name = "setuptools" },
+    { name = "sympy" },
+    { name = "typing-extensions" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.15.0%2Bcpu-cp312-cp312-linux_s390x.whl", hash = "sha256:29c74659a82483d9a9c5d7f9e1112973dfa2dce5b3956dba5d1b97381b94cfae", upload-time = "2026-10-28T13:18:25Z" },
@@ -1429,7 +1429,7 @@ wheels = [
 
 [[package]]
 name = "transformers"
-version = "5.22.0"
+version = "5.22.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
@@ -1442,9 +1442,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/a0/ff6bb1ac6f340ac6131e07c6763b7c29de8f192ae1c85f1992b0f634fff5/transformers-5.22.0.tar.gz", hash = "sha256:f2864f282383820089b21d104d55cb72118b8594f053c2cbeb58d0740f9ff662", size = 10381714, upload-time = "2026-10-29T14:18:18.404Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/17/d6/a610b37bbc3450c056ea68c7f5016d06da8e787c1ac32b20ce58d18a1eb0/transformers-5.22.1.tar.gz", hash = "sha256:bed9fd76d6f43b4a1a9fc5d0c565ace7c77edbd029784f8cbcdf772cb5e924d8", size = 10381794, upload-time = "2026-10-30T07:48:03.721Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6b/21/f9d73a82d7d7d47fccab5acb2236f67b033106df2f2d193a01e9f229968f/transformers-5.22.0-py3-none-any.whl", hash = "sha256:3cca65f94b0aa33511433c7c1a661c513e4ad8bc0504cb370d181d771e7c9aa0", size = 13051755, upload-time = "2026-10-29T14:18:15.031Z" },
+    { url = "https://files.pythonhosted.org/packages/75/75/47ebe0e2f1b04a180000e3a49ebdf4669dbab0c63489bcecf7855c26e4f4/transformers-5.22.1-py3-none-any.whl", hash = "sha256:c940b4bf98de4f568723895f330ba1460a398bd83061b93b70238c3fe32e4389", size = 13051755, upload-time = "2026-10-30T07:47:59.888Z" },
 ]
 
 [[package]]

@@ -41,7 +41,7 @@ elide-core = { path = "packages/elide-core", editable = true }
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    "ruff>=0.16.3",
+    "ruff>=0.17.4",
 ]
 # What the Rust E2E harness needs to run the real services with fake model
 # libraries: the HTTP stack and the input decoders, no model runtimes.

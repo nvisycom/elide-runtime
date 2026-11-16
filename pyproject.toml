@@ -41,13 +41,13 @@ elide-core = { path = "packages/elide-core", editable = true }
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    "ruff>=0.16.3",
+    "ruff>=0.17.5",
 ]
 # What the Rust E2E harness needs to run the real services with fake model
 # libraries: the HTTP stack and the input decoders, no model runtimes.
 e2e = [
     "bentoml>=1.4.39,<2",
-    "librosa>=0.11,<2",
+    "librosa>=1.0.1,<2",
     "numpy>=2,<3",
     "pillow>=12.3,<14",
     "prometheus-client>=0.26.0",

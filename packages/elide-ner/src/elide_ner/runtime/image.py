@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 
 import bentoml
+from elide_core.image import OS_SECURITY_UPDATES
 
 # Build-time image spec, skipped inside the container. `requirements_file`
 # reads the file when this module is imported, and the path it needs differs
@@ -33,15 +34,7 @@ image = (
     if os.getenv("BENTOML_CONTAINERIZED")
     else (
         bentoml.images.Image(python_version="3.12", lock_python_packages=False)
-        # Apply Debian's security updates over the base image, so a CVE fixed
-        # after the base was published does not ship in ours: the image scan
-        # fails on any fixed HIGH or CRITICAL, and the slim base lags the
-        # archive.
-        .run(
-            "apt-get update"
-            " && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends"
-            " && rm -rf /var/lib/apt/lists/*"
-        )
+        .run(OS_SECURITY_UPDATES)
         # The torch pins are `+cpu` builds from the PyTorch CPU index, which
         # requirements.txt carries as an --extra-index-url. That index also mirrors
         # unrelated packages (certifi, filelock, ...) at versions that may not match

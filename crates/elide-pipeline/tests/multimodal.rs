@@ -5,6 +5,8 @@
 
 mod fixtures;
 
+mod support;
+
 use std::io::{Cursor, Read};
 
 use bytes::Bytes;
@@ -19,6 +21,7 @@ use elide_pipeline::provider::{
 use elide_pipeline::{Audit, Engine};
 use elide_schema::policy::{LabelScope, Policy};
 use elide_schema::redaction::ModalityRedactions;
+use support::SoleDocument;
 
 use self::fixtures::write_artefact;
 
@@ -91,7 +94,7 @@ async fn analyze_captures_text_body_and_image_part() {
         "fixture should carry at least one body entity",
     );
 
-    let part_id = PartId::new(DOCUMENT).child(IMAGE_PART_ID);
+    let part_id = PartId::leaf(DOCUMENT).child(IMAGE_PART_ID);
     assert!(
         analyzed.report.part::<Image>(&part_id).is_ok(),
         "expected part `{IMAGE_PART_ID}` to carry Image entities; got parts: {:?}",
@@ -131,7 +134,7 @@ async fn anonymize_redacts_targeted_entity_and_preserves_other_parts() {
             vec![LabelRef::new("email_address")],
         )],
         fallback: Some(ModalityRedactions {
-            text: Some(elide_schema::redaction::TextRedaction::Erase),
+            text: Some(elide_schema::redaction::TextRedaction::Remove),
             ..Default::default()
         }),
         ..Policy::default()
@@ -247,7 +250,7 @@ async fn audit_rejects_a_missing_round_trip_field_on_deserialize() {
         // modality registry a serialized report needs to be rebuilt.
         let json = serde_json::to_string(&value).expect("re-serialize");
         let mut de = serde_json::Deserializer::from_str(&json);
-        let Err(err) = engine.deserialize_audit(&mut de) else {
+        let Err(err) = engine.deserialize_audit(&analyzed.digest(), &mut de) else {
             panic!("deserializing without `{field}` must fail");
         };
         assert!(
@@ -273,7 +276,7 @@ async fn analyze_rejects_policy_that_references_unknown_group() {
                 scope: "definitely_no_such_group".to_owned(),
             },
             action: Box::new(ModalityRedactions {
-                text: Some(TextRedaction::Erase),
+                text: Some(TextRedaction::Remove),
                 ..Default::default()
             }),
         },
@@ -312,7 +315,6 @@ async fn anonymize_rejects_an_audit_that_never_ran_analyze() {
         context: DocumentContext::default(),
         codec: CodecParams::default(),
         selection: Default::default(),
-        usage: Default::default(),
     };
 
     let Err(err) = engine
@@ -354,7 +356,7 @@ async fn artifacts_round_trip_beside_the_audit_and_seed_a_re_run() {
     let json = serde_json::to_string(&analyzed.artifacts).expect("artifacts serialize");
     let mut de = serde_json::Deserializer::from_str(&json);
     let restored = engine
-        .deserialize_artifacts(&mut de)
+        .deserialize_artifacts(&analyzed.artifacts.digest(), &mut de)
         .expect("artifacts rebuild from the wire");
 
     // The restored set seeds a re-run, which detects as the first pass did.

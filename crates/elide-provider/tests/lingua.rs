@@ -9,7 +9,9 @@
 use elide::ErrorKind;
 use elide::entity::LabelRef;
 use elide_provider::deployment::Lingua;
-use elide_provider::{Availability, Deployment, DocumentContext, Enrichers, Provider, Recognizers};
+use elide_provider::{
+    Availability, Deployment, DocumentContext, Enrichers, Pass, Provider, Recognizers,
+};
 use elide_schema::policy::{LabelScope, Policy};
 
 /// A policy naming one label, so compilation gets past the
@@ -42,10 +44,12 @@ fn compile_with(lingua: Lingua) -> Result<(), (ErrorKind, String)> {
 
     provider
         .analyze_orchestrator(
-            &DocumentContext::default(),
-            &[],
-            &[a_policy()],
-            uuid::Uuid::now_v7(),
+            &Pass {
+                policies: &[a_policy()],
+                context: &DocumentContext::default(),
+                recognition: &[],
+                correlation_id: uuid::Uuid::now_v7(),
+            },
             &Default::default(),
         )
         .map(|_| ())

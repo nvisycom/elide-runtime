@@ -11,9 +11,11 @@
 //!   answer one question twice.
 
 mod error;
+pub(crate) mod hidden;
 mod record;
 mod set;
 
 pub use self::error::EditError;
-pub use self::record::{Add, Edit, Retag, Reviewer, Suppress};
+pub use self::hidden::{HiddenChoice, HiddenContentEdits, RemoveAll};
+pub use self::record::{Add, Edit, Retag, Suppress};
 pub use self::set::{EditBucket, EditSet};

@@ -32,15 +32,15 @@ use elide_schema::policy::{Policy, Predicate};
 use elide_schema::redaction::ModalityRedactions;
 use uuid::Uuid;
 
-use super::selector::{PolicyContext, attach};
+use super::selector::{self, PolicyContext};
 
 /// Where an operator is being attached. The per-modality `Op`
 /// dispatcher takes one of these and feeds the carried
 /// `Anonymizer<M>` through the right elide entry point.
 pub(in crate::redact) enum Target<'a, M: Modality> {
     /// Rule attachment: predicate-guarded redaction with a
-    /// name + description attribution. Maps to
-    /// [`super::selector::attach`]. `context` carries the
+    /// name + description attribution, built by
+    /// [`super::selector::rule`]. `context` carries the
     /// enclosing policy's per-policy label scope and group table.
     Rule {
         anonymizer: Anonymizer<M>,
@@ -64,26 +64,33 @@ pub(in crate::redact) enum Target<'a, M: Modality> {
 impl<'a, M: Modality + 'static> Target<'a, M> {
     /// Attach `operator` to whichever target this is. Centralises
     /// the per-target dispatch so each per-modality `Op` enum
-    /// needs exactly one match on its own variants: no separate
-    /// `attach_rule` / `attach_fallback` / `attach_override`
-    /// dispatchers per modality.
+    /// needs exactly one match on its own variants rather than a
+    /// dispatcher per target.
     pub(in crate::redact) fn attach_with<O>(self, operator: O) -> Anonymizer<M>
     where
         O: Operator<M> + 'static,
     {
-        match self {
+        // Either way the rule carries the policy's attribution, so
+        // every redaction it drives names the policy on its
+        // provenance event.
+        let (anonymizer, rule, attribution) = match self {
             Target::Rule {
                 anonymizer,
                 predicate,
                 attribution,
                 context,
-            } => attach(anonymizer, predicate, operator, attribution, context),
+            } => (
+                anonymizer,
+                selector::rule(predicate, operator, context),
+                attribution,
+            ),
             Target::Fallback {
                 anonymizer,
                 attribution,
                 context,
-            } => attach_fallback(anonymizer, operator, attribution, context),
-        }
+            } => (anonymizer, fallback_rule(operator, context), attribution),
+        };
+        anonymizer.with(rule.because(attribution))
     }
 
     /// Recover the anonymizer unchanged, for a policy rule or
@@ -110,8 +117,9 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
     }
 }
 
-/// Attach the policy's `fallback` operator, scoped so it only
-/// fires on entities whose label the policy actually declared.
+/// The rule applying the policy's `fallback` operator, scoped so
+/// it only fires on entities whose label the policy actually
+/// declared.
 ///
 /// Compiles to a plain [`Rule::predicate`] rather than elide's
 /// [`Rule::fallback`] for two reasons:
@@ -131,18 +139,13 @@ impl<'a, M: Modality + 'static> Target<'a, M> {
 ///
 /// [`Rule::predicate`]: elide::redaction::Rule::predicate
 /// [`Rule::fallback`]: elide::redaction::Rule::fallback
-fn attach_fallback<M, O>(
-    anonymizer: Anonymizer<M>,
-    operator: O,
-    attribution: Attribution,
-    context: PolicyContext,
-) -> Anonymizer<M>
+fn fallback_rule<M, O>(operator: O, context: PolicyContext) -> Rule<M>
 where
     M: Modality + 'static,
     O: Operator<M> + 'static,
 {
-    let scoped = move |cx: &MatchContext<'_, M>| context.label_scope_contains(&cx.entity.label);
-    anonymizer.with(Rule::predicate(scoped, operator).because(attribution))
+    let scoped = move |cx: &MatchContext<'_, M>| context.label_scope_contains(cx.entity.label());
+    Rule::predicate(scoped, operator)
 }
 
 /// Walk `policies` and feed each rule + each fallback through

@@ -84,21 +84,10 @@ codec-sniff = ["elide/codec-sniff"]
 ## rendering dep.
 codec-pdf-render = ["codec-pdf", "elide/codec-pdf-render"]
 
-## Emit each backend call's usage as a `tracing` event, so a
-## deployment's existing subscriber records what every model call
-## cost without reading the audit.
-metrics-tracing = ["elide/metrics-tracing"]
-
-## Report each backend call through the `metrics` facade, to
-## whatever recorder the host installed.
-metrics-recorder = ["elide/metrics-recorder"]
-
 ## JSON audit export via `elide_export::ExportJson`.
 audit-json = ["dep:elide-export", "elide-export/json"]
-## CSV audit export via `elide_export::ExportCsv`. Pulls
-## `serde_json` for reading enum-tagged operator kinds off
-## reviewer overrides.
-audit-csv = ["dep:elide-export", "elide-export/csv", "dep:serde_json"]
+## CSV audit export via `elide_export::ExportCsv`.
+audit-csv = ["dep:elide-export", "elide-export/csv"]
 ## Bundle every audit CSV table into one zip archive via
 ## `elide_export::ExportCsv::write_zip`.
 audit-zip = ["audit-csv", "elide-export/zip"]
@@ -135,7 +124,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["engine", "codec", "codec-text", "tabular", "image", "audio", "serde", "schema", "metrics"] }
+elide = { workspace = true, features = ["engine", "codec", "codec-text", "tabular", "image", "audio", "serde", "schema"] }
 
 # Internal crates
 elide-export = { workspace = true, features = [], optional = true }
@@ -147,7 +136,7 @@ elide-template = { workspace = true }
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 serde-value = { workspace = true, features = [] }
-serde_json = { workspace = true, features = [], optional = true }
+serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
 # Primitive datatypes

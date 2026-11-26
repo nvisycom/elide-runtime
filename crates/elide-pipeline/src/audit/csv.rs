@@ -22,49 +22,14 @@ use std::{io, result};
 use elide::entity::Entity;
 use elide::entity::audit::{Attribution, AuditKind, ManualIntent};
 use elide::modality::Modality;
-use elide::modality::audio::Audio;
-use elide::modality::image::Image;
-use elide::modality::metadata::Metadata;
-use elide::modality::tabular::Tabular;
-use elide::modality::text::Text;
-use elide::{Error, ErrorKind, PartId, Report, Result};
+use elide::{Error, ErrorKind, PartId, Result};
 use elide_export::{ExportCsv, Table, write_rows};
+use elide_review::sorted_part_ids;
+use elide_schema::each_modality;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use super::Audit;
-
-/// Run `$body` once per modality, binding `$m` to the modality
-/// type. Its wire name is `$m::NAME`.
-///
-/// A report stores entities per modality and hands them back only
-/// through a typed accessor, so every walk over "all entities" is
-/// one probe per modality. The modality list lives here so adding
-/// one means touching one macro rather than every row builder.
-macro_rules! per_modality {
-    (|$m:ident| $body:expr) => {{
-        {
-            type $m = Text;
-            $body
-        }
-        {
-            type $m = Tabular;
-            $body
-        }
-        {
-            type $m = Image;
-            $body
-        }
-        {
-            type $m = Audio;
-            $body
-        }
-        {
-            type $m = Metadata;
-            $body
-        }
-    }};
-}
 
 impl ExportCsv for Audit {
     /// Entities first, then their provenance, then reviewer
@@ -136,7 +101,7 @@ impl Audit {
     fn entity_rows(&self) -> Vec<EntityRow<'_>> {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
-        per_modality!(|M| {
+        each_modality!(|M| {
             for id in &parts {
                 if let Ok(entities) = self.report.part::<M>(id).map(|part| part.entities()) {
                     extend_entity_rows::<M>(entities, &encode_part_path(id), &mut rows);
@@ -156,7 +121,7 @@ impl Audit {
     fn provenance_rows(&self) -> Vec<ProvenanceRow<'_>> {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
-        per_modality!(|M| {
+        each_modality!(|M| {
             for id in &parts {
                 if let Ok(entities) = self.report.part::<M>(id).map(|part| part.entities()) {
                     extend_provenance_rows(entities, &mut rows);
@@ -181,7 +146,7 @@ impl Audit {
     fn review_rows(&self) -> Vec<ReviewRow<'_>> {
         let mut rows = Vec::new();
         let parts = sorted_part_ids(&self.report);
-        per_modality!(|M| {
+        each_modality!(|M| {
             for id in &parts {
                 if let Ok(entities) = self.report.part::<M>(id).map(|part| part.entities()) {
                     extend_review_rows(entities, &mut rows);
@@ -261,10 +226,10 @@ fn extend_entity_rows<'a, M: Modality>(
     out.extend(entities.iter().map(|e| EntityRow {
         part_id: part_id.to_owned(),
         modality: M::NAME,
-        entity_id: e.id,
-        label: e.label.as_str(),
-        confidence: f32::from(e.confidence),
-        coref: e.coref.as_ref().map(|c| c.as_str()),
+        entity_id: e.id(),
+        label: e.label().as_str(),
+        confidence: f32::from(e.confidence()),
+        coref: e.coref().map(|c| c.as_str()),
     }));
 }
 
@@ -273,10 +238,10 @@ fn extend_provenance_rows<'a, M: Modality>(
     out: &mut Vec<ProvenanceRow<'a>>,
 ) {
     for entity in entities {
-        for (index, event) in entity.audit.events().iter().enumerate() {
+        for (index, event) in entity.audit().events().iter().enumerate() {
             let columns = EventColumns::of(&event.kind);
             out.push(ProvenanceRow {
-                entity_id: entity.id,
+                entity_id: entity.id(),
                 event_index: index,
                 kind: columns.kind,
                 source: event.source.as_str(),
@@ -288,19 +253,22 @@ fn extend_provenance_rows<'a, M: Modality>(
     }
 }
 
-/// Collect one row per reviewer override on these entities.
+/// Collect one row per reviewer decision on these entities.
 ///
 /// Walks the same provenance chains the
-/// [`Provenance`](Table::Provenance) table does and keeps only the
-/// manual events, so an entity no reviewer touched contributes
-/// nothing and an entity overridden twice contributes two rows.
+/// [`Provenance`](Table::Provenance) table does and keeps only a
+/// reviewer's inclusion and manual events, so an entity no reviewer
+/// touched contributes nothing and an entity overridden twice
+/// contributes two rows.
 fn extend_review_rows<'a, M: Modality>(entities: &'a [Entity<M>], out: &mut Vec<ReviewRow<'a>>) {
     for entity in entities {
-        for event in entity.audit.events() {
-            let AuditKind::Manual(manual) = &event.kind else {
-                continue;
+        for event in entity.audit().events() {
+            let (intent, attribution) = match &event.kind {
+                AuditKind::Include(include) => ("include", &include.attribution),
+                AuditKind::Manual(manual) => (intent_name(&manual.intent), &manual.attribution),
+                _ => continue,
             };
-            let (authority, reason) = match &manual.attribution {
+            let (authority, reason) = match attribution {
                 Some(Attribution::Cited(cited)) => {
                     (Some(cited.authority.as_str()), cited.rationale.as_deref())
                 }
@@ -311,8 +279,8 @@ fn extend_review_rows<'a, M: Modality>(entities: &'a [Entity<M>], out: &mut Vec<
                 None => (None, None),
             };
             out.push(ReviewRow {
-                entity_id: entity.id,
-                intent: intent_name(manual.intent),
+                entity_id: entity.id(),
+                intent,
                 reviewer: event.source.as_str(),
                 authority,
                 reason,
@@ -327,11 +295,12 @@ fn extend_review_rows<'a, M: Modality>(entities: &'a [Entity<M>], out: &mut Vec<
 /// Shared with [`EventColumns::of`], so the `payload_id` a
 /// provenance row shows for a manual event and the `intent` this
 /// table shows cannot disagree.
-const fn intent_name(intent: ManualIntent) -> &'static str {
+const fn intent_name(intent: &ManualIntent) -> &'static str {
     match intent {
-        ManualIntent::Flag => "flag",
         ManualIntent::Suppress => "suppress",
-        ManualIntent::Amend => "amend",
+        ManualIntent::Confirm => "confirm",
+        ManualIntent::Relabel { .. } => "relabel",
+        ManualIntent::Relocate => "relocate",
     }
 }
 
@@ -411,17 +380,20 @@ impl<'a> EventColumns<'a> {
         match kind {
             AuditKind::Pattern(e) => Self::named("pattern", e.rule.name.as_str()),
             AuditKind::Model(e) => Self::named("model", e.model.name.as_str()),
-            AuditKind::Deduplication(e) => Self::named("deduplication", e.strategy.as_str()),
+            AuditKind::Flagged(e) => Self::named("flagged", e.label.as_str()),
+            AuditKind::Fusion(e) => Self::named("fusion", e.strategy.as_str()),
             AuditKind::Conflict(e) => Self::named("conflict", e.resolved_by.as_str()),
             AuditKind::Contested(e) => Self::named("contested", e.flagged_by.as_str()),
             AuditKind::Calibration(_) => Self::bare("calibration"),
             AuditKind::Refinement(_) => Self::bare("refinement"),
             AuditKind::Redaction(_) => Self::bare("redaction"),
             AuditKind::Selection(e) => Self::named("selection", e.operator.name.as_str()),
+            AuditKind::Include(e) => Self::named("include", e.label.as_str()),
             // The reviewer is the event's own `source`, which the row
             // already carries; what distinguishes one manual event from
             // another is which decision it recorded.
-            AuditKind::Manual(e) => Self::named("manual", intent_name(e.intent)),
+            AuditKind::Manual(e) => Self::named("manual", intent_name(&e.intent)),
+            AuditKind::Annotation(_) => Self::bare("annotation"),
             // `AuditKind` is `#[non_exhaustive]`: a kind added upstream
             // lands here rather than breaking the build. Every variant
             // elide ships today is named above, so this arm firing means
@@ -447,16 +419,4 @@ fn serialize_confidence<S: Serializer>(value: &f32, s: S) -> result::Result<S::O
 fn encode_part_path(id: &PartId) -> String {
     let segments: Vec<&str> = id.segments().collect();
     serde_json::to_string(&segments).unwrap_or_else(|_| id.to_string())
-}
-
-/// The report's container part ids, sorted, so an export is stable
-/// across runs.
-///
-/// Borrowed from the report rather than cloned: nothing here needs
-/// ownership, and the ids outlive every row built from them.
-fn sorted_part_ids(report: &Report) -> Vec<&PartId> {
-    let mut ids: Vec<&PartId> = report.part_ids().map(|(id, _)| id).collect();
-    // By path, so a document sorts before the parts nested under it.
-    ids.sort_by(|a, b| a.segments().cmp(b.segments()));
-    ids
 }

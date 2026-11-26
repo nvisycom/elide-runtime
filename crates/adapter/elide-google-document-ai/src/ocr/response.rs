@@ -6,12 +6,16 @@
 //! pixel `vertices` and as `normalized_vertices` — and this reads the
 //! pixel form, which is what [`ImageLocation`] holds.
 
+use elide_core::entity::audit::ModelId;
 use elide_core::primitive::Confidence;
 use elide_image::modality::{ImageLocation, LayoutRegion};
 use elide_image::ocr::OcrResponse;
 use elide_image::primitive::{BoundingBox, Point};
 use google_cloud_documentai_v1::model::document::page::Layout;
 use google_cloud_documentai_v1::model::{BoundingPoly, Document};
+
+/// The model every response names.
+const MODEL: &str = "google/document-ai";
 
 /// The transcript of a processed document.
 ///
@@ -41,7 +45,7 @@ pub(super) fn decode(document: &Document) -> OcrResponse {
             }
         }
     }
-    OcrResponse::new(regions)
+    OcrResponse::new(ModelId::new(MODEL), regions)
 }
 
 /// One region from a layout element, or `None` when it has no usable
@@ -143,7 +147,7 @@ mod tests {
 
     fn layout(points: &[(i32, i32)], start: i64, end: i64) -> Layout {
         Layout::new()
-            .set_confidence(0.9)
+            .set_confidence(0.9_f32)
             .set_bounding_poly(poly(points))
             .set_text_anchor(TextAnchor::new().set_text_segments(vec![
                 TextSegment::new().set_start_index(start).set_end_index(end),
@@ -199,7 +203,7 @@ mod tests {
     /// the origin, which would redact the wrong part of the image.
     #[test]
     fn drops_layouts_without_pixel_vertices() {
-        let bare = Layout::new().set_confidence(0.9).set_text_anchor(
+        let bare = Layout::new().set_confidence(0.9_f32).set_text_anchor(
             TextAnchor::new()
                 .set_text_segments(vec![TextSegment::new().set_start_index(0).set_end_index(5)]),
         );

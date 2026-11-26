@@ -35,7 +35,7 @@
 //! Templates are plain data. Nothing is registered globally, and
 //! no template constructor talks to the engine or hits I/O. A
 //! caller wanting to diverge from the shipped operator (say,
-//! swap the default [`TextRedaction::Erase`] for a
+//! swap the default [`TextRedaction::Remove`] for a
 //! [`TextRedaction::Pseudonymize`] for retained analytics use)
 //! mutates the returned [`Policy`] before submitting.
 //!
@@ -50,7 +50,7 @@
 //! [`Date`]: jiff::civil::Date
 //! [`LabelScope`]: elide_schema::policy::LabelScope
 //! [`Policy`]: elide_schema::policy::Policy
-//! [`TextRedaction::Erase`]: elide_schema::redaction::TextRedaction::Erase
+//! [`TextRedaction::Remove`]: elide_schema::redaction::TextRedaction::Remove
 //! [`TextRedaction::Pseudonymize`]: elide_schema::redaction::TextRedaction::Pseudonymize
 //! [`Version`]: semver::Version
 

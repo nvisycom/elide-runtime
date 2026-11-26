@@ -6,7 +6,7 @@
 //!
 //! Each modality has its own enum because the operator catalogue
 //! differs by modality. Text carries the full elide built-in set
-//! ([`Erase`], [`Keep`], [`Mask`], [`Replace`], [`Hash`], [`Fake`],
+//! ([`Remove`], [`Keep`], [`Mask`], [`Replace`], [`Hash`], [`Fake`],
 //! [`Pseudonymize`], [`Encrypt`], [`HmacHash`], [`Truncate`],
 //! [`Clamp`], [`GeneralizeDate`], and the [`WithFallback`] wrapper).
 //! Image, audio, and tabular each carry their own operator sets
@@ -19,7 +19,7 @@
 //! variant into the matching runtime operator instance at apply
 //! time.
 //!
-//! [`Erase`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Erase.html
+//! [`Remove`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Remove.html
 //! [`Keep`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Keep.html
 //! [`Mask`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Mask.html
 //! [`Replace`]: https://docs.rs/elide/latest/elide/redaction/operators/struct.Replace.html
@@ -75,7 +75,7 @@ pub struct ModalityRedactions {
 
 impl ModalityRedactions {
     /// Shortcut for the common "text-only" case:
-    /// `ModalityRedactions::text(TextRedaction::Erase)` builds an
+    /// `ModalityRedactions::text(TextRedaction::Remove)` builds an
     /// action that fires on text entities and leaves every other
     /// modality untouched. Every regulatory template constructor
     /// uses this shape; expressing it as a builder saves the
@@ -158,13 +158,13 @@ mod tests {
         // A rule built with `text` alone matches a tabular entity
         // and attaches nothing, so the cell survives unredacted
         // with no error. `textual` is what closes that.
-        let action = ModalityRedactions::textual(TextRedaction::Erase);
+        let action = ModalityRedactions::textual(TextRedaction::Remove);
 
-        assert_eq!(action.text, Some(TextRedaction::Erase));
+        assert_eq!(action.text, Some(TextRedaction::Remove));
         assert_eq!(
             action.tabular,
             Some(TabularRedaction::Cell {
-                spec: TextRedaction::Erase,
+                spec: TextRedaction::Remove,
             }),
             "the same operator, applied to the cell's own text",
         );

@@ -66,6 +66,8 @@ allow = [
     "BSL-1.0",
     "CC0-1.0",
     "Zlib",
+    # minicbor, through aws-sdk-textract's CBOR protocol support.
+    "BlueOak-1.0.0",
 ]
 
 exceptions = [
@@ -95,6 +97,8 @@ exceptions = [
     # grant stays limited to this bundle. Nothing else in the graph
     # may ship under it without another decision here.
     { name = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
+    # webpki-root-certs: the same Mozilla root certificates, as data.
+    { name = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
 ]
 
 [bans]

@@ -115,54 +115,12 @@ pub mod primitive {
     /// is from, and the languages it is in.
     #[doc(inline)]
     pub use elide::primitive::{CountryCode, LanguageTag};
-}
-
-/// What a pass spent, call by call.
-///
-/// Grouped for the same reason as [`primitive`]: these hang off the
-/// entries on [`Audit::usage`] rather than appearing on a signature
-/// of this crate's own, so they belong behind a name instead of
-/// crowding the root.
-///
-/// Always recorded: every configured backend is wrapped, so an
-/// audit says what each model call cost whether or not a
-/// deployment bills on it. A pass that called no model carries an
-/// empty tally, which is skipped on the wire.
-///
-/// [`Audit::usage`]: Audit::usage
-pub mod usage {
-    /// One backend call's record, and the pieces it is built from:
-    /// the model called, whether the call succeeded, and the units
-    /// it spent — tokens, audio seconds, pages, images, characters.
-    ///
-    /// [`UsageCollector`] is the sink a run collects into, and
-    /// [`Metered`] the decorator that feeds it; a host wiring its
-    /// own accounting needs both.
-    #[doc(inline)]
-    pub use elide::backend::metrics::{
-        Metered, ModelUsage, Outcome, Usage, UsageCollector, UsageSink,
-    };
-    /// Which component a usage entry belongs to: its configured
-    /// name and the version that ran.
-    ///
-    /// Covers enrichers as well as recognizers, so one identity
-    /// spans both halves of a lineup.
-    #[doc(inline)]
-    pub use elide::primitive::ComponentId;
-    /// The scope metadata a recognizer ran under.
+    /// Free-form classification a request asserts about its
+    /// document, carried on its context.
     #[doc(inline)]
     pub use elide::recognition::ScopeMetadata;
 }
 
-/// One backend call's cost, carried on [`Audit::usage`].
-///
-/// Stays at the root, unlike the types it is built from: it is the
-/// element type of a public field, so a signature over an [`Audit`]
-/// has to name it. Its constituents live in [`usage`].
-///
-/// [`Audit::usage`]: Audit::usage
-#[doc(inline)]
-pub use elide::backend::metrics::Usage;
 /// The encryption-key source a PCI-DSS posture requires, wired via
 /// `Engine::with_key_provider`.
 ///

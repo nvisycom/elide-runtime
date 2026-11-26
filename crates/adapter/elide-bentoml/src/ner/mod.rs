@@ -36,8 +36,8 @@ const ROUTE: &str = "recognize";
 /// BentoML NER backend.
 ///
 /// Owns a cached [`Endpoint`] pointing at the `elide-ner`
-/// `/recognize` route, plus the per-deployment model id (echoed
-/// into [`Backend::provenance`]) and a default per-label
+/// `/recognize` route, plus the per-deployment model id (named
+/// on every response it decodes) and a default per-label
 /// confidence threshold the service applies when a schema entry
 /// does not pin its own.
 #[derive(Debug, Clone)]
@@ -50,7 +50,7 @@ pub struct BentoNer {
     /// client it was built from.
     client: Client,
     endpoint: Endpoint,
-    /// Service-side model identifier echoed in provenance.
+    /// Service-side model identifier each response names.
     model_id: HipStr<'static>,
     /// Default per-label confidence cutoff sent on every request.
     /// Per-label thresholds in the schema override it.
@@ -123,7 +123,7 @@ impl BentoNer {
         let mut body = Vec::new();
         for (index, request) in requests.iter().enumerate() {
             if request.labels.is_some_and(|labels| labels.is_empty()) {
-                responses[index] = Some(NerResponse::new(Vec::new()));
+                responses[index] = Some(NerResponse::new(self.model(), Vec::new()));
             } else {
                 body.push(WireNerRequest::from_request(
                     request,
@@ -161,9 +161,17 @@ impl BentoNer {
             )));
         }
         for (index, response) in active.into_iter().zip(wire.0) {
-            responses[index] = Some(response.decode_request(&requests[index])?);
+            responses[index] = Some(response.decode_request(self.model(), &requests[index])?);
         }
         Ok(responses.into_iter().flatten().collect())
+    }
+}
+
+impl BentoNer {
+    /// The model each response names: the one this deployment
+    /// configured.
+    fn model(&self) -> ModelId {
+        ModelId::new(self.model_id.clone())
     }
 }
 
@@ -171,13 +179,6 @@ impl BentoNer {
 impl Backend for BentoNer {
     type Request<'a> = NerRequest<'a>;
     type Response = NerResponse;
-
-    fn provenance(&self) -> ModelId {
-        ModelId {
-            name: self.model_id.clone(),
-            version: None,
-        }
-    }
 
     async fn call(&self, request: NerRequest<'_>) -> Result<NerResponse> {
         // One request in, so exactly one response out. `pop` alone would

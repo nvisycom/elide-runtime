@@ -4,18 +4,16 @@
 //! decoded.
 
 use bytes::Bytes;
+use elide::PartId;
 use elide::entity::LabelRef;
-use elide::redaction::HiddenContent;
+use elide::modality::tabular::Tabular;
 use elide_pipeline::Engine;
 use elide_pipeline::file::Document;
-use elide_pipeline::provider::{
-    CodecParams, Deployment, Disposition, HiddenContentPolicy, Provider, RequestContext,
-};
+use elide_pipeline::provider::{CodecParams, Deployment, Provider, RequestContext};
 use elide_schema::policy::{LabelScope, Policy};
-use elide_schema::redaction::{ModalityRedactions, TabularRedaction, TextRedaction};
 
 /// A headerless CSV: every row is data, and the first row carries
-/// an address that must be reachable like any other.
+/// an address like the others.
 const HEADERLESS: &[u8] = b"ada@example.com,1\ngrace@example.com,2\n";
 
 /// An engine with no enrichers: these tests exercise the codec,
@@ -45,65 +43,51 @@ fn csv(bytes: &'static [u8]) -> Document {
 }
 
 /// `csv_has_headers: false` reaches the codec, and the difference
-/// is observable: a header row is protected from `DropRow`, so
-/// under the default the first record survives a drop-everything
-/// policy. Told the file is headerless, the same row is ordinary
-/// data and goes.
+/// is observable: under the default the first row is the header, so
+/// a cell below it is addressed by that header's text as its column
+/// name. Told the file is headerless, every row is data and no cell
+/// has a column name.
 ///
 /// Both halves run the same bytes through the same policy, so the
 /// knob is the only variable.
 #[tokio::test]
-async fn headerless_csv_lets_a_drop_reach_the_first_row() {
-    let default_out = drop_rows_under(CodecParams::new()).await;
-    let headerless_out = drop_rows_under(CodecParams::new().with_csv_has_headers(false)).await;
+async fn headerless_csv_names_no_columns() {
+    let default = column_names_under(CodecParams::new()).await;
+    let headerless = column_names_under(CodecParams::new().with_csv_has_headers(false)).await;
 
     assert!(
-        default_out.contains("ada@example.com"),
-        "under the default the first row is a protected header and must survive \
-         the drop; got: {default_out:?}",
+        default.iter().any(Option::is_some),
+        "under the default the first row is a header naming the columns; got: {default:?}",
     );
     assert!(
-        !headerless_out.contains("ada@example.com"),
-        "told the file is headerless, the first row is droppable data and must \
-         be dropped; got: {headerless_out:?}",
+        !headerless.is_empty() && headerless.iter().all(Option::is_none),
+        "told the file is headerless, no cell has a column name; got: {headerless:?}",
     );
 }
 
-/// Analyze then anonymize `HEADERLESS` under `codec`, with a policy
-/// that drops every row carrying a detected address.
-async fn drop_rows_under(codec: CodecParams) -> String {
-    let engine = engine();
+/// Analyze `HEADERLESS` under `codec`: the column name each detected
+/// address is addressed by.
+async fn column_names_under(codec: CodecParams) -> Vec<Option<String>> {
     let spec = RequestContext::new().with_codec(codec);
-    let mut audit = engine
+    let audit = engine()
         .analyze(csv(HEADERLESS), &[detect_email()], &spec)
         .await
         .expect("analyze succeeds")
         .audit;
-
-    let drop = Policy {
-        id: uuid::Uuid::now_v7(),
-        name: "drop-rows".into(),
-        scopes: vec![LabelScope::new(
-            "contact",
-            vec![LabelRef::new("email_address")],
-        )],
-        fallback: Some(ModalityRedactions {
-            tabular: Some(TabularRedaction::DropRow),
-            ..Default::default()
-        }),
-        ..Policy::default()
-    };
-
-    let outcome = engine
-        .anonymize(
-            csv(HEADERLESS),
-            std::slice::from_ref(&drop),
-            &mut audit,
-            None,
-        )
-        .await
-        .expect("anonymize succeeds");
-    String::from_utf8(outcome.bytes.to_vec()).expect("csv output is utf-8")
+    audit
+        .report
+        .part::<Tabular>(&PartId::leaf("contacts.csv"))
+        .expect("the csv is a tabular document")
+        .entities()
+        .iter()
+        .map(|entity| {
+            entity
+                .location()
+                .column_name
+                .as_ref()
+                .map(ToString::to_string)
+        })
+        .collect()
 }
 
 /// The knobs ride the audit. Anonymize re-decodes from the audit
@@ -114,10 +98,7 @@ async fn drop_rows_under(codec: CodecParams) -> String {
 fn codec_params_survive_the_audit_round_trip() {
     let codec = CodecParams::new()
         .with_csv_has_headers(false)
-        .with_csv_delimiter(b';')
-        .with_hidden_content(
-            HiddenContentPolicy::default().with_collaboration(Disposition::ScanAsContent),
-        );
+        .with_csv_delimiter(b';');
 
     let json = serde_json::to_value(codec).expect("params serialize");
     let back: CodecParams = serde_json::from_value(json).expect("params deserialize");
@@ -127,7 +108,7 @@ fn codec_params_survive_the_audit_round_trip() {
 
 /// An audit that names no codec params reads back as the defaults,
 /// and those defaults are the codec's own behaviour: a header row for
-/// CSV, and hidden content stripped.
+/// CSV.
 #[test]
 fn omitted_params_default_to_the_codecs_own_behaviour() {
     let params = CodecParams::default();
@@ -135,25 +116,13 @@ fn omitted_params_default_to_the_codecs_own_behaviour() {
         params.csv_has_headers,
         "a CSV's first row is its header unless a request says otherwise",
     );
-    assert_eq!(
-        params.hidden_content.metadata,
-        Disposition::KeepOnlyEssential,
-        "a request that expressed no opinion must not carry metadata through a redaction",
-    );
-    assert_eq!(
-        params.hidden_content.collaboration,
-        Disposition::KeepOnlyEssential,
-        "a request that expressed no opinion must not carry comments through a redaction",
-    );
     assert!(params.uses_default_formats());
 
     let back: CodecParams = serde_json::from_str("{}").expect("empty object deserializes");
     assert_eq!(back, params, "an omitted params object is the default one");
 }
 
-/// A format override takes the request off the shared registry, and the
-/// hidden-content policy does not: it goes to the decode itself, so asking
-/// for it must not cost a registry rebuild.
+/// A format override takes the request off the shared registry.
 #[test]
 fn only_a_format_override_rebuilds_the_registry() {
     assert!(
@@ -165,195 +134,5 @@ fn only_a_format_override_rebuilds_the_registry() {
         !CodecParams::new()
             .with_csv_delimiter(b'\t')
             .uses_default_formats()
-    );
-    assert!(
-        CodecParams::new()
-            .with_hidden_content(
-                HiddenContentPolicy::default()
-                    .with_metadata(Disposition::ScanAsContent)
-                    .with_collaboration(Disposition::ScanAsContent),
-            )
-            .uses_default_formats()
-    );
-}
-
-/// A page whose `<meta>` fields hold a name and an address, redacted under
-/// `codec`: the items analyze reports stripped, and the page anonymize returns.
-async fn redact_page_under(codec: CodecParams) -> (Vec<HiddenContent>, String) {
-    const PAGE: &[u8] = b"<html><head>\
-        <meta name=\"author\" content=\"Ada Lovelace\">\
-        <meta name=\"contact\" content=\"ada@example.com\">\
-        </head><body><p>Hello</p></body></html>";
-    let page = || Document::new("page.html", Bytes::from_static(PAGE));
-    let policy = Policy {
-        fallback: Some(ModalityRedactions {
-            text: Some(TextRedaction::Erase),
-            ..Default::default()
-        }),
-        ..detect_email()
-    };
-    let policies = std::slice::from_ref(&policy);
-
-    let engine = engine();
-    let spec = RequestContext::new().with_codec(codec);
-    let mut audit = engine
-        .analyze(page(), policies, &spec)
-        .await
-        .expect("analyze succeeds")
-        .audit;
-    let stripped = audit.report.stripped().map(|item| item.content).collect();
-    let outcome = engine
-        .anonymize(page(), policies, &mut audit, None)
-        .await
-        .expect("anonymize succeeds");
-    let html = String::from_utf8(outcome.bytes.to_vec()).expect("html output is utf-8");
-    (stripped, html)
-}
-
-/// By default, metadata is stripped before detection sees it.
-#[tokio::test]
-async fn metadata_is_stripped_by_default() {
-    let (stripped, html) = redact_page_under(CodecParams::new()).await;
-
-    assert!(
-        stripped.contains(&HiddenContent::Properties),
-        "the strip is reported; got: {stripped:?}",
-    );
-    assert!(!html.contains("<meta"), "the fields are gone; got: {html}");
-}
-
-/// `ScanAsContent` reaches the codec on both decode paths, and anonymize decodes
-/// under the policy the audit recorded: the fields survive to the output, and
-/// detection has been through them. HTML carries metadata as text, so the
-/// address is erased, and the author stays because this policy does not look
-/// for names.
-#[tokio::test]
-async fn scanned_metadata_is_kept_and_goes_through_detection() {
-    let scan = HiddenContentPolicy::default().with_metadata(Disposition::ScanAsContent);
-
-    for codec in [
-        CodecParams::new().with_hidden_content(scan),
-        // A format override, so this one decodes through a rebuilt registry.
-        CodecParams::new()
-            .with_csv_has_headers(false)
-            .with_hidden_content(scan),
-    ] {
-        let (stripped, html) = redact_page_under(codec).await;
-
-        assert!(
-            !stripped.contains(&HiddenContent::Properties),
-            "the policy asked to scan, not strip; got: {stripped:?}",
-        );
-        assert!(html.contains("Ada Lovelace"), "kept; got: {html}");
-        assert!(!html.contains("ada@example.com"), "detected; got: {html}");
-    }
-}
-
-/// A DOCX whose core properties name its last editor, and whose
-/// body holds no name, so the property is the only place one is.
-const PROPERTIES_DOCX: &[u8] = include_bytes!("testdata/properties.docx");
-
-/// The last editor `PROPERTIES_DOCX` names in `docProps/core.xml`.
-const EDITOR: &str = "Ada Lovelace";
-
-/// Run `PROPERTIES_DOCX` through analyze, an audit serialized and
-/// read back as a host stores it, and anonymize, with metadata
-/// scanned and `labels` as the request's catalog. Returns the
-/// output's core properties.
-async fn scan_properties_with(labels: &[&str]) -> String {
-    let docx = || Document::new("plan.docx", Bytes::from_static(PROPERTIES_DOCX));
-    let policy = Policy {
-        id: uuid::Uuid::now_v7(),
-        name: "properties".into(),
-        scopes: vec![LabelScope::new(
-            "scanned",
-            labels.iter().map(|label| LabelRef::new(*label)),
-        )],
-        ..Policy::default()
-    };
-    let policies = std::slice::from_ref(&policy);
-    let scan = HiddenContentPolicy::default().with_metadata(Disposition::ScanAsContent);
-    let spec = RequestContext::new().with_codec(CodecParams::new().with_hidden_content(scan));
-
-    let engine = engine();
-    let audit = engine
-        .analyze(docx(), policies, &spec)
-        .await
-        .expect("analyze succeeds")
-        .audit;
-    let json = serde_json::to_string(&audit).expect("audit serializes");
-    let mut de = serde_json::Deserializer::from_str(&json);
-    let mut audit = engine
-        .deserialize_audit(&mut de)
-        .expect("audit deserializes");
-    let outcome = engine
-        .anonymize(docx(), policies, &mut audit, None)
-        .await
-        .expect("anonymize succeeds");
-
-    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(outcome.bytes.to_vec()))
-        .expect("output is a zip package");
-    let mut core = String::new();
-    std::io::Read::read_to_string(
-        &mut archive
-            .by_name("docProps/core.xml")
-            .expect("core properties survive"),
-        &mut core,
-    )
-    .expect("core properties are utf-8");
-    core
-}
-
-/// Scanned office properties go through elide's built-in metadata
-/// pipeline, across the audit round trip: a field whose label the
-/// catalog declares is erased, and with the label left out the same
-/// field is kept rather than stripped.
-#[tokio::test]
-async fn scanned_office_properties_are_redacted_by_catalog_label() {
-    let core = scan_properties_with(&["person_name"]).await;
-    assert!(!core.contains(EDITOR), "the editor is erased; got: {core}");
-
-    let core = scan_properties_with(&["email_address"]).await;
-    assert!(core.contains(EDITOR), "the editor is kept; got: {core}");
-}
-
-/// A pass that called a model records what it cost.
-///
-/// The whole point of wrapping each backend in `Metered` is that the
-/// audit can answer "which model saw this data, and what did the
-/// call cost". A mock backend still makes a call, so it still
-/// records one — proving the sink is wired, not just present.
-#[tokio::test]
-async fn an_analyzed_pass_records_what_its_model_calls_cost() {
-    use elide_pipeline::provider::NerBackend;
-
-    let deployment = Deployment::builder()
-        .ner("mock-ner", NerBackend::Mock)
-        .finish()
-        .build()
-        .expect("one mock recognizer is a valid lineup");
-    let engine = Engine::new(Provider::new(deployment));
-
-    let audit = engine
-        .analyze(csv(HEADERLESS), &[detect_email()], &RequestContext::new())
-        .await
-        .expect("analyze succeeds")
-        .audit;
-
-    assert!(
-        !audit.usage.is_empty(),
-        "a pass that ran a NER backend must record its call; got no entries",
-    );
-    // Named by the *configured* component name, not a fixed crate
-    // string: an audit has to attribute a call to the component a
-    // deployment wired, since two may share a backend kind.
-    assert!(
-        audit.usage.iter().all(|u| u.model.model == "mock-ner"),
-        "every entry must name the configured component; got: {:?}",
-        audit
-            .usage
-            .iter()
-            .map(|u| &u.model.model)
-            .collect::<Vec<_>>(),
     );
 }

@@ -14,39 +14,36 @@
 
 mod clients;
 
+#[cfg(feature = "google-document-ai")]
 pub(crate) use self::clients::Clients;
 mod codec;
 mod context;
 mod key;
+mod pass;
 mod request;
+mod validate;
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use elide::codec::FormatRegistry;
-use elide::entity::LabelCatalog;
-use elide::modality::audio::Audio;
-use elide::modality::image::Image;
-use elide::modality::metadata::Metadata;
-use elide::modality::tabular::Tabular;
-use elide::modality::text::Text;
-use elide::recognition::Scope;
-use elide::{ArtifactSet, Error, ErrorKind, Orchestrator, Report, Result};
+use elide::{Error, ErrorKind, Orchestrator, Report, Restorer, Result};
 use elide_deployment::Deployment;
+use elide_review::HiddenContentPlan;
 use elide_schema::compile_catalog;
-use elide_schema::policy::{Policy, PolicyRule, Predicate};
+use elide_schema::policy::Policy;
 use elide_schema::recognition::Recognition;
-use uuid::Uuid;
 
 pub use self::codec::CodecParams;
 pub use self::context::DocumentContext;
 pub use self::key::KeyConfig;
+pub use self::pass::Pass;
 pub use self::request::RequestContext;
+use self::validate::validate_scope_references;
 use crate::detect::{
-    Analyzers, Availability, ComponentSelection, Enrichers, Recognizers, ResolvedComponents,
-    Resolver, analyzers,
+    Availability, ComponentSelection, Enrichers, Recognizers, ResolvedComponents, Resolver,
+    analyzers,
 };
-use crate::redact::{Pickers, anonymizers, pickers};
+use crate::redact::anonymizers;
 
 /// A deployment's configuration, ready to build orchestrators from.
 ///
@@ -258,52 +255,27 @@ Deployment through serde skips validation, so call `validate` first or use \
 
 impl Provider {
     /// Build an [`Orchestrator`] for the analyze path: compile
-    /// every per-modality analyzer from `spec`, wire empty
-    /// anonymizers (analyze doesn't run redaction), and stamp the
-    /// request-scoped [`Scope`].
+    /// every per-modality analyzer for the components `selection`
+    /// runs, wire empty anonymizers (analyze doesn't run
+    /// redaction), and stamp the pass's [`Scope`].
     ///
-    /// The label catalog is derived from `policies`: every
+    /// The label catalog is derived from the pass's policies: every
     /// submitted [`Policy::label_scope`] unions into one
     /// [`LabelCatalog`] used to drive recognizer dispatch and
     /// tag-based selector matching.
-    ///
-    /// `correlation_id` tags the orchestrator's tracing spans. It
-    /// is passed rather than read off `context`, because it belongs
-    /// to the document being processed; persisting it onto the
-    /// audit is the caller's job.
     ///
     /// [`Scope`]: elide::recognition::Scope
     /// [`LabelCatalog`]: elide::entity::LabelCatalog
     /// [`Policy::label_scope`]: elide_schema::policy::Policy::label_scope
     pub fn analyze_orchestrator(
         &self,
-        context: &DocumentContext,
-        recognition: &[Recognition],
-        policies: &[Policy],
-        correlation_id: Uuid,
+        pass: &Pass<'_>,
         selection: &ComponentSelection,
-    ) -> Result<Analyzers> {
-        validate_scope_references(policies)?;
-        let catalog = compile_catalog(policies, recognition)?;
-        let live_scope = build_scope(context, catalog, correlation_id);
-
-        let Analyzers {
-            orchestrator,
-            usage,
-        } = analyzers(
-            &self.inner.recognizers,
-            &self.inner.enrichers,
-            recognition,
-            &self.inner.availability,
-            selection,
-            &self.inner.clients,
-        )?;
-        Ok(Analyzers {
-            orchestrator: orchestrator
-                .with_registry(self.inner.formats.clone())
-                .with_scope(live_scope),
-            usage,
-        })
+    ) -> Result<Orchestrator> {
+        let scope = pass.scope(pass.catalog()?);
+        Ok(analyzers(&self.inner, pass.recognition, selection)?
+            .with_registry(self.inner.formats.clone())
+            .with_scope(scope))
     }
 
     /// Build an [`Orchestrator`] for the anonymize path: reuse
@@ -318,75 +290,63 @@ impl Provider {
     /// defaults the analyzer rather than us constructing four that
     /// never see a document.
     ///
-    /// The scope is tagged with the correlation id `context`
-    /// carries, which is the document's own: analyze and anonymize
-    /// trace under the same id because they concern the same
-    /// document.
+    /// `report` is the reviewed report anonymize will apply: the
+    /// hidden-content plan, which flagged items go and which stay, is
+    /// worked out from it. `key` is what `HmacHash` and `Encrypt`
+    /// resolve through.
     ///
     /// [`with_anonymizer`]: Orchestrator::with_anonymizer
     pub fn anonymize_orchestrator(
         &self,
-        context: &DocumentContext,
-        recognition: &[Recognition],
-        policies: &[Policy],
+        pass: &Pass<'_>,
+        report: &Report,
         key: Option<&KeyConfig>,
-        correlation_id: Uuid,
     ) -> Result<Orchestrator> {
-        validate_scope_references(policies)?;
-        let catalog = compile_catalog(policies, recognition)?;
-        let live_scope = build_scope(context, catalog.clone(), correlation_id);
-
-        let orchestrator = anonymizers(&catalog, policies, key.map(KeyConfig::build))?;
+        let catalog = pass.catalog()?;
+        let plan = HiddenContentPlan::new(report, &catalog);
+        let orchestrator = anonymizers(&catalog, pass.policies, &plan, key.map(KeyConfig::build))?;
         Ok(orchestrator
             .with_registry(self.inner.formats.clone())
-            .with_scope(live_scope))
+            .with_scope(pass.scope(catalog)))
     }
 
-    /// Rebuild a serialized [`Report`], routing each entity group
-    /// back to the modality that produced it.
+    /// The hidden content of `report`, and which of it anonymize
+    /// would remove under `policies`.
+    ///
+    /// The plan anonymize applies, worked out the same way: an item
+    /// goes when the catalog `policies` and `recognition` compile to
+    /// declares its label, when a finding sits in its value, or when
+    /// a reviewer removed it, and stays otherwise. Call it after
+    /// analyze for the preview, and again after a review lands to
+    /// see what changed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Configuration`](ErrorKind::Configuration) if the
+    /// policies cannot compile a catalog, as analyze would.
+    pub fn hidden_content(
+        &self,
+        report: &Report,
+        recognition: &[Recognition],
+        policies: &[Policy],
+    ) -> Result<HiddenContentPlan> {
+        validate_scope_references(policies)?;
+        let catalog = compile_catalog(policies, recognition)?;
+        Ok(HiddenContentPlan::new(report, &catalog))
+    }
+
+    /// A [`Restorer`] knowing every modality this provider handles,
+    /// for reading a serialized report, review, or artifact set
+    /// back, routing each part to the modality that produced it.
     ///
     /// Needs only the modality registry — no pipelines, no scope,
-    /// no policies — so it goes through [`Report::deserializer`]
-    /// rather than constructing an orchestrator whose analyzers and
-    /// anonymizers would be discarded unused.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MalformedInput`](ErrorKind::MalformedInput) if the
-    /// payload is not a well-formed report, or names a modality this
-    /// provider has no pipeline for.
-    pub fn deserialize_report<'de, D>(&self, deserializer: D) -> Result<Report>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Report::deserializer()
-            .with_modality::<Text>()
-            .with_modality::<Tabular>()
-            .with_modality::<Image>()
-            .with_modality::<Audio>()
-            .with_modality::<Metadata>()
-            .deserialize(deserializer)
-    }
-
-    /// Rebuild an [`ArtifactSet`] from the wire, routing each group
-    /// to the modality it names. The artifact-side counterpart to
-    /// [`deserialize_report`](Self::deserialize_report).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MalformedInput`](ErrorKind::MalformedInput) if the
-    /// payload is not a well-formed artifact set.
-    pub fn deserialize_artifacts<'de, D>(&self, deserializer: D) -> Result<ArtifactSet>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Report::deserializer()
-            .with_modality::<Text>()
-            .with_modality::<Tabular>()
-            .with_modality::<Image>()
-            .with_modality::<Audio>()
-            .with_modality::<Metadata>()
-            .deserialize_artifacts(deserializer)
+    /// no policies — so it is not an orchestrator, whose analyzers
+    /// and anonymizers would be discarded unused.
+    #[must_use]
+    pub fn restorer(&self) -> Restorer {
+        let mut restorer = Report::restorer();
+        elide_schema::each_modality!(|M| restorer = restorer.with_modality::<M>());
+        restorer
     }
 
     /// Record each entity's operator *pick* onto its audit trail,
@@ -418,14 +378,7 @@ impl Provider {
     ///
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
     /// [`Selection`]: elide::entity::audit::AuditKind::Selection
-    pub fn record_picks(
-        &self,
-        context: &DocumentContext,
-        recognition: &[Recognition],
-        policies: &[Policy],
-        correlation_id: Uuid,
-        report: &mut Report,
-    ) -> Result<()> {
+    pub fn record_picks(&self, pass: &Pass<'_>, report: &mut Report) -> Result<()> {
         // Same gate the orchestrator builders run. This method is a
         // public entry point that *writes* to `report`, so skipping
         // it would stamp `Selection` events resolved against the
@@ -433,132 +386,12 @@ impl Provider {
         // makes a `LabelInScope` rule pick one labelset while the
         // catalog unions both, and the reviewer would act on the
         // misleading provenance.
-        validate_scope_references(policies)?;
-        let catalog = compile_catalog(policies, recognition)?;
-        let scope = build_scope(context, catalog.clone(), correlation_id);
-        let picker = pickers(&catalog, policies)?;
-        record_into(picker, report, scope)
+        let catalog = pass.catalog()?;
+        // The same anonymizers anonymize builds, minus the key, so
+        // the plan a reviewer sees is the plan that runs.
+        let plan = HiddenContentPlan::new(report, &catalog);
+        anonymizers(&catalog, pass.policies, &plan, None)?
+            .with_scope(pass.scope(catalog))
+            .pick(report)
     }
-}
-
-/// Reject a request whose rule references a [`LabelScope`] name
-/// its own policy didn't declare.
-///
-/// Scopes are local to the policy that owns them (strict
-/// per-policy namespace). A rule inside policy A can reference
-/// only scopes declared in policy A's own [`scopes`]: not scopes
-/// declared by policy B. Also rejects a policy declaring the same
-/// scope name twice. Runs before catalog compilation
-/// so an authoring typo (`"gdpr_arcticle_9"`) surfaces as a
-/// [`Configuration`](ErrorKind::Configuration) error at request
-/// validation time, not as a silent underfire at apply time.
-///
-/// [`LabelScope`]: elide_schema::policy::LabelScope
-/// [`scopes`]: elide_schema::policy::Policy::scopes
-fn validate_scope_references(policies: &[Policy]) -> Result<()> {
-    for policy in policies {
-        let mut known: HashSet<&str> = HashSet::new();
-        for declared in &policy.scopes {
-            // Duplicate names would make a `LabelInScope` rule
-            // resolve one labelset while `label_scope()` unions
-            // both, so recognition and redaction would disagree
-            // about what the name means.
-            if !known.insert(declared.name.as_str()) {
-                return Err(Error::new(
-                    ErrorKind::Configuration,
-                    format!(
-                        "policy `{}` declares scope `{}` more than once; scope names \
-                         must be unique within a policy",
-                        policy.id,
-                        declared.name.as_str(),
-                    ),
-                ));
-            }
-        }
-        for rule in &policy.rules {
-            for attachment in rule.attachments() {
-                check_predicate_scopes(&attachment.predicate, &known, policy, rule)?;
-            }
-        }
-        // Detected but unredactable: the policy scopes no labels
-        // for the operators it carries, so its rules match nothing
-        // while another policy's labels still reach it.
-        if policy.scopes_nothing_it_redacts() {
-            return Err(Error::new(
-                ErrorKind::Configuration,
-                format!(
-                    "policy `{}` declares scopes but no labels in any of them, so its \
-                     operators can match nothing: entities another policy asks for \
-                     still reach it and go unredacted. Name the labels the policy \
-                     covers.",
-                    policy.id,
-                ),
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// Walk a predicate tree; every [`Predicate::LabelInScope`] leaf
-/// must name a scope declared by the enclosing policy. Returns
-/// the first unknown reference with policy + rule context for the
-/// error message.
-fn check_predicate_scopes(
-    predicate: &Predicate,
-    known: &HashSet<&str>,
-    policy: &Policy,
-    rule: &PolicyRule,
-) -> Result<()> {
-    match predicate {
-        Predicate::LabelInScope { scope } if !known.contains(scope.as_str()) => Err(Error::new(
-            ErrorKind::Configuration,
-            format!(
-                "policy `{}` rule `{}` references unknown label scope `{}`: \
-                 the enclosing policy declares no `LabelScope` with that name",
-                policy.id, rule.id, scope,
-            ),
-        )),
-        Predicate::All { all } => all
-            .iter()
-            .try_for_each(|p| check_predicate_scopes(p, known, policy, rule)),
-        Predicate::Any { any } => any
-            .iter()
-            .try_for_each(|p| check_predicate_scopes(p, known, policy, rule)),
-        Predicate::Not { not } => check_predicate_scopes(not, known, policy, rule),
-        _ => Ok(()),
-    }
-}
-
-/// Combine the caller's [`DocumentContext`] with a freshly-derived
-/// [`LabelCatalog`] into the elide-facing [`Scope`], traced under
-/// `run_id`.
-///
-/// `run_id` is the id of the document this call is processing, and
-/// it tags the tracing span. It is passed rather than read off
-/// `context` because the context is a record of what analyze saw:
-/// anonymize traces under the document it was handed, without
-/// rewriting what analyze wrote.
-fn build_scope(context: &DocumentContext, catalog: LabelCatalog, run_id: Uuid) -> Scope {
-    Scope::new()
-        .with_languages(context.languages.iter().cloned())
-        .with_countries(context.countries.iter().copied())
-        .with_metadata(context.metadata.clone())
-        .with_catalog(catalog)
-        .with_correlation_id(run_id)
-}
-
-/// Record every entity's operator pick onto its own trail, across
-/// the body and every container part.
-///
-/// Through elide's own [`Orchestrator::pick`], so each part is
-/// picked by its modality's anonymizer exactly as apply will run it,
-/// the flagged-content erasure elide appends included.
-fn record_into(pickers: Pickers, report: &mut Report, scope: Scope) -> Result<()> {
-    Orchestrator::new()
-        .with_scope(scope)
-        .with_anonymizer(pickers.text)
-        .with_anonymizer(pickers.tabular)
-        .with_anonymizer(pickers.image)
-        .with_anonymizer(pickers.audio)
-        .pick(report)
 }

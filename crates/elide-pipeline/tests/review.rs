@@ -8,19 +8,25 @@
 //! the audit and posts it back, so a decision that does not
 //! survive serialization is a decision silently dropped.
 
+mod support;
+
 use bytes::Bytes;
-use elide::PartId;
 use elide::entity::audit::{Attribution, AuditKind};
 use elide::entity::{Entity, LabelRef};
-use elide::modality::image::Image;
+use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
-use elide_pipeline::entity::{Add, Edit, EditSet, Retag, Reviewer, Suppress};
+use elide::primitive::{BoundingBox, Point};
+use elide_pipeline::entity::{Add, Edit, EditError, EditSet, Retag, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{Deployment, Provider, RequestContext};
 use elide_pipeline::{Audit, Engine, ErrorKind};
 use elide_schema::policy::{LabelScope, Policy};
 use elide_schema::redaction::{ModalityRedactions, TextRedaction};
+use support::SoleDocument;
 use uuid::Uuid;
+
+/// The reviewer every edit is applied as.
+const REVIEWER: &str = "reviewer@example.com";
 
 const SAMPLE: &[u8] = b"Email alice@example.com or bob@example.com. Case SECRET-9 open.";
 /// The name the sample is analyzed under, which roots every part
@@ -38,7 +44,7 @@ fn span_of(needle: &[u8]) -> TextLocation {
     TextLocation::inline(start..start + needle.len())
 }
 
-/// Erase every `email_address` through the policy fallback.
+/// Remove every `email_address` through the policy fallback.
 fn policy() -> Policy {
     Policy {
         id: POLICY_ID,
@@ -48,7 +54,7 @@ fn policy() -> Policy {
             vec![LabelRef::new("email_address")],
         )],
         fallback: Some(ModalityRedactions {
-            text: Some(TextRedaction::Erase),
+            text: Some(TextRedaction::Remove),
             ..Default::default()
         }),
         ..Policy::default()
@@ -77,11 +83,10 @@ async fn review_and_apply(review: impl FnOnce(&Audit, &mut EditSet)) -> (String,
     let mut edits = EditSet::default();
     review(&audit, &mut edits);
     edits
-        .apply(&mut audit.report)
+        .apply(&mut audit.report, REVIEWER)
         .expect("edits apply to this report");
 
-    let json = serde_json::to_string(&audit).expect("audit serializes");
-    let mut posted_back = round_trip(&engine, &json);
+    let mut posted_back = round_trip(&engine, &audit);
 
     let out = engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut posted_back, None)
@@ -93,13 +98,15 @@ async fn review_and_apply(review: impl FnOnce(&Audit, &mut EditSet)) -> (String,
     )
 }
 
-/// Read an audit back the way a host does: through the engine,
-/// which holds the modality registry a serialized report needs to
-/// be rebuilt.
-fn round_trip(engine: &Engine, json: &str) -> Audit {
-    let mut de = serde_json::Deserializer::from_str(json);
+/// Serialize `audit` and read it back the way a host does: through
+/// the engine, which holds the modality registry a serialized report
+/// needs to be rebuilt, against the digest kept when it was written.
+fn round_trip(engine: &Engine, audit: &Audit) -> Audit {
+    let digest = audit.digest();
+    let json = serde_json::to_string(audit).expect("audit serializes");
+    let mut de = serde_json::Deserializer::from_str(&json);
     engine
-        .deserialize_audit(&mut de)
+        .deserialize_audit(&digest, &mut de)
         .expect("audit deserializes")
 }
 
@@ -115,8 +122,8 @@ fn ordered(audit: &Audit) -> Vec<Uuid> {
         .expect("a text body")
         .iter()
         .collect();
-    entities.sort_by_key(|e| e.location.range().map(|r| r.start).unwrap_or(usize::MAX));
-    entities.iter().map(|e| e.id).collect()
+    entities.sort_by_key(|e| e.location().range().map(|r| r.start).unwrap_or(usize::MAX));
+    entities.iter().map(|e| e.id()).collect()
 }
 
 /// The body entity `id`, for asserting on its trail.
@@ -128,7 +135,7 @@ fn entity(audit: &Audit, id: Uuid) -> &Entity<Text> {
         .map(|part| part.entities())
         .expect("a text body")
         .iter()
-        .find(|e| e.id == id)
+        .find(|e| e.id() == id)
         .expect("entity present")
 }
 
@@ -147,7 +154,7 @@ async fn suppress_leaves_the_entity_alone() {
         let id = ordered(audit)[0];
         edits.edit(Edit::<Text>::Suppress(Suppress {
             id,
-            by: Reviewer::reason("known test account").with_actor("reviewer"),
+            reason: Some("known test account".to_owned()),
         }));
     })
     .await;
@@ -172,15 +179,15 @@ async fn suppress_leaves_the_entity_alone() {
         .find(|e| e.is_suppressed())
         .expect("an entity reports itself suppressed after the round-trip");
     let event = suppressed
-        .audit
+        .audit()
         .events()
         .iter()
         .find(|e| matches!(e.kind, AuditKind::Manual(_)))
         .expect("suppression records a Manual event");
     assert_eq!(
         event.source.as_str(),
-        "reviewer",
-        "the reviewer is the event's source",
+        REVIEWER,
+        "the reviewer who applied the edits is the event's source",
     );
     let AuditKind::Manual(manual) = &event.kind else {
         unreachable!("matched above")
@@ -190,7 +197,7 @@ async fn suppress_leaves_the_entity_alone() {
     };
     assert_eq!(freeform.name.as_str(), "known test account");
     assert!(
-        suppressed.audit.verify().is_ok(),
+        suppressed.audit().verify().is_ok(),
         "the hash chain still verifies after a suppression round-trip"
     );
 }
@@ -202,7 +209,7 @@ async fn include_redacts_what_recognition_missed() {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
             part: None,
-            by: Reviewer::default(),
+            reason: None,
         }));
     })
     .await;
@@ -223,21 +230,29 @@ async fn include_stamps_manual_provenance() {
         .expect("analyze")
         .audit;
 
-    let id = audit
-        .report
-        .part_mut::<Text>(&PartId::new(DOCUMENT))
-        .expect("text document")
-        .include(LabelRef::new("email_address"), span_of(b"SECRET-9"));
+    let before = ordered(&audit);
+    let mut edits = EditSet::default();
+    edits.edit(Edit::Add(Add::<Text> {
+        label: LabelRef::new("email_address"),
+        location: span_of(b"SECRET-9"),
+        part: None,
+        reason: None,
+    }));
+    edits
+        .apply(&mut audit.report, REVIEWER)
+        .expect("the add applies");
+    let id = ordered(&audit)
+        .into_iter()
+        .find(|id| !before.contains(id))
+        .expect("the add included an entity");
 
+    let birth = &entity(&audit, id).audit().events()[0];
     assert!(
-        entity(&audit, id)
-            .audit
-            .events()
-            .iter()
-            .any(|e| matches!(e.kind, AuditKind::Manual(_))),
-        "an included entity carries Manual provenance so it is never \
-         mistaken for an automatic detection",
+        matches!(birth.kind, AuditKind::Include(_)),
+        "an included entity is born of the reviewer's decision, so it \
+         is never mistaken for an automatic detection",
     );
+    assert_eq!(birth.source.as_str(), REVIEWER, "and names who made it");
 }
 
 #[tokio::test]
@@ -250,11 +265,18 @@ async fn include_rejects_a_foreign_modality() {
         .expect("analyze")
         .audit;
 
+    let mut edits = EditSet::default();
+    edits.edit(Edit::Add(Add::<Image> {
+        label: LabelRef::new("person_name"),
+        location: ImageLocation::new(BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0))),
+        part: Some(vec![DOCUMENT.to_owned()]),
+        reason: None,
+    }));
     assert!(
-        audit
-            .report
-            .part_mut::<Image>(&PartId::new(DOCUMENT))
-            .is_err(),
+        matches!(
+            edits.apply(&mut audit.report, REVIEWER),
+            Err(EditError::UnknownPart { .. })
+        ),
         "an image entity cannot join a text document",
     );
 }
@@ -265,19 +287,19 @@ async fn several_edits_compose_in_one_pass() {
         let ids = ordered(audit);
         edits.edit(Edit::<Text>::Suppress(Suppress {
             id: ids[0],
-            by: Reviewer::reason("false positive"),
+            reason: Some("false positive".to_owned()),
         }));
         edits.edit(Edit::Retag(Retag::<Text> {
             id: ids[1],
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,
-            by: Reviewer::default(),
+            reason: None,
         }));
         edits.edit(Edit::Add(Add::<Text> {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
             part: None,
-            by: Reviewer::default(),
+            reason: None,
         }));
     })
     .await;
@@ -302,8 +324,7 @@ async fn analyze_records_the_policy_pick_for_review() {
         .expect("analyze")
         .audit;
 
-    let json = serde_json::to_string(&audit).expect("serializes");
-    let posted_back = round_trip(&engine, &json);
+    let posted_back = round_trip(&engine, &audit);
 
     for entity in posted_back
         .report
@@ -313,12 +334,12 @@ async fn analyze_records_the_policy_pick_for_review() {
         .expect("a text body")
     {
         let selection = entity
-            .audit
+            .audit()
             .selection()
             .expect("every covered entity carries its pick after analyze");
         assert_eq!(
             selection.operator.name.as_str(),
-            "erase",
+            "remove",
             "the pick names the operator the policy fallback would run",
         );
         assert!(
@@ -326,7 +347,7 @@ async fn analyze_records_the_policy_pick_for_review() {
             "the pick carries the policy's own rationale, not just an operator id",
         );
         assert!(
-            entity.audit.verify().is_ok(),
+            entity.audit().verify().is_ok(),
             "recording a pick keeps the hash chain intact",
         );
     }
@@ -350,17 +371,17 @@ async fn a_suppression_supersedes_the_pick_before_it() {
 
     let target = ordered(&audit)[0];
     assert!(
-        entity(&audit, target).audit.selection().is_some(),
+        entity(&audit, target).audit().selection().is_some(),
         "precondition: analyze recorded a pick",
     );
 
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        by: Reviewer::reason("false positive"),
+        reason: Some("false positive".to_owned()),
     }));
     edits
-        .apply(&mut audit.report)
+        .apply(&mut audit.report, REVIEWER)
         .expect("the edits apply to this report");
     engine
         .anonymize(doc(), std::slice::from_ref(&policy), &mut audit, None)
@@ -375,13 +396,13 @@ async fn a_suppression_supersedes_the_pick_before_it() {
 
     // No Redaction event: nothing ran on it, despite the earlier pick.
     assert!(
-        record.audit.redaction().is_none(),
+        record.audit().redaction().is_none(),
         "a suppressed entity is never redacted, whatever its pick said",
     );
 
     // And the suppression is the last word on the trail.
     let last_decision = record
-        .audit
+        .audit()
         .events()
         .iter()
         .rev()
@@ -413,10 +434,10 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: target,
-        by: Reviewer::default(),
+        reason: None,
     }));
     edits
-        .apply(&mut audit.report)
+        .apply(&mut audit.report, REVIEWER)
         .expect("the edits apply to this report");
     for _ in 0..3 {
         engine
@@ -426,7 +447,7 @@ async fn re_applying_an_audit_does_not_stack_manual_events() {
     }
 
     let manual_count = entity(&audit, target)
-        .audit
+        .audit()
         .events()
         .iter()
         .filter(|e| matches!(e.kind, AuditKind::Manual(_)))
@@ -448,7 +469,7 @@ async fn an_add_edit_redacts_what_recognition_missed() {
             label: LabelRef::new("email_address"),
             location: span_of(b"SECRET-9"),
             part: None,
-            by: Reviewer::reason("recognizer missed it").with_actor("alice"),
+            reason: Some("recognizer missed it".to_owned()),
         }));
     })
     .await;
@@ -475,16 +496,16 @@ async fn an_add_edit_redacts_what_recognition_missed() {
         .map(|part| part.entities())
         .expect("text body")
         .iter()
-        .find(|e| e.location == span_of(b"SECRET-9"))
+        .find(|e| *e.location() == span_of(b"SECRET-9"))
         .expect("the added entity is on the report");
     assert!(
         added
-            .audit
+            .audit()
             .events()
             .iter()
-            .any(|e| matches!(e.kind, AuditKind::Manual(_))),
-        "it carries Manual provenance, so it is never mistaken for \
-         an automatic detection",
+            .any(|e| matches!(e.kind, AuditKind::Include(_))),
+        "it is born of an inclusion, so it is never mistaken for an \
+         automatic detection",
     );
 }
 
@@ -500,7 +521,7 @@ async fn a_retag_edit_moves_the_entity_out_of_policy_scope() {
             id,
             label: Some(LabelRef::new("not_covered_by_policy")),
             location: None,
-            by: Reviewer::reason("wrong label"),
+            reason: Some("wrong label".to_owned()),
         }));
     })
     .await;
@@ -579,8 +600,8 @@ async fn unhandled_reaches_into_container_parts() {
     // A DOCX's embedded image is exactly where a text-only policy
     // leaves something behind, so reading the body alone would miss
     // the case this method exists for.
-    use elide::entity::audit::{AuditEvent, PatternRule};
-    use elide::entity::{Entity, LabelRef};
+    use elide::entity::audit::{Pattern, PatternRule};
+    use elide::entity::{Birth, Entity, LabelRef};
     use elide::modality::text::{Text, TextLocation};
     use elide::primitive::Confidence;
     use elide::{PartId, Report};
@@ -588,11 +609,10 @@ async fn unhandled_reaches_into_container_parts() {
 
     let detection = |label: &str| {
         let location = TextLocation::inline(0..4);
-        Entity::new(LabelRef::new(label), location.clone()).with_event(AuditEvent::pattern(
+        Entity::new(Birth::new(
             "probe",
             Confidence::MAX,
-            location,
-            PatternRule::default(),
+            Pattern::new(LabelRef::new(label), location, PatternRule::default()),
         ))
     };
 
@@ -601,15 +621,14 @@ async fn unhandled_reaches_into_container_parts() {
     let audit = Audit {
         recognition: Vec::new(),
         report: Report::new()
-            .insert_part::<Text>(PartId::new(DOCUMENT), vec![detection("email_address")])
+            .insert_part::<Text>(PartId::leaf(DOCUMENT), vec![detection("email_address")])
             .insert_part::<Text>(
-                PartId::new(DOCUMENT).child("word/embedded.txt"),
+                PartId::leaf(DOCUMENT).child("word/embedded.txt"),
                 vec![detection("phone_number")],
             ),
         context: DocumentContext::default(),
         codec: CodecParams::default(),
         selection: Default::default(),
-        usage: Vec::new(),
     };
 
     let unhandled = audit.unhandled();

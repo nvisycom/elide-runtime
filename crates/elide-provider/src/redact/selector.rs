@@ -37,9 +37,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use elide::entity::LabelRef;
-use elide::entity::audit::Attribution;
 use elide::modality::Modality;
-use elide::redaction::{Anonymizer, MatchContext, Operator, Rule};
+use elide::redaction::{MatchContext, Operator, Rule};
 use elide_schema::policy::{LabelScope, Policy, Predicate};
 use uuid::Uuid;
 
@@ -104,28 +103,20 @@ impl PolicyContext {
     }
 }
 
-/// Attach `operator` to `anonymizer` for the rule's
-/// [`Predicate`], stamping `attribution` so every redaction it
-/// drives carries the policy's identity on its provenance event.
+/// The elide [`Rule`] applying `operator` wherever the policy
+/// rule's [`Predicate`] matches.
 ///
 /// Compiles the predicate into a closure that filters by
 /// `context.label_scope` before evaluating the tree; a rule
 /// cannot fire on labels its policy did not declare.
 ///
 /// [`Predicate`]: elide_schema::policy::Predicate
-pub(super) fn attach<M, O>(
-    anonymizer: Anonymizer<M>,
-    predicate: &Predicate,
-    operator: O,
-    attribution: Attribution,
-    context: PolicyContext,
-) -> Anonymizer<M>
+pub(super) fn rule<M, O>(predicate: &Predicate, operator: O, context: PolicyContext) -> Rule<M>
 where
     M: Modality,
     O: Operator<M> + 'static,
 {
-    let closure = compile_predicate::<M>(predicate.clone(), context);
-    anonymizer.with(Rule::predicate(closure, operator).because(attribution))
+    Rule::predicate(compile_predicate::<M>(predicate.clone(), context), operator)
 }
 
 /// Compile a [`Predicate`] tree into a closure consumed by
@@ -143,7 +134,7 @@ pub(super) fn compile_predicate<M>(
 where
     M: Modality,
 {
-    move |cx| context.label_scope.contains(&cx.entity.label) && eval(&predicate, cx, &context)
+    move |cx| context.label_scope.contains(cx.entity.label()) && eval(&predicate, cx, &context)
 }
 
 fn eval<M: Modality>(
@@ -152,20 +143,19 @@ fn eval<M: Modality>(
     context: &PolicyContext,
 ) -> bool {
     match predicate {
-        Predicate::Confidence { min } => f32::from(cx.entity.confidence) >= f32::from(*min),
-        Predicate::LabelOneOf { labels } => labels.iter().any(|l| l == &cx.entity.label),
+        Predicate::Confidence { min } => f32::from(cx.entity.confidence()) >= f32::from(*min),
+        Predicate::LabelOneOf { labels } => labels.iter().any(|l| l == cx.entity.label()),
         Predicate::TagOneOf { tags } => cx
             .catalog
-            .get(&cx.entity.label)
+            .get(cx.entity.label())
             .is_some_and(|label| tags.iter().any(|tag| label.has_tag(tag.as_str()))),
         Predicate::LabelInScope { scope } => context
             .scopes
             .get(scope.as_str())
-            .is_some_and(|labels| labels.contains(&cx.entity.label)),
+            .is_some_and(|labels| labels.contains(cx.entity.label())),
         Predicate::CoRef { coref } => cx
             .entity
-            .coref
-            .as_ref()
+            .coref()
             .is_some_and(|c| c.as_str() == coref.as_str()),
         Predicate::All { all } => all.iter().all(|p| eval(p, cx, context)),
         Predicate::Any { any } => any.iter().any(|p| eval(p, cx, context)),

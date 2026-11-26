@@ -3,6 +3,7 @@
 import os
 
 import bentoml
+from elide_core.image import OS_SECURITY_UPDATES
 
 # Build-time image spec, skipped inside the container. `requirements_file`
 # reads the file when this module is imported, and the path it needs differs
@@ -23,6 +24,7 @@ image = (
     if os.getenv("BENTOML_CONTAINERIZED")
     else (
         bentoml.images.Image(python_version="3.12", lock_python_packages=False)
+        .run(OS_SECURITY_UPDATES)
         .system_packages("ffmpeg")
         # The torch pins are `+cpu` builds from the PyTorch CPU index, which
         # requirements.txt carries as an --extra-index-url. That index also mirrors

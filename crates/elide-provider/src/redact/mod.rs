@@ -19,12 +19,11 @@
 //! ## Layout
 //!
 //! - `text` / `tabular` consume the text-backed redaction specs
-//!   (the full elide built-in vocabulary: Erase, Keep, Mask,
+//!   (the full elide built-in vocabulary: Remove, Keep, Mask,
 //!   Replace, Hash, Pseudonymize, Encrypt: plus the structural
 //!   DropRow / DropColumn on tabular).
-//! - `image` handles the image specs (Erase, Keep, Blur, Pixelate,
-//!   Blackbox).
-//! - `audio` handles the audio specs (Erase, Keep, Silence, Beep).
+//! - `image` handles the image specs (Cover, Keep, Blur, Pixelate).
+//! - `audio` handles the audio specs (Remove, Keep, Cover, Beep).
 //!
 //! Each per-modality `compile` entry walks `&[Policy]` in
 //! precedence order; within each policy, rules are tried in
@@ -46,6 +45,7 @@ use std::sync::Arc;
 
 mod audio;
 mod dispatch;
+mod hidden;
 mod image;
 mod operator;
 mod selector;
@@ -57,21 +57,25 @@ use elide::entity::LabelCatalog;
 use elide::modality::Modality;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
+use elide::modality::metadata::Metadata;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
-use elide::redaction::Anonymizer;
-use elide::redaction::operators::KeyProvider;
+use elide::redaction::operators::{Keep, KeyProvider, Remove};
+use elide::redaction::{Anonymizer, Operator, Rule};
 use elide::{Orchestrator, Result};
+use elide_review::HiddenContentPlan;
 use elide_schema::policy::Policy;
 
 use self::audio::attach_policies_audio;
+pub use self::hidden::hidden_content_policy;
 use self::image::attach_policies_image;
 use self::operator::text::TextOperatorContext;
 use self::tabular::attach_policies_tabular;
 use self::text::attach_policies_text;
 
-/// An [`Orchestrator`] that can redact any of the four modalities,
-/// built from the `policies` this request submitted.
+/// An [`Orchestrator`] that can redact every modality, built from
+/// the `policies` this request submitted and the `plan` for its
+/// hidden content.
 ///
 /// The mirror of [`analyzers`](crate::detect::analyzers), and
 /// the asymmetry is where the configuration comes from:
@@ -80,9 +84,13 @@ use self::text::attach_policies_text;
 ///
 /// Only the anonymizer half is set. Recognition already ran, so
 /// `with_anonymizer` leaves each analyzer at its default rather than
-/// building four that never see a document. The caller adds the
+/// building ones that never see a document. The caller adds the
 /// [`FormatRegistry`](elide::codec::FormatRegistry) and the
 /// per-request [`Scope`](elide::recognition::Scope).
+///
+/// A pick pass at analyze builds the same thing with no `key`: a
+/// pick only names the operator that *would* run, so the plan a
+/// reviewer sees is the one anonymize applies.
 ///
 /// # Errors
 ///
@@ -93,6 +101,7 @@ use self::text::attach_policies_text;
 pub fn anonymizers(
     catalog: &LabelCatalog,
     policies: &[Policy],
+    plan: &HiddenContentPlan,
     key: Option<Arc<dyn KeyProvider>>,
 ) -> Result<Orchestrator> {
     // Fresh per-request text-operator context. Pseudonym vaults
@@ -101,72 +110,44 @@ pub fn anonymizers(
     // namespace.
     let text_ctx = TextOperatorContext::new(key);
 
-    let text = attach_policies_text(
-        empty_anonymizer::<Text>(catalog),
-        policies.iter(),
-        &text_ctx,
-    )?;
-
-    let tabular = attach_policies_tabular(
-        empty_anonymizer::<Tabular>(catalog),
-        policies.iter(),
-        &text_ctx,
-    )?;
-
-    let image = attach_policies_image(empty_anonymizer::<Image>(catalog), policies.iter())?;
-
-    let audio = attach_policies_audio(empty_anonymizer::<Audio>(catalog), policies.iter())?;
+    let text = attach_policies_text(start(catalog, plan), policies.iter(), &text_ctx)?;
+    let tabular = attach_policies_tabular(bare(catalog), policies.iter(), &text_ctx)?;
+    let image = attach_policies_image(bare(catalog), policies.iter())?;
+    let audio = attach_policies_audio(bare(catalog), policies.iter())?;
+    // Policies have no metadata arm: a field is hidden content,
+    // removed or kept whole by the plan, which keeps what lies inside
+    // a kept field. What is left is a finding inside a removed
+    // field's value, so it goes with the field.
+    let metadata = start::<Metadata>(catalog, plan).with(Rule::fallback(Remove));
 
     Ok(Orchestrator::new()
         .with_anonymizer::<Text>(text)
         .with_anonymizer::<Tabular>(tabular)
         .with_anonymizer::<Image>(image)
-        .with_anonymizer::<Audio>(audio))
+        .with_anonymizer::<Audio>(audio)
+        .with_anonymizer::<Metadata>(metadata))
 }
 
-/// The four anonymizers a pick pass runs through, compiled from
-/// `policies` alone.
+/// An anonymizer knowing the request's label vocabulary and the
+/// hidden-content plan's two rules, and no policies yet: where a
+/// text or metadata anonymizer starts.
 ///
-/// What [`anonymizers`] builds, minus the key: a pick only names the
-/// operator that *would* run. elide still compiles the operator to
-/// reach its name, so a policy naming `HmacHash`/`Encrypt` fails
-/// here rather than recording a keyless pick — which is why the
-/// analyze path tolerates this failing.
-///
-/// # Errors
-///
-/// Returns [`Configuration`](elide::ErrorKind::Configuration) if a
-/// policy's operators cannot be compiled.
-pub fn pickers(catalog: &LabelCatalog, policies: &[Policy]) -> Result<Pickers> {
-    let text_ctx = TextOperatorContext::new(None);
-    Ok(Pickers {
-        text: attach_policies_text(empty_anonymizer(catalog), policies.iter(), &text_ctx)?,
-        tabular: attach_policies_tabular(empty_anonymizer(catalog), policies.iter(), &text_ctx)?,
-        image: attach_policies_image(empty_anonymizer(catalog), policies.iter())?,
-        audio: attach_policies_audio(empty_anonymizer(catalog), policies.iter())?,
-    })
-}
-
-/// One anonymizer per modality, for recording what each entity's
-/// operator *would* be without applying anything.
-pub struct Pickers {
-    /// The text anonymizer.
-    pub text: Anonymizer<Text>,
-    /// The tabular anonymizer.
-    pub tabular: Anonymizer<Tabular>,
-    /// The image anonymizer.
-    pub image: Anonymizer<Image>,
-    /// The audio anonymizer.
-    pub audio: Anonymizer<Audio>,
-}
-
-/// An anonymizer knowing the request's label vocabulary and nothing
-/// else: no policies attached.
-///
-/// The starting point every redacting anonymizer is built from.
-fn empty_anonymizer<M>(catalog: &LabelCatalog) -> Anonymizer<M>
+/// The plan's rules come first, so no policy rule reaches a flagged
+/// item.
+fn start<M>(catalog: &LabelCatalog, plan: &HiddenContentPlan) -> Anonymizer<M>
 where
     M: Modality + 'static,
+    Remove: Operator<M>,
+    Keep: Operator<M>,
 {
+    bare(catalog).with_multiple(plan.rules())
+}
+
+/// An anonymizer knowing the request's label vocabulary, and no
+/// rules yet: where a tabular, image, or audio anonymizer starts.
+///
+/// Those streams flag no hidden content, so the plan has nothing
+/// for them.
+fn bare<M: Modality + 'static>(catalog: &LabelCatalog) -> Anonymizer<M> {
     Anonymizer::<M>::new().with_catalog(catalog.clone())
 }

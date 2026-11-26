@@ -5,6 +5,8 @@
 //! Runs against the plaintext sample so assertions can inspect the
 //! per-entity provenance chain directly.
 
+mod support;
+
 use bytes::Bytes;
 use elide::entity::audit::{Attribution, AuditKind};
 use elide::entity::{Label, LabelRef};
@@ -16,6 +18,7 @@ use elide_pipeline::{Audit, Engine, ErrorKind};
 use elide_schema::policy::{LabelEntry, LabelScope, Policy, PolicyRule, Predicate, RuleDispatch};
 use elide_schema::recognition::{CustomMatcher, MatchOn};
 use elide_schema::redaction::{ModalityRedactions, TextRedaction};
+use support::SoleDocument;
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -46,8 +49,8 @@ fn redaction_hits(audit: &Audit, label: &str) -> usize {
     };
     entities
         .iter()
-        .filter(|e| e.label.as_str() == label)
-        .flat_map(|e| e.audit.events().iter())
+        .filter(|e| e.label().as_str() == label)
+        .flat_map(|e| e.audit().events().iter())
         .filter(|e| matches!(e.kind, AuditKind::Redaction(_)))
         .count()
 }
@@ -68,7 +71,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
                 LabelEntry {
                     label: LabelRef::new("email_address"),
                     action: ModalityRedactions {
-                        text: Some(TextRedaction::Erase),
+                        text: Some(TextRedaction::Remove),
                         ..Default::default()
                     },
                 },
@@ -126,7 +129,7 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
     // The interesting invariant: each label routes to *its own*
     // operator. Inspect the redacted body: the phone entries must
     // read `[phone]` (Replace template), and the raw email address
-    // must be gone (Erase). Both are strong enough that a bug
+    // must be gone (Remove). Both are strong enough that a bug
     // routing everything through one operator would trip them.
     let body = std::str::from_utf8(&redacted.bytes).expect("body is utf-8");
     assert!(
@@ -151,10 +154,10 @@ async fn table_rule_dispatches_per_label_under_one_identity() {
     let authority_of = |label: &str| {
         entities
             .iter()
-            .find(|e| e.label.as_str() == label)
+            .find(|e| e.label().as_str() == label)
             .and_then(|entity| {
                 entity
-                    .audit
+                    .audit()
                     .applied_selection()
                     .and_then(|selection| selection.attribution.as_ref())
             })
@@ -206,7 +209,7 @@ async fn label_in_group_predicate_fires_on_grouped_labels() {
                     scope: "contact_info".to_owned(),
                 },
                 action: Box::new(ModalityRedactions {
-                    text: Some(TextRedaction::Erase),
+                    text: Some(TextRedaction::Remove),
                     ..Default::default()
                 }),
             },
@@ -273,7 +276,7 @@ async fn per_policy_label_scoping_blocks_cross_policy_tag_bleed() {
                     tags: vec!["pii".to_owned()],
                 },
                 action: Box::new(ModalityRedactions {
-                    text: Some(TextRedaction::Erase),
+                    text: Some(TextRedaction::Remove),
                     ..Default::default()
                 }),
             },
@@ -342,7 +345,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
         )],
         fallback: Some(ModalityRedactions {
             // Coarse baseline says "erase" as a catch-all.
-            text: Some(TextRedaction::Erase),
+            text: Some(TextRedaction::Remove),
             ..Default::default()
         }),
         ..Policy::default()
@@ -390,7 +393,7 @@ async fn coarse_fallback_does_not_shadow_specific_later_rule() {
     assert!(
         body.contains("[replaced-email]"),
         "specific policy's Replace rule must win over the coarse policy's \
-         Erase fallback because fallbacks attach after every policy's rules \
+         Remove fallback because fallbacks attach after every policy's rules \
          (two-pass). Body:\n{body}",
     );
     assert!(
@@ -425,7 +428,7 @@ async fn cross_policy_group_reference_fails_the_request() {
                     scope: "contact_info".to_owned(),
                 },
                 action: Box::new(ModalityRedactions {
-                    text: Some(TextRedaction::Erase),
+                    text: Some(TextRedaction::Remove),
                     ..Default::default()
                 }),
             },
@@ -481,7 +484,7 @@ async fn duplicate_scope_names_fail_the_request() {
                     scope: "contact".to_owned(),
                 },
                 action: Box::new(ModalityRedactions {
-                    text: Some(TextRedaction::Erase),
+                    text: Some(TextRedaction::Remove),
                     ..Default::default()
                 }),
             },
@@ -522,7 +525,7 @@ async fn fallback_carries_the_scope_attribution() {
                 .with_attribution(cited.clone()),
         ],
         fallback: Some(ModalityRedactions {
-            text: Some(TextRedaction::Erase),
+            text: Some(TextRedaction::Remove),
             ..Default::default()
         }),
         ..Policy::default()
@@ -553,10 +556,10 @@ async fn fallback_carries_the_scope_attribution() {
     };
     let attribution = entities
         .iter()
-        .find(|e| e.label.as_str() == "email_address")
+        .find(|e| e.label().as_str() == "email_address")
         .and_then(|entity| {
             entity
-                .audit
+                .audit()
                 .applied_selection()
                 .and_then(|selection| selection.attribution.as_ref())
         })
@@ -589,7 +592,7 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
             LabelScope::new("uncited", vec![LabelRef::new("phone_number")]),
         ],
         fallback: Some(ModalityRedactions {
-            text: Some(TextRedaction::Erase),
+            text: Some(TextRedaction::Remove),
             ..Default::default()
         }),
         ..Policy::default()
@@ -620,10 +623,10 @@ async fn mixed_scope_attribution_does_not_borrow_a_citation() {
     };
     let attribution = entities
         .iter()
-        .find(|e| e.label.as_str() == "phone_number")
+        .find(|e| e.label().as_str() == "phone_number")
         .and_then(|entity| {
             entity
-                .audit
+                .audit()
                 .applied_selection()
                 .and_then(|selection| selection.attribution.as_ref())
         })
@@ -662,7 +665,7 @@ async fn a_policy_scoping_no_labels_is_rejected() {
         id: empty_scope_id,
         name: "empty-scope".into(),
         scopes: vec![LabelScope::new("everything", Vec::new())],
-        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
         ..Policy::default()
     };
 
@@ -703,7 +706,7 @@ async fn a_policy_with_no_scopes_or_no_operators_is_fine() {
     let no_scopes = Policy {
         id: uuid::Uuid::now_v7(),
         name: "no-scopes".into(),
-        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
         ..Policy::default()
     };
     engine
@@ -757,7 +760,7 @@ async fn a_custom_matcher_detects_and_redacts_its_label() {
                 "internal",
                 vec![LabelRef::new("employee_id")],
             )],
-            fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+            fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
             ..Policy::default()
         };
         let request = default_spec().with_recognition([Recognition {
@@ -880,7 +883,7 @@ async fn the_vocabulary_survives_an_audit_round_trip() {
             "internal",
             vec![LabelRef::new("employee_id")],
         )],
-        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
         ..Policy::default()
     };
     let request = default_spec().with_recognition([Recognition {
@@ -911,7 +914,7 @@ async fn the_vocabulary_survives_an_audit_round_trip() {
     let json = serde_json::to_string(&audit).expect("audit serializes");
     let mut de = serde_json::Deserializer::from_str(&json);
     let mut restored = engine
-        .deserialize_audit(&mut de)
+        .deserialize_audit(&audit.digest(), &mut de)
         .expect("audit deserializes");
     assert!(
         !restored.recognition.is_empty(),
@@ -934,14 +937,14 @@ async fn the_vocabulary_survives_an_audit_round_trip() {
     );
 }
 
-/// An audit whose vocabulary is gone — a payload predating the
-/// field, or one that dropped it — is refused rather than
+/// An audit whose vocabulary is gone is refused rather than
 /// anonymized against a catalog that cannot resolve its labels.
 ///
-/// Nothing new enforces this: the policy still scopes the custom
-/// label, and `compile_catalog` already rejects a scope naming a
-/// label it cannot resolve. Pinned because the alternative is the
-/// silent one — redacting nothing and reporting success.
+/// Twice over. Dropped on the wire, the audit no longer matches its
+/// digest and is refused as it is read back. Dropped from an audit
+/// held in memory, `compile_catalog` rejects the policy's scope
+/// naming a label it cannot resolve. Pinned because the alternative
+/// is the silent one — redacting nothing and reporting success.
 #[tokio::test]
 async fn an_audit_without_its_vocabulary_is_refused() {
     let engine = engine();
@@ -951,7 +954,7 @@ async fn an_audit_without_its_vocabulary_is_refused() {
             "internal",
             vec![LabelRef::new("employee_id")],
         )],
-        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
         ..Policy::default()
     };
     let request = default_spec().with_recognition([Recognition {
@@ -978,23 +981,26 @@ async fn an_audit_without_its_vocabulary_is_refused() {
         .expect("analyze")
         .audit;
 
-    // Strip the vocabulary, as a payload written before the field
-    // existed would lack it.
+    // Strip the vocabulary on the wire: the digest catches it.
     let mut wire = serde_json::to_value(&audit).expect("audit serializes");
     wire.as_object_mut()
         .expect("an audit is a JSON object")
         .remove("recognition");
     let stripped = serde_json::to_string(&wire).expect("re-serializes");
     let mut de = serde_json::Deserializer::from_str(&stripped);
-    let mut restored = engine
-        .deserialize_audit(&mut de)
-        .expect("the audit itself still parses");
+    let Err(err) = engine.deserialize_audit(&audit.digest(), &mut de) else {
+        panic!("an audit stripped of its vocabulary must not read back");
+    };
+    assert_eq!(err.kind(), ErrorKind::Integrity, "{err}");
 
+    // Strip it in memory: the catalog cannot resolve the label.
+    let mut stripped = audit;
+    stripped.recognition.clear();
     let Err(err) = engine
         .anonymize(
             document(),
             std::slice::from_ref(&policy),
-            &mut restored,
+            &mut stripped,
             None,
         )
         .await

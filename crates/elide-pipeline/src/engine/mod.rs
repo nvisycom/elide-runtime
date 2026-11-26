@@ -54,6 +54,7 @@
 mod analyze;
 mod anonymize;
 mod decode;
+mod hidden;
 mod report;
 mod wire;
 

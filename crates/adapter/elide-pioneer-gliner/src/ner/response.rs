@@ -16,6 +16,7 @@
 
 use std::collections::HashMap;
 
+use elide_core::entity::audit::ModelId;
 use elide_ner::backend::{NerResponse, NerSpan};
 use serde::Deserialize;
 
@@ -70,7 +71,7 @@ impl WireResponse {
                     .filter_map(|entity| entity.decode(&label, &offsets)),
             );
         }
-        NerResponse::new(spans)
+        NerResponse::new(ModelId::new(super::MODEL_ID), spans)
     }
 }
 

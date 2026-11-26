@@ -1,28 +1,25 @@
 //! LLM recognizers, one per configured component.
 
-use elide::backend::metrics::Metered;
 use elide::detection::Analyzer;
 use elide::recognition::llm::LlmRecognizer;
 #[cfg(feature = "mocks")]
 use elide::recognition::llm::backend::MockBackend as MockLlmBackend;
-use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend};
+use elide::recognition::llm::backend::{LlmBackend, LlmModality, RigBackend, RigConfig};
 use elide::recognition::llm::prompt::{DefaultPrompt, Prompt};
 use elide::recognition::llm::provider::Provider;
 use elide::{Error, ErrorKind, Result};
 use elide_deployment::component::{Component, LlmBackend as LlmBackendConfig};
 
 use crate::detect::{AttachTo, LlmSource};
-use crate::request::Resolved;
 
 pub(super) fn attach_llm_lineup<M>(
     mut analyzer: Analyzer<M>,
     llm: &[Component<LlmBackendConfig>],
     modality: AttachTo,
-    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<M>>
 where
     M: LlmModality,
-    Metered<RigBackend<M>>: LlmBackend<Modality = M>,
+    RigBackend<M>: LlmBackend<Modality = M>,
     DefaultPrompt: Prompt<M>,
 {
     for recognizer in llm {
@@ -39,7 +36,7 @@ where
         if !recognizer.backend.modalities.contains(&modality) {
             continue;
         }
-        analyzer = attach_llm_one(analyzer, recognizer, resolved)?;
+        analyzer = attach_llm_one(analyzer, recognizer)?;
     }
     Ok(analyzer)
 }
@@ -47,11 +44,10 @@ where
 fn attach_llm_one<M>(
     analyzer: Analyzer<M>,
     spec: &Component<LlmBackendConfig>,
-    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<M>>
 where
     M: LlmModality,
-    Metered<RigBackend<M>>: LlmBackend<Modality = M>,
+    RigBackend<M>: LlmBackend<Modality = M>,
     DefaultPrompt: Prompt<M>,
 {
     // The recognizer carries its backend as a type parameter, so the
@@ -61,11 +57,11 @@ where
     Ok(match &spec.backend.source {
         #[cfg(feature = "mocks")]
         LlmSource::Mock => analyzer.with_recognizer(
-            LlmRecognizer::with_default(Metered::new(MockLlmBackend::default(), resolved.sink()))
+            LlmRecognizer::with_default(MockLlmBackend::default())
                 .with_name(spec.name.clone().to_string()),
         ),
         source => {
-            let backend = Metered::new(RigBackend::new(llm_provider(source)?)?, resolved.sink());
+            let backend = RigBackend::new(llm_provider(source)?, RigConfig::default())?;
             analyzer.with_recognizer(
                 LlmRecognizer::with_default(backend).with_name(spec.name.clone().to_string()),
             )

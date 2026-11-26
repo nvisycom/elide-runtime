@@ -14,28 +14,22 @@ use elide_pioneer_gliner::PioneerNer;
 
 use super::decorate::{Decorated, decorate};
 use crate::detect::NerBackend;
-use crate::request::Resolved;
 
 pub(super) fn attach_ner_lineup<M>(
     mut analyzer: Analyzer<M>,
     ner: &[Component<NerBackendConfig>],
-    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     NerRecognizer<Decorated<BentoNer>>: Recognizer<M> + 'static,
 {
     for recognizer in ner {
-        analyzer = attach_ner_one(analyzer, recognizer, resolved)?;
+        analyzer = attach_ner_one(analyzer, recognizer)?;
     }
     Ok(analyzer)
 }
 
-fn attach_ner_one<M>(
-    analyzer: Analyzer<M>,
-    spec: &Component<NerBackend>,
-    resolved: &Resolved<'_>,
-) -> Result<Analyzer<M>>
+fn attach_ner_one<M>(analyzer: Analyzer<M>, spec: &Component<NerBackend>) -> Result<Analyzer<M>>
 where
     M: TextRecognizable,
     // One bound per backend the config can name: the recognizer
@@ -60,7 +54,6 @@ where
             NerRecognizer::new(decorate(
                 BentoNer::new(base_url.clone(), model.clone())?,
                 spec.rate_limit.as_ref(),
-                resolved.sink(),
             ))
             .with_name(spec.name.clone()),
         ),
@@ -82,7 +75,7 @@ where
                 backend = backend.with_zero_retention();
             }
             analyzer.with_recognizer(
-                NerRecognizer::new(decorate(backend, spec.rate_limit.as_ref(), resolved.sink()))
+                NerRecognizer::new(decorate(backend, spec.rate_limit.as_ref()))
                     .with_name(spec.name.clone()),
             )
         }
@@ -91,7 +84,6 @@ where
             NerRecognizer::new(decorate(
                 MockNerBackend::default(),
                 spec.rate_limit.as_ref(),
-                resolved.sink(),
             ))
             .with_name(spec.name.clone()),
         ),

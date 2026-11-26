@@ -75,21 +75,31 @@ pub(super) fn attach_language<M: TextRecognizable>(
             )
         })?);
     }
-    Ok(analyzer.with_enricher(LinguaEnricher::with_candidates(candidates)))
+    // Empty means unrestricted, as the deployment documents it.
+    let enricher = if candidates.is_empty() {
+        LinguaEnricher::unrestricted()
+    } else {
+        LinguaEnricher::restricted(candidates)?
+    };
+    Ok(analyzer.with_enricher(enricher))
 }
 
 /// Attach an [`OcrEnricher`] for the image modality.
 ///
 /// The deployment's `Bento` backend wraps elide-bentoml's
 /// `BentoOcr` client.
+#[cfg_attr(
+    not(feature = "google-document-ai"),
+    expect(
+        unused_variables,
+        reason = "only Document AI's client is built before the request"
+    )
+)]
 pub(super) fn attach_ocr(
     analyzer: Analyzer<Image>,
     config: &Component<OcrBackend>,
     resolved: &Resolved<'_>,
 ) -> Result<Analyzer<Image>> {
-    // The deployment's name for the enricher becomes its usage id,
-    // so a usage report names the enricher a caller configured
-    // rather than a fixed crate string.
     // The enricher is generic over its backend, so each arm builds a
     // differently-typed value and attaches it directly rather than
     // folding into one shared builder.
@@ -98,7 +108,6 @@ pub(super) fn attach_ocr(
             OcrEnricher::new(decorate(
                 BentoOcr::new(base_url.clone(), model.clone())?,
                 config.rate_limit.as_ref(),
-                resolved.sink(),
             ))
             .with_name(config.name.clone()),
         ),
@@ -126,22 +135,14 @@ built before a request arrives. Build the provider with \
                     )
                 })?;
             analyzer.with_enricher(
-                OcrEnricher::new(decorate(
-                    client.clone(),
-                    config.rate_limit.as_ref(),
-                    resolved.sink(),
-                ))
-                .with_name(config.name.clone()),
+                OcrEnricher::new(decorate(client.clone(), config.rate_limit.as_ref()))
+                    .with_name(config.name.clone()),
             )
         }
         #[cfg(feature = "mocks")]
         OcrBackend::Mock => analyzer.with_enricher(
-            OcrEnricher::new(decorate(
-                MockOcrBackend::new(),
-                config.rate_limit.as_ref(),
-                resolved.sink(),
-            ))
-            .with_name(config.name.clone()),
+            OcrEnricher::new(decorate(MockOcrBackend::new(), config.rate_limit.as_ref()))
+                .with_name(config.name.clone()),
         ),
         // A config variant whose factory this build does not ship;
         // see the matching arm in `detect::ner` for why this is
@@ -208,23 +209,17 @@ fn deepgram_backend(api_key: &str, base_url: Option<&str>, diarize: bool) -> Res
 pub(super) fn attach_stt(
     analyzer: Analyzer<Audio>,
     config: &Component<SttBackend>,
-    resolved: &Resolved<'_>,
 ) -> Result<Analyzer<Audio>> {
-    // Same as OCR: the configured name is the usage id.
     // Each arm attaches its own backend type; see `attach_ocr`.
-    // Every arm goes through `decorate`, never `Metered::new`
-    // directly: the component's rate limit is applied by the
-    // decorator stack, so a bare `Metered` silently ignores it.
-    // Nothing observable distinguishes the two at runtime -- the
-    // enrichers expose no accessor for their backend -- so this is
-    // the only place the invariant is stated. It held for NER and
-    // OCR while STT was missed.
+    // Every arm goes through `decorate`, never the bare backend: the
+    // component's rate limit is applied by the decorator stack, and
+    // nothing observable distinguishes the two at runtime -- the
+    // enrichers expose no accessor for their backend.
     Ok(match &config.backend {
         SttBackend::Bento { base_url, model } => analyzer.with_enricher(
             SttEnricher::new(decorate(
                 BentoStt::new(base_url.clone(), model.clone())?,
                 config.rate_limit.as_ref(),
-                resolved.sink(),
             ))
             .with_name(config.name.clone()),
         ),
@@ -237,18 +232,13 @@ pub(super) fn attach_stt(
             SttEnricher::new(decorate(
                 deepgram_backend(api_key, base_url.as_deref(), *diarize)?,
                 config.rate_limit.as_ref(),
-                resolved.sink(),
             ))
             .with_name(config.name.clone()),
         ),
         #[cfg(feature = "mocks")]
         SttBackend::Mock => analyzer.with_enricher(
-            SttEnricher::new(decorate(
-                MockSttBackend::new(),
-                config.rate_limit.as_ref(),
-                resolved.sink(),
-            ))
-            .with_name(config.name.clone()),
+            SttEnricher::new(decorate(MockSttBackend::new(), config.rate_limit.as_ref()))
+                .with_name(config.name.clone()),
         ),
         // A config variant whose factory this build does not ship;
         // see the matching arm in `detect::ner` for why this is

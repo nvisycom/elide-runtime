@@ -38,9 +38,7 @@ use elide_image::ocr::{OcrRequest, OcrResponse};
 use hipstr::HipStr;
 use uuid::Uuid;
 
-use self::wire::{
-    OcrInput, OcrOutput, OcrRequest as WireOcrRequest, OcrResponse as WireOcrResponse,
-};
+use self::wire::{OcrInput, OcrOutput, OcrRequest as WireOcrRequest};
 use crate::error::BentoError;
 
 const ROUTE: &str = "recognize";
@@ -48,8 +46,8 @@ const ROUTE: &str = "recognize";
 /// BentoML OCR backend.
 ///
 /// Owns a cached [`Endpoint`] pointing at the `elide-ocr`
-/// `/recognize` route, plus the per-deployment model id (echoed
-/// into [`Backend::provenance`]) and a default per-word
+/// `/recognize` route, plus the per-deployment model id (named
+/// on every response it decodes) and a default per-word
 /// confidence threshold (the service drops anything weaker before
 /// returning).
 #[derive(Debug, Clone)]
@@ -62,7 +60,7 @@ pub struct BentoOcr {
     /// client it was built from.
     client: Client,
     endpoint: Endpoint,
-    /// Service-side model identifier echoed in provenance.
+    /// Service-side model identifier each response names.
     model_id: HipStr<'static>,
     /// Default confidence floor sent on every request; the service
     /// drops weaker per-word recognitions before responding.
@@ -149,7 +147,18 @@ impl BentoOcr {
             .invoke(&OcrInput { requests: body })
             .await
             .map_err(BentoError::Transport)?;
-        wire.0.into_iter().map(WireOcrResponse::decode).collect()
+        wire.0
+            .into_iter()
+            .map(|response| response.decode(self.model()))
+            .collect()
+    }
+}
+
+impl BentoOcr {
+    /// The model each response names: the one this deployment
+    /// configured.
+    fn model(&self) -> ModelId {
+        ModelId::new(self.model_id.clone())
     }
 }
 
@@ -157,13 +166,6 @@ impl BentoOcr {
 impl Backend for BentoOcr {
     type Request<'a> = OcrRequest<'a>;
     type Response = OcrResponse;
-
-    fn provenance(&self) -> ModelId {
-        ModelId {
-            name: self.model_id.clone(),
-            version: None,
-        }
-    }
 
     async fn call(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
         // One request in, so exactly one response out. `pop` alone would

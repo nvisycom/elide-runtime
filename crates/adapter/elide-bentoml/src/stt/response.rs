@@ -12,6 +12,7 @@
 use elide_audio::modality::{TranscriptSegment, TranscriptWord};
 use elide_audio::primitive::TimeSpan;
 use elide_audio::stt::SttResponse;
+use elide_core::entity::audit::ModelId;
 use elide_core::primitive::{Confidence, LanguageTag};
 
 use super::wire::{Segment as WireSegment, SttResponse as WireSttResponse, Word as WireWord};
@@ -20,7 +21,7 @@ use crate::error::BentoError;
 impl WireSttResponse {
     /// Translate into the elide [`SttResponse`] the backend trait
     /// expects.
-    pub(super) fn decode(self) -> Result<SttResponse, BentoError> {
+    pub(super) fn decode(self, model: ModelId) -> Result<SttResponse, BentoError> {
         for segment in &self.segments {
             if segment.end_ms < segment.start_ms
                 || segment.end_ms > u64::MAX / 1000
@@ -35,6 +36,7 @@ impl WireSttResponse {
             }
         }
         Ok(SttResponse::new(
+            model,
             self.segments.into_iter().map(WireSegment::decode).collect(),
         ))
     }
@@ -83,7 +85,7 @@ mod tests {
         .unwrap();
         for case in cases.as_array().unwrap() {
             let wire: WireSttResponse = serde_json::from_value(case["response"].clone()).unwrap();
-            let segments = wire.decode().unwrap().segments;
+            let segments = wire.decode(ModelId::new("m")).unwrap().segments;
             let expected = case["expected_segments"].as_array().unwrap();
             assert_eq!(segments.len(), expected.len());
             for (segment, expected) in segments.iter().zip(expected) {
@@ -136,7 +138,7 @@ mod tests {
             r#"{"model_id":"m","segments":[{"start_ms":0,"end_ms":0,"text":""}]}"#,
         )
         .unwrap();
-        let response = wire.decode().unwrap();
+        let response = wire.decode(ModelId::new("m")).unwrap();
         assert!(response.segments[0].speaker_id.is_none());
         assert!(response.segments[0].words.is_empty());
     }
@@ -148,7 +150,7 @@ mod tests {
                 "model_id":"m", "segments":[{"start_ms":start,"end_ms":end,"text":"a"}]
             }))
             .unwrap();
-            assert!(wire.decode().is_err());
+            assert!(wire.decode(ModelId::new("m")).is_err());
         }
     }
 }

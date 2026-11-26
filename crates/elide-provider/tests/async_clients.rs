@@ -14,7 +14,7 @@ use elide::ErrorKind;
 use elide::entity::LabelRef;
 use elide_provider::{
     Availability, Component, ComponentSelection, Deployment, DocumentContext, Enrichers,
-    OcrBackend, Provider, Recognizers,
+    OcrBackend, Pass, Provider, Recognizers,
 };
 use elide_schema::policy::{LabelScope, Policy};
 
@@ -59,10 +59,12 @@ fn the_sync_constructor_refuses_rather_than_skipping() {
     let provider = Provider::new(deployment());
 
     let result = provider.analyze_orchestrator(
-        &DocumentContext::default(),
-        &[],
-        &[a_policy()],
-        uuid::Uuid::now_v7(),
+        &Pass {
+            policies: &[a_policy()],
+            context: &DocumentContext::default(),
+            recognition: &[],
+            correlation_id: uuid::Uuid::now_v7(),
+        },
         &ComponentSelection::new(),
     );
     let Err(err) = result else {

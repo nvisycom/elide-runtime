@@ -22,7 +22,7 @@
 use bytes::Bytes;
 use elide::codec::{Document as CodecDocument, FormatRegistry};
 use elide::{Document as EngineDocument, Error, ErrorKind, Result};
-use elide_provider::{CodecParams, RasterMode};
+use elide_provider::{CodecParams, RasterMode, hidden_content_policy};
 
 use super::Engine;
 use crate::file::Document;
@@ -57,7 +57,7 @@ impl Engine {
         let result = if codec.uses_default_formats() {
             self.provider()
                 .formats()
-                .decode(bytes, &extension, codec.hidden_content)
+                .decode(bytes, &extension, hidden_content_policy())
                 .await
         } else {
             decode_configured(bytes, &extension, codec).await
@@ -130,6 +130,6 @@ async fn decode_configured(
     }
 
     registry
-        .decode(bytes, extension, codec.hidden_content)
+        .decode(bytes, extension, hidden_content_policy())
         .await
 }

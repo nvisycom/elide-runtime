@@ -30,8 +30,6 @@ elide-audio = { workspace = true, features = ["stt"] }
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
 
-# Primitive datatypes
-hipstr = { workspace = true, features = [] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

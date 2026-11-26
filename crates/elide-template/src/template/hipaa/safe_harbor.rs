@@ -126,9 +126,9 @@ fn safe_harbor_policy(accounts: HipaaAccountNumbers) -> Policy {
         // fallback erases the rest of the scope. Splitting it this
         // way makes the §(C) carve-out structural: the fallback
         // only ever sees labels the table did not take, so no rule
-        // ordering can turn a Clamp into an Erase.
+        // ordering can turn a Clamp into a Remove.
         rules: vec![safe_harbor_table_rule(accounts)],
-        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
     }
 }
 

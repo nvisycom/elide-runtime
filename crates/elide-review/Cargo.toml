@@ -2,7 +2,7 @@
 
 [package]
 name = "elide-review"
-description = "Reviewer edits over an elide report: add, retag, suppress, override"
+description = "Reviewer edits over an elide report: add, retag, suppress, and hidden content"
 keywords = ["elide", "review", "redaction", "audit", "schema"]
 categories = ["data-structures", "api-bindings"]
 

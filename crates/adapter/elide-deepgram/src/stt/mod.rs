@@ -14,7 +14,6 @@ use elide_audio::stt::{SttRequest, SttResponse};
 use elide_core::Result;
 use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelId;
-use hipstr::HipStr;
 
 use crate::error::DeepgramBackendError;
 
@@ -104,19 +103,21 @@ impl DeepgramStt {
     }
 }
 
+impl DeepgramStt {
+    /// The model each transcript names.
+    ///
+    /// The Deepgram model is the deployment's choice and is worth
+    /// recording: Nova-3 and Whisper-via-Deepgram are different
+    /// transcribers.
+    fn model_id(&self) -> ModelId {
+        ModelId::new("deepgram").with_version(self.model.as_ref().to_owned())
+    }
+}
+
 #[async_trait]
 impl Backend for DeepgramStt {
     type Request<'a> = SttRequest<'a>;
     type Response = SttResponse;
-
-    fn provenance(&self) -> ModelId {
-        ModelId {
-            name: HipStr::borrowed("deepgram"),
-            // The model is the deployment's choice and is worth recording:
-            // Nova-3 and Whisper-via-Deepgram are different transcribers.
-            version: Some(HipStr::from(self.model.as_ref().to_owned())),
-        }
-    }
 
     async fn call(&self, request: SttRequest<'_>) -> Result<SttResponse> {
         let options = self::request::options(
@@ -134,6 +135,6 @@ impl Backend for DeepgramStt {
             .await
             .map_err(DeepgramBackendError::from)?;
 
-        self::response::decode(response).map_err(elide_core::Error::from)
+        self::response::decode(self.model_id(), response).map_err(elide_core::Error::from)
     }
 }

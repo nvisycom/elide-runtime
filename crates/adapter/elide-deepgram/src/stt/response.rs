@@ -12,6 +12,7 @@ use deepgram::common::batch_response::{Response, Utterance, Word};
 use elide_audio::modality::{TranscriptSegment, TranscriptWord};
 use elide_audio::primitive::TimeSpan;
 use elide_audio::stt::SttResponse;
+use elide_core::entity::audit::ModelId;
 use elide_core::primitive::Confidence;
 
 use crate::error::DeepgramBackendError;
@@ -52,7 +53,10 @@ fn span(start: f64, end: f64) -> Option<TimeSpan> {
 /// channel, which carries no segment boundaries. The backend always asks
 /// for utterances, so their absence means the provider did not answer the
 /// request that was made.
-pub(crate) fn decode(response: Response) -> Result<SttResponse, DeepgramBackendError> {
+pub(crate) fn decode(
+    model: ModelId,
+    response: Response,
+) -> Result<SttResponse, DeepgramBackendError> {
     let utterances = response.results.utterances.ok_or_else(|| {
         DeepgramBackendError::Protocol(
             "response carried no utterances; the request asks for them".to_owned(),
@@ -60,6 +64,7 @@ pub(crate) fn decode(response: Response) -> Result<SttResponse, DeepgramBackendE
     })?;
 
     Ok(SttResponse::new(
+        model,
         utterances.into_iter().filter_map(segment).collect(),
     ))
 }

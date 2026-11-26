@@ -29,8 +29,50 @@ use std::fmt::Debug;
 pub use elide::modality::Modality;
 pub use elide::modality::audio::Audio;
 pub use elide::modality::image::Image;
+pub use elide::modality::metadata::Metadata;
 pub use elide::modality::tabular::Tabular;
 pub use elide::modality::text::Text;
+/// Run `$body` once per modality the runtime handles, binding `$m`
+/// to the modality type.
+///
+/// A report keeps entities per modality and hands them back only
+/// through typed accessors, so a walk over "every entity" is one
+/// probe per modality. Every such walk goes through this, so adding
+/// a modality means adding it here:
+///
+/// ```
+/// use elide_schema::modality::Modality;
+///
+/// let mut names = Vec::new();
+/// elide_schema::each_modality!(|M| names.push(<M as Modality>::NAME));
+/// assert_eq!(names, ["text", "tabular", "image", "audio", "metadata"]);
+/// ```
+#[macro_export]
+macro_rules! each_modality {
+    (|$m:ident| $body:expr) => {{
+        {
+            type $m = $crate::modality::Text;
+            $body
+        }
+        {
+            type $m = $crate::modality::Tabular;
+            $body
+        }
+        {
+            type $m = $crate::modality::Image;
+            $body
+        }
+        {
+            type $m = $crate::modality::Audio;
+            $body
+        }
+        {
+            type $m = $crate::modality::Metadata;
+            $body
+        }
+    }};
+}
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

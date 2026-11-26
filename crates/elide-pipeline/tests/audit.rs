@@ -9,19 +9,25 @@
 
 mod fixtures;
 
+mod support;
+
 use std::io::{Cursor, Read};
 
 use bytes::Bytes;
 use elide::entity::LabelRef;
 use elide::modality::text::Text;
 use elide_export::{ExportCsv, ExportJson, Table};
-use elide_pipeline::entity::{Edit, EditSet, Reviewer, Suppress};
+use elide_pipeline::entity::{Edit, EditSet, Suppress};
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{Deployment, Provider, RequestContext};
 use elide_pipeline::{Audit, Engine};
 use elide_schema::policy::{LabelScope, Policy};
+use support::SoleDocument;
 
 use self::fixtures::write_artefact;
+
+/// The reviewer every edit is applied as.
+const REVIEWER: &str = "reviewer@example.com";
 
 const SAMPLE_TXT: &[u8] = include_bytes!("testdata/sample.txt");
 
@@ -73,7 +79,7 @@ fn text_entity_ids(audit: &Audit) -> Vec<uuid::Uuid> {
         .map(|part| part.entities())
         .expect("body present")
         .iter()
-        .map(|entity| entity.id)
+        .map(|entity| entity.id())
         .collect()
 }
 
@@ -90,13 +96,10 @@ fn suppress_first_as_reviewer(audit: &mut Audit, reason: Option<&str>) -> uuid::
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: ids[0],
-        by: Reviewer {
-            reason: reason.map(Into::into),
-            actor: Some("reviewer@example.com".into()),
-        },
+        reason: reason.map(Into::into),
     }));
     edits
-        .apply(&mut audit.report)
+        .apply(&mut audit.report, REVIEWER)
         .expect("the edit names an entity the report holds");
     ids[0]
 }
@@ -114,7 +117,7 @@ async fn write_json_round_trips_via_serde_and_drops_artefact() {
     // modalities but not their types, so the engine rebuilds it.
     let mut de = serde_json::Deserializer::from_slice(&buf);
     let round = engine()
-        .deserialize_audit(&mut de)
+        .deserialize_audit(&audit.digest(), &mut de)
         .expect("round-trip deserialize");
     let original = audit
         .report
@@ -134,7 +137,8 @@ async fn write_json_round_trips_via_serde_and_drops_artefact() {
         "round-trip must preserve entity count",
     );
     assert_eq!(
-        original[0].id, round[0].id,
+        original[0].id(),
+        round[0].id(),
         "round-trip must preserve entity ids",
     );
 }
@@ -198,7 +202,7 @@ async fn write_provenance_csv_emits_one_row_per_event() {
         .expect("body is text");
     let expected_events: usize = entities
         .iter()
-        .map(|entity| entity.audit.events().len())
+        .map(|entity| entity.audit().events().len())
         .sum();
     assert_eq!(
         row_count, expected_events,

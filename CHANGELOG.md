@@ -26,8 +26,10 @@ does today rather than how it got here.
   carries its own version and the effective date of the text it
   encodes, independent of the crate release.
 - **elide-review** — reviewer edits over a report: add, retag,
-  suppress. Validated against the report before any of them land, so
-  a set that cannot apply in full applies not at all.
+  suppress, and remove, keep or remove all hidden content. Validated
+  against the report, then applied as one elide review under the
+  actor the host authenticated, so a set that cannot apply in full
+  applies not at all, and an edit cannot claim to be someone else's.
 - **elide-export** — audits as JSON documents or CSV tables.
 
 ### Detection and redaction
@@ -40,9 +42,9 @@ does today rather than how it got here.
   text they produce back through the same pipeline.
 - Context-aware scoring, with overlapping findings reconciled into one
   deduplicated entity set.
-- Operators: mask, replace, truncate, HMAC, hash, generalize and clamp
-  text; blur, pixelate and black out image regions; silence and beep
-  audio; drop tabular rows and columns. Encryption and pseudonymization
+- Operators: remove, mask, replace, truncate, HMAC, hash, generalize
+  and clamp text; cover, blur and pixelate image regions; remove,
+  cover (silence) and beep audio; drop tabular rows and columns. Encryption and pseudonymization
   round-trip.
 - Codecs read and rewrite TXT, CSV, JSON, XML, HTML, PDF, DOCX,
   PPTX, XLSX, images (PNG, JPEG, TIFF) and audio (WAV, MP3), changing
@@ -53,13 +55,17 @@ does today rather than how it got here.
   and whether a CSV has a header row and what separates its fields.
   Each defaults to the codec's own behaviour, and a request that sets
   none shares the prebuilt format registry.
-- Hidden content is removed at decode, before detection, in every
-  format: scripts, macros, thumbnails, external references and editor
-  fingerprints always go, and the report lists what was removed.
-  Metadata and collaboration content (comments, tracked changes,
-  annotations) go too unless `CodecParams::hidden_content` asks to
-  scan them as content, or to redact every item the format labels.
-  There is no way to keep either unexamined.
+- Hidden content a format cannot surface item by item is removed at
+  decode, before detection, in every format: scripts, macros,
+  thumbnails, external references and editor fingerprints always go,
+  and the report lists what was removed.
+- Metadata fields and collaboration items (comments, their authors,
+  tracked changes) are each an entity. Analyze marks an item
+  sensitive when the request declares its label or a recognizer
+  finds something in its value, and `Engine::hidden_content` lists
+  every item with that verdict. Anonymize removes the sensitive
+  items whole and keeps the rest, unless a reviewer removes or keeps
+  one, or removes them all.
 
 ### What a request supplies
 
@@ -85,6 +91,11 @@ does today rather than how it got here.
   the recognition context, the codec parameters and the request's
   vocabulary, so `anonymize` compiles against the same labels and
   decodes to the same bytes `analyze` did. The key is never recorded.
+- An audit, and an artifact set beside it, reads back only against
+  the digest it had when it was written, so one changed in transit —
+  an entity dropped, a trail cut back, a setting swapped — is refused.
+  The host keeps the digest where the audit's carrier cannot change
+  it.
 - Detections no policy acted on are reported rather than left silent.
 
 ### Inference

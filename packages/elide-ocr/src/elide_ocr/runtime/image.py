@@ -3,6 +3,7 @@
 import os
 
 import bentoml
+from elide_core.image import OS_SECURITY_UPDATES
 
 # Build-time image spec, skipped inside the container. `requirements_file`
 # reads the file when this module is imported, and the path it needs differs
@@ -23,6 +24,7 @@ image = (
     if os.getenv("BENTOML_CONTAINERIZED")
     else (
         bentoml.images.Image(python_version="3.12", lock_python_packages=False)
+        .run(OS_SECURITY_UPDATES)
         # No torch, so no PyTorch CPU index and none of the index-strategy
         # configuration the other services' images need for it: everything in
         # requirements.txt resolves from PyPI.

@@ -16,6 +16,5 @@ from __future__ import annotations
 # The package lists stay: BentoML installs a service's `system_packages` after
 # this step with a bare `apt-get install`, which reads them.
 OS_SECURITY_UPDATES = (
-    "apt-get update"
-    " && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends"
+    "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends"
 )

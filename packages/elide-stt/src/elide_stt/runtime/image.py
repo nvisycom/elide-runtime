@@ -23,6 +23,15 @@ image = (
     if os.getenv("BENTOML_CONTAINERIZED")
     else (
         bentoml.images.Image(python_version="3.12", lock_python_packages=False)
+        # Apply Debian's security updates over the base image, so a CVE fixed
+        # after the base was published does not ship in ours: the image scan
+        # fails on any fixed HIGH or CRITICAL, and the slim base lags the
+        # archive.
+        .run(
+            "apt-get update"
+            " && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends"
+            " && rm -rf /var/lib/apt/lists/*"
+        )
         .system_packages("ffmpeg")
         # The torch pins are `+cpu` builds from the PyTorch CPU index, which
         # requirements.txt carries as an --extra-index-url. That index also mirrors

@@ -63,6 +63,7 @@ pub mod config {
 
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
+use elide::modality::metadata::Metadata;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 use elide::{Orchestrator, Result};
@@ -70,12 +71,11 @@ pub(crate) use elide_deployment::component::Resolver;
 use elide_schema::recognition::Recognition;
 
 pub use self::config::*;
-use self::modality::{compile_audio, compile_image, compile_tabular, compile_text};
-use crate::orchestrator::Clients;
+use self::modality::{
+    compile_audio, compile_image, compile_metadata, compile_tabular, compile_text,
+};
+use crate::orchestrator::ProviderInner;
 use crate::request::Compile;
-/// What compiling a request's analyzers produced: the orchestrator
-/// to analyze with, and the tally its model calls record into.
-pub use crate::request::UsageHandle;
 
 /// An [`Orchestrator`] that can analyze any of the four modalities,
 /// built from the deployment's `recognizers` and `enrichers`.
@@ -102,49 +102,18 @@ pub use crate::request::UsageHandle;
 /// Returns [`Configuration`](ErrorKind::Configuration) if a backend
 /// cannot be built from its config, or if an enricher lineup names
 /// more than one entry — elide attaches at most one per analyzer.
-pub fn analyzers(
-    recognizers: &Recognizers,
-    enrichers: &Enrichers,
+pub(crate) fn analyzers(
+    provider: &ProviderInner,
     recognition: &[Recognition],
-    availability: &Availability,
     selection: &ComponentSelection,
-    clients: &Clients,
-) -> Result<Analyzers> {
-    let cx = Compile::new(
-        recognizers,
-        enrichers,
-        recognition,
-        availability,
-        selection,
-        clients,
-    );
+) -> Result<Orchestrator> {
+    let cx = Compile::new(provider, recognition, selection);
     let resolved = cx.resolve()?;
 
-    let orchestrator = Orchestrator::new()
+    Ok(Orchestrator::new()
         .with_analyzer::<Text>(compile_text(&resolved)?)
         .with_analyzer::<Tabular>(compile_tabular(&resolved)?)
         .with_analyzer::<Image>(compile_image(&resolved)?)
-        .with_analyzer::<Audio>(compile_audio(&resolved)?);
-
-    // The usage sinks are already wired into the backends, so what
-    // the orchestrator records lands in this request's tally. Handing
-    // the tally back beside it keeps the caller from needing to know
-    // that accounting happened at all.
-    Ok(Analyzers {
-        orchestrator,
-        usage: cx.usage_handle(),
-    })
-}
-
-/// A request's analyzers, and where its model calls are recorded.
-///
-/// Returned together because they are made together: the sinks are
-/// wired into the backends the orchestrator owns, so the tally only
-/// means anything beside the orchestrator that fills it.
-pub struct Analyzers {
-    /// The orchestrator to analyze with.
-    pub orchestrator: Orchestrator,
-    /// This request's usage tally, readable once the analysis has
-    /// run.
-    pub usage: UsageHandle,
+        .with_analyzer::<Audio>(compile_audio(&resolved)?)
+        .with_analyzer::<Metadata>(compile_metadata(&resolved)?))
 }

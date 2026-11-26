@@ -5,24 +5,33 @@
 //! No engine, no provider, no pipeline — if this file compiles, the
 //! crate stands on its own.
 
-use elide::entity::audit::{Attribution, AuditEvent, AuditKind, ManualIntent};
-use elide::entity::{Entity, LabelRef};
+use elide::entity::audit::{Attribution, AuditKind, ManualIntent, Pattern, PatternRule};
+use elide::entity::{Birth, Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
 use elide::primitive::{BoundingBox, Confidence, Point};
 use elide::{PartId, Report};
-use elide_review::{Add, Edit, EditError, EditSet, Retag, Reviewer, Suppress};
+use elide_review::{Add, Edit, EditError, EditSet, Retag, Suppress};
 use uuid::Uuid;
 
 fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
     let location = TextLocation::inline(at.0..at.1);
-    let event = AuditEvent::pattern(
+    Entity::new(Birth::new(
         "probe",
         Confidence::MAX,
-        location.clone(),
-        elide::entity::audit::PatternRule::default(),
-    );
-    Entity::new(LabelRef::new(label), location).with_event(event)
+        Pattern::new(LabelRef::new(label), location, PatternRule::default()),
+    ))
+}
+
+/// The reviewer every test applies as.
+const REVIEWER: &str = "alice";
+
+/// The entities of `report`'s document.
+fn entities(report: &Report) -> &[Entity<Text>] {
+    report
+        .part::<Text>(&document())
+        .map(|part| part.entities())
+        .expect("text body")
 }
 
 /// The one document these reports hold. Since elide unified the
@@ -31,12 +40,12 @@ fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
 const DOCUMENT: &str = "report.docx";
 
 fn document() -> PartId {
-    PartId::new(DOCUMENT)
+    PartId::leaf(DOCUMENT)
 }
 
 fn report_with_one() -> (Report, Uuid) {
     let e = entity("email_address", (0, 5));
-    let id = e.id;
+    let id = e.id();
     (Report::new().insert_part::<Text>(document(), vec![e]), id)
 }
 
@@ -46,7 +55,7 @@ fn edits_deserialize_from_a_request_body() {
     let body = r#"{
         "text": [
             {"op": "suppress", "id": "01958ccd-0000-7000-8000-000000000001",
-             "reason": "false positive", "actor": "alice"},
+             "reason": "false positive"},
             {"op": "add", "label": "phone_number",
              "location": {
                  "kind": "source",
@@ -105,7 +114,7 @@ fn contradictions_are_caught_before_anything_is_applied() {
             id,
             label: Some(LabelRef::new(label)),
             location: None,
-            by: Reviewer::default(),
+            reason: None,
         })
     };
     let mut edits = EditSet::default();
@@ -127,33 +136,30 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
         label: LabelRef::new("phone_number"),
         location: TextLocation::inline(10..22),
         part: None,
-        by: Reviewer::actor("alice"),
+        reason: None,
     }));
     edits.text.push(Edit::Retag(Retag {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer::default(),
+        reason: None,
     }));
 
-    edits.apply(&mut report).expect("composable");
+    edits.apply(&mut report, REVIEWER).expect("composable");
 
-    let entities = report
-        .document::<Text>()
-        .map(|part| part.entities())
-        .expect("text body");
+    let entities = entities(&report);
     assert_eq!(entities.len(), 2, "the added entity is on the report");
 
-    let retagged = entities.iter().find(|e| e.id == id).expect("original");
-    assert_eq!(retagged.label.as_str(), "person_name", "retag landed");
+    let retagged = entities.iter().find(|e| e.id() == id).expect("original");
+    assert_eq!(retagged.label().as_str(), "person_name", "retag landed");
 
-    let added = entities.iter().find(|e| e.id != id).expect("added");
+    let added = entities.iter().find(|e| e.id() != id).expect("added");
     assert!(
         added
-            .audit
+            .audit()
             .events()
             .iter()
-            .any(|e| matches!(e.kind, AuditKind::Manual(_))),
+            .any(|e| matches!(e.kind, AuditKind::Include(_))),
         "an added entity carries human provenance",
     );
 
@@ -169,19 +175,13 @@ fn suppress_stamps_the_entity() {
     let mut edits = EditSet::default();
     edits.text.push(Edit::Suppress(Suppress {
         id,
-        by: Reviewer::reason("fp"),
+        reason: Some("fp".to_owned()),
     }));
     edits
-        .apply(&mut report)
+        .apply(&mut report, REVIEWER)
         .expect("the edits apply to this report");
 
-    let e = report
-        .document::<Text>()
-        .map(|part| part.entities())
-        .unwrap()
-        .iter()
-        .find(|e| e.id == id)
-        .unwrap();
+    let e = entities(&report).iter().find(|e| e.id() == id).unwrap();
     assert!(e.is_suppressed(), "suppression stamped on the trail");
 }
 
@@ -197,7 +197,7 @@ fn a_third_retag_conflicts_with_the_first() {
             id,
             label: label.map(LabelRef::new),
             location,
-            by: Reviewer::default(),
+            reason: None,
         })
     };
 
@@ -215,7 +215,7 @@ fn a_third_retag_conflicts_with_the_first() {
 }
 
 #[test]
-fn an_added_entity_keeps_its_reason_and_actor() {
+fn an_added_entity_keeps_its_reason_and_reviewer() {
     // The edit is consumed once applied, so if the trail does not
     // carry them the audit can no longer say who added the entity.
     let mut report = Report::new().insert_part::<Text>(document(), Vec::new());
@@ -224,31 +224,23 @@ fn an_added_entity_keeps_its_reason_and_actor() {
         label: LabelRef::new("phone_number"),
         location: TextLocation::inline(10..22),
         part: None,
-        by: Reviewer::reason("recognizer missed it").with_actor("alice"),
+        reason: Some("recognizer missed it".to_owned()),
     }));
     edits
-        .apply(&mut report)
+        .apply(&mut report, REVIEWER)
         .expect("the edits apply to this report");
 
-    let added = &report
-        .document::<Text>()
-        .map(|part| part.entities())
-        .expect("text body")[0];
-    let event = added
-        .audit
-        .events()
-        .iter()
-        .find(|e| matches!(e.kind, AuditKind::Manual(_)))
-        .expect("an added entity carries a Manual event");
+    let added = &entities(&report)[0];
+    let birth = &added.audit().events()[0];
     assert_eq!(
-        event.source.as_str(),
-        "alice",
-        "the reviewer is the event's source",
+        birth.source.as_str(),
+        REVIEWER,
+        "the reviewer who applied the edits is the birth's source",
     );
-    let AuditKind::Manual(manual) = &event.kind else {
-        unreachable!("matched above")
+    let AuditKind::Include(include) = &birth.kind else {
+        panic!("an added entity is born of an inclusion");
     };
-    let Some(Attribution::Freeform(freeform)) = &manual.attribution else {
+    let Some(Attribution::Freeform(freeform)) = &include.attribution else {
         panic!("the rationale rides on a freeform attribution");
     };
     assert_eq!(freeform.name.as_str(), "recognizer missed it");
@@ -256,18 +248,17 @@ fn an_added_entity_keeps_its_reason_and_actor() {
 
 #[test]
 fn retagging_does_not_unsuppress() {
-    // A retag records `ManualIntent::Amend`, which `is_suppressed`
+    // A retag records `ManualIntent::Relabel`, which `is_suppressed`
     // skips: a correction says nothing about whether the entity is
     // redacted, so it must not revive a suppressed one.
     let (mut report, id) = report_with_one();
 
     let mut edits = EditSet::default();
-    edits.text.push(Edit::Suppress(Suppress {
-        id,
-        by: Reviewer::default(),
-    }));
     edits
-        .apply(&mut report)
+        .text
+        .push(Edit::Suppress(Suppress { id, reason: None }));
+    edits
+        .apply(&mut report, REVIEWER)
         .expect("the edits apply to this report");
 
     let mut edits = EditSet::default();
@@ -275,25 +266,19 @@ fn retagging_does_not_unsuppress() {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer::reason("wrong label").with_actor("bob"),
+        reason: Some("wrong label".to_owned()),
     }));
     edits
-        .apply(&mut report)
+        .apply(&mut report, REVIEWER)
         .expect("the edits apply to this report");
 
-    let e = report
-        .document::<Text>()
-        .map(|part| part.entities())
-        .unwrap()
-        .iter()
-        .find(|e| e.id == id)
-        .unwrap();
+    let e = entities(&report).iter().find(|e| e.id() == id).unwrap();
     assert!(
         e.is_suppressed(),
         "a correction must not lift a suppression"
     );
     assert_eq!(
-        e.label.as_str(),
+        e.label().as_str(),
         "person_name",
         "but the retag still applied"
     );
@@ -306,28 +291,24 @@ fn applying_leaves_the_caller_s_edits_alone() {
     // from the request and can still report on it afterwards.
     let (mut report, id) = report_with_one();
     let mut edits = EditSet::default();
-    edits.text.push(Edit::Suppress(Suppress {
-        id,
-        by: Reviewer::default(),
-    }));
+    edits
+        .text
+        .push(Edit::Suppress(Suppress { id, reason: None }));
     edits.text.push(Edit::Suppress(Suppress {
         // A second decision on the same channel that merges with
         // the first rather than contradicting it.
         id,
-        by: Reviewer::default(),
+        reason: None,
     }));
 
     edits
-        .apply(&mut report)
+        .apply(&mut report, REVIEWER)
         .expect("the edits apply to this report");
 
     assert_eq!(edits.text.len(), 2, "both edits survive the apply");
-    let stamped = report
-        .document::<Text>()
-        .map(|part| part.entities())
-        .expect("text body")
+    let stamped = entities(&report)
         .iter()
-        .find(|e| e.id == id)
+        .find(|e| e.id() == id)
         .expect("the real entity")
         .is_suppressed();
     assert!(stamped, "the edit that found its target still applied");
@@ -335,7 +316,7 @@ fn applying_leaves_the_caller_s_edits_alone() {
 
 #[test]
 fn a_retag_records_who_corrected_it() {
-    // `ManualIntent::Amend` is what lets a correction carry the
+    // `ManualIntent::Relabel` is what lets a correction carry the
     // reviewer's rationale onto the trail — the edit itself is
     // consumed once applied, so without this the audit could not
     // say who changed the entity.
@@ -345,24 +326,23 @@ fn a_retag_records_who_corrected_it() {
         id,
         label: Some(LabelRef::new("person_name")),
         location: None,
-        by: Reviewer::reason("recognizer mislabelled it").with_actor("bob"),
+        reason: Some("recognizer mislabelled it".to_owned()),
     }));
 
     edits
-        .apply(&mut report)
+        .apply(&mut report, REVIEWER)
         .expect("the edits apply to this report");
 
-    let entity = &report
-        .document::<Text>()
-        .map(|part| part.entities())
-        .expect("text body")[0];
+    let entity = &entities(&report)[0];
     let event = entity
-        .audit
+        .audit()
         .events()
         .iter()
-        .find(|e| matches!(&e.kind, AuditKind::Manual(m) if m.intent == ManualIntent::Amend))
-        .expect("a retag records an Amend event");
-    assert_eq!(event.source.as_str(), "bob");
+        .find(|e| {
+            matches!(&e.kind, AuditKind::Manual(m) if matches!(m.intent, ManualIntent::Relabel { .. }))
+        })
+        .expect("a retag records a Relabel event");
+    assert_eq!(event.source.as_str(), REVIEWER, "the applying reviewer");
     let AuditKind::Manual(manual) = &event.kind else {
         unreachable!("matched above")
     };
@@ -384,7 +364,7 @@ fn an_edit_naming_no_entity_in_the_report_is_rejected() {
     let mut edits = EditSet::default();
     edits.edit(Edit::<Text>::Suppress(Suppress {
         id: stale,
-        by: Reviewer::default(),
+        reason: None,
     }));
 
     let err = edits
@@ -406,10 +386,9 @@ fn an_edit_filed_under_the_wrong_modality_is_rejected() {
     let (report, id) = report_with_one();
 
     let mut edits = EditSet::default();
-    edits.image.push(Edit::Suppress(Suppress {
-        id,
-        by: Reviewer::default(),
-    }));
+    edits
+        .image
+        .push(Edit::Suppress(Suppress { id, reason: None }));
 
     let err = edits
         .validate(&report)
@@ -449,10 +428,10 @@ fn an_image_add_lands_in_the_part_it_names() {
             DOCUMENT.to_owned(),
             "word/media/image1.png".to_owned(),
         ]),
-        by: Reviewer::default(),
+        reason: None,
     }));
 
-    edits.apply(&mut report).expect("the part exists");
+    edits.apply(&mut report, REVIEWER).expect("the part exists");
 
     assert_eq!(
         report
@@ -476,7 +455,7 @@ fn an_add_naming_an_absent_part_is_rejected() {
         label: LabelRef::new("email_address"),
         location: TextLocation::inline(0..4),
         part: Some(vec![DOCUMENT.to_owned(), "word/nonexistent.xml".to_owned()]),
-        by: Reviewer::default(),
+        reason: None,
     }));
 
     let err = edits
@@ -487,4 +466,47 @@ fn an_add_naming_an_absent_part_is_rejected() {
         "the error names the missing part: {err}",
     );
     assert_eq!(err.entity_id(), None, "an add names no entity");
+}
+
+#[test]
+fn an_add_naming_no_part_needs_its_medium_in_the_document() {
+    // The sole document is text, so an image add with no part has
+    // nowhere to go: rejected up front, not refused by elide later.
+    let report = Report::new().insert_part::<Text>(document(), Vec::new());
+    let mut edits = EditSet::default();
+    edits.edit(Edit::Add(Add::<Image> {
+        label: LabelRef::new("person_name"),
+        location: ImageLocation::new(BoundingBox::new(Point::new(0.0, 0.0), Point::new(4.0, 4.0))),
+        part: None,
+        reason: None,
+    }));
+    let err = edits
+        .validate(&report)
+        .expect_err("the document holds no image");
+    assert!(
+        matches!(
+            err,
+            EditError::UnknownPart {
+                modality: "image",
+                ..
+            }
+        ),
+        "{err}"
+    );
+}
+
+#[test]
+fn hidden_items_are_indexed_in_part_order() {
+    // The report keeps its parts unordered; the index must not.
+    let parts = ["b.xml", "a.xml", "c.xml", "a.xml/nested"];
+    let mut report = Report::new();
+    for part in parts {
+        let id = PartId::from_segments(part.split('/').map(str::to_owned));
+        report = report.insert_part::<Text>(id, Vec::new());
+    }
+    let ordered: Vec<String> = elide_review::sorted_part_ids(&report)
+        .into_iter()
+        .map(|id| id.segments().collect::<Vec<_>>().join("/"))
+        .collect();
+    assert_eq!(ordered, ["a.xml", "a.xml/nested", "b.xml", "c.xml"]);
 }

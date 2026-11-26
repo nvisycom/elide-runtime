@@ -152,8 +152,8 @@ fn selecting_every_component_away_is_refused() {
 mod enrichers {
     use elide::ErrorKind;
     use elide_provider::{
-        Availability, Component, ComponentSelection, Deployment, Enrichers, OcrBackend, Provider,
-        Recognizers,
+        Availability, Component, ComponentSelection, Deployment, Enrichers, OcrBackend, Pass,
+        Provider, Recognizers,
     };
 
     fn ocr(name: &str, tags: &[&str]) -> Component<OcrBackend> {
@@ -214,10 +214,12 @@ mod enrichers {
             ..Default::default()
         };
         let err = match provider.analyze_orchestrator(
-            &Default::default(),
-            &[],
-            std::slice::from_ref(&policy),
-            uuid::Uuid::now_v7(),
+            &Pass {
+                policies: std::slice::from_ref(&policy),
+                context: &Default::default(),
+                recognition: &[],
+                correlation_id: uuid::Uuid::now_v7(),
+            },
             &selection,
         ) {
             Ok(_) => panic!("two resolved enrichers must be refused"),

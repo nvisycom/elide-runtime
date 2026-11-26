@@ -9,7 +9,6 @@
 //!
 //! [`DocumentContext`]: super::DocumentContext
 
-use elide::redaction::HiddenContentPolicy;
 use elide_pdf::primitive::RasterMode;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -42,27 +41,6 @@ pub struct CodecParams {
     /// misread a TSV or semicolon-delimited file, so pass the byte
     /// when the format is known.
     pub csv_delimiter: Option<u8>,
-    /// What decode does with the document's metadata and its
-    /// collaboration content (comments, tracked changes, annotations).
-    ///
-    /// Defaults to [`KeepOnlyEssential`] for both: stripped unexamined,
-    /// which is what the report's `stripped` list records.
-    /// [`ScanAsContent`] keeps the content and sends it through
-    /// detection, so whatever detection does not find stays in the
-    /// output. [`FlagEverything`] keeps it too, and redacts every item
-    /// the format labels whatever the catalog declares.
-    ///
-    /// Metadata a format holds as text, such as HTML's `<meta>` fields,
-    /// goes through text detection. Metadata it surfaces field by field,
-    /// such as EXIF or office document properties, goes through elide's
-    /// built-in metadata pipeline: a field is selected by the label its
-    /// format gives it, and erased when the request's catalog declares
-    /// that label. The policy set's rules do not reach those fields.
-    ///
-    /// [`KeepOnlyEssential`]: elide::redaction::Disposition::KeepOnlyEssential
-    /// [`ScanAsContent`]: elide::redaction::Disposition::ScanAsContent
-    /// [`FlagEverything`]: elide::redaction::Disposition::FlagEverything
-    pub hidden_content: HiddenContentPolicy,
 }
 
 impl Default for CodecParams {
@@ -78,7 +56,6 @@ impl Default for CodecParams {
             raster_mode: RasterMode::default(),
             csv_has_headers: true,
             csv_delimiter: None,
-            hidden_content: HiddenContentPolicy::default(),
         }
     }
 }
@@ -111,20 +88,11 @@ impl CodecParams {
         self
     }
 
-    /// The same params, handling hidden content under `policy`.
-    #[must_use]
-    pub fn with_hidden_content(mut self, policy: HiddenContentPolicy) -> Self {
-        self.hidden_content = policy;
-        self
-    }
-
     /// Whether these params leave every registered format at its
     /// default.
     ///
     /// The decode path uses this to decide whether a request can
-    /// share the prebuilt registry or has to rebuild one. The
-    /// hidden-content policy plays no part: it is an argument to each
-    /// decode, not a setting on a format.
+    /// share the prebuilt registry or has to rebuild one.
     #[must_use]
     pub fn uses_default_formats(&self) -> bool {
         let default = Self::default();

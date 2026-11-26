@@ -43,9 +43,9 @@
 //! allowed to persist. [`sav_template`] ships a single-posture
 //! template targeting every elide-builtin SAV label
 //! (`card_security_code`, `card_track_data`, `pin_block`) with
-//! plain [`Erase`].
+//! plain [`Remove`].
 //!
-//! [`Erase`]: elide_schema::redaction::TextRedaction::Erase
+//! [`Remove`]: elide_schema::redaction::TextRedaction::Remove
 //!
 //! [`LabelScope`]: elide_schema::policy::LabelScope
 //! [`Policy`]: elide_schema::policy::Policy
@@ -369,7 +369,7 @@ fn sav_template() -> Template {
             // category, so the fallback expresses it and inherits
             // the scope's citation. Unlike §3.5.1, there is no
             // render choice to cite per-variant.
-            fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+            fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
             ..Policy::default()
         },
     }
@@ -555,7 +555,7 @@ mod tests {
             );
         }
         let fallback = t.policy.fallback.expect("SAV erases via the fallback");
-        assert!(matches!(fallback.text, Some(TextRedaction::Erase)));
+        assert!(matches!(fallback.text, Some(TextRedaction::Remove)));
     }
 
     #[test]

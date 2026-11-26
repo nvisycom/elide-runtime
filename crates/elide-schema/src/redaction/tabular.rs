@@ -30,7 +30,7 @@ pub enum TabularRedaction {
     /// [`TextRedaction`] applies unchanged.
     Cell {
         /// The text operator to apply. Reuses the full text
-        /// vocabulary (Erase, Keep, Mask, Replace, Hash,
+        /// vocabulary (Remove, Keep, Mask, Replace, Hash,
         /// Pseudonymize, Encrypt).
         spec: TextRedaction,
     },

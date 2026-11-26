@@ -12,10 +12,14 @@
 //! [`OcrRequest::dimensions`]: elide_image::ocr::OcrRequest::dimensions
 
 use aws_sdk_textract::types::{Block, BlockType};
+use elide_core::entity::audit::ModelId;
 use elide_core::primitive::{Confidence, UnitBoundingBox};
 use elide_image::modality::{ImageLocation, LayoutRegion};
 use elide_image::ocr::OcrResponse;
 use elide_image::primitive::{Dimensions, UnitBoundingBoxExt};
+
+/// The model every response names.
+const MODEL: &str = "aws/textract";
 
 /// Textract's confidence scale.
 const CONFIDENCE_SCALE: f32 = 100.0;
@@ -32,7 +36,7 @@ pub(super) fn decode(blocks: &[Block], dimensions: Dimensions<u32>) -> OcrRespon
         .filter(|block| block.block_type == Some(BlockType::Word))
         .filter_map(|block| region(block, dimensions))
         .collect();
-    OcrResponse::new(regions)
+    OcrResponse::new(ModelId::new(MODEL), regions)
 }
 
 /// One region from a word block, or `None` when it has no usable geometry

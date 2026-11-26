@@ -4,13 +4,13 @@
 //! Each variant mirrors an elide built-in operator the engine
 //! constructs at apply time:
 //!
-//! - [`AudioRedaction::Erase`] → `elide::redaction::operators::Erase`
+//! - [`AudioRedaction::Remove`] → `elide::redaction::operators::Remove`
 //!   cuts the interval out, shortening the clip.
 //! - [`AudioRedaction::Keep`] → `elide::redaction::operators::Keep`
 //!   passes the interval through unchanged.
-//! - [`AudioRedaction::Silence`] →
-//!   `elide::redaction::operators::Silence` zeroes the interval in
-//!   place, preserving the clip's length and downstream timing.
+//! - [`AudioRedaction::Cover`] → `elide::redaction::operators::Cover`
+//!   silences the interval in place, preserving the clip's length
+//!   and downstream timing.
 //! - [`AudioRedaction::Beep`] → `elide::redaction::operators::Beep`
 //!   overlays a tone over the interval (the broadcast-bleep
 //!   treatment).
@@ -24,12 +24,12 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AudioRedaction {
     /// Cut the matched interval out, shortening the clip.
-    Erase,
+    Remove,
     /// Pass the interval through unchanged.
     Keep,
-    /// Zero the matched interval in place, preserving the clip
+    /// Silence the matched interval in place, preserving the clip
     /// length and the timing of everything after it.
-    Silence,
+    Cover,
     /// Overlay a tone over the matched interval (the broadcast
     /// "bleep"); preserves duration.
     Beep {

@@ -18,6 +18,7 @@ use elide::Result;
 use elide::detection::Analyzer;
 use elide::modality::audio::Audio;
 use elide::modality::image::Image;
+use elide::modality::metadata::Metadata;
 use elide::modality::tabular::Tabular;
 use elide::modality::text::Text;
 
@@ -41,8 +42,8 @@ pub(crate) fn compile_text(resolved: &Resolved<'_>) -> Result<Analyzer<Text>> {
     analyzer = attach_language(analyzer, resolved.lingua())?;
     analyzer = attach_pattern(analyzer);
     analyzer = attach_custom(analyzer, resolved.recognition())?;
-    analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
-    analyzer = attach_llm_lineup(analyzer, &resolved.llm, AttachTo::Text, resolved)?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner)?;
+    analyzer = attach_llm_lineup(analyzer, &resolved.llm, AttachTo::Text)?;
 
     Ok(attach_dedup(analyzer))
 }
@@ -61,7 +62,7 @@ pub(crate) fn compile_tabular(resolved: &Resolved<'_>) -> Result<Analyzer<Tabula
     analyzer = attach_language(analyzer, resolved.lingua())?;
     analyzer = attach_pattern(analyzer);
     analyzer = attach_custom(analyzer, resolved.recognition())?;
-    analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner)?;
 
     Ok(attach_dedup(analyzer))
 }
@@ -89,8 +90,8 @@ pub(crate) fn compile_image(resolved: &Resolved<'_>) -> Result<Analyzer<Image>> 
     analyzer = attach_language(analyzer, resolved.lingua())?;
     analyzer = attach_pattern(analyzer);
     analyzer = attach_custom(analyzer, resolved.recognition())?;
-    analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
-    analyzer = attach_llm_lineup(analyzer, &resolved.llm, AttachTo::Image, resolved)?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner)?;
+    analyzer = attach_llm_lineup(analyzer, &resolved.llm, AttachTo::Image)?;
 
     Ok(attach_dedup(analyzer))
 }
@@ -108,7 +109,7 @@ pub(crate) fn compile_audio(resolved: &Resolved<'_>) -> Result<Analyzer<Audio>> 
     let mut analyzer = Analyzer::<Audio>::new();
 
     if let Some(stt) = resolved.stt {
-        analyzer = attach_stt(analyzer, stt, resolved)?;
+        analyzer = attach_stt(analyzer, stt)?;
     }
 
     // After STT, for the same reason as image: the transcript is an
@@ -116,7 +117,28 @@ pub(crate) fn compile_audio(resolved: &Resolved<'_>) -> Result<Analyzer<Audio>> 
     analyzer = attach_language(analyzer, resolved.lingua())?;
     analyzer = attach_pattern(analyzer);
     analyzer = attach_custom(analyzer, resolved.recognition())?;
-    analyzer = attach_ner_lineup(analyzer, &resolved.ner, resolved)?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner)?;
+
+    Ok(attach_dedup(analyzer))
+}
+
+/// Compile a metadata-modality [`Analyzer`].
+///
+/// Reads each metadata field's value, which elide hands recognizers
+/// as text: Pattern, custom matchers and NER, the lineup tabular
+/// cells get, for the same reason. A finding marks the field holding
+/// it sensitive, so analyze can show it and anonymize removes it.
+///
+/// The fields themselves are not this analyzer's to find: decode
+/// makes every field its format labels an entity, beside whatever
+/// this adds.
+pub(crate) fn compile_metadata(resolved: &Resolved<'_>) -> Result<Analyzer<Metadata>> {
+    let mut analyzer = Analyzer::<Metadata>::new();
+
+    analyzer = attach_language(analyzer, resolved.lingua())?;
+    analyzer = attach_pattern(analyzer);
+    analyzer = attach_custom(analyzer, resolved.recognition())?;
+    analyzer = attach_ner_lineup(analyzer, &resolved.ner)?;
 
     Ok(attach_dedup(analyzer))
 }

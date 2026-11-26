@@ -96,7 +96,7 @@ pub struct Policy {
 /// # use elide_schema::redaction::{ModalityRedactions, TextRedaction};
 /// let sweep = Policy {
 ///     name: "sweep".into(),
-///     fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+///     fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
 ///     ..Policy::default()
 /// };
 /// ```

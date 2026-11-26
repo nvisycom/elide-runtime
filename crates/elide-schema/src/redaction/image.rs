@@ -4,13 +4,14 @@
 //! Each variant mirrors an elide built-in operator the engine
 //! constructs at apply time:
 //!
-//! - [`ImageRedaction::Erase`] → `elide::redaction::operators::Erase`
+//! - [`ImageRedaction::Cover`] → `elide::redaction::operators::Cover`
 //! - [`ImageRedaction::Keep`] → `elide::redaction::operators::Keep`
 //! - [`ImageRedaction::Blur`] → `elide::redaction::operators::Blur`
 //! - [`ImageRedaction::Pixelate`] →
 //!   `elide::redaction::operators::Pixelate`
-//! - [`ImageRedaction::Blackbox`] →
-//!   `elide::redaction::operators::Blackbox`
+//!
+//! There is no `Remove`: an image cannot lose its pixels, so the way
+//! to hide a region outright is to cover it.
 
 use elide::primitive::Color;
 use schemars::JsonSchema;
@@ -20,8 +21,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ImageRedaction {
-    /// Clear the matched region.
-    Erase,
+    /// Cover the region with a solid color (black by default).
+    Cover {
+        /// The color drawn over the region.
+        #[serde(default = "default_cover_color")]
+        color: Color,
+    },
     /// Pass the region through unchanged.
     Keep,
     /// Gaussian-blur the region.
@@ -38,12 +43,6 @@ pub enum ImageRedaction {
         #[serde(default = "default_pixelate_block")]
         block_size: u32,
     },
-    /// Cover the region with a solid color fill (black by default).
-    Blackbox {
-        /// Fill color the codec rasterises over the region.
-        #[serde(default = "default_blackbox_color")]
-        color: Color,
-    },
 }
 
 fn default_blur_sigma() -> f32 {
@@ -54,6 +53,6 @@ fn default_pixelate_block() -> u32 {
     16
 }
 
-fn default_blackbox_color() -> Color {
+fn default_cover_color() -> Color {
     Color::BLACK
 }

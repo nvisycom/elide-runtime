@@ -7,7 +7,8 @@
 
 use elide::modality::image::Image;
 use elide::redaction::Anonymizer;
-use elide::redaction::operators::{Blackbox, Blur, Erase, Keep, Pixelate};
+use elide::redaction::operators::{Blur, Cover, Keep, Pixelate};
+use elide::{Error, Result};
 use elide_schema::redaction::ImageRedaction;
 
 use crate::redact::target::Target;
@@ -20,34 +21,38 @@ use crate::redact::target::Target;
 ///
 /// [`Anonymizer::with_label`]: elide::redaction::Anonymizer::with_label
 pub(in crate::redact) enum ImageOp {
-    Erase,
     Keep,
     Blur(Blur),
     Pixelate(Pixelate),
-    Blackbox(Blackbox),
+    Cover(Cover),
 }
 
 impl ImageOp {
     /// Attach `self` to `target`.
     pub(in crate::redact) fn attach_to(self, target: Target<'_, Image>) -> Anonymizer<Image> {
         match self {
-            ImageOp::Erase => target.attach_with(Erase),
             ImageOp::Keep => target.attach_with(Keep),
             ImageOp::Blur(op) => target.attach_with(op),
             ImageOp::Pixelate(op) => target.attach_with(op),
-            ImageOp::Blackbox(op) => target.attach_with(op),
+            ImageOp::Cover(op) => target.attach_with(op),
         }
     }
 }
 
-impl From<&ImageRedaction> for ImageOp {
-    fn from(spec: &ImageRedaction) -> Self {
-        match spec {
-            ImageRedaction::Erase => Self::Erase,
+impl TryFrom<&ImageRedaction> for ImageOp {
+    type Error = Error;
+
+    /// Build the operator `spec` names.
+    ///
+    /// Fails with [`Configuration`](elide::ErrorKind::Configuration)
+    /// when elide rejects a parameter: a blur under one pixel or a
+    /// mosaic block under two would leave the region readable.
+    fn try_from(spec: &ImageRedaction) -> Result<Self> {
+        Ok(match spec {
             ImageRedaction::Keep => Self::Keep,
-            ImageRedaction::Blur { sigma } => Self::Blur(Blur::new(*sigma)),
-            ImageRedaction::Pixelate { block_size } => Self::Pixelate(Pixelate::new(*block_size)),
-            ImageRedaction::Blackbox { color } => Self::Blackbox(Blackbox::new(*color)),
-        }
+            ImageRedaction::Blur { sigma } => Self::Blur(Blur::new(*sigma)?),
+            ImageRedaction::Pixelate { block_size } => Self::Pixelate(Pixelate::new(*block_size)?),
+            ImageRedaction::Cover { color } => Self::Cover(Cover::new(*color)),
+        })
     }
 }

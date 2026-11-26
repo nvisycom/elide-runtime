@@ -7,11 +7,9 @@ mod response;
 use async_trait::async_trait;
 use elide_core::Result;
 use elide_core::backend::Backend;
-use elide_core::entity::audit::ModelId;
 use elide_image::ocr::{OcrRequest, OcrResponse};
 use google_cloud_documentai_v1::client::DocumentProcessorService;
 use google_cloud_documentai_v1::model::RawDocument;
-use hipstr::HipStr;
 
 use crate::error::DocumentAiBackendError;
 
@@ -38,13 +36,6 @@ impl DocumentAiOcr {
 impl Backend for DocumentAiOcr {
     type Request<'a> = OcrRequest<'a>;
     type Response = OcrResponse;
-
-    fn provenance(&self) -> ModelId {
-        ModelId {
-            name: HipStr::borrowed("google/document-ai"),
-            version: None,
-        }
-    }
 
     async fn call(&self, request: OcrRequest<'_>) -> Result<OcrResponse> {
         // Document AI dispatches on the MIME type and answers

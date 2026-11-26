@@ -21,7 +21,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::error::EditError;
+use super::hidden::{self, HiddenContentEdits};
 use super::record::{Channel, Edit};
+use crate::index::HiddenItems;
 
 /// Reviewer edits for one document, one list per modality.
 ///
@@ -41,6 +43,10 @@ pub struct EditSet {
     /// Edits to audio entities.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub audio: Vec<Edit<Audio>>,
+    /// Decisions about hidden content: metadata fields and
+    /// collaboration items, by id, whatever their modality.
+    #[serde(skip_serializing_if = "HiddenContentEdits::is_empty")]
+    pub hidden: HiddenContentEdits,
 }
 
 impl EditSet {
@@ -85,12 +91,17 @@ impl EditSet {
             && self.tabular.is_empty()
             && self.image.is_empty()
             && self.audio.is_empty()
+            && self.hidden.is_empty()
     }
 
     /// How many edits this set carries across every modality.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.text.len() + self.tabular.len() + self.image.len() + self.audio.len()
+        self.text.len()
+            + self.tabular.len()
+            + self.image.len()
+            + self.audio.len()
+            + self.hidden.len()
     }
 
     /// Reject an edit set this report cannot take.
@@ -119,10 +130,21 @@ impl EditSet {
     /// Returns the first [`EditError`] found. The set is unchanged
     /// either way — nothing is applied until [`apply`](Self::apply).
     pub fn validate(&self, report: &Report) -> Result<(), EditError> {
-        validate_modality::<Text>(&self.text, report)?;
-        validate_modality::<Tabular>(&self.tabular, report)?;
-        validate_modality::<Image>(&self.image, report)?;
-        validate_modality::<Audio>(&self.audio, report)
+        self.validate_with(report, &HiddenItems::of(report))
+    }
+
+    /// [`validate`](Self::validate), against `items`, the report's
+    /// hidden content indexed once.
+    pub(crate) fn validate_with(
+        &self,
+        report: &Report,
+        items: &HiddenItems,
+    ) -> Result<(), EditError> {
+        validate_modality::<Text>(&self.text, report, items)?;
+        validate_modality::<Tabular>(&self.tabular, report, items)?;
+        validate_modality::<Image>(&self.image, report, items)?;
+        validate_modality::<Audio>(&self.audio, report, items)?;
+        hidden::validate(&self.hidden, items)
     }
 }
 
@@ -136,6 +158,7 @@ impl EditSet {
 fn validate_modality<M: RedactableModality>(
     edits: &[Edit<M>],
     report: &Report,
+    items: &HiddenItems,
 ) -> Result<(), EditError> {
     // Per entity and channel, every edit seen so far. An `Add` names
     // no entity, so it can neither contradict anything nor go
@@ -169,11 +192,27 @@ fn validate_modality<M: RedactableModality>(
                     // take different fixes, so they are told apart:
                     // naming a part answers the second and cannot
                     // answer the first.
-                    let documents = report.part_ids().filter(|(id, _)| id.depth() == 1).count();
-                    match documents {
-                        1 => {}
-                        0 => return Err(EditError::EmptyReport),
-                        _ => return Err(EditError::AmbiguousPart { documents }),
+                    let mut documents = report
+                        .part_ids()
+                        .map(|(id, _)| id)
+                        .filter(|id| id.depth() == 1);
+                    match (documents.next(), documents.count()) {
+                        (None, _) => return Err(EditError::EmptyReport),
+                        // The sole document must hold this medium,
+                        // as a named part must.
+                        (Some(id), 0) => {
+                            if report.part::<M>(id).is_err() {
+                                return Err(EditError::UnknownPart {
+                                    part: id.segments().map(str::to_owned).collect(),
+                                    modality: M::NAME,
+                                });
+                            }
+                        }
+                        (Some(_), rest) => {
+                            return Err(EditError::AmbiguousPart {
+                                documents: rest + 1,
+                            });
+                        }
                     }
                 }
             }
@@ -183,6 +222,15 @@ fn validate_modality<M: RedactableModality>(
         };
         if report.entity_anywhere::<M>(id).is_none() {
             return Err(EditError::unknown_target::<M>(id));
+        }
+        // Hidden content is decided through `hidden` alone: a retag
+        // or suppress of an item would answer what happens to it a
+        // second way, beside a remove or keep.
+        if items.contains(id) {
+            return Err(EditError::HiddenContentItem {
+                entity_id: id,
+                modality: M::NAME,
+            });
         }
         let channel = seen.entry((id, edit.channel())).or_default();
         if let Some(earlier) = channel.iter().find(|e| !e.merges_with(edit)) {

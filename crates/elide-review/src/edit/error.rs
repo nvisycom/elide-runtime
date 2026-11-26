@@ -88,6 +88,40 @@ pub enum EditError {
         /// the report was searched.
         modality: &'static str,
     },
+    /// A hidden-content decision names an id that is not a
+    /// hidden-content item on the report: a stale id, or a
+    /// detection rather than a metadata field or collaboration item.
+    ///
+    /// Rejected for the same reason as an unknown target: removing
+    /// or keeping it would do nothing, and the reviewer would be
+    /// told it did.
+    NotHiddenContent {
+        /// The id the decision names.
+        entity_id: Uuid,
+    },
+    /// An add, retag, or suppress names a hidden-content item, which
+    /// is decided through the set's `hidden` decisions alone.
+    ///
+    /// Rejected rather than applied beside them: suppressing an item
+    /// while also removing it answers what happens to it twice.
+    HiddenContentItem {
+        /// The item's id.
+        entity_id: Uuid,
+        /// The modality bucket the edit was filed under.
+        modality: &'static str,
+    },
+    /// elide refused the review the edits make: no actor named, a
+    /// report changed since the edits were made against it, or a
+    /// review policy declining an edit.
+    ///
+    /// Nothing is applied: elide checks every edit before it records
+    /// any.
+    Refused {
+        /// What kind of failure elide reported.
+        kind: ErrorKind,
+        /// elide's account of it.
+        message: String,
+    },
 }
 
 impl EditError {
@@ -95,12 +129,16 @@ impl EditError {
     #[must_use]
     pub fn entity_id(&self) -> Option<Uuid> {
         match self {
-            Self::Contradiction { entity_id, .. } | Self::UnknownTarget { entity_id, .. } => {
-                Some(*entity_id)
-            }
+            Self::Contradiction { entity_id, .. }
+            | Self::UnknownTarget { entity_id, .. }
+            | Self::NotHiddenContent { entity_id }
+            | Self::HiddenContentItem { entity_id, .. } => Some(*entity_id),
             // An add names no entity: the engine mints the id when
             // the edit lands.
-            Self::UnknownPart { .. } | Self::AmbiguousPart { .. } | Self::EmptyReport => None,
+            Self::UnknownPart { .. }
+            | Self::AmbiguousPart { .. }
+            | Self::EmptyReport
+            | Self::Refused { .. } => None,
         }
     }
 
@@ -113,6 +151,20 @@ impl EditError {
         Self::Contradiction {
             entity_id,
             modality: M::NAME,
+            earlier,
+            later,
+        }
+    }
+
+    /// Two hidden-content decisions answering one item differently.
+    pub(crate) fn hidden_contradiction(
+        entity_id: Uuid,
+        earlier: &'static str,
+        later: &'static str,
+    ) -> Self {
+        Self::Contradiction {
+            entity_id,
+            modality: "hidden_content",
             earlier,
             later,
         }
@@ -166,6 +218,21 @@ impl fmt::Display for EditError {
                 "no {modality} entity `{entity_id}` in this report: the id is \
                  stale, or the edit is filed under the wrong modality.",
             ),
+            Self::NotHiddenContent { entity_id } => write!(
+                f,
+                "`{entity_id}` is not a hidden-content item in this report: the \
+                 id is stale, or names a detection rather than a metadata field \
+                 or collaboration item.",
+            ),
+            Self::HiddenContentItem {
+                entity_id,
+                modality,
+            } => write!(
+                f,
+                "{modality} entity `{entity_id}` is a hidden-content item: decide it \
+                 through `hidden` (remove, keep, or remove all), not as a {modality} edit.",
+            ),
+            Self::Refused { message, .. } => write!(f, "the review was refused: {message}"),
         }
     }
 }
@@ -176,6 +243,19 @@ impl From<EditError> for Error {
     /// So a caller with no interest in the distinction can use `?`
     /// against elide's own error type.
     fn from(error: EditError) -> Self {
-        Self::new(ErrorKind::Configuration, error.to_string())
+        let kind = match &error {
+            EditError::Refused { kind, .. } => *kind,
+            _ => ErrorKind::Configuration,
+        };
+        Self::new(kind, error.to_string())
+    }
+}
+
+impl From<Error> for EditError {
+    fn from(error: Error) -> Self {
+        Self::Refused {
+            kind: error.kind(),
+            message: error.to_string(),
+        }
     }
 }

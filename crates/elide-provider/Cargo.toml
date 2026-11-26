@@ -59,7 +59,7 @@ ignored = ["elide-llm"]
 
 [dependencies]
 # Elide crates
-elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "lingua", "operator-fake", "serde", "schema", "operator-sha2", "operator-hmac", "operator-aes", "operator-datetime", "metrics", "ratelimit"] }
+elide = { workspace = true, features = ["codec", "engine", "tabular", "image", "audio", "pattern", "ner", "ocr", "stt", "llm", "llm-rig", "lingua", "operator-fake", "serde", "schema", "operator-sha2", "operator-hmac", "operator-aes", "operator-datetime", "ratelimit"] }
 
 # Elide extensions
 
@@ -73,6 +73,7 @@ elide-llm = { workspace = true, features = ["rig", "openai-gpt", "anthropic-clau
 elide-pdf = { workspace = true, features = ["schema"] }
 elide-deployment = { workspace = true, features = [] }
 elide-schema = { workspace = true, features = [] }
+elide-review = { workspace = true, features = [] }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

@@ -42,7 +42,7 @@ fn policy(scope: GdprSensitiveScope) -> Policy {
         template: Some(origin("gdpr_article_9_erase", Version::new(1, 0, 0))),
         scopes: vec![label_scope(scope)],
         // No rules: the whole scope gets one treatment.
-        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
         ..Policy::default()
     }
 }

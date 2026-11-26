@@ -176,7 +176,7 @@ mod tests {
             .policy
             .fallback
             .expect("erase posture sets a fallback");
-        assert!(matches!(fallback.text, Some(TextRedaction::Erase)));
+        assert!(matches!(fallback.text, Some(TextRedaction::Remove)));
     }
 
     #[test]

@@ -179,7 +179,7 @@ fn policy() -> Policy {
         scopes: vec![scope()],
         // No rules: every label in scope gets the same treatment,
         // which is exactly what the fallback expresses.
-        fallback: Some(ModalityRedactions::textual(TextRedaction::Erase)),
+        fallback: Some(ModalityRedactions::textual(TextRedaction::Remove)),
         ..Policy::default()
     }
 }

@@ -14,7 +14,7 @@
 //! - [`HipaaDeidMethod::SafeHarbor`]: every §164.514(b)(2)
 //!   identifier removed. Ages ≥ 90 [`Clamp`]ed to `"90 or older"`,
 //!   dates related to an individual [`GeneralizeDate`]d to the
-//!   year, the remainder [`Erase`]d.
+//!   year, the remainder [`Remove`]d.
 //! - [`HipaaDeidMethod::LimitedDataSet`]: the sixteen-identifier
 //!   subtraction §164.514(e)(2) defines. Names, street address,
 //!   contact info, IDs, biometrics, and other unique identifiers
@@ -23,7 +23,7 @@
 //! - [`HipaaDeidMethod::ExpertDetermination`]: a starting
 //!   scaffold for §164.514(b)(1). Same 18-identifier label set
 //!   as Safe Harbor, same age/date table dispatch, but the bulk
-//!   terminal is [`Pseudonymize`] instead of [`Erase`] to
+//!   terminal is [`Pseudonymize`] instead of [`Remove`] to
 //!   preserve coreference across mentions (the analytics need
 //!   that most Expert Determination processes target). Does not
 //!   certify de-identification; a qualified statistician must
@@ -31,7 +31,7 @@
 //!   under the applicable methodology.
 //!
 //! [`Clamp`]: elide_schema::redaction::TextRedaction::Clamp
-//! [`Erase`]: elide_schema::redaction::TextRedaction::Erase
+//! [`Remove`]: elide_schema::redaction::TextRedaction::Remove
 //! [`GeneralizeDate`]: elide_schema::redaction::TextRedaction::GeneralizeDate
 //! [`HmacHash`]: elide_schema::redaction::TextRedaction::HmacHash
 //! [`LabelScope`]: elide_schema::policy::LabelScope
@@ -163,7 +163,7 @@ mod tests {
         // The old invariant this test guarded (table labels absent
         // from the bulk-erase set) is now structural: the fallback
         // only ever sees labels no rule claimed, so rule order
-        // cannot convert a Clamp into an Erase.
+        // cannot convert a Clamp into a Remove.
         let scope = template(HipaaDeidMethod::SafeHarbor, HipaaAccountNumbers::default())
             .policy
             .label_scope();
@@ -191,7 +191,7 @@ mod tests {
             .fallback
             .as_ref()
             .expect("Safe Harbor erases the rest of the scope via the fallback");
-        assert!(matches!(fallback.text, Some(TextRedaction::Erase)));
+        assert!(matches!(fallback.text, Some(TextRedaction::Remove)));
     }
 
     #[test]
@@ -363,7 +363,7 @@ mod tests {
     fn expert_determination_pseudonymizes_the_rest_of_the_scope() {
         // The whole point of the ED scaffold vs Safe Harbor is
         // that the bulk terminal is Pseudonymize (identity-
-        // preserving), not Erase.
+        // preserving), not Remove.
         let fallback = template(
             HipaaDeidMethod::ExpertDetermination,
             HipaaAccountNumbers::default(),

@@ -1,21 +1,14 @@
 //! Wrapping a backend in the decorators a component configures.
 //!
-//! Every configured backend is metered, so an audit says what each
-//! call cost. A component may also cap how often it is called, and
-//! how many calls may be in flight.
+//! A component may cap how often it is called, and how many calls
+//! may be in flight.
 //!
 //! The decorators are themselves backends — same request, same
-//! response, same provenance — so they nest. The order is fixed and
-//! matters:
+//! response — so they nest. The order is fixed and matters:
 //!
 //! ```text
-//! Metered<ConcurrencyLimited<RateLimited<BatchChunked<B>>>>
+//! ConcurrencyLimited<RateLimited<BatchChunked<B>>>
 //! ```
-//!
-//! Metering outermost, so a call delayed or queued by a limiter is
-//! still recorded with the wall time it actually took. Putting
-//! `Metered` innermost would report only the time the backend spent
-//! once admitted, hiding exactly the latency a limit introduces.
 //!
 //! The limits are optional and independent: a rate limit bounds
 //! calls per window, a concurrency limit bounds calls in flight. A
@@ -38,19 +31,15 @@
 //! sequentially anyway, so there is nothing for a concurrency limit to
 //! bound.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use elide::backend::limit::{BatchChunked, ConcurrencyLimited, Rate, RateLimited};
-use elide::backend::metrics::{Metered, UsageSink};
 use elide_deployment::RateLimit;
 
 /// The decorator stack a component's configuration asks for.
 ///
-/// Always `Metered`; the two limits are applied only when
-/// configured, and a component with neither pays nothing beyond
-/// the metering every backend already carries.
-pub(crate) type Decorated<B> = Metered<ConcurrencyLimited<RateLimited<BatchChunked<B>>>>;
+/// The two limits bind only when configured; see [`decorate`].
+pub(crate) type Decorated<B> = ConcurrencyLimited<RateLimited<BatchChunked<B>>>;
 
 /// Wrap `backend` in the decorators `rate_limit` describes.
 ///
@@ -63,11 +52,7 @@ pub(crate) type Decorated<B> = Metered<ConcurrencyLimited<RateLimited<BatchChunk
 /// token-bucket check per call — negligible, because a `call` is a
 /// network round trip to a hosted model. Paying it buys one type
 /// instead of two code paths that could diverge.
-pub(crate) fn decorate<B>(
-    backend: B,
-    rate_limit: Option<&RateLimit>,
-    sink: Arc<dyn UsageSink>,
-) -> Decorated<B> {
+pub(crate) fn decorate<B>(backend: B, rate_limit: Option<&RateLimit>) -> Decorated<B> {
     // `None` means unlimited, and the decorators have no such mode:
     // their constructors reject zero and admit at the rate given. So
     // an unlimited component is given a limit it cannot reach rather
@@ -91,8 +76,7 @@ pub(crate) fn decorate<B>(
 
     let chunked = BatchChunked::new(backend, batch);
     let limited = RateLimited::new(chunked, Rate::new(refill, interval).with_burst(burst));
-    let bounded = ConcurrencyLimited::new(limited, permits);
-    Metered::new(bounded, sink)
+    ConcurrencyLimited::new(limited, permits)
 }
 
 /// A per-second rate no deployment reaches, standing in for "no

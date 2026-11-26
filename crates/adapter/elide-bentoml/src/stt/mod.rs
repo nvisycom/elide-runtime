@@ -41,8 +41,8 @@ const ROUTE: &str = "transcribe";
 /// BentoML STT backend.
 ///
 /// Owns a cached [`Endpoint`] pointing at the `elide-stt`
-/// `/transcribe` route, plus the per-deployment model id (echoed
-/// into [`Backend::provenance`]).
+/// `/transcribe` route, plus the per-deployment model id (named
+/// on every response it decodes).
 #[derive(Debug, Clone)]
 pub struct BentoStt {
     /// Pre-built endpoint at the `/transcribe` route. Cloned per
@@ -53,7 +53,7 @@ pub struct BentoStt {
     /// client it was built from.
     client: Client,
     endpoint: Endpoint,
-    /// Service-side model identifier echoed in provenance.
+    /// Service-side model identifier each response names.
     model_id: HipStr<'static>,
 }
 
@@ -109,7 +109,15 @@ impl BentoStt {
             .invoke(&SttInput { request: body })
             .await
             .map_err(BentoError::Transport)?;
-        wire.0.decode()
+        wire.0.decode(self.model())
+    }
+}
+
+impl BentoStt {
+    /// The model each response names: the one this deployment
+    /// configured.
+    fn model(&self) -> ModelId {
+        ModelId::new(self.model_id.clone())
     }
 }
 
@@ -117,13 +125,6 @@ impl BentoStt {
 impl Backend for BentoStt {
     type Request<'a> = SttRequest<'a>;
     type Response = SttResponse;
-
-    fn provenance(&self) -> ModelId {
-        ModelId {
-            name: self.model_id.clone(),
-            version: None,
-        }
-    }
 
     async fn call(&self, request: SttRequest<'_>) -> Result<SttResponse> {
         Ok(self.post_transcribe(request).await?)

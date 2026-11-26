@@ -9,7 +9,7 @@
 use std::mem;
 
 use elide::{Error, ErrorKind, Report, Result};
-use elide_provider::KeyConfig;
+use elide_provider::{KeyConfig, Pass};
 use elide_schema::policy::Policy;
 
 use super::Engine;
@@ -116,13 +116,17 @@ impl Engine {
             ));
         }
 
-        let orchestrator = self.provider().anonymize_orchestrator(
-            &audit.context,
-            &audit.recognition,
+        // From the audit, not a fresh request: anonymize compiles
+        // the vocabulary analyze detected with.
+        let pass = Pass {
             policies,
-            key,
+            context: &audit.context,
+            recognition: &audit.recognition,
             correlation_id,
-        )?;
+        };
+        let orchestrator = self
+            .provider()
+            .anonymize_orchestrator(&pass, &audit.report, key)?;
 
         // The report moves through apply and comes back mutated,
         // every entity carrying the redaction event elide stamped.

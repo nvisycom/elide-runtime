@@ -44,9 +44,6 @@ mod orchestrator;
 mod redact;
 mod request;
 
-/// The hidden-content policy a request carries on [`CodecParams`],
-/// with the disposition it is built from.
-pub use elide::redaction::{Disposition, HiddenContentPolicy};
 /// Deployment configuration: which backends exist, how to reach
 /// them, and which of them a caller may select.
 ///
@@ -73,8 +70,11 @@ pub use elide_pdf::primitive::RasterMode;
 pub use elide_schema::recognition::{CustomMatcher, MatchOn, Recognition};
 
 pub use self::detect::{
-    Analyzers, AttachTo, AuthenticatedProvider, Availability, Backend, Component,
-    ComponentSelection, Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers,
-    SttBackend, UnauthenticatedProvider, UsageHandle,
+    AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentSelection,
+    Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers, SttBackend,
+    UnauthenticatedProvider,
 };
-pub use self::orchestrator::{CodecParams, DocumentContext, KeyConfig, Provider, RequestContext};
+pub use self::orchestrator::{
+    CodecParams, DocumentContext, KeyConfig, Pass, Provider, RequestContext,
+};
+pub use self::redact::hidden_content_policy;

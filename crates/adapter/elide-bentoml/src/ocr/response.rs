@@ -9,6 +9,7 @@
 //!
 //! [`Layout`]: elide_image::modality::Layout
 
+use elide_core::entity::audit::ModelId;
 use elide_core::primitive::Confidence;
 use elide_image::modality::{ImageLocation, LayoutRegion};
 use elide_image::ocr::OcrResponse;
@@ -42,7 +43,7 @@ impl WireOcrResponse {
     /// it would lose recognised content.
     ///
     /// [`Layout`]: elide_image::modality::Layout
-    pub(super) fn decode(self) -> Result<OcrResponse, BentoError> {
+    pub(super) fn decode(self, model: ModelId) -> Result<OcrResponse, BentoError> {
         let mut regions = Vec::new();
         for page in self.pages {
             let page_number = Some(u32::try_from(page.page_number.get()).map_err(|_| {
@@ -69,7 +70,7 @@ impl WireOcrResponse {
                 }
             }
         }
-        Ok(OcrResponse::new(regions))
+        Ok(OcrResponse::new(model, regions))
     }
 }
 
@@ -110,7 +111,7 @@ mod tests {
                 assert!(matches!(block.kind, BlockKind::Table));
                 assert_eq!(block.lines[0].words[0].polygon.unwrap().2, (40.0, 24.0));
             }
-            let regions = wire.0.remove(0).decode().unwrap().regions;
+            let regions = wire.0.remove(0).decode(ModelId::new("m")).unwrap().regions;
             let expected = case["expected_regions"].as_array().unwrap();
             assert_eq!(regions.len(), expected.len());
             for (region, expected) in regions.iter().zip(expected) {
@@ -145,9 +146,9 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(response.pages[0].blocks[0].kind, BlockKind::Text));
-        assert_eq!(response.decode().unwrap().regions.len(), 1);
+        assert_eq!(response.decode(ModelId::new("m")).unwrap().regions.len(), 1);
         let empty: WireOcrResponse = serde_json::from_str(r#"{"model_id":"m"}"#).unwrap();
-        assert!(empty.decode().unwrap().regions.is_empty());
+        assert!(empty.decode(ModelId::new("m")).unwrap().regions.is_empty());
     }
 
     #[test]
@@ -158,7 +159,7 @@ mod tests {
             "model_id":"m", "pages":[{"page_number":u64::from(u32::MAX) + 1}]
         }))
         .unwrap();
-        assert!(response.decode().is_err());
+        assert!(response.decode(ModelId::new("m")).is_err());
     }
 
     #[test]

@@ -1,5 +1,6 @@
 //! Adapt Python Unicode code-point offsets to Rust UTF-8 byte ranges.
 
+use elide_core::entity::audit::ModelId;
 use elide_core::primitive::LanguageTag;
 use elide_ner::backend::{NerRequest, NerResponse, NerSpan};
 
@@ -10,6 +11,7 @@ impl WireNerResponse {
     /// Resolve the localized wire names against this request's canonical labels.
     pub(super) fn decode_request(
         self,
+        model: ModelId,
         request: &NerRequest<'_>,
     ) -> Result<NerResponse, BentoError> {
         let english = LanguageTag::english();
@@ -17,7 +19,7 @@ impl WireNerResponse {
         let labels = request.labels.ok_or_else(|| {
             BentoError::Protocol("NER response requires the request's label schema".into())
         })?;
-        let mut response = self.decode(request.text)?;
+        let mut response = self.decode(model, request.text)?;
         for span in &mut response.spans {
             let label = labels
                 .iter()
@@ -33,7 +35,7 @@ impl WireNerResponse {
         Ok(response)
     }
 
-    pub(super) fn decode(self, source: &str) -> Result<NerResponse, BentoError> {
+    pub(super) fn decode(self, model: ModelId, source: &str) -> Result<NerResponse, BentoError> {
         // Build one table per source, including the valid exclusive end.
         let boundaries: Vec<usize> = source
             .char_indices()
@@ -69,7 +71,7 @@ impl WireNerResponse {
             }
             spans.push(NerSpan::new(entity.label, entity.score as f32, start..end));
         }
-        Ok(NerResponse::new(spans))
+        Ok(NerResponse::new(model, spans))
     }
 }
 
@@ -94,7 +96,7 @@ mod tests {
             let decoded = responses
                 .0
                 .remove(0)
-                .decode(&request.requests[0].text)
+                .decode(ModelId::new("m"), &request.requests[0].text)
                 .unwrap();
             let expected = case["expected_byte_range"].as_array().unwrap();
             assert_eq!(
@@ -119,7 +121,7 @@ mod tests {
             let wire: WireNerResponse = serde_json::from_str(
                 r#"{"model_id":"m","entities":[{"text":"Ada","label":"person name","score":0.9,"start":0,"end":3}]}"#,
             ).unwrap();
-            let response = wire.decode_request(&request).unwrap();
+            let response = wire.decode_request(ModelId::new("m"), &request).unwrap();
             assert_eq!(response.spans[0].label, labels[0].to_ref());
             assert_eq!(response.spans[0].offset, 0..3);
         }
@@ -136,13 +138,16 @@ mod tests {
             r#"{"model_id":"m","entities":[{"text":"Ada","label":"osoba","score":0.9,"start":0,"end":3}]}"#,
         ).unwrap();
         assert_eq!(
-            wire.decode_request(&request).unwrap().spans[0].label,
+            wire.decode_request(ModelId::new("m"), &request)
+                .unwrap()
+                .spans[0]
+                .label,
             labels[0].to_ref()
         );
         let wire: WireNerResponse = serde_json::from_str(
             r#"{"model_id":"m","entities":[{"text":"Ada","label":"unknown","score":0.9,"start":0,"end":3}]}"#,
         ).unwrap();
-        assert!(wire.decode_request(&request).is_err());
+        assert!(wire.decode_request(ModelId::new("m"), &request).is_err());
     }
 
     #[test]
@@ -154,7 +159,7 @@ mod tests {
             let response: WireNerResponse =
                 serde_json::from_str(&format!(r#"{{"entities":[{entity}],"model_id":"m"}}"#))
                     .unwrap();
-            assert!(response.decode("Ada").is_err());
+            assert!(response.decode(ModelId::new("m"), "Ada").is_err());
         }
     }
 
@@ -169,6 +174,13 @@ mod tests {
         )
         .unwrap();
         assert!(response.tokens.is_none());
-        assert_eq!(response.decode("Ada").unwrap().spans.len(), 1);
+        assert_eq!(
+            response
+                .decode(ModelId::new("m"), "Ada")
+                .unwrap()
+                .spans
+                .len(),
+            1
+        );
     }
 }

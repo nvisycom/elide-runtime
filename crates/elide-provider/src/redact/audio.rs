@@ -1,9 +1,9 @@
 //! Compile audio-modality rules to elide operators + attach to an
 //! [`Anonymizer<Audio>`].
 
-use elide::Result;
 use elide::modality::audio::Audio;
 use elide::redaction::Anonymizer;
+use elide::{Error, ErrorKind, Result};
 use elide_schema::policy::Policy;
 use elide_schema::redaction::{AudioRedaction, ModalityRedactions};
 
@@ -35,5 +35,14 @@ fn compile_one(
 }
 
 fn compile_spec(target: Target<'_, Audio>, spec: &AudioRedaction) -> Result<Anonymizer<Audio>> {
-    Ok(AudioOp::from(spec).attach_to(target))
+    // Named here rather than in elide's message, which knows the
+    // parameter but not which policy set it.
+    let policy_id = target.policy_id();
+    let op = AudioOp::try_from(spec).map_err(|err| {
+        Error::new(
+            ErrorKind::Configuration,
+            format!("policy `{policy_id}`: {err}"),
+        )
+    })?;
+    Ok(op.attach_to(target))
 }

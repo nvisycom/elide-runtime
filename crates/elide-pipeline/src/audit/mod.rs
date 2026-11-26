@@ -6,8 +6,10 @@
 //! because they are part of what analysis found, as amended.
 //!
 //! Hosts hold an [`Audit`] between the two passes and may persist
-//! it however they like: serialize it directly, and read it back
-//! with [`Engine::deserialize_audit`].
+//! it however they like: serialize it directly, keep its
+//! [`digest`](Audit::digest) where its carrier cannot change it, and
+//! read it back against that digest with
+//! [`Engine::deserialize_audit`].
 //!
 //! The enrichment content an analysis produced — an image's OCR
 //! layout, an audio clip's transcript — is *not* on the audit. It
@@ -23,13 +25,8 @@
 mod csv;
 mod registered;
 
-use elide::backend::metrics::Usage;
+use elide::entity::audit::AuditHash;
 use elide::modality::Modality;
-use elide::modality::audio::Audio;
-use elide::modality::image::Image;
-use elide::modality::metadata::Metadata;
-use elide::modality::tabular::Tabular;
-use elide::modality::text::Text;
 use elide::{ArtifactSet, PartId, Report};
 use elide_provider::{CodecParams, ComponentSelection, DocumentContext};
 use elide_schema::recognition::Recognition;
@@ -92,9 +89,9 @@ pub struct Analyzed {
 /// # Schema
 ///
 /// Generate under the **serialize** contract
-/// ([`SchemaSettings::for_serialize`]). `usage` is
-/// `skip_serializing_if`, and only that contract marks it optional
-/// — `schema_for!` defaults to deserialize and declares it
+/// ([`SchemaSettings::for_serialize`]). Fields that are
+/// `skip_serializing_if` are optional only under that contract —
+/// `schema_for!` defaults to deserialize and declares them
 /// required, so a generated client would reject responses this
 /// crate really emits.
 ///
@@ -109,13 +106,13 @@ pub struct Audit {
     /// parts nested in one, each entity carrying its provenance
     /// chain.
     ///
-    /// Read it through [`Report::part`] and edit it through
-    /// [`Report::part_mut`], which records each reviewer decision on
-    /// the entity's trail.
+    /// Read it through [`Report::part`] and change it only through a
+    /// review: [`EditSet::apply`] records each reviewer decision on
+    /// the entities it touches.
     ///
     /// [`Report`]: elide::Report
     /// [`Report::part`]: elide::Report::part
-    /// [`Report::part_mut`]: elide::Report::part_mut
+    /// [`EditSet::apply`]: crate::entity::EditSet::apply
     pub report: Report,
     /// What the caller asserted when this document was analyzed:
     /// languages, jurisdictions, document tags.
@@ -153,24 +150,35 @@ pub struct Audit {
     /// [`codec`]: Audit::codec
     #[serde(default, skip_serializing_if = "ComponentSelection::is_empty")]
     pub selection: ComponentSelection,
-    /// What the analyze pass cost: one entry per *backend call*,
-    /// each carrying its outcome, duration, the model it called and
-    /// the units it spent.
-    ///
-    /// Carried here rather than recomputed: a model call happens
-    /// once, during analysis, and nothing downstream can reconstruct
-    /// what it cost — so a host that bills on model spend would
-    /// lose it when the audit round-trips.
-    ///
-    /// Per call rather than one aggregate: the same model may be
-    /// called several times for one document (a page each, a
-    /// segment each), and a failed call still costs wall-clock time
-    /// a host may want to see. Summing is the reader's to do.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub usage: Vec<Usage>,
 }
 
 impl Audit {
+    /// A digest of the whole audit: the report, with every entity's
+    /// trail, and what the request asserted about it.
+    ///
+    /// What [`Engine::deserialize_audit`] checks an audit against
+    /// when it is read back. Keep it where the audit's carrier
+    /// cannot change it: on the side that wrote the audit, in a
+    /// write-once store, or signed with a key the deployment holds.
+    /// The context, vocabularies, decode settings, and component
+    /// selection are covered as well as the report, since anonymize
+    /// acts on each.
+    ///
+    /// Changes when the report does, so take it again after
+    /// applying a review.
+    ///
+    /// [`Engine::deserialize_audit`]: crate::Engine::deserialize_audit
+    #[must_use]
+    pub fn digest(&self) -> AuditHash {
+        AuditHash::of_fields([
+            self.report.digest().as_bytes().to_vec(),
+            json(&self.context),
+            json(&self.recognition),
+            json(&self.codec),
+            json(&self.selection),
+        ])
+    }
+
     /// Whether the entity `id` will be left alone.
     ///
     /// Entities no policy acted on, by modality and label.
@@ -192,12 +200,9 @@ impl Audit {
     /// [`Selection`]: elide::entity::audit::AuditKind::Selection
     #[must_use]
     pub fn unhandled(&self) -> Vec<Unhandled> {
-        self.unhandled_in::<Text>()
-            .chain(self.unhandled_in::<Tabular>())
-            .chain(self.unhandled_in::<Image>())
-            .chain(self.unhandled_in::<Audio>())
-            .chain(self.unhandled_in::<Metadata>())
-            .collect()
+        let mut unhandled = Vec::new();
+        elide_schema::each_modality!(|M| unhandled.extend(self.unhandled_in::<M>()));
+        unhandled
     }
 
     /// One modality's unhandled detections, across the body and
@@ -221,11 +226,11 @@ impl Audit {
                     .unwrap_or_default()
                     .iter()
             })
-            .filter(|e| e.audit.selection().is_none() && !e.audit.is_suppressed())
+            .filter(|e| e.audit().selection().is_none() && !e.is_suppressed())
             .map(|e| Unhandled {
-                entity_id: e.id,
+                entity_id: e.id(),
                 modality: M::NAME,
-                label: e.label.as_str().to_owned(),
+                label: e.label().as_str().to_owned(),
             })
     }
 
@@ -253,4 +258,13 @@ pub struct Unhandled {
     pub modality: &'static str,
     /// What it was detected as.
     pub label: String,
+}
+
+/// `value` as JSON, for a digest.
+///
+/// Infallible for the request types an audit carries: plain data,
+/// with no map keyed by anything but a string, and fields in
+/// declaration order, so the same value always encodes the same.
+fn json<T: Serialize>(value: &T) -> Vec<u8> {
+    serde_json::to_vec(value).expect("an audit's request data serializes as JSON")
 }

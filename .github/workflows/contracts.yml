@@ -46,7 +46,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_TOOLCHAIN: "1.95.0"
+  RUST_TOOLCHAIN: "1.99.1"
   UV_VERSION: "0.13.5"
   TYPIFY_VERSION: "0.5.0"
 

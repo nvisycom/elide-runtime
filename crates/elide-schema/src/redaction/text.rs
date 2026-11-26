@@ -4,7 +4,7 @@
 //! Each variant mirrors an elide built-in operator the engine
 //! constructs at apply time:
 //!
-//! - [`TextRedaction::Erase`] → `elide::redaction::operators::Erase`
+//! - [`TextRedaction::Remove`] → `elide::redaction::operators::Remove`
 //! - [`TextRedaction::Keep`] → `elide::redaction::operators::Keep`
 //! - [`TextRedaction::Mask`] → `elide::redaction::operators::Mask`
 //! - [`TextRedaction::Replace`] → `elide::redaction::operators::Replace`
@@ -40,17 +40,17 @@
 //! [`Clamp`] and [`GeneralizeDate`] each carry an optional
 //! `fallback` field that runs when the entity value isn't the
 //! operator's shape (a non-numeric age, a free-text date). The
-//! fallback is one of the four terminal operators: [`Erase`],
+//! fallback is one of the four terminal operators: [`Remove`],
 //! [`Keep`], [`Replace`], [`Mask`]: so the engine builds a
 //! concrete `elide::WithFallback<primary, fallback>` without
-//! type erasure. `None` erases (elide's baked-in default).
+//! type erasure. `None` removes (elide's baked-in default).
 //!
 //! No `Custom` escape hatch: every operator the wire format admits
 //! is predefined. New built-ins land in elide first, then surface
 //! here as new variants.
 //!
 //! [`Clamp`]: TextRedaction::Clamp
-//! [`Erase`]: TextRedaction::Erase
+//! [`Remove`]: TextRedaction::Remove
 //! [`GeneralizeDate`]: TextRedaction::GeneralizeDate
 //! [`Hash`]: TextRedaction::Hash
 //! [`Keep`]: TextRedaction::Keep
@@ -137,20 +137,20 @@ fn localized(map: &HashMap<LanguageTag, String>) -> LocalizedText<HipStr<'static
 /// The four operators that always apply and produce a deterministic
 /// output without needing engine-side infrastructure (no key
 /// provider, no vault). Enough to satisfy every regulatory
-/// pattern I know: `Clamp/GeneralizeDate → Erase` (the safe
+/// pattern I know: `Clamp/GeneralizeDate → Remove` (the safe
 /// default), `→ Replace { template }` (an explicit placeholder),
 /// or `→ Mask` / `→ Keep` on the rare occasion those fit.
 ///
 /// Absent from the primary's spec, elide's baked-in default is
-/// [`Erase`]: a bare [`TextRedaction::Clamp`] without a `fallback`
-/// erases values that aren't numeric.
+/// [`Remove`]: a bare [`TextRedaction::Clamp`] without a `fallback`
+/// removes values that aren't numeric.
 ///
-/// [`Erase`]: TerminalFallback::Erase
+/// [`Remove`]: TerminalFallback::Remove
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TerminalFallback {
-    /// See [`TextRedaction::Erase`].
-    Erase,
+    /// See [`TextRedaction::Remove`].
+    Remove,
     /// See [`TextRedaction::Keep`].
     Keep,
     /// See [`TextRedaction::Replace`].
@@ -179,7 +179,7 @@ pub enum TerminalFallback {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TextRedaction {
     /// Delete the matched span entirely.
-    Erase,
+    Remove,
     /// Pass the value through unchanged.
     Keep,
     /// Character-replacement masking. Leaves `keep_prefix` leading
@@ -296,10 +296,10 @@ pub enum TextRedaction {
     ///
     /// Values that don't parse as finite numbers are *declined*.
     /// `fallback` names what runs on a declined value; when
-    /// absent, elide's baked-in default is [`Erase`] (the safe
+    /// absent, elide's baked-in default is [`Remove`] (the safe
     /// posture: a non-numeric age never survives redaction).
     ///
-    /// [`Erase`]: TextRedaction::Erase
+    /// [`Remove`]: TextRedaction::Remove
     Clamp {
         /// Threshold at or above which values collapse to
         /// `ceiling_bucket`. `None` disables the ceiling.
@@ -318,7 +318,7 @@ pub enum TextRedaction {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         floor_bucket: Option<ClampBucket>,
         /// Operator that runs when the entity value isn't a
-        /// finite number. `None` erases (elide's default).
+        /// finite number. `None` removes (elide's default).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         fallback: Option<TerminalFallback>,
     },
@@ -329,9 +329,9 @@ pub enum TextRedaction {
     ///
     /// Values that don't parse as dates are *declined*. `fallback`
     /// names what runs on a declined value; when absent, elide's
-    /// baked-in default is [`Erase`].
+    /// baked-in default is [`Remove`].
     ///
-    /// [`Erase`]: TextRedaction::Erase
+    /// [`Remove`]: TextRedaction::Remove
     GeneralizeDate {
         /// Coarseness of the output. Default `Year`.
         #[serde(default)]
@@ -340,7 +340,7 @@ pub enum TextRedaction {
         #[serde(default)]
         style: DateStyle,
         /// Operator that runs when the entity value isn't a
-        /// parseable date. `None` erases (elide's default).
+        /// parseable date. `None` removes (elide's default).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         fallback: Option<TerminalFallback>,
     },

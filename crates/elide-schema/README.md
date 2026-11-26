@@ -20,7 +20,7 @@ falls through to the next policy.
 Scopes let a policy detect more than its rules act on: scope a whole
 regulatory category, write rules for the labels needing special
 treatment, and let the fallback sweep the rest. Policies carry
-per-modality redaction operators (erase, mask, replace, hash,
+per-modality redaction operators (remove, cover, mask, replace, hash,
 encrypt, blur, pixelate, ...) and entity-match predicates, which may
 target a scope by name.
 

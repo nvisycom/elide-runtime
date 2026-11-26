@@ -7,7 +7,8 @@
 
 use elide::modality::audio::Audio;
 use elide::redaction::Anonymizer;
-use elide::redaction::operators::{Beep, Erase, Keep, Silence};
+use elide::redaction::operators::{Beep, Cover, Keep, Remove};
+use elide::{Error, Result};
 use elide_schema::redaction::AudioRedaction;
 
 use crate::redact::target::Target;
@@ -19,9 +20,9 @@ use crate::redact::target::Target;
 ///
 /// [`Anonymizer::with_label`]: elide::redaction::Anonymizer::with_label
 pub(in crate::redact) enum AudioOp {
-    Erase,
+    Remove,
     Keep,
-    Silence,
+    Cover,
     Beep(Beep),
 }
 
@@ -29,29 +30,37 @@ impl AudioOp {
     /// Attach `self` to `target`.
     pub(in crate::redact) fn attach_to(self, target: Target<'_, Audio>) -> Anonymizer<Audio> {
         match self {
-            AudioOp::Erase => target.attach_with(Erase),
+            AudioOp::Remove => target.attach_with(Remove),
             AudioOp::Keep => target.attach_with(Keep),
-            AudioOp::Silence => target.attach_with(Silence),
+            AudioOp::Cover => target.attach_with(Cover::default()),
             AudioOp::Beep(op) => target.attach_with(op),
         }
     }
 }
 
-impl From<&AudioRedaction> for AudioOp {
-    fn from(spec: &AudioRedaction) -> Self {
-        match spec {
-            AudioRedaction::Erase => Self::Erase,
+impl TryFrom<&AudioRedaction> for AudioOp {
+    type Error = Error;
+
+    /// Build the operator `spec` names.
+    ///
+    /// Fails with [`Configuration`](elide::ErrorKind::Configuration)
+    /// when elide rejects a parameter: a frequency that is not
+    /// finite and positive. An amplitude outside `0.0..=1.0` is
+    /// clamped.
+    fn try_from(spec: &AudioRedaction) -> Result<Self> {
+        Ok(match spec {
+            AudioRedaction::Remove => Self::Remove,
             AudioRedaction::Keep => Self::Keep,
-            AudioRedaction::Silence => Self::Silence,
+            AudioRedaction::Cover => Self::Cover,
             AudioRedaction::Beep {
                 hz,
                 amplitude,
                 waveform,
             } => Self::Beep(
-                Beep::new(*hz)
+                Beep::new(*hz)?
                     .with_amplitude(*amplitude)
                     .with_waveform(*waveform),
             ),
-        }
+        })
     }
 }

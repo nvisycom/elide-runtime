@@ -10,95 +10,46 @@
 //! decides all of them at once, every compiler reads them together,
 //! and none changes while an analyzer is being built.
 
-use std::sync::Arc;
-
 use elide::Result;
-use elide::backend::metrics::{Usage, UsageCollector, UsageSink};
 use elide_deployment::Lingua;
-use elide_deployment::component::{Availability, ComponentSelection, Resolver};
+use elide_deployment::component::{ComponentSelection, Resolver};
 use elide_schema::recognition::Recognition;
 
-use super::{Component, Enrichers, LlmBackend, NerBackend, OcrBackend, Recognizers, SttBackend};
+use super::{Component, LlmBackend, NerBackend, OcrBackend, SttBackend};
+#[cfg(feature = "google-document-ai")]
 use crate::orchestrator::Clients;
+use crate::orchestrator::ProviderInner;
 
 /// What one request compiles its analyzers from.
 ///
 /// Borrowed rather than owned: the configuration outlives the
 /// request, so a `Compile` is made per request and discarded.
 pub(crate) struct Compile<'a> {
-    /// The recognizer lineups a deployment configured.
-    pub(crate) recognizers: &'a Recognizers,
-    /// The enricher lineups a deployment configured.
-    pub(crate) enrichers: &'a Enrichers,
+    /// What the deployment wired: its recognizer and enricher
+    /// lineups, and the clients built before any request arrived.
+    provider: &'a ProviderInner,
     /// The vocabularies this request introduces.
     pub(crate) recognition: &'a [Recognition],
-    /// Clients built before any request arrived, for the backends
-    /// that could not be constructed here.
-    ///
-    /// Read only by the factories for those backends, so it is dead
-    /// weight — one reference — in a build with none of them
-    /// compiled in. Kept unconditional so `Compile::new`'s signature
-    /// does not change with the feature set.
-    #[cfg_attr(
-        not(feature = "google-document-ai"),
-        expect(dead_code, reason = "read only by the async-client backends")
-    )]
-    pub(crate) clients: &'a Clients,
     /// Which components this caller may run, and which the request
     /// asked for. Folded in rather than passed beside: it is
     /// consulted at the same sites, over the same lineups, for the
     /// same request.
     resolver: Resolver<'a>,
-    /// Where each backend call records what it cost.
-    ///
-    /// Owned, not borrowed, and cloned into every [`Metered`]
-    /// wrapper: the collector shares its entries behind an `Arc`, so
-    /// each clone writes to the same run's tally.
-    ///
-    /// [`Metered`]: elide::backend::metrics::Metered
-    collector: UsageCollector,
 }
 
 impl<'a> Compile<'a> {
-    /// The context for one request.
+    /// The context for one request: what `provider` wired, the
+    /// vocabularies the request introduces, and the components
+    /// `selection` asks for under the provider's availability.
     pub(crate) fn new(
-        recognizers: &'a Recognizers,
-        enrichers: &'a Enrichers,
+        provider: &'a ProviderInner,
         recognition: &'a [Recognition],
-        availability: &'a Availability,
         selection: &'a ComponentSelection,
-        clients: &'a Clients,
     ) -> Self {
         Self {
-            recognizers,
-            enrichers,
+            provider,
             recognition,
-            clients,
-            resolver: Resolver::new(availability, selection),
-            collector: UsageCollector::new(),
-        }
-    }
-
-    /// A sink for one backend, to hand [`Metered::new`].
-    ///
-    /// A fresh handle each call, all writing to this request's one
-    /// tally — so a document analyzed by several backends reports
-    /// every call, and two concurrent requests never mix.
-    ///
-    /// [`Metered::new`]: elide::backend::metrics::Metered::new
-    pub(crate) fn sink(&self) -> Arc<dyn UsageSink> {
-        Arc::new(self.collector.clone())
-    }
-
-    /// A handle on this request's tally, readable after the
-    /// analysis has run.
-    ///
-    /// Owned rather than borrowed: the caller reads the tally once
-    /// the orchestrator has finished, by which point the `Compile`
-    /// it was built from is gone.
-    pub(crate) fn usage_handle(&self) -> UsageHandle {
-        UsageHandle {
-            collector: self.collector.clone(),
+            resolver: Resolver::new(&provider.availability, selection),
         }
     }
 
@@ -119,26 +70,30 @@ impl<'a> Compile<'a> {
         // filtered: a key naming a NER component is legitimate even
         // though the LLM lineup has never heard of it.
         self.resolver
-            .validate_keys(self.recognizers, self.enrichers)?;
+            .validate_keys(&self.provider.recognizers, &self.provider.enrichers)?;
         let ner: Vec<_> = self
             .resolver
-            .resolve(&self.recognizers.ner)
+            .resolve(&self.provider.recognizers.ner)
             .into_iter()
             .cloned()
             .collect();
         let llm: Vec<_> = self
             .resolver
-            .resolve(&self.recognizers.llm)
+            .resolve(&self.provider.recognizers.llm)
             .into_iter()
             .cloned()
             .collect();
         self.resolver
-            .refuse_if_no_recognizer(self.recognizers, ner.len() + llm.len())?;
+            .refuse_if_no_recognizer(&self.provider.recognizers, ner.len() + llm.len())?;
         Ok(Resolved {
             ner,
             llm,
-            ocr: self.resolver.pick_one(&self.enrichers.ocr, "OCR")?,
-            stt: self.resolver.pick_one(&self.enrichers.stt, "STT")?,
+            ocr: self
+                .resolver
+                .pick_one(&self.provider.enrichers.ocr, "OCR")?,
+            stt: self
+                .resolver
+                .pick_one(&self.provider.enrichers.stt, "STT")?,
             cx: self,
         })
     }
@@ -159,8 +114,8 @@ pub(crate) struct Resolved<'a> {
     pub(crate) ocr: Option<&'a Component<OcrBackend>>,
     /// The single STT enricher, if one survived.
     pub(crate) stt: Option<&'a Component<SttBackend>>,
-    /// The request this was resolved for: its vocabularies, and the
-    /// sink each backend records into.
+    /// The request this was resolved for: its vocabularies, and
+    /// what the deployment wired.
     cx: &'a Compile<'a>,
 }
 
@@ -173,7 +128,7 @@ impl<'a> Resolved<'a> {
     /// The clients built before this request arrived.
     #[cfg(feature = "google-document-ai")]
     pub(crate) fn clients(&self) -> &'a Clients {
-        self.cx.clients
+        &self.cx.provider.clients
     }
 
     /// The language candidates the deployment narrowed detection to.
@@ -182,40 +137,6 @@ impl<'a> Resolved<'a> {
     /// one detector and it is always wired, so there is nothing to
     /// select between.
     pub(crate) fn lingua(&self) -> &'a Lingua {
-        &self.cx.enrichers.lingua
-    }
-
-    /// A usage sink for one backend.
-    pub(crate) fn sink(&self) -> Arc<dyn UsageSink> {
-        self.cx.sink()
-    }
-}
-
-/// A request's usage tally.
-///
-/// Handed back beside the analyzers so a caller can read what the
-/// model calls cost once they have run, without holding the
-/// per-request context they were compiled from.
-#[derive(Debug, Clone)]
-pub struct UsageHandle {
-    /// Shares its entries with every sink wired into a backend.
-    collector: UsageCollector,
-}
-
-impl UsageHandle {
-    /// Every call recorded so far, in the order the calls completed.
-    ///
-    /// One entry per backend call, not per component: a component
-    /// called twice for one document reports twice, and a failed
-    /// call reports the wall-clock time it still cost.
-    #[must_use]
-    pub fn entries(&self) -> Vec<Usage> {
-        self.collector.entries()
-    }
-
-    /// Whether any model call was recorded.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.collector.entries().is_empty()
+        &self.cx.provider.enrichers.lingua
     }
 }

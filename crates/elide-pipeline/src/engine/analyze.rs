@@ -7,7 +7,7 @@
 //! drift.
 
 use elide::{AnalyzedDocument, ArtifactSet, Error, ErrorKind, Result};
-use elide_provider::{Analyzers, RequestContext};
+use elide_provider::{Pass, RequestContext};
 use elide_schema::policy::Policy;
 
 use super::Engine;
@@ -112,26 +112,19 @@ impl Engine {
         let correlation_id = document.correlation_id;
         let extension = document.extension.clone();
         let mut handle = self.decode(document, request.codec).await?;
-        let Analyzers {
-            orchestrator,
-            usage,
-        } = self.provider().analyze_orchestrator(
-            &request.context,
-            &request.recognition,
+        let pass = Pass {
             policies,
+            context: &request.context,
+            recognition: &request.recognition,
             correlation_id,
-            &request.selection,
-        )?;
+        };
+        let orchestrator = self
+            .provider()
+            .analyze_orchestrator(&pass, &request.selection)?;
         let AnalyzedDocument {
             mut report,
             artifacts,
         } = orchestrator.re_analyze(&mut handle, prior).await?;
-        // Read after the analysis, not off the report: a model call
-        // is recorded where it happens, by the `Metered` decorator
-        // each configured backend is wrapped in, and the report
-        // carries no usage of its own.
-        let usage = usage.entries();
-
         // A document whose codec resolved to a modality with no
         // registered pipeline produces no part at all, and nothing
         // downstream can act on it.
@@ -164,13 +157,7 @@ impl Engine {
         //
         // The observable signal is an audit carrying no `Selection`
         // events.
-        let _: Result<()> = self.provider().record_picks(
-            &request.context,
-            &request.recognition,
-            policies,
-            correlation_id,
-            &mut report,
-        );
+        let _: Result<()> = self.provider().record_picks(&pass, &mut report);
 
         Ok(Analyzed {
             audit: Audit {
@@ -179,7 +166,6 @@ impl Engine {
                 recognition: request.recognition.clone(),
                 codec: request.codec,
                 selection: request.selection.clone(),
-                usage,
             },
             artifacts,
         })

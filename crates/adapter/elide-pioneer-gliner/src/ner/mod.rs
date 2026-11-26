@@ -14,7 +14,6 @@ use elide_core::backend::Backend;
 use elide_core::entity::audit::ModelId;
 use elide_core::primitive::LanguageTag;
 use elide_ner::backend::{NerRequest, NerResponse};
-use hipstr::HipStr;
 
 use self::request::WireRequest;
 use self::response::WireResponse;
@@ -138,13 +137,6 @@ impl Backend for PioneerNer {
     type Request<'a> = NerRequest<'a>;
     type Response = NerResponse;
 
-    fn provenance(&self) -> ModelId {
-        ModelId {
-            name: HipStr::borrowed(MODEL_ID),
-            version: None,
-        }
-    }
-
     async fn call(&self, request: NerRequest<'_>) -> Result<NerResponse> {
         // Zero-shot: the labels arrive per call. Without them there is no
         // schema to send, and Pioneer's route requires one.
@@ -162,7 +154,7 @@ impl Backend for PioneerNer {
             .map(|label| label.name(language).to_owned())
             .collect();
         if labels.is_empty() {
-            return Ok(NerResponse::new(Vec::new()));
+            return Ok(NerResponse::new(ModelId::new(MODEL_ID), Vec::new()));
         }
 
         let body = WireRequest::new(request.text, labels, self.threshold, self.zero_retention);

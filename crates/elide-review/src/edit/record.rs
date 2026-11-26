@@ -119,9 +119,9 @@ pub struct Add<M: RedactableModality> {
     /// documents, since there is then no sole document to mean.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub part: Option<Vec<String>>,
-    /// Who made the call, and why.
-    #[serde(flatten)]
-    pub by: Reviewer,
+    /// Why the reviewer made this edit, when they said.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Correct what an existing detection *is* or *covers*, then redact
@@ -146,9 +146,9 @@ pub struct Retag<M: RedactableModality> {
     /// ran past it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub location: Option<M::Location>,
-    /// Who made the call, and why.
-    #[serde(flatten)]
-    pub by: Reviewer,
+    /// Why the reviewer made this edit, when they said.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Leave this entity alone: a reviewer calling it a false positive.
@@ -161,64 +161,9 @@ pub struct Retag<M: RedactableModality> {
 pub struct Suppress {
     /// The entity to leave alone.
     pub id: Uuid,
-    /// Who made the call, and why.
-    #[serde(flatten)]
-    pub by: Reviewer,
-}
-
-/// Who made an edit, and why.
-///
-/// Shared by all four operations: the reviewer's identity is not
-/// part of the decision, so it does not vary with the decision.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Reviewer {
-    /// The rationale, when one was given.
+    /// Why the reviewer made this edit, when they said.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// Who made it, when the caller said.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub actor: Option<String>,
-}
-
-impl Reviewer {
-    /// Who made the call, with no rationale given.
-    ///
-    /// The two fields are independent — a decision can name its
-    /// author, its reason, both, or neither — so each has its own
-    /// builder and they chain.
-    #[must_use]
-    pub fn actor(actor: impl Into<String>) -> Self {
-        Self {
-            reason: None,
-            actor: Some(actor.into()),
-        }
-    }
-
-    /// Why the call was made, without naming who made it.
-    #[must_use]
-    pub fn reason(reason: impl Into<String>) -> Self {
-        Self {
-            reason: Some(reason.into()),
-            actor: None,
-        }
-    }
-
-    /// Attach the rationale to a reviewer that already names an
-    /// actor, and the reverse.
-    #[must_use]
-    pub fn with_reason(mut self, reason: impl Into<String>) -> Self {
-        self.reason = Some(reason.into());
-        self
-    }
-
-    /// Attach the actor to a reviewer that already carries a
-    /// reason.
-    #[must_use]
-    pub fn with_actor(mut self, actor: impl Into<String>) -> Self {
-        self.actor = Some(actor.into());
-        self
-    }
 }
 
 impl<M: RedactableModality> Edit<M> {
@@ -232,16 +177,6 @@ impl<M: RedactableModality> Edit<M> {
             Self::Add(_) => None,
             Self::Retag(e) => Some(e.id),
             Self::Suppress(e) => Some(e.id),
-        }
-    }
-
-    /// Who made this edit, and why.
-    #[must_use]
-    pub fn by(&self) -> &Reviewer {
-        match self {
-            Self::Add(e) => &e.by,
-            Self::Retag(e) => &e.by,
-            Self::Suppress(e) => &e.by,
         }
     }
 
@@ -271,13 +206,11 @@ impl<M: RedactableModality> Edit<M> {
     /// Why the reviewer made this edit.
     #[must_use]
     pub fn reason(&self) -> Option<&str> {
-        self.by().reason.as_deref()
-    }
-
-    /// Who made this edit.
-    #[must_use]
-    pub fn actor(&self) -> Option<&str> {
-        self.by().actor.as_deref()
+        match self {
+            Self::Add(e) => e.reason.as_deref(),
+            Self::Retag(e) => e.reason.as_deref(),
+            Self::Suppress(e) => e.reason.as_deref(),
+        }
     }
 }
 

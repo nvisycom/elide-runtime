@@ -15,7 +15,7 @@
 use std::hint::black_box;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use elide_provider::{ComponentSelection, Deployment, DocumentContext, Provider};
+use elide_provider::{ComponentSelection, Deployment, DocumentContext, Pass, Provider};
 use elide_schema::policy::Policy;
 use elide_schema::recognition::Recognition;
 use elide_template::{
@@ -63,6 +63,10 @@ fn compile(c: &mut Criterion) {
     // posture names shipped labels.
     let vocabulary: Vec<Recognition> = Vec::new();
     let correlation_id = Uuid::now_v7();
+    // An empty report: the hidden-content plan is worked out from it,
+    // and with nothing flagged it costs nothing, so the bench still
+    // measures compiling the policies.
+    let report = elide::Report::new();
 
     let mut group = c.benchmark_group("compile");
     for (name, policies) in templates() {
@@ -72,10 +76,12 @@ fn compile(c: &mut Criterion) {
                 black_box(
                     provider
                         .analyze_orchestrator(
-                            &context,
-                            &vocabulary,
-                            p,
-                            correlation_id,
+                            &Pass {
+                                policies: p,
+                                context: &context,
+                                recognition: &vocabulary,
+                                correlation_id,
+                            },
                             &ComponentSelection::new(),
                         )
                         .expect("analyze orchestrator"),
@@ -88,7 +94,16 @@ fn compile(c: &mut Criterion) {
             b.iter(|| {
                 black_box(
                     provider
-                        .anonymize_orchestrator(&context, &vocabulary, p, None, correlation_id)
+                        .anonymize_orchestrator(
+                            &Pass {
+                                policies: p,
+                                context: &context,
+                                recognition: &vocabulary,
+                                correlation_id,
+                            },
+                            &report,
+                            None,
+                        )
                         .expect("anonymize orchestrator"),
                 )
             });
@@ -104,10 +119,12 @@ fn compile(c: &mut Criterion) {
             black_box(
                 provider
                     .analyze_orchestrator(
-                        &context,
-                        &vocabulary,
-                        &all,
-                        correlation_id,
+                        &Pass {
+                            policies: &all,
+                            context: &context,
+                            recognition: &vocabulary,
+                            correlation_id,
+                        },
                         &ComponentSelection::new(),
                     )
                     .expect("analyze orchestrator"),
@@ -118,7 +135,16 @@ fn compile(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 provider
-                    .anonymize_orchestrator(&context, &vocabulary, &all, None, correlation_id)
+                    .anonymize_orchestrator(
+                        &Pass {
+                            policies: &all,
+                            context: &context,
+                            recognition: &vocabulary,
+                            correlation_id,
+                        },
+                        &report,
+                        None,
+                    )
                     .expect("anonymize orchestrator"),
             )
         });

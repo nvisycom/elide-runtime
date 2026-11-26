@@ -1,7 +1,7 @@
 //! Text-modality operator builder, shared with `tabular`.
 //!
 //! Cells in a tabular are `TextBacked` in elide, so the same
-//! concrete operators (`Erase`, `Keep`, `Mask`, `Replace`,
+//! concrete operators (`Remove`, `Keep`, `Mask`, `Replace`,
 //! `Sha2Hash`, `HmacHash`, `Truncate`, `Clamp`, `GeneralizeDate`,
 //! `Fake`, `Pseudonymize`, `AesEncrypt`) implement `Operator<Text>`
 //! *and* `Operator<Tabular>`. This module owns the `TextRedaction
@@ -30,8 +30,8 @@ use elide::modality::Modality;
 use elide::modality::text::TextReplacement;
 use elide::redaction::generator::RandomToken;
 use elide::redaction::operators::{
-    AesEncrypt, Clamp, Erase, Fake, GeneralizeDate, HmacHash, Keep, KeyProvider, Mask,
-    Pseudonymize, PseudonymizeKey, Replace, Sha2Hash, Truncate, TryOperator, WithFallback,
+    AesEncrypt, Clamp, Fake, GeneralizeDate, HmacHash, Keep, KeyProvider, Mask, Pseudonymize,
+    PseudonymizeKey, Remove, Replace, Sha2Hash, Truncate, TryOperator, WithFallback,
 };
 use elide::redaction::vault::InMemoryVault;
 use elide::redaction::{Anonymizer, Operator};
@@ -141,7 +141,7 @@ pub(in crate::redact) fn compile_and_attach<M>(
 ) -> Result<Anonymizer<M>>
 where
     M: Modality + Send + Sync + 'static,
-    Erase: Operator<M>,
+    Remove: Operator<M>,
     Keep: Operator<M>,
     Mask: Operator<M>,
     Replace: Operator<M>,
@@ -180,7 +180,7 @@ pub(in crate::redact) fn build<M>(
 ) -> Result<SharedTextOp<M>>
 where
     M: Modality + Send + Sync + 'static,
-    Erase: Operator<M>,
+    Remove: Operator<M>,
     Keep: Operator<M>,
     Mask: Operator<M>,
     Replace: Operator<M>,
@@ -194,7 +194,7 @@ where
     AesEncrypt: Operator<M>,
 {
     Ok(match spec {
-        TextRedaction::Erase => Arc::new(Erase),
+        TextRedaction::Remove => Arc::new(Remove),
         TextRedaction::Keep => Arc::new(Keep),
         TextRedaction::Mask {
             mask_char,
@@ -282,14 +282,14 @@ fn box_with_optional_fallback<M, P>(
 where
     M: Modality + Send + Sync + 'static,
     P: TryOperator<M> + Send + Sync + 'static,
-    Erase: Operator<M>,
+    Remove: Operator<M>,
     Keep: Operator<M>,
     Replace: Operator<M>,
     Mask: Operator<M>,
 {
     match fallback {
         None => Arc::new(primary),
-        Some(TerminalFallback::Erase) => Arc::new(WithFallback::new(primary, Erase)),
+        Some(TerminalFallback::Remove) => Arc::new(WithFallback::new(primary, Remove)),
         Some(TerminalFallback::Keep) => Arc::new(WithFallback::new(primary, Keep)),
         Some(TerminalFallback::Replace { template }) => {
             Arc::new(WithFallback::new(primary, Replace::new(template.clone())))

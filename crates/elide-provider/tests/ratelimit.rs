@@ -10,7 +10,7 @@ use elide::entity::LabelRef;
 use elide_provider::deployment::RateLimit;
 use elide_provider::{
     Availability, Component, ComponentSelection, Deployment, DocumentContext, Enrichers,
-    NerBackend, Provider, Recognizers,
+    NerBackend, Pass, Provider, Recognizers,
 };
 use elide_schema::policy::{LabelScope, Policy};
 
@@ -48,10 +48,12 @@ fn compile_with(rate_limit: Option<RateLimit>) -> Result<(), (ErrorKind, String)
 
     provider
         .analyze_orchestrator(
-            &DocumentContext::default(),
-            &[],
-            &[a_policy()],
-            uuid::Uuid::now_v7(),
+            &Pass {
+                policies: &[a_policy()],
+                context: &DocumentContext::default(),
+                recognition: &[],
+                correlation_id: uuid::Uuid::now_v7(),
+            },
             &ComponentSelection::new(),
         )
         .map(|_| ())

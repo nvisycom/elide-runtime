@@ -159,7 +159,7 @@ fn apply_lands_add_retag_and_suppress_on_the_report() {
             .audit()
             .events()
             .iter()
-            .any(|e| matches!(e.kind, AuditKind::Include(_))),
+            .any(|e| matches!(e.kind, AuditKind::Included(_))),
         "an added entity carries human provenance",
     );
 
@@ -237,10 +237,10 @@ fn an_added_entity_keeps_its_reason_and_reviewer() {
         REVIEWER,
         "the reviewer who applied the edits is the birth's source",
     );
-    let AuditKind::Include(include) = &birth.kind else {
+    let AuditKind::Included(included) = &birth.kind else {
         panic!("an added entity is born of an inclusion");
     };
-    let Some(Attribution::Freeform(freeform)) = &include.attribution else {
+    let Some(Attribution::Freeform(freeform)) = &included.attribution else {
         panic!("the rationale rides on a freeform attribution");
     };
     assert_eq!(freeform.name.as_str(), "recognizer missed it");

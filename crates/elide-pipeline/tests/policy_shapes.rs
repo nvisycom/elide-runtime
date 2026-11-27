@@ -51,7 +51,7 @@ fn redaction_hits(audit: &Audit, label: &str) -> usize {
         .iter()
         .filter(|e| e.label().as_str() == label)
         .flat_map(|e| e.audit().events().iter())
-        .filter(|e| matches!(e.kind, AuditKind::Redaction(_)))
+        .filter(|e| matches!(e.kind, AuditKind::Redacted(_)))
         .count()
 }
 

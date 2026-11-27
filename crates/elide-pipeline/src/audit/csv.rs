@@ -264,7 +264,7 @@ fn extend_review_rows<'a, M: Modality>(entities: &'a [Entity<M>], out: &mut Vec<
     for entity in entities {
         for event in entity.audit().events() {
             let (intent, attribution) = match &event.kind {
-                AuditKind::Include(include) => ("include", &include.attribution),
+                AuditKind::Included(included) => ("include", &included.attribution),
                 AuditKind::Manual(manual) => (intent_name(&manual.intent), &manual.attribution),
                 _ => continue,
             };
@@ -381,19 +381,19 @@ impl<'a> EventColumns<'a> {
             AuditKind::Pattern(e) => Self::named("pattern", e.rule.name.as_str()),
             AuditKind::Model(e) => Self::named("model", e.model.name.as_str()),
             AuditKind::Flagged(e) => Self::named("flagged", e.label.as_str()),
-            AuditKind::Fusion(e) => Self::named("fusion", e.strategy.as_str()),
-            AuditKind::Conflict(e) => Self::named("conflict", e.resolved_by.as_str()),
+            AuditKind::Fused(e) => Self::named("fused", e.strategy.as_str()),
+            AuditKind::Resolved(e) => Self::named("resolved", e.resolved_by.as_str()),
             AuditKind::Contested(e) => Self::named("contested", e.flagged_by.as_str()),
-            AuditKind::Calibration(_) => Self::bare("calibration"),
-            AuditKind::Refinement(_) => Self::bare("refinement"),
-            AuditKind::Redaction(_) => Self::bare("redaction"),
-            AuditKind::Selection(e) => Self::named("selection", e.operator.name.as_str()),
-            AuditKind::Include(e) => Self::named("include", e.label.as_str()),
+            AuditKind::Calibrated(_) => Self::bare("calibrated"),
+            AuditKind::Refined(_) => Self::bare("refined"),
+            AuditKind::Redacted(_) => Self::bare("redacted"),
+            AuditKind::Selected(e) => Self::named("selected", e.operator.name.as_str()),
+            AuditKind::Included(e) => Self::named("included", e.label.as_str()),
             // The reviewer is the event's own `source`, which the row
             // already carries; what distinguishes one manual event from
             // another is which decision it recorded.
             AuditKind::Manual(e) => Self::named("manual", intent_name(&e.intent)),
-            AuditKind::Annotation(_) => Self::bare("annotation"),
+            AuditKind::Annotated(_) => Self::bare("annotated"),
             // `AuditKind` is `#[non_exhaustive]`: a kind added upstream
             // lands here rather than breaking the build. Every variant
             // elide ships today is named above, so this arm firing means

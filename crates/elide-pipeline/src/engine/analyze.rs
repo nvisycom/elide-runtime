@@ -141,7 +141,7 @@ impl Engine {
         // Record what each entity's policy pick would be, so the
         // returned audit answers "what happens to this, and why"
         // before a reviewer decides anything. Purely additive: it
-        // appends Selection events and redacts nothing.
+        // appends Selected events and redacts nothing.
         //
         // A failure here does not fail the analyze. Every reason the
         // pick can fail — an unresolvable label, an operator whose
@@ -155,7 +155,7 @@ impl Engine {
         // Scope-reference errors never reach here: `analyze_orchestrator`
         // rejects them above, before any of this runs.
         //
-        // The observable signal is an audit carrying no `Selection`
+        // The observable signal is an audit carrying no `Selected`
         // events.
         let _: Result<()> = self.provider().record_picks(&pass, &mut report);
 

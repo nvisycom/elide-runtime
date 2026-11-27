@@ -84,7 +84,7 @@ services:
       ELIDE_BENTO_NER_MODEL: *ner-model
     entrypoint: ["python", "-m", "elide_ner.warm"]
     volumes:
-      - hf_cache:/cache/huggingface
+      - ner_cache:/cache/huggingface
     networks:
       - elide
 
@@ -105,7 +105,7 @@ services:
       ELIDE_BENTO_NER_MAX_TOKENS: ${ELIDE_NER_MAX_TOKENS:-512}
       LOG_LEVEL: ${ELIDE_LOG_LEVEL:-INFO}
     volumes:
-      - hf_cache:/cache/huggingface:ro
+      - ner_cache:/cache/huggingface:ro
     healthcheck: *readyz
     depends_on:
       ner-init:
@@ -182,7 +182,7 @@ services:
       ELIDE_BENTO_STT_HF_TOKEN: ${ELIDE_STT_HF_TOKEN:-}
     entrypoint: ["python", "-m", "elide_stt.warm"]
     volumes:
-      - hf_cache:/cache/huggingface
+      - stt_cache:/cache/huggingface
     networks:
       - elide
 
@@ -205,7 +205,7 @@ services:
       ELIDE_BENTO_STT_HF_TOKEN: ${ELIDE_STT_HF_TOKEN:-}
       LOG_LEVEL: ${ELIDE_LOG_LEVEL:-INFO}
     volumes:
-      - hf_cache:/cache/huggingface:ro
+      - stt_cache:/cache/huggingface:ro
     # Transcription is long-running (the service allows a 900s request), so the
     # probe gets a longer timeout than the other two.
     healthcheck:
@@ -216,12 +216,15 @@ services:
         condition: service_completed_successfully
 
 volumes:
-  # hf_cache for NER and STT. OCR has its own, holding both OnnxTR's cache
-  # (built-in architectures) and a Hugging Face cache (Hub models), so its
-  # warmer never writes where another service reads. The services mount them
-  # read-only; only the init containers write.
-  hf_cache:
+  # One per service, each written only by its own warmer, so two warmers never
+  # walk the same tree: a warmer chowns everything under its cache when done,
+  # and on a shared volume that walk raced the other warmer's downloads. The
+  # services share no models, so nothing is downloaded twice. OCR's holds both
+  # OnnxTR's cache (built-in architectures) and a Hugging Face cache (Hub
+  # models). The services mount them read-only; only the init containers write.
+  ner_cache:
   ocr_cache:
+  stt_cache:
 
 networks:
   elide:

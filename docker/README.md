@@ -33,11 +33,12 @@ service runs with `HF_HUB_OFFLINE=1` and resolves from disk, so no request-time
 traffic reaches the Hub. On a cold cache that flag cannot work at all — the
 service has nothing to load and no way to fetch it.
 
-Two cache volumes: `hf_cache` for NER and STT, and `ocr_cache` for OCR, which
+One cache volume per service: `ner_cache`, `stt_cache`, and `ocr_cache`, which
 holds both OnnxTR's own cache (built-in architectures, hash-checked release
 assets) and a Hugging Face cache (Hub models at a pinned commit), so the OCR
 service also runs with `HF_HUB_OFFLINE=1`. The services mount them read-only —
-only the init containers write.
+only the init containers write, each to its own volume, so two warmers never
+race over the same files.
 
 ## Quick start
 

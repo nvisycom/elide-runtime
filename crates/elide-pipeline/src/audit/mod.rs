@@ -190,14 +190,14 @@ impl Audit {
     /// modality and not the entity's: the rule matches, attaches
     /// nothing, and the value passes through unredacted.
     ///
-    /// Keyed on the absence of a [`Selection`] rather than a
+    /// Keyed on the absence of a [`Selected`] event rather than a
     /// redaction, so an operator that deliberately kept a value
     /// (`Keep`) does not read as a gap — it was chosen.
     ///
     /// Empty after a pass that covered everything it found. Worth
     /// checking before returning a document as de-identified.
     ///
-    /// [`Selection`]: elide::entity::audit::AuditKind::Selection
+    /// [`Selected`]: elide::entity::audit::AuditKind::Selected
     #[must_use]
     pub fn unhandled(&self) -> Vec<Unhandled> {
         let mut unhandled = Vec::new();

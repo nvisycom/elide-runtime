@@ -248,7 +248,7 @@ async fn include_stamps_manual_provenance() {
 
     let birth = &entity(&audit, id).audit().events()[0];
     assert!(
-        matches!(birth.kind, AuditKind::Include(_)),
+        matches!(birth.kind, AuditKind::Included(_)),
         "an included entity is born of the reviewer's decision, so it \
          is never mistaken for an automatic detection",
     );
@@ -394,7 +394,7 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         "the suppression is what holds after apply",
     );
 
-    // No Redaction event: nothing ran on it, despite the earlier pick.
+    // No Redacted event: nothing ran on it, despite the earlier pick.
     assert!(
         record.audit().redaction().is_none(),
         "a suppressed entity is never redacted, whatever its pick said",
@@ -408,7 +408,7 @@ async fn a_suppression_supersedes_the_pick_before_it() {
         .rev()
         .find_map(|e| match &e.kind {
             AuditKind::Manual(m) => Some(format!("manual:{:?}", m.intent)),
-            AuditKind::Selection(_) => Some("selection".to_owned()),
+            AuditKind::Selected(_) => Some("selected".to_owned()),
             _ => None,
         });
     assert_eq!(
@@ -475,7 +475,7 @@ async fn an_add_edit_redacts_what_recognition_missed() {
     .await;
 
     // A reviewer-added entity the policy covers is picked like any
-    // other, so it carries a `Selection` and does not read as
+    // other, so it carries a `Selected` event and does not read as
     // unhandled. Excluding manually-flagged entities outright would
     // hide the case that matters: an addition the policy set does
     // *not* cover, which survives into the output.
@@ -503,7 +503,7 @@ async fn an_add_edit_redacts_what_recognition_missed() {
             .audit()
             .events()
             .iter()
-            .any(|e| matches!(e.kind, AuditKind::Include(_))),
+            .any(|e| matches!(e.kind, AuditKind::Included(_))),
         "it is born of an inclusion, so it is never mistaken for an \
          automatic detection",
     );

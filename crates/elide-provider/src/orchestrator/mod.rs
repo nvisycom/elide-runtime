@@ -352,9 +352,9 @@ impl Provider {
     /// Record each entity's operator *pick* onto its audit trail,
     /// without applying anything.
     ///
-    /// Runs at the end of analyze so the returned the audit answers
+    /// Runs at the end of analyze so the returned audit answers
     /// "what would happen to this entity, and why" before a reviewer
-    /// decides anything. Each covered entity gains a [`Selection`]
+    /// decides anything. Each covered entity gains a [`Selected`]
     /// event naming the operator, the rule that matched it, and the
     /// policy's own rationale.
     ///
@@ -377,11 +377,11 @@ impl Provider {
     /// anonymize where the operator actually runs.
     ///
     /// [`KeyProvider`]: elide::redaction::operators::KeyProvider
-    /// [`Selection`]: elide::entity::audit::AuditKind::Selection
+    /// [`Selected`]: elide::entity::audit::AuditKind::Selected
     pub fn record_picks(&self, pass: &Pass<'_>, report: &mut Report) -> Result<()> {
         // Same gate the orchestrator builders run. This method is a
         // public entry point that *writes* to `report`, so skipping
-        // it would stamp `Selection` events resolved against the
+        // it would stamp `Selected` events resolved against the
         // wrong labelset rather than failing: a duplicate scope name
         // makes a `LabelInScope` rule pick one labelset while the
         // catalog unions both, and the reviewer would act on the

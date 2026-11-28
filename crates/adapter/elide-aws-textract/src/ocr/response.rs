@@ -11,6 +11,8 @@
 //!
 //! [`OcrRequest::dimensions`]: elide_image::ocr::OcrRequest::dimensions
 
+use std::num::NonZeroU32;
+
 use aws_sdk_textract::types::{Block, BlockType};
 use elide_core::entity::audit::ModelId;
 use elide_core::primitive::{Confidence, UnitBoundingBox};
@@ -62,7 +64,7 @@ fn region(block: &Block, dimensions: Dimensions<u32>) -> Option<LayoutRegion> {
         page: block
             .page
             .and_then(|p| u32::try_from(p).ok())
-            .filter(|p| *p > 0),
+            .and_then(NonZeroU32::new),
     };
 
     let mut layout = LayoutRegion::new(location, text.to_owned());

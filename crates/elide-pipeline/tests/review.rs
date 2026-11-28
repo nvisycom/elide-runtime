@@ -11,7 +11,7 @@
 mod support;
 
 use bytes::Bytes;
-use elide::entity::audit::{Attribution, AuditKind};
+use elide::entity::audit::{Actor, Attribution, AuditKind};
 use elide::entity::{Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
@@ -110,9 +110,10 @@ fn round_trip(engine: &Engine, audit: &Audit) -> Audit {
         .expect("audit deserializes")
 }
 
-/// Body entity ids in document order, so index 0 is the first
+/// Body finding ids in document order, so index 0 is the first
 /// entity in the text rather than whatever order the recognizer
 /// emitted. Decisions key by id, so this is what a caller indexes.
+/// Detection drops stay in the report, suppressed, and are left out.
 fn ordered(audit: &Audit) -> Vec<Uuid> {
     let mut entities: Vec<&Entity<Text>> = audit
         .report
@@ -121,6 +122,7 @@ fn ordered(audit: &Audit) -> Vec<Uuid> {
         .map(|part| part.entities())
         .expect("a text body")
         .iter()
+        .filter(|e| !e.is_dropped())
         .collect();
     entities.sort_by_key(|e| e.location().range().map(|r| r.start).unwrap_or(usize::MAX));
     entities.iter().map(|e| e.id()).collect()
@@ -185,9 +187,9 @@ async fn suppress_leaves_the_entity_alone() {
         .find(|e| matches!(e.kind, AuditKind::Manual(_)))
         .expect("suppression records a Manual event");
     assert_eq!(
-        event.source.as_str(),
-        REVIEWER,
-        "the reviewer who applied the edits is the event's source",
+        event.actor(),
+        Some(Actor::Reviewer(REVIEWER)),
+        "the reviewer who applied the edits is the one the event names",
     );
     let AuditKind::Manual(manual) = &event.kind else {
         unreachable!("matched above")
@@ -252,7 +254,11 @@ async fn include_stamps_manual_provenance() {
         "an included entity is born of the reviewer's decision, so it \
          is never mistaken for an automatic detection",
     );
-    assert_eq!(birth.source.as_str(), REVIEWER, "and names who made it");
+    assert_eq!(
+        birth.actor(),
+        Some(Actor::Reviewer(REVIEWER)),
+        "and names who made it"
+    );
 }
 
 #[tokio::test]
@@ -332,6 +338,8 @@ async fn analyze_records_the_policy_pick_for_review() {
         .ok()
         .map(|part| part.entities())
         .expect("a text body")
+        .iter()
+        .filter(|e| !e.is_dropped())
     {
         let selection = entity
             .audit()
@@ -603,16 +611,20 @@ async fn unhandled_reaches_into_container_parts() {
     use elide::entity::audit::{Pattern, PatternRule};
     use elide::entity::{Birth, Entity, LabelRef};
     use elide::modality::text::{Text, TextLocation};
-    use elide::primitive::Confidence;
+    use elide::primitive::{ComponentId, Confidence};
     use elide::{PartId, Report};
     use elide_provider::{CodecParams, DocumentContext};
 
     let detection = |label: &str| {
         let location = TextLocation::inline(0..4);
         Entity::new(Birth::new(
-            "probe",
             Confidence::MAX,
-            Pattern::new(LabelRef::new(label), location, PatternRule::default()),
+            Pattern::new(
+                ComponentId::new("probe", "1"),
+                LabelRef::new(label),
+                location,
+                PatternRule::default(),
+            ),
         ))
     };
 

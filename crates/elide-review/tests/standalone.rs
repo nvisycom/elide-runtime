@@ -5,11 +5,11 @@
 //! No engine, no provider, no pipeline — if this file compiles, the
 //! crate stands on its own.
 
-use elide::entity::audit::{Attribution, AuditKind, ManualIntent, Pattern, PatternRule};
+use elide::entity::audit::{Actor, Attribution, AuditKind, ManualIntent, Pattern, PatternRule};
 use elide::entity::{Birth, Entity, LabelRef};
 use elide::modality::image::{Image, ImageLocation};
 use elide::modality::text::{Text, TextLocation};
-use elide::primitive::{BoundingBox, Confidence, Point};
+use elide::primitive::{BoundingBox, ComponentId, Confidence, Point};
 use elide::{PartId, Report};
 use elide_review::{Add, Edit, EditError, EditSet, Retag, Suppress};
 use uuid::Uuid;
@@ -17,9 +17,13 @@ use uuid::Uuid;
 fn entity(label: &str, at: (usize, usize)) -> Entity<Text> {
     let location = TextLocation::inline(at.0..at.1);
     Entity::new(Birth::new(
-        "probe",
         Confidence::MAX,
-        Pattern::new(LabelRef::new(label), location, PatternRule::default()),
+        Pattern::new(
+            ComponentId::new("probe", "1"),
+            LabelRef::new(label),
+            location,
+            PatternRule::default(),
+        ),
     ))
 }
 
@@ -233,9 +237,9 @@ fn an_added_entity_keeps_its_reason_and_reviewer() {
     let added = &entities(&report)[0];
     let birth = &added.audit().events()[0];
     assert_eq!(
-        birth.source.as_str(),
-        REVIEWER,
-        "the reviewer who applied the edits is the birth's source",
+        birth.actor(),
+        Some(Actor::Reviewer(REVIEWER)),
+        "the reviewer who applied the edits is the one the birth names",
     );
     let AuditKind::Included(included) = &birth.kind else {
         panic!("an added entity is born of an inclusion");
@@ -342,7 +346,11 @@ fn a_retag_records_who_corrected_it() {
             matches!(&e.kind, AuditKind::Manual(m) if matches!(m.intent, ManualIntent::Relabel { .. }))
         })
         .expect("a retag records a Relabel event");
-    assert_eq!(event.source.as_str(), REVIEWER, "the applying reviewer");
+    assert_eq!(
+        event.actor(),
+        Some(Actor::Reviewer(REVIEWER)),
+        "the applying reviewer"
+    );
     let AuditKind::Manual(manual) = &event.kind else {
         unreachable!("matched above")
     };

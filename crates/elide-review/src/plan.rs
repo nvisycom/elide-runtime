@@ -183,7 +183,9 @@ impl Planning {
             let Some(content) = flagged_as(item) else {
                 continue;
             };
-            let kept_by_reviewer = item.is_suppressed();
+            // The reviewer's verdict, not `is_suppressed`: that is also
+            // true of an item detection dropped, which no reviewer kept.
+            let kept_by_reviewer = item.audit().verdict() == Some(&ManualIntent::Suppress);
             let removal = (!kept_by_reviewer)
                 .then(|| removal(item, entities, catalog))
                 .flatten();

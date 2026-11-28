@@ -6,6 +6,8 @@
 //! pixel `vertices` and as `normalized_vertices` — and this reads the
 //! pixel form, which is what [`ImageLocation`] holds.
 
+use std::num::NonZeroU32;
+
 use elide_core::entity::audit::ModelId;
 use elide_core::primitive::Confidence;
 use elide_image::modality::{ImageLocation, LayoutRegion};
@@ -32,8 +34,8 @@ pub(super) fn decode(document: &Document) -> OcrResponse {
         // it at zero; the enumeration index is the reliable fallback.
         let page_number = u32::try_from(page.page_number)
             .ok()
-            .filter(|n| *n > 0)
-            .or_else(|| u32::try_from(index + 1).ok());
+            .and_then(NonZeroU32::new)
+            .or_else(|| u32::try_from(index + 1).ok().and_then(NonZeroU32::new));
 
         for token in &page.tokens {
             if let Some(region) = token
@@ -50,7 +52,7 @@ pub(super) fn decode(document: &Document) -> OcrResponse {
 
 /// One region from a layout element, or `None` when it has no usable
 /// geometry or resolves to no text.
-fn region(layout: &Layout, text: &str, page_number: Option<u32>) -> Option<LayoutRegion> {
+fn region(layout: &Layout, text: &str, page_number: Option<NonZeroU32>) -> Option<LayoutRegion> {
     let bounding_box = layout.bounding_poly.as_ref().and_then(self::bounding_box)?;
     let content = self::text(layout, text)?;
 
@@ -162,14 +164,14 @@ mod tests {
         let decoded = region(
             &layout(&[(10, 20), (60, 20), (60, 40), (10, 40)], 0, 5),
             text,
-            Some(1),
+            NonZeroU32::new(1),
         )
         .expect("a usable region");
 
         assert_eq!(decoded.text, "hello");
         assert_eq!(decoded.region.bounding_box.min, Point::new(10.0, 20.0));
         assert_eq!(decoded.region.bounding_box.max, Point::new(60.0, 40.0));
-        assert_eq!(decoded.region.page, Some(1));
+        assert_eq!(decoded.region.page, NonZeroU32::new(1));
         assert!(decoded.confidence.is_some());
     }
 

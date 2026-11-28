@@ -16,6 +16,6 @@ mod record;
 mod set;
 
 pub use self::error::EditError;
-pub use self::hidden::{HiddenChoice, HiddenContentEdits, RemoveAll};
+pub use self::hidden::{HiddenChoice, HiddenChoices, HiddenContentEdits, RemoveAll};
 pub use self::record::{Add, Edit, Retag, Suppress};
 pub use self::set::{EditBucket, EditSet};

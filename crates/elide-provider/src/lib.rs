@@ -70,9 +70,9 @@ pub use elide_pdf::primitive::RasterMode;
 pub use elide_schema::recognition::{CustomMatcher, MatchOn, Recognition};
 
 pub use self::detect::{
-    AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentSelection,
-    Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers, SttBackend,
-    UnauthenticatedProvider,
+    AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentKeys,
+    ComponentSelection, Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers,
+    SttBackend, UnauthenticatedProvider,
 };
 pub use self::orchestrator::{
     CodecParams, DocumentContext, KeyConfig, Pass, Provider, RequestContext,

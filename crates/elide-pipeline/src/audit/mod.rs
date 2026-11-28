@@ -69,9 +69,10 @@ pub struct Analyzed {
 
 /// What detection found in one document.
 ///
-/// Wraps elide's [`Report`] with the things elide does not model:
-/// the recognition [`DocumentContext`] the entities were scored
-/// against, how the document decoded, and what the pass cost.
+/// Wraps elide's [`Report`] with what anonymize replays and elide
+/// does not model: the recognition [`DocumentContext`] the entities
+/// were scored against, the vocabularies the request introduced, how
+/// the document decoded, and which recognizers it selected.
 ///
 /// Reviewer edits are not here. They are the caller's own input,
 /// applied to the report before anonymize

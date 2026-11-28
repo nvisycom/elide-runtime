@@ -32,9 +32,8 @@ enum Decision {
 
 /// Add every decision in `edits` to `review`.
 ///
-/// Removals are gathered by id first, so an item both named in
-/// `remove` and reached by `removeAll` is confirmed once, for the
-/// reason given where it was named.
+/// Decisions are gathered by id first, so the review records them
+/// in item order rather than in the order they were sent.
 pub(super) fn record(
     edits: &HiddenContentEdits,
     report: &Report,
@@ -42,16 +41,21 @@ pub(super) fn record(
     review: &mut Review,
 ) -> Result<(), EditError> {
     let mut decided: HashMap<Uuid, (Decision, Option<&str>)> = HashMap::new();
-    if let Some(all) = &edits.remove_all {
-        for item in items.iter() {
-            decided.insert(item.id, (Decision::Remove, all.reason.as_deref()));
+    match edits {
+        HiddenContentEdits::RemoveAll(all) => {
+            let reason = all.reason.as_deref();
+            for item in items.iter() {
+                decided.insert(item.id, (Decision::Remove, reason));
+            }
         }
-    }
-    for choice in &edits.remove {
-        decided.insert(choice.id, (Decision::Remove, choice.reason.as_deref()));
-    }
-    for choice in &edits.keep {
-        decided.insert(choice.id, (Decision::Keep, choice.reason.as_deref()));
+        HiddenContentEdits::Choose(choices) => {
+            for choice in &choices.remove {
+                decided.insert(choice.id, (Decision::Remove, choice.reason.as_deref()));
+            }
+            for choice in &choices.keep {
+                decided.insert(choice.id, (Decision::Keep, choice.reason.as_deref()));
+            }
+        }
     }
 
     // In item order, so the review reads the way the report does.

@@ -55,9 +55,9 @@ mod pattern;
 /// needs the elide runtime and stays out of the config vocabulary.
 pub mod config {
     pub use elide_deployment::component::{
-        AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentSelection,
-        Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers, ResolvedComponents,
-        SttBackend, UnauthenticatedProvider,
+        AttachTo, AuthenticatedProvider, Availability, Backend, Component, ComponentKeys,
+        ComponentSelection, Enrichers, LlmBackend, LlmSource, NerBackend, OcrBackend, Recognizers,
+        ResolvedComponents, SttBackend, UnauthenticatedProvider,
     };
 }
 

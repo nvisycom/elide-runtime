@@ -49,8 +49,8 @@ mod index;
 mod plan;
 
 pub use self::edit::{
-    Add, Edit, EditBucket, EditError, EditSet, HiddenChoice, HiddenContentEdits, RemoveAll, Retag,
-    Suppress,
+    Add, Edit, EditBucket, EditError, EditSet, HiddenChoice, HiddenChoices, HiddenContentEdits,
+    RemoveAll, Retag, Suppress,
 };
 pub use self::index::{HiddenItems, HiddenRef, sorted_part_ids};
 pub use self::plan::{HiddenContentPlan, HiddenItem, Removal};

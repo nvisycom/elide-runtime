@@ -13,7 +13,7 @@ use bytes::Bytes;
 use elide::entity::LabelRef;
 use elide::modality::text::Text;
 use elide_pipeline::entity::{
-    Edit, EditError, EditSet, HiddenChoice, HiddenItem, Removal, RemoveAll, Suppress,
+    Edit, EditError, EditSet, HiddenChoice, HiddenChoices, HiddenItem, Removal, RemoveAll, Suppress,
 };
 use elide_pipeline::file::Document;
 use elide_pipeline::provider::{Deployment, Provider, RequestContext};
@@ -221,13 +221,12 @@ async fn anonymize_removes_the_sensitive_items_and_keeps_the_rest() {
 #[tokio::test]
 async fn a_reviewer_removes_one_item_and_keeps_another() {
     let html = page_after(&catalog(&["email_address"]), |items, edits| {
-        edits
-            .hidden
-            .remove
-            .push(HiddenChoice::new(comment(items).id).because("internal note"));
-        edits.hidden.keep.push(HiddenChoice::new(
-            labelled(items, "communications_content").id,
-        ));
+        edits.hidden = HiddenChoices::default()
+            .remove(HiddenChoice::new(comment(items).id).because("internal note"))
+            .keep(HiddenChoice::new(
+                labelled(items, "communications_content").id,
+            ))
+            .into();
     })
     .await;
 
@@ -242,7 +241,7 @@ async fn a_reviewer_removes_one_item_and_keeps_another() {
 #[tokio::test]
 async fn remove_all_removes_every_item() {
     let html = page_after(&catalog(&["email_address"]), |_, edits| {
-        edits.hidden.remove_all = Some(RemoveAll::because("publishing externally"));
+        edits.hidden = RemoveAll::because("publishing externally").into();
     })
     .await;
 
@@ -271,7 +270,7 @@ async fn office_properties_follow_the_same_plan() {
     assert!(core.contains(EDITOR), "not declared, kept; got: {core}");
 
     let core = core_after(&catalog(&["email_address"]), |_, edits| {
-        edits.hidden.remove_all = Some(RemoveAll::default());
+        edits.hidden = RemoveAll::default().into();
     })
     .await;
     assert!(!core.contains(EDITOR), "removed; got: {core}");
@@ -284,21 +283,11 @@ async fn contradictory_or_misdirected_decisions_are_rejected() {
     let policy = catalog(&["email_address"]);
 
     let err = reviewed(&engine, page(), &policy, |items, edits| {
-        edits.hidden.remove_all = Some(RemoveAll::default());
-        edits.hidden.keep.push(HiddenChoice::new(comment(items).id));
-    })
-    .await
-    .err()
-    .expect("remove-all and keep answer the same item differently");
-    assert!(
-        matches!(err, EditError::Contradiction { .. }),
-        "got {err:?}"
-    );
-
-    let err = reviewed(&engine, page(), &policy, |items, edits| {
         let id = comment(items).id;
-        edits.hidden.remove.push(HiddenChoice::new(id));
-        edits.hidden.keep.push(HiddenChoice::new(id));
+        edits.hidden = HiddenChoices::default()
+            .remove(HiddenChoice::new(id))
+            .keep(HiddenChoice::new(id))
+            .into();
     })
     .await
     .err()
@@ -310,7 +299,9 @@ async fn contradictory_or_misdirected_decisions_are_rejected() {
 
     let stale = uuid::Uuid::now_v7();
     let err = reviewed(&engine, page(), &policy, |_, edits| {
-        edits.hidden.remove.push(HiddenChoice::new(stale));
+        edits.hidden = HiddenChoices::default()
+            .remove(HiddenChoice::new(stale))
+            .into();
     })
     .await
     .err()
@@ -362,10 +353,14 @@ async fn the_latest_review_decides_an_item() {
 
     // A first review keeps the description, a second removes it.
     let mut keep = EditSet::default();
-    keep.hidden.keep.push(HiddenChoice::new(description));
+    keep.hidden = HiddenChoices::default()
+        .keep(HiddenChoice::new(description))
+        .into();
     decide(&mut audit, keep);
     let mut remove = EditSet::default();
-    remove.hidden.remove.push(HiddenChoice::new(description));
+    remove.hidden = HiddenChoices::default()
+        .remove(HiddenChoice::new(description))
+        .into();
     decide(&mut audit, remove);
     let html =
         String::from_utf8(anonymize(&engine, page(), &policy, &mut copy(&engine, &audit)).await)
@@ -377,7 +372,9 @@ async fn the_latest_review_decides_an_item() {
 
     // A third keeps it again, over the removal.
     let mut keep = EditSet::default();
-    keep.hidden.keep.push(HiddenChoice::new(description));
+    keep.hidden = HiddenChoices::default()
+        .keep(HiddenChoice::new(description))
+        .into();
     decide(&mut audit, keep);
     let items = engine
         .hidden_content(&audit, std::slice::from_ref(&policy))

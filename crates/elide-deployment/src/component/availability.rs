@@ -23,7 +23,8 @@
 
 use elide::{Error, ErrorKind, Result};
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::{Component, Enrichers, Recognizers};
 
@@ -79,12 +80,9 @@ impl Availability {
 pub struct ComponentSelection {
     /// Names or tags to run, or [`None`] for all available.
     ///
-    /// An empty `Vec` is not the same as [`None`]: it selects
-    /// nothing and is refused, because a request that can detect
-    /// nothing is a mistake rather than a request for an empty
-    /// report.
+    /// Never an empty list: [`ComponentKeys`] holds at least one.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub only: Option<Vec<String>>,
+    pub only: Option<ComponentKeys>,
     /// Names or tags to skip, applied after `only`.
     ///
     /// Lets a caller run everything but one component without
@@ -100,10 +98,10 @@ impl ComponentSelection {
         Self::default()
     }
 
-    /// The same selection, running only these names or tags.
+    /// The same selection, running only `only`.
     #[must_use]
-    pub fn with_only(mut self, only: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        self.only = Some(only.into_iter().map(Into::into).collect());
+    pub fn with_only(mut self, only: ComponentKeys) -> Self {
+        self.only = Some(only);
         self
     }
 
@@ -129,9 +127,56 @@ impl ComponentSelection {
     fn selects<B>(&self, component: &Component<B>) -> bool {
         let picked = match &self.only {
             None => true,
-            Some(keys) => component.matches_any(keys),
+            Some(keys) => component.matches_any(keys.as_slice()),
         };
         picked && !component.matches_any(&self.skip)
+    }
+}
+
+/// The names or tags a selection runs: at least one.
+///
+/// An empty list would select nothing, and a request that can detect
+/// nothing is a mistake rather than a request for an empty report,
+/// so there is no empty value: [`new`](Self::new) returns [`None`]
+/// for one, and reading one is refused.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(transparent)]
+pub struct ComponentKeys(#[schemars(length(min = 1))] Vec<String>);
+
+impl ComponentKeys {
+    /// The keys `keys`, or [`None`] when there are none.
+    #[must_use]
+    pub fn new(keys: impl IntoIterator<Item = impl Into<String>>) -> Option<Self> {
+        let keys: Vec<String> = keys.into_iter().map(Into::into).collect();
+        (!keys.is_empty()).then_some(Self(keys))
+    }
+
+    /// The single key `key`.
+    #[must_use]
+    pub fn one(key: impl Into<String>) -> Self {
+        Self(vec![key.into()])
+    }
+
+    /// The keys, in the order given.
+    #[must_use]
+    pub fn as_slice(&self) -> &[String] {
+        &self.0
+    }
+}
+
+impl<'a> IntoIterator for &'a ComponentKeys {
+    type IntoIter = std::slice::Iter<'a, String>;
+    type Item = &'a String;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'de> Deserialize<'de> for ComponentKeys {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(Vec::<String>::deserialize(deserializer)?)
+            .ok_or_else(|| D::Error::custom("a selection must name at least one component"))
     }
 }
 
@@ -346,4 +391,32 @@ pub struct ResolvedComponents {
     /// [`ocr`](Self::ocr).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub stt: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ComponentKeys, ComponentSelection};
+
+    /// An empty `only` is refused, by the schema and when read.
+    #[test]
+    fn an_empty_only_is_refused() {
+        let schema = schemars::schema_for!(ComponentSelection).to_value();
+        let only = &schema["properties"]["only"];
+        let keys = only["anyOf"]
+            .as_array()
+            .and_then(|arms| arms.iter().find_map(|arm| arm["$ref"].as_str()))
+            .map_or(only, |name| {
+                &schema["$defs"][name.trim_start_matches("#/$defs/")]
+            });
+        assert_eq!(keys["minItems"], 1, "{schema:#}");
+
+        let err = serde_json::from_str::<ComponentSelection>(r#"{"only":[]}"#).unwrap_err();
+        assert!(err.to_string().contains("at least one component"), "{err}");
+        assert!(ComponentKeys::new(Vec::<String>::new()).is_none());
+
+        let none: ComponentSelection = serde_json::from_str("{}").unwrap();
+        assert!(none.only.is_none());
+        let some: ComponentSelection = serde_json::from_str(r#"{"only":["gliner"]}"#).unwrap();
+        assert_eq!(some.only, Some(ComponentKeys::one("gliner")));
+    }
 }

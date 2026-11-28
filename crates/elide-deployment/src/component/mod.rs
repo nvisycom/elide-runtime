@@ -33,7 +33,9 @@ use hipstr::HipStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::availability::{Availability, ComponentSelection, ResolvedComponents, Resolver};
+pub use self::availability::{
+    Availability, ComponentKeys, ComponentSelection, ResolvedComponents, Resolver,
+};
 pub use self::backend::{
     AttachTo, AuthenticatedProvider, LlmBackend, LlmSource, NerBackend, OcrBackend, SttBackend,
     UnauthenticatedProvider,

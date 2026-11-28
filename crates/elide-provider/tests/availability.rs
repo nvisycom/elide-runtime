@@ -4,8 +4,8 @@
 
 use elide::ErrorKind;
 use elide_provider::{
-    Availability, Component, ComponentSelection, Deployment, Enrichers, NerBackend, Provider,
-    Recognizers,
+    Availability, Component, ComponentKeys, ComponentSelection, Deployment, Enrichers, NerBackend,
+    Provider, Recognizers,
 };
 
 /// A lineup of three NER components in two families.
@@ -67,7 +67,7 @@ fn an_empty_selection_means_every_available_component() {
 fn a_tag_selects_every_component_carrying_it() {
     let names = resolved(
         Availability::All,
-        &ComponentSelection::new().with_only(["advanced"]),
+        &ComponentSelection::new().with_only(ComponentKeys::one("advanced")),
     )
     .expect("resolves");
     assert_eq!(names, ["medical-ner", "finance-ner"]);
@@ -105,7 +105,7 @@ fn except_withholds_only_what_it_names() {
 fn selecting_an_unavailable_component_is_refused() {
     let (kind, message) = resolved(
         Availability::Only(vec!["general".into()]),
-        &ComponentSelection::new().with_only(["medical-ner"]),
+        &ComponentSelection::new().with_only(ComponentKeys::one("medical-ner")),
     )
     .expect_err("must refuse");
 
@@ -123,7 +123,7 @@ fn selecting_an_unavailable_component_is_refused() {
 fn selecting_an_unknown_component_is_refused() {
     let (kind, message) = resolved(
         Availability::All,
-        &ComponentSelection::new().with_only(["medcial-ner"]),
+        &ComponentSelection::new().with_only(ComponentKeys::one("medcial-ner")),
     )
     .expect_err("must refuse");
 
@@ -152,8 +152,8 @@ fn selecting_every_component_away_is_refused() {
 mod enrichers {
     use elide::ErrorKind;
     use elide_provider::{
-        Availability, Component, ComponentSelection, Deployment, Enrichers, OcrBackend, Pass,
-        Provider, Recognizers,
+        Availability, Component, ComponentKeys, ComponentSelection, Deployment, Enrichers,
+        OcrBackend, Pass, Provider, Recognizers,
     };
 
     fn ocr(name: &str, tags: &[&str]) -> Component<OcrBackend> {
@@ -182,7 +182,9 @@ mod enrichers {
     #[test]
     fn a_request_selects_one_enricher_from_several() {
         let resolved = provider(Availability::All)
-            .resolved_components(&ComponentSelection::new().with_only(["accurate-ocr"]))
+            .resolved_components(
+                &ComponentSelection::new().with_only(ComponentKeys::one("accurate-ocr")),
+            )
             .expect("resolves");
         assert_eq!(resolved.ocr, ["accurate-ocr"]);
     }
@@ -193,7 +195,7 @@ mod enrichers {
     #[test]
     fn several_resolved_enrichers_are_refused_at_compile() {
         let provider = provider(Availability::All);
-        let selection = ComponentSelection::new().with_only(["accurate"]);
+        let selection = ComponentSelection::new().with_only(ComponentKeys::one("accurate"));
 
         // Two carry the "accurate" tag, so inspection reports both…
         let resolved = provider

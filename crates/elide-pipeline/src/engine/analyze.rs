@@ -23,7 +23,7 @@ impl Engine {
     /// returns an [`Analyzed`]: the audit over the report it
     /// produced — every document *and* every part nested in one (DOCX
     /// embedded images, archive members, ...) — with the
-    /// recognition context and what the pass cost, plus the
+    /// request settings anonymize replays, plus the
     /// [`ArtifactSet`] the pass extracted. The artifacts stay off
     /// the audit because they carry document content; see
     /// [`Analyzed`].

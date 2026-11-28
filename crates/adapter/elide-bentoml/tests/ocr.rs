@@ -41,7 +41,7 @@ async fn ocr_roundtrip_decodes_image_filters_words_and_projects_pixels() {
         );
         let region = &response.regions[0];
         assert_eq!(region.text, "Ada");
-        assert_eq!(region.region.page, Some(1));
+        assert_eq!(region.region.page.map(std::num::NonZeroU32::get), Some(1));
         let bbox = region.region.bounding_box;
         assert_eq!(
             [bbox.min.x, bbox.min.y, bbox.max.x, bbox.max.y],

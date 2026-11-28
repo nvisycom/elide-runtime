@@ -20,7 +20,7 @@
 use std::{io, result};
 
 use elide::entity::Entity;
-use elide::entity::audit::{Attribution, AuditKind, ManualIntent};
+use elide::entity::audit::{Actor, Attribution, AuditKind, ManualIntent};
 use elide::modality::Modality;
 use elide::{Error, ErrorKind, PartId, Result};
 use elide_export::{ExportCsv, Table, write_rows};
@@ -43,7 +43,7 @@ impl ExportCsv for Audit {
     /// | table | columns |
     /// |---|---|
     /// | [`Entities`] | `part_id, modality, entity_id, label, confidence, coref` |
-    /// | [`Provenance`] | `entity_id, event_index, kind, source, confidence, timestamp, payload_id` |
+    /// | [`Provenance`] | `entity_id, event_index, kind, actor, actor_version, confidence, timestamp, payload_id` |
     /// | [`Reviews`] | `entity_id, intent, reviewer, authority, reason, timestamp` |
     ///
     /// All three carry `entity_id` so they join back together.
@@ -185,7 +185,12 @@ struct ProvenanceRow<'a> {
     entity_id: Uuid,
     event_index: usize,
     kind: &'static str,
-    source: &'a str,
+    /// Who acted: the component's name, or the reviewer's id. Empty
+    /// for a kind that records a fact rather than an act.
+    actor: Option<&'a str>,
+    /// The component's version when it ran. Empty for a reviewer,
+    /// who has none.
+    actor_version: Option<&'a str>,
     #[serde(serialize_with = "serialize_confidence")]
     confidence: f32,
     timestamp: String,
@@ -206,7 +211,7 @@ struct ReviewRow<'a> {
     entity_id: Uuid,
     /// `flag`, `suppress` or `amend`.
     intent: &'static str,
-    /// Who made the decision: the event's own source.
+    /// Who made the decision, as the event names them.
     reviewer: &'a str,
     /// The cited authority, when the reviewer cited one. Empty for
     /// a freeform rationale and for an unexplained override.
@@ -240,11 +245,20 @@ fn extend_provenance_rows<'a, M: Modality>(
     for entity in entities {
         for (index, event) in entity.audit().events().iter().enumerate() {
             let columns = EventColumns::of(&event.kind);
+            let (actor, actor_version) = match event.actor() {
+                Some(Actor::Component(component)) => (
+                    Some(component.name.as_str()),
+                    Some(component.version.as_str()),
+                ),
+                Some(Actor::Reviewer(reviewer)) => (Some(reviewer), None),
+                None => (None, None),
+            };
             out.push(ProvenanceRow {
                 entity_id: entity.id(),
                 event_index: index,
                 kind: columns.kind,
-                source: event.source.as_str(),
+                actor,
+                actor_version,
                 confidence: f32::from(event.confidence),
                 timestamp: event.timestamp.to_string(),
                 payload_id: columns.payload_id,
@@ -263,9 +277,11 @@ fn extend_provenance_rows<'a, M: Modality>(
 fn extend_review_rows<'a, M: Modality>(entities: &'a [Entity<M>], out: &mut Vec<ReviewRow<'a>>) {
     for entity in entities {
         for event in entity.audit().events() {
-            let (intent, attribution) = match &event.kind {
-                AuditKind::Included(included) => ("include", &included.attribution),
-                AuditKind::Manual(manual) => (intent_name(&manual.intent), &manual.attribution),
+            let (intent, reviewer, attribution) = match &event.kind {
+                AuditKind::Included(included) => ("include", &included.by, &included.attribution),
+                AuditKind::Manual(manual) => {
+                    (intent_name(&manual.intent), &manual.by, &manual.attribution)
+                }
                 _ => continue,
             };
             let (authority, reason) = match attribution {
@@ -281,7 +297,7 @@ fn extend_review_rows<'a, M: Modality>(entities: &'a [Entity<M>], out: &mut Vec<
             out.push(ReviewRow {
                 entity_id: entity.id(),
                 intent,
-                reviewer: event.source.as_str(),
+                reviewer: reviewer.as_str(),
                 authority,
                 reason,
                 timestamp: event.timestamp.to_string(),
@@ -323,7 +339,8 @@ impl ProvenanceRow<'_> {
             "entity_id",
             "event_index",
             "kind",
-            "source",
+            "actor",
+            "actor_version",
             "confidence",
             "timestamp",
             "payload_id",
@@ -347,10 +364,10 @@ impl ReviewRow<'_> {
 /// How a provenance event renders in the CSV: its kind, and the
 /// one identifier that kind carries.
 ///
-/// `payload_id` is the pattern rule name, the model name, the
-/// strategy that deduplicated, and so on — whichever single string
-/// names *what* produced the event. `None` for the kinds that carry
-/// no such name.
+/// `payload_id` is the one name the event carries beyond its actor:
+/// the pattern rule, the model, the flagged or included label, a
+/// manual event's intent. `None` for the kinds whose actor is the
+/// whole story, and for those that carry no such name.
 struct EventColumns<'a> {
     /// The event kind, as the `kind` column.
     kind: &'static str,
@@ -381,17 +398,19 @@ impl<'a> EventColumns<'a> {
             AuditKind::Pattern(e) => Self::named("pattern", e.rule.name.as_str()),
             AuditKind::Model(e) => Self::named("model", e.model.name.as_str()),
             AuditKind::Flagged(e) => Self::named("flagged", e.label.as_str()),
-            AuditKind::Fused(e) => Self::named("fused", e.strategy.as_str()),
-            AuditKind::Resolved(e) => Self::named("resolved", e.resolved_by.as_str()),
-            AuditKind::Contested(e) => Self::named("contested", e.flagged_by.as_str()),
+            // The strategy, reconciler, layer and operator are each
+            // the event's actor, which the row already carries.
+            AuditKind::Fused(_) => Self::bare("fused"),
+            AuditKind::Resolved(_) => Self::bare("resolved"),
+            AuditKind::Contested(_) => Self::bare("contested"),
+            AuditKind::Dropped(_) => Self::bare("dropped"),
             AuditKind::Calibrated(_) => Self::bare("calibrated"),
             AuditKind::Refined(_) => Self::bare("refined"),
             AuditKind::Redacted(_) => Self::bare("redacted"),
-            AuditKind::Selected(e) => Self::named("selected", e.operator.name.as_str()),
+            AuditKind::Selected(_) => Self::bare("selected"),
             AuditKind::Included(e) => Self::named("included", e.label.as_str()),
-            // The reviewer is the event's own `source`, which the row
-            // already carries; what distinguishes one manual event from
-            // another is which decision it recorded.
+            // The reviewer is the row's `actor`; what distinguishes one
+            // manual event from another is which decision it recorded.
             AuditKind::Manual(e) => Self::named("manual", intent_name(&e.intent)),
             AuditKind::Annotated(_) => Self::bare("annotated"),
             // `AuditKind` is `#[non_exhaustive]`: a kind added upstream

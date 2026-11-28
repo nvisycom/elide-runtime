@@ -9,6 +9,8 @@
 //!
 //! [`Layout`]: elide_image::modality::Layout
 
+use std::num::NonZeroU32;
+
 use elide_core::entity::audit::ModelId;
 use elide_core::primitive::Confidence;
 use elide_image::modality::{ImageLocation, LayoutRegion};
@@ -46,7 +48,7 @@ impl WireOcrResponse {
     pub(super) fn decode(self, model: ModelId) -> Result<OcrResponse, BentoError> {
         let mut regions = Vec::new();
         for page in self.pages {
-            let page_number = Some(u32::try_from(page.page_number.get()).map_err(|_| {
+            let page_number = Some(NonZeroU32::try_from(page.page_number).map_err(|_| {
                 BentoError::Protocol("OCR page number exceeds the Rust domain range".into())
             })?);
             for block in page.blocks {
@@ -79,7 +81,7 @@ fn region(
     bbox: WireBoundingBox,
     text: String,
     confidence: Option<f64>,
-    page_number: Option<u32>,
+    page_number: Option<NonZeroU32>,
 ) -> LayoutRegion {
     let location = ImageLocation {
         bounding_box: bbox.into(),
@@ -117,7 +119,7 @@ mod tests {
             for (region, expected) in regions.iter().zip(expected) {
                 assert_eq!(region.text, expected["text"].as_str().unwrap());
                 assert_eq!(
-                    region.region.page.unwrap(),
+                    region.region.page.unwrap().get(),
                     expected["page"].as_u64().unwrap() as u32
                 );
                 let bbox = region.region.bounding_box;

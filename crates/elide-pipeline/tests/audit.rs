@@ -190,7 +190,7 @@ async fn write_provenance_csv_emits_one_row_per_event() {
     let header = lines.next().expect("header line present");
     assert_eq!(
         header,
-        "entity_id,event_index,kind,source,confidence,timestamp,payload_id",
+        "entity_id,event_index,kind,actor,actor_version,confidence,timestamp,payload_id",
     );
 
     let row_count = lines.count();
